@@ -212,6 +212,7 @@ static void master_case(const char *name, const int *set)
             P1[i] = g * noise(); P2[i] = g * noise();
             M1[i] = g * fm_sin_turns((float)(b * N + i) * (110.0f / 44100.0f)); M2[i] = g * noise();
         }
+        memset(L, 0, sizeof L); memset(R, 0, sizeof R);    /* (a short block leaves the rest: not the last case's) */
         master_process(ms, P1, P2, M1, M2, L, R, b % 5 ? N : 77);
         hash_buf(L, N); hash_buf(R, N);
     }

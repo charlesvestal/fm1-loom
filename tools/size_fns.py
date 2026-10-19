@@ -55,7 +55,7 @@ COLD = {
 }
 # the two FX slots' and the master's per-sample code, closed under calls (~18 KB; the 24 KB RAMTEXT region holds
 # .ram_text's ~3 KB and the second core's loop besides)
-RAM_DSP = ["fx_process", "fx_process_lag", "do_spu", "spu_interp", "master_process"]
+RAM_DSP = ["fx_process", "fx_process_lag", "do_spu", "spu_interp", "do_lush", "master_process"]
 RAM_INLINE = ["fx_states", "zero16"]
 RAM_UNITS = ["dsp/fx.c"]
 RAM_SECTION = ".c1_text.dsp"

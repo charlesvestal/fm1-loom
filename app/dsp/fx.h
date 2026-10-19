@@ -13,9 +13,10 @@ enum { FXT_CHORUS, FXT_DELAY, FXT_LOFI, FXT_PHASER, FXT_REVERB, NFXT };
 extern const char *const FXT_NAME[NFXT];
 /* the reverb's modes: the plate (9W9's combs), then the SPU reverbs of the PlayStation (psx-spx's register
  * sets, as in schwung-psxverb): room, studio small / medium / large, hall, half echo, space echo, chaos echo
- * (almost endless), delay (one echo) */
+ * (almost endless), delay (one echo); then lush, Dattorro's plate at 22.05 kHz (saved by number: a new mode at the end) */
 enum { RV_PLATE, RV_ROOM, RV_STUDIO_S, RV_STUDIO_M, RV_STUDIO_L, RV_HALL, RV_HALF_ECHO, RV_SPACE_ECHO,
-       RV_CHAOS_ECHO, RV_ECHO_ONE, NRV };
+       RV_CHAOS_ECHO, RV_ECHO_ONE, RV_LUSH, NRV };
+#define NSPU RV_ECHO_ONE                           /* the SPU modes: RV_ROOM .. RV_ECHO_ONE */
 extern const char *const RV_NAME[NRV];         /* "plate", "room", "studio S", ... */
 /* a track's TP_ENGINE byte names the effect and, for the reverb, its mode: the "pick", 0..NFXPICK-1:
  * chorus, delay, lofi, phaser, then the reverb's modes in order (FXT_REVERB + mode) */
@@ -32,6 +33,8 @@ const char *fx_knob_name(int pick, int k);     /* the four knobs' names (the pla
  *   plate       size motion tone damp            100 40 44 72   combs x1.43 (feedback 0.88), a little wander, 7.4 kHz, damp 0.45
  *   SPU modes   size decay tone damp             127 64 64 0    the console's own: its delays (x4 of the registers), its
  *                                                               wall feedback, flat, its own reflection filter
+ *   lush        size decay tone damp             64 80 56 48    Dattorro's lengths x1 (pre-delay 19 ms), decay 0.69,
+ *                                                               a little darker, the tank's damping at 0.39
  * delay time: 1/32 1/32D 1/16 1/16D 1/8 1/8D 1/4 1/2 of the tempo, fine +-25 %; delay tone: the repeats' low-pass,
  * 800 Hz .. 19 kHz; reverb tone: a low-pass below the centre, a high-pass above it; plate damp: the combs' damping.
  * SPU size: the delays from x1 of the registers (schwung-psxverb's) to x4 (the console's: the registers count
@@ -40,6 +43,7 @@ const char *fx_knob_name(int pick, int k);     /* the four knobs' names (the pla
  * is the wet sound only. */
 extern const uint8_t FXT_DEFAULT[NFXT][4];      /* the reverb's row: the plate's */
 extern const uint8_t RV_SPU_DEFAULT[4];         /* the SPU modes' */
+extern const uint8_t RV_LUSH_DEFAULT[4];        /* lush's */
 
 #define FX_DLY_LEN 22400              /* int16 samples a side: 0.5 s plus the line's 256-sample margin (the pool's budget) */
 #define FX_RV_LEN 32768               /* int16 samples: the reverb's lines (the plate uses 11.4 k of them; an SPU mode at

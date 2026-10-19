@@ -35,7 +35,7 @@
 enum { R_DAPF1, R_DAPF2, R_VIIR, R_VCOMB1, R_VCOMB2, R_VCOMB3, R_VCOMB4, R_VWALL, R_VAPF1, R_VAPF2,
        R_MLSAME, R_MRSAME, R_MLCOMB1, R_MRCOMB1, R_MLCOMB2, R_MRCOMB2, R_DLSAME, R_DRSAME, R_MLDIFF, R_MRDIFF,
        R_MLCOMB3, R_MRCOMB3, R_MLCOMB4, R_MRCOMB4, R_DLDIFF, R_DRDIFF, R_MLAPF1, R_MRAPF1, R_MLAPF2, R_MRAPF2, NREG };
-static const uint16_t SPU_REG[NRV - 1][NREG] = {
+static const uint16_t SPU_REG[NSPU][NREG] = {
     {0x007D, 0x005B, 0x6D80, 0x54B8, 0xBED0, 0x0000, 0x0000, 0xBA80, 0x5800, 0x5300, 0x04D6, 0x0333, 0x03F0, 0x0227,
      0x0374, 0x01EF, 0x0334, 0x01B5, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x01B4, 0x0136,
      0x00B8, 0x005C},                                                               /* room        26C0h bytes */
@@ -70,7 +70,7 @@ _Static_assert(0x1FFF * 4 + 1 < FX_RV_LEN, "the SPU modes at x4 do not fit FX_RV
 /* the return's level a mode (the output volume, EVOL, a game's choice on the console): each mode's tail near
  * the plate's on a phrase (tests/host/fx_render.c), so a change of mode does not jump; the half echo and
  * the chaos echo feed back hardest */
-static const float SPU_GAIN[NRV - 1] = {1.6f, 0.65f, 1.0f, 1.03f, 1.0f, 0.39f, 0.93f, 0.54f, 1.36f};
+static const float SPU_GAIN[NSPU] = {1.6f, 0.65f, 1.0f, 1.03f, 1.0f, 0.39f, 0.93f, 0.54f, 1.36f};
 #define SPU_CLEAR 2048                /* samples of the work area cleared a block after a mode change */
 
 /* the SPU's 39-tap half-band FIR (psx-spx), Q15: the centre 4000h and the odd taps either side of it */

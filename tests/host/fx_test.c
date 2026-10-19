@@ -267,9 +267,9 @@ int main(void)
             {"size", "motion", "tone", "damp"}};
         static const char *const picks[NFXPICK] = {"chorus", "delay", "lofi", "phaser", "plate", "room", "studio S",
                                                    "studio M", "studio L", "hall", "half echo", "space echo",
-                                                   "chaos echo", "one echo"};
+                                                   "chaos echo", "one echo", "lush"};
         int ok = 1, k;
-        check("five send effects (no distortion), the reverb with ten modes", NFXT == 5 && NRV == 10 && NFXPICK == 14 &&
+        check("five send effects (no distortion), the reverb with eleven modes", NFXT == 5 && NRV == 11 && NFXPICK == 15 &&
                                                                               !strcmp(FXT_NAME[FXT_REVERB], "reverb"));
         for (t = 0; t < NFXT; t++)
             for (k = 0; k < 4; k++)
