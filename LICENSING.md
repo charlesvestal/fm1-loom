@@ -50,6 +50,10 @@ Where LOOM-8's own parts come from:
   `base/assets/fonts/Terminus-LICENSE.txt`).
 - The package tool (fm1-base's `tools/fm1pkg_make.py`) uses three files of JieLi's AC79 SDK (Apache-2.0), which
   are not part of this tree: see `BUILDING.md`. LOOM-8 links nothing of JieLi's (no Bluetooth, no WiFi).
+- The four factory breaks (`app/samples/classic.wav`, `heat.wav`, `choke.wav`, `ecstasy.wav`: one bar each of
+  "The Classic", "Heat", "Choke" and "Ecstasy", cut and resampled) are free loops shared on Reddit, whose author
+  wrote: "You have my full permission to use these loops in commercial or personal projects." (Author and post
+  link: TODO.)
 - The reverb's PlayStation modes come from schwung-psxverb, and
   brocade's saw bank from NuSaw (Copyright (c) 2026 Charles Vestal), under the MIT License:
 

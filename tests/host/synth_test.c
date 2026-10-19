@@ -593,7 +593,7 @@ static void slice_tests(void)
     brk = smp_get(par[0][TP_E1]);
     sprintf(what, "its default: the factory break (%s, %d bar, root %d), 8 slices, pitch 0, gate full",
             brk ? brk->name : "-", brk ? brk->bars : -1, brk ? brk->root : -1);
-    check(what, brk && !strcmp(brk->name, "break") && brk->bars == 1 && brk->root == 53 &&
+    check(what, brk && !strcmp(brk->name, "classic") && brk->bars == 1 && brk->root == 53 &&
                     sl_count(par[0][TP_E2]) == 8 && par[0][TP_E3] == 64 && par[0][TP_E4] == 127);
     tp_text(TP_E2, 2, EG_SLICE, num, unit);
     check("slices 2 shows 16", !strcmp(num, "16"));
@@ -768,7 +768,8 @@ static void slice_tests(void)
     par[0][TP_E2] = 1;
     brk = smp_get(SMP_BREAK);
     {
-        int want120 = (int)(brk->n / 8u) * 2, want90 = (int)((float)want120 * 120.0f / 90.0f), s120, s90, s12;
+        int want120 = 44100 * 2 / 8, /* an eighth of a bar at 120 BPM, whatever the break's rate */
+            want90 = (int)((float)want120 * 120.0f / 90.0f), s120, s90, s12;
         synth_tempo(S, 120.0f);
         s120 = slice_run(53 + 2, 0.5f, &n, 1);
         synth_tempo(S, 90.0f);

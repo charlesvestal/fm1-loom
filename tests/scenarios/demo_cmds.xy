@@ -4,7 +4,7 @@ wait 300
 # knob: names for parameters and values (an engine, a filter type, a drum key's model and mode, a sample)
 knob 3 engine slice
 expect par3.0 7
-knob 3 e1 break
+knob 3 e1 classic
 expect par3.1 7
 knob 3 ftype hp12
 expect par3.21 3

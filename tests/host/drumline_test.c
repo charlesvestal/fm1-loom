@@ -130,7 +130,7 @@ static void wav_close(FILE *f)
 typedef struct { float peak, t60, tend, t_on, rms; } hit_t;
 static hit_t one_hit(int sound, int vel, int pitch, int sg, int lt, FILE *wav)
 {
-    int b, i, nb = SR * 12 / BLK, last_loud = 0, first = -1;
+    int b, i, nb = SR * 16 / BLK, last_loud = 0, first = -1;
     float pk = 0.0f;
     double sq = 0.0, sq_loud = 0.0;
     hit_t h;

@@ -32,7 +32,7 @@ static void fact_init(void)
         s->ck = SMP_FACT_CK + SMP_FACT[i].ck;
         s->n = SMP_FACT[i].n;
         s->split = s->n;
-        s->rate = SMP_RATE;
+        s->rate = SMP_FACT[i].rate;
         s->ls = SMP_FACT[i].ls;
         s->le = SMP_FACT[i].le;
         s->root = SMP_FACT[i].root;
