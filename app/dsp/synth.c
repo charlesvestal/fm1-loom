@@ -87,6 +87,7 @@ static const float SYNC_BEATS[LS_SYNC_N] = {8.0f, 4.0f, 2.0f, 1.0f, 0.5f, 0.25f,
 static const char *const ENVP_N[4] = {"attack", "decay", "sustain", "release"};
 static const char *const FLTP_N[4] = {"cutoff", "reso", "env", "keytrack"};
 static const char *const AMPP_N[4] = {"volume", "pitch", "pan", "character"};
+static const char *const OCT_N[5] = {"-2", "-1", "0", "+1", "+2"};
 static const char *const CTYPE_N[NCT] = {"off", "drive", "fold", "crush", "ring", "tilt", "tape", "sampler"};
 static const char *const SMODE_N[NSM] = {"one-shot", "loop", "reverse", "ping-pong"};
 static const char *const SLICES_N[SL_NCOUNT] = {"4", "8", "16", "32"};
@@ -1319,6 +1320,7 @@ static void smp_prep(voice_t *v)
     c->ex[3] = ls;
     c->ex[4] = le;
 }
+#define SMP_FADE 64.0f                           /* a one-shot's fade at its region's end: samples of it (~3 ms) */
 static void smp_run(voice_t *v, float *xl, float *xr, int m)
 {
     const cfg_t *c = &v->c;
@@ -1342,7 +1344,19 @@ static void smp_run(voice_t *v, float *xl, float *xr, int m)
             hi = le;
             lo = dir < 0 || pos >= ls ? ls : s0;
         }
-        i += smp_play(&smp_vc[v->vi % NVOICE], sm, &pos, &fr, inc, dir, lo, hi, xl + i, m - i);
+        {
+            int i0 = i;
+            float p0 = (float)pos + (dir > 0 ? fr : -fr);
+            i += smp_play(&smp_vc[v->vi % NVOICE], sm, &pos, &fr, inc, dir, lo, hi, xl + i, m - i);
+            if (mode == SM_ONESHOT || mode == SM_REVERSE) {   /* the region's last SMP_FADE samples fade out: a sample
+                                                                * cut short (or ending loud) ends without a click */
+                float rem = dir > 0 ? (float)s1 - p0 : p0 - (float)s0, j0 = rem - inc * (float)(i - i0);
+                if (j0 < SMP_FADE)
+                    for (int j = i0; j < i; j++, rem -= inc)
+                        if (rem < SMP_FADE)
+                            xl[j] *= fm_maxf(rem, 0.0f) * (1.0f / SMP_FADE);
+            }
+        }
         if (i >= m)
             break;
         if (mode == SM_ONESHOT || mode == SM_REVERSE || le - ls < 2 || ++turns > 4)
@@ -2240,7 +2254,7 @@ static float ch_pivot_hz(float a) { return 150.0f * fm_exp2f(a * 5.32192809f); }
 static float ch_alpha(float hz) { return hz >= 19000.0f ? 1.0f : 1.0f - fm_expf(-FM_TWO_PI * hz * INV_SR); }
 static float ch_tape_hz(float t) { return 1500.0f * fm_exp2f(t * 3.585f); }        /* tone 0..1: 1.5 .. 18 kHz */
 static float ch_smp_hz(float t) { return 2000.0f * fm_exp2f(t * 3.322f); }         /* tone 0..1: 2 .. 20 kHz */
-static float ch_smp_rate(float a) { return 26040.0f * fm_exp2f(-a * 1.703f); }     /* amount 0..1: 26 .. 8 kHz */
+static float ch_smp_rate(float a) { return 26040.0f * fm_exp2f(-a * 1.243f); }     /* amount 0..1: 26 .. 11 kHz */
 #define CH_DC (FM_TWO_PI * 12.0f * INV_SR)       /* the DC blocker's one-pole: 12 Hz */
 #define CH_REF 0.7f                              /* the drive keeps the level of a peak here (an engine's, about) */
 #define CH_FOLD 0.6f                             /* the fold's level once it folds (a folded wave's RMS: about a saw's) */
@@ -2294,7 +2308,7 @@ static void char_coefs(int type, float a, float t, float freq, float *x)
         break;
     }
     case CT_SAMPLER: {                           /* rate and bits by the amount; the input and output filters */
-        float r = ch_smp_rate(a), q = fm_exp2f(11.0f - 4.0f * a);
+        float r = ch_smp_rate(a), q = fm_exp2f(13.0f - 3.0f * a);   /* (14 .. 11 bits: a voice sits well under 0 dB) */
         x[0] = q;
         x[1] = 1.0f / q;
         x[2] = r * INV_SR;
@@ -2589,6 +2603,10 @@ static void voice_chunk(synth_t *s, voice_t *v)
     c->pitch_off = (float)t->bend_c + t->pb_base + t->pb_step * (float)(k + 1) + t->lpitch[k] * lenv;
     if (dest == LD_PITCH)
         c->pitch_off += off * (1200.0f / 127.0f);
+    {   /* the sound's octave (Play 2) */
+        int oc = P(s, trk, TP_OCT);
+        c->pitch_off += (float)((oc > 4 ? 4 : oc) - 2) * 1200.0f;
+    }
     if (c->ctype == CT_TAPE) {                   /* the tape's wow and flutter (char_coefs: cx[3] cents) */
         v->cz[4] = wrap1(v->cz[4] + 0.55f * (float)SY_CHUNK * INV_SR);
         v->cz[5] = wrap1(v->cz[5] + 6.1f * (float)SY_CHUNK * INV_SR);
@@ -3114,6 +3132,7 @@ static const tp_info_t FIXED[NTP_SOUND + 13] = {
     {"tone", 0, 127, 64, PK_BIP, 0},                    {"mix", 0, 127, 127, PK_PCT, 0},
     /* TP_X1 .. TP_X4: the engine's second page: none but an engine's own (tp_info: brocade's BR_SUB_P) */
     {"-", 0, 0, 0, PK_NUM, 0}, {"-", 0, 0, 0, PK_NUM, 0}, {"-", 0, 0, 0, PK_NUM, 0}, {"-", 0, 0, 0, PK_NUM, 0},
+    {"octave", 0, 4, 2, PK_NAMES, OCT_N},                /* TP_OCT */
     /* TP_PLAYER .. TP_CHAN */
     {"player", 0, NPL - 1, PL_OFF, PK_NAMES, PLAYER_N}, {"speed", 0, 8, 4, PK_NAMES, ARPSPD_N},
     {"pattern", 0, 5, 0, PK_NAMES, ARPPAT_N},           {"range", 1, 4, 1, PK_NUM, 0},
@@ -3518,7 +3537,8 @@ void sound_default(uint8_t *par, int engine)
 /* -------------------------------------------------------------- presets --- */
 /* ENGINE E1 E2 E3 E4 | MODE PORTA BEND VOL | A D S R | FA FD FS FR | CUT RES FENV KTRK TYPE | S1 S2 |
  * LTYPE LSPEED LAMT LDEST LX LX2 | CTYPE CAMT CTONE CMIX (the character: every preset a whole sound, its own
- * effect in it) | X1..X4 (the engine's second page: X_, the defaults), and the role (RL_*). Sixteen an engine,
+ * effect in it) | X1..X4 (the engine's second page: X_, the defaults) | the octave (OCT_: by the role), and the role
+ * (RL_*). Sixteen an engine,
  * the first of each the engine's sound in a new project (and what choosing the engine loads), the rest by role:
  * basses, leads, keys, plucks and bells, stabs and brass, strings, pads and voices, chords, then the moving ones
  * and effects. Each after a classic where the engine can
@@ -3537,7 +3557,8 @@ void sound_default(uint8_t *par, int engine)
 #define CH_(ct, ca, cto, cm) ct, ca, cto, cm
 #define PR(nm, rl, eng, e1, e2, e3, e4, vm, po, vol, a, d, su, r, fa, fd, fs, fr, cut, res, fenv, kt, ft, s1, s2, lfo, ch) \
     {nm, {eng, e1, e2, e3, e4, vm, po, 2, vol, a, d, su, r, fa, fd, fs, fr, cut, res, fenv, kt, ft, s1, s2, LFO_ lfo, \
-          CH_ ch, X_(eng)}, rl}
+          CH_ ch, X_(eng), OCT_(rl)}, rl}
+#define OCT_(rl) ((rl) == RL_BASS ? 1 : 2)                  /* the octave by the role: a bass one down */
 /* the engine's second page (TP_X1..X4) as sound_default leaves it: brocade's sub off at -12 semitones, else none */
 #define X_(eng) 0, (eng) == EG_BROCADE ? BR_SUB_DEF : 0, 0, 0
 #define NOLFO (LT_OFF, 3, 64, LD_FILTER, 0, 1)

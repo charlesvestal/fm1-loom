@@ -1,4 +1,4 @@
-# brocade's Sub page: EDIT's third page, only on a brocade track; its knobs edit the sub's level (TP_X1) and offset
+# brocade's Sub page: EDIT's fourth page (after Play 2), only where the engine has one (brocade, orbit); its knobs edit the sub's level (TP_X1) and offset
 # (TP_X2, -24..-12 semitones), and the screen reader says them; another engine, or another track, takes the page away
 wait 300
 spin ALGO 2
@@ -8,14 +8,17 @@ expect page Engine
 turn SELECT 1
 expect page Play
 turn SELECT 1
+expect page Play_2
+expect par3.oct 2
+turn SELECT 1
 expect page Engine
-# brocade: the sub off at -12 semitones, a third page
+# brocade: the sub off at -12 semitones, a fourth page
 knob 3 engine brocade
 expect par3.engine 11
 expect par3.x1 0
 expect par3.x2 52
 listen
-turn SELECT 2
+turn SELECT 3
 expect page Sub
 wait 400
 said Sub
@@ -55,7 +58,7 @@ turn SELECT 1
 expect page Engine
 turn SELECT -1
 expect page Sub
-# another track (weft): back to the button's first page; SELECT has two pages there
+# another track (weft): back to the button's first page; SELECT has three pages there
 spin ALGO 1
 expect trk 4
 expect page Engine
@@ -70,5 +73,7 @@ expect par3.x1 0
 expect par3.x2 0
 turn SELECT 1
 expect page Play
+turn SELECT 1
+expect page Play_2
 turn SELECT 1
 expect page Engine

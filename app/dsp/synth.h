@@ -72,8 +72,10 @@ enum {
     TP_CTYPE, TP_CAMT, TP_CTONE, TP_CMIX,           /* Character: the voice's own effect after the filter (CT_*),
                                                      * its amount, tone (per type, below) and mix (dry .. wet) */
     TP_X1, TP_X2, TP_X3, TP_X4,                     /* the engine's second page (its names per engine: tp_info; "-"
-                                                     * where unused, as on every engine but brocade): brocade's Sub,
-                                                     * level (0 off) and offset (52..40: -12..-24 semitones, PK_BIPST) */
+                                                     * where unused): brocade's Sub, level (0 off) and offset (52..40:
+                                                     * -12..-24 semitones, PK_BIPST); orbit's fall, floor, keyscale */
+    TP_OCT,                                         /* Play 2: the sound's octave, 0..4 = -2..+2 (2: as played); a
+                                                     * preset's by its role (a bass -1). Moves the notes, sequenced too */
     TP_PLAYER, TP_P1, TP_P2, TP_P3, TP_P4,          /* Players: off / arp / strum / hold and its four knobs */
     TP_AP1, TP_AP2, TP_AP3, TP_AP4,                 /* the arp's second page: length, style, glide, stereo */
     TP_LEVEL, TP_PAN,                               /* Mix */
@@ -105,8 +107,9 @@ enum { FT_LP24, FT_LADDER, FT_LP12, FT_HP12, FT_DYNAMIC, FT_BP12, NFT };
  *            +-6 dB each side at the ends)
  *   tape:    worn tape: a soft saturation (gain 0.5 .. 8, made up) into a two-pole roll-off (tone: 1.5 .. 18 kHz), and
  *            a wow on the pitch (0.55 Hz, with a 6 Hz flutter a quarter as deep): 2 .. 10 cents by the amount
- *   sampler: an old sampler: the voice low-passed, held at a lower rate and fewer bits (amount: 26 kHz and 12 bits ..
- *            8 kHz and 8 bits), then its output filter (tone: 2 .. 20 kHz): the dusty grain, not the crush's rasp
+ *   sampler: an old sampler: the voice low-passed, held at a lower rate and fewer bits (amount: 26 kHz and 14 bits ..
+ *            11 kHz and 11 bits: a voice sits well under full scale), then its output filter (tone: 2 .. 20 kHz): the
+ *            dusty grain, not the crush's rasp
  * mix: dry (0) .. wet (127); at 0 the stage is skipped. The LFO reaches the amount (the voice module's knob 4).
  * (Saved by number: a new type goes at the end.) */
 enum { CT_OFF, CT_DRIVE, CT_FOLD, CT_CRUSH, CT_RING, CT_TILT, CT_TAPE, CT_SAMPLER, NCT };

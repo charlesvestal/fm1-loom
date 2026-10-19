@@ -29,7 +29,8 @@ static long dry_n;
 
 static int is_bass(int k) { return PRESETS[k].role == RL_BASS; }
 
-/* the role phrases (--roles): notes as key, start and length in ms (keys 0..26 = F3..G5, a bass an octave down) */
+/* the role phrases (--roles): notes as key, start and length in ms (keys 0..26 = F3..G5; a bass sounds an octave
+ * down by its own octave, TP_OCT) */
 typedef struct { uint8_t key; uint16_t at, len; } ev_t;
 #define C1(t, l) {7, t, l}, {11, t, l}, {14, t, l}, {18, t, l}      /* C E G B */
 #define C2(t, l) {5, t, l}, {9, t, l}, {12, t, l}, {16, t, l}       /* Bb D F A */
@@ -225,8 +226,6 @@ int main(int argc, char **argv)
         for (p = 0; p < NTP_SOUND; p++)
             if (p != TP_ENGINE && p != TP_LTYPE)
                 fprintf(f, "param 2 %d %d\n", p, pr->par[p]);
-        if (is_bass(k))
-            fprintf(f, "tap OCT-\n");
         fprintf(f, "wait 100\nwav %s.wav\n", base);
         if (roles)
             phrase(f, pr->role);

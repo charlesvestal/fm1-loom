@@ -254,9 +254,11 @@ static int expect_more(const char *what, const char *a, const char *b, const cha
 {
     if (!strcmp(what, "step")) {                    /* expect step T VALUE: the playhead of track T (0-based) */
         host_fails += expect_val(what, eng_step[(atoi(a) - 1) % NSEQT], b);
-    } else if (!strcmp(what, "page")) {             /* expect page NAME */
+    } else if (!strcmp(what, "page")) {             /* expect page NAME ('_' for a space: Play_2) */
         const char *p = ui_page_name();
-        int bad = strcmp(p, a) != 0;
+        int bad = 0, i;
+        for (i = 0; !bad && (p[i] || a[i]); i++)    /* (stops at the first difference: neither read past its end) */
+            bad = p[i] != (a[i] == '_' ? ' ' : a[i]);
         printf("%s page \"%s\"%s%s\n", bad ? "FAIL" : "  ok", p, bad ? ", expected " : "", bad ? a : "");
         host_fails += bad;
     } else if (!strcmp(what, "comp")) {             /* expect comp T S VALUE: step S's component on the playing pattern */
@@ -346,9 +348,10 @@ static int expect_more(const char *what, const char *a, const char *b, const cha
 static const char *const TPN[TP_DRUM0] = {
     "engine", "e1", "e2", "e3", "e4", "vmode", "porta", "bend", "volume", "a", "d", "s", "r", "fa", "fd", "fs", "fr",
     "cut", "res", "fenv", "ktrk", "ftype", "send1", "send2", "ltype", "lspeed", "lamt", "ldest", "lx", "lx2",
-    "ctype", "camt", "ctone", "cmix", "x1", "x2", "x3", "x4", "player", "p1", "p2", "p3", "p4", "ap1", "ap2", "ap3",
-    "ap4", "level", "pan", "brain", "chan"};
-_Static_assert(TP_X1 == 34 && TP_PLAYER == 38 && TP_CHAN == TP_DRUM0 - 1, "TPN: a name for every TP_* in its place");
+    "ctype", "camt", "ctone", "cmix", "x1", "x2", "x3", "x4", "oct", "player", "p1", "p2", "p3", "p4", "ap1", "ap2",
+    "ap3", "ap4", "level", "pan", "brain", "chan"};
+_Static_assert(TP_X1 == 34 && TP_OCT == 38 && TP_PLAYER == 39 && TP_CHAN == TP_DRUM0 - 1,
+               "TPN: a name for every TP_* in its place");
 static const char *const DPN[DP_N] = {"model", "k1", "k2", "k3", "k4", "random", "pan", "volume", "mode", "attack",
                                       "hold", "decay", "lag", "cut", "res", "fenv", "drive", "ftype"};
 static int ieq(const char *a, const char *b)       /* names alike: case and '_' for ' ' */
