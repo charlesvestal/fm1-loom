@@ -12,6 +12,7 @@ PY="${PYTHON:-python3}"
 OUT=build/drum_renders
 mkdir -p "$OUT" build/gen build/host
 "$PY" tools/gen_samples.py build/gen/samples.h "$OUT/factory" >/dev/null
+"$PY" tools/gen_presets.py build/gen/presets.h
 [ -f build/gen/wavetables.h ] || "$PY" tools/gen_wavetables.py build/gen/wavetables.h >/dev/null
 $CC -O2 -std=c99 -DPLAT_HOST -Iapp/dsp -Ibase/include -Ibuild/gen -o build/host/render_drums tools/render_drums.c \
     app/dsp/drumline.c app/dsp/synth.c app/dsp/sample.c -lm

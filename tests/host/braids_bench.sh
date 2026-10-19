@@ -11,6 +11,7 @@ PY="${PYTHON:-python3}"
 mkdir -p build/gen build/host
 [ -f build/gen/wavetables.h ] || "$PY" tools/gen_wavetables.py build/gen/wavetables.h
 [ -f build/gen/samples.h ] || "$PY" tools/gen_samples.py build/gen/samples.h >/dev/null
+"$PY" tools/gen_presets.py build/gen/presets.h
 V=""
 [ "${SCALAR:-0}" = 1 ] && V="-fno-vectorize -fno-slp-vectorize"
 $CC -O2 $V -ffp-contract=off -std=c99 -Wall -Wextra -Wdouble-promotion -Wno-unused-function -DPLAT_HOST -Iapp/dsp -Ibase/include -Ibuild/gen \

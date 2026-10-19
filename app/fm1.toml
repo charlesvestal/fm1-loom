@@ -17,9 +17,10 @@ vendored = ["cpu1/"]
 o2 = ["dsp/synth.c", "dsp/drumline.c", "dsp/sample.c", "dsp/fx.c", "dsp/bench.c", "seq/pattern.c", "seq/seq.c"]
 # the code that never runs per sample built for size (LLVM's minsize: Melodee's idea; tools/size_fns.py)
 ir_pass = "../tools/size_fns.py"
-# the generated headers: LOOM-8's fonts, the wavetables, the factory samples, this build's number
+# the generated headers: LOOM-8's fonts, the wavetables, the factory samples, this build's number, the presets
 gen = ["../tools/gen_font.py {gen}/loom_font.h", "../tools/gen_wavetables.py {gen}/wavetables.h",
-       "../tools/gen_samples.py {gen}/samples.h", "../tools/gen_build.py {gen}/loom_build.h"]
+       "../tools/gen_samples.py {gen}/samples.h", "../tools/gen_build.py {gen}/loom_build.h",
+       "../tools/gen_presets.py {gen}/presets.h"]
 # the site
 tagline = "a pocket groovebox"
 repo = "https://github.com/charlesvestal/fm1-loom"
