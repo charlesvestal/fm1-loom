@@ -1,4 +1,4 @@
-# brocade's Sub page: EDIT's fourth page (after Play 2), only where the engine has one (brocade, orbit); its knobs edit the sub's level (TP_X1) and offset
+# brocade's Sub page: EDIT's fourth page (after Play 2), only where the engine has one (brocade, rayon, knit); its knobs edit the sub's level (TP_X1) and offset
 # (TP_X2, -24..-12 semitones), and the screen reader says them; another engine, or another track, takes the page away
 wait 300
 spin ALGO 2

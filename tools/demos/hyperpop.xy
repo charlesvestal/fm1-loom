@@ -7,7 +7,7 @@
 #   T4 slice: the voice in 16, crushed, chopped with octave and fifth locks
 #   T5 gingham "picnic", the circuit-bent toy, through the arp (1/16, up, two octaves, latched): the chord held by
 #      hand each bar
-#   T6 orbit "chime": sparkles in the intro and the break
+#   T6 rayon "glass bell": sparkles in the intro and the break
 #   T7 voile "sheer lead": a sung topline gliding over drop 2
 # Song: intro 4, build 4 (snare build), drop 8, break 4 (the voice and the 808 alone, throws), build 2, drop 2 8
 # (the arp and the topline in), outro 4 (the voice echoing).
@@ -112,8 +112,8 @@ knob 5 ap1 short
 knob 5 ap4 wide
 knob 5 level 97
 knob 5 send1 40
-# T6 orbit "chime": sparkles
-preset 6 chime orbit
+# T6 rayon "glass bell": sparkles
+preset 6 glass_bell rayon
 knob 6 brain no
 knob 6 level 84
 knob 6 send1 50
