@@ -12,8 +12,8 @@ expect trk 9
 tap EDIT
 wait 40
 shot brain_page.png
-spin K2 2
-spin K3 1
+spin K1 2
+spin K2 1
 wait 40
 shot brain_key.png
 turn SELECT 1
@@ -41,3 +41,13 @@ tap EDIT
 wait 40
 shot brain_playing.png
 tap PLAY
+# the Follow page: a black key picks the track whose notes set the chords (again: off)
+tap EDIT
+turn SELECT 2
+expect page Follow
+tapkey b4
+expect par9.e1 5
+wait 40
+shot brain_follow.png
+tapkey b4
+expect par9.e1 0

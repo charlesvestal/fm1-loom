@@ -79,8 +79,6 @@ extern const char *const BS_NAME[NBS];
 extern const uint16_t BRAIN_SCALE[NBS];
 int brain_shift(int note, int key, int scale, int degree, int mode);   /* the note moved `degree` scale steps
                                                                         * (mode: TP_BRAIN 1 diatonic, 2 transpose) */
-int brain_detect(const uint8_t *hist12, int *key, int *scale);         /* best key + scale for a pitch-class
-                                                                        * histogram; 1 = confident */
 int scale_step(int note, int key, int scale, int steps);               /* a note `steps` degrees along the scale */
 int scale_snap(int note, int key, int scale);                          /* the nearest scale note (ties go down) */
 
@@ -123,7 +121,7 @@ typedef struct {                      /* one track's runtime (interrupt only) */
     uint8_t started;
     uint8_t grid_h, grid_len;         /* the scale (half-sixteenths a step) and length it last stepped with */
     uint32_t origin_h8;               /* when its step 1 began: half-sixteenths since start, Q8 (the phase) */
-    uint8_t stall;                    /* pulse / hold repeats left on this step */
+    uint8_t stall;                    /* pulse / hold: steps it still covers (the playhead goes on, in time) */
     uint8_t ratchet, ratchets;        /* multiply: hits done, hits wanted */
     uint16_t pass;                    /* passes of the pattern since start (conditions, skips, ramps) */
     uint32_t to_next;                 /* samples to the next step, Q8 */
@@ -140,6 +138,9 @@ typedef struct {                      /* one track's runtime (interrupt only) */
     uint8_t loop_from, loop_span;
     uint16_t echo_gain;               /* the loop's velocity, Q8 (echo: x 0.7 a pass) */
     uint8_t stall_kind;               /* SC_PULSE or SC_HOLD while stall > 0 */
+    uint8_t stall_p;                  /* the trick's step (a pulse plays it again) */
+    uint8_t stall_vel;                /* a kit: the hit's velocity, for the pulse's repeats */
+    uint16_t stall_mask;              /* a kit: the sounds covered (the trick's step's; the others play on) */
     uint8_t jump_to;                  /* the jump component's next step, 0xFF none */
     uint8_t nlast;                    /* notes in last_note[] */
     uint8_t last_step;                /* the step last_note[] came from */
@@ -218,10 +219,10 @@ typedef struct {
                                        * signed `groove` is its amount */
     float bpm, ext_bpm;
     /* the brain */
-    volatile uint8_t brain_mode, brain_key, brain_scale, brain_deg, brain_auto_ok;
+    volatile uint8_t brain_key, brain_scale, brain_deg;
+    volatile uint8_t brain_src;       /* 0 off, 1..8 = track t + 1 FOLLOW: its notes set the chords (it follows nothing) */
     volatile uint8_t brain_link;      /* 0 off, 1..8 = instrument track t + 1 played from the brain's keys too */
     volatile uint16_t brain_route;    /* bit t = track t follows */
-    uint8_t brain_hist[12];
     uint32_t brain_phys[4];           /* the brain's keys down (bit note): the lowest is the chord's root */
     /* punch-in */
     uint32_t punch_keys;              /* bits NPUNCH_FX: held keys (set from the key ring, in the interrupt) */

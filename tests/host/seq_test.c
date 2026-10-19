@@ -387,14 +387,40 @@ static void t_pulse(void)
     reset();
     note(0, 0, 60, 100);
     st(0, 0)->comp = SC_PULSE;
-    st(0, 0)->cval = 1;               /* two repeats: the step plays three times */
-    note(0, 1, 62, 100);
+    st(0, 0)->cval = 1;               /* two repeats: the step plays three times, over steps 2 and 3 */
+    note(0, 1, 62, 100);              /* (covered: it gives way) */
+    note(0, 3, 64, 100);
     start();
-    run(4 * L16);
+    run(4 * L16 + 10);
     CHECK(count(E_ON, 0) == 4);
     CHECK(on_n(1)->a == 60 && near(on_n(1)->t, L16, 1));
     CHECK(on_n(2)->a == 60 && near(on_n(2)->t, 2 * L16 + 1, 1));
-    CHECK(on_n(3)->a == 62 && near(on_n(3)->t, 3 * L16 + 1, 2));
+    CHECK(on_n(3)->a == 64 && near(on_n(3)->t, 3 * L16 + 1, 2));   /* in time: step 4 where it was */
+    printf("ok %s\n", cur);
+}
+
+static void t_pulse_kit(void)          /* a kit's pulse: only the trick's sounds repeat, the others play on */
+{
+    int kicks = 0, hats = 0, k2 = 0, i;
+    cur = "pulse_kit";
+    reset();
+    par[0][TP_ENGINE] = EG_DRUMLINE;
+    note(0, 0, 1, 100);               /* the kick on step 1, pulsed over steps 2-3 */
+    st(0, 0)->comp = SC_PULSE;
+    st(0, 0)->cval = 1;
+    for (i = 0; i < 4; i++)
+        note(0, i, 3, 80);            /* hats on every step (on step 1 too: they repeat with the kick) */
+    note(0, 2, 1, 100);               /* a kick on step 3 too: covered, the pulse's stands for it */
+    note(0, 4, 1, 100);               /* and on 5: after the pulse, where it was */
+    start();
+    run(5 * L16 + 10);
+    for (i = 0; i < nev; i++)
+        if (ev[i].kind == E_DRUM && ev[i].trk == 0) {
+            kicks += ev[i].a == 0;
+            hats += ev[i].a == 2;
+            k2 += ev[i].a == 0 && near(ev[i].t, L16, 2);
+        }
+    CHECK(kicks == 4 && hats == 4 && k2 == 1);   /* kicks on 1, 2, 3, 5 (3's own not twice); a hat a step */
     printf("ok %s\n", cur);
 }
 
@@ -405,12 +431,13 @@ static void t_hold(void)
     note(0, 0, 60, 100);
     st(0, 0)->comp = SC_HOLD;
     st(0, 0)->cval = 1;               /* sounds three steps */
-    note(0, 1, 62, 100);
+    note(0, 1, 62, 100);              /* (covered) */
+    note(0, 3, 64, 100);
     start();
-    run(4 * L16);
+    run(4 * L16 + 10);
     CHECK(count(E_ON, 0) == 2);
     CHECK(near(nth(E_OFF, 0, 0)->t, 3 * L16 + 1, 2));
-    CHECK(on_n(1)->a == 62 && near(on_n(1)->t, 3 * L16 + 1, 2));
+    CHECK(on_n(1)->a == 64 && near(on_n(1)->t, 3 * L16 + 1, 2));   /* in time */
     printf("ok %s\n", cur);
 }
 
@@ -974,8 +1001,6 @@ static void t_song_bars(void)
 
 static void t_brain(void)
 {
-    uint8_t h[12] = {0};
-    int key = -1, scale = -1;
     cur = "brain";
     CHECK(brain_shift(60, 0, BS_MAJOR, 2, 1) == 64 && brain_shift(62, 0, BS_MAJOR, 2, 1) == 65 &&
           brain_shift(64, 0, BS_MAJOR, 2, 1) == 67);
@@ -984,8 +1009,6 @@ static void t_brain(void)
     CHECK(brain_shift(61, 0, BS_MAJOR, 1, 1) == 62);          /* C# snaps to C first */
     CHECK(brain_shift(60, 0, BS_MAJOR, 2, 0) == 60);
     CHECK(scale_step(60, 0, BS_CHROMATIC, 3) == 63 && scale_step(60, 9, BS_MINOR, 1) == 62);
-    h[0] = 12; h[2] = 5; h[4] = 8; h[5] = 4; h[7] = 9; h[9] = 4; h[11] = 3;
-    CHECK(brain_detect(h, &key, &scale) == 1 && key == 0 && scale == BS_MAJOR);
     /* the brain in the sequence: the BRAIN track's key sets the degree, routed tracks follow */
     reset();
     note(0, 0, 60, 100);
@@ -1042,6 +1065,52 @@ static void t_brain(void)
     seq_set_scene(&S, 1);
     run(17 * L16);
     CHECK(on_n(1)->a == 67);
+    printf("ok %s\n", cur);
+}
+
+static void t_follow(void)             /* the conductor's FOLLOW track: its lowest note sets the chord */
+{
+    cur = "follow";
+    reset();
+    par[AUX_BRAIN][TP_E1] = 3;        /* T3's notes */
+    st(2, 0)->note[0] = 67;           /* G under B, D: G is +4 degrees, the nearer way -3 */
+    st(2, 0)->note[1] = 71;
+    st(2, 0)->note[2] = 74;
+    st(2, 0)->vel = 100;
+    note(2, 4, 41, 100);              /* F2, a bass note: +3 whatever its octave */
+    note(0, 0, 60, 100);              /* T1 follows: the same step hears the chord (T3 fires first) */
+    note(0, 4, 60, 100);
+    note(1, 0, 60, 100);              /* T2 does not */
+    par[0][TP_BRAIN] = 1;
+    par[2][TP_BRAIN] = 1;             /* (routed, but the chords' track follows nothing) */
+    start();
+    run(5 * L16 + 10);
+    CHECK(on_n(0)->a == 55 && on_n(1)->a == 65);   /* C down to G (-3), then up to F (+3) */
+    CHECK(nth(E_ON, 1, 0)->a == 60);
+    CHECK(nth(E_ON, 2, 0)->a == 67 && nth(E_ON, 2, 3)->a == 41);   /* T3 plays as written */
+    /* the conductor's own steps give way to the FOLLOW track */
+    stop();
+    nev = 0;
+    P.pat[AUX_BRAIN][0].st[0].note[0] = 62;
+    P.pat[AUX_BRAIN][0].st[0].vel = 100;
+    st(2, 0)->note[0] = 60;           /* C: degree 0 */
+    st(2, 0)->note[1] = st(2, 0)->note[2] = 0;
+    start();
+    run(L16);
+    CHECK(on_n(0)->a == 60);
+    /* its keys too: the lowest held */
+    stop();
+    nev = 0;
+    memset(st(2, 0), 0, sizeof(step_t));
+    memset(st(2, 4), 0, sizeof(step_t));
+    seq_key(&S, 2, 69, 1, 100);       /* A: -2 */
+    run(10);
+    start();
+    run(L16);
+    CHECK(on_n(0)->a == 57);
+    seq_key(&S, 2, 69, 0, 0);
+    par[AUX_BRAIN][TP_E1] = 0;
+    P.pat[AUX_BRAIN][0].st[0].note[0] = 0;
     printf("ok %s\n", cur);
 }
 
@@ -2299,6 +2368,8 @@ int main(void)
     t_long_page();
     t_chord();
     t_pulse();
+    t_pulse_kit();
+    t_follow();
     t_hold();
     t_multiply();
     t_velocity();

@@ -59,7 +59,7 @@ to 16 from the left, black keys 1 to 11.
    **SELECT** for the Bar page and press black key 4 so a step is a beat. Back on Steps, hold **SEQ** and play
    a chord, let go and press a step, and so on: four steps are a bar of progression.
 
-   <img src="img/screen-conductor.png" width="240" alt="The conductor&#x27;s Engine page: C major, degree 0, the tracks that follow lit; knobs mode, key, scale, link" title="The conductor">
+   <img src="img/screen-conductor.png" width="240" alt="The conductor&#x27;s Engine page: C major, degree 0, the tracks that follow lit; knobs key, scale, link" title="The conductor">
 6. **Throws.** Press **FX** and turn **SELECT** to its last page, Throws. Hold a low key: F3 mutes the
    drums, G3 stutters them, A3 repeats, B3 echoes, C4 builds, D4 plays four on the floor, E4 jumbles them. A
    high key does the same on the melodic tracks. Let go and the pattern comes back.
@@ -266,7 +266,7 @@ several steps and they all take the same turn. Let go of the steps when you are 
 
 | # | Trick | Values: 1 to 9, then random |
 | --- | --- | --- |
-| 1 | pulse: repeat the step without moving on | 1 to 9 times |
+| 1 | pulse: play the step again on the next steps | 1 to 9 times |
 | 2 | hold: keep the note over the next steps | 1 to 9 steps |
 | 3 | multiply: retrigger the step | 1 to 9 hits |
 | 4 | velocity | 4, 8, 16, 32, 64, 100, 112, 127, 0 |
@@ -284,6 +284,10 @@ several steps and they all take the same turn. Let go of the steps when you are 
 For the three skips, the value goes on past random: the same cycles again, playing all but the last pass, then
 again playing only the first. A new trick starts at its default: pulse and hold 4, multiply 2, velocity 64, the
 ramps and random 4, portamento 40 %, bend down-up, tonality fifth up, jump forward, the skips a cycle of 2.
+
+Pulse and hold keep time: the playhead goes on, the steps they cover give way to them, and the track carries on
+where it would have been. On a drum track only the sounds on the trick's step give way: the other sounds play
+their steps as written, so a pulsed kick does not stop the hats.
 
 A step's chance and its skip trigger decide whether the step happens at all. When it does not, its tricks do not
 either, a jump included: a jump with a 25 % chance jumps about one time in four. A jump back, or stay, starts a new
@@ -744,11 +748,18 @@ Turn **ALGORITHM** past T8. Each aux track has its own page under **EDIT** and i
 
 <img src="img/screen-fx1.png" width="240" alt="FX&#x27;s FX I page: the delay with time, fine, repeats and tone" title="An effect"> <img src="img/screen-fx2-hall.png" width="240" alt="FX&#x27;s FX II page: the reverb in its hall mode, with size, decay, tone and damp" title="The reverb, hall">
 
-- **COND** (the conductor): mode (manual, or auto: the key is detected from the tracks that follow), key, scale and link,
-  an instrument track that also plays the conductor's keys. Play a chord on its keys: the tracks that follow
-  move to it. Its steps hold the chords you played: press **SEQ** and a white key. Set the track scale to 4
-  so a step is a beat, or 16 for a bar. Page 2 is the routing: black keys 1 to 8 toggle a track. Its
-  **SEL** list sets how each track follows, diatonic or transpose only. Drum tracks never follow.
+- **COND** (the conductor): key, scale and link, an instrument track that also plays the conductor's keys. Play a
+  chord on its keys: the tracks that follow move to it. Its steps hold the chords you played: press **SEQ** and a
+  white key. Set the track scale to 4 so a step is a beat, or 16 for a bar. Page 2 is the routing: black keys 1 to
+  8 toggle a track. Its **SEL** list sets how each track follows, diatonic or transpose only. Drum tracks never
+  follow.
+
+  Page 3, **Follow**, takes the chords from a track instead: press its black key (again: off), or turn
+  **KNOB 1**. Each note that track plays, its lowest on a step or among the keys held, sets the chord, so a chord
+  part or a bass line leads the others. The note's place in the scale counts, not its octave, and the others move
+  the nearer way (in C major, a G takes them down a fourth, an F up a fourth). The track itself plays as written
+  and follows nothing; muted, it still leads. While a track leads, the conductor's own steps rest; its keys still
+  change the chord until the track's next note. A kit has no notes to lead with.
 - **WEAVE** (the weaves): its white keys 1 to 10 weave T1 to T8, COND and THROW while held (latch: a tap on, a tap
   off), each as its ARP's Weave page sets it; REC records them onto its steps. See Weave, above.
 - **THROW** (the throws): the keys fire the throws on the drum tracks (lower octave) and the melodic tracks
@@ -885,7 +896,7 @@ On a sound page, hold **SAVE** and press white key 1 to 16 to keep the track's s
 | GLO, SELECT | Master out | drums | melodic | comp | pump | SEL: pump by, release, accent, level |
 | GLO, SELECT | Setup | lights | clock | notes | theme | SEL: USB audio |
 
-The aux tracks' Engine page: COND has mode, key, scale and link, and page 2 the routing; THROW has latch;
+The aux tracks' Engine page: COND has key, scale and link, page 2 the routing and page 3 Follow; THROW has latch;
 FX I and FX II have the effect's four knobs, and on page 2 hp, lp
 and the send to FX II.
 

@@ -112,12 +112,11 @@ static const uint8_t BAR_SCALE_KEY[9] = {TS_1, TS_2, TS_3, TS_4, TS_5, TS_6, TS_
 static const char *const LIGHTS_NAME[3] = {"off", "on", "keys"};
 static const char *const METRO_NAME[3] = {"off", "rec", "on"};
 static const char *const ONOFF[2] = {"off", "on"};
-static const char *const BRAIN_MODE[2] = {"manual", "auto"};
 static const char *const LINK_NAME[9] = {"off", "T1", "T2", "T3", "T4", "T5", "T6", "T7", "T8"};
 static const char *const FOLLOW_NAME[3] = {"no", "diatonic", "transpose"};
 static const char *const CORE2_NAME[4] = {"one core", "two cores", "lost", "barred"};
 static const char *const USBA_NAME[2] = {"follows knob", "full"};
-static const char *const BRAIN_KNOB[4] = {"mode", "key", "scale", "link"};
+static const char *const BRAIN_KNOB[3] = {"key", "scale", "link"};
 
 /* the keys: 0 = F3; the white and the black ones in order */
 static const uint8_t WHITE_K[16] = {0, 2, 4, 6, 7, 9, 11, 12, 14, 16, 18, 19, 21, 23, 24, 26};
@@ -449,6 +448,8 @@ static const char *page_name_of(int p, int trk)
         return "Kit env";
     if (trk == AUX_WEAVE && p == P_ENGINE)
         return "Weave";
+    if (trk == AUX_BRAIN && p == P_SUB)
+        return "Follow";
     return PAGE_NAME[p % NPAGES];
 }
 /* the filter type the Filter pages' PRESET and their list turn: a drum track's key's own (its Envelope and
@@ -486,7 +487,7 @@ static int group_n(int g)
     if (b == B_SEQ && trk == AUX_WEAVE)
         return 1;                                    /* (WEAVE's steps: no Bar page) */
     if (b == B_EDIT)                                 /* brocade: its Sub page third */
-        return trk == AUX_PUNCH || trk == AUX_WEAVE ? 1 : x_page(trk) ? 3 : 2;
+        return trk == AUX_PUNCH || trk == AUX_WEAVE ? 1 : x_page(trk) || trk == AUX_BRAIN ? 3 : 2;
     if (b == B_ARP)                                  /* (grp_page: Players, Players 2, Hold the arp's, Weave) */
         return is_aux(trk) ? 1 : pl_type(trk) == PL_ARP ? 4 : 3;
     if (b == B_ENV)
@@ -545,6 +546,8 @@ static int tp_page_param(int p, int k, int trk)
     if (is_aux(trk)) {
         if (p == P_MIX)                              /* (the conductor and the throws: no sound, no fader) */
             return k == 3 && is_fx(trk) ? TP_LEVEL : -1;
+        if (trk == AUX_BRAIN && (p == P_ENGINE || p == P_SUB))   /* key, scale, link; the Follow page: its track */
+            return p == P_SUB ? (k ? -1 : TP_E1) : k < 3 ? TP_E2 + k : -1;
         if (p == P_ENGINE)
             return (trk == AUX_PUNCH || trk == AUX_WEAVE) && k ? -1 : TP_E1 + k;
         if (p == P_PLAY && is_fx(trk)) {             /* an FX track's page 2: high-pass, low-pass, the feed into FX II */
@@ -954,10 +957,9 @@ static void aux_engine_knobs(knob_t *k, int trk)
 {
     const uint8_t *par = proj.trk[trk].par;
     if (trk == AUX_BRAIN) {
-        kname(&k[0], BRAIN_KNOB[0], BRAIN_MODE, par[TP_E1], 2);
-        kname(&k[1], BRAIN_KNOB[1], NOTE_NAME, par[TP_E2], 12);
-        kname(&k[2], BRAIN_KNOB[2], BS_NAME, par[TP_E3], NBS);
-        kname(&k[3], BRAIN_KNOB[3], LINK_NAME, par[TP_E4], 9);
+        kname(&k[0], BRAIN_KNOB[0], NOTE_NAME, par[TP_E2], 12);
+        kname(&k[1], BRAIN_KNOB[1], BS_NAME, par[TP_E3], NBS);
+        kname(&k[2], BRAIN_KNOB[2], LINK_NAME, par[TP_E4], 9);
     } else if (trk == AUX_PUNCH || trk == AUX_WEAVE) {
         kname(&k[0], "latch", ONOFF, par[TP_E1], 2);
     } else {
@@ -992,6 +994,10 @@ static void page_knobs(knob_t *k)
     }
     if (p == P_STEPS && ui.held && is_seqt(trk)) {
         step_knobs(k);
+        return;
+    }
+    if (trk == AUX_BRAIN && p == P_SUB) {            /* the Follow page: the track whose notes set the chords */
+        kname(&k[0], "FOLLOW", LINK_NAME, proj.trk[AUX_BRAIN].par[TP_E1] % 9u, 9);
         return;
     }
     switch (p) {
@@ -1410,7 +1416,7 @@ static void page_footer(char *t)
         if (ui.rec_armed)
             s_cat(t, "KEYS write|OCT+ rest|OCT- back|REC done");
         else if (trk == AUX_BRAIN)
-            s_cat(t, ui.page == P_PLAY ? "BLACK route track" : "KEYS chord");
+            s_cat(t, ui.page == P_PLAY ? "BLACK route track" : ui.page == P_SUB ? "BLACK the track" : "KEYS chord");
         else if (trk == AUX_PUNCH)
             s_cat(t, "KEYS fx|REC record");
         else if (trk == AUX_WEAVE)
@@ -3060,22 +3066,34 @@ static void draw_engine(void)
 static void draw_brain(void)
 {
     const uint8_t *p = proj.trk[AUX_BRAIN].par;
-    int key = seq.brain_key % 12, sc = seq.brain_scale % NBS, deg = (int8_t)seq.brain_deg, routing = ui.page != P_ENGINE;
+    int key = seq.brain_key % 12, sc = seq.brain_scale % NBS, deg = (int8_t)seq.brain_deg, src = p[TP_E1] % 9u;
     uint32_t h = hash_u(hash_u(2166136261u, 0xB0u), (uint32_t)key | (uint32_t)sc << 4 | (uint32_t)(deg + 64) << 8 |
-                                          (uint32_t)seq.brain_auto_ok << 16 | (uint32_t)p[TP_E1] << 17 | (uint32_t)routing << 18 |
-                                          (uint32_t)p[TP_E4] << 20);
-    char t[40], *e;
+                                          (uint32_t)src << 16 | (uint32_t)ui.page << 20 | (uint32_t)p[TP_E4] << 26);
+    char t[48], *e;
     for (int i = 0; i < NTRK; i++)
-        h = hash_u(h, proj.trk[i].par[TP_BRAIN]);
+        h = hash_u(h, proj.trk[i].par[TP_BRAIN] | (uint32_t)is_drum(i) << 4);
     if (!begin_main(h))
         return;
     e = s_cat(s_cat(t, NOTE_NAME[key]), " ");
     s_cat(e, BS_NAME[sc]);
     cv_text(12, 4, &FONT_L, t, K_TEXT);
-    if (p[TP_E1])
-        text_r(230, 6, &FONT_XS, seq.brain_auto_ok ? "auto: sure" : "auto: guessing", K_DIM);
-    if (routing) {
+    if (src) {
+        s_cat(s_cat(t, "chords from "), TRACK_NAME[src - 1]);
+        text_r(230, 6, &FONT_XS, t, K_DIM);
+    }
+    if (ui.page == P_PLAY) {
         cv_text(12, 44, &FONT_XS, "routing: black keys 1 to 8 toggle a track", K_DIM);
+    } else if (ui.page == P_SUB) {
+        if (!src)
+            cv_text(12, 34, &FONT_XS, "off: the chords come from the", K_DIM), cv_text(12, 48, &FONT_XS, "conductor's own keys and steps", K_DIM);
+        else if (is_drum(src - 1)) {
+            s_cat(s_cat(t, TRACK_NAME[src - 1]), " is a kit: it has no notes");
+            cv_text(12, 40, &FONT_XS, t, K_REC);
+        } else {
+            s_cat(s_cat(t, TRACK_NAME[src - 1]), "'s lowest note sets the chord:");
+            cv_text(12, 34, &FONT_XS, t, K_DIM);
+            cv_text(12, 48, &FONT_XS, "chords, a bass line; it follows nothing", K_DIM);
+        }
     } else {
         e = s_cat(t, "degree ");
         if (deg > 0)
@@ -3085,11 +3103,16 @@ static void draw_brain(void)
         if (p[TP_E4])
             text_r(230, 48, &FONT_XS, LINK_NAME[p[TP_E4] % 9], K_DIM), text_r(230 - text_w(&FONT_XS, LINK_NAME[p[TP_E4] % 9]) - 4, 48, &FONT_XS, "link", K_FAINT);
     }
-    cv_text(12, 70, &FONT_XS, "tracks that follow", K_DIM);
+    cv_text(12, 70, &FONT_XS, src ? "tracks that follow; the chords' in its colour" : "tracks that follow", K_DIM);
     for (int i = 0; i < NTRK; i++) {
         int32_t x = 12 + i * 27;
         int m = proj.trk[i].par[TP_BRAIN] % 3;
         num_s((uint32_t)i + 1u, t);
+        if (src == i + 1) {                          /* the FOLLOW track: the chords come from it */
+            cv_round(x, 86, 22, 22, 5, trk_ink(i));
+            text_c(x + 11, 90, &FONT_B, t, K_BG);
+            continue;
+        }
         if (m == 1)
             cv_round(x, 86, 22, 22, 5, K_TEXT);
         else if (m == 2)

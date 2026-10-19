@@ -71,7 +71,7 @@ static void say_no(const char *a, const char *b)
     ui.msg_until = plat_ms() + 2000u;
 }
 void ui_say(const char *a, const char *b) { say(a, b); }
-const char *ui_page_name(void) { return PAGE_NAME[ui.page % NPAGES]; }
+const char *ui_page_name(void) { return sel_trk() == AUX_BRAIN && ui.page == P_SUB ? "Follow" : PAGE_NAME[ui.page % NPAGES]; }
 
 #define SONG_REP_DEF 4                           /* a song's first slot: four bars */
 static void mark_dirty(void)
@@ -127,12 +127,12 @@ static void apply_brain(void)
 {
     const uint8_t *p = proj.trk[AUX_BRAIN].par;
     uint16_t route = 0;
-    seq.brain_mode = p[TP_E1] & 1u;
+    seq.brain_src = p[TP_E1] % 9u;
     seq.brain_key = p[TP_E2] % 12u;
     seq.brain_scale = p[TP_E3] % NBS;
     seq.brain_link = p[TP_E4] % 9u;
     for (int t = 0; t < NTRK; t++)
-        if (proj.trk[t].par[TP_BRAIN] % 3u)
+        if (proj.trk[t].par[TP_BRAIN] % 3u && t + 1 != seq.brain_src)
             route |= (uint16_t)(1u << t);
     seq.brain_route = route;
     pats.scene[cur_scene()].brain_key = seq.brain_key;
@@ -1119,6 +1119,15 @@ static void key_down(int k)
         }
         return;
     }
+    if (trk == AUX_BRAIN && p == P_SUB) {        /* the Follow page: a black key picks the chords' track (again: off) */
+        if (b >= 0 && b < NTRK) {
+            int src = proj.trk[AUX_BRAIN].par[TP_E1] % 9u == (unsigned)b + 1u ? 0 : b + 1;
+            ui.kmode[k] = KM_ROUTE;
+            set_tp(AUX_BRAIN, TP_E1, src);
+            say("FOLLOW", src ? TRACK_NAME[b] : "off");
+        }
+        return;
+    }
     keyboard_down(k);
 }
 #define STEP_TAP_MS 700u                         /* a step's key let go sooner: a tap (toggles the step) */
@@ -1525,7 +1534,7 @@ static void aux_knob(int trk, int k, int32_t e)
     if (p < 0)
         return;
     if (trk == AUX_BRAIN)
-        hi = k == 0 ? 1 : k == 1 ? 11 : k == 2 ? NBS - 1 : 8;
+        hi = p == TP_E2 ? 11 : p == TP_E3 ? NBS - 1 : 8;   /* key, scale; link and FOLLOW: off, T1-T8 */
     else if (trk == AUX_PUNCH || trk == AUX_WEAVE)
         hi = 1;
     set_tp(trk, p, clampi(par[p] + e, 0, hi));

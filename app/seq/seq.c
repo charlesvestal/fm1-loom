@@ -210,46 +210,6 @@ int brain_shift(int note, int key, int scale, int degree, int mode)
     return clamp_note(note + deg_to_note(d0 + degree, key, mask) - deg_to_note(d0, key, mask));
 }
 
-/* the best key and scale for a pitch-class histogram: every (key, scale) scores its notes (the tonic
- * and the fifth count more) against the notes outside it; confident when the runner-up is clearly behind */
-int brain_detect(const uint8_t *hist12, int *key, int *scale)
-{
-    int best = -0x7FFFFFFF, second = -0x7FFFFFFF, bk = 0, bs = 0, k, sc, pc, total = 0;
-    for (pc = 0; pc < 12; pc++)
-        total += hist12[pc];
-    if (!total)
-        return 0;
-    for (sc = 0; sc < BS_CHROMATIC; sc++) {
-        uint16_t m = BRAIN_SCALE[sc];
-        for (k = 0; k < 12; k++) {
-            int score = 0;
-            for (pc = 0; pc < 12; pc++) {
-                int rel = (pc - k + 12) % 12, w;
-                if (rel == 0)             /* the tonic and the fifth tell the modes of one note set apart */
-                    w = 6;
-                else if (rel == 7 && (m >> 7 & 1u))
-                    w = 4;
-                else if (m >> rel & 1u)
-                    w = 2;
-                else
-                    w = -3;
-                score += w * (int)hist12[pc];
-            }
-            if (score > best) {
-                second = best;
-                best = score;
-                bk = k;
-                bs = sc;
-            } else if (score > second)
-                second = score;
-        }
-    }
-    *key = bk;
-    *scale = bs;
-    return best > 0 && best - second >= (total + 3) / 4;   /* the runner-up always shares most notes: a
-                                                           * quarter of what was heard must separate them */
-}
-
 /* ------------------------------------------------------------ helpers --- */
 static uint32_t rng_next(uint32_t *r)
 {
@@ -464,17 +424,23 @@ static void cancel_offs(seq_t *s, int t, const seq_sink_t *o)   /* everything pe
 /* ----------------------------------------------------------- the brain --- */
 static int brain_deg(const seq_t *s) { return (int8_t)s->brain_deg; }
 
-static void brain_hear(seq_t *s, int note)
+static int low_note(const uint8_t *nt, int n)   /* the lowest of n notes (0s skipped), 0 none */
 {
-    uint8_t *h = &s->brain_hist[((note % 12) + 12) % 12];
-    if (*h < 255)
-        (*h)++;
+    int lo = 0;
+    for (int i = 0; i < n; i++)
+        if (nt[i] && (!lo || nt[i] < lo))
+            lo = nt[i];
+    return lo;
 }
+/* the track the conductor takes its chords from (FOLLOW), -1 none */
+static int brain_src(const seq_t *s) { return s->brain_src >= 1 && s->brain_src <= NTRK ? s->brain_src - 1 : -1; }
+/* a track follows: routed, and not the track the chords come from (it would move itself) */
+static int brain_follows(const seq_t *s, int t) { return t < NTRK && s->par[t][TP_BRAIN] && t != brain_src(s); }
 
 /* a routed track's note through the brain (steps and live keys alike) */
 static int brain_note(const seq_t *s, int t, int note)
 {
-    int mode = t < NTRK ? s->par[t][TP_BRAIN] : 0;
+    int mode = brain_follows(s, t) ? s->par[t][TP_BRAIN] : 0;
     if (!mode)
         return note;
     return brain_shift(note, s->brain_key, s->brain_scale, brain_deg(s), mode);
@@ -489,14 +455,28 @@ static void brain_set_root(seq_t *s, int root)
     s->brain_deg = (uint8_t)(int8_t)d;
 }
 
-/* the BRAIN track's knobs: manual mode takes key / scale from them when they change (a scene may have
- * set the sequencer's own); auto mode detects at the bar; E4 is the link track (0 off, 1..8) */
+/* the degree a FOLLOW track's note sets: its place in the scale whatever its octave, the nearer way (in C major a
+ * G is 4 down, an F 3 up), so a bass line moves the others as little as a chord would */
+static void brain_set_near(seq_t *s, int root)
+{
+    uint16_t mask = scale_mask(s->brain_scale < NBS ? s->brain_scale : BS_MAJOR);
+    int n = mask_len(mask), d = note_to_deg(root, s->brain_key, mask) - note_to_deg(60 + s->brain_key, s->brain_key, mask);
+    if (n < 1)
+        n = 7;
+    d = ((d % n) + n) % n;
+    if (d > n / 2)
+        d -= n;
+    s->brain_deg = (uint8_t)(int8_t)d;
+}
+
+/* the BRAIN track's knobs: key / scale taken when they change (a scene may have set the sequencer's own); E1 the
+ * FOLLOW track (0 off, 1..8: its notes set the chords), E4 the link track (0 off, 1..8) */
 static void brain_follow_par(seq_t *s)
 {
     const uint8_t *e = &s->par[AUX_BRAIN][TP_E1];
     uint16_t route = 0;
     int t;
-    s->brain_mode = e[0];
+    s->brain_src = e[0] <= NTRK ? e[0] : 0;
     s->brain_link = e[3] <= NTRK ? e[3] : 0;
     if (e[1] != s->brain_seen[1])
         s->brain_key = (uint8_t)(e[1] % 12);
@@ -505,23 +485,9 @@ static void brain_follow_par(seq_t *s)
     for (t = 0; t < 4; t++)
         s->brain_seen[t] = e[t];
     for (t = 0; t < NTRK; t++)
-        if (s->par[t][TP_BRAIN] && !is_drum(s, t))
+        if (brain_follows(s, t) && !is_drum(s, t))
             route |= (uint16_t)(1u << t);
     s->brain_route = route;
-}
-
-static void brain_bar(seq_t *s)
-{
-    int key, scale, pc;
-    if (s->brain_mode) {
-        s->brain_auto_ok = (uint8_t)brain_detect(s->brain_hist, &key, &scale);
-        if (s->brain_auto_ok) {
-            s->brain_key = (uint8_t)key;
-            s->brain_scale = (uint8_t)scale;
-        }
-    }
-    for (pc = 0; pc < 12; pc++)       /* the histogram forgets: half each bar */
-        s->brain_hist[pc] >>= 1;
 }
 
 /* the tonality component on a note (tv = the option 0..9; 0 and 1 are the brain's business, see fire_notes) */
@@ -632,8 +598,11 @@ static void fire_notes(seq_t *s, int t, const step_t *st, int p, uint32_t L, int
         len_q8 = L / 100u * (tp->nlen > 100 ? 100u : tp->nlen);
     if (is_drum(s, t)) {
         int semi = step_tune(s->P->lane, t, s->ppat[t], p);
+        if (act[SC_HOLD])             /* (a gated sound rings over the steps it covers) */
+            len_q8 = len_q8 > L * (tr->stall + 1u) ? len_q8 : L * (tr->stall + 1u);
         if (act[SC_MULTIPLY] && tr->ratchets > 1 && len_q8 > L / tr->ratchets)
             len_q8 = L / tr->ratchets;
+        tr->last_vel = (uint8_t)vel;
         for (i = 1; i <= NDRUM; i++)
             if (kit_has(st, i) && i != tr->skip_note)
                 emit_drum(s, t, i - 1, vel, semi, TAG_STEP | (uint32_t)(ratchet * 1024), len_q8, o);
@@ -665,13 +634,11 @@ static void fire_notes(seq_t *s, int t, const step_t *st, int p, uint32_t L, int
         if (tr->ramp_deg)
             note = scale_step(note, s->brain_key, s->brain_scale, tr->ramp_deg);
         if (tv == 1)                  /* transpose only: chromatic by the brain's degree (a routed track) */
-            note = s->par[t][TP_BRAIN] ? brain_shift(note, s->brain_key, s->brain_scale, brain_deg(s), 2) : note;
+            note = brain_follows(s, t) ? brain_shift(note, s->brain_key, s->brain_scale, brain_deg(s), 2) : note;
         else if (tv != 0)             /* 0 = ignore the progression: this step sits out the brain */
             note = brain_note(s, t, note);
         if (tv >= 2)
             note = tonal(s, t, note, tv);
-        if (s->par[t][TP_BRAIN])
-            brain_hear(s, note);
         if (fx_on(s, t, PX_OCTAVE) && !is_slice(s, t))   /* (a slice track: up, the engine's pitch) */
             note -= 12;
         note = clamp_note(note);
@@ -681,6 +648,8 @@ static void fire_notes(seq_t *s, int t, const step_t *st, int p, uint32_t L, int
             emit_note(s, t, note, vel, glide, tag, len_q8, o);
         tr->last_note[n++] = (uint8_t)note;
     }
+    if (n && !ratchet && t == brain_src(s))   /* the FOLLOW track: its lowest note sets the chord */
+        brain_set_near(s, low_note(tr->last_note, n));
     pl = s->par[t][TP_PLAYER];
     if (n && pl == PL_ARP)
         step_arp(s, t, tr->last_note, n, vel, len_q8);
@@ -713,12 +682,9 @@ static void fire_aux(seq_t *s, int t, const step_t *st, int p, uint32_t L, const
     uint32_t len_q8 = st->len ? len_of(L, st->len) : L / 100u * (tp->nlen > 100 ? 100u : tp->nlen);
     int i;
     (void)p;
-    if (t == AUX_BRAIN) {             /* the chord's lowest note is its root */
-        int root = 0;
-        for (i = 0; i < SN; i++)
-            if (st->note[i] && (!root || st->note[i] < root))
-                root = st->note[i];
-        if (root)
+    if (t == AUX_BRAIN) {             /* the chord's lowest note is its root (a FOLLOW track sets them instead) */
+        int root = low_note(st->note, SN);
+        if (root && brain_src(s) < 0)
             brain_set_root(s, root);
         return;
     }
@@ -1213,6 +1179,18 @@ static void jump_set(seq_t *s, int t, int cv, int p)
     tr->jump_to = (uint8_t)(((n % len) + len) % len);
 }
 
+/* a kit's pulse repeat: the sounds of the trick's step at its velocity (its tricks ran on it, not on these) */
+static void pulse_hits(seq_t *s, int t, uint32_t L, const seq_sink_t *o)
+{
+    seq_trk_t *tr = &s->t[t];
+    const tpat_t *tp = tpat(s, t);
+    int semi = step_tune(s->P->lane, t, s->ppat[t], tr->stall_p), i;
+    uint32_t len_q8 = L / 100u * (tp->nlen > 100 ? 100u : tp->nlen);
+    for (i = 0; i < NDRUM; i++)
+        if (tr->stall_mask >> i & 1u)
+            emit_drum(s, t, i, tr->stall_vel, semi, TAG_STEP, len_q8, o);
+}
+
 uint32_t (*seq_clock)(void);
 volatile uint32_t *seq_prof;                 /* the profiler (engine.c: eng_prof PR_SIX..): [0] six_tick, [1] fire_step, [2] fire_sub */
 #define SQ_T(v) uint32_t v = seq_prof ? seq_clock() : 0
@@ -1223,16 +1201,13 @@ static void fire_step(seq_t *s, int t, const seq_sink_t *o)
     const tpat_t *tp;
     const step_t *st;
     uint32_t L, carry = tr->to_next < SEQ_DUE ? tr->to_next : 0, nL;
-    int p, wrapped = 0, retrig = 1, happens = 0, plays, np, dummy, trig_ok = 1, lock_ok = 1, kind;
+    int p, wrapped = 0, retrig = 1, happens = 0, plays, np, dummy, trig_ok = 1, lock_ok = 1, kind, cover = 0, rep = 0,
+        fresh = 0, lp, drum = t < NTRK && is_drum(s, t);
     int32_t off, noff;
     if (!tr->started) {
         tr->started = 1;
         p = 0;
         tr->stall = 0;
-    } else if (tr->stall) {           /* pulse / hold: the same step again */
-        tr->stall--;
-        p = tr->pos;
-        retrig = tr->stall_kind == SC_PULSE;
     } else {
         p = next_pos(s, t, &wrapped);
         if (wrapped) {
@@ -1240,6 +1215,10 @@ static void fire_step(seq_t *s, int t, const seq_sink_t *o)
             if (tr->loop_on && fx_on(s, t, PX_ECHO))
                 tr->echo_gain = (uint16_t)(tr->echo_gain * ECHO_DECAY >> 8);
         }
+    }
+    if (tr->stall) {                  /* pulse / hold covers this step: the playhead goes on, in time */
+        tr->stall--;
+        cover = 1;
     }
     tp = tpat(s, t);
     if (s->rec && s->playing && !s->count_in && s->rec_replace && t == s->rec_target &&
@@ -1249,7 +1228,23 @@ static void fire_step(seq_t *s, int t, const seq_sink_t *o)
             cl->note[j] = 0;
     }
     s->rec_written[t][p >> 5] &= ~(1u << (p & 31));
-    st = weave_at(s, t, tp, p);
+    if (cover && !drum) {             /* the step's own notes give way: a pulse plays the trick's step again, a hold
+                                       * lets its note ring on */
+        rep = tr->stall_kind == SC_PULSE;
+        retrig = rep;
+        lp = tr->stall_p;
+        st = weave_at(s, t, tp, lp);
+    } else {
+        lp = p;
+        st = weave_at(s, t, tp, p);
+        if (cover) {                  /* a kit: only the trick's sounds give way, the others play as written */
+            if (st != &tr->wv_st)
+                tr->wv_st = *st;
+            kit_set(&tr->wv_st, kit_mask(&tr->wv_st) & ~(uint32_t)tr->stall_mask);
+            tr->wv_on = 1;            /* (its ratchets repeat what is left) */
+            st = &tr->wv_st;
+        }
+    }
     tr->pos = (uint8_t)p;
     tr->grid_h = (uint8_t)ts_halves(tp);
     tr->grid_len = (uint8_t)pat_len(tp);
@@ -1268,7 +1263,7 @@ static void fire_step(seq_t *s, int t, const seq_sink_t *o)
     {
         SQ_T(qb);
         if (retrig && lock_ok)
-            apply_locks(s, t, p, L, o);
+            apply_locks(s, t, lp, L, o);
         SQ_ADD(4, qb);
     }
     if (o->step)
@@ -1278,14 +1273,20 @@ static void fire_step(seq_t *s, int t, const seq_sink_t *o)
     if (retrig && trig_ok)
         happens = cond_plays(s, t, st);
     plays = happens && !(s->mute >> t & 1u) && !punch_muted(s, t) && !tr->fill_on && !step_empty(st);
-    if (happens && tr->act[SC_JUMP])
+    if (happens && !plays && !drum && t == brain_src(s) && low_note(st->note, SN))
+        brain_set_near(s, low_note(st->note, SN));   /* (a FOLLOW track muted still sets the chords) */
+    if (happens && !rep && tr->act[SC_JUMP])
         jump_set(s, t, tr->act[SC_JUMP] - 1, p);
     kind = tr->act[SC_PULSE] ? SC_PULSE : tr->act[SC_HOLD] ? SC_HOLD : 0;
     if (plays) {
-        if (kind && !tr->stall && tr->stall_kind != kind) {   /* a fresh step: start the stall */
+        if (kind && !rep) {           /* the trick's step: it covers the next n steps (a kit: its own sounds) */
             int cv = tr->act[kind] - 1, n = cv == SC_RANDOM_VAL ? 1 + (int)(rng_next(&tr->rng) % 9u) : cv + 1;
             tr->stall = (uint8_t)n;
             tr->stall_kind = (uint8_t)kind;
+            tr->stall_p = (uint8_t)p;
+            tr->stall_mask = (uint16_t)(drum ? kit_mask(st) : 0u);
+            tr->last_vel = 0;         /* (fire_notes: the hit's velocity, 0 a silent one) */
+            fresh = 1;
         }
         if (tr->act[SC_MULTIPLY]) {
             int cv = tr->act[SC_MULTIPLY] - 1;
@@ -1308,6 +1309,8 @@ static void fire_step(seq_t *s, int t, const seq_sink_t *o)
             fire_notes(s, t, st, p, L, 0, o);
         else
             fire_aux(s, t, st, p, L, o);
+        if (drum && fresh)
+            tr->stall_vel = tr->last_vel;
         SQ_ADD(5, qc);
     } else {
         tr->ramp_deg = 0;
@@ -1315,14 +1318,15 @@ static void fire_step(seq_t *s, int t, const seq_sink_t *o)
             ((s->mute >> t & 1u) || punch_muted(s, t)))
             ghost_notes(s, t, st, o);
     }
+    if (cover && drum && tr->stall_kind == SC_PULSE && tr->stall_vel && !(s->mute >> t & 1u) && !punch_muted(s, t) &&
+        !tr->fill_on)                 /* a kit's pulse: the trick's sounds again, on this step */
+        pulse_hits(s, t, L, o);
     tr->skip_note = 0;
     if (!tr->stall)
         tr->stall_kind = 0;
     /* the next step: its grid plus its offset, less this step's */
     off = tr->off_q8;
-    if (tr->stall)
-        np = p;
-    else {
+    {
         uint8_t save_j = tr->jump_to;
         np = next_pos(s, t, &dummy);  /* a peek: undo what it may have changed */
         tr->jump_to = save_j;
@@ -1895,6 +1899,16 @@ static void players_follow_par(seq_t *s, const seq_sink_t *o)
     }
 }
 
+static int phys_lowest(const player_t *pl)   /* the lowest key down, 0 none */
+{
+    for (int w = 0; w < 4; w++)
+        if (pl->phys[w])
+            for (int i = 0; i < 32; i++)
+                if (pl->phys[w] >> i & 1u)
+                    return w * 32 + i;
+    return 0;
+}
+
 static void phys_set(uint32_t *phys, uint8_t *nphys, int note, int on)
 {
     uint32_t b = 1u << (note & 31);
@@ -2131,8 +2145,8 @@ static void key_in(seq_t *s, int t, int note, int on, int vel, int raw, const se
             player_note_off(s, t, shifted, TAG_KEY | (uint32_t)note, o);
         break;
     }
-    if (on && s->par[t][TP_BRAIN])
-        brain_hear(s, shifted);
+    if (on && t == brain_src(s) && phys_lowest(pl))   /* the FOLLOW track: its lowest key down sets the chord */
+        brain_set_near(s, phys_lowest(pl));
 }
 
 static void keys_all_off(seq_t *s, int t, const seq_sink_t *o)
@@ -2432,8 +2446,6 @@ static void six_tick(seq_t *s, const seq_sink_t *o)
                     }
                     s->pcue[t] = 0xFF;
                 }
-        if (top)                      /* the brain's detection: track 1's span */
-            brain_bar(s);
         if (ch)
             restart(s, ch);
     }
@@ -2682,9 +2694,11 @@ void seq_advance(seq_t *s, uint32_t k, const seq_sink_t *o)
             SQ_ADD(0, q0);
             fired = 1;
         }
-        for (i2 = 0; i2 < NSEQT; i2++) {       /* the aux tracks first: their steps set what the others hear */
+        for (i2 = 0; i2 < NSEQT; i2++) {       /* the aux tracks first, then the FOLLOW track: their steps set what
+                                                * the others hear */
             seq_trk_t *tr;
-            t = i2 < NSEQT - NTRK ? NTRK + i2 : i2 - (NSEQT - NTRK);
+            int src = brain_src(s), k = i2 - (NSEQT - NTRK);
+            t = k < 0 ? NTRK + i2 : src < 0 ? k : k == 0 ? src : k <= src ? k - 1 : k;
             tr = &s->t[t];
             for (i = 0; i < SEQ_PENDING && tr->off_mask; i++)   /* note-offs before a new step at the same time */
                 if (tr->off[i].used && tr->off[i].off_at < SEQ_DUE) {
