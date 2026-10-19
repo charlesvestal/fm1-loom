@@ -26,20 +26,22 @@ files list them (gen_presets.py FILES); an engine's first preset is its sound in
 ROLES = ["bass", "lead", "pad", "keys", "pluck", "bell", "stab", "strings", "brass", "voice", "chord", "fx", "drum",
          "loop"]                                      # synth.h RL_*, in order
 ENGINES = ["weft", "stack", "wavetable", "orbit", "tines", "organ", "sync", "swarm", "kit", "sample", "slice",
-           "brocade", "cane", "voile", "gingham"]     # synth.h EG_*, in order
+           "brocade", "cane", "voile", "gingham", "knit"]   # synth.h EG_*, in order
 KNOBS = {"weft": ["bend", "wave", "sweep", "spread"], "stack": ["wave", "ratio", "detune", "spread"],
          "wavetable": ["table", "scan", "bend", "ripple"], "orbit": ["bright", "ratio", "edge", "wobble"],
          "tines": ["bright", "grit", "bite", "bell"], "organ": ["stops", "pedal", "rotor", "rate"],
          "sync": ["reach", "sub", "hiss", "thin"], "swarm": ["swarm", "ring", "tone", "spread"],
          "sample": ["sample", "start", "length", "mode"], "slice": ["sample", "slices", "pitch", "gate"],
          "brocade": ["saws", "detune", "mix", "spread"], "cane": ["model", "timbre", "color", "damp"],
-         "voile": ["model", "timbre", "color", "breath"], "gingham": ["model", "timbre", "color", "arp"]}
+         "voile": ["model", "timbre", "color", "breath"], "gingham": ["model", "timbre", "color", "arp"],
+         "knit": ["wave", "detune", "voices", "width"]}
 MODES = ["poly", "mono", "legato"]                    # VM_*
 FILTERS = ["lp24", "ladder", "lp12", "hp12", "dynamic", "bp12"]   # FT_*
 LFOS = ["off", "wave", "wobble", "drift", "pump"]    # LT_*
 DESTS = ["synth", "envelope", "filter", "voice", "synth free", "envelope free", "filter free", "voice free"]   # LD_*
 CHARS = ["off", "drive", "fold", "crush", "ring", "tilt", "tape", "sampler"]   # CT_*
 BR_SUB_DEF = 52                                      # synth.h: brocade's sub offset by default
+X_DEF = {"brocade": (0, BR_SUB_DEF, 0, 0), "knit": (64, 0, 0, 0)}   # the engines' second pages as sound_default leaves them
 NOLFO = ("off", 3, 64, "filter", 0, 1)
 NOCHAR = ("off", 64, 64, 127)
 
@@ -61,7 +63,7 @@ def P(name, role, engine, knobs, mode="poly", glide=0, bend=2, volume=100, amp=(
     assert ch[0] in CHARS and len(ch) == 4, (name, ch)
     oc = octave if octave is not None else (-1 if role == "bass" else 0)
     assert -2 <= oc <= 2, (name, oc)
-    xs = x if x is not None else ((0, BR_SUB_DEF, 0, 0) if engine == "brocade" else (0, 0, 0, 0))
+    xs = x if x is not None else X_DEF.get(engine, (0, 0, 0, 0))
     vals = [*[knobs[k] for k in KNOBS[engine]], glide, bend, volume, *amp, *fenv, filter[1], filter[2], filter[3],
             filter[4], *sends, lf[1], lf[2], lf[4], lf[5], ch[1], ch[2], ch[3], *xs]
     assert all(isinstance(v, int) and 0 <= v <= 127 for v in vals), (name, vals)

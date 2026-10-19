@@ -48,19 +48,22 @@
 const char *const RL_NAME[NRL] = {"bass", "lead", "pad", "keys", "pluck", "bell", "stab", "strings", "brass", "voice",
                                   "chord", "fx", "drum", "loop"};
 const char *const EG_NAME[NENGINE] = {"weft", "stack", "wavetable", "orbit", "tines", "organ", "sync",
-                                      "swarm", "kit", "sample", "slice", "brocade", "cane", "voile", "gingham"};
+                                      "swarm", "kit", "sample", "slice", "brocade", "cane", "voile", "gingham",
+                                      "knit"};
 const char *const EG_KNOB[NENGINE][4] = {
     {"bend", "wave", "sweep", "spread"},   {"wave", "ratio", "detune", "spread"}, {"table", "scan", "bend", "ripple"},
     {"bright", "ratio", "edge", "wobble"}, {"bright", "grit", "bite", "bell"},    {"stops", "pedal", "rotor", "rate"},
     {"reach", "sub", "hiss", "thin"},      {"swarm", "ring", "tone", "spread"},   {"-", "-", "-", "-"},
     {"sample", "start", "length", "mode"},  {"sample", "slices", "pitch", "gate"}, {"saws", "detune", "mix", "spread"},
-    {"model", "timbre", "color", "damp"},   {"model", "timbre", "color", "breath"}, {"model", "timbre", "color", "arp"}};
+    {"model", "timbre", "color", "damp"},   {"model", "timbre", "color", "breath"}, {"model", "timbre", "color", "arp"},
+    {"wave", "detune", "voices", "width"}};
 /* each engine's plain sound (INIT), 0..127; the organ's four and stack's ratio are discrete 1..8, brocade's saws 1..7,
  * the Braids engines' models and gingham's arp a name each (synth.h NCANE ...) */
 static const uint8_t EG_DEF[NENGINE][4] = {{40, 0, 20, 0}, {0, 2, 12, 64}, {0, 40, 0, 0}, {40, 25, 0, 0},
                                            {50, 0, 40, 50}, {3, 4, 2, 5},  {30, 0, 0, 0}, {30, 0, 30, 20},
                                            {0, 0, 0, 0},    {5, 0, 127, SM_ONESHOT}, {SMP_BREAK, 1, 64, 127},
-                                           {7, 50, 90, 70}, {0, 64, 64, 0}, {2, 0, 64, 0}, {1, 78, 84, 0}};
+                                           {7, 50, 90, 70}, {0, 64, 64, 0}, {2, 0, 64, 0}, {1, 78, 84, 0},
+                                           {0, 20, 1, 0}};
 static const char *const VMODE_N[3] = {"poly", "mono", "legato"};
 static const char *const FTYPE_N[NFT] = {"lp24", "ladder", "lp12", "hp12", "dynamic", "bp12"};
 static const char *const LTYPE_N[NLT] = {"off", "wave", "wobble", "drift", "pump"};
@@ -320,6 +323,7 @@ static inline float pf(const synth_t *s, int trk, int p, int dest, float off)
  * eng_run() writes m <= SUB raw samples to xl (and xr when c.stereo); the amplitude of a cycle is
  * about 1; eng_chunk() moves the engine's own slow parts every chunk */
 static void br_init(voice_t *v);
+static void knit_init(voice_t *v);
 static void cn_init(voice_t *v);
 static void vo_init(voice_t *v);
 static void gh_init(voice_t *v);
@@ -336,6 +340,8 @@ static void eng_init(voice_t *v)
         v->o[1] = 0.25f;                         /* the spread copy starts a quarter cycle on */
     if (v->engine == EG_BROCADE)
         br_init(v);
+    if (v->engine == EG_KNIT)
+        knit_init(v);
     if (v->engine == EG_ORBIT)
         v->o[5] = 1.0f;                          /* orbit: its fall starts full */
     v->o[15] = 1.0f;                             /* tines: its brightness envelopes start full */
@@ -1279,6 +1285,135 @@ static void br_init(voice_t *v)                  /* the saws from random phases,
     v->o[9] = -1.0f;
 }
 
+/* knit: the everyday subtractive voice. wave: saw (0) .. square (the middle) .. a 10 % pulse (stack's
+ * saw_pulse: the LFO on it is PWM); voices 1..7: a unison of that wave, detuned by brocade's offsets (the JP-8000's
+ * table) as detune opens, each pair across the field as width opens, all at one power (1 / sqrt n); at one voice
+ * detune is a drift instead, the pitch wandering slowly (up to +-12 cents, a fresh target every ~0.4 s). Its second
+ * page (TP_X1..X4, KNIT_X_P): osc 2, one more of the wave at an interval (+-24 semitones about 64) and its level (0 off);
+ * sub, a sine an octave down; noise. A unison's beating is kept out of the bass by brocade's keytracked high-pass.
+ * o[0..6] the voices' phases (random at the start), o[7] osc 2's, o[8] the sub's, o[10] the drift (cents) and o[11]
+ * its target, o[12..15] the high-pass (low and band, L then R). ex[0] the increment, ex[1] the detune's, ex[2] the
+ * voices, ex[3] the pulse's mix, ex[4] its width, ex[5..10] the pairs' L and R gains, ex[11] the high-pass's, ex[12]
+ * a voice's gain, ex[13] osc 2's increment, ex[14] its gain, ex[15] the sub's increment, ex[16] its gain, ex[17]
+ * the noise's, ex[18..21] the second page's knobs (voice_chunk), ex[22] the drift's factor (knit_chunk). */
+#define KNIT_MAX 7
+static void knit_prep(voice_t *v)
+{
+    cfg_t *c = &v->c;
+    int n = (int)fm_clampf(fm_floorf(c->ek[2] + 0.5f), 1.0f, (float)KNIT_MAX), M = n / 2, k;
+    float f = c->freq * INV_SR, w = c->e[3];
+    c->ex[0] = fm_minf(f, 0.45f);
+    c->ex[1] = n > 1 ? f * 0.1102f * br_detune(c->e[1]) : 0.0f;
+    c->ex[2] = (float)n;
+    if (c->e[0] < 0.5f) {                        /* saw .. square */
+        c->ex[3] = c->e[0] * 2.0f;
+        c->ex[4] = 0.5f;
+    } else {                                     /* square .. a 10 % pulse */
+        c->ex[3] = 1.0f;
+        c->ex[4] = 0.5f - (c->e[0] - 0.5f) * 0.8f;
+    }
+    for (k = 1; k <= 3; k++) {                   /* pair k: its upper voice towards the right, its lower the left */
+        float a = (1.0f + (M ? (float)(k < M ? k : M) / (float)M * w : 0.0f)) * 0.78539816f;
+        c->ex[3 + 2 * k] = fm_cosf(a) * 1.41421356f;
+        c->ex[4 + 2 * k] = fm_sinf(a) * 1.41421356f;
+    }
+    c->ex[11] = fm_minf(2.07345f * f, 0.9f);    /* the high-pass at a third of the note (brocade's) */
+    c->ex[12] = fm_rsqrtf((float)n);
+    c->ex[13] = fm_minf(f * fm_exp2f((c->ex[18] - 64.0f) * (1.0f / 12.0f)), 0.45f);
+    c->ex[14] = c->ex[19] * (1.0f / 127.0f);
+    c->ex[15] = f * 0.5f;
+    c->ex[16] = c->ex[20] * (1.0f / 127.0f);
+    c->ex[17] = c->ex[21] * (0.5f / 127.0f);
+    if (c->ex[22] <= 0.0f)
+        c->ex[22] = 1.0f;
+    c->stereo = w > 0.001f && n > 1;
+}
+static void knit_chunk(voice_t *v)                 /* the drift at one voice: toward a fresh target, slowly */
+{
+    cfg_t *c = &v->c;
+    float depth = c->ex[2] < 1.5f ? c->e[1] * 12.0f : 0.0f;
+    if (depth <= 0.0f) {
+        c->ex[22] = 1.0f;
+        return;
+    }
+    if ((v->nchunk & 255) == 0)                  /* (~0.4 s) */
+        v->o[11] = (float)(int32_t)xs(&v->rng) * (1.0f / 2147483648.0f) * depth;
+    v->o[10] += (v->o[11] - v->o[10]) * 0.01f;
+    c->ex[22] = fm_exp2f(v->o[10] * (1.0f / 1200.0f));
+}
+/* one oscillator of the wave added into the buffers at gains gl / gr */
+SY_INLINE void knit_osc(float *ph, float d, float id, float pw, float mix, float gl, float gr, float *xl, float *xr,
+                      int m, const int stereo)
+{
+    float p = *ph;
+    int i;
+    for (i = 0; i < m; i++) {
+        float x;
+        p = step1(p, d);
+        x = mix <= 0.0f ? 2.0f * p - 1.0f - blep(p, d, id) : saw_pulse(p, d, id, pw, mix);
+        xl[i] += x * gl;
+        if (stereo)
+            xr[i] += x * gr;
+    }
+    *ph = p;
+}
+SY_INLINE void knit_loop(voice_t *v, float *xl, float *xr, int m, const int stereo)
+{
+    const cfg_t *c = &v->c;
+    const int n = (int)c->ex[2];
+    const float *co = BR_COEF[n / 2], mix = c->ex[3], pw = c->ex[4], g = c->ex[12], dr = c->ex[22];
+    int i, k;
+    for (i = 0; i < m; i++) {
+        xl[i] = 0.0f;
+        if (stereo)
+            xr[i] = 0.0f;
+    }
+    for (k = 0; k < n; k++) {                    /* the voices: the centre, then the pairs (upper right, lower left) */
+        float d = fm_clampf((c->ex[0] + co[k] * c->ex[1]) * dr, 1e-6f, 0.45f), gl = g, gr = g;
+        if (k && stereo) {
+            const float *pn = &c->ex[3 + 2 * ((k + 1) >> 1)];
+            gl = g * pn[~k & 1];
+            gr = g * pn[k & 1];
+        }
+        knit_osc(&v->o[k], d, 1.0f / d, pw, mix, gl, gr, xl, xr, m, stereo);
+    }
+    if (n > 1) {
+        br_hp(xl, &v->o[12], &v->o[13], c->ex[11], m);
+        if (stereo)
+            br_hp(xr, &v->o[14], &v->o[15], c->ex[11], m);
+    }
+    if (c->ex[14] > 0.0f) {                      /* osc 2: one more, in the middle */
+        float d = fm_clampf(c->ex[13] * dr, 1e-6f, 0.45f);
+        knit_osc(&v->o[7], d, 1.0f / d, pw, mix, c->ex[14], c->ex[14], xl, xr, m, stereo);
+    }
+    if (c->ex[16] > 0.0f || c->ex[17] > 0.0f) {  /* the sub (a sine an octave down) and the noise */
+        float p = v->o[8], d = c->ex[15] * dr, gs = c->ex[16], gn = c->ex[17];
+        for (i = 0; i < m; i++) {
+            float x;
+            p = step1(p, d);
+            x = fm_sin_pi((p < 0.5f ? p : p - 1.0f) * FM_TWO_PI) * gs + frand(&v->rng) * gn;
+            xl[i] += x;
+            if (stereo)
+                xr[i] += x;
+        }
+        v->o[8] = p;
+    }
+}
+static void knit_run(voice_t *v, float *xl, float *xr, int m)
+{
+    if (v->c.stereo)
+        knit_loop(v, xl, xr, m, 1);
+    else
+        knit_loop(v, xl, xr, m, 0);
+}
+static void knit_init(voice_t *v)                  /* the voices from random phases */
+{
+    int j;
+    for (j = 0; j < KNIT_MAX; j++)
+        v->o[j] = (float)(xs(&v->rng) >> 8) * (1.0f / 16777216.0f);
+    v->c.ex[22] = 1.0f;                          /* (no drift yet: another engine's ex[22] is not a factor) */
+}
+
 /* cane, voile and gingham: Braids' models (dsp/braids.h, MIT) */
 #define CN_NONE 0xFFu
 #include "braids.h"
@@ -1548,6 +1683,7 @@ static void eng_chunk(voice_t *v)                /* every chunk: the engines' ow
     case EG_TINES: tines_chunk(v); break;
     case EG_ORGAN: organ_chunk(v); break;
     case EG_CANE: cn_chunk(v); break;
+    case EG_KNIT: knit_chunk(v); break;
     case EG_VOILE: vo_chunk(v); break;
     case EG_GINGHAM: gh_chunk(v); break;
     default: break;
@@ -1567,6 +1703,7 @@ static void eng_prep(voice_t *v, float bpm)
     case EG_SLICE: slc_prep(v, bpm); break;
     case EG_BROCADE: br_prep(v); break;
     case EG_CANE: cn_prep(v); break;
+    case EG_KNIT: knit_prep(v); break;
     case EG_VOILE: vo_prep(v); break;
     case EG_GINGHAM: gh_prep(v); break;
     default: dis_prep(v); break;
@@ -1586,6 +1723,7 @@ static void eng_run(voice_t *v, float *xl, float *xr, int m)
     case EG_SLICE: slc_run(v, xl, xr, m); break;
     case EG_BROCADE: br_run(v, xl, xr, m); break;
     case EG_CANE: cn_run(v, xl, xr, m); break;
+    case EG_KNIT: knit_run(v, xl, xr, m); break;
     case EG_VOILE: vo_run(v, xl, xr, m); break;
     case EG_GINGHAM: gh_run(v, xl, xr, m); break;
     default: dis_run(v, xl, xr, m); break;
@@ -2061,6 +2199,8 @@ int synth_voice_cost(const synth_t *s, int vi)
     }
     if (v->engine == EG_WEFT || v->engine == EG_STACK || v->engine == EG_ORGAN)
         return 5;                                /* (the FM-1, tools/measure_load.sh 2026-10-18: a quarter above the rest) */
+    if (v->engine == EG_KNIT)                  /* (a guess until measured: brocade's, a unit a voice and a part) */
+        return 3 + (int)v->c.ex[2] + (v->c.ex[14] > 0.0f) + (v->c.ex[16] > 0.0f || v->c.ex[17] > 0.0f);
     if (v->engine != EG_BROCADE)
         return 4;
     /* on the FM-1 (measure_load.sh, 2026-10-18): 4 + a unit a saw (11 at seven: an ordinary voice's two and a half) */
@@ -2625,6 +2765,13 @@ static void voice_chunk(synth_t *s, voice_t *v)
             c->ex[9] = fv;
             c->ex[10] = kv;
         }
+        if (v->engine == EG_KNIT) {            /* its second page (knit_prep) */
+            for (i = 0; i < 4; i++) {
+                float xv = (float)P(s, trk, TP_X1 + i);
+                moved |= xv != c->ex[18 + i];
+                c->ex[18 + i] = xv;
+            }
+        }
         if (v->engine == EG_BROCADE) {
             float lv = (float)P(s, trk, TP_X1) * (1.0f / 127.0f);
             float st = fm_clampf((float)P(s, trk, TP_X2) - 64.0f, -24.0f, -12.0f);
@@ -3164,6 +3311,9 @@ static const tp_info_t NONE_P = {"-", 0, 0, 0, PK_NUM, 0};
 static const tp_info_t BR_SUB_P[4] = {{"sub", 0, 127, 0, PK_PCT, 0}, {"offset", 40, 52, BR_SUB_DEF, PK_BIPST, 0},
                                       {"-", 0, 0, 0, PK_NUM, 0}, {"-", 0, 0, 0, PK_NUM, 0}};
 _Static_assert(BR_SUB_DEF >= 40 && BR_SUB_DEF <= 52, "the sub's offset by default in its range");
+/* knit's second page: osc 2's interval (+-24 semitones about 64) and level, the sub, the noise (knit_prep) */
+static const tp_info_t KNIT_X_P[4] = {{"osc 2", 40, 88, 64, PK_BIPST, 0}, {"level", 0, 127, 0, PK_PCT, 0},
+                                    {"sub", 0, 127, 0, PK_PCT, 0}, {"noise", 0, 127, 0, PK_PCT, 0}};
 /* orbit's second page: the index's fall (0 held; 20 ms .. 4 s), its floor, keyscale (orbit_prep) */
 static const tp_info_t ORBIT_X_P[4] = {{"fall", 0, 127, 0, PK_NUM, 0}, {"floor", 0, 127, 0, PK_PCT, 0},
                                        {"keyscale", 0, 127, 0, PK_PCT, 0}, {"-", 0, 0, 0, PK_NUM, 0}};
@@ -3213,6 +3363,11 @@ static void eknob_init(void)
             if (e == EG_BROCADE && k == 0) {   /* the saws, 1..7 */
                 i->lo = 1;
                 i->hi = BR_SAWS;
+                i->kind = PK_NUM;
+            }
+            if (e == EG_KNIT && k == 2) {    /* the voices, 1..7 */
+                i->lo = 1;
+                i->hi = KNIT_MAX;
                 i->kind = PK_NUM;
             }
             if ((e == EG_CANE || e == EG_VOILE || e == EG_GINGHAM) && k == 0) {   /* the Braids models */
@@ -3271,7 +3426,8 @@ const tp_info_t *tp_info(int p, int engine)
         return &eknob[engine][p - TP_E1];
     }
     if (p >= TP_X1 && p <= TP_X4)                /* the engine's second page: brocade's sub, else none */
-        return engine == EG_BROCADE ? &BR_SUB_P[p - TP_X1] : engine == EG_ORBIT ? &ORBIT_X_P[p - TP_X1] : &NONE_P;
+        return engine == EG_BROCADE ? &BR_SUB_P[p - TP_X1] : engine == EG_ORBIT ? &ORBIT_X_P[p - TP_X1]
+             : engine == EG_KNIT ? &KNIT_X_P[p - TP_X1] : &NONE_P;
     if (engine == EG_DRUMLINE) {
         if (p >= TP_A && p <= TP_R)
             return &DRUMENV[p - TP_A];

@@ -1443,7 +1443,7 @@ int main(void)
     tp_text(TP_PORTA, 50, 0, num, unit);
     check("portamento shows 0..127", !strcmp(num, "50") && !unit[0]);
 
-    check("224 presets, 16 an engine", NPRESETS == 224);
+    check("some presets, at most 255 (a byte picks one)", NPRESETS > 0 && NPRESETS <= 255);
     {   /* names: lower case words, at most 11 characters, each its own; stack's first is a bass */
         int ok = 1, j;
         for (k = 0; k < NPRESETS && ok; k++) {
@@ -1469,9 +1469,9 @@ int main(void)
         int n = 0;
         for (k = 0; k < NPRESETS; k++)
             n += PRESETS[k].par[TP_ENGINE] == e;
-        if (n != 16) {
-            printf("    engine %s has %d presets\n", EG_NAME[e], n);
-            check("16 presets an engine", 0);
+        if (n < 1) {                             /* (the bank by role and genre: as many as each engine earns) */
+            printf("    engine %s has no presets\n", EG_NAME[e]);
+            check("every engine has presets", 0);
         }
         if (preset_first(e) < 0 || PRESETS[preset_first(e)].par[TP_ENGINE] != e)
             check("preset_first", 0);

@@ -481,7 +481,8 @@ static int page_trk(int p)
 }
 static int x_page(int t)                             /* the engine has a second page of knobs (TP_X1..X4) */
 {
-    return t < NTRK && (proj.trk[t].par[TP_ENGINE] == EG_BROCADE || proj.trk[t].par[TP_ENGINE] == EG_ORBIT);
+    int e = t < NTRK ? proj.trk[t].par[TP_ENGINE] : -1;
+    return e == EG_BROCADE || e == EG_ORBIT || e == EG_KNIT;
 }
 static int group_n(int g)
 {
@@ -2723,6 +2724,27 @@ static void pic_brocade(int32_t x0, int32_t y0, int32_t w, int32_t h, const uint
         }
     }
 }
+/* knit: the wave (saw .. square .. pulse) a line a voice, the voices drifting apart as detune opens (one voice:
+ * its slow drift) and fanned up and down as width opens */
+static void pic_knit(int32_t x0, int32_t y0, int32_t w, int32_t h, const uint8_t *p, uint32_t f)
+{
+    static const float OFF[7] = {0.0f, 0.3f, -0.3f, 0.6f, -0.6f, 1.0f, -1.0f};
+    int n = p[TP_E3] < 1 ? 1 : p[TP_E3] > 7 ? 7 : p[TP_E3];
+    float wv = (float)p[TP_E1] / 127.0f, mix = wv < 0.5f ? wv * 2.0f : 1.0f, pw = wv < 0.5f ? 0.5f : 0.5f - (wv - 0.5f) * 0.8f;
+    float det = (float)p[TP_E2] / 127.0f, amp = (float)h / 6.0f, fan = (float)p[TP_E4] / 127.0f * ((float)h / 2.0f - amp - 2.0f);
+    cv_rect(x0, y0 + h / 2, w, 1, K_LINE);
+    for (int j = n - 1; j >= 0; j--) {          /* the centre one last, on top */
+        pen_t pn = {0, 0, 0};
+        float o = n > 1 ? OFF[j] : 0.0f, drift = n > 1 ? o * det * (float)f / 24.0f : det * 0.1f * fm_sin_turns((float)f / 97.0f);
+        float cy = (float)(y0 + h / 2) - o * fan;
+        uint16_t col = j == 0 ? K_NOW : K_DIM;
+        for (int32_t x = 0; x <= w; x++) {
+            float ph = (float)x / (float)w * 3.0f + drift, fr = ph - fm_floorf(ph);
+            float saw = 1.0f - 2.0f * fr, pulse = fr < pw ? 1.0f : -1.0f;
+            pen_to(&pn, (float)(x0 + x), cy - (saw + (pulse - saw) * mix) * amp, col);
+        }
+    }
+}
 /* cane: the model's instrument. pluck: a string bent at color's place, swinging (longer at a higher timbre); bow:
  * the string and the bow across it at color's place, heavier with timbre; reed and flute: the tube and its
  * holes, the breath's specks at the mouth (fewer as timbre steadies it), the flute's embouchure at color; bell:
@@ -3088,6 +3110,7 @@ static void draw_engine(void)
     case EG_CANE: pic_cane(20, 24, 200, 88, p, pic_f); break;
     case EG_VOILE: pic_voile(20, 24, 200, 88, p, pic_f); break;
     case EG_GINGHAM: pic_gingham(20, 24, 200, 88, p, pic_f); break;
+    case EG_KNIT: pic_knit(20, 24, 200, 88, p, pic_f); break;
     default: pic_drumline(10, 26, 220, 90, p, pic_f); break;
     }
     cv_blit(0, MAIN_Y);
@@ -3319,6 +3342,47 @@ static void draw_orbit_fall(void)
     }
     cv_blit(0, MAIN_Y);
 }
+/* knit's Sub page: its layers stacked, each as tall as its level: the wave (faint: the first page's), osc 2 at its
+ * interval, the sub an octave down, the noise */
+static void draw_knit_x(void)
+{
+    int trk = sel_trk();
+    const uint8_t *p = proj.trk[trk].par;
+    int st = clampi((int)p[TP_X1] - 64, -24, 24);
+    uint32_t h = hash_u(hash_u(2166136261u, 0xA4u), (uint32_t)trk | (uint32_t)p[TP_X1] << 4 | (uint32_t)p[TP_X2] << 12 |
+                                                    (uint32_t)p[TP_X3] << 20);
+    float wv = (float)p[TP_E1] / 127.0f, mix = wv < 0.5f ? wv * 2.0f : 1.0f, pw = wv < 0.5f ? 0.5f : 0.5f - (wv - 0.5f) * 0.8f;
+    float ratio = fm_exp2f((float)st * (1.0f / 12.0f)), lv[4] = {1.0f, (float)p[TP_X2] / 127.0f, (float)p[TP_X3] / 127.0f,
+                                                                   (float)p[TP_X4] / 127.0f};
+    static const char *const NM[4] = {"wave", "osc 2", "sub", "noise"};
+    uint32_t r = 12345u;
+    char t[24];
+    h = hash_u(h, p[TP_X4]);
+    h = hash_u(h, p[TP_E1]);
+    if (!begin_main(h))
+        return;
+    for (int l = 0; l < 4; l++) {
+        pen_t pn = {0, 0, 0};
+        float cy = 14.0f + (float)l * 26.0f, amp = 10.0f * lv[l];
+        cv_text(8, (int32_t)cy - 6, &FONT_XS, NM[l], lv[l] > 0.0f ? K_DIM : K_FAINT);
+        for (int32_t x = 0; x <= 170; x++) {
+            float ph = (float)x / 170.0f * 3.0f * (l == 1 ? ratio : l == 2 ? 0.5f : 1.0f), fr = ph - fm_floorf(ph), y;
+            if (l == 2)
+                y = fm_sin_turns(ph);
+            else if (l == 3)
+                r = r * 1664525u + 1013904223u, y = (float)(int32_t)r * (1.0f / 2147483648.0f);
+            else
+                y = (1.0f - 2.0f * fr) + ((fr < pw ? 1.0f : -1.0f) - (1.0f - 2.0f * fr)) * mix;
+            pen_to(&pn, (float)(56 + x), cy - y * amp, l == 0 ? K_FAINT : K_NOW);
+        }
+    }
+    if (st)
+        num_i(st, s_cat(t, st > 0 ? "osc 2 +" : "osc 2 ")), s_cat(t + s_len(t), " st");
+    else
+        s_cat(t, "osc 2 in unison");
+    text_r(230, 100, &FONT_XS, t, K_DIM);
+    cv_blit(0, MAIN_Y);
+}
 /* brocade's Sub page: the interval under the note, the centre saw (faint) and the sub's sine under it at its
  * level (off: a flat line) */
 static void draw_sub(void)
@@ -3331,6 +3395,10 @@ static void draw_sub(void)
     uint32_t h = hash_u(hash_u(2166136261u, 0x5Bu), (uint32_t)trk | (uint32_t)lv << 4 | (uint32_t)(st + 64) << 12);
     if (p[TP_ENGINE] == EG_ORBIT) {
         draw_orbit_fall();
+        return;
+    }
+    if (p[TP_ENGINE] == EG_KNIT) {
+        draw_knit_x();
         return;
     }
     float ratio = fm_exp2f((float)st * (1.0f / 12.0f)), amp = 30.0f * (float)lv / 127.0f, cy = 80.0f;
