@@ -32,8 +32,10 @@ where the code comes from.
 ## Credits
 
 The platform: fm1-base and felucca-bsp (MPL-2.0), from Felucca by Leo Kuroshita (Hügelton Instruments), with his
-permission (felucca-bsp#4). The reverb's PlayStation modes: PSXVerb (MIT). The
-fonts: Barlow and Terminus (SIL OFL 1.1). The second core's lessons: Melodee (keremimo) and Jangada (zednaked).
+permission (felucca-bsp#4). cane, voile and gingham: Mutable Instruments Braids by Emilie Gillet (MIT). brocade's
+saw bank: NuSaw (MIT). The reverb's PlayStation modes: PSXVerb (MIT). The factory breaks: free loops by u/FCTRYBEATS,
+with their permission; the 909 drums: renders of 9W9 (GPL-3.0); the recorded instruments: Versilian Studios Chamber
+Orchestra 2 Community Edition (CC0). The fonts: Barlow and Terminus (SIL OFL 1.1). The second core's lessons: Melodee (keremimo) and Jangada (zednaked).
 The idea of a browser emulator: Groove OS.
 
 LOOM-8's way of working owes a great deal to teenage engineering's OP-XY; LOOM-8 is not affiliated with
