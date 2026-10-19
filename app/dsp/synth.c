@@ -334,6 +334,8 @@ static void eng_init(voice_t *v)
         v->o[1] = 0.25f;                         /* the spread copy starts a quarter cycle on */
     if (v->engine == EG_BROCADE)
         br_init(v);
+    if (v->engine == EG_ORBIT)
+        v->o[5] = 1.0f;                          /* orbit: its fall starts full */
     v->o[15] = 1.0f;                             /* tines: its brightness envelopes start full */
     v->o[14] = 1.0f;
     if (v->engine == EG_ORGAN)
@@ -677,7 +679,10 @@ static void wt_run(voice_t *v, float *xl, float *xr, int m)
 }
 
 /* orbit: two-operator FM for strings: bright = index, ratio from a detuned 1:1 (0..50: slow beating) to
- * harmonic divisions (51..100), edge = modulator feedback (sine toward saw), wobble = the speed of a pitch wobble that fades in over the first second of a note (0 = none) */
+ * harmonic divisions (51..100), edge = modulator feedback (sine toward saw), wobble = the speed of a pitch wobble that fades in over the first second of a note (0 = none).
+ * Its second page (TP_X1..X3, ORBIT_X_P): fall, the index falling from the note's start (0 = held, as before; else a
+ * time constant 20 ms .. 4 s), velocity then scaling the start; floor, what of the index remains (0..100 %);
+ * keyscale, the index lower for higher notes (0 .. -6 dB an octave above C3). At 0, 0, 0 the engine is as it was */
 static const float AXIS_RATIO[12] = {0.5f, 0.6666667f, 0.75f, 1.25f, 1.3333334f, 1.5f, 1.75f, 2.0f, 3.0f, 4.0f, 6.0f, 8.0f};
 static void orbit_prep(voice_t *v)
 {
@@ -694,6 +699,11 @@ static void orbit_prep(voice_t *v)
     c->ex[0] = c->ex[6];
     c->ex[1] = c->ex[7];
     c->ex[2] = c->e[0] * c->e[0] * 5.0f;                        /* index, turns */
+    if (c->ex[10] > 0.0f && c->freq > 130.81f)                  /* keyscale: the index an octave above C3 x 2^-k */
+        c->ex[2] *= fm_exp2f(-c->ex[10] * fm_log2f(c->freq * (1.0f / 130.81f)));
+    if (c->ex[8] > 0.0f)                                         /* with a fall, velocity sets the start */
+        c->ex[2] *= 0.4f + 0.6f * v->vel;
+    c->ex[11] = c->ex[2];                                        /* (the index before the fall: orbit_chunk) */
     c->ex[3] = c->e[2] * 1.3f;                                  /* feedback */
     c->ex[4] = c->e[3] > 0.004f ? (0.3f + c->e[3] * 7.7f) * INV_SR : 0.0f;   /* the wobble's rate, 0.3 .. 8 Hz */
     c->stereo = 0;
@@ -717,10 +727,14 @@ static void orbit_run(voice_t *v, float *xl, float *xr, int m)
     v->o[1] = mp;
     v->o[2] = fbv;
 }
-static void orbit_chunk(voice_t *v)               /* the wobble: +-20 cents at the knob's speed, fading in */
+static void orbit_chunk(voice_t *v)               /* the fall; the wobble: +-20 cents at the knob's speed, fading in */
 {
     cfg_t *c = &v->c;
     float w;
+    if (c->ex[8] > 0.0f) {                       /* the fall: o[5] 1 at the note's start, toward 0 */
+        c->ex[2] = c->ex[11] * (c->ex[9] + (1.0f - c->ex[9]) * v->o[5]);
+        v->o[5] *= c->ex[8];
+    }
     if (c->ex[4] <= 0.0f)
         return;
     v->o[3] = wrap1(v->o[3] + c->ex[4] * (float)SY_CHUNK);
@@ -2518,6 +2532,15 @@ static void voice_chunk(synth_t *s, voice_t *v)
          * chunk: the organ's pitch wobble and phasor trim); brocade's sub: when it starts or its offset moved */
         float pin = v->pitch_cur + c->pitch_off * 0.01f;
         int moved = pin != v->pitch_in || v->fresh || (v->nchunk & 3) == 0;
+        if (v->engine == EG_ORBIT) {             /* its second page (orbit_prep, orbit_chunk) */
+            int fl = P(s, trk, TP_X1), fo = P(s, trk, TP_X2), ks = P(s, trk, TP_X3);
+            float fall = fl ? fm_expf(-(float)SY_CHUNK / (0.02f * fm_exp2f((float)fl * (7.64f / 127.0f)) * SY_SR)) : 0.0f;
+            float fv = (float)fo * (1.0f / 127.0f), kv = (float)ks * (1.0f / 127.0f);
+            moved |= fall != c->ex[8] || kv != c->ex[10];
+            c->ex[8] = fall;
+            c->ex[9] = fv;
+            c->ex[10] = kv;
+        }
         if (v->engine == EG_BROCADE) {
             float lv = (float)P(s, trk, TP_X1) * (1.0f / 127.0f);
             float st = fm_clampf((float)P(s, trk, TP_X2) - 64.0f, -24.0f, -12.0f);
@@ -3056,6 +3079,9 @@ static const tp_info_t NONE_P = {"-", 0, 0, 0, PK_NUM, 0};
 static const tp_info_t BR_SUB_P[4] = {{"sub", 0, 127, 0, PK_PCT, 0}, {"offset", 40, 52, BR_SUB_DEF, PK_BIPST, 0},
                                       {"-", 0, 0, 0, PK_NUM, 0}, {"-", 0, 0, 0, PK_NUM, 0}};
 _Static_assert(BR_SUB_DEF >= 40 && BR_SUB_DEF <= 52, "the sub's offset by default in its range");
+/* orbit's second page: the index's fall (0 held; 20 ms .. 4 s), its floor, keyscale (orbit_prep) */
+static const tp_info_t ORBIT_X_P[4] = {{"fall", 0, 127, 0, PK_NUM, 0}, {"floor", 0, 127, 0, PK_PCT, 0},
+                                       {"keyscale", 0, 127, 0, PK_PCT, 0}, {"-", 0, 0, 0, PK_NUM, 0}};
 static const tp_info_t STRUM_P[4] = {{"roll", 0, 63, 30, PK_NUM, 0}, {"pattern", 0, 3, 0, PK_NAMES, MPAT_N},
                                        {"-", 0, 0, 0, PK_NUM, 0}, {"hold", 0, 1, 0, PK_SWITCH, 0}};
 /* the LFO's knobs per type (synth.h): speed / amount / dest / x / x2 */
@@ -3160,7 +3186,7 @@ const tp_info_t *tp_info(int p, int engine)
         return &eknob[engine][p - TP_E1];
     }
     if (p >= TP_X1 && p <= TP_X4)                /* the engine's second page: brocade's sub, else none */
-        return engine == EG_BROCADE ? &BR_SUB_P[p - TP_X1] : &NONE_P;
+        return engine == EG_BROCADE ? &BR_SUB_P[p - TP_X1] : engine == EG_ORBIT ? &ORBIT_X_P[p - TP_X1] : &NONE_P;
     if (engine == EG_DRUMLINE) {
         if (p >= TP_A && p <= TP_R)
             return &DRUMENV[p - TP_A];

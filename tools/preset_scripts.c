@@ -219,7 +219,7 @@ int main(int argc, char **argv)
         f = fopen(path, "w");
         if (!f)
             return 1;
-        fprintf(f, "# preset %d: %s\nmst color 0\nwait 200\nspin ALGO 1\nexpect trk 2\ntap EDIT\n", k + 1, pr->name);
+        fprintf(f, "# preset %d: %s\nwait 200\nspin ALGO 1\nexpect trk 2\ntap EDIT\n", k + 1, pr->name);
         fprintf(f, "param 2 %d %d\n", TP_ENGINE, pr->par[TP_ENGINE]);
         fprintf(f, "param 2 %d %d\n", TP_LTYPE, pr->par[TP_LTYPE]);
         for (p = 0; p < NTP_SOUND; p++)
