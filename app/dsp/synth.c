@@ -87,7 +87,7 @@ static const float SYNC_BEATS[LS_SYNC_N] = {8.0f, 4.0f, 2.0f, 1.0f, 0.5f, 0.25f,
 static const char *const ENVP_N[4] = {"attack", "decay", "sustain", "release"};
 static const char *const FLTP_N[4] = {"cutoff", "reso", "env", "keytrack"};
 static const char *const AMPP_N[4] = {"volume", "pitch", "pan", "character"};
-static const char *const CTYPE_N[NCT] = {"off", "drive", "fold", "crush", "ring", "tilt"};
+static const char *const CTYPE_N[NCT] = {"off", "drive", "fold", "crush", "ring", "tilt", "tape", "sampler"};
 static const char *const SMODE_N[NSM] = {"one-shot", "loop", "reverse", "ping-pong"};
 static const char *const SLICES_N[SL_NCOUNT] = {"4", "8", "16", "32"};
 static const char *const DFTYPE_N[NDF] = {"off", "lp", "hp", "bp"};
@@ -162,7 +162,8 @@ typedef struct {
     float pan_in, pan_l, pan_r;       /* the pan the gains were made from, and those gains */
     float pitch_in, e_in[4];          /* the pitch and the knobs the frequency and increments were made from */
     float o[16];                      /* the engine's state */
-    float cz[6];                      /* the character stage's: low-pass / hold L R, DC L R, phase, - */
+    float cz[8];                      /* the character stage's: low-pass / hold L R, DC L R, phase, -, the
+                                       * sampler's output filter L R (tape: cz[4..5] its wow's phases) */
 } voice_t;
 /* the sample engine's decoded windows (dsp/sample.h), a voice each: beside the struct, in RAM (the pool is
  * the scarcer); each is touched only by its own voice's render, on whichever core renders it */
@@ -1832,7 +1833,7 @@ static void voice_take(synth_t *s, int vi, int trk, int note, int vel, int glide
         v->amp.level = v->flt.level = 0.0f;
         for (i = 0; i < 8; i++)
             v->f[i] = 0.0f;
-        for (i = 0; i < 6; i++)
+        for (i = 0; i < 8; i++)
             v->cz[i] = 0.0f;
         v->amp_cur = 0.0f;
         v->glc = v->grc = 0.0f;
@@ -2237,6 +2238,9 @@ static inline float sin_q(float ph)              /* a quick sine of a phase in t
 static float ch_lp_hz(float t) { return 400.0f * fm_exp2f(t * 5.64385619f); }      /* tone 0..1: 400 Hz .. 20 kHz */
 static float ch_pivot_hz(float a) { return 150.0f * fm_exp2f(a * 5.32192809f); }   /* amount 0..1: 150 Hz .. 6 kHz */
 static float ch_alpha(float hz) { return hz >= 19000.0f ? 1.0f : 1.0f - fm_expf(-FM_TWO_PI * hz * INV_SR); }
+static float ch_tape_hz(float t) { return 1500.0f * fm_exp2f(t * 3.585f); }        /* tone 0..1: 1.5 .. 18 kHz */
+static float ch_smp_hz(float t) { return 2000.0f * fm_exp2f(t * 3.322f); }         /* tone 0..1: 2 .. 20 kHz */
+static float ch_smp_rate(float a) { return 26040.0f * fm_exp2f(-a * 1.703f); }     /* amount 0..1: 26 .. 8 kHz */
 #define CH_DC (FM_TWO_PI * 12.0f * INV_SR)       /* the DC blocker's one-pole: 12 Hz */
 #define CH_REF 0.7f                              /* the drive keeps the level of a peak here (an engine's, about) */
 #define CH_FOLD 0.6f                             /* the fold's level once it folds (a folded wave's RMS: about a saw's) */
@@ -2281,6 +2285,23 @@ static void char_coefs(int type, float a, float t, float freq, float *x)
         x[5] = CH_DC;
         break;
     }
+    case CT_TAPE: {                              /* the drive's curve, gentler; a two-pole roll-off; the wow's depth */
+        float g = 0.5f * fm_exp2f(a * 4.0f);
+        x[0] = g;
+        x[1] = CH_REF / sat_c(g * CH_REF) * (1.0f - 0.15f * a);
+        x[2] = ch_alpha(ch_tape_hz(t));
+        x[3] = 2.0f + 8.0f * a;                  /* cents (voice_chunk) */
+        break;
+    }
+    case CT_SAMPLER: {                           /* rate and bits by the amount; the input and output filters */
+        float r = ch_smp_rate(a), q = fm_exp2f(11.0f - 4.0f * a);
+        x[0] = q;
+        x[1] = 1.0f / q;
+        x[2] = r * INV_SR;
+        x[3] = ch_alpha(0.45f * r);
+        x[4] = ch_alpha(ch_smp_hz(t));
+        break;
+    }
     case CT_TILT: {                              /* lows x 2^-tilt, highs x 2^tilt about the pivot */
         float tl = tc;
         x[0] = ch_alpha(ch_pivot_hz(a));
@@ -2299,7 +2320,7 @@ static void char_prep(synth_t *s, voice_t *v, int dest, float off)
     if (type >= NCT || mix == 0)
         type = CT_OFF;
     if (type != c->ctype) {
-        for (i = 0; i < 6; i++)
+        for (i = 0; i < 8; i++)
             v->cz[i] = 0.0f;
         c->ctype = (uint8_t)type;
     }
@@ -2332,9 +2353,9 @@ float char_picture(const uint8_t *par, float u)
     float wet = (float)(par[TP_CMIX] & 127) * (1.0f / 127.0f), x[8], d = u, y = u;
     char_coefs(type, a, t, 220.0f, x);
     switch (type) {
-    case CT_DRIVE: y = sat_c(u * x[0]) * x[1]; break;
+    case CT_DRIVE: case CT_TAPE: y = sat_c(u * x[0]) * x[1]; break;
     case CT_FOLD: y = (sin_q(u * x[0] + x[3]) - x[4]) * x[1]; break;
-    case CT_CRUSH: {                             /* a cycle of 200 samples, held and quantised */
+    case CT_CRUSH: case CT_SAMPLER: {            /* a cycle of 200 samples, held and quantised */
         float hold = 1.0f / x[2], n = fm_floorf(u * 200.0f / hold) * hold;
         d = 0.9f * fm_sin_turns(u);
         y = fm_floorf(0.9f * fm_sin_turns(n * (1.0f / 200.0f)) * x[0] + 0.5f) * x[1];
@@ -2388,6 +2409,12 @@ SY_INLINE float char_one(float d, const int type, float c0, float c1, float c2, 
         *lp += c0 * (d - *lp);
         y = *lp * c1 + (d - *lp) * c2;
         break;
+    case CT_TAPE:                                /* lp, dc: the roll-off's two poles */
+        y = sat_c(d * c0) * c1;
+        *lp += c2 * (y - *lp);
+        *dc += c2 * (*lp - *dc);
+        y = *dc;
+        break;
     default:
         y = d;
         break;
@@ -2401,6 +2428,36 @@ SY_INLINE void char_loop(voice_t *v, float *xl, float *xr, int k, const int type
     const float c0 = cx[0], c1 = cx[1], c2 = cx[2], c3 = cx[3], c4 = cx[4], c5 = cx[5], wet = cx[7];
     float z0 = v->cz[0], z1 = v->cz[1], z2 = v->cz[2], z3 = v->cz[3], ph = v->cz[4], qi = v->cz[5];
     int j;
+    if (type == CT_SAMPLER) {                    /* z0 / z1 the input filter, z2 / z3 the held sample, z6 / z7 the output's */
+        float z6 = v->cz[6], z7 = v->cz[7];
+        for (j = 0; j < k; j++) {
+            int upd;
+            ph += c2;
+            upd = ph >= 1.0f;
+            if (upd)
+                ph -= 1.0f;
+            z0 += c3 * (xl[j] - z0);
+            if (upd)
+                z2 = fm_floorf(z0 * c0 + 0.5f) * c1;
+            z6 += c4 * (z2 - z6);
+            xl[j] += wet * (z6 - xl[j]);
+            if (stereo) {
+                z1 += c3 * (xr[j] - z1);
+                if (upd)
+                    z3 = fm_floorf(z1 * c0 + 0.5f) * c1;
+                z7 += c4 * (z3 - z7);
+                xr[j] += wet * (z7 - xr[j]);
+            }
+        }
+        v->cz[0] = fm_flush(z0);
+        v->cz[1] = fm_flush(z1);
+        v->cz[2] = z2;
+        v->cz[3] = z3;
+        v->cz[4] = ph;
+        v->cz[6] = fm_flush(z6);
+        v->cz[7] = fm_flush(z7);
+        return;
+    }
     for (j = 0; j < k; j++) {
         float mod = 0.0f;
         int upd = 0;
@@ -2440,6 +2497,10 @@ static void char_run(voice_t *v, float *xl, float *xr, int k)
     case CT_RING * 2 + 1: char_loop(v, xl, xr, k, CT_RING, 1); break;
     case CT_TILT * 2: char_loop(v, xl, xr, k, CT_TILT, 0); break;
     case CT_TILT * 2 + 1: char_loop(v, xl, xr, k, CT_TILT, 1); break;
+    case CT_TAPE * 2: char_loop(v, xl, xr, k, CT_TAPE, 0); break;
+    case CT_TAPE * 2 + 1: char_loop(v, xl, xr, k, CT_TAPE, 1); break;
+    case CT_SAMPLER * 2: char_loop(v, xl, xr, k, CT_SAMPLER, 0); break;
+    case CT_SAMPLER * 2 + 1: char_loop(v, xl, xr, k, CT_SAMPLER, 1); break;
     default: break;
     }
 }
@@ -2528,6 +2589,11 @@ static void voice_chunk(synth_t *s, voice_t *v)
     c->pitch_off = (float)t->bend_c + t->pb_base + t->pb_step * (float)(k + 1) + t->lpitch[k] * lenv;
     if (dest == LD_PITCH)
         c->pitch_off += off * (1200.0f / 127.0f);
+    if (c->ctype == CT_TAPE) {                   /* the tape's wow and flutter (char_coefs: cx[3] cents) */
+        v->cz[4] = wrap1(v->cz[4] + 0.55f * (float)SY_CHUNK * INV_SR);
+        v->cz[5] = wrap1(v->cz[5] + 6.1f * (float)SY_CHUNK * INV_SR);
+        c->pitch_off += c->cx[3] * c->cx[7] * (fm_sin_turns(v->cz[4]) + 0.25f * fm_sin_turns(v->cz[5]));
+    }
     {   /* the frequency and the engine's increments: when the pitch or a knob moved (or every 4th
          * chunk: the organ's pitch wobble and phasor trim); brocade's sub: when it starts or its offset moved */
         float pin = v->pitch_cur + c->pitch_off * 0.01f;
@@ -2591,7 +2657,7 @@ static void voice_subblock(synth_t *s, voice_t *v, int aligned)
         voice_steal(s, v);
         for (i = 0; i < 8; i++)
             v->f[i] = 0.0f;
-        for (i = 0; i < 6; i++)
+        for (i = 0; i < 8; i++)
             v->cz[i] = 0.0f;
     }
     c = &v->c;
@@ -3416,9 +3482,14 @@ void tp_text(int p, int v, int engine, char *num, char *unit) { tp_text_i(tp_inf
 void tp_text_par(int p, int v, const uint8_t *par, char *num, char *unit)
 {
     int ct = par[TP_CTYPE];
-    if ((p == TP_CTONE && ct == CT_DRIVE) || (p == TP_CAMT && ct == CT_TILT)) {
+    if ((p == TP_CTONE && (ct == CT_DRIVE || ct == CT_TAPE || ct == CT_SAMPLER)) || (p == TP_CAMT && ct == CT_TILT)) {
         float t = (float)(v > 127 ? 127 : v) * (1.0f / 127.0f);   /* a low-pass, the tilt's pivot: Hz */
-        hz_text(p == TP_CTONE ? ch_lp_hz(t) : ch_pivot_hz(t), num, unit);
+        hz_text(p == TP_CAMT ? ch_pivot_hz(t) : ct == CT_TAPE ? ch_tape_hz(t) : ct == CT_SAMPLER ? ch_smp_hz(t) : ch_lp_hz(t),
+                num, unit);
+        return;
+    }
+    if (p == TP_CAMT && ct == CT_SAMPLER) {                       /* the rate */
+        hz_text(ch_smp_rate((float)(v > 127 ? 127 : v) * (1.0f / 127.0f)), num, unit);
         return;
     }
     if (p == TP_CTONE && ct == CT_RING) {                         /* the ratio */

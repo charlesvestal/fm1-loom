@@ -56,7 +56,7 @@ part 4 what is open. The A/B pages this came from: `build/ab/index.html`, `build
 
 ## 3. The plan
 
-### 3.0 Done (2026-10-19, uncommitted)
+### 3.0 Done (2026-10-19, branch `sound`)
 - The hardware profiler: `app/dsp/bench.{c,h}` (kernels: oscillators, filters, curves, delay lines, a Dattorro plate,
   a voice, the code-size curve), `SB_BENCH` (27) in `app/samples.c`, `tests/host/hw_bench.{c,sh}`, `tools/hw_bench.py`;
   `XY_BENCH=1 FM1B_POOL_SPARE=0 ./build.sh` (tools/gen_build.py; bench.c is empty otherwise: the normal image is
@@ -88,10 +88,12 @@ part 4 what is open. The A/B pages this came from: `build/ab/index.html`, `build
   range. (These would have caught both the rasp and E2's boom.)
 
 ### 3.3 The engines
-Proposal (open, 4.1): **analog** (new: two oscillators, sub, noise, sync, unison = brocade's saws, PWM, the filters,
+Charles defers the engine choice. Settled: the **digital voice is wavetable** (gingham is too chiptune: cut), and
+**bring-your-own wavetables** are wanted (a table uploaded into the user sample bank, as samples are: 216 KB of flash,
+and a flash table reads as fast as RAM, `bench.c` "wt big"). Proposal for the rest: **analog** (new: two oscillators, sub, noise, sync, unison = brocade's saws, PWM, the filters,
 drift), **fm** (orbit + tines: 2-op with index envelopes and keyscale, the tine; e-pianos, bells, DX basses, the
 slap), **wavetable** (tables smoothed), **organ**, **cane** (plucks, strings, reeds, mallets), **sample**, **slice**,
-the kit. Cut: weft, stack, sync, swarm, brocade (into analog), voile / gingham (or one kept as the digital voice).
+the kit. Cut: weft, stack, sync, swarm, gingham, brocade (into analog); voile by ear.
 - **Code budget**: `eng_run` (all engines) <= ~10 KB, `voice_chunk` slimmed; the hot path toward the ~32 KB cache.
   Measured with llvm-nm on `app/build/loom.elf` and the profiler's code curve.
 - **Every FM path** gets an index envelope and keyscale (orbit has them now; tines has a fixed decay).
@@ -115,7 +117,8 @@ disagrees.
 
 ## 4. Open
 
-1. Which engines stay: voile, gingham (the digital voice?), cane as is or reworked; whether wavetable's tables change.
+1. Which engines stay: voile (choirs, vocal pads: by ear), cane as is or reworked; wavetable's tables (smoothed, new
+   ones) and the BYO format (a table's size and frame count, the upload tool's).
 2. analog's shape: one engine for everything subtractive (supersaw included) or the supersaw apart.
 3. Per-note analog variance: optional; cost it if wanted.
 4. The air above 6 kHz on FM with a falling index (the E3s have little): a higher floor, or noise / breath.

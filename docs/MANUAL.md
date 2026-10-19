@@ -802,18 +802,20 @@ Turn **ALGORITHM** past T8. Each aux track has its own page under **EDIT** and i
 | lofi | rate, bits, smooth, width |
 | phaser | freq, depth, rate, feedback |
 | reverb, plate | size, motion, tone, damp (how fast the tail darkens) |
-| reverb, the other modes | size, decay, tone, damp |
+| reverb, the other modes (lush too) | size, decay, tone, damp |
 
   The effects return only what they make: the track's own sound stays on the track.
 
-  The reverb has ten modes, and **PRESETS** walks through them after the phaser: **plate**, LOOM-8's own, and
+  The reverb has eleven modes, and **PRESETS** walks through them after the phaser: **plate**, LOOM-8's own;
   nine from the PlayStation's sound chip, the reverbs its games used: **room**, **studio S**, **studio M**,
   **studio L** (small, medium, large), **hall**, **half echo**, **space echo**, **chaos echo** (it almost never
-  stops) and **one echo** (a single repeat). They keep the console's grain: they run at half the sample rate.
+  stops) and **one echo** (a single repeat); and **lush**, a smooth, wide plate (after Jon Dattorro's), the
+  reverb of a new project. The console's keep its grain: they run at half the sample rate, as lush does.
   On these, **size** stretches their delays, from small and metallic at 0 to the console's own at the top (the
   new mode's starting point); **decay** sets how long the tail lasts, the console's own in the middle;
   **tone** darkens the tail below the middle and thins it above; **damp** softens the reflections. Changing
-  the mode empties the reverb for a moment. Only FX II has the reverb: FX I has the delay's memory instead.
+  the mode empties the reverb for a moment. On **lush**, **size** also lengthens the gap before the tail, and
+  **damp** darkens the tail as it fades. Only FX II has the reverb: FX I has the delay's memory instead.
 
 ## Mix and master
 

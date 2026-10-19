@@ -3519,7 +3519,8 @@ static void draw_filter(void)
 static void draw_character(void)
 {
     static const char *const ABOUT[NCT] = {"the voice as it is", "a soft saturation", "a sine wavefolder",
-                                           "fewer bits, a lower rate", "a ring modulator", "a tilt EQ"};
+                                           "fewer bits, a lower rate", "a ring modulator", "a tilt EQ",
+                                           "worn tape: warmth and wow", "an old sampler's grain"};
     int trk = inst_trk(), drum = is_drum(trk);
     const uint8_t *p = proj.trk[trk].par;
     int ct = p[TP_CTYPE] % NCT;
@@ -3541,7 +3542,7 @@ static void draw_character(void)
     s_cat(s_cat(s_cat(t, "after "), TRACK_NAME[trk]), "'s filter");
     cv_text(12, 56, &FONT_XS, t, K_DIM);
     cv_rect(x0, cy, w, 1, K_LINE);
-    if (ct != CT_TILT && ct != CT_CRUSH && ct != CT_RING)
+    if (ct != CT_TILT && ct != CT_CRUSH && ct != CT_RING && ct != CT_SAMPLER)
         cv_rect(x0 + w / 2, y0, 1, hh, K_LINE);
     {
         float ys[101], ds[101];
@@ -3552,7 +3553,8 @@ static void draw_character(void)
             dry[i] = p[i];
         dry[TP_CMIX] = 0;                        /* the dry curve: the same with the mix at 0 */
         for (i = 0; i <= w; i++) {
-            float u = ct == CT_TILT || ct == CT_CRUSH || ct == CT_RING ? (float)i / (float)w : (float)i * 2.0f / (float)w - 1.0f;
+            float u = ct == CT_TILT || ct == CT_CRUSH || ct == CT_RING || ct == CT_SAMPLER ? (float)i / (float)w
+                                                                                     : (float)i * 2.0f / (float)w - 1.0f;
             float y = fm_clampf(char_picture(p, u), -1.2f, 1.2f), d = fm_clampf(char_picture(dry, u), -1.2f, 1.2f);
             ys[i] = (float)cy - y * (float)(hh / 2 - 6) / 1.2f;
             ds[i] = (float)cy - d * (float)(hh / 2 - 6) / 1.2f;

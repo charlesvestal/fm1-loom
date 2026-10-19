@@ -962,7 +962,7 @@ static void bench(void)
 }
 
 /* ---- the character stage ---- */
-static const char *const CT_N[NCT] = {"off", "drive", "fold", "crush", "ring", "tilt"};
+static const char *const CT_N[NCT] = {"off", "drive", "fold", "crush", "ring", "tilt", "tape", "sampler"};
 /* a held note's RMS (left, blocks 30..90) on track 0 as par[0] stands; its samples into buf when given */
 static float held_rms(int note, float *buf, int *finite)
 {

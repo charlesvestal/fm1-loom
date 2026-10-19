@@ -106,13 +106,13 @@ static void aux_defaults(void)
     set_name(&proj.trk[AUX_PUNCH], "throws");
     set_name(&proj.trk[AUX_FX1], "delay");
     set_name(&proj.trk[AUX_FX2], "reverb");
-    /* the notebook's default project: FX I a delay, FX II a reverb, each with its printed defaults
-     * (fx.h FXT_DEFAULT); the FX I track's second send feeds its return into FX II */
+    /* the notebook's default project: FX I a delay, FX II the lush reverb, each with its printed defaults
+     * (fx.h FXT_DEFAULT, RV_LUSH_DEFAULT); the FX I track's second send feeds its return into FX II */
     proj.trk[AUX_FX1].par[TP_ENGINE] = FXT_DELAY;
-    proj.trk[AUX_FX2].par[TP_ENGINE] = FXT_REVERB + RV_PLATE;
+    proj.trk[AUX_FX2].par[TP_ENGINE] = FXT_REVERB + RV_LUSH;
     for (k = 0; k < 4; k++) {
         proj.trk[AUX_FX1].par[TP_E1 + k] = FXT_DEFAULT[FXT_DELAY][k];
-        proj.trk[AUX_FX2].par[TP_E1 + k] = FXT_DEFAULT[FXT_REVERB][k];
+        proj.trk[AUX_FX2].par[TP_E1 + k] = RV_LUSH_DEFAULT[k];
     }
     proj.trk[AUX_FX1].par[TP_CUT] = 127;                 /* low-pass open */
     proj.trk[AUX_FX1].par[TP_FENV] = 40;                 /* the high-pass: the echoes from 130 Hz (no mud) */

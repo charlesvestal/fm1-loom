@@ -62,6 +62,14 @@ spin K4 -40
 wait 60
 shot d10j_tilt_half_mix.png
 turn PRESET 1
+expect par2.30 6
+wait 60
+shot d10k_tape.png
+turn PRESET 1
+expect par2.30 7
+wait 60
+shot d10l_sampler.png
+turn PRESET 1
 expect par2.30 0
 turn SELECT 1
 expect page Sends

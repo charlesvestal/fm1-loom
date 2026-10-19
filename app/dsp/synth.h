@@ -103,8 +103,13 @@ enum { FT_LP24, FT_LADDER, FT_LP12, FT_HP12, FT_DYNAMIC, FT_BP12, NFT };
  *   ring:    a ring modulator, a sine at a ratio of the note (tone: 0.25:1 .. 7:1 in 16 steps); amount = depth
  *   tilt:    a tilt EQ: amount = its pivot (150 Hz .. 6 kHz), tone = the tilt (below 64 darker, above brighter,
  *            +-6 dB each side at the ends)
- * mix: dry (0) .. wet (127); at 0 the stage is skipped. The LFO reaches the amount (the voice module's knob 4). */
-enum { CT_OFF, CT_DRIVE, CT_FOLD, CT_CRUSH, CT_RING, CT_TILT, NCT };
+ *   tape:    worn tape: a soft saturation (gain 0.5 .. 8, made up) into a two-pole roll-off (tone: 1.5 .. 18 kHz), and
+ *            a wow on the pitch (0.55 Hz, with a 6 Hz flutter a quarter as deep): 2 .. 10 cents by the amount
+ *   sampler: an old sampler: the voice low-passed, held at a lower rate and fewer bits (amount: 26 kHz and 12 bits ..
+ *            8 kHz and 8 bits), then its output filter (tone: 2 .. 20 kHz): the dusty grain, not the crush's rasp
+ * mix: dry (0) .. wet (127); at 0 the stage is skipped. The LFO reaches the amount (the voice module's knob 4).
+ * (Saved by number: a new type goes at the end.) */
+enum { CT_OFF, CT_DRIVE, CT_FOLD, CT_CRUSH, CT_RING, CT_TILT, CT_TAPE, CT_SAMPLER, NCT };
 /* the LFO: TP_LSPEED is one knob: 0..7 synced 2/1, 1, 1/2, 1/4, 1/8, 1/16, 1/32, 1/64
  * (counter-clockwise), 8..127 free (clockwise, 0.1..30 Hz). Per type the five values TP_LSPEED / TP_LAMT /
  * TP_LDEST / TP_LX / TP_LX2 mean:

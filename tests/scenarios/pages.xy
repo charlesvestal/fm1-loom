@@ -159,7 +159,10 @@ shot fx1.png
 turn SELECT 1
 wait 40
 shot fx2.png
-# the reverb's SPU modes: the longest names on the page, its title and its list
+shot fx2_lush.png
+# the reverb's SPU modes: the longest names on the page, its title and its list (from the plate: lush is the default)
+turn PRESET -10
+expect par12.0 4
 turn PRESET 7
 wait 40
 expect par12.0 11
