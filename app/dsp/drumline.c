@@ -77,21 +77,22 @@ const char *const DL_SOUND_NAME[DL_NSOUND] = {"kick", "snare", "hat", "open", "c
  * length, choke group 1 with the closed), clap, low tom, high tom, conga, shaker, string, fm. The
  * tambourine has no key of its own: turn any key's model knob to it.
  * DP_MODEL, DP_K1..K4, DP_RANDOM, DP_PAN, DP_VOLUME (76 = 0 dB), DP_MODE, then the key's envelope and filter,
- * neutral (KEYN: attack 0, hold 0, decay off, lag 0; cutoff open, no resonance, no envelope, no drive, off) */
+ * neutral (KEYN: attack 0, hold 0, decay off, lag 0; cutoff open, no resonance, no envelope, no drive, off), then
+ * its sends to FX I and FX II (a little room on the snare, the clap, the toms and the string; the kick and hats dry) */
 #define VOL0 76
 #define KEYN 0, 0, 127, 0, 127, 0, 64, 0, DF_OFF
 const uint8_t DL_DEFAULT_KIT[DL_NSOUND][DP_N] = {
-    {DM_KICK, 82, 42, 64, 64, 0, 64, VOL0, PM_ONESHOT, KEYN},
-    {DM_SNARE, 79, 40, 84, 64, 0, 64, VOL0, PM_ONESHOT, KEYN},
-    {DM_HIHAT, 93, 23, 64, 88, 0, 74, VOL0, PM_CHOKE1, KEYN},
-    {DM_HIHAT, 93, 88, 64, 88, 0, 74, VOL0, PM_CHOKE1, KEYN},
-    {DM_CLAP, 100, 64, 64, 38, 0, 54, VOL0, PM_ONESHOT, KEYN},
-    {DM_TOM, 70, 46, 38, 64, 0, 44, VOL0, PM_ONESHOT, KEYN},
-    {DM_TOM, 100, 46, 38, 64, 0, 84, VOL0, PM_ONESHOT, KEYN},
-    {DM_CONGA, 109, 46, 64, 0, 0, 54, VOL0, PM_ONESHOT, KEYN},
-    {DM_SHAKER, 31, 64, 64, 101, 0, 80, VOL0, PM_ONESHOT, KEYN},
-    {DM_RESO, 36, 70, 70, 100, 0, 50, VOL0, PM_ONESHOT, KEYN},
-    {DM_FM, 103, 100, 46, 15, 0, 64, VOL0, PM_ONESHOT, KEYN},
+    {DM_KICK, 82, 42, 64, 64, 0, 64, VOL0, PM_ONESHOT, KEYN, 0, 0},
+    {DM_SNARE, 79, 40, 84, 64, 0, 64, VOL0, PM_ONESHOT, KEYN, 0, 16},
+    {DM_HIHAT, 93, 23, 64, 88, 0, 74, VOL0, PM_CHOKE1, KEYN, 0, 0},
+    {DM_HIHAT, 93, 88, 64, 88, 0, 74, VOL0, PM_CHOKE1, KEYN, 0, 0},
+    {DM_CLAP, 100, 64, 64, 38, 0, 54, VOL0, PM_ONESHOT, KEYN, 0, 24},
+    {DM_TOM, 70, 46, 38, 64, 0, 44, VOL0, PM_ONESHOT, KEYN, 0, 12},
+    {DM_TOM, 100, 46, 38, 64, 0, 84, VOL0, PM_ONESHOT, KEYN, 0, 12},
+    {DM_CONGA, 109, 46, 64, 0, 0, 54, VOL0, PM_ONESHOT, KEYN, 0, 8},
+    {DM_SHAKER, 31, 64, 64, 101, 0, 80, VOL0, PM_ONESHOT, KEYN, 0, 0},
+    {DM_RESO, 36, 70, 70, 100, 0, 50, VOL0, PM_ONESHOT, KEYN, 0, 24},
+    {DM_FM, 103, 100, 46, 15, 0, 64, VOL0, PM_ONESHOT, KEYN, 0, 12},
 };
 volatile uint8_t drumline_hitv[DL_NSOUND];
 
@@ -961,7 +962,7 @@ static float volume_lin(int v)
     return fm_db2lin((float)(v - VOL0) * (20.0f / (float)(127 - VOL0)));
 }
 
-/* the chunk's targets from par[]: volume, pan, the track's sends; ramped over m samples */
+/* the chunk's targets from par[]: volume, pan, the key's sends; ramped over m samples */
 static void control(const uint8_t *par, dvoice_t *v, int m)
 {
     const uint8_t *p = par + TP_DRUM(v->sound, 0);
@@ -969,8 +970,8 @@ static void control(const uint8_t *par, dvoice_t *v, int m)
     lin = volume_lin(p[DP_VOLUME]);
     l = lin * fm_sin_turns(0.25f * (1.0f - a));       /* constant power: cos, sin of a quarter turn */
     r = lin * fm_sin_turns(0.25f * a);
-    s1 = lin * (float)par[TP_SEND1] * (1.0f / 127.0f);
-    s2 = lin * (float)par[TP_SEND2] * (1.0f / 127.0f);
+    s1 = lin * (float)p[DP_SEND1] * (1.0f / 127.0f);
+    s2 = lin * (float)p[DP_SEND2] * (1.0f / 127.0f);
     if (v->age == 0) {                                /* a fresh voice starts at its gains */
         v->gl = l; v->gr = r; v->gs1 = s1; v->gs2 = s2;
     }

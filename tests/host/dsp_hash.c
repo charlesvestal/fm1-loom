@@ -140,7 +140,11 @@ static void drum_cases(void)
             for (s = 0; s < DL_NSOUND; s++)
                 for (k = 0; k < DP_N; k++)
                     dpar[TP_DRUM(s, k)] = DL_DEFAULT_KIT[s][k];
-            dpar[TP_R] = 64; dpar[TP_SEND1] = 64; dpar[TP_SEND2] = 32; dpar[TP_S] = 20;
+            dpar[TP_R] = 64; dpar[TP_S] = 20;
+            for (s = 0; s < DL_NSOUND; s++) {         /* (the keys' own sends) */
+                dpar[TP_DRUM(s, DP_SEND1)] = 64;
+                dpar[TP_DRUM(s, DP_SEND2)] = 32;
+            }
             dpar[TP_DRUM(0, DP_MODEL)] = (uint8_t)m;
             for (k = 0; k < 4; k++)
                 dpar[TP_DRUM(0, DP_K1 + k)] = DM_DEFAULT[m][k];

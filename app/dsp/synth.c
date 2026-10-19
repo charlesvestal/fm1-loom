@@ -2615,7 +2615,8 @@ static const tp_info_t DRUMP[DP_N] = {{"model", 0, NDM - 1, 0, PK_NAMES, DM_NAME
                                       {"decay", 0, 127, 127, PK_DECAY, 0}, {"lag", 0, 127, 0, PK_LAGMS, 0},
                                       {"cutoff", 0, 127, 127, PK_HZ, 0}, {"reso", 0, 127, 0, PK_PCT, 0},
                                       {"env", 0, 127, 64, PK_BIP, 0}, {"drive", 0, 127, 0, PK_PCT, 0},
-                                      {"type", 0, NDF - 1, DF_OFF, PK_NAMES, DFTYPE_N}};
+                                      {"type", 0, NDF - 1, DF_OFF, PK_NAMES, DFTYPE_N},
+                                      {"fx I", 0, 127, 0, PK_PCT, 0}, {"fx II", 0, 127, 0, PK_PCT, 0}};
 /* a drumline track's kit pages: Kit env (TP_A..TP_R) and Kit filter (the bus: TP_CUT..TP_KTRK) */
 static const tp_info_t DRUMENV[4] = {{"lag", 0, 127, 0, PK_PCT, 0}, {"attack", 0, 127, 0, PK_PCT, 0},
                                      {"random", 0, 127, 0, PK_PCT, 0}, {"length", 0, 127, 64, PK_PCT, 0}};

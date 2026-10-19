@@ -546,8 +546,9 @@ static int tp_page_param(int p, int k, int trk)
         return -1;
     if (fx_page(p))                                  /* (the effect tracks' own knobs, whatever trk is) */
         return M[p - P_ENGINE][k];
-    if (p == P_SENDS)
-        return is_aux(trk) ? -1 : M[p - P_ENGINE][k];
+    if (p == P_SENDS)                                /* (a kit's: the key's own, below) */
+        return is_aux(trk) ? -1 : is_drum(trk) && k < 2 ? TP_DRUM(ui.dsound % DL_NSOUND, DP_SEND1 + k)
+                                                        : M[p - P_ENGINE][k];
     if (p == P_CHARACTER)                            /* (a kit's voices are not synth voices: none) */
         return is_aux(trk) || is_drum(trk) ? -1 : M[p - P_ENGINE][k];
     if (is_aux(trk)) {
@@ -579,6 +580,8 @@ static int tp_page_param(int p, int k, int trk)
             static const uint8_t KF[4] = {DP_CUT, DP_RES, DP_FENV, DP_DRIVE};
             return TP_DRUM(key, KF[k]);
         }
+        if (p == P_MIX)                              /* (a kit has no track sends: FX, Sends has its keys') */
+            return k < 2 ? -1 : M[p - P_ENGINE][k];
         if (p == P_ENV2)                             /* the kit's envelope: lag, attack, random, length */
             return M[P_ENV - P_ENGINE][k];
         if (p == P_PLAY2)                            /* (a kit has no octave page) */
@@ -1101,10 +1104,10 @@ static void page_knobs(knob_t *k)
             ktp(&k[i], it, tp_page_param(p, i, it));
         break;
     }
-    case P_SENDS: {                                  /* the instrument's sends, pan and level */
+    case P_SENDS: {                                  /* the instrument's sends (a kit's: the key's), pan and level */
         int it = inst_trk();
-        ktp(&k[0], it, TP_SEND1);
-        ktp(&k[1], it, TP_SEND2);
+        ktp(&k[0], it, is_drum(it) ? TP_DRUM(ui.dsound % DL_NSOUND, DP_SEND1) : TP_SEND1);
+        ktp(&k[1], it, is_drum(it) ? TP_DRUM(ui.dsound % DL_NSOUND, DP_SEND2) : TP_SEND2);
         ktp(&k[2], it, TP_PAN);
         ktp(&k[3], it, TP_LEVEL);
         k[0].name = "fx I";
@@ -1143,9 +1146,12 @@ static void page_knobs(knob_t *k)
     case P_MIX:
         if (is_fx(trk))
             ktp(&k[3], trk, TP_LEVEL);
-        else if (!is_aux(trk)) {                     /* (the conductor and the throws: no sound, no knobs) */
-            ktp(&k[0], trk, TP_SEND1);
-            ktp(&k[1], trk, TP_SEND2);
+        else if (!is_aux(trk)) {                     /* (the conductor and the throws: no sound, no knobs; a kit's
+                                                      * sends are its keys': FX, Sends) */
+            if (!is_drum(trk)) {
+                ktp(&k[0], trk, TP_SEND1);
+                ktp(&k[1], trk, TP_SEND2);
+            }
             ktp(&k[2], trk, TP_PAN);
             ktp(&k[3], trk, TP_LEVEL);
             k[0].name = "FX I";
@@ -3531,20 +3537,22 @@ static void draw_character(void)
     }
     cv_blit(0, MAIN_Y);
 }
-static void draw_sends(void)                         /* the instrument's two sends, named with the effects on them */
+static void draw_sends(void)                         /* the instrument's two sends (a kit's: the key's), named with
+                                                      * the effects on them */
 {
-    int trk = inst_trk();
-    const uint8_t *p = proj.trk[trk].par;
-    uint32_t h = hash_u(hash_u(2166136261u, 0x5Eu), (uint32_t)trk | (uint32_t)p[TP_SEND1] << 4 | (uint32_t)p[TP_SEND2] << 12 |
+    int trk = inst_trk(), key = ui.dsound % DL_NSOUND, drum = is_drum(trk);
+    const uint8_t *p = proj.trk[trk].par, *sv = drum ? p + TP_DRUM(key, DP_SEND1) : p + TP_SEND1;
+    uint32_t h = hash_u(hash_u(2166136261u, 0x5Eu), (uint32_t)trk | (uint32_t)sv[0] << 4 | (uint32_t)sv[1] << 12 |
                                           (uint32_t)p[TP_LEVEL] << 28);
     char t[32];
-    h = hash_u(h, proj.trk[AUX_FX1].par[TP_ENGINE] | (uint32_t)proj.trk[AUX_FX2].par[TP_ENGINE] << 8);
+    h = hash_u(h, proj.trk[AUX_FX1].par[TP_ENGINE] | (uint32_t)proj.trk[AUX_FX2].par[TP_ENGINE] << 8 |
+                      (uint32_t)(drum ? key + 1 : 0) << 16);
     if (!begin_main(h))
         return;
-    s_cat(s_cat(t, TRACK_NAME[trk]), " sends to");
+    s_cat(s_cat(t, drum ? DL_SOUND_NAME[key] : TRACK_NAME[trk]), " sends to");
     cv_text(12, 4, &FONT_B, t, K_TEXT);
     for (int i = 0; i < 2; i++) {
-        int32_t y = 40 + i * 32, v = p[TP_SEND1 + i] * 132 / 127;
+        int32_t y = 40 + i * 32, v = sv[i] * 132 / 127;
         cv_text(12, y - 2, &FONT_S, i == 0 ? "FX I" : "FX II", K_TEXT);
         cv_text(12, y + 11, &FONT_XS, fx_label(fx_pick_of(AUX_FX1 + i)), K_DIM);
         cv_round(92, y + 3, 132, 8, 4, K_LINE);

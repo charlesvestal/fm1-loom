@@ -166,7 +166,8 @@ typedef struct {
     uint8_t gen, applied;             /* lane runtime: the value last applied (LOCK_NONE = none) */
     uint8_t from, to;                 /* the ramp across this step (shape) */
     uint8_t ramp;                     /* ramping toward `to` */
-    uint8_t trk, param;               /* whose value is applied: a cleared lane is released through them */
+    uint8_t trk;                      /* whose value is applied: a cleared lane is released through them */
+    uint16_t param;
     uint32_t age, len, hold;          /* samples into the gap, its length, the part held flat before the ramp */
 } lane_rt_t;
 

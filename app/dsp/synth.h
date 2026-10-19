@@ -53,7 +53,8 @@ extern const char *const EG_KNOB[NENGINE][4];      /* each engine's four knob na
  * attack, random (randomise every model's knobs per hit, the kick's pitch excepted), length (a scale on
  * every model's length); TP_FTYPE / TP_CUT..TP_KTRK the kit's bus filter (Kit filter: FT_DYNAMIC). */
 enum { DP_MODEL, DP_K1, DP_K2, DP_K3, DP_K4, DP_RANDOM, DP_PAN, DP_VOLUME, DP_MODE,
-       DP_ATTACK, DP_HOLD, DP_DECAY, DP_LAG, DP_CUT, DP_RES, DP_FENV, DP_DRIVE, DP_FTYPE, DP_N };
+       DP_ATTACK, DP_HOLD, DP_DECAY, DP_LAG, DP_CUT, DP_RES, DP_FENV, DP_DRIVE, DP_FTYPE,
+       DP_SEND1, DP_SEND2, DP_N };                  /* (the key's own sends: a kit has no track sends) */
 enum { DF_OFF, DF_LP, DF_HP, DF_BP, NDF };        /* a key's filter: off, 12 dB low-pass, high-pass, band-pass */
 enum {
     TP_ENGINE, TP_E1, TP_E2, TP_E3, TP_E4,         /* Engine page: the engine and its four knobs */
@@ -82,7 +83,7 @@ enum {
     TP_DRUM0,                                       /* the drum kit: NDRUM keys * DP_N */
     NTP = TP_DRUM0 + 11 * DP_N
 };
-_Static_assert(NTP <= 255, "a parameter's index is a byte (the engine's queue, the lock lanes)");
+_Static_assert(NTP <= 511, "a parameter's index: nine bits in the engine's queue (engine.c cq_put); a lane's is 16");
 #define TP_DRUM(s, k) (TP_DRUM0 + (s) * DP_N + (k))
 #define NTP_SOUND TP_PLAYER                          /* a preset keeps par[0..TP_PLAYER): the character, the engine's
                                                       * second page (TP_X1..X4) too */

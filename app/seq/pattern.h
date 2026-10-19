@@ -104,13 +104,13 @@ typedef struct {
 #define LOCK_NONE 0xFFu
 /* a lane that is no parameter: a drum step's note, the semitones its hits play away from the key's pitch (TUNE_0 =
  * none; held step + KNOB 4). It is not a lock: no knob gets it, no red dot shows it, SAVE's clear leaves it */
-#define LANE_TUNE 0xFEu
+#define LANE_TUNE 0xFFFEu                     /* (past every parameter: synth.h NTP) */
 #define TUNE_0 64
 #define TUNE_MAX 24
 typedef struct {
     uint8_t used, gen;                /* gen: bumped when the slot is reused (the interrupt resets its runtime) */
-    uint8_t trk, pat, param;          /* the track pattern and the parameter (synth.h TP_*) */
-    uint8_t rsv;
+    uint8_t trk, pat;                 /* the track and pattern */
+    uint16_t param;                   /* the parameter (synth.h TP_*: past a byte, the kit's keys), or LANE_TUNE */
     uint8_t val[NSTEP];
 } lane_t;                             /* 70 bytes */
 

@@ -69,7 +69,7 @@ int lane_alloc(lane_t *L, int trk, int pat, int param)
         return -1;
     L[k].trk = (uint8_t)trk;
     L[k].pat = (uint8_t)pat;
-    L[k].param = (uint8_t)param;
+    L[k].param = (uint16_t)param;
     for (i = 0; i < NSTEP; i++)
         L[k].val[i] = LOCK_NONE;
     L[k].gen++;                       /* the interrupt sees a new generation: a fresh runtime */

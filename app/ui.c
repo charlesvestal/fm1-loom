@@ -1670,7 +1670,7 @@ static void presets(int32_t e)
     default:
         if (is_fx(trk))
             fx_pick(trk, d);
-        else if (is_drum(trk) && (ui.page == P_ENGINE || ui.page == P_PLAY || ui.page == P_ENV)) {
+        else if (is_drum(trk) && (ui.page == P_ENGINE || ui.page == P_PLAY || ui.page == P_ENV || ui.page == P_SENDS)) {
             ui.dsound = (uint8_t)((ui.dsound + d + DL_NSOUND) % DL_NSOUND);
             say("KEY", DL_SOUND_NAME[ui.dsound]);
         } else if (!is_aux(trk) && ui.page >= P_ENGINE && ui.page <= P_PLAYERS3)
@@ -2135,13 +2135,14 @@ static void do_load_proj(void)
     engine_transport(0);
     engine_panic();
     if (project_load(slot) != 0)
-        say_no("EMPTY SLOT", "defaults loaded");
+        say_no(proj_slot >= NPROJ ? "OLD FORMAT" : "EMPTY SLOT", "defaults loaded");
     else {
         num_s((uint32_t)slot + 1u, s_cat(t, "slot "));
         say("LOADED", t);
         project_touch(slot);                     /* (the slot loaded last opens at power-on) */
     }
-    proj_slot = (uint8_t)slot;
+    if (proj_slot < NPROJ)                       /* (an older format's project: project_load left no slot) */
+        proj_slot = (uint8_t)slot;
     after_load();
     ui.dirty = 0;
 }
@@ -3007,7 +3008,7 @@ static void speak_dump(void)
         {"OCTAVE", "+1"}, {"PRESET", "U3 stack"}, {"EFFECT", "delay"}, {"CLEARED", "notes"}, {"COPIED", "pattern"},
         {"PASTED", "pattern"}, {"WOVEN", "copied rhythm"}, {"ROTATED", "forward"}, {"DUPLICATED", "bar"}, {"NO ROOM", "four bars at most"},
         {"SCRAMBLED", 0}, {"PRESET SAVED", "U2"}, {"RESET", "weft"}, {"SONG FULL", "64 slots"}, {"NO SLOT HERE", 0},
-        {"NO SONG", "white keys add scenes"}, {"LOADED", "slot 2"}, {"EMPTY SLOT", "defaults loaded"},
+        {"NO SONG", "white keys add scenes"}, {"LOADED", "slot 2"}, {"EMPTY SLOT", "defaults loaded"}, {"OLD FORMAT", "defaults loaded"},
         {"NEW PROJECT", "unsaved"}, {"RANDOMIZED", "T2 to T8"}, {"SCENE IN USE", "pick another first"}, {"ALL NOTES OFF", 0},
         {"STOP FIRST", "to change slots"}, {"THREE SLOTS", "white keys 1 to 3"}, {"ENGINE", "stack"}, {"LIST", "nothing here"},
         {"DELETED", "slot"}, {"REMOVED", 0}, {"NO EFFECT YET", "play a key on EDIT"}, {"NO SEGMENT YET", "play a key on EDIT"},

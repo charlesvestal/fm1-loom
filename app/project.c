@@ -293,9 +293,9 @@ static void patterns_clamp(void)
         }
     for (k = 0; k < NLANE; k++) {
         lane_t *l = &pats.lane[k];
-        if (l->used && (l->trk >= NALLTRK || l->pat >= NPATT || l->param >= NTP))
-            l->used = 0;
-        if (l->used) {                /* a value past the parameter's range would reach the voices unclamped */
+        if (l->used && (l->trk >= NALLTRK || l->pat >= NPATT || (l->param >= NTP && l->param != LANE_TUNE)))
+            l->used = 0;                  /* (a drum step's tune lane is no parameter: kept; it was dropped before 10) */
+        if (l->used && l->param != LANE_TUNE) {                /* a value past the parameter's range would reach the voices unclamped */
             const tp_info_t *i = tp_info_par(l->param, proj.trk[l->trk].par);
             int st;
             if (i)
@@ -521,6 +521,10 @@ int project_load(int slot)
         stored_hash[OBJ_PROJ(slot, 0)] = hash_of(io_buf, (uint32_t)n);
     } else {
         bad = 1;
+        if (n >= 8 && get32(io_buf) == PROJ_MAGIC && get32(io_buf + 4) != PROJ_FORMAT)
+            proj_slot = NPROJ;            /* another format's project there: no slot, so nothing (autosave, SAVE)
+                                           * writes over it unasked (it took a song once, 2026-10-19); SAVE TO
+                                           * chooses a slot */
     }
     n = plat_store_load(stream_obj[0], io_buf, sizeof io_buf);
     if (n >= 4 && get32(io_buf) == PROJ_STREAM) {

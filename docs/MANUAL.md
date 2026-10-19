@@ -542,6 +542,11 @@ and costs nothing. Then two pages for the whole kit:
 - **Kit filter**: the kit's bus, after the keys are summed: low cut, compression, drive and hi cut.
   **PRESETS** turns it on or off.
 
+Each key has its own sends: **FX**, then **SELECT** to Sends, shows the shown key's sends to FX I and FX II
+(a black key or **PRESETS** picks the key). The snare and the clap into the reverb, the kick and the hats dry:
+a kit has no sends of its own beside its keys', and a new kit's keys come with a little reverb on the snare,
+the clap, the toms and the string.
+
 Locks reach a key's own: hold a step and press **ENV**, and the knobs are the envelope (then, turning
 **SELECT**, the filter) of the step's key: the one shown if the step plays it, else the step's first. The
 line above the knobs names it.
@@ -821,7 +826,7 @@ Turn **ALGORITHM** past T8. Each aux track has its own page under **EDIT** and i
 
 Press **GLO**. The Mix page shows a meter for each track. A black key picks its track: a tap mutes or unmutes
 it, and holding it solos the track until you let go. The knobs are the sends to FX I and FX II, the pan and the
-level. Turn **SELECT** for Master EQ (low, mid and high; 64 is flat), Master color (below) and
+level (a drum track's sends are its keys': **FX**, Sends). Turn **SELECT** for Master EQ (low, mid and high; 64 is flat), Master color (below) and
 Master out (the drums' level, the melodic tracks' level, the compressor and the pump; its **SEL** list has
 what the pump follows, its release and accent, and the output level). Setup's knobs are the lights, sending MIDI
 clock, sending MIDI notes and the theme (tape deck or blueprint); the page also says where the tempo comes from

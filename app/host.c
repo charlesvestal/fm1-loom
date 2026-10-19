@@ -313,7 +313,8 @@ static int expect_more(const char *what, const char *a, const char *b, const cha
  *   knob T PARAM VALUE           a knob turned to VALUE as the UI turns it (set_tp: an engine, LFO type or drum
  *                                model starts from its own defaults; FX tracks re-applied). PARAM: a TP_* name
  *                                (below) or its number; VALUE: a number, a name of the value's list (spaces as _),
- *                                a sample's name, or uN = user sample N
+ *                                a sample's name, or uN = user sample N; a kit's send1 / send2: every key's (the
+ *                                kit has no track sends: each key its own, dK.send1)
  *   preset T NAME [ENGINE]       a factory preset by name (exact, else the first holding the word; else, with
  *                                ENGINE, that engine's first, with a warning)
  *   pat T PAT LEN [SCALE [NLEN [GROOVE [SHAPE]]]]   a pattern's length, scale (sixteenths a step: h 1 2 3 4 5 6
@@ -354,7 +355,8 @@ static const char *const TPN[TP_DRUM0] = {
 _Static_assert(TP_X1 == 34 && TP_OCT == 38 && TP_PLAYER == 39 && TP_CHAN == TP_DRUM0 - 1,
                "TPN: a name for every TP_* in its place");
 static const char *const DPN[DP_N] = {"model", "k1", "k2", "k3", "k4", "random", "pan", "volume", "mode", "attack",
-                                      "hold", "decay", "lag", "cut", "res", "fenv", "drive", "ftype"};
+                                      "hold", "decay", "lag", "cut", "res", "fenv", "drive", "ftype", "send1",
+                                      "send2"};
 static int ieq(const char *a, const char *b)       /* names alike: case and '_' for ' ' */
 {
     for (; *a && *b; a++, b++) {
@@ -652,7 +654,12 @@ static int song_cmd(const char *cmd)
         if (t < 0 || t >= NALLTRK)
             host_die("no track", w[1]);
         k = param_of(w[2]);
-        set_tp(t, k, value_of(t, k, w[3]));
+        if (t < NTRK && proj.trk[t].par[TP_ENGINE] == EG_DRUMLINE && (k == TP_SEND1 || k == TP_SEND2)) {
+            int v = value_of(t, k, w[3]);         /* a kit's send1 / send2: every key's (it has no track sends) */
+            for (int d = 0; d < DL_NSOUND; d++)
+                set_tp(t, TP_DRUM(d, k == TP_SEND1 ? DP_SEND1 : DP_SEND2), v);
+        } else
+            set_tp(t, k, value_of(t, k, w[3]));
         run_ms(1);
     } else if (!strcmp(cmd, "preset")) {            /* preset T NAME [ENGINE] (NAME: _ for spaces) */
         int pick = -1;
@@ -835,6 +842,8 @@ static int song_cmd(const char *cmd)
         pat_or_die(w[1], w[2]);
         t = atoi(w[1]) - 1;
         p = param_of(w[4]);
+        if (p < 0 || p >= NTP)
+            host_die("no parameter", w[4]);
         l = lane_find(pats.lane, t, atoi(w[2]) - 1, p);
         if (l < 0)
             l = lane_alloc(pats.lane, t, atoi(w[2]) - 1, p);
@@ -1079,6 +1088,59 @@ int app_host_cmd(const char *cmd, const char *a, const char *b, const char *c, c
         set_tempo_x10((int)(atof(a) * 10.0 + 0.5));     /* the project's tempo (saved with it), as SELECT turns it */
     else if (!strcmp(cmd, "projnew"))              /* as Setup's NEW PROJECT */
         do_new_proj();
+    else if (!strcmp(cmd, "upgrade9")) {           /* upgrade9 SLOT: a format-9 project (before the kit's keys had their
+                                                    * own sends) in slot 1..3 made format 10 and saved there: each key's
+                                                    * values in their new places, the kit's track sends on every key,
+                                                    * the lanes' drum parameters and tune renumbered (a one-off rescue,
+                                                    * build/rescue: restore a backup, upgrade9, backup) */
+        enum { O_TRK = offsetof(settings_t, trk), ODP = 18, ONTP = TP_DRUM0 + 11 * ODP, OTRK = ONTP + NAME_LEN + 4 };
+        static uint8_t old[4096];
+        int slot = a ? atoi(a) - 1 : -1, len, k, p, t, nl = 0;
+        if (slot < 0 || slot >= NPROJ)
+            host_die("upgrade9 SLOT", "");
+        len = plat_store_load(OBJ_PROJ(slot, 0), old, sizeof old);
+        if (len != O_TRK + NALLTRK * OTRK || get32(old) != PROJ_MAGIC || get32(old + 4) != 9u)
+            host_die("upgrade9: no format-9 project in slot", a);
+        proj_slot = (uint8_t)slot;
+        slot_objects(slot);
+        project_defaults();
+        len = plat_store_load(stream_obj[0], io_buf, sizeof io_buf);
+        if (len < 4 || get32(io_buf) != PROJ_STREAM || load_stream(len, 0))
+            host_die("upgrade9: its patterns do not load", a);
+        for (k = 0; k < NLANE; k++) {               /* (before the clamp: an old index's range is another's now) */
+            lane_t *l = &pats.lane[k];
+            if (!l->used)
+                continue;
+            if (l->param == 0xFEu)                  /* format 9's LANE_TUNE */
+                l->param = LANE_TUNE;
+            else if (l->param >= TP_DRUM0)
+                l->param = (uint16_t)TP_DRUM((l->param - TP_DRUM0) / ODP, (l->param - TP_DRUM0) % ODP);
+            nl++;
+        }
+        patterns_clamp();
+        memcpy(&proj, old, O_TRK);
+        proj.format = PROJ_FORMAT;
+        for (t = 0; t < NALLTRK; t++) {
+            const uint8_t *o = old + O_TRK + t * OTRK;
+            trk_t *nt = &proj.trk[t];
+            int drum = t < NTRK && o[TP_ENGINE] == EG_DRUMLINE;
+            memcpy(nt->par, o, TP_DRUM0);
+            for (k = 0; k < DL_NSOUND; k++) {
+                for (p = 0; p < ODP; p++)
+                    nt->par[TP_DRUM(k, p)] = o[TP_DRUM0 + k * ODP + p];
+                nt->par[TP_DRUM(k, DP_SEND1)] = drum ? o[TP_SEND1] : DL_DEFAULT_KIT[k][DP_SEND1];
+                nt->par[TP_DRUM(k, DP_SEND2)] = drum ? o[TP_SEND2] : DL_DEFAULT_KIT[k][DP_SEND2];
+            }
+            memcpy(nt->name, o + ONTP, NAME_LEN);
+            memcpy(nt->rsv, o + ONTP + NAME_LEN, 4);
+        }
+        if (!settings_valid(&proj))
+            host_die("upgrade9: the settings do not check out", a);
+        project_apply();
+        if (project_save(slot))
+            host_die("upgrade9: not saved", a);
+        printf("upgrade9: slot %d made format %u (%d lanes)\n", slot + 1, PROJ_FORMAT, nl);
+    }
     else if (!strcmp(cmd, "projsave")) {           /* projsave SLOT [NAME]: saved into slot 1..3 (as SAVE there) */
         int slot = atoi(a) - 1;
         if (slot < 0 || slot >= NPROJ) {

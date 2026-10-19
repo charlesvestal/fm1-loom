@@ -64,8 +64,10 @@ static void kit_default(void)
     par[TP_D] = 0;
     par[TP_S] = 0;
     par[TP_R] = 64;
-    par[TP_SEND1] = 64;
-    par[TP_SEND2] = 32;
+    for (s = 0; s < DL_NSOUND; s++) {                 /* (each key's own sends: a kit has no track sends) */
+        par[TP_DRUM(s, DP_SEND1)] = 64;
+        par[TP_DRUM(s, DP_SEND2)] = 32;
+    }
 }
 static void key_model(int s, int model)               /* key s plays a model with its defaults */
 {
@@ -448,7 +450,23 @@ int main(void)
             }
         }
         check("pan 127: the right side only", sr > 0.0f && sl < sr * 1e-6f);
-        check("sends follow TP_SEND1 (64) / TP_SEND2 (32)", s1 > s2 * 3.5f && s1 < s2 * 4.5f);
+        check("sends follow the key's DP_SEND1 (64) / DP_SEND2 (32)", s1 > s2 * 3.5f && s1 < s2 * 4.5f);
+        {   /* another key's sends leave this key's alone; this key's at 0: dry */
+            float d = 0.0f, w1 = 0.0f, w2 = 0.0f;
+            par[TP_DRUM(1, DP_SEND1)] = par[TP_DRUM(1, DP_SEND2)] = 127;
+            par[TP_DRUM(0, DP_SEND1)] = par[TP_DRUM(0, DP_SEND2)] = 0;
+            drumline_init(dl, par);
+            drumline_hit(dl, 0, 127, 0, 0, 0);
+            for (b = 0; b < 40; b++) {
+                render();
+                for (i = 0; i < BLK; i++) {
+                    d += R[i] * R[i]; w1 += S1[i] * S1[i]; w2 += S2[i] * S2[i];
+                }
+            }
+            check("a key's sends at 0: dry (another key's at full leave it so)", d > 0.0f && w1 == 0.0f && w2 == 0.0f);
+            par[TP_DRUM(1, DP_SEND1)] = par[TP_DRUM(0, DP_SEND1)] = 64;
+            par[TP_DRUM(1, DP_SEND2)] = par[TP_DRUM(0, DP_SEND2)] = 32;
+        }
         par[TP_DRUM(0, DP_PAN)] = 64;
     }
 

@@ -181,7 +181,8 @@ static void guard_apply(void)
 }
 
 /* ------------------------------------------------------- command queue --- */
-/* uint32 commands, single producer (main loop) / single consumer (audio ISR): type:4 | a:8 | b:8 | c:12 */
+/* uint32 commands, single producer (main loop) / single consumer (audio ISR): type:4 | a:8 | b:8 | c:12 (C_PARAM: b
+ * the parameter's low eight bits, c its value and, at bit 8, its ninth: synth.h NTP) */
 enum { C_PARAM, C_ALL, C_KEY, C_KEYS_OFF, C_PUNCH, C_BRAIN_KEY, C_MASTER, C_FX, C_PANIC,
        C_METRO, C_TEMPO, C_GROOVE, C_SCENE, C_NOP };     /* at most sixteen: the type is four bits */
 #define CQ 512u
@@ -214,7 +215,7 @@ void engine_set(int trk, int param, int val)
     if (val > 255)
         val = 255;
     ppar[trk][param] = (uint8_t)val;
-    cq_put(C_PARAM, (uint32_t)trk, (uint32_t)param, (uint32_t)val);
+    cq_put(C_PARAM, (uint32_t)trk, (uint32_t)param & 0xFFu, (uint32_t)val | ((uint32_t)param >> 8) << 8);
 }
 void engine_set_all(int trk)
 {
@@ -669,7 +670,7 @@ static void drain(void)
         uint32_t c = cq[r % CQ], type = c >> 28, a = (c >> 20) & 0xFFu, b = (c >> 12) & 0xFFu, v = c & 0xFFFu;
         r++;
         switch (type) {
-        case C_PARAM: apply_param((int)a, (int)b, (int)v); break;
+        case C_PARAM: apply_param((int)a, (int)(b | (v >> 8 & 1u) << 8), (int)(v & 0xFFu)); break;
         case C_ALL: apply_all((int)a); break;
         case C_KEY: seq_key(&seq, (int)a, (int)b, (int)((v >> 7) & 1u), (int)(v & 0x7Fu)); break;
         case C_KEYS_OFF: seq_key_all_off(&seq, (int)a); break;
