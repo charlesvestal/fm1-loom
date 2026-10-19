@@ -472,7 +472,9 @@ static uint32_t st_ms, st_syn, st_drum, st_guard0, st_hi_ms;
 static float st_load, st_load_sum;
 #define LOAD_IDLE 9.5f
 #define LOAD_PLAY 1.5f
-#define LOAD_UNIT 1.1f                                      /* a cost unit, % of a block: an ordinary voice is 4 */
+#define LOAD_UNIT 1.5f                                      /* a cost unit, % of a block: an ordinary voice is 4 (the
+                                                             * FM-1, tools/preset_prof.py 2026-10-19: 1.36 x the 1.1 of
+                                                             * 2026-10-18's engines) */
 #define LOAD_SYNCFX 3.0f                                   /* the lofi or the phaser, in time on the first core */
 #define LOAD_DRUM_VOICE 2
 #define LOAD_DRUM_TRACK 1
@@ -491,8 +493,9 @@ static float fx_cost(int k)                                /* an effect a block 
 static float load_model(int *nsyn, int *ndrum)
 {
     static uint32_t hits0, notes0;
-    static float hit_pct;
-    static int hit_ms;
+    static float hit_ring[LOAD_HIT_MS], hit_pct;   /* each millisecond's hits and notes, the last LOAD_HIT_MS: a hit
+                                                     * costs its share for LOAD_HIT_MS ms, then leaves the sum */
+    static int hit_at;
     int k, v0 = 0, v1 = 0, n = 0, t;
     float serial = LOAD_IDLE + (seq.playing ? LOAD_PLAY : 0.0f), c0, c1, fx_left;
     *ndrum = 0;
@@ -505,16 +508,19 @@ static float load_model(int *nsyn, int *ndrum)
             *ndrum += nv;
         }
     }
-    if (host_drum_hits != hits0 || host_note_ons != notes0) {   /* hits and notes since the last millisecond */
-        hit_pct = (hit_ms > 0 ? hit_pct : 0.0f) + LOAD_HIT * (float)(host_drum_hits - hits0) +
-                  LOAD_NOTE * (float)(host_note_ons - notes0);
-        hit_ms = LOAD_HIT_MS;
+    {   /* hits and notes since the last millisecond */
+        float now = LOAD_HIT * (float)(host_drum_hits - hits0) + LOAD_NOTE * (float)(host_note_ons - notes0);
+        hit_pct += now - hit_ring[hit_at];
+        hit_ring[hit_at] = now;
+        hit_at = (hit_at + 1) % LOAD_HIT_MS;
+        if (hit_pct < 0.0f)
+            hit_pct = 0.0f;
         hits0 = host_drum_hits;
         notes0 = host_note_ons;
     }
     {   /* the effects' job runs on the second core from the block's start, beside the sequencer: what is left of it
          * when the voices start shares the second core with them (engine.c render_sub) */
-        float seq_part = (seq.playing ? LOAD_PLAY : 0.0f) + (hit_ms > 0 ? hit_pct : 0.0f);
+        float seq_part = (seq.playing ? LOAD_PLAY : 0.0f) + hit_pct;
         fx_left = fx_cost(0) + fx_cost(1) - seq_part;
         if (fx_left < 0.0f)
             fx_left = 0.0f;
@@ -523,10 +529,7 @@ static float load_model(int *nsyn, int *ndrum)
     for (int i = 0; i < NVOICE; i++)
         if (synth_sounding(SY, i, i + 1))
             *(i < k ? &v1 : &v0) += synth_voice_cost(SY, i);
-    if (hit_ms > 0) {
-        serial += hit_pct;
-        hit_ms--;
-    }
+    serial += hit_pct;
     *nsyn = n;
     for (t = 0; t < 2; t++)
         if (!fx_lags(FXS(t)) && fx_awake(FXS(t)))

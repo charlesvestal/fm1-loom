@@ -43,14 +43,14 @@ knob 1 fenv 24
 knob 1 level 93
 knob 1 send2 10
 # T2 stack "ply bass": round, a little brighter than its preset, mono in the middle
-preset 2 ply_bass stack
+preset 2 dx_bass rayon
 # (the song was written before a bass preset sat an octave down)
 param 2 oct 2
 knob 2 brain no
 knob 2 cut 76
 knob 2 level 103
 # T3 tines "felt piano": the chords, opened up
-preset 3 felt_piano tines
+preset 3 rayon rayon
 knob 3 brain no
 knob 3 cut 104
 knob 3 level 86
@@ -58,7 +58,7 @@ knob 3 send1 10
 knob 3 send2 24
 # T4 the hook in 16 slices: up front, into a short plate
 knob 4 engine slice
-preset 4 chop slice
+preset 4 jungle slice
 knob 4 e1 u1
 knob 4 e4 127
 knob 4 vmode poly
@@ -91,7 +91,7 @@ knob 5 level 107
 knob 5 send1 30
 knob 5 send2 24
 # T6 wavetable "lace keys" through the arp: the plucks
-preset 6 lace_keys jacquard
+preset 6 glass_keys jacquard
 knob 6 brain no
 knob 6 player arp
 knob 6 p1 1/8
@@ -104,7 +104,7 @@ knob 6 level 86
 knob 6 send1 34
 knob 6 send2 16
 # T7 brocade "damask": the chorus's supersaw bed, opened up, pumped
-preset 7 damask brocade
+preset 7 ribbon knit
 knob 7 e1 5
 knob 7 r 62
 knob 7 cut 104
@@ -115,7 +115,7 @@ knob 7 lamt 80
 knob 7 level 84
 knob 7 send2 30
 # T8 voile "doo wop": the drop's riff with the chop lead
-preset 8 doo_wop voile
+preset 8 ooh_choir voile
 knob 8 brain no
 knob 8 level 78
 knob 8 send1 30

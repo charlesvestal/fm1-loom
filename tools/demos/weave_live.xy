@@ -9,7 +9,7 @@ hits 1 1 2 ....x.......x...
 hits 1 1 3 x.x.x.x.x.x.x.x.
 hits 1 1 1 ......x.........
 knob 1 level 80
-preset 2 felt_piano tines
+preset 2 rayon rayon
 knob 2 brain no
 knob 2 level 100
 knob 2 send2 30
@@ -28,7 +28,7 @@ notes 2 2 4 2 100 F4
 notes 2 2 7 1 96 D5
 notes 2 2 11 2 110 E5
 notes 2 2 14 1 90 C5
-preset 3 denim_bass weft
+preset 3 finger_bass knit
 # (the song was written before a bass preset sat an octave down)
 param 3 oct 2
 knob 3 brain no

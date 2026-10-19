@@ -4,8 +4,8 @@
 
   device_projects.py BREAKS_DIR [OUT_DIR]          (OUT_DIR default build/demos/device)
 
-Two groups of three songs, each a restore's worth (the backup holds the three project slots):
-  A: jungle garage hyperpop       B: house pop hiphop
+Three groups of three songs, each a restore's worth (the backup holds the three project slots):
+  A: jungle garage hyperpop       B: house pop hiphop       C: stress (the worst case) ambient hiphop
 For each group: one user sample bank with the three songs' samples (OUT_DIR/bank_A.bin, about 175 KB; B about
 135 KB: the 216 KB bank holds them), each song's sample slots moved to its place in it (song 2's u1 is u3 ...);
 then the host simulator runs each song's setup (tools/demos/<song>.xy up to "tap HOME", where its performance
@@ -31,12 +31,13 @@ ROOT = HERE.parents[1]
 sys.path.insert(0, str(HERE))
 import make_banks as MB  # noqa: E402
 
-GROUPS = {"A": ["jungle", "garage", "hyperpop"], "B": ["house", "pop", "hiphop"]}
+GROUPS = {"A": ["jungle", "garage", "hyperpop"], "B": ["house", "pop", "hiphop"], "C": ["stress", "ambient", "hiphop"]}
 if os.environ.get("DEMO_GROUPS"):                    # e.g. DEMO_GROUPS="C:jungle,garage,house" (any three songs a group)
     GROUPS = {g: songs.split(",") for g, songs in (x.split(":") for x in os.environ["DEMO_GROUPS"].split())}
-ORDER = ["jungle", "garage", "hyperpop", "house", "pop", "hiphop"]   # render.sh's: make_banks' noise in the same order
+ORDER = ["jungle", "garage", "hyperpop", "house", "pop", "hiphop", "stress", "ambient"]   # render.sh's: make_banks'
+#                                                  noise in the same order; stress and ambient: no samples of their own
 NAMES = {"jungle": "jungle", "garage": "garage", "hyperpop": "hyperpop", "house": "deep_house", "pop": "pop",
-         "hiphop": "boom_bap"}
+         "hiphop": "boom_bap", "stress": "stress", "ambient": "ambient"}
 SKIP = ("master ", "samples ")                       # the setup's lines the group sets once instead
 
 
@@ -143,7 +144,7 @@ def main():
     for s in ORDER:                                  # each song's WAVs, as make_banks.py makes them
         d = ROOT / "build" / "demos" / s
         d.mkdir(parents=True, exist_ok=True)
-        specs[s] = MB.BANKS[s](B, d)
+        specs[s] = MB.BANKS[s](B, d) if s in MB.BANKS else []
     manifest = {"groups": {}}
     for g, songs in GROUPS.items():
         bank = out / f"bank_{g}.bin"

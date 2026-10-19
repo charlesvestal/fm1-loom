@@ -46,14 +46,14 @@ knob 1 fenv 24
 knob 1 level 89
 knob 1 send2 12
 # T2 weft "denim bass": the bouncing bass, glides by the portamento trick (as the earlier mix had it: the user's pick)
-preset 2 denim_bass weft
+preset 2 round_sub knit
 # (the song was written before a bass preset sat an octave down)
 param 2 oct 2
 knob 2 brain no
 knob 2 porta 30
 knob 2 level 102
 # T3 organ "reed combo": the stabs, short
-preset 3 reed_combo bellows
+preset 3 combo bellows
 knob 3 brain no
 knob 3 d 62
 knob 3 s 40
@@ -63,7 +63,7 @@ knob 3 send1 24
 knob 3 send2 18
 # T4 the sung bar in 16, re-cut: brightened, a resonant low-pass moved by a slow LFO, the echo and the room
 knob 4 engine slice
-preset 4 chop slice
+preset 4 jungle slice
 knob 4 e1 u1
 knob 4 e4 127
 knob 4 vmode poly
@@ -82,7 +82,7 @@ knob 4 send1 36
 knob 4 send2 30
 # T5 the sesame break, high-passed: the top loop
 knob 5 engine slice
-preset 5 chop slice
+preset 5 jungle slice
 knob 5 e1 u2
 knob 5 e4 127
 knob 5 ftype hp12
@@ -90,12 +90,12 @@ knob 5 cut 84
 knob 5 brain no
 knob 5 level 101
 # T6 voile "voile choir": the pad, back
-preset 6 voile_choir voile
+preset 6 ooh_choir voile
 knob 6 brain no
 knob 6 level 89
 knob 6 send2 40
 # T7 voile "doo wop": the answer at each bar's end
-preset 7 doo_wop voile
+preset 7 vocal_chop voile
 knob 7 brain no
 knob 7 level 75
 knob 7 send1 40

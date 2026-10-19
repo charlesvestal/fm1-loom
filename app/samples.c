@@ -30,6 +30,9 @@
  *                                       hardware profiler's kernel k timed in plat_cycles() (24 MHz) over reps runs
  *                                       (at most 64, and no longer than ~100 ms); k 127: only the count. A build with
  *                                       XY_BENCH=1 only (tools/hw_bench.py); the audio keeps running meanwhile
+ *   SOUND      28 trk pre_lo pre_hi  -> trk, NPRESETS (2 bytes, 7 bits), the preset's engine, its name: factory preset
+ *                                       pre (14 bits) put on track trk (0-based), which is selected (USB MIDI in
+ *                                       plays it); pre past the table: only the count. tools/preset_prof.py
  * rc: 0 ok, 1 size / offset, 2 erase, 3 write, 4 not begun (the bank is live), 5 header, 6 CRC, 7 no samples,
  * 8 an update record's mark ("AT" at 0xF06 of a sector in PLAT_XDATA0 / 1: the loader would erase it).
  * Every frame is answered (the tool waits for each). The erases and writes run with the interrupts off a
@@ -40,7 +43,7 @@
 #define SB_HDR1 0x46
 #define SB_HDR2 0x4C
 #include "dsp/bench.h"
-enum { SB_INFO = 1, SB_BEGIN = 11, SB_WRITE, SB_END, SB_ERASE, SB_SINFO, SB_HDR, SB_PING = 25, SB_PROF, SB_BENCH };
+enum { SB_INFO = 1, SB_BEGIN = 11, SB_WRITE, SB_END, SB_ERASE, SB_SINFO, SB_HDR, SB_PING = 25, SB_PROF, SB_BENCH, SB_SOUND };
 #define SB_PART 320u                                 /* SMP_HDR: a header part, bytes */
 #define SB_NPART ((SMP_HDR_USED + SB_PART - 1u) / SB_PART)
 #define SB_INFO_K 12u                                /* SMP_INFO: samples a reply (12 x 18 bytes at most) */
@@ -204,6 +207,22 @@ static int smp_frame(const uint8_t *p, uint32_t n)
                 sb_b(v[i] >> b);
         if (na && (a[0] & 64u))
             eng_prof_reset = 1;
+        break;
+    }
+    case SB_SOUND: {
+        uint32_t t = na ? a[0] : 0u, k = na > 2u ? (uint32_t)a[1] | (uint32_t)a[2] << 7 : 0x3FFFu;
+        sb_b(t);
+        sb_b((uint32_t)NPRESETS & 127u);
+        sb_b((uint32_t)NPRESETS >> 7);
+        if (t >= NTRK || k >= (uint32_t)NPRESETS) {
+            sb_b(127);
+            sb_b(0);
+            break;
+        }
+        load_preset((int)t, &PRESETS[k]);
+        proj.trk_sel = (uint8_t)t;
+        sb_b(PRESETS[k].par[TP_ENGINE]);
+        sb_str(PRESETS[k].name);
         break;
     }
 #if XY_BENCH

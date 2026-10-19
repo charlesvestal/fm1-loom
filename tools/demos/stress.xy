@@ -1,0 +1,111 @@
+# LOOM-8 load test: the worst case a song can ask for, not music. Every track busy at once on the dearest presets
+# (tools/preset_prof.py's sweep: knit's unisons, rayon's pads, bellows' rotor, voile, a slice on every sixteenth),
+# chords overlapping so the sixteen voices stay full and the guard has to choose, both effects sent hard (the delay,
+# the lush reverb) and the master pumping. What it checks: on the FM-1, no dropouts and no crash while the guard
+# holds the load under its ceiling; in the host, the model against the FM-1 (tools/demos/device_load.py).
+#   T1 kit: kick, snare, hats and percussion on every sixteenth     T2 knit "house stab" (five saws): eighths
+#   T3 knit "dusty pad": held chords a bar long                      T4 knit "ribbon": quarters
+#   T5 rayon "glass pad": held chords                                T6 voile "ooh choir": held chords
+#   T7 bellows "rotor pad": held chords                              T8 slice "jungle": every sixteenth
+# Song: one scene, 8 bars. No sample bank: the factory breaks.
+master 4096
+bpm 128
+
+knob 1 send1 40
+knob 1 send2 40
+preset 2 house_stab knit
+knob 2 brain no
+knob 2 r 90
+knob 2 send1 80
+knob 2 send2 80
+preset 3 dusty_pad knit
+knob 3 brain no
+knob 3 send2 100
+preset 4 ribbon knit
+knob 4 brain no
+knob 4 send1 60
+knob 4 send2 90
+preset 5 glass_pad rayon
+knob 5 brain no
+knob 5 send2 100
+preset 6 ooh_choir voile
+knob 6 brain no
+knob 6 send2 100
+preset 7 rotor_pad bellows
+knob 7 brain no
+knob 7 send2 90
+preset 8 jungle slice
+knob 8 brain no
+knob 8 send1 40
+knob 11 engine delay
+knob 12 engine lush
+mst pump 40
+mst pumpby kick
+
+pat 1 1 16
+hits 1 1 1 x...x...x...x...
+hits 1 1 2 ....x.......x...
+hits 1 1 3 xxxxxxxxxxxxxxxx
+hits 1 1 4 ..x...x...x...x.
+hits 1 1 5 .x.x.x.x.x.x.x.x
+hits 1 1 6 x..x..x..x..x..x
+
+pat 2 1 16
+notes 2 1 1 2 110 A3 C4 E4 G4
+notes 2 1 3 2 100 A3 C4 E4 G4
+notes 2 1 5 2 110 F3 A3 C4 E4
+notes 2 1 7 2 100 F3 A3 C4 E4
+notes 2 1 9 2 110 D3 F3 A3 C4
+notes 2 1 11 2 100 D3 F3 A3 C4
+notes 2 1 13 2 110 E3 G#3 B3 D4
+notes 2 1 15 2 100 E3 G#3 B3 D4
+
+pat 3 1 16
+notes 3 1 1 16 90 A2 E3 C4 G4
+
+pat 4 1 16
+notes 4 1 1 4 96 A3 C4 E4 B4
+notes 4 1 5 4 96 F3 A3 C4 E4
+notes 4 1 9 4 96 D3 F3 A3 C4
+notes 4 1 13 4 96 E3 G#3 B3 D4
+
+pat 5 1 16
+notes 5 1 1 16 90 C4 E4 G4 B4
+
+pat 6 1 16
+notes 6 1 1 16 90 A3 C4 E4
+
+pat 7 1 16
+notes 7 1 1 16 90 A2 E3 A3 C4
+
+pat 8 1 16
+notes 8 1 1 1 110 F3
+notes 8 1 2 1 90 F#3
+notes 8 1 3 1 100 G3
+notes 8 1 4 1 90 G#3
+notes 8 1 5 1 110 A3
+notes 8 1 6 1 90 A#3
+notes 8 1 7 1 100 B3
+notes 8 1 8 1 90 C4
+notes 8 1 9 1 110 C#4
+notes 8 1 10 1 90 D4
+notes 8 1 11 1 100 D#4
+notes 8 1 12 1 90 E4
+notes 8 1 13 1 110 F4
+notes 8 1 14 1 90 F#4
+notes 8 1 15 1 100 G4
+notes 8 1 16 1 90 G#4
+
+scenedef 1 1 1 1 1 1 1 1 1
+song 1:8
+songloop 0
+
+tap HOME
+turn SELECT 1
+stats reset
+wav loom_demo_stress.wav
+tap PLAY
+bars 8
+wait 4000
+wavstop
+stats

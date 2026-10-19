@@ -21,7 +21,7 @@ groove swing
 # T1 the funky drummer in 16, mono, two semitones down (heavier): twelve bits at a lower rate (the SP-1200's
 # grit), low-passed
 knob 1 engine slice
-preset 1 chop slice
+preset 1 jungle slice
 knob 1 e1 u1
 knob 1 e3 62
 knob 1 e4 127
@@ -51,14 +51,14 @@ knob 2 fenv 50
 knob 2 level 82
 knob 2 send2 10
 # T3 tines "felt bass": the bass, round and low-passed
-preset 3 felt_bass tines
+preset 3 upright sample
 # (the song was written before a bass preset sat an octave down)
 param 3 oct 2
 knob 3 brain no
 knob 3 cut 64
 knob 3 level 103
 # T4 tines "soft felt": the dusty Rhodes, its tremolo on, chords held, darker
-preset 4 soft_felt tines
+preset 4 dusty_keys sample
 knob 4 brain no
 knob 4 ltype wobble
 knob 4 lspeed 76
@@ -83,7 +83,7 @@ knob 5 level 91
 knob 5 send2 20
 # T6 the factory "ah" scratched: short notes with the bend trick, crushed
 knob 6 engine sample
-knob 6 e1 ah
+knob 6 e1 brass
 knob 6 e2 20
 knob 6 e3 50
 knob 6 e4 one-shot
@@ -100,7 +100,7 @@ knob 6 camt 40
 knob 6 brain no
 knob 6 level 83
 # T7 cane "bamboo": the hook's flute
-preset 7 bamboo cane
+preset 7 flute sample
 knob 7 brain no
 knob 7 level 82
 knob 7 send2 30

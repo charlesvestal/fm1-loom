@@ -12,7 +12,8 @@ What it does:
   2. backs up the FM-1's projects and user presets into build/demos/device/before.loom8 (restored at the end,
      unless --no-keep; the user sample bank cannot be read back: it is left holding the last group's);
   3. the idle load once with the screen reader polling every 0.5 s and once asked every 5 s (its overhead);
-  4. for each group (tools/demos/device_projects.py's: A jungle garage hyperpop, B house pop hiphop): uploads its
+  4. for each group (tools/demos/device_projects.py's: A jungle garage hyperpop, B house pop hiphop, C stress ambient
+     hiphop): uploads its
      sample bank (tools/loom_samples.py's upload, no question on the FM-1), restores its backup (fm1_backup.py),
      then for each slot loads it (HOME, SEL: LOAD PROJECT N), goes to the Song page (HOME, SELECT), PLAY,
      and on Debug reads "audio load N percent, voices N[ of M][, saws N], peak N percent, guard trips N, dropouts

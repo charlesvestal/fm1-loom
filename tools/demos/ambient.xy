@@ -31,33 +31,33 @@ knob 1 level 80
 knob 1 send1 24
 knob 1 send2 70
 # T2 organ "chapel": the chords, a soft pipe, dark, into the hall
-preset 2 chapel bellows
+preset 2 church bellows
 knob 2 brain no
 knob 2 cut 66
 knob 2 level 88
 knob 2 send2 96
 # T3 voile "ninon": the soprano choir, dark, back and wet
-preset 3 ninon voile
+preset 3 ooh_choir voile
 knob 3 brain no
 knob 3 cut 62
 knob 3 level 78
 knob 3 send2 110
 # T4 swarm "angora": the theremin, dark, the echo and the hall
-preset 4 angora swarm
+preset 4 soft_lead knit
 knob 4 brain no
 knob 4 cut 60
 knob 4 level 84
 knob 4 send1 60
 knob 4 send2 90
 # T5 tines "lullaby": the music box, softened, far away
-preset 5 lullaby tines
+preset 5 glass_bell rayon
 knob 5 brain no
 knob 5 cut 58
 knob 5 level 82
 knob 5 send1 56
 knob 5 send2 100
 # T6 organ "pedal bass": the 16'
-preset 6 pedal_bass bellows
+preset 6 organ_bass bellows
 # (the song was written before a bass preset sat an octave down)
 param 6 oct 2
 knob 6 brain no

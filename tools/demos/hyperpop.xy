@@ -71,7 +71,7 @@ knob 2 cmix 127
 knob 2 brain no
 knob 2 level 97
 # T3 brocade "sequin": seven saws spread wide, played high, through its own drive, pumped by the kick
-preset 3 sequin brocade
+preset 3 knit_pluck knit
 knob 3 e2 70
 knob 3 e4 127
 knob 3 s 70
@@ -87,7 +87,7 @@ knob 3 send1 20
 knob 3 send2 22
 # T4 the voice in 16 slices, mono: bitcrushed (bits more than rate: bright grit), into the delay
 knob 4 engine slice
-preset 4 chop slice
+preset 4 jungle slice
 knob 4 e1 u1
 knob 4 e4 127
 knob 4 vmode mono
@@ -101,7 +101,7 @@ knob 4 level 95
 knob 4 send1 34
 knob 4 send2 22
 # T5 gingham "picnic", the circuit-bent toy, through the arp
-preset 5 picnic gingham
+preset 5 chip_lead jacquard
 knob 5 brain no
 knob 5 player arp
 knob 5 p1 1/16
@@ -119,7 +119,7 @@ knob 6 level 84
 knob 6 send1 50
 knob 6 send2 40
 # T7 voile "sheer lead": the sung topline, bright
-preset 7 sheer_lead voile
+preset 7 vocal_lead voile
 knob 7 brain no
 knob 7 e2 95
 knob 7 e3 115

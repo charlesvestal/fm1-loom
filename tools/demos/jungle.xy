@@ -17,7 +17,7 @@ bpm 170
 # dark, the breaks crisp)
 # T1 the amen: one bar in 16 slices, mono; driven a little and crushed a little (bits, not rate), the hall a touch
 knob 1 engine slice
-preset 1 chop slice
+preset 1 jungle slice
 knob 1 e1 u1
 knob 1 e4 127
 knob 1 cut 127
@@ -29,13 +29,13 @@ knob 1 brain no
 knob 1 level 107
 knob 1 send2 10
 # T2 stack "rope sub": the sub, alone below 100 Hz
-preset 2 rope_sub stack
+preset 2 round_sub knit
 # (the song was written before a bass preset sat an octave down)
 param 2 oct 2
 knob 2 brain no
 knob 2 level 94
 # T3 brocade "chenille" as the reese: seven saws, legato, the low-pass at 1 kHz moved by a slow LFO, resonant
-preset 3 chenille brocade
+preset 3 soft_lead knit
 knob 3 brain no
 knob 3 e2 40
 knob 3 e4 84
@@ -52,26 +52,26 @@ knob 3 lx 0
 knob 3 lx2 sine
 knob 3 level 85
 # T4 voile "voile choir": the pad, washed in the hall
-preset 4 voile_choir voile
+preset 4 ooh_choir voile
 knob 4 brain no
 knob 4 level 80
 knob 4 send2 56
 # T5 stack "braid stab": dub stabs into the echo
-preset 5 braid_stab stack
+preset 5 dark_hit sample
 knob 5 brain no
 knob 5 level 87
 knob 5 send1 64
 knob 5 send2 22
 # T6 the think break, under the amen
 knob 6 engine slice
-preset 6 chop slice
+preset 6 jungle slice
 knob 6 e1 u2
 knob 6 e4 127
 knob 6 ctone 127
 knob 6 brain no
 knob 6 level 103
 # T7 weft "thread lead" as a dub siren into the echo
-preset 7 thread_lead weft
+preset 7 nasal_lead jacquard
 knob 7 brain no
 knob 7 ltype wave
 knob 7 lspeed 4

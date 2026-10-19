@@ -1,129 +1,476 @@
-# the host's load model (host.c load_model) against the FM-1's Status page, as tools/measure_load.sh measured it on
-# two cores, 2026-10-18 (a new project: FX I delay, FX II reverb, the effects a block behind on the second core):
-# each row within 6 points. The keys are T3's, set to poly, held as the script holds them (G3 B3 D4 F4 A4 C5); the
-# kit is T1's beat (four kicks, a snare on 2 and 4, eighth hats). The guard sees no load here (load 0): the model alone.
+# the host's load model (host.c load_model) against the FM-1, as tools/preset_prof.py measured it (written by
+# preset_prof.py --scenario from preset_prof.csv): each preset on T2 of a new project, its chord held
+# (preset_prof.py CHORD), the model's mean within 6 points of the FM-1's. The guard sees no load here (load
+# 0): the model alone.
 wait 300
 load 0
-# idle 11
-meter 1500
-expect model_avg >5
-expect model_avg <17
-# weft (its first sound) x1 / x3 / x6: 20 / 29 / 36 (one voice wakes the effects: their job is the second core's)
-knob 3 vmode poly
-play 3 G3 on
+# knit (knit): x1 18 / x4 23 / x8 26
+preset 2 knit knit
+wait 50
+play 2 48 on 100
 wait 300
 meter 1500
 expect voices 1
-expect model_avg >14
-expect model_avg <26
-play 3 B3 on
-play 3 D4 on
-wait 300
-meter 1500
-expect voices 3
-expect model_avg >23
-expect model_avg <35
-play 3 F4 on
-play 3 A4 on
-play 3 C5 on
-wait 300
-meter 1500
-expect voices 6
-expect model_avg >30
-expect model_avg <42
-play 3 G3 off
-play 3 B3 off
-play 3 D4 off
-play 3 F4 off
-play 3 A4 off
-play 3 C5 off
-wait 4000
-expect voices 0
-# brocade (sequin, seven saws) x1 / x3 / x5: 21 / 33 / 44
-preset 3 sequin brocade
-knob 3 vmode poly
-play 3 G3 on
-wait 300
-meter 1500
-expect voices 1
-expect model_avg >15
-expect model_avg <27
-play 3 B3 on
-play 3 D4 on
-wait 300
-meter 1500
-expect voices 3
-expect model_avg >27
-expect model_avg <39
-play 3 F4 on
-play 3 A4 on
-wait 300
-meter 1500
-expect voices 5
-expect model_avg >38
-expect model_avg <50
-play 3 G3 off
-play 3 B3 off
-play 3 D4 off
-play 3 F4 off
-play 3 A4 off
-wait 5000
-expect voices 0
-# cane bell x4: 37
-preset 3 none cane
-knob 3 e1 bell
-knob 3 vmode poly
-play 3 G3 on
-play 3 B3 on
-play 3 D4 on
-play 3 F4 on
+expect model_avg >11
+expect model_avg <24
+play 2 48 off
+wait 2500
+play 2 48 on 100
+play 2 55 on 100
+play 2 60 on 100
+play 2 64 on 100
 wait 300
 meter 1500
 expect voices 4
-expect model_avg >31
-expect model_avg <43
-play 3 G3 off
-play 3 B3 off
-play 3 D4 off
-play 3 F4 off
-wait 5000
-expect voices 0
-# the kit playing: 13 (peak 28)
-hits 1 1 1 x...x...x...x...
-hits 1 1 2 ....x.......x...
-hits 1 1 3 x.x.x.x.x.x.x.x.
-tap PLAY
-wait 1000
-meter 4000
-expect model_avg >7
-expect model_avg <19
-expect model_peak >18
-expect model_peak <38
-# the kit and weft x6: 41.5 (peak 60)
-preset 3 none weft
-knob 3 vmode poly
-play 3 G3 on
-play 3 B3 on
-play 3 D4 on
-play 3 F4 on
-play 3 A4 on
-play 3 C5 on
+expect model_avg >16
+expect model_avg <29
+play 2 48 off
+play 2 55 off
+play 2 60 off
+play 2 64 off
+wait 2500
+play 2 48 on 100
+play 2 55 on 100
+play 2 60 on 100
+play 2 64 on 100
+play 2 67 on 100
+play 2 72 on 100
+play 2 76 on 100
+play 2 79 on 100
 wait 300
-meter 4000
-expect model_avg >35
-expect model_avg <48
-expect model_peak >50
-expect model_peak <70
-play 3 F4 off
-play 3 A4 off
-play 3 C5 off
-wait 3000
-# the kit and weft x3: 32.5 (peak 50)
-meter 4000
+meter 1500
+expect voices 6
+expect model_avg >19
+expect model_avg <32
+play 2 48 off
+play 2 55 off
+play 2 60 off
+play 2 64 off
+play 2 67 off
+play 2 72 off
+play 2 76 off
+play 2 79 off
+wait 2500
+# house stab (knit): x1 28 / x4 56 / x8 69
+preset 2 house_stab knit
+wait 50
+play 2 48 on 100
+wait 300
+meter 1500
+expect voices 1
+expect model_avg >22
+expect model_avg <35
+play 2 48 off
+wait 2500
+play 2 48 on 100
+play 2 55 on 100
+play 2 60 on 100
+play 2 64 on 100
+wait 300
+meter 1500
+expect voices 4
+expect model_avg >49
+expect model_avg <62
+play 2 48 off
+play 2 55 off
+play 2 60 off
+play 2 64 off
+wait 2500
+play 2 48 on 100
+play 2 55 on 100
+play 2 60 on 100
+play 2 64 on 100
+play 2 67 on 100
+play 2 72 on 100
+play 2 76 on 100
+play 2 79 on 100
+wait 300
+meter 1500
+expect voices 6
+expect model_avg >63
+expect model_avg <76
+play 2 48 off
+play 2 55 off
+play 2 60 off
+play 2 64 off
+play 2 67 off
+play 2 72 off
+play 2 76 off
+play 2 79 off
+wait 2500
+# dusty pad (knit): x1 26 / x4 47 / x8 58
+preset 2 dusty_pad knit
+wait 50
+play 2 48 on 100
+wait 300
+meter 1500
+expect voices 1
+expect model_avg >20
+expect model_avg <33
+play 2 48 off
+wait 2500
+play 2 48 on 100
+play 2 55 on 100
+play 2 60 on 100
+play 2 64 on 100
+wait 300
+meter 1500
+expect voices 4
+expect model_avg >41
+expect model_avg <54
+play 2 48 off
+play 2 55 off
+play 2 60 off
+play 2 64 off
+wait 2500
+play 2 48 on 100
+play 2 55 on 100
+play 2 60 on 100
+play 2 64 on 100
+play 2 67 on 100
+play 2 72 on 100
+play 2 76 on 100
+play 2 79 on 100
+wait 300
+meter 1500
+expect voices 6
+expect model_avg >52
+expect model_avg <65
+play 2 48 off
+play 2 55 off
+play 2 60 off
+play 2 64 off
+play 2 67 off
+play 2 72 off
+play 2 76 off
+play 2 79 off
+wait 2500
+# rayon (rayon): x1 20 / x4 35 / x8 40
+preset 2 rayon rayon
+wait 50
+play 2 48 on 100
+wait 300
+meter 1500
+expect voices 1
+expect model_avg >13
+expect model_avg <26
+play 2 48 off
+wait 2500
+play 2 48 on 100
+play 2 55 on 100
+play 2 60 on 100
+play 2 64 on 100
+wait 300
+meter 1500
+expect voices 4
+expect model_avg >29
+expect model_avg <42
+play 2 48 off
+play 2 55 off
+play 2 60 off
+play 2 64 off
+wait 2500
+play 2 48 on 100
+play 2 55 on 100
+play 2 60 on 100
+play 2 64 on 100
+play 2 67 on 100
+play 2 72 on 100
+play 2 76 on 100
+play 2 79 on 100
+wait 300
+meter 1500
+expect voices 6
+expect model_avg >34
+expect model_avg <47
+play 2 48 off
+play 2 55 off
+play 2 60 off
+play 2 64 off
+play 2 67 off
+play 2 72 off
+play 2 76 off
+play 2 79 off
+wait 2500
+# glass bell (rayon): x1 19 / x4 35 / x8 40
+preset 2 glass_bell rayon
+wait 50
+play 2 48 on 100
+wait 300
+meter 1500
+expect voices 1
+expect model_avg >13
+expect model_avg <26
+play 2 48 off
+wait 2500
+play 2 48 on 100
+play 2 55 on 100
+play 2 60 on 100
+play 2 64 on 100
+wait 300
+meter 1500
+expect voices 4
+expect model_avg >28
+expect model_avg <41
+play 2 48 off
+play 2 55 off
+play 2 60 off
+play 2 64 off
+wait 2500
+play 2 48 on 100
+play 2 55 on 100
+play 2 60 on 100
+play 2 64 on 100
+play 2 67 on 100
+play 2 72 on 100
+play 2 76 on 100
+play 2 79 on 100
+wait 300
+meter 1500
+expect voices 6
+expect model_avg >34
+expect model_avg <47
+play 2 48 off
+play 2 55 off
+play 2 60 off
+play 2 64 off
+play 2 67 off
+play 2 72 off
+play 2 76 off
+play 2 79 off
+wait 2500
+# bellows (bellows): x1 19 / x4 34 / x8 38
+preset 2 bellows bellows
+wait 50
+play 2 48 on 100
+wait 300
+meter 1500
+expect voices 1
+expect model_avg >13
+expect model_avg <26
+play 2 48 off
+wait 2500
+play 2 48 on 100
+play 2 55 on 100
+play 2 60 on 100
+play 2 64 on 100
+wait 300
+meter 1500
+expect voices 4
+expect model_avg >27
+expect model_avg <40
+play 2 48 off
+play 2 55 off
+play 2 60 off
+play 2 64 off
+wait 2500
+play 2 48 on 100
+play 2 55 on 100
+play 2 60 on 100
+play 2 64 on 100
+play 2 67 on 100
+play 2 72 on 100
+play 2 76 on 100
+play 2 79 on 100
+wait 300
+meter 1500
+expect voices 6
+expect model_avg >32
+expect model_avg <45
+play 2 48 off
+play 2 55 off
+play 2 60 off
+play 2 64 off
+play 2 67 off
+play 2 72 off
+play 2 76 off
+play 2 79 off
+wait 2500
+# ooh choir (voile): x1 19 / x4 35 / x8 40
+preset 2 ooh_choir voile
+wait 50
+play 2 48 on 100
+wait 300
+meter 1500
+expect voices 1
+expect model_avg >13
+expect model_avg <26
+play 2 48 off
+wait 2500
+play 2 48 on 100
+play 2 55 on 100
+play 2 60 on 100
+play 2 64 on 100
+wait 300
+meter 1500
+expect voices 4
+expect model_avg >28
+expect model_avg <41
+play 2 48 off
+play 2 55 off
+play 2 60 off
+play 2 64 off
+wait 2500
+play 2 48 on 100
+play 2 55 on 100
+play 2 60 on 100
+play 2 64 on 100
+play 2 67 on 100
+play 2 72 on 100
+play 2 76 on 100
+play 2 79 on 100
+wait 300
+meter 1500
+expect voices 6
+expect model_avg >33
+expect model_avg <46
+play 2 48 off
+play 2 55 off
+play 2 60 off
+play 2 64 off
+play 2 67 off
+play 2 72 off
+play 2 76 off
+play 2 79 off
+wait 2500
+# cane (cane): x1 19 / x4 32 / x8 32
+preset 2 cane cane
+wait 50
+play 2 48 on 100
+wait 300
+meter 1500
+expect voices 1
+expect model_avg >12
+expect model_avg <25
+play 2 48 off
+wait 2500
+play 2 48 on 100
+play 2 55 on 100
+play 2 60 on 100
+play 2 64 on 100
+wait 300
+meter 1500
+expect voices 4
 expect model_avg >26
 expect model_avg <39
-expect model_peak >40
-expect model_peak <60
-play 3 G3 off
-play 3 B3 off
-play 3 D4 off
+play 2 48 off
+play 2 55 off
+play 2 60 off
+play 2 64 off
+wait 2500
+play 2 48 on 100
+play 2 55 on 100
+play 2 60 on 100
+play 2 64 on 100
+play 2 67 on 100
+play 2 72 on 100
+play 2 76 on 100
+play 2 79 on 100
+wait 300
+meter 1500
+expect voices 4
+expect model_avg >25
+expect model_avg <38
+play 2 48 off
+play 2 55 off
+play 2 60 off
+play 2 64 off
+play 2 67 off
+play 2 72 off
+play 2 76 off
+play 2 79 off
+wait 2500
+# jacquard (jacquard): x1 17 / x4 20 / x8 24
+preset 2 jacquard jacquard
+wait 50
+play 2 48 on 100
+wait 300
+meter 1500
+expect voices 1
+expect model_avg >11
+expect model_avg <24
+play 2 48 off
+wait 2500
+play 2 48 on 100
+play 2 55 on 100
+play 2 60 on 100
+play 2 64 on 100
+wait 300
+meter 1500
+expect voices 4
+expect model_avg >14
+expect model_avg <27
+play 2 48 off
+play 2 55 off
+play 2 60 off
+play 2 64 off
+wait 2500
+play 2 48 on 100
+play 2 55 on 100
+play 2 60 on 100
+play 2 64 on 100
+play 2 67 on 100
+play 2 72 on 100
+play 2 76 on 100
+play 2 79 on 100
+wait 300
+meter 1500
+expect voices 6
+expect model_avg >17
+expect model_avg <30
+play 2 48 off
+play 2 55 off
+play 2 60 off
+play 2 64 off
+play 2 67 off
+play 2 72 off
+play 2 76 off
+play 2 79 off
+wait 2500
+# piano (sample): x1 20 / x4 33 / x8 38
+preset 2 piano sample
+wait 50
+play 2 48 on 100
+wait 300
+meter 1500
+expect voices 1
+expect model_avg >13
+expect model_avg <26
+play 2 48 off
+wait 2500
+play 2 48 on 100
+play 2 55 on 100
+play 2 60 on 100
+play 2 64 on 100
+wait 300
+meter 1500
+expect voices 4
+expect model_avg >26
+expect model_avg <39
+play 2 48 off
+play 2 55 off
+play 2 60 off
+play 2 64 off
+wait 2500
+play 2 48 on 100
+play 2 55 on 100
+play 2 60 on 100
+play 2 64 on 100
+play 2 67 on 100
+play 2 72 on 100
+play 2 76 on 100
+play 2 79 on 100
+wait 300
+meter 1500
+expect voices 6
+expect model_avg >32
+expect model_avg <45
+play 2 48 off
+play 2 55 off
+play 2 60 off
+play 2 64 off
+play 2 67 off
+play 2 72 off
+play 2 76 off
+play 2 79 off
+wait 2500

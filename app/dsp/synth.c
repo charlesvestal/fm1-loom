@@ -1475,8 +1475,13 @@ int synth_voice_cost(const synth_t *s, int vi)
     }
     if (v->engine == EG_BELLOWS)
         return 5;                                /* (the FM-1, tools/measure_load.sh 2026-10-18: a quarter above the rest) */
-    if (v->engine == EG_KNIT)                    /* (a guess until measured: brocade's, a unit a voice, as its unison) */
-        return 3 + (int)v->c.ex[2] + (v->c.ex[14] > 0.0f) + (v->c.ex[16] > 0.0f || v->c.ex[17] > 0.0f);
+    if (v->engine == EG_KNIT)                    /* (the FM-1, tools/preset_prof.py 2026-10-19: 3 and a unit and
+                                                  * a half a unison voice, a unit an extra; clamped: a voice started
+                                                  * this block holds its last engine's values until its first chunk) */
+        return 3 + (int)(1.5f * fm_clampf(v->c.ex[2], 1.0f, (float)KNIT_MAX)) + (v->c.ex[14] > 0.0f) +
+               (v->c.ex[16] > 0.0f || v->c.ex[17] > 0.0f);
+    if (v->engine == EG_RAYON)
+        return 5;                                /* (the FM-1, 2026-10-19: a quarter above an ordinary voice) */
     return 4;
 }
 void synth_duck_trigger(synth_t *s, int src)
