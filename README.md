@@ -1,14 +1,14 @@
 # LOOM-8 for the M-VAVE FM-1
 
 LOOM-8 turns the M-VAVE FM-1 into a pocket groovebox: eight instrument tracks, each in its own colour, on
-eight synth engines, a sample player, a break slicer and a drum kit; a 64-step sequencer with step tricks and parameter locks; players (arp,
+nine engines (six synths: knit, rayon, jacquard, bellows, cane and voile; a sample player, a break slicer and a drum kit), 85 factory presets; a 64-step sequencer with step tricks and parameter locks; players (arp,
 strum, hold); weave, which crosses two patterns (bar by bar, step by step, or one's rhythm with the other's
 notes); throws (momentary effects); a conductor track that moves the song through a progression; two
 send-effect tracks (the reverb with the PlayStation's reverbs among its modes), a mixer with EQ
 and a compressor on the master, scenes and a song. Built on
 [fm1-base](https://github.com/charlesvestal/fm1-base) and [felucca-bsp](https://github.com/hugelton/felucca-bsp),
 from [Felucca](https://github.com/hugelton/Felucca) by Leo Kuroshita (Hügelton Instruments), with X0X's sequencer
-discipline, NuSaw's second core and Polly's menu paradigm.
+discipline and Polly's menu paradigm.
 
 - **Read the manual**: [docs/MANUAL.md](docs/MANUAL.md), with a ten-minute quick start, every page and gesture, and screenshots
 - **Try it in your browser** (no FM-1 needed): <https://charlesvestal.github.io/fm1-loom/emu/>
@@ -32,8 +32,7 @@ where the code comes from.
 ## Credits
 
 The platform: fm1-base and felucca-bsp (MPL-2.0), from Felucca by Leo Kuroshita (Hügelton Instruments), with his
-permission (felucca-bsp#4). cane, voile and gingham: Mutable Instruments Braids by Emilie Gillet (MIT). brocade's
-saw bank: NuSaw (MIT). The reverb's PlayStation modes: PSXVerb (MIT). The factory breaks: free loops by u/FCTRYBEATS,
+permission (felucca-bsp#4). cane and voile: Mutable Instruments Braids by Emilie Gillet (MIT). The reverb's PlayStation modes: PSXVerb (MIT). The factory breaks: free loops by u/FCTRYBEATS,
 with their permission; the 909 drums: renders of 9W9 (GPL-3.0); the recorded instruments: Versilian Studios Chamber
 Orchestra 2 Community Edition (CC0). The fonts: Barlow and Terminus (SIL OFL 1.1). The second core's lessons: Melodee (keremimo) and Jangada (zednaked).
 The idea of a browser emulator: Groove OS.

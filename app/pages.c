@@ -63,8 +63,8 @@ static uint16_t trk_tint(int t) { return ink_mix(trk_ink(t), theme->tint); }
  * envelope, the filter, the filter envelope (a drum track: the shown key's envelope and filter, then the kit's
  * envelope and the kit's bus filter: four pages); FX: the instrument's character stage (a kit's on the whole
  * kit, after its bus filter), its sends and the two effects; ARP three with the arp (its page 2, then hold). EDIT on a synth
- * track: Engine, Play, Play 2 (the octave), then Sub where the engine has a second page of knobs (TP_X1..X4: brocade's
- * sub, orbit's fall); a kit or an FX track Engine and Play; the conductor Engine, Play (routing), Sub (Follow) */
+ * track: Engine, Play, Play 2 (the octave), then Sub where the engine has a second page of knobs (TP_X1..X4: knit's
+ * oscillator 2, level, sub, noise; rayon's fall); a kit or an FX track Engine and Play; the conductor Engine, Play (routing), Sub (Follow) */
 enum { P_ARRANGE, P_SONG, P_STEPS, P_BAR, P_ENGINE, P_PLAY, P_PLAY2, P_SUB, P_ENV, P_FILTER, P_ENV2, P_KITF, P_CHARACTER, P_SENDS,
        P_FX1, P_FX2, P_THROWS, P_LFO, P_LFO2, P_PLAYERS, P_PLAYERS2, P_PLAYERS3, P_WEAVE, P_MIX, P_MASTER, P_MASTER2, P_MASTER3, P_SETUP,
        P_STATUS, NPAGES };
@@ -1720,7 +1720,7 @@ static const struct { uint8_t btn; uint32_t pages; const char *title, *l1, *l2; 
     {B_EDIT, PG_STEPS, "Lock", "With a step held, EDIT, ENV, FX or LFO show that module's knobs.",
      "Turn one to lock it on the step; SELECT turns pages. SAVE clears."},
     {B_EDIT, PG_ANY, "Engine", "The track's engine and its four knobs. PRESETS: its next sound.",
-     "SEL changes the engine. Page 2: Play; brocade's 3: Sub. Drums: black keys pick a key."},
+     "SEL changes the engine. Page 2: Play, 3: octave; knit and rayon: 4, Sub. Drums: black keys pick a key."},
     {B_ENV, PG_ANY, "Envelope", "The amp's envelope, then the filter, then the filter's envelope.",
      "PRESETS on Filter: its type. A kit: the key's envelope and filter, then the kit's."},
     {B_FX, PG_ANY, "Effects", "The track's character, its sends, FX I and FX II, then Throws: the keys fire effects.",

@@ -40,7 +40,7 @@ static inline int eg_synth(int e) { return e >= 0 && e < NENGINE && e != EG_DRUM
 enum { SM_ONESHOT, SM_LOOP, SM_REVERSE, SM_PINGPONG, NSM };   /* the sample engine's modes (TP_E4) */
 #define SL_NCOUNT 4                                  /* the slice engine's counts: 4 << TP_E2 */
 static inline int sl_count(int v) { return 4 << (v < 0 ? 0 : v >= SL_NCOUNT ? SL_NCOUNT - 1 : v); }
-extern const char *const EG_NAME[NENGINE];         /* "weft", "stack", ... "kit", "sample" */
+extern const char *const EG_NAME[NENGINE];         /* "knit", "rayon", ... "slice", "kit" */
 extern const char *const EG_KNOB[NENGINE][4];      /* each engine's four knob names */
 
 /* a drumline key: its model (drumline.h DM_*), the model's four knobs (names per model: DM_KNOB), then

@@ -1,7 +1,7 @@
 # LOOM-8 manual
 
 LOOM-8 turns the M-VAVE FM-1 into a pocket groovebox: eight threads of sound on a 64-step loom. Eight tracks
-with synth engines and a drum synth, a 64-step sequencer with fourteen step tricks and parameter locks,
+with nine engines (six synths, a sample player, a break slicer and a drum kit), a 64-step sequencer with fourteen step tricks and parameter locks,
 players, twelve throws (momentary effects) per octave, a conductor that moves the song through a progression,
 two send effects (the reverb with the PlayStation's own reverbs among its modes), a mixer and a master section,
 sixteen scenes and a song. Weave two patterns into a
@@ -40,7 +40,7 @@ to 16 from the left, black keys 1 to 11.
    notes one after another: each one goes on the next step. Press **EDIT** and turn **KNOB 1** while it plays
    to hear the shape change.
 
-   <img src="img/screen-seq-held.png" width="240" alt="Steps on T2 stack with SEQ held: the keys play notes, and the line above the grid says the notes a step will write" title="SEQ held on Steps"> <img src="img/screen-step-record2.png" width="240" alt="Step record on T2: the red cursor on the next step after the notes written so far; the footer says KEYS write, OCT+ rest, OCT- back, REC done" title="Step record">
+   <img src="img/screen-seq-held.png" width="240" alt="Steps on T2 with SEQ held: the keys play notes, and the line above the grid says the notes a step will write" title="SEQ held on Steps"> <img src="img/screen-step-record2.png" width="240" alt="Step record on T2: the red cursor on the next step after the notes written so far; the footer says KEYS write, OCT+ rest, OCT- back, REC done" title="Step record">
 3. **Tricks.** Still on T2's Steps page, hold white key 7 and press **ARP**. Turn **KNOB 1** to multiply and
    **KNOB 2** to 3 for three hits. Let go. Hold white key 14, press **ARP**, turn **KNOB 1** to jump and
    **KNOB 2** to "either": the pattern starts to wander. Hold white key 1, press **ARP** and turn **KNOB 1** to
@@ -92,9 +92,9 @@ knob on it; press **ARP** on T2 and turn **KNOB 1** to arp; press **GLO**, turn 
 - **Lock**: a knob value a step sets as it plays.
 - **Scene** (S1 to S16): which pattern each track plays, plus the mutes and the conductor's key.
 - **Song**: a chain of scenes, each played for a number of bars.
-- **Engine**: the way a track makes its sound. Twelve synths, two for samples (sample and slice) and the kit, a
-  drum synth.
-- **Preset**: a sound to load. 224 come with LOOM-8, sixteen for each engine, and 16 are yours.
+- **Engine**: the way a track makes its sound. Six synths (knit, rayon, jacquard, bellows, cane and voile), two
+  for samples (sample and slice) and the kit, a drum synth.
+- **Preset**: a sound to load. 85 come with LOOM-8, from seven to eighteen for each engine, and 16 are yours.
 - **Player**: what the keys do on a track: arp, strum or hold.
 - **Conductor**: the aux track that moves the other tracks through a key and scale, from its own chords or from
   a track's notes.
@@ -102,7 +102,7 @@ knob on it; press **ARP** on T2 and turn **KNOB 1** to arp; press **GLO**, turn 
 - **Weave**: a track's pattern crossed with another, live: bars or steps in turn, or one's rhythm with the other's notes.
   Set up on the track's ARP, played on the WEAVE track.
 - **Groove**: a timing and velocity feel. The project picks the type, each track sets how much.
-- **Pump**: the whole mix ducking on each kick and swelling back (Master out). A track's duck LFO does the same
+- **Pump**: the whole mix ducking on each kick and swelling back (Master out). A track's pump LFO does the same
   to one track.
 
 ### How do I…
@@ -131,14 +131,14 @@ press…" means keep **HOME** down while you press the next thing.
 | set the track scale | On Steps, turn **KNOB 3**. Or on the Bar page of a synth track, press a black key: 1, 2, 3, 4, 5, 6, 8, 16 sixteenths a step, or black key 9 for half a sixteenth. |
 | change the pattern | On Steps, turn **KNOB 1**. Playing, it comes at the next bar line: the knob reads NEXT 1>2 and the tag line "next P2" until it does. |
 | weave two patterns | On the track, **ARP**, its last page Weave: a black key for the track woven in, a white key for its pattern, **KNOB 3** the rule. It plays woven from then on; to bring it in by hand instead, **KNOB 4** to "on WEAVE", then on the WEAVE track (**ALGORITHM**) hold that track's white key. |
-| change the sound | Press **EDIT** and turn **PRESETS**: the engine's own sounds, "BASS 3/16": what the sound is for and where you are. **SEL** changes the engine. |
+| change the sound | Press **EDIT** and turn **PRESETS**: the engine's own sounds, "BASS 3/11": what the sound is for and where you are. **SEL** changes the engine. |
 | edit a drum sound | On a drum track, press **EDIT** and press the sound's black key. The knobs are the model's own four. Turn **SELECT** for the model, random, pan and volume; its **SEL** list has the play mode. |
 | shape one drum | On a drum track, press **ENV** and press the drum's black key: its own attack, hold, decay and lag. Turn **SELECT** for its filter: **PRESETS** picks low-pass, high-pass or band-pass, the knobs cutoff, resonance, envelope and drive. |
 | play a sample | On a drum track, turn a key's model to sample. On a synth track, **SEL** and ENGINE: sample. The sample knob picks it. |
-| load my own samples | Connect the FM-1 by USB and run `tools/loom_samples.py load kick.wav snare.wav` on the computer. They come after the factory samples, as user 1, user 2 ... |
+| load my own samples | Open <https://charlesvestal.github.io/fm1-loom/samples/> in Chrome or Edge with the FM-1 connected by USB: add, replace, rename, reorder or remove them, then Send. They come after the factory samples, as user 1, user 2 ... |
 | chop a break | On a synth track, **SEL** and ENGINE: slice. Each key plays a slice of the break, F3 the first; write them on the steps in any order. Load your own with `tools/loom_samples.py load "amen.wav@2"` (a loop of 2 bars). |
 | change the filter | Press **ENV** and turn **SELECT** to Filter. **PRESETS** turns the filter type. |
-| give a sound some character | Press **FX**: the Character page. **PRESETS** turns the type (drive, fold, crush, ring, tilt); the knobs are its amount, tone and mix. |
+| give a sound some character | Press **FX**: the Character page. **PRESETS** turns the type (drive, fold, crush, ring, tilt, tape, sampler); the knobs are its amount, tone and mix. |
 | use the effects | Press **FX** and turn **SELECT** to Sends: the track's sends. Turn on for FX I and FX II; **PRESETS** picks the effect. |
 | play | Press **PLAY**: every track starts from step 1. |
 | record live | Hold **REC** and press **PLAY**: it records from step 1 at once (after the count-in, if set). |
@@ -169,7 +169,7 @@ press…" means keep **HOME** down while you press the next thing.
 | **SEL** | Opens a list of this page's settings and actions. With a step held, its notes. When LOOM-8 asks a question, **SEL** means yes. |
 | **HOME** | Opens Arrange. On Arrange, it opens the Song page. Held, it is the shift key for buttons and knobs: undo and redo, the fine tempo, the scenes on **PRESETS**. When LOOM-8 asks a question, **HOME** means no. |
 | **SEQ** | Opens Steps. Its page 2 is Bar. Hold it on Steps and the keys play the track and set what a step writes. |
-| **EDIT** | Opens Engine. Its page 2 is Play; on a drum track, the key's model, random, pan and volume. Brocade has a page 3, Sub; the conductor's pages are its key, the routing and Follow. |
+| **EDIT** | Opens Engine. Its page 2 is Play, page 3 Play 2 (the octave); knit and rayon have a page 4, Sub, the engine's second set of knobs. On a drum track, page 2 is the key's model, random, pan and volume, page 3 its sends. The conductor's pages are its key, the routing and Follow. |
 | **ENV** | Opens Envelope (a drum track: lag, attack, random, length), then Filter, then the filter's envelope. |
 | **FX** | Opens Character, the track's own effect. Then Sends, the track's sends to FX I and FX II. Then FX I and FX II, the two effects. |
 | **LFO** | Opens LFO. Its page 2 has the type's fourth and fifth knobs. |
@@ -199,7 +199,7 @@ From top to bottom, the screen has five parts.
   Messages and questions cover it for a moment.
 - **The middle** is the page itself.
 - **The tag line** says where you are: the track and its engine, the pattern and the scene, such as
-  "T3 stack › P2 › S1". The dots at the right say which of the button's pages you're on.
+  "T3 knit › P2 › S1". The dots at the right say which of the button's pages you're on.
 - **The knob strip** shows the four knobs' names and values, each with a bar in the track's colour. The
   knob you just turned shows in the text colour.
 - **The two bottom lines** say what the encoders and the keys do here.
@@ -406,54 +406,78 @@ redo it. One stage, the selected track's pattern; locks stay as they are.
 
 Press **EDIT**. The Engine page shows the track's engine, a picture of it that moves with the knobs, and its
 four knobs with their values from 00 to 99. Turn **PRESETS** for the engine's next
-sound: its sixteen factory presets, then the user presets saved from it. The message says what the sound is
-for and where you are, as in "PAD 3/16". The roles are bass, lead, keys, pluck, bell, stab, brass, strings, pad,
-voice, chord, fx, drum and loop; a user preset says "PRESET". Each engine's sixteen run from basses and leads
-through keys, plucks and bells to pads, and end with the ones that move. Most are dry. Pads, strings, voices and
+sound: its factory presets, then the user presets saved from it. The message says what the sound is
+for and where you are, as in "PAD 3/11". The roles are bass, lead, keys, pluck, bell, stab, brass, strings, pad,
+voice, chord, fx, drum and loop; a user preset says "PRESET". Each engine's presets run from its own plain sound
+through basses, leads, keys, plucks and bells to pads. Most are dry. Pads, strings, voices and
 bells send to the reverb, and some plucks and leads to the delay. Press **SEL** for the list: ENGINE changes the engine and loads its first sound, then a preset,
 SCRAMBLE for a random sound, SAVE AS PRESET, RESET SOUND, and whether the track FOLLOWS CONDUCTOR.
 
-<img src="img/screen-engine.png" width="240" alt="Engine on T2: stack, its picture, the preset name, and its four knobs wave, ratio, detune, spread from 00 to 99" title="The Engine page"> <img src="img/screen-play.png" width="240" alt="Play: voice mode, portamento, bend range and volume" title="The Play page">
+<img src="img/screen-engine.png" width="240" alt="The Engine page on T2: the engine, its picture, the preset name, and its four knobs from 00 to 99" title="The Engine page"> <img src="img/screen-play.png" width="240" alt="Play: voice mode, portamento, bend range and volume" title="The Play page">
 
-| Engine | Knobs |
-| --- | --- |
-| weft | bend, wave, sweep, spread |
-| stack | wave, ratio, detune, spread |
-| wavetable | table, scan, bend, ripple |
-| orbit | bright, ratio, edge, wobble |
-| tines | bright, grit, bite, bell |
-| organ | stops, pedal, rotor, rate |
-| sync | reach, sub, hiss, thin |
-| swarm | swarm, ring, tone, spread |
-| brocade | saws, detune, mix, spread |
-| cane | model, timbre, color, damp |
-| voile | model, timbre, color, breath |
-| gingham | model, timbre, color, arp |
-| kit | the shown key's model knobs |
-| sample | sample, start, length, mode |
-| slice | sample, slices, pitch, gate |
+| Engine | Knobs | Presets |
+| --- | --- | --- |
+| knit | wave, detune, voices, width | 11 |
+| rayon | bright, ratio, edge, tine | 10 |
+| jacquard | table, scan, bend, ripple | 11 |
+| bellows | stops, pedal, rotor, rate | 9 |
+| cane | model, timbre, color, damp | 8 |
+| voile | model, timbre, color, breath | 7 |
+| sample | sample, start, length, mode | 18 |
+| slice | sample, slices, pitch, gate | 11 |
+| kit | the shown key's model knobs | |
 
-### Brocade
+Knit and rayon have a second set of knobs: **EDIT**, then **SELECT** to the Sub page.
 
-Brocade is the supersaw: up to seven saws a voice, detuned against each other, the big trance sound. Its saws
-are NuSaw's. **saws** sets how many, from one to seven: a centre saw and pairs either side. **detune** spreads
-their pitches, fine at first and wide at the end. **mix** sets the side saws against the centre one: low, one
-saw with a shimmer; high, a wall. **spread** opens the pairs across the stereo field. The filter, the envelopes
-and the LFO work on it as on any engine; an LFO on detune makes it swirl.
+### Knit
 
-Brocade has a third page under **EDIT**, Sub: a sine under the saws, NuSaw's. **sub** sets its level (0 is off)
-and **offset** how far under the note it plays, from an octave (-12) to two octaves (-24), -19 a fifth below the octave.
+<img src="img/screen-engine-knit.png" width="240" alt="Engine on T3 knit, the ribbon preset: two square waves of the unison drawn; knobs wave 50, detune 20, voices 2, width 63" title="Knit">
 
-Seven saws cost about two and a half ordinary voices. So brocade plays at most six voices, five with seven saws;
-a new note past that takes its oldest. Its saws stay as you set them, however busy the FM-1 is.
+Knit is the everyday subtractive voice: basses, brass, strings, stabs, pads. **wave** goes from a saw through a
+square to a narrow pulse (an LFO on it is PWM). **voices** stacks one to seven of that wave, the unison:
+**detune** spreads their pitches, fine at first and wide at the end, and **width** opens them across the stereo
+field. With one voice, **detune** is a slow drift of the pitch instead.
 
-### Cane, voile and gingham
+The Sub page: **osc 2** is one more of the wave, 24 semitones either way of the note, and **level** its level
+(0 is off); **sub** is a sine an octave down; **noise** adds noise.
 
-Three engines from Mutable Instruments' Braids, Émilie Gillet's macro oscillator, each a family of its models.
+A wide unison costs more than an ordinary voice. So knit plays at most six voices, five with seven in its unison;
+a new note past that takes its oldest.
+
+### Rayon
+
+<img src="img/screen-engine-rayon.png" width="240" alt="Engine on T3 rayon, the glass bell preset: the carrier's circle with the modulator turning on it; knobs bright 47, ratio 3.5:1, edge 00, tine 23" title="Rayon">
+
+Rayon is two-operator FM, the DX way: e-pianos, bells, mallets and basses. **bright** is how much the modulator
+moves the carrier (a soft note gets less of it). **ratio** is the modulator's pitch against the note: the left
+half a 1:1 detuned for a slow beating, the right half the ratios from 0.5:1 to 8:1, the bells' inharmonic ones
+among them. **edge** feeds the modulator back on itself, from a sine toward a saw. **tine** is a high partial
+struck with the note and gone in a quarter of a second, by how hard you play: an e-piano's bark.
+
+The Sub page: **fall** is how fast the brightness falls from the start of the note (0 holds it), **floor** how
+much of it is left, and **keyscale** makes high notes less bright.
+
+### Jacquard and bellows
+
+<img src="img/screen-engine-jacquard.png" width="240" alt="Engine on T3 jacquard, the spiral pad preset: the wave drawn; knobs table spiral, scan 39, bend 08, ripple 16" title="Jacquard"> <img src="img/screen-engine-bellows.png" width="240" alt="Engine on T3 bellows, the gospel preset: six drawbars, the 8-foot one lit, and the rotor; knobs stops 4, pedal 3, rotor 6, rate 7" title="Bellows">
+
+**Jacquard** plays wavetables. **table** picks one of nine: shapes, nasal, grit, vocal, spiral, fold, octaves,
+glass and chirp. **scan** moves through its frames, **bend** bends the wave's shape, and **ripple** wobbles it
+with a second oscillator, slow at first and up to the note's own rate.
+
+**Bellows** is the organ: six drawbars. Its four knobs go from 1 to 8. **stops** picks the registration:
+transistor, combo, jazz, gospel, rock, theatre, pipe or church. **pedal** adds the low 16' bar (1 is none),
+**rotor** how deep the rotating speaker swirls (1 is none) and **rate** how fast.
+
+### Cane and voile
+
+Two engines from Mutable Instruments' Braids, Émilie Gillet's macro oscillator, each a family of its models.
 **model** picks one; **timbre** and **color** are Braids' own two knobs, and what they do depends on the model;
 the fourth knob is LOOM-8's.
 
 **Cane** is the physical models: instruments built from their parts, a string, a tube, a bell.
+
+<img src="img/screen-engine-cane.png" width="240" alt="Engine on T3 cane, the koto preset: the string drawn between its two ends; knobs model pluck, timbre 55, color 23, damp 43" title="Cane">
 
 | Model | timbre | color |
 | --- | --- | --- |
@@ -472,6 +496,8 @@ sound an octave up.
 
 **Voile** is the voices.
 
+<img src="img/screen-engine-voile.png" width="240" alt="Engine on T3 voile, the ooh choir preset: the voice's formants drawn as peaks; knobs model choir, timbre 78, color 23, breath 23" title="Voile">
+
 | Model | timbre | color |
 | --- | --- | --- |
 | vosim | the first formant | the second formant |
@@ -481,20 +507,6 @@ sound an octave up.
 
 **breath** is the noise in the voice: on vosim and choir the air through it, on vowel the consonant at the
 start of each note (none to long), on whisper the share of noise against a buzz (all the way up, a whisper).
-
-**Gingham** is the toys and the chips.
-
-| Model | timbre | color |
-| --- | --- | --- |
-| toy | the sample rate, from crushed to clean | the bits flipped |
-| chord | the second note's interval | the third note's interval |
-| ring | the second sine's pitch | the third sine's pitch |
-| peak | the resonance's pitch | its shape: saw, square, triangle |
-| band | the same, hollower | the same |
-| noise | the noise's loop, white to pitched | its steps, from one bit to smooth |
-
-**arp** runs the note through a chord fifty times a second, the way chip music does: oct, fifth, power, major,
-minor, maj7, min7, sus4, or off. On chord, the whole chord arpeggiates.
 
 Most of these models cost about as much as any voice or less; cane's bell, with its eleven partials, about a third more.
 
@@ -561,9 +573,9 @@ fifth takes the oldest's place.
 
 ### Samples
 
-LOOM-8 carries a bank of samples: eight of its own, made for now as placeholders (kick, snare, hat, clap, ah,
-piano, sweep, and break: a bar of drums at 120 BPM for the slice engine), then thirty-two of yours, user 1 to
-user 32. The sample model on a drum key and the sample engine
+LOOM-8 carries a bank of samples: sixteen of its own (a 909's kick, snare, hat and clap; a noise sweep; piano,
+upright bass, strings, brass, flute and an orchestra hit; a vinyl loop; and four breaks for the slice engine:
+classic, heat, choke and ecstasy), then thirty-two of yours, user 1 to user 32. The sample model on a drum key and the sample engine
 on a synth track both play them, the knob naming each one.
 
 The **sample** engine plays a sample at the pitch of the note: the sample's root note plays it at its own rate,
@@ -577,21 +589,21 @@ an octave up twice as fast. Its knobs:
 | mode | one-shot (once, then the note ends), loop (round and round; a sample with its own loop loops that), reverse (once, backwards), ping-pong (forth and back) |
 
 The picture shows the sample's waveform, the part that plays bright, a dot where it starts and the loop's ends
-marked. Then the track's envelopes, filter, character and LFO shape it like any engine. Its sixteen presets:
-jute keys (the piano), hemp bass and kenaf (the kick as a short bass and as a long boom), hessian (a sung lead),
-abaca, coir and nettle (the hat, snare and clap as pitched percussion), flax bell (the piano rung), roselle (a
-short, thin piano stab), raffia (the piano backwards), urena (the piano's middle looped, a held chord), jute choir
-and jute pad (the ah looped, open and dark), henequen (the break as a pitched one-shot), sisal sweep and istle (the
-sweep, ping-ponged and backwards).
+marked. Then the track's envelopes, filter, character and LFO shape it like any engine. Its eighteen presets:
+piano (looped, a little tape), dusty keys (darker, the tape wobbling), piano stab (short and bright), rev piano (the
+piano backwards), upright and dusty bass (the upright bass, plucked; the second short and deep in the tape),
+strings, str stab (the section's attack, cut short) and swell (the strings backwards), brass and horn stab, flute
+and air flute (an octave down, a pad), orch hit and dark hit (an octave down), vinyl (the run-out groove), riser
+(the noise sweep) and boom (the kick, low and long).
 
-<img src="img/screen-sample-engine.png" width="240" alt="Engine on T3 sample: the piano&#x27;s waveform, its root C4, all of it playing once; knobs sample, start, length, mode" title="The sample engine">
+<img src="img/screen-sample-engine.png" width="240" alt="Engine on T3 sample: the piano&#x27;s waveform, its root C4, in loop mode; knobs sample, start, length, mode" title="The sample engine">
 
 ### Slice
 
 The **slice** engine cuts a loop (a break) into even slices and plays one a note: the sample's root note plays
 slice 1, the next note up slice 2, and so on, round again after the last (with eight slices, F3 to C4 are
 slices 1 to 8 and C#4 is slice 1 again; below the root they count back from the last). On the keys at their own
-octave, F3 (the lowest key) is slice 1 of the factory break. Written on the steps, the slices replay the break
+octave, F3 (the lowest key) is slice 1 of a factory break. Written on the steps, the slices replay the break
 (slice k on every other step, for eight slices of a bar) or make a new one from its pieces: any order, repeats,
 gaps. Its knobs:
 
@@ -602,8 +614,8 @@ gaps. Its knobs:
 | pitch | 24 semitones either way: down, a slice plays slower and longer than its place; up, faster and shorter |
 | gate | how much of each slice plays, to all of it at 100 %; a short fade at both ends, so a cut never clicks |
 
-A loop that says how many bars it is follows the tempo: its bars last as many bars of the song, so at 90 BPM the
-factory break (a bar at 120) plays slower, each slice still on its steps; the pitch knob goes on top. A sample
+A loop that says how many bars it is follows the tempo: its bars last as many bars of the song, so a factory break
+plays slower at a slower tempo, each slice still on its steps; the pitch knob goes on top. A sample
 that does not say plays at its own speed (the picture says "own speed"). In poly mode each note plays its slice
 to its gate and overlaps the next; mono cuts the playing slice for the new one (a quick fade, then its start);
 legato moves to the new slice at the same place in it, the time running on. Then the envelopes, filter,
@@ -614,17 +626,22 @@ turns it back on).
 
 The picture shows the loop's waveform cut at the slices, each slice's gated part drawn and what the gate leaves
 out faint, the slice playing lit with a line where it is, a dot on slice 1. Above: the loop's name and bars,
-the count or the slice playing. Its sixteen presets: loom break (eight slices, straight), chop (sixteen, mono),
-shuttle (thirty-two, driven), heddle (four, an octave down, heavy), treadle (up a fifth, clipped), batten (boom bap:
-down a fourth, dark, driven), pirn (jungle: up, sixteen, mono, bright), sley (lo-fi: crushed), bobbin (short
-plucked chops), selvedge (thin, high-passed: the hats), picker (a stutter: sixteen, short), shed (the kicks
-alone), warp beam (legato, down, a filter moving with the beat), harness (ring-modulated), lease (dub: band-passed
-into the delay) and ratchet (a tape stop: the pitch falling across a held note, legato).
+the count or the slice playing. Its eleven presets: breaks, heat, choke and ecstasy (each break in eight slices, as
+it was played), jungle (classic in sixteenths, driven, each slice cutting the last), roller (choke in sixteenths,
+tight), two step (choke in sixteenths, short, a touch of delay), dusty loop (ecstasy three semitones down, in the
+tape), half time (classic an octave down, dark), hits (classic's eighths one at a time, short, to play as a kit)
+and ghosts (classic's sixteenths, soft and short, under another beat).
 
-<img src="img/screen-slice-engine.png" width="240" alt="Engine on T3 slice: the break&#x27;s waveform cut in eight, slice 5 playing; knobs sample break, slices 8, pitch 0 st, gate 100 %" title="The slice engine">
+<img src="img/screen-slice-engine.png" width="240" alt="Engine on T3 slice: the classic break&#x27;s waveform (1 bar) cut in eight, slice 5 playing; knobs sample classic, slices 8, pitch 0 st, gate 100 %" title="The slice engine">
 
-**Your own samples.** Connect the FM-1 (running LOOM-8) to a computer by USB and run, from the firmware's
-folder:
+**Your own samples.** Connect the FM-1 (running LOOM-8) to a computer by USB and open the Samples page,
+<https://charlesvestal.github.io/fm1-loom/samples/>, in Chrome or Edge. Connect reads the samples on the FM-1;
+add files (WAV, AIFF, MP3 or FLAC: drop them on the page), replace one by dropping a file on it, rename, move up
+or down, remove; set each one's root note and, for a loop, its bars; then Send. The samples already there are
+kept exactly as they were. Quality picks the rate new samples are stored at: auto takes the best at which
+everything fits.
+
+The same from the command line, from the firmware's folder:
 
 ```sh
 pip install mido python-rtmidi numpy
@@ -661,22 +678,24 @@ every byte. A sample a track was playing keeps its place: user 2 is still user 2
 ### The synth pages
 
 Turn **SELECT** on Engine for Play: poly, mono or legato, portamento, the bend range (off, 1 to 7
-semitones, an octave) and the track's volume.
+semitones, an octave) and the track's volume. Again for Play 2: the sound's octave, two down to two up (a bass preset
+comes an octave or two down), which moves the notes it plays, the steps too. On knit and rayon, once more for Sub.
 
-<img src="img/screen-envelope.png" width="240" alt="ENV: the amp envelope&#x27;s attack, decay, sustain and release, drawn" title="The Envelope page"> <img src="img/screen-filter.png" width="240" alt="ENV&#x27;s Filter page: a ladder filter at 702 Hz, its curve drawn; PRESETS turns the type" title="The Filter page"> <img src="img/screen-lfo.png" width="240" alt="LFO: a value LFO at 1/4 moving the filter cutoff, its shape drawn" title="The LFO page">
+<img src="img/screen-envelope.png" width="240" alt="ENV: the amp envelope&#x27;s attack, decay, sustain and release, drawn" title="The Envelope page"> <img src="img/screen-filter.png" width="240" alt="ENV&#x27;s Filter page: an lp24 filter at 481 Hz, its curve drawn; PRESETS turns the type" title="The Filter page"> <img src="img/screen-lfo.png" width="240" alt="LFO: a wave LFO at 1/4 moving the filter cutoff, its shape drawn" title="The LFO page">
 
 **ENV** has the amp envelope, then the filter: cutoff in Hz, resonance, envelope amount and key tracking,
-with **PRESETS** turning the type (svf, ladder, z lowpass, z hipass, dynamic); then the filter's envelope.
+with **PRESETS** turning the type (lp24, ladder, lp12, hp12, dynamic, bp12; on a synth track dynamic is no
+filter); then the filter's envelope.
 **FX** has the track's character (below), then its sends to FX I and FX II, its pan and its level, then the two
 effects. **LFO** has the
 type and its first three knobs; page 2 its fourth and fifth. A new type starts from its own defaults:
 
 | Type | Page 1 | Page 2 |
 | --- | --- | --- |
-| value | speed, amount, destination | parameter, shape |
-| random | speed, amount, destination | parameter, envelope |
-| tremolo | rate, vibrato, volume | envelope, shape |
-| duck | source, amount, hold | release |
+| wave | speed, amount, destination | parameter, shape |
+| drift | speed, amount, destination | parameter, envelope |
+| wobble | speed, vibrato, volume | envelope, shape |
+| pump | source, amount, hold | release |
 
 The speed knob is synced from 2/1 to 1/64 turned left, and free in Hz turned right. The destination is a
 module, and the parameter one of its four: synth (the engine's four knobs), envelope (attack, decay, sustain,
@@ -691,7 +710,7 @@ the type, what it does and a picture of it: the curve a sample goes through, or 
 faint line is the sound without it. **PRESETS** turns the type. The knobs are type, amount, tone and mix (dry
 to wet); at mix 0 it is off. The factory presets each have their own, so a preset is a whole sound.
 
-<img src="img/screen-character.png" width="240" alt="FX&#x27;s Character page on T2: fold, a sine wavefolder, its curve drawn; knobs type, amount, tone and mix" title="The Character page">
+<img src="img/screen-character.png" width="240" alt="FX&#x27;s Character page on T2: drive, a soft saturation, its curve drawn; knobs type, amount, tone and mix" title="The Character page">
 
 | Type | Amount | Tone |
 | --- | --- | --- |
@@ -701,6 +720,8 @@ to wet); at mix 0 it is off. The factory presets each have their own, so a prese
 | crush | how far it falls | which falls: left the sample rate, right the bits, the middle both |
 | ring | how deep the ring modulation | the ratio of the ring's sine to the note, 0.25:1 to 7:1 |
 | tilt | the pivot, 150 Hz to 6 kHz | the tilt: left darker, right brighter, 6 dB each side at the ends |
+| tape | worn tape: saturation, and a wow on the pitch that deepens with it | the roll-off of the top, 1.5 to 18 kHz |
+| sampler | an old sampler's grain: a lower rate and fewer bits | its output filter, 2 to 20 kHz |
 
 Lock the amount, tone or mix on a step like any knob (hold the step, press **FX**). The LFO reaches the amount:
 the voice module's fourth knob, "character". On a kit the character is the whole kit's, after its bus filter
@@ -815,7 +836,7 @@ Turn **ALGORITHM** past T8. Each aux track has its own page under **EDIT** and i
   The reverb has eleven modes, and **PRESETS** walks through them after the phaser: **plate**, LOOM-8's own;
   nine from the PlayStation's sound chip, the reverbs its games used: **room**, **studio S**, **studio M**,
   **studio L** (small, medium, large), **hall**, **half echo**, **space echo**, **chaos echo** (it almost never
-  stops) and **one echo** (a single repeat); and **lush**, a smooth, wide plate (after Jon Dattorro's), the
+  stops) and **one echo** (a single repeat); and **lush**, a smooth, wide plate (based on Jon Dattorro's), the
   reverb of a new project. The console's keep its grain: they run at half the sample rate, as lush does.
   On these, **size** stretches their delays, from small and metallic at 0 to the console's own at the top (the
   new mode's starting point); **decay** sets how long the tail lasts, the console's own in the middle;
@@ -855,10 +876,10 @@ the mix breathes to a beat nobody hears. At 0 (a new project's) it is off. Its *
   pumps fully.
 - **level**: the output level, the drive into the limiter (100 is unity).
 
-The pump is the whole mix's; a track's own duck LFO (above) still ducks just that track, for a bass that gets
+The pump is the whole mix's; a track's own pump LFO (above) still ducks just that track, for a bass that gets
 out of the kick's way while the rest plays on.
 
-<img src="img/screen-mix.png" width="240" alt="Mix: a meter for each track while playing; knobs fx I, fx II, pan and level" title="The mixer"> <img src="img/screen-sends.png" width="240" alt="FX&#x27;s Sends page: the track&#x27;s sends to FX I (delay) and FX II (reverb plate), its pan and level" title="The sends"> <img src="img/screen-master.png" width="240" alt="Master EQ: low, mid and high, flat at 64" title="Master EQ"> <img src="img/screen-master-out.png" width="240" alt="Master out: bars for drums, melodic, comp and pump; knobs drums 100, melodic 100, comp 30, pump 4.0 dB" title="Master out">
+<img src="img/screen-mix.png" width="240" alt="Mix: a meter for each track while playing; knobs fx I, fx II, pan and level" title="The mixer"> <img src="img/screen-sends.png" width="240" alt="FX&#x27;s Sends page: the track&#x27;s sends to FX I (delay) and FX II (reverb lush), its pan and level" title="The sends"> <img src="img/screen-master.png" width="240" alt="Master EQ: low, mid and high, flat at 64" title="Master EQ"> <img src="img/screen-master-out.png" width="240" alt="Master out: bars for drums, melodic, comp and pump; knobs drums 100, melodic 100, comp 30, pump 4.0 dB" title="Master out">
 
 ## Saving
 
@@ -882,7 +903,7 @@ patterns, the kit and the mix stay. A project saves every knob as you left it, n
 `python3 base/tools/fm1_backup.py backup FILE --magic LM8B` from the firmware's folder; `restore FILE` puts it back). A backup holds them as saved: save first what you
 want in it. Putting one back replaces all three projects and the presets; LOOM-8 asks first, on its screen
 (**SEL** yes, **HOME** no), and only while stopped. Your own samples are not in a backup: keep their WAV files,
-and load them again with `tools/loom_samples.py`.
+and load them again on the Samples page.
 
 On a sound page, hold **SAVE** and press white key 1 to 16 to keep the track's sound as that user preset.
 
@@ -898,8 +919,10 @@ On a sound page, hold **SAVE** and press white key 1 to 16 to keep the track's s
 | SEQ, SELECT | Bar | quant | note | groove | shape | black: scale |
 | EDIT | Engine | the engine's four | | | | play |
 | EDIT, SELECT | Play | mode | porta | bend | volume | play |
-| EDIT, SELECT twice (brocade) | Sub | sub | offset | | | play |
-| EDIT, drum track | Engine, Key | the key's knobs; model, random, pan, volume | | | | black: the key |
+| EDIT, SELECT twice | Play 2 | octave | | | | play |
+| EDIT, SELECT 3 times (knit) | Sub | osc 2 | level | sub | noise | play |
+| EDIT, SELECT 3 times (rayon) | Sub | fall | floor | keyscale | | play |
+| EDIT, drum track | Engine, Key, Sends | the key's knobs; model, random, pan, volume; its fx I, fx II | | | | black: the key |
 | ENV | Envelope | attack | decay | sustain | release | play |
 | ENV, SELECT | Filter | cutoff | reso | env | keytrack | play; PRESETS: the type |
 | ENV, SELECT twice | Filter env | attack | decay | sustain | release | play |
@@ -936,4 +959,7 @@ it uses are published with this site, so every version reads its own screen corr
 
 LOOM-8's way of working owes a great deal to teenage engineering's OP-XY; LOOM-8 is not affiliated with
 teenage engineering. Built on fm1-base and felucca-bsp, from Felucca by Leo Kuroshita (Hügelton Instruments),
-with Polly's menus, X0X's sequencer discipline and NuSaw's second core.
+with Polly's menus and X0X's sequencer discipline. Cane and voile
+are Mutable Instruments Braids by Émilie Gillet (MIT); the reverb's PlayStation modes are PSXVerb's. The factory
+breaks are free loops by u/FCTRYBEATS, the 909 drums renders of 9W9, and the recorded instruments from the
+Versilian Studios Chamber Orchestra 2 Community Edition (CC0).

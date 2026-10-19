@@ -290,15 +290,58 @@ expect trk 2
 spin ALGO 1
 expect trk 3
 tap EDIT
-param 3 0 9
+param 3 0 6
 turn PRESET 1
 wait 1600
 shot sample_engine.png
 # ---- the slice engine: the break, a slice playing (A3: slice 5 of 8)
-param 3 0 10
+param 3 0 7
 turn PRESET 1
 wait 1600
 key w2 down
 wait 120
 shot slice_engine.png
 key w2 up
+# ---- each synth engine's Engine page (on track 3), with one of its presets, a note held
+preset 3 ribbon
+wait 800
+key w4 down
+wait 250
+shot engine_knit.png
+key w4 up
+wait 800
+preset 3 glass_bell
+wait 800
+key w4 down
+wait 250
+shot engine_rayon.png
+key w4 up
+wait 800
+preset 3 spiral_pad
+wait 800
+key w4 down
+wait 250
+shot engine_jacquard.png
+key w4 up
+wait 800
+preset 3 gospel
+wait 800
+key w4 down
+wait 250
+shot engine_bellows.png
+key w4 up
+wait 800
+preset 3 koto
+wait 800
+key w4 down
+wait 250
+shot engine_cane.png
+key w4 up
+wait 800
+preset 3 ooh_choir
+wait 800
+key w4 down
+wait 250
+shot engine_voile.png
+key w4 up
+wait 800
