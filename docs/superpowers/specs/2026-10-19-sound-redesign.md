@@ -80,7 +80,8 @@ part 4 what is open. The A/B pages this came from: `build/ab/index.html`, `build
   the sampler** (it stays for the user), and both are on the master too (GLO, Master color: done).
 
 ### 3.2 The preset format and its checks
-- **Octave** in the sound part (default by role: sub -2, bass -1, else 0, bells +1). PRESETS_FORMAT / PROJ_FORMAT
+- **Octave** in the sound part (default by role: a bass -2, else 0; done. At -1 most basses had nothing under 100 Hz
+  on the FM-1's keys, F3 .. G5: "thin", Charles). PRESETS_FORMAT / PROJ_FORMAT
   bump; old saves do not load (no migrations before release).
 - **Presets as recipes**: a readable file (tools/presets/*.py, one entry a preset: role, genres, engine, the knobs by
   name) generated into C, so they are reviewed, diffed and measured on the host.

@@ -18,7 +18,7 @@ expect par3.brain 0
 preset 2 round_sub knit
 expect par2.0 0
 expect par2.2 10
-expect par2.oct 1
+expect par2.oct 0
 preset 4 no_such_preset rayon
 expect par4.0 1
 # the FX tracks by their effect's name

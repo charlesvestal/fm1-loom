@@ -19,24 +19,24 @@ P("koto", "pluck", "cane", knobs=dict(model=PLUCK, timbre=70, color=30, damp=55)
 # nylon: a soft, round string for chords
 P("nylon", "keys", "cane", knobs=dict(model=PLUCK, timbre=70, color=64, damp=96), volume=124,
   amp=(0, 92, 0, 70), fenv=(0, 64, 0, 64), filter=("lp24", 78, 0, 64, 64), sends=(0, 18), genres=("lofi", "house"))
-# a plucked bass: the string damped, the fingers' thump
+# a plucked bass: the string damped, the filter low (the string cannot reach under ~C2: its weight is the low end)
 P("finger bass", "bass", "cane", knobs=dict(model=PLUCK, timbre=90, color=50, damp=55), mode="mono", volume=127,
-  amp=(0, 80, 0, 40), fenv=(0, 64, 0, 64), filter=("lp24", 72, 0, 64, 40), genres=("garage", "house"))
-# a cello: the bow pressed, near the bridge's middle, a late vibrato
-P("cello", "strings", "cane", knobs=dict(model=BOW, timbre=70, color=40, damp=60), mode="mono", volume=110,
+  amp=(0, 80, 0, 40), fenv=(0, 64, 0, 64), filter=("lp24", 56, 0, 64, 40), genres=("garage", "house"))
+# bowed: a bowed string, pressed, near the bridge's middle, a late vibrato
+P("bowed", "strings", "cane", knobs=dict(model=BOW, timbre=70, color=40, damp=60), mode="mono", volume=110,
   amp=(70, 80, 120, 80), fenv=(0, 64, 0, 64), filter=("lp12", 84, 0, 64, 64), sends=(0, 25),
   lfo=("wobble", 92, 74, 64, 20, 0), genres=("synthpop", "lofi"))
-# a clarinet: a steady breath (under ~90 the reed barely speaks), a warm body
-P("clarinet", "lead", "cane", knobs=dict(model=REED, timbre=100, color=80, damp=20), mode="legato", glide=8,
+# a reed lead: a steady breath (under ~90 the reed barely speaks), a warm body
+P("reed lead", "lead", "cane", knobs=dict(model=REED, timbre=100, color=80, damp=20), mode="legato", glide=8,
   volume=110, amp=(40, 70, 120, 60), fenv=(0, 64, 0, 64), filter=("lp12", 88, 0, 64, 64), sends=(10, 20),
   genres=("lofi",))
-# a flute: clean, blown softly, a vibrato fading in
-P("flute", "lead", "cane", knobs=dict(model=FLUTE, timbre=100, color=60, damp=40), mode="legato", glide=8,
+# a breath lead: the flute model, clean, blown softly, a vibrato fading in
+P("breath lead", "lead", "cane", knobs=dict(model=FLUTE, timbre=100, color=60, damp=40), mode="legato", glide=8,
   volume=110, amp=(50, 70, 120, 64), fenv=(0, 64, 0, 64), filter=("lp12", 94, 0, 64, 64), sends=(10, 25),
   lfo=("wobble", 92, 74, 64, 20, 0), genres=("lofi", "synthpop"))
-# a temple bell: long, its partials a little apart, in the room
-P("temple bell", "bell", "cane", knobs=dict(model=BELL, timbre=90, color=20, damp=60), volume=104,
-  amp=(0, 104, 0, 96), fenv=(0, 64, 0, 64), filter=("lp12", 96, 0, 64, 64), sends=(0, 30), octave=1,
+# a temple bell: long, its partials as the table has them (color apart smeared the pitch), in the room
+P("temple bell", "bell", "cane", knobs=dict(model=BELL, timbre=90, color=0, damp=60), volume=104,
+  amp=(0, 104, 0, 96), fenv=(0, 64, 0, 64), filter=("lp12", 96, 0, 64, 64), sends=(0, 30),
   genres=("lofi",))
 # a hand drum: a short head, more tone than rattle
 P("hand drum", "drum", "cane", knobs=dict(model=DRUM, timbre=50, color=30, damp=50), volume=116,

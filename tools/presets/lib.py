@@ -13,7 +13,8 @@ turns them into app/build/gen/presets.h (the PRESETS table synth.c includes). A 
                                                 for wobble (its volume amount) and pump (its hold)
     char=None | (type, amount, tone, mix),     type: drive fold crush ring tilt tape sampler
     x=(x1, x2, x3, x4),                         the engine's second page (knit's osc 2 .., rayon's fall ..)
-    octave=None,                                -2 .. +2; None: by the role (a bass -1, else 0)
+    octave=None,                                -2 .. +2; None: by the role (a bass -2: on the FM-1's middle keys,
+                                                F3 .. G5, it plays around C2; at -1 most had nothing under 100 Hz)
     genres=())                                  what it is for (lofi, synthpop, dnb, house, garage ...): the
                                                 checks and the docs read it, the firmware does not
 The scales (0..127): LFO speeds 0..7 synced (3 = 1/4), above free: 20 is about 0.16 Hz, 40 0.45 Hz, 60 1.2 Hz, 80
@@ -47,7 +48,7 @@ def P(name, role, engine, knobs, mode="poly", glide=0, bend=2, volume=100, amp=(
       genres=()):
     assert role in ROLES, (name, role)
     assert engine in KNOBS, (name, engine)
-    assert len(name) <= 12 and name == name.lower(), name
+    assert len(name) <= 11 and name == name.lower(), name
     assert sorted(knobs) == sorted(KNOBS[engine]), (name, knobs)
     lf = lfo or NOLFO
     assert lf[0] in LFOS and len(lf) == 6, (name, lf)
@@ -55,7 +56,7 @@ def P(name, role, engine, knobs, mode="poly", glide=0, bend=2, volume=100, amp=(
         assert lf[3] in DESTS, (name, lf)
     ch = char or NOCHAR
     assert ch[0] in CHARS and len(ch) == 4, (name, ch)
-    oc = octave if octave is not None else (-1 if role == "bass" else 0)
+    oc = octave if octave is not None else (-2 if role == "bass" else 0)
     assert -2 <= oc <= 2, (name, oc)
     xs = x if x is not None else X_DEF.get(engine, (0, 0, 0, 0))
     vals = [*[knobs[k] for k in KNOBS[engine]], glide, bend, volume, *amp, *fenv, filter[1], filter[2], filter[3],

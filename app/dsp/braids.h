@@ -36,6 +36,9 @@
  *   (voile's breath: noise into the excitation, 0 clean)
  *
  * Changes from Braids, and why:
+ *   - the bell tuned as a church bell is (2026-10-19): Braids' hum sat at -10 semitones and its prime 1.4 flat, which
+ *     against the in-tune octave (+12) read as out of tune; now the hum -12, the prime on the note, the minor third
+ *     +3 (Braids'), the fifth +7 (Braids' +9.2), the octave and the upper partials as Braids has them
  *   - one note a voice: Braids' three overlapping plucked strings are LOOM-8's voices; the waveguides keep one
  *     model's lines in one of CN_SLOTS slots (int16, CN_LEN a slot: RAM, beside synth_t; synth.c gives a slot
  *     to a cane note and keeps cane to CN_SLOTS voices). Below the lines' reach (bow under ~37 Hz, flute under
@@ -70,7 +73,7 @@ static cn_slot_t cn_mem[CN_SLOTS];
 
 /* the bell's and the drum's partials: offsets (1/128 semitone), strike amplitudes, decays per 1/4000 s
  * (Braids' render block), long and short (timbre between) */
-static const int16_t BELL_P[11] = {-1284, -1283, -184, -183, 385, 1175, 1536, 2233, 2434, 2934, 3110};
+static const int16_t BELL_P[11] = {-1536, -1535, 0, 1, 385, 896, 1536, 2233, 2434, 2934, 3110};   /* (tuned: below) */
 static const int16_t BELL_A[11] = {8192, 5488, 8192, 14745, 21872, 13680, 11960, 10895, 10895, 6144, 10895};
 static const uint16_t BELL_DL[11] = {65533, 65533, 65533, 65532, 65531, 65531, 65530, 65529, 65527, 65523, 65519};
 static const uint16_t BELL_DS[11] = {65308, 65283, 65186, 65123, 64839, 64889, 64632, 64409, 64038, 63302, 62575};

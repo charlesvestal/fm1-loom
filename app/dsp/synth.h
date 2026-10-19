@@ -73,7 +73,7 @@ enum {
                                                      * where unused): knit's osc 2, level, sub, noise; rayon's fall,
                                                      * floor, keyscale */
     TP_OCT,                                         /* Play 2: the sound's octave, 0..4 = -2..+2 (2: as played); a
-                                                     * preset's by its role (a bass -1). Moves the notes, sequenced too */
+                                                     * preset's by its role (a bass -2). Moves the notes, sequenced too */
     TP_PLAYER, TP_P1, TP_P2, TP_P3, TP_P4,          /* Players: off / arp / strum / hold and its four knobs */
     TP_AP1, TP_AP2, TP_AP3, TP_AP4,                 /* the arp's second page: length, style, glide, stereo */
     TP_LEVEL, TP_PAN,                               /* Mix */
