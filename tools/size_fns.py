@@ -44,6 +44,7 @@ COLD = {
     "dsp/fx.c": ["fx_derive", "eq_coefs", "fx_filter", "master_set", "master_init", "comp_coefs",
                  "fx_set", "fx_init"],
     "dsp/sample.c": ["smp_user_scan", "fact_init"],
+    "dsp/bench.c": [],
     "dsp/synth.c": ["tp_text_i", "tp_text_par", "tp_info_par", "tp_text", "char_picture", "voice_start",
                     "voice_take", "synth_note_on", "synth_note_off", "synth_duck_trigger", "synth_all_off",
                     "sound_default", "synth_init", "eknob_init"],

@@ -13,8 +13,8 @@ words = "words.tsv"
 # the second core: LOOM-8's own (X0X's, GPL: cpu1/), its entry assembled here; the register check leaves cpu1/
 asm = ["cpu1/loom_cpu1.S"]
 vendored = ["cpu1/"]
-# the DSP and the sequencer at -O2, apart (as LOOM-8's own build had them)
-o2 = ["dsp/synth.c", "dsp/drumline.c", "dsp/sample.c", "dsp/fx.c", "seq/pattern.c", "seq/seq.c"]
+# the DSP and the sequencer at -O2, apart (as LOOM-8's own build had them); bench.c: the profiler, empty unless XY_BENCH=1
+o2 = ["dsp/synth.c", "dsp/drumline.c", "dsp/sample.c", "dsp/fx.c", "dsp/bench.c", "seq/pattern.c", "seq/seq.c"]
 # the code that never runs per sample built for size (LLVM's minsize: Melodee's idea; tools/size_fns.py)
 ir_pass = "../tools/size_fns.py"
 # the generated headers: LOOM-8's fonts, the wavetables, the factory samples, this build's number

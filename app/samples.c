@@ -25,6 +25,11 @@
  *                                       load, voices, their cap, saws, guard trips, dropouts; part 1: synth.h's
  *                                       synth_prof (each engine's time, both halves); part 2: each drum track's time.
  *                                       part | 64: the slowest block starts again after this reply
+ *   BENCH      27 k reps             -> k, count, name (0-terminated), runs, then 4 32-bit values (5 bytes each, as PROF):
+ *                                       the fastest run, the median, the slowest, the samples a run (dsp/bench.h): the
+ *                                       hardware profiler's kernel k timed in plat_cycles() (24 MHz) over reps runs
+ *                                       (at most 64, and no longer than ~100 ms); k 127: only the count. A build with
+ *                                       XY_BENCH=1 only (tools/hw_bench.py); the audio keeps running meanwhile
  * rc: 0 ok, 1 size / offset, 2 erase, 3 write, 4 not begun (the bank is live), 5 header, 6 CRC, 7 no samples,
  * 8 an update record's mark ("AT" at 0xF06 of a sector in PLAT_XDATA0 / 1: the loader would erase it).
  * Every frame is answered (the tool waits for each). The erases and writes run with the interrupts off a
@@ -34,7 +39,8 @@
 #define SB_HDR0 0x7D
 #define SB_HDR1 0x46
 #define SB_HDR2 0x4C
-enum { SB_INFO = 1, SB_BEGIN = 11, SB_WRITE, SB_END, SB_ERASE, SB_SINFO, SB_HDR, SB_PING = 25, SB_PROF };
+#include "dsp/bench.h"
+enum { SB_INFO = 1, SB_BEGIN = 11, SB_WRITE, SB_END, SB_ERASE, SB_SINFO, SB_HDR, SB_PING = 25, SB_PROF, SB_BENCH };
 #define SB_PART 320u                                 /* SMP_HDR: a header part, bytes */
 #define SB_NPART ((SMP_HDR_USED + SB_PART - 1u) / SB_PART)
 #define SB_INFO_K 12u                                /* SMP_INFO: samples a reply (12 x 18 bytes at most) */
@@ -48,6 +54,9 @@ static uint32_t sb_n;
 #define sb_buf (io_buf + SMP_BANK_HDR)
 typedef char sb_fits[(SMP_BANK_HDR + 256u <= sizeof io_buf && SB_NPART * SB_PART <= SMP_BANK_HDR &&
                       SB_INFO_K * (SMP_NAME + 6u) + 16u <= sizeof sb_out) ? 1 : -1];
+#if XY_BENCH
+typedef char sb_bench_fits[BENCH_RAM_BYTES <= sizeof io_buf ? 1 : -1];
+#endif
 static uint8_t sb_open;                              /* begun: the bank is being written */
 
 static void sb_begin_reply(uint32_t cmd)
@@ -197,6 +206,39 @@ static int smp_frame(const uint8_t *p, uint32_t n)
             eng_prof_reset = 1;
         break;
     }
+#if XY_BENCH
+    case SB_BENCH: {   /* (io_buf lent to the kernels: free between frames, as the upload's staging) */
+        uint32_t k = na ? a[0] : 127u, reps = na > 1u ? a[1] : 16u, t[64], nr = 0, start, v[4], j;
+        volatile float sink;
+        sb_b(k);
+        sb_b((uint32_t)bench_count());
+        if (k >= (uint32_t)bench_count())
+            break;
+        reps = reps < 1u ? 1u : reps > 64u ? 64u : reps;
+        bench_prep((int)k, io_buf);
+        sink = bench_run((int)k);                    /* (the first run warms the caches; not counted) */
+        start = plat_cycles();
+        while (nr < reps && plat_cycles() - start < 2400000u) {
+            uint32_t t0 = plat_cycles();
+            sink = bench_run((int)k);
+            t[nr++] = plat_cycles() - t0;
+        }
+        (void)sink;
+        for (i = 1; i < nr; i++)                     /* (sorted: a few dozen) */
+            for (j = i; j > 0u && t[j - 1u] > t[j]; j--) {
+                uint32_t x = t[j];
+                t[j] = t[j - 1u];
+                t[j - 1u] = x;
+            }
+        v[0] = t[0], v[1] = t[nr / 2u], v[2] = t[nr - 1u], v[3] = BENCH_N;
+        sb_str(bench_name((int)k));
+        sb_b(nr);
+        for (i = 0; i < 4u; i++)
+            for (uint32_t b = 0; b < 35u; b += 7u)
+                sb_b(v[i] >> b);
+        break;
+    }
+#endif
     case SB_SINFO: {
         uint32_t from = na ? a[0] : 0u, used = (smp_user_bytes() + 1023u) / 1024u, cnt = (uint32_t)smp_user_count(), k;
         k = from < cnt ? cnt - from : 0u;

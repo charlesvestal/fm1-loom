@@ -206,7 +206,7 @@ def mode_poly():
     run("turn", "SELECT", -1, "wait", 350)
 
 
-GLO = ["Mix", "Master EQ", "Master out", "Setup", "Status"]
+GLO = ["Mix", "Master EQ", "Master out", "Setup", "Debug"]
 
 
 def glo(page):
@@ -227,7 +227,7 @@ def glo(page):
     raise SystemExit(f"measure_load: no GLO page {page}: {s!r}")
 
 
-def status(): return glo("Status")
+def status(): return glo("Debug")
 
 
 def new_project():
