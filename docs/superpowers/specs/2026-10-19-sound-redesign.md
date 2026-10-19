@@ -99,6 +99,11 @@ and a flash table reads as fast as RAM, `bench.c` "wt big"). Proposal for the re
 drift), **fm** (orbit + tines: 2-op with index envelopes and keyscale, the tine; e-pianos, bells, DX basses, the
 slap), **wavetable** (tables smoothed), **organ**, **cane** (plucks, strings, reeds, mallets), **sample**, **slice**,
 the kit. Cut: weft, stack, sync, swarm, gingham, brocade (into analog); voile by ear.
+- Done (2026-10-19): **knit** (new: wave, detune, voices 1-7, width; osc 2, sub, noise), **rayon** (orbit + tines:
+  the tine, velocity, 16 ratios, fall / floor / keyscale), wavetable renamed **jacquard**, organ **bellows**; weft,
+  stack, sync, swarm, brocade, gingham and tines cut (EG_* renumbered: knit 0 .. slice 7, the kit 8). Image 470 ->
+  440 KB; eng_run 23.3 -> 15.1 KB (cane and voile's Braids code most of it), voice_chunk 20.1 -> 18.7 KB, the hot
+  path ~87 -> ~79 KB. Left: voile by ear; voice_chunk; the demos and the manual on the new engines.
 - **Code budget**: `eng_run` (all engines) <= ~10 KB, `voice_chunk` slimmed; the hot path toward the ~32 KB cache.
   Measured with llvm-nm on `app/build/loom.elf` and the profiler's code curve.
 - **Every FM path** gets an index envelope and keyscale (orbit has them now; tines has a fixed decay).
