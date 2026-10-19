@@ -3,6 +3,8 @@
 # Build the GitHub Pages site for release VERSION (tools/make_pages.py) and push it to the gh-pages
 # branch of origin, replacing what was there (the branch holds only the generated site).
 #   tools/publish_pages.sh 0.1-beta          (after ./build.sh --release 0.1-beta; PYTHON: one with Pillow)
+#   SITE_PASSWORD=...  every page encrypted behind it (staticrypt, by npx; one salt, so it is asked once and
+#                      remembered): a gate for the pages, not for the files they link (the package, the emulator)
 set -e
 cd "$(dirname "$0")/.."
 V="${1:?usage: tools/publish_pages.sh VERSION}"
@@ -12,6 +14,16 @@ PKG="app/build/loom-$V.fwsc"
 PYTHON="$PY" sh build.sh --web --release "$V"
 node tests/host/emu_test.mjs app/build/emu/app.wasm
 "$PY" tools/make_pages.py "$PKG" "$V" build/pages
+if [ -n "${SITE_PASSWORD:-}" ]; then
+    SALT="$(openssl rand -hex 16)"
+    (cd build/pages && find . -name '*.html' | while read -r f; do
+        STATICRYPT_PASSWORD="$SITE_PASSWORD" npx --yes staticrypt@3 "$f" -c false -s "$SALT" --short --remember 0 \
+            --template-title "LOOM-8" --template-instructions "LOOM-8 is not out yet: the password, please." \
+            --template-button "OPEN" --template-color-primary "#c8306f" --template-color-secondary "#f4f3f1" \
+            -d "$(dirname "$f")" >/dev/null
+    done)
+    echo "the pages are behind the password"
+fi
 REMOTE="$(git remote get-url origin)"
 SHA="$(git rev-parse --short HEAD)"
 cd build/pages
