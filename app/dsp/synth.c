@@ -1923,14 +1923,13 @@ SY_INLINE float char_one(float d, const int type, float c0, float c1, float c2, 
     (void)c4;
     return d + wet * (y - d);
 }
-SY_INLINE void char_loop(voice_t *v, float *xl, float *xr, int k, const int type, const int stereo)
+SY_INLINE void char_loop(const float *cx, float *cz, float *xl, float *xr, int k, const int type, const int stereo)
 {
-    const float *cx = v->c.cx;
     const float c0 = cx[0], c1 = cx[1], c2 = cx[2], c3 = cx[3], c4 = cx[4], c5 = cx[5], wet = cx[7];
-    float z0 = v->cz[0], z1 = v->cz[1], z2 = v->cz[2], z3 = v->cz[3], ph = v->cz[4], qi = v->cz[5];
+    float z0 = cz[0], z1 = cz[1], z2 = cz[2], z3 = cz[3], ph = cz[4], qi = cz[5];
     int j;
     if (type == CT_SAMPLER) {                    /* z0 / z1 the input filter, z2 / z3 the held sample, z6 / z7 the output's */
-        float z6 = v->cz[6], z7 = v->cz[7];
+        float z6 = cz[6], z7 = cz[7];
         for (j = 0; j < k; j++) {
             int upd;
             ph += c2;
@@ -1950,13 +1949,13 @@ SY_INLINE void char_loop(voice_t *v, float *xl, float *xr, int k, const int type
                 xr[j] += wet * (z7 - xr[j]);
             }
         }
-        v->cz[0] = fm_flush(z0);
-        v->cz[1] = fm_flush(z1);
-        v->cz[2] = z2;
-        v->cz[3] = z3;
-        v->cz[4] = ph;
-        v->cz[6] = fm_flush(z6);
-        v->cz[7] = fm_flush(z7);
+        cz[0] = fm_flush(z0);
+        cz[1] = fm_flush(z1);
+        cz[2] = z2;
+        cz[3] = z3;
+        cz[4] = ph;
+        cz[6] = fm_flush(z6);
+        cz[7] = fm_flush(z7);
         return;
     }
     for (j = 0; j < k; j++) {
@@ -1978,32 +1977,64 @@ SY_INLINE void char_loop(voice_t *v, float *xl, float *xr, int k, const int type
         if (stereo)
             xr[j] = char_one(xr[j], type, c0, c1, c2, c3, c4, c5, wet, &z1, &z3, mod, upd);
     }
-    v->cz[0] = fm_flush(z0);
-    v->cz[1] = fm_flush(z1);
-    v->cz[2] = fm_flush(z2);
-    v->cz[3] = fm_flush(z3);
-    v->cz[4] = ph;
-    v->cz[5] = qi;
+    cz[0] = fm_flush(z0);
+    cz[1] = fm_flush(z1);
+    cz[2] = fm_flush(z2);
+    cz[3] = fm_flush(z3);
+    cz[4] = ph;
+    cz[5] = qi;
 }
-static void char_run(voice_t *v, float *xl, float *xr, int k)
+static void char_stage(const float *cx, float *cz, int type, int stereo, float *xl, float *xr, int k)
 {
-    switch (v->c.ctype * 2 + (v->c.stereo != 0)) {
-    case CT_DRIVE * 2: char_loop(v, xl, xr, k, CT_DRIVE, 0); break;
-    case CT_DRIVE * 2 + 1: char_loop(v, xl, xr, k, CT_DRIVE, 1); break;
-    case CT_FOLD * 2: char_loop(v, xl, xr, k, CT_FOLD, 0); break;
-    case CT_FOLD * 2 + 1: char_loop(v, xl, xr, k, CT_FOLD, 1); break;
-    case CT_CRUSH * 2: char_loop(v, xl, xr, k, CT_CRUSH, 0); break;
-    case CT_CRUSH * 2 + 1: char_loop(v, xl, xr, k, CT_CRUSH, 1); break;
-    case CT_RING * 2: char_loop(v, xl, xr, k, CT_RING, 0); break;
-    case CT_RING * 2 + 1: char_loop(v, xl, xr, k, CT_RING, 1); break;
-    case CT_TILT * 2: char_loop(v, xl, xr, k, CT_TILT, 0); break;
-    case CT_TILT * 2 + 1: char_loop(v, xl, xr, k, CT_TILT, 1); break;
-    case CT_TAPE * 2: char_loop(v, xl, xr, k, CT_TAPE, 0); break;
-    case CT_TAPE * 2 + 1: char_loop(v, xl, xr, k, CT_TAPE, 1); break;
-    case CT_SAMPLER * 2: char_loop(v, xl, xr, k, CT_SAMPLER, 0); break;
-    case CT_SAMPLER * 2 + 1: char_loop(v, xl, xr, k, CT_SAMPLER, 1); break;
+    switch (type * 2 + (stereo != 0)) {
+    case CT_DRIVE * 2: char_loop(cx, cz, xl, xr, k, CT_DRIVE, 0); break;
+    case CT_DRIVE * 2 + 1: char_loop(cx, cz, xl, xr, k, CT_DRIVE, 1); break;
+    case CT_FOLD * 2: char_loop(cx, cz, xl, xr, k, CT_FOLD, 0); break;
+    case CT_FOLD * 2 + 1: char_loop(cx, cz, xl, xr, k, CT_FOLD, 1); break;
+    case CT_CRUSH * 2: char_loop(cx, cz, xl, xr, k, CT_CRUSH, 0); break;
+    case CT_CRUSH * 2 + 1: char_loop(cx, cz, xl, xr, k, CT_CRUSH, 1); break;
+    case CT_RING * 2: char_loop(cx, cz, xl, xr, k, CT_RING, 0); break;
+    case CT_RING * 2 + 1: char_loop(cx, cz, xl, xr, k, CT_RING, 1); break;
+    case CT_TILT * 2: char_loop(cx, cz, xl, xr, k, CT_TILT, 0); break;
+    case CT_TILT * 2 + 1: char_loop(cx, cz, xl, xr, k, CT_TILT, 1); break;
+    case CT_TAPE * 2: char_loop(cx, cz, xl, xr, k, CT_TAPE, 0); break;
+    case CT_TAPE * 2 + 1: char_loop(cx, cz, xl, xr, k, CT_TAPE, 1); break;
+    case CT_SAMPLER * 2: char_loop(cx, cz, xl, xr, k, CT_SAMPLER, 0); break;
+    case CT_SAMPLER * 2 + 1: char_loop(cx, cz, xl, xr, k, CT_SAMPLER, 1); break;
     default: break;
     }
+}
+
+/* a kit's character (synth.h char_bus): the stage on the kit's summed pair */
+void char_bus(chbus_t *c, const uint8_t *par, float *l, float *r, int n)
+{
+    int type = par[TP_CTYPE] < NCT ? par[TP_CTYPE] : CT_OFF, i;
+    float a, t;
+    if (par[TP_CMIX] == 0)
+        type = CT_OFF;
+    if (type != c->type) {                       /* another type: its states start clean */
+        for (i = 0; i < 8; i++)
+            c->cz[i] = 0.0f;
+        c->type = (uint8_t)type;
+        c->cin_type = 0xFFu;
+    }
+    if (type == CT_OFF)
+        return;
+    a = (float)(par[TP_CAMT] & 127) * (1.0f / 127.0f);
+    t = (float)(par[TP_CTONE] & 127) * (1.0f / 127.0f);
+    if (type != c->cin_type || a != c->cin[0] || t != c->cin[1]) {
+        char_coefs(type, a, t, KIT_RING_HZ, c->cx);
+        c->cin_type = (uint8_t)type;
+        c->cin[0] = a;
+        c->cin[1] = t;
+    }
+    c->cx[7] = (float)(par[TP_CMIX] & 127) * (1.0f / 127.0f);
+    if (type == CT_RING) {                       /* the phasor back to unit length (char_prep) */
+        float re = c->cz[4], im = c->cz[5], r2 = re * re + im * im, g = r2 > 0.5f ? fm_rsqrtf(r2) : 0.0f;
+        c->cz[4] = g > 0.0f ? re * g : 1.0f;
+        c->cz[5] = im * g;
+    }
+    char_stage(c->cx, c->cz, type, 1, l, r, n);
 }
 
 /* ------------------------------------------------------------ the chunk --- */
@@ -2225,7 +2256,7 @@ static void voice_subblock(synth_t *s, voice_t *v, int aligned)
 /* the sample loop for one sub-block: the filter (one of six), the ramps, the outputs. Instantiated
  * for each filter type and for mono / stereo with constant arguments, so the compiler folds the
  * branches away; the generic switch is in voice_samples. chr: the filter only, its output back into
- * xl / xr for the character stage (char_run), then out_loop does the rest.
+ * xl / xr for the character stage (char_stage), then out_loop does the rest.
  *   lp24:    a TPT state-variable low-pass (resonant) into a second, flat one: 24 dB, aggressive
  *   ladder:  four one-poles in series with the last one's output fed back through a soft clip
  *   lp12:    the one resonant TPT stage, 12 dB
@@ -2444,7 +2475,7 @@ static void voice_samples(synth_t *s, voice_t *v, float *l, float *r, float *s1,
             flt_channel(v, xl, k, 0);
             flt_channel(v, xr, k, 1);
             if (v->c.ctype != CT_OFF)
-                char_run(v, xl, xr, k);
+                char_stage(v->c.cx, v->cz, v->c.ctype, v->c.stereo, xl, xr, k);
             out_stereo(v, xl, xr, l + i, r + i, s1 + i, s2 + i, k);
         } else if (v->c.ctype == CT_OFF) {
             switch (v->c.ftype) {
@@ -2464,7 +2495,7 @@ static void voice_samples(synth_t *s, voice_t *v, float *l, float *r, float *s1,
             case FT_BP12: SL(FT_BP12, 1); break;
             default: break;                      /* (dynamic: a bypass, xl / xr as they are) */
             }
-            char_run(v, xl, xr, k);
+            char_stage(v->c.cx, v->cz, v->c.ctype, v->c.stereo, xl, xr, k);
             out_mono(v, xl, l + i, r + i, s1 + i, s2 + i, k);
         }
 #undef SL

@@ -53,6 +53,7 @@ static uint8_t synth_mem[SYNTH_BYTES] POOL __attribute__((aligned(8)));
 static uint8_t dl_mem[NDL][DRUMLINE_BYTES] POOL __attribute__((aligned(8)));
 static uint8_t dl_slot[NTRK];                              /* the unit a drum track owns, 0xFF none */
 static uint8_t dl_owner[NDL];                              /* the track owning each unit, 0xFF free */
+static chbus_t dl_ch[NDL];                                 /* each unit's character stage (the kit's TP_CTYPE..CMIX) */
 static uint8_t fx_mem[2][FXSLOT_BYTES] POOL __attribute__((aligned(8)));
 static uint8_t mst_mem[MASTER_BYTES] __attribute__((aligned(8)));
 #define SY ((synth_t *)(void *)synth_mem)
@@ -66,6 +67,7 @@ static int dl_take(int t)                                  /* a free unit for tr
         if (dl_owner[k] == 0xFFu) {
             dl_owner[k] = (uint8_t)t;
             dl_slot[t] = (uint8_t)k;
+            dl_ch[k] = (chbus_t){.type = CT_OFF};
             return 1;
         }
     return 0;
@@ -859,7 +861,7 @@ static uint32_t split_at(int extra2, int top)          /* voices [0, top) shared
         if (eng_drum[t]) {
             int nv = drumline_voices(DL(t));
             if (nv)
-                drum += 1 + 2 * nv;
+                drum += 1 + 2 * nv + (epar[t][TP_CTYPE] != CT_OFF && epar[t][TP_CMIX]);   /* (+ its character) */
         }
     pre[0] = 0;
     for (i = 0; i < top; i++)
@@ -921,6 +923,7 @@ static void render_drums(uint32_t n)                    /* the drum tracks (the 
         zerof(ts1, n);
         zerof(ts2, n);
         drumline_render(DL(t), tl, tr, ts1, ts2, n);
+        char_bus(&dl_ch[dl_slot[t]], epar[t], tl, tr, (int)n);   /* the kit's character, after its bus filter */
         g = perf_mute[t] || !HOST_ON(t) ? 0.0f : tp_level_gain(epar[t][TP_LEVEL]);
         pan_gains(epar[t][TP_PAN] + perf_pan[t], &gl, &gr);
         glide_set(&trk_glide[t][GL_L], g * gl);

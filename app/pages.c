@@ -61,8 +61,8 @@ static uint16_t trk_tint(int t) { return ink_mix(trk_ink(t), theme->tint); }
 /* the pages (the spec's Buttons table): a button opens its first page; SELECT turns them. EDIT: the engine
  * (a drum track: the shown key's knobs) and Play (a drum track: the key's model, random, pan, volume); ENV: the
  * envelope, the filter, the filter envelope (a drum track: the shown key's envelope and filter, then the kit's
- * envelope and the kit's bus filter: four pages); FX: the instrument's character stage (a kit track has none:
- * the page says so), its sends and the two effects; ARP three with the arp (its page 2, then hold). EDIT on a synth
+ * envelope and the kit's bus filter: four pages); FX: the instrument's character stage (a kit's on the whole
+ * kit, after its bus filter), its sends and the two effects; ARP three with the arp (its page 2, then hold). EDIT on a synth
  * track: Engine, Play, Play 2 (the octave), then Sub where the engine has a second page of knobs (TP_X1..X4: brocade's
  * sub, orbit's fall); a kit or an FX track Engine and Play; the conductor Engine, Play (routing), Sub (Follow) */
 enum { P_ARRANGE, P_SONG, P_STEPS, P_BAR, P_ENGINE, P_PLAY, P_PLAY2, P_SUB, P_ENV, P_FILTER, P_ENV2, P_KITF, P_CHARACTER, P_SENDS,
@@ -548,8 +548,8 @@ static int tp_page_param(int p, int k, int trk)
     if (p == P_SENDS)                                /* (a kit's: the key's own, below) */
         return is_aux(trk) ? -1 : is_drum(trk) && k < 2 ? TP_DRUM(ui.dsound % DL_NSOUND, DP_SEND1 + k)
                                                         : M[p - P_ENGINE][k];
-    if (p == P_CHARACTER)                            /* (a kit's voices are not synth voices: none) */
-        return is_aux(trk) || is_drum(trk) ? -1 : M[p - P_ENGINE][k];
+    if (p == P_CHARACTER)                            /* (a kit's: the whole kit's, after its bus filter) */
+        return is_aux(trk) ? -1 : M[p - P_ENGINE][k];
     if (is_aux(trk)) {
         if (p == P_MIX)                              /* (the conductor and the throws: no sound, no fader) */
             return k == 3 && is_fx(trk) ? TP_LEVEL : -1;
@@ -1314,8 +1314,7 @@ static void page_tag(char *t)
         break;
     case P_CHARACTER:
         e = s_cat(s_cat(t, TRACK_NAME[inst_trk()]), ">character");
-        if (!is_drum(inst_trk()))
-            s_cat(s_cat(e, ">"), CTYPE_NAME(proj.trk[inst_trk()].par));
+        s_cat(s_cat(e, ">"), CTYPE_NAME(proj.trk[inst_trk()].par));
         break;
     case P_FX1: case P_FX2: {                        /* FX II>delay, FX II>reverb>hall */
         int pick = fx_pick_of(ui.page == P_FX1 ? AUX_FX1 : AUX_FX2);
@@ -1455,7 +1454,7 @@ static void page_footer(char *t)
         s_cat(t, "KEYS play");
         break;
     case P_CHARACTER:
-        s_cat(t, is_drum(inst_trk()) ? "KEYS play" : "PRESET type|KEYS play");
+        s_cat(t, "PRESET type|KEYS play");
         break;
     case P_FX1: case P_FX2:
         s_cat(t, "PRESET effect|SEL filter|KEYS play");
@@ -3508,15 +3507,9 @@ static void draw_character(void)
     h = hash_u(h, (uint32_t)drum);
     if (!begin_main(h))
         return;
-    if (drum) {
-        text_c(120, 34, &FONT_S, "kit voices have no character", K_DIM);
-        text_c(120, 56, &FONT_XS, "pick a synth track to shape it", K_DIM);
-        cv_blit(0, MAIN_Y);
-        return;
-    }
     cv_text(12, 4, &FONT_L, CTYPE_NAME(p), K_TEXT);
     cv_text(12, 40, &FONT_XS, ABOUT[ct], K_DIM);
-    s_cat(s_cat(s_cat(t, "after "), TRACK_NAME[trk]), "'s filter");
+    s_cat(s_cat(s_cat(t, drum ? "on all of " : "after "), TRACK_NAME[trk]), drum ? "'s keys" : "'s filter");
     cv_text(12, 56, &FONT_XS, t, K_DIM);
     cv_rect(x0, cy, w, 1, K_LINE);
     if (ct != CT_TILT && ct != CT_CRUSH && ct != CT_RING && ct != CT_SAMPLER)

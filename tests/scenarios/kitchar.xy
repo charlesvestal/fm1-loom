@@ -1,0 +1,19 @@
+# a kit's character: FX's Character page on T1 shapes the whole kit (after its bus filter): PRESET picks the type,
+# K1 too, the others its amount, tone and mix; a step held + FX: the lock pages reach it (SELECT from Sends to Character)
+wait 300
+expect trk 1
+expect par1.ctype 0
+tap FX
+expect page Character
+turn PRESET 1
+expect par1.ctype 1
+spin K2 10
+expect par1.camt 74
+spin K4 -27
+expect par1.cmix 100
+tapkey b1
+wait 60
+shot kit_character.png
+tap PLAY
+wait 400
+tap PLAY

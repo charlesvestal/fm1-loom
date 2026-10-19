@@ -1215,6 +1215,56 @@ static void bench_char(void)
     }
 }
 
+/* a kit's character (char_bus): on the kit's summed pair, off by default and at mix 0, every type finite */
+static void kit_char_tests(void)
+{
+    static float l[4096], r[4096], l0[4096];
+    uint8_t p[NTP];
+    chbus_t c;
+    int i, ty, finite = 1, same;
+    sound_default(p, EG_DRUMLINE);
+    check("kit character: off by default", p[TP_CTYPE] == CT_OFF);
+    for (ty = 0; ty < NCT; ty++) {
+        memset(&c, 0, sizeof c);
+        p[TP_CTYPE] = (uint8_t)ty;
+        p[TP_CAMT] = 100;
+        p[TP_CTONE] = 64;
+        p[TP_CMIX] = 127;
+        for (i = 0; i < 4096; i++) {
+            l0[i] = 0.6f * sinf((float)i * (6.2831853f * 110.0f / 44100.0f)) * (float)(4096 - i) / 4096.0f;
+            l[i] = l0[i];
+            r[i] = -l0[i];
+        }
+        for (i = 0; i < 4096; i += 256)
+            char_bus(&c, p, l + i, r + i, 256);
+        same = 1;
+        for (i = 0; i < 4096; i++) {
+            if (!(l[i] == l[i]) || fabsf(l[i]) > 4.0f || fabsf(r[i]) > 4.0f)
+                finite = 0;
+            if (l[i] != l0[i] || r[i] != -l0[i])
+                same = 0;
+        }
+        if (ty == CT_OFF)
+            check("kit character off: the pair untouched", same);
+        else if (same) {
+            char w[64];
+            snprintf(w, sizeof w, "kit character %d changes the pair", ty);
+            check(w, 0);
+        }
+        if (ty == CT_DRIVE) {                    /* mix 0: untouched too */
+            memset(&c, 0, sizeof c);
+            p[TP_CMIX] = 0;
+            for (i = 0; i < 4096; i++)
+                l[i] = r[i] = l0[i];
+            char_bus(&c, p, l, r, 4096);
+            for (i = 0, same = 1; i < 4096; i++)
+                same &= l[i] == l0[i];
+            check("kit character at mix 0: untouched", same);
+        }
+    }
+    check("kit character: every type finite and bounded", finite);
+}
+
 int main(void)
 {
     int e, k, t, finite = 1, b;
@@ -2082,6 +2132,7 @@ int main(void)
     }
 
     char_tests();
+    kit_char_tests();
     sample_tests();
     slice_tests();
     bench();

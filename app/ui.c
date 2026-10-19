@@ -1635,7 +1635,7 @@ static void presets(int32_t e)
         break;
     case P_CHARACTER:                            /* the character's type */
         trk = inst_trk();
-        if (!is_drum(trk)) {
+        {
             const uint8_t *par = proj.trk[trk].par;
             set_tp(trk, TP_CTYPE, (par[TP_CTYPE] + d + NCT) % NCT);
             say("CHARACTER", tp_info_par(TP_CTYPE, par)->names[par[TP_CTYPE] % NCT]);
@@ -2433,9 +2433,9 @@ static void input(void)
         return;
     if ((e = ev[EN_SELECT]) != 0 && ui.lockpg) {  /* the lock editor: the module's other pages (the track's own) */
         int g = page_group(ui.lockpg - 1), f = PAGE_BTN[g].first, n = group_n(g), pg = ui.lockpg - 1 - f;
-        if (PAGE_BTN[g].btn == B_FX) {           /* the track's own: Character and Sends (a kit: Sends) */
-            f = is_drum(sel_trk()) ? P_SENDS : P_CHARACTER;
-            n = is_drum(sel_trk()) ? 1 : 2;
+        if (PAGE_BTN[g].btn == B_FX) {           /* the track's own: Character and Sends */
+            f = P_CHARACTER;
+            n = 2;
             pg = ui.lockpg - 1 - f;
         }
         pg = ((pg + (e > 0 ? 1 : -1)) % n + n) % n;

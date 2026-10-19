@@ -701,8 +701,8 @@ to wet); at mix 0 it is off. The factory presets each have their own, so a prese
 | tilt | the pivot, 150 Hz to 6 kHz | the tilt: left darker, right brighter, 6 dB each side at the ends |
 
 Lock the amount, tone or mix on a step like any knob (hold the step, press **FX**). The LFO reaches the amount:
-the voice module's fourth knob, "character". A drum track's voices have no character: on a kit the page says
-so.
+the voice module's fourth knob, "character". On a kit the character is the whole kit's, after its bus filter
+(the keys' sends are taken before it); its ring is a ratio of C4, its tape has no wow.
 
 ## Players
 

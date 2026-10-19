@@ -95,16 +95,19 @@ enum { VM_POLY, VM_MONO, VM_LEGATO };
  * bypass), bp12 (the lp12 stage's band-pass, its peak at unity) */
 enum { FT_LP24, FT_LADDER, FT_LP12, FT_HP12, FT_DYNAMIC, FT_BP12, NFT };
 /* the character stage, per voice after the filter and before the amp and the sends (no memory beyond a few
- * filter states: cheap). amount / tone per type:
+ * filter states: cheap); a kit's on the kit's summed pair after its bus filter (char_bus: the keys' sends are
+ * taken before it, as before the bus filter). amount / tone per type:
  *   drive:   a soft (tanh-like) saturation, the gain made up so the level holds; tone = a low-pass after it
  *            (400 Hz .. 20 kHz: open)
  *   fold:    a sine wavefolder, gain made up; tone = its bias (64 = symmetric; off centre: even harmonics)
  *   crush:   fewer bits and a lower sample rate; tone = which falls (0 the rate only, 127 the bits only)
- *   ring:    a ring modulator, a sine at a ratio of the note (tone: 0.25:1 .. 7:1 in 16 steps); amount = depth
+ *   ring:    a ring modulator, a sine at a ratio of the note (tone: 0.25:1 .. 7:1 in 16 steps); amount = depth (a kit: a
+ *            ratio of C4)
  *   tilt:    a tilt EQ: amount = its pivot (150 Hz .. 6 kHz), tone = the tilt (below 64 darker, above brighter,
  *            +-6 dB each side at the ends)
  *   tape:    worn tape: a soft saturation (gain 0.5 .. 8, made up) into a two-pole roll-off (tone: 1.5 .. 18 kHz), and
- *            a wow on the pitch (0.55 Hz, with a 6 Hz flutter a quarter as deep): 2 .. 10 cents by the amount
+ *            a wow on the pitch (0.55 Hz, with a 6 Hz flutter a quarter as deep): 2 .. 10 cents by the amount (a kit:
+ *            no wow, it has no pitch to bend)
  *   sampler: an old sampler: the voice low-passed, held at a lower rate and fewer bits (amount: 26 kHz and 14 bits ..
  *            11 kHz and 11 bits: a voice sits well under full scale), then its output filter (tone: 2 .. 20 kHz): the
  *            dusty grain, not the crush's rasp
@@ -166,6 +169,14 @@ void sound_default(uint8_t *par, int engine);       /* par[NTP] for a fresh trac
  * quantised; ring: two cycles of a sine (u 0..1) ring-modulated (its peak at 1); tilt: the response in dB / 6 from 50 Hz
  * (u = 0) to 20 kHz (u = 1). The mix is in it. */
 float char_picture(const uint8_t *par, float u);
+/* a kit's character: the stage (par's TP_CTYPE..TP_CMIX) on the kit's dry pair, n samples in place. The ring's
+ * sine is at KIT_RING_HZ times the tone's ratio (C4: the kit is tuned to C). A zeroed chbus_t is a fresh one */
+#define KIT_RING_HZ 261.63f
+typedef struct {
+    float cx[8], cz[8], cin[2];
+    uint8_t type, cin_type;
+} chbus_t;
+void char_bus(chbus_t *c, const uint8_t *par, float *l, float *r, int n);
 /* the Engine page's picture of the organ: the six drawbars' levels (16' 8' 4' 2 2/3' 2' 1 1/3', 0..1, the loudest 1) that
  * stops and pedal set (organ_prep's registration) */
 void organ_bars(const uint8_t *par, float bars[6]);
