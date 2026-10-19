@@ -437,6 +437,7 @@ enum { AL_INFO, AL_DONE, AL_UNDO, AL_REDO, AL_ASK, AL_NO };
 static int sel_trk(void) { return proj.trk_sel < NALLTRK ? proj.trk_sel : 0; }
 static int is_aux(int t) { return t >= NTRK; }
 static int is_seqt(int t) { return t < NSEQT; }
+static int steps_page(int p) { return p == P_STEPS || p == P_BAR; }   /* SEQ's pages: both write steps */
 static int is_drum(int t) { return t < NTRK && proj.trk[t].par[TP_ENGINE] == EG_DRUMLINE; }
 /* a page's name: a drum track's Play page is its Key page, its Filter env page the kit's envelope */
 static const char *page_name_of(int p, int trk)
@@ -1026,11 +1027,11 @@ static void page_knobs(knob_t *k)
         lock_knobs(k);
         return;
     }
-    if (p == P_STEPS && ui.trickpg && is_seqt(trk)) {
+    if (steps_page(p) && ui.trickpg && is_seqt(trk)) {
         comp_knobs(k);
         return;
     }
-    if (p == P_STEPS && ui.held && is_seqt(trk)) {
+    if (steps_page(p) && ui.held && is_seqt(trk)) {
         step_knobs(k);
         return;
     }
@@ -1291,7 +1292,7 @@ static void page_tag(char *t)
     case P_SONG:
         num_s((uint32_t)pats.song.len, s_cat(t, "song>slots "));
         break;
-    case P_STEPS:
+    case P_STEPS: case P_BAR:
         track_crumb(t);
         if (ui.lockpg) {
             int lp = ui.lockpg - 1;
@@ -1408,11 +1409,8 @@ static void page_footer(char *t)
     case P_SONG:
         s_cat(t, "WHITE add scene|PLAY song");
         break;
-    case P_BAR:
-        s_cat(t, is_seqt(trk) ? "BLACK scale" : "ALGO track: no steps here");
-        break;
-    case P_STEPS:
-        if (trk == AUX_WEAVE)
+    case P_STEPS: case P_BAR:
+        if (trk == AUX_WEAVE && ui.page == P_STEPS)
             s_cat(t, ui.wv_step < NSTEP ? "BLACK 1-10 its tracks|WHITE its end" : "WHITE steps: a tap adds, again clears");
         else if (!is_seqt(trk))
             s_cat(t, "ALGO track: no steps here");
@@ -1433,7 +1431,7 @@ static void page_footer(char *t)
         else if (is_drum(trk))
             s_cat(t, "WHITE steps|BLACK sound|SEQ held: pick a sound");
         else
-            s_cat(t, "WHITE steps|SEQ held: play notes");
+            s_cat(t, ui.page == P_BAR ? "WHITE steps|BLACK scale|SEQ held: notes" : "WHITE steps|SEQ held: play notes");
         break;
     case P_MIX:
         s_cat(t, "BLACK mute|hold: solo|WHITE play");
@@ -1719,7 +1717,7 @@ static void draw_footer(void)
 static const struct { uint8_t btn; uint32_t pages; const char *title, *l1, *l2; } CARD[] = {
     {B_SEQ, PG_ANY, "Steps", "The bar's 16 steps on the white keys. Hold SEQ and play the notes,",
      "then press steps to write them. A step held + ARP: its tricks."},
-    {B_EDIT, PG(P_STEPS), "Lock", "With a step held, EDIT, ENV, FX or LFO show that module's knobs.",
+    {B_EDIT, PG_STEPS, "Lock", "With a step held, EDIT, ENV, FX or LFO show that module's knobs.",
      "Turn one to lock it on the step; SELECT turns pages. SAVE clears."},
     {B_EDIT, PG_ANY, "Engine", "The track's engine and its four knobs. PRESETS: its next sound.",
      "SEL changes the engine. Page 2: Play; brocade's 3: Sub. Drums: black keys pick a key."},
@@ -1730,7 +1728,7 @@ static const struct { uint8_t btn; uint32_t pages; const char *title, *l1, *l2; 
     {B_LFO, PG_ANY, "LFO", "Type, then its first three knobs.", "Page 2 has the type's fourth and fifth."},
     {B_ARP, PG_ANY, "Players", "Arp, strum or hold on the track's keys and steps; the last page, Weave.",
      "Strum: a key strums the chord from that key; keys held together become the chord."},
-    {B_ARP, PG(P_STEPS), "Tricks", "With a step held, ARP: KNOB 1 and 3 pick its two tricks,",
+    {B_ARP, PG_STEPS, "Tricks", "With a step held, ARP: KNOB 1 and 3 pick its two tricks,",
      "KNOB 2 and 4 their values. Let go of the step when done."},
     {B_GLO, PG_ANY, "Mix", "Sends, pan, level. Black keys: a tap mutes a track, held: solo.",
      "SELECT: Master EQ, Master out and Setup. HOME's SEL has the projects."},
@@ -1738,7 +1736,7 @@ static const struct { uint8_t btn; uint32_t pages; const char *title, *l1, *l2; 
      "SEL: projects (load, new) and when scenes switch. HOME + REC undoes, + PLAY redoes."},
     {B_SEL, PG_ANY, "Lists", "The page's knobs, then its actions. SEL runs the one picked.",
      "SELECT moves, ALGORITHM changes, HOME goes back."},
-    {B_SAVE, PG(P_STEPS), "Save", "Tap to save the project. With a step held, clears its locks.",
+    {B_SAVE, PG_STEPS, "Save", "Tap to save the project. With a step held, clears its locks.",
      "Hold SAVE and press white key 1 to 3 to save to that slot."},
     {B_SAVE, PG_SOUND, "Save", "Tap to save the project.",
      "Hold SAVE and press a white key: the sound as that user preset."},
@@ -1823,7 +1821,7 @@ static void list_build(void)
     knob_t k[4];
     static char slot_t[24], fol_t[24], nm[NTRK][16], rm[NDRUM][16];
     lst.n = 0;
-    if (keep == P_STEPS && ui.held && is_seqt(trk)) {   /* a step held + SEL: its notes, to remove */
+    if (steps_page(keep) && ui.held && is_seqt(trk)) {   /* a step held + SEL: its notes, to remove */
         const step_t *st = &tpat(trk)->st[step_shown(ui.held_first)];
         if (is_drum(trk)) {                           /* each sound on the step, by key */
             for (int i = 1, r = 0; i <= NDRUM; i++)
@@ -2494,7 +2492,8 @@ static void draw_bar(void)
     uint32_t h = hash_u(hash_u(2166136261u, 0xBAu), (uint32_t)trk | (uint32_t)cur_pat(trk) << 4 | (uint32_t)tp->len << 8 |
                                           (uint32_t)tp->scale << 16 | (uint32_t)eng_step[trk] << 20 | (uint32_t)playing() << 28);
     char t[48], *e;
-    h = hash_u(h, (uint32_t)(tp->groove + 100) | (uint32_t)proj.groove << 8 | (uint32_t)tp->quant << 16);
+    h = hash_u(h, (uint32_t)(tp->groove + 100) | (uint32_t)proj.groove << 8 | (uint32_t)tp->quant << 16 |
+                      (uint32_t)ui.bar << 24 | (uint32_t)is_drum(trk) << 28);
     if (!begin_main(h))
         return;
     if (!is_seqt(trk)) {
@@ -2513,6 +2512,8 @@ static void draw_bar(void)
             int32_t x = 12 + b * 56, w = 50;
             int steps = tp->len - b * 16;
             steps = steps > 16 ? 16 : steps < 0 ? 0 : steps;
+            if (b == ui.bar)                         /* the bar the white keys write (OCT- OCT+ pick it) */
+                cv_round(x - 2, 32, w + 4, 44, 7, K_TEXT);
             cv_round(x, 34, w, 40, 5, b < nb ? K_PANEL2 : K_PANEL);
             if (steps < 16 && steps > 0)
                 cv_round(x + w * steps / 16, 34, w - w * steps / 16, 40, 5, K_PANEL);
@@ -2530,7 +2531,8 @@ static void draw_bar(void)
     e = num_s((uint32_t)tp->quant, s_cat(e, ", quantise "));
     s_cat(e, "%");
     cv_text(12, 86, &FONT_XS, t, K_DIM);
-    cv_text(12, 100, &FONT_XS, "black keys: scale 1 2 3 4 5 6 8 16 1/2", K_DIM);
+    cv_text(12, 100, &FONT_XS, is_drum(trk) ? "white keys: the bar's steps, black keys: sounds"
+                                            : "black keys: scale 1 2 3 4 5 6 8 16 1/2", K_DIM);
     cv_blit(0, MAIN_Y);
 }
 

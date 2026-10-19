@@ -919,7 +919,7 @@ static void keyboard_down(int k)
     }
     if (is_aux(trk))
         trk = inst_trk();                        /* FX tracks: the keys audition the instrument selected last */
-    if (b >= 0 && is_drum(trk) && playing() && !srec && !seq.rec && !seq.rec_wait && ui.page != P_STEPS) {
+    if (b >= 0 && is_drum(trk) && playing() && !srec && !seq.rec && !seq.rec_wait && !steps_page(ui.page)) {
         ui.kmode[k] = KM_IDLE;                   /* playing: a black key on a kit's page picks the key it edits,
                                                   * without a preview over the beat (white keys still play it) */
         ui.dsound = (uint8_t)(key_sound(k) - 1);
@@ -934,9 +934,9 @@ static void keyboard_down(int k)
         chord_add(note);
         if (is_drum(trk)) {                      /* a drum key: its sound is the one shown (Steps with SEQ held; a
                                                   * black key on the sound pages picks the key the knobs edit) */
-            if ((ui.page == P_STEPS || b >= 0) && ui.dsound != note - 1) {
+            if ((steps_page(ui.page) || b >= 0) && ui.dsound != note - 1) {
                 ui.dsound = (uint8_t)(note - 1);
-                if (ui.page != P_STEPS || !playing())
+                if (!steps_page(ui.page) || !playing())
                     say("KEY", DL_SOUND_NAME[ui.dsound]);
             }
         } else if (!is_aux(sel_trk())) {
@@ -1003,8 +1003,10 @@ static void key_down(int k)
         }
         return;
     }
-    if (p == P_BAR) {
-        if (b >= 0 && b < 9 && is_seqt(trk)) {
+    if (p == P_BAR && b >= 0 && is_seqt(trk) && !is_drum(trk) && !(ui.btn >> B_SEQ & 1u) && !ui.rec_armed &&
+        !seq.rec && !seq.rec_wait) {             /* Bar: a synth track's black keys its step's scale (a kit's: its
+                                                  * sounds, as on Steps; the rest as on Steps, below) */
+        if (b < 9) {
             undo_keep();
             tpat(trk)->scale = BAR_SCALE_KEY[b];
             ui.kmode[k] = KM_SCALE;
@@ -1042,7 +1044,7 @@ static void key_down(int k)
         }
         return;
     }
-    if (p == P_STEPS) {
+    if (steps_page(p)) {                         /* Steps and Bar */
         if (!is_seqt(trk))
             return;
         if ((ui.btn >> B_SEQ & 1u) || ui.rec_armed || seq.rec || seq.rec_wait) {   /* a keyboard: SEQ held, recording */
@@ -1299,7 +1301,7 @@ static void button_up(int b)
     case B_OCTDN: case B_OCTUP: {
         int d = b == B_OCTUP ? 1 : -1;
         char t[8];
-        if (ui.held && ui.page == P_STEPS && is_seqt(sel_trk())) {   /* a step held: its nudge */
+        if (ui.held && steps_page(ui.page) && is_seqt(sel_trk())) {   /* a step held: its nudge */
             step_nudge(d);
             break;
         }
@@ -1545,7 +1547,7 @@ static void knob(int k, int32_t e)
         trick_knob(k, e);
         return;
     }
-    if (ui.page == P_STEPS && ui.held) {
+    if (steps_page(ui.page) && ui.held) {
         step_knob(k, e);
         return;
     }
@@ -2356,12 +2358,12 @@ static void input(void)
                 ui.btn_used |= m | 1u << B_HOME;
                 continue;
             }
-            if (i == B_SAVE && ui.held && ui.page == P_STEPS) {
+            if (i == B_SAVE && ui.held && steps_page(ui.page)) {
                 step_clear_locks_held();
                 ui.btn_used |= m;
                 continue;
             }
-            if (ui.held && ui.page == P_STEPS && i == B_ARP && is_seqt(sel_trk())) {   /* the held steps' tricks */
+            if (ui.held && steps_page(ui.page) && i == B_ARP && is_seqt(sel_trk())) {   /* the held steps' tricks */
                 ui.trickpg = 1;
                 ui.lockpg = 0;
                 ui.held_used = 1;
@@ -2369,7 +2371,7 @@ static void input(void)
                 ui.btn_used |= m;
                 continue;
             }
-            if (ui.held && ui.page == P_STEPS && (i == B_EDIT || i == B_ENV || i == B_FX || i == B_LFO) &&
+            if (ui.held && steps_page(ui.page) && (i == B_EDIT || i == B_ENV || i == B_FX || i == B_LFO) &&
                 !is_aux(sel_trk())) {
                 ui.trickpg = 0;
                 ui.lockpg = (uint8_t)(1 + (i == B_EDIT ? P_ENGINE : i == B_ENV ? P_ENV

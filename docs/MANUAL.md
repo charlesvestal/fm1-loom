@@ -128,7 +128,7 @@ press…" means keep **HOME** down while you press the next thing.
 | give a step a chance | Hold the step and turn **KNOB 3**. Past 99 % come the A:B cycles. |
 | lock a knob on a step | Hold the step and press **EDIT**, **ENV**, **FX** or **LFO**. Turn a knob. **SAVE** clears the step's locks. |
 | see the next bar | Press **OCT+** on Steps. |
-| set the track scale | On the Bar page, press a black key: 1, 2, 3, 4, 5, 6, 8, 16 sixteenths a step, or black key 9 for half a sixteenth. |
+| set the track scale | On Steps, turn **KNOB 3**. Or on the Bar page of a synth track, press a black key: 1, 2, 3, 4, 5, 6, 8, 16 sixteenths a step, or black key 9 for half a sixteenth. |
 | change the pattern | On Steps, turn **KNOB 1**. Playing, it comes at the next bar line: the knob reads NEXT 1>2 and the tag line "next P2" until it does. |
 | weave two patterns | On the track, **ARP**, its last page Weave: a black key for the track woven in, a white key for its pattern, **KNOB 3** the rule. It plays woven from then on; to bring it in by hand instead, **KNOB 4** to "on WEAVE", then on the WEAVE track (**ALGORITHM**) hold that track's white key. |
 | change the sound | Press **EDIT** and turn **PRESETS**: the engine's own sounds, "BASS 3/16": what the sound is for and where you are. **SEL** changes the engine. |
@@ -325,7 +325,9 @@ track scale (how many sixteenths a step takes, from 1/2 to 16) and **KNOB 4** th
 <img src="img/screen-list.png" width="240" alt="SEL on Steps: quantise, note length and shape, then clear notes, clear locks, copy, rotate and duplicate" title="The Steps list">
 
 Turn **SELECT** for the Bar page: quantise for live recording, the note length of new steps as a percentage
-of a step, the groove amount and the shape. The black keys set the track scale: 1, 2, 3, 4, 5, 6, 8, 16
+of a step, the groove amount and the shape. The keys write steps as on Steps (a step held: its knobs, tricks and
+locks; on a kit the black keys pick and place its sounds); the box of the bar they write is outlined, **OCT-**
+and **OCT+** move it. On a synth track the black keys set the track scale: 1, 2, 3, 4, 5, 6, 8, 16
 sixteenths a step on black keys 1 to 8, half a sixteenth on black key 9. Press **SEL** on either page for the
 actions: clear notes, clear locks, clear both, copy and paste the pattern, rotate it a step forward or back,
 duplicate the bar into the next.

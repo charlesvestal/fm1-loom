@@ -1,0 +1,50 @@
+# the Bar page writes steps as Steps does: a kit's white keys toggle steps (on the bar OCT picks), a black key picks
+# the sound, a held step takes black keys as its sounds and ARP its tricks; a synth track's black keys stay the scale,
+# its white keys write the notes played last, a held step's second white key its length
+wait 300
+expect trk 1
+tap SEQ
+turn SELECT 1
+expect page Bar
+tapkey w0
+expect note 1 1 1 1
+tapkey b1
+tapkey w4
+expect note 1 1 5 2
+tap OCT+
+tapkey w0
+expect note 1 1 17 2
+tap OCT-
+key w2 down
+wait 60
+tapkey b2
+key w2 up
+expect note 1 1 3 3
+key w4 down
+wait 60
+tap ARP
+turn K1 3
+turn K2 1
+wait 40
+shot bar_trick.png
+key w4 up
+expect comp 1 5 3
+expect note 1 1 5 2
+wait 40
+shot bar_kit.png
+spin ALGO 2
+expect trk 3
+tapkey 0
+tap SEQ
+turn SELECT 1
+expect page Bar
+tapkey w1
+expect note 3 1 2 60
+key w4 down
+wait 60
+tapkey w6
+key w4 up
+tapkey b1
+expect page Bar
+wait 40
+shot bar_synth.png
