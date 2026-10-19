@@ -84,6 +84,9 @@ part 4 what is open. The A/B pages this came from: `build/ab/index.html`, `build
   bump; old saves do not load (no migrations before release).
 - **Presets as recipes**: a readable file (tools/presets/*.py, one entry a preset: role, genres, engine, the knobs by
   name) generated into C, so they are reviewed, diffed and measured on the host.
+- Done (2026-10-19): the recipes (tools/presets/, tools/gen_presets.py; the old bank converted byte for byte) and
+  tools/preset_check.py (rasp, boom, level of the sounding frames, peak, twins, no sampler) on the role renders. The
+  old bank: 149 of 224 pass (39 rasp, 21 boom, 25 level). It joins run_tests strictly once the new bank is in.
 - **Checks in the tests** (on the role's phrase, dry and through the chain), per role: 2-5 kHz under a limit unless
   the role is FX; low end under a ceiling for anything not a bass; a minimum of air for pads, bells, keys; a
   resonant peak in 2-5 kHz only if it moves; distance to every other preset above a floor; peak and loudness in
