@@ -7,7 +7,7 @@ turn PRESET 1
 expect par2.0 0
 wait 60
 shot d02_next_preset.png
-turn PRESET 9
+turn PRESET 10
 expect par2.0 0
 tap ENV
 turn SELECT 1
