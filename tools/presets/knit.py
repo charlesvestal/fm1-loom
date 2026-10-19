@@ -29,10 +29,15 @@ P("house stab", "stab", "knit", knobs=dict(wave=40, detune=22, voices=5, width=1
   amp=(0, 72, 0, 54), fenv=(0, 60, 0, 50), filter=("lp24", 84, 15, 100, 64), sends=(40, 25), x=(76, 50, 0, 0),
   genres=("house", "garage"))
 # acid: the ladder near self-oscillation, swept hard and fast by the envelope (it moves: the rule's exception), a
-# short slide on held notes only, driven hard after
+# acid: the ladder near self-oscillation, swept hard and fast by the envelope (it moves: the rule's exception), a
+# short slide on held notes only, driven hard after; the sub under it (a ladder high in resonance loses its lows)
 P("acid", "bass", "knit", knobs=dict(wave=0, detune=0, voices=1, width=0), mode="legato", glide=16, volume=127,
-  amp=(0, 90, 100, 30), fenv=(0, 64, 0, 40), filter=("ladder", 46, 110, 112, 50), char=("drive", 90, 100, 127),
-  genres=("house",))
+  amp=(0, 90, 100, 30), fenv=(0, 64, 0, 40), filter=("ladder", 48, 100, 112, 50), char=("drive", 90, 100, 127),
+  x=(64, 0, 40, 0), genres=("house",))
+# a finger bass: a round saw, plucked by a short filter envelope, the sub under it
+P("finger bass", "bass", "knit", knobs=dict(wave=20, detune=10, voices=1, width=0), mode="mono", volume=110,
+  amp=(0, 80, 50, 30), fenv=(0, 50, 20, 40), filter=("lp24", 58, 5, 84, 40), x=(64, 0, 40, 0),
+  genres=("garage", "house", "lofi"))
 # a pluck: half saw, half square, the filter's snap
 P("knit pluck", "pluck", "knit", knobs=dict(wave=30, detune=15, voices=1, width=0), volume=112,
   amp=(0, 72, 0, 60), fenv=(0, 60, 0, 50), filter=("lp24", 60, 15, 105, 64), sends=(30, 25),

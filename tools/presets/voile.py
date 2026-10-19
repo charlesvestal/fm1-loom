@@ -26,9 +26,9 @@ P("vocal lead", "lead", "voile", knobs=dict(model=VOWEL, timbre=50, color=64, br
 P("vocal chop", "stab", "voile", knobs=dict(model=VOWEL, timbre=30, color=70, breath=40), volume=124,
   amp=(0, 66, 0, 50), fenv=(0, 64, 0, 64), filter=("lp12", 80, 0, 64, 64), sends=(35, 15),
   genres=("garage", "house"))
-# a VOSIM bass: two low formants, buzzing, an octave down
-P("vosim bass", "bass", "voile", knobs=dict(model=VOSIM, timbre=64, color=96, breath=0), mode="mono", volume=104,
-  amp=(0, 80, 90, 40), fenv=(0, 64, 0, 64), filter=("lp24", 84, 10, 64, 40), genres=("synthpop",))
+# a VOSIM bass: two low formants (low: body; higher, it was thin), buzzing
+P("vosim bass", "bass", "voile", knobs=dict(model=VOSIM, timbre=30, color=20, breath=0), mode="mono", volume=104,
+  amp=(0, 80, 90, 40), fenv=(0, 64, 0, 64), filter=("lp24", 80, 10, 64, 40), genres=("synthpop",))
 # a whisper pad: breath with a buzz and a peak in it, wide and dusty
 P("whisper pad", "pad", "voile", knobs=dict(model=WHISPER, timbre=80, color=64, breath=70), volume=110,
   amp=(90, 90, 120, 100), fenv=(0, 64, 0, 64), filter=("lp12", 84, 0, 64, 64), sends=(10, 30),

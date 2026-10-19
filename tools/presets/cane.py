@@ -19,9 +19,6 @@ P("koto", "pluck", "cane", knobs=dict(model=PLUCK, timbre=70, color=30, damp=55)
 # nylon: a soft, round string for chords
 P("nylon", "keys", "cane", knobs=dict(model=PLUCK, timbre=70, color=64, damp=96), volume=124,
   amp=(0, 92, 0, 70), fenv=(0, 64, 0, 64), filter=("lp24", 78, 0, 64, 64), sends=(0, 18), genres=("lofi", "house"))
-# a plucked bass: the string damped, the filter low (the string cannot reach under ~C2: its weight is the low end)
-P("finger bass", "bass", "cane", knobs=dict(model=PLUCK, timbre=90, color=50, damp=55), mode="mono", volume=127,
-  amp=(0, 80, 0, 40), fenv=(0, 64, 0, 64), filter=("lp24", 56, 0, 64, 40), genres=("garage", "house"))
 # bowed: a bowed string, pressed, near the bridge's middle, a late vibrato
 P("bowed", "strings", "cane", knobs=dict(model=BOW, timbre=70, color=40, damp=60), mode="mono", volume=110,
   amp=(70, 80, 120, 80), fenv=(0, 64, 0, 64), filter=("lp12", 84, 0, 64, 64), sends=(0, 25),
