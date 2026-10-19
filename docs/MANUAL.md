@@ -556,9 +556,9 @@ and costs nothing. Then two pages for the whole kit:
   **PRESETS** turns it on or off.
 
 Each key has its own sends: **FX**, then **SELECT** to Sends, shows the shown key's sends to FX I and FX II
-(a black key or **PRESETS** picks the key). The snare and the clap into the reverb, the kick and the hats dry:
-a kit has no sends of its own beside its keys', and a new kit's keys come with a little reverb on the snare,
-the clap, the toms and the string.
+(a black key or **PRESETS** picks the key). The clap into the reverb, the kick and the hats dry:
+a kit has no sends of its own beside its keys', and a new kit's keys come with a little reverb on the clap and
+the fm key, the rest dry.
 
 Locks reach a key's own: hold a step and press **ENV**, and the knobs are the envelope (then, turning
 **SELECT**, the filter) of the step's key: the one shown if the step plays it, else the step's first. The

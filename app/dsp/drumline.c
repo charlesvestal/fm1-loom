@@ -78,20 +78,20 @@ const char *const DL_SOUND_NAME[DL_NSOUND] = {"kick", "snare", "hat", "open", "c
  * tambourine has no key of its own: turn any key's model knob to it.
  * DP_MODEL, DP_K1..K4, DP_RANDOM, DP_PAN, DP_VOLUME (76 = 0 dB), DP_MODE, then the key's envelope and filter,
  * neutral (KEYN: attack 0, hold 0, decay off, lag 0; cutoff open, no resonance, no envelope, no drive, off), then
- * its sends to FX I and FX II (a little room on the snare, the clap, the toms and the string; the kick and hats dry) */
+ * its sends to FX I and FX II (a little room on the clap and the fm key; the rest dry) */
 #define VOL0 76
 #define KEYN 0, 0, 127, 0, 127, 0, 64, 0, DF_OFF
 const uint8_t DL_DEFAULT_KIT[DL_NSOUND][DP_N] = {
     {DM_KICK, 82, 42, 64, 64, 0, 64, VOL0, PM_ONESHOT, KEYN, 0, 0},
-    {DM_SNARE, 79, 40, 84, 64, 0, 64, VOL0, PM_ONESHOT, KEYN, 0, 16},
+    {DM_SNARE, 79, 40, 84, 64, 0, 64, VOL0, PM_ONESHOT, KEYN, 0, 0},
     {DM_HIHAT, 93, 23, 64, 88, 0, 74, VOL0, PM_CHOKE1, KEYN, 0, 0},
     {DM_HIHAT, 93, 88, 64, 88, 0, 74, VOL0, PM_CHOKE1, KEYN, 0, 0},
     {DM_CLAP, 100, 64, 64, 38, 0, 54, VOL0, PM_ONESHOT, KEYN, 0, 24},
-    {DM_TOM, 70, 46, 38, 64, 0, 44, VOL0, PM_ONESHOT, KEYN, 0, 12},
-    {DM_TOM, 100, 46, 38, 64, 0, 84, VOL0, PM_ONESHOT, KEYN, 0, 12},
-    {DM_CONGA, 109, 46, 64, 0, 0, 54, VOL0, PM_ONESHOT, KEYN, 0, 8},
+    {DM_TOM, 70, 46, 38, 64, 0, 44, VOL0, PM_ONESHOT, KEYN, 0, 0},
+    {DM_TOM, 100, 46, 38, 64, 0, 84, VOL0, PM_ONESHOT, KEYN, 0, 0},
+    {DM_CONGA, 109, 46, 64, 0, 0, 54, VOL0, PM_ONESHOT, KEYN, 0, 0},
     {DM_SHAKER, 31, 64, 64, 101, 0, 80, VOL0, PM_ONESHOT, KEYN, 0, 0},
-    {DM_RESO, 36, 70, 70, 100, 0, 50, VOL0, PM_ONESHOT, KEYN, 0, 24},
+    {DM_RESO, 36, 70, 70, 100, 0, 50, VOL0, PM_ONESHOT, KEYN, 0, 0},
     {DM_FM, 103, 100, 46, 15, 0, 64, VOL0, PM_ONESHOT, KEYN, 0, 12},
 };
 volatile uint8_t drumline_hitv[DL_NSOUND];

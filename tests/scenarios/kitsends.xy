@@ -3,7 +3,7 @@
 wait 300
 expect trk 1
 tapkey b1
-expect par1.d2.send2 16
+expect par1.d2.send2 0
 tap FX
 turn SELECT 1
 expect page Sends
@@ -12,13 +12,13 @@ shot kit_sends.png
 spin K1 30
 expect par1.d2.send1 30
 spin K2 20
-expect par1.d2.send2 36
+expect par1.d2.send2 20
 expect par1.d1.send1 0
 expect par1.d1.send2 0
 tapkey b4
 spin K2 10
 expect par1.d5.send2 34
-expect par1.d2.send2 36
+expect par1.d2.send2 20
 turn PRESET -1
 spin K1 5
 expect par1.d4.send1 5
