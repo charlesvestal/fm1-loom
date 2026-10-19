@@ -18,6 +18,10 @@
  *                                       in samples (3); k at most SB_INFO_K (ask again from from + k)
  *   SMP_HDR    16 slot part data     -> slot, part, rc    the header in parts of 320 bytes (packed), into RAM:
  *                                       parts 0..4 (the 1344 bytes used: 64 + 32 entries of 40)
+ *   SMP_READ   17 slot off3 n2       -> slot, off3, rc, data    n bytes (1..224, 7 bits each, low first) of the bank
+ *                                       from virtual offset off, packed: the header and the data as stored (the
+ *                                       samples page reads a bank back to keep it as it is: app/web/samples/); rc 1
+ *                                       offset, 4 the bank being written (no data)
  *   PING       25                    -> 0
  *   PROF       26 part               -> part, count, then count 32-bit values (5 bytes each, 7 bits, low first): the
  *                                       profiler's running totals (tools/perf_read.py takes differences). part 0:
@@ -44,10 +48,11 @@
 #define SB_HDR1 0x46
 #define SB_HDR2 0x4C
 #include "dsp/bench.h"
-enum { SB_INFO = 1, SB_BEGIN = 11, SB_WRITE, SB_END, SB_ERASE, SB_SINFO, SB_HDR, SB_PING = 25, SB_PROF, SB_BENCH, SB_SOUND };
+enum { SB_INFO = 1, SB_BEGIN = 11, SB_WRITE, SB_END, SB_ERASE, SB_SINFO, SB_HDR, SB_READ, SB_PING = 25, SB_PROF, SB_BENCH, SB_SOUND };
 #define SB_PART 320u                                 /* SMP_HDR: a header part, bytes */
 #define SB_NPART ((SMP_HDR_USED + SB_PART - 1u) / SB_PART)
 #define SB_INFO_K 12u                                /* SMP_INFO: samples a reply (12 x 18 bytes at most) */
+#define SB_READ_MAX 224u                             /* SMP_READ: bytes a reply (256 packed) */
 
 static uint8_t sb_out[320];
 static uint32_t sb_n;
@@ -57,7 +62,8 @@ static uint32_t sb_n;
 #define sb_hdr io_buf
 #define sb_buf (io_buf + SMP_BANK_HDR)
 typedef char sb_fits[(SMP_BANK_HDR + 256u <= sizeof io_buf && SB_NPART * SB_PART <= SMP_BANK_HDR &&
-                      SB_INFO_K * (SMP_NAME + 6u) + 16u <= sizeof sb_out) ? 1 : -1];
+                      SB_INFO_K * (SMP_NAME + 6u) + 16u <= sizeof sb_out &&
+                      10u + (SB_READ_MAX + 6u) / 7u * 8u <= sizeof sb_out) ? 1 : -1];
 #if XY_BENCH
 typedef char sb_bench_fits[BENCH_RAM_BYTES <= sizeof io_buf ? 1 : -1];
 #endif
@@ -326,6 +332,40 @@ static int smp_frame(const uint8_t *p, uint32_t n)
         sb_b(off >> 7);
         sb_b(off >> 14);
         sb_b(rc);
+        break;
+    }
+    case SB_READ: {
+        uint32_t off, len, j;
+        if (na < 6u || a[0] != 0u)
+            return 1;
+        off = (uint32_t)a[1] | (uint32_t)a[2] << 7 | (uint32_t)a[3] << 14;
+        len = (uint32_t)a[4] | (uint32_t)a[5] << 7;
+        sb_b(a[0]);
+        sb_b(off);
+        sb_b(off >> 7);
+        sb_b(off >> 14);
+        if (!len || len > SB_READ_MAX || off >= SMP_BANK_SIZE || !sb_flash())
+            rc = 1;
+        else if (sb_open)
+            rc = 4;
+        sb_b(rc);
+        if (rc)
+            break;
+        if (len > SMP_BANK_SIZE - off)
+            len = SMP_BANK_SIZE - off;
+        for (i = 0; i < len; i += 7u) {              /* packed 7 to 8, as the pages come (a byte at a time through
+                                                      * the windows: a run may cross from one into the next) */
+            uint8_t g[7], m = 0;
+            for (j = 0; j < 7u && i + j < len; j++) {
+                uint32_t fo;
+                const uint8_t *p = smp_reg_of(off + i + j, &fo) < 0 ? 0 : plat_data(fo);
+                g[j] = p ? *p : 0xFFu;
+                m |= (uint8_t)((g[j] >> 7) << j);
+            }
+            sb_b(m);
+            for (uint32_t k = 0; k < j; k++)
+                sb_b(g[k]);
+        }
         break;
     }
     case SB_HDR: {

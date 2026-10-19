@@ -979,6 +979,39 @@ int app_host_cmd(const char *cmd, const char *a, const char *b, const char *c, c
         }
         printf("samples: %s, %d B, %d user samples\n", a, (int)nb, smp_user_scan());
         run_ms(1);
+    } else if (!strcmp(cmd, "readback")) {          /* readback IMG: the bank read back through SMP_READ (as the samples
+                                                     * page reads it), the header's used part and the data, against IMG */
+        static uint8_t img[SMP_BANK_SIZE], got[SMP_BANK_SIZE];
+        FILE *rf = fopen(a, "rb");
+        uint32_t nb, off, bad = 0, i;
+        if (!rf) {
+            printf("no image %s\n", a);
+            exit(2);
+        }
+        nb = (uint32_t)fread(img, 1, sizeof img, rf);
+        fclose(rf);
+        for (off = 0; off < nb; off += SB_READ_MAX) {
+            uint32_t want = nb - off < SB_READ_MAX ? nb - off : SB_READ_MAX;
+            uint8_t fr[10] = {SB_HDR0, SB_HDR1, SB_HDR2, SB_READ, 0, (uint8_t)(off & 127u), (uint8_t)(off >> 7 & 127u),
+                              (uint8_t)(off >> 14 & 127u), (uint8_t)(want & 127u), (uint8_t)(want >> 7)};
+            if (!smp_frame(fr, sizeof fr) || sb_out[4] != SB_READ || sb_out[9]) {
+                printf("readback: read at %u not answered or failed\n", (unsigned)off);
+                exit(2);
+            }
+            if (sb_unpack7(sb_out + 10, sb_n - 11u, got + off, want) != want) {
+                printf("readback: read at %u short\n", (unsigned)off);
+                exit(2);
+            }
+        }
+        for (i = 0; i < nb; i++)                     /* (the header past its entries: zeros in the image, 0xFF or old
+                                                      * bytes in flash, never read by the page) */
+            if (got[i] != img[i] && !(i >= SMP_ENT0 + (uint32_t)img[6] * SMP_ENT && i < SMP_BANK_HDR))
+                bad++;
+        if (bad) {
+            printf("FAIL readback %s: %u of %u bytes differ\n", a, (unsigned)bad, (unsigned)nb);
+            host_fails++;
+        } else
+            printf("  ok readback %s: %u bytes\n", a, (unsigned)nb);
     } else if (!strcmp(cmd, "upload")) {            /* upload FILE: the SysEx frames of an upload (tools/loom_samples.py
                                                      * syx), each through samples.c as from USB, its answer checked */
         static uint8_t fr[2048];

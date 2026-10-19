@@ -38,6 +38,11 @@ run bank-tool "$PY" tests/host/bank_test.py
 for t in synth braids drumline fx seq; do
     run "$t" sh "tests/host/${t}_test.sh"
 done
+if command -v node >/dev/null 2>&1; then           # the samples page's bank against loom_samples.py's
+    run samples-web node tests/host/samples_web.mjs "$PY"
+else
+    echo "  skip samples-web (no node)"
+fi
 if [ -f build/host/dsp_hash.ref ]; then
     run dsp-hash sh tests/host/dsp_hash.sh
 else

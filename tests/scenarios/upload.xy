@@ -8,6 +8,7 @@ expect user 2
 expect rate1 16000
 expect rate2 22050
 expect rate3 0
+readback build/gen/user_bank.bin
 samples build/gen/user_bank.bin
 expect user 2
 expect rate1 16000
@@ -16,7 +17,7 @@ expect user 2
 spin ALGO 2
 expect trk 3
 tap EDIT
-param 3 0 9
+param 3 0 6
 param 3 1 8
 param 3 4 0
 expect par3.1 8

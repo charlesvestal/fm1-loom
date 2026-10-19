@@ -1,0 +1,442 @@
+<!doctype html>
+<!-- SPDX-License-Identifier: GPL-3.0-only
+     LOOM-8's samples page: the user sample bank on the FM-1 as a list, user 1, user 2 ... as the sample knob counts
+     them after the factory samples (Chrome or Edge, Web MIDI). Connect reads the bank back (samples.c SMP_READ, 17):
+     add, replace, rename, reorder and remove samples, set a sample's root note and its bars (a loop for the slice
+     engine); Send builds the bank as tools/loom_samples.py does (loom_samples.js, inlined at LIB by
+     tools/make_pages.py; tests/host/samples_web.mjs checks the two agree), the samples read back kept as stored, and
+     writes it with the bank's protocol (BEGIN 11, WRITE 12, HDR 16, END 13; ERASE 14 for an empty bank). -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Samples · LOOM-8</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;600&family=Barlow+Semi+Condensed:wght@600;700&display=swap">
+<style>
+  :root { --ground: #f4f3f1; --ink: #1c1c20; --muted: #5f5f67; --rule: #dcdbd8; --card: #fff; --wave: #9a9aa2;
+          --accent: #b0285f; --on-accent: #fff; --bad: #b3261e; color-scheme: light; }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) { --ground: #000; --ink: #ebebee; --muted: #a2a2aa; --rule: #2e2e34; --card: #141418;
+      --wave: #66666e; --accent: #ff5caa; --on-accent: #1a0010; --bad: #ff8a80; color-scheme: dark; }
+  }
+  :root[data-theme="dark"] { --ground: #000; --ink: #ebebee; --muted: #a2a2aa; --rule: #2e2e34; --card: #141418;
+    --wave: #66666e; --accent: #ff5caa; --on-accent: #1a0010; --bad: #ff8a80; color-scheme: dark; }
+  body { margin: 0; background: var(--ground); color: var(--ink); padding-inline: 16px; padding-block: 48px 64px;
+         font: 400 16px/1.6 "Barlow", "Helvetica Neue", Arial, sans-serif; }
+  main { max-width: 46rem; margin: 0 auto; }
+  h1 { font: 700 2.4rem/1 "Barlow Semi Condensed", "Barlow", sans-serif; margin: 0 0 1rem; }
+  p { margin: 0 0 1rem; }
+  a { color: var(--accent); }
+  .small { color: var(--muted); font-size: .9rem; }
+  .home { display: inline-block; font: 700 1rem "Barlow Semi Condensed", sans-serif; letter-spacing: .03em; color: var(--muted);
+          text-decoration: none; margin: 0 0 .8rem; }
+  .home:hover, .home:focus-visible { color: var(--accent); }
+  button { font: 600 15px "Barlow", sans-serif; background: var(--accent); color: var(--on-accent); border: 0; border-radius: 999px;
+           padding: 7px 18px; cursor: pointer; }
+  button.quiet { background: none; color: var(--ink); border: 1px solid var(--rule); }
+  button.link { background: none; color: var(--muted); border: 0; padding: 2px 4px; text-decoration: underline; font-weight: 400; font-size: 14px; border-radius: 4px; }
+  button:disabled { opacity: .35; cursor: default; }
+  select, input[type=text] { font: inherit; font-size: 14px; color: var(--ink); background: var(--card); border: 1px solid var(--rule);
+                             border-radius: 6px; padding: 2px 6px; }
+  input[type=text] { width: 9.5em; font-weight: 600; }
+  .bar { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin: 0 0 1.2rem; }
+  #status { color: var(--muted); font-size: 15px; }
+  #alert { font-weight: 600; font-size: 15px; color: var(--bad); }
+  #alert:empty { display: none; }
+  #list { border-top: 1px solid var(--rule); margin: 0 0 12px; }
+  #list.over { outline: 2px dashed var(--accent); outline-offset: 4px; }
+  .smp { display: grid; grid-template-columns: 4.2em minmax(0, 1fr); gap: 4px 12px; padding: 10px 0; border-bottom: 1px solid var(--rule); }
+  .smp.over { background: color-mix(in srgb, var(--accent) 10%, transparent); }
+  .smp .num { font: 700 1.05rem "Barlow Semi Condensed", sans-serif; color: var(--muted); padding-top: 3px; }
+  .smp.new .num { color: var(--accent); }
+  .smp .top { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; }
+  .smp .facts { color: var(--muted); font-size: 14px; }
+  .smp canvas { display: block; width: 100%; height: 36px; grid-column: 2; }
+  .smp .opts { grid-column: 2; display: flex; flex-wrap: wrap; gap: 6px 16px; align-items: center; font-size: 14px; }
+  .smp .opts label { display: inline-flex; gap: 6px; align-items: center; }
+  .smp .acts { display: inline-flex; gap: 2px; margin-left: auto; }
+  .empty { color: var(--muted); padding: 16px 0; border-bottom: 1px solid var(--rule); }
+  .full { height: 6px; background: var(--rule); border-radius: 3px; margin: 18px 0 6px; overflow: hidden; }
+  .full > div { height: 100%; background: var(--accent); }
+  #room { font-size: 14px; color: var(--muted); margin: 0 0 16px; }
+  #room.bad { color: var(--bad); font-weight: 600; }
+  label.q { font-size: 15px; display: inline-flex; gap: 6px; align-items: center; }
+  progress { width: 100%; height: 6px; accent-color: var(--accent); }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  input[type=file] { display: none; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Samples</h1>
+  <p>Your own samples on the FM-1, up to 32 of them. On a track they come after LOOM-8's own: turn the sample
+    engine's sample knob (or a drum key's, on the sample model) past the factory ones to user 1, user 2 and so on.</p>
+  <p class="small">Connect the FM-1 by USB with LOOM-8 running, and use Chrome or Edge. WAV, AIFF, MP3 and FLAC files work.</p>
+
+  <div class="bar">
+    <button id="connect">Connect</button>
+    <span id="status" role="status"></span>
+    <span id="alert" role="alert"></span>
+  </div>
+
+  <div id="list" aria-label="Samples on the FM-1"><div class="empty">Connect to see the samples on the FM-1.</div></div>
+  <div class="bar">
+    <button class="quiet" id="add">Add samples</button>
+    <span class="small">or drop files here. Drop one on a sample to replace it.</span>
+  </div>
+  <div class="bar">
+    <label class="q" title="The rate new samples are stored at: higher is brighter and takes more room">Quality
+      <select id="rate">
+        <option value="auto">Auto: the best that fits</option>
+        <option value="32000">32 kHz</option>
+        <option value="22050">22 kHz</option>
+        <option value="16000">16 kHz</option>
+        <option value="11025">11 kHz</option>
+      </select></label>
+  </div>
+  <div class="full" aria-hidden="true"><div id="fill"></div></div>
+  <p id="room"></p>
+
+  <div class="bar">
+    <button id="send" disabled>Send to the FM-1</button>
+    <button class="quiet" id="discard" hidden>Discard changes</button>
+  </div>
+  <progress id="progress" max="100" value="0" hidden aria-label="Progress"></progress>
+  <input type="file" id="files" multiple accept="audio/*,.wav,.aif,.aiff,.mp3,.flac,.m4a,.ogg" aria-label="Samples to add" tabindex="-1">
+
+  <h2 style="font: 700 1.3rem 'Barlow Semi Condensed', sans-serif; margin: 2rem 0 .5rem">How samples play</h2>
+  <p class="small"><b>Root</b> is the note that plays a sample at its own pitch on a synth track (a note in the file's
+    name sets it: "piano_C4.wav"). <b>Loop</b> says the file is a loop of that many bars, for the slice engine: it then
+    plays at the song's tempo, slice 1 on the lowest key. A loop stored in a WAV file is kept for the sample
+    engine's loop mode.</p>
+  <p class="small">Sending replaces the whole bank: the samples already there are kept exactly as they are. The FM-1's
+    sound stops for a moment while it writes. Removing or moving a sample renumbers the ones after it, so a track
+    that used one plays its new neighbour instead. The bank holds about 18 seconds at 22 kHz, 35 at 11 kHz.</p>
+  <p class="small">Also from the command line: <code>tools/loom_samples.py</code>, in
+    <a href="https://github.com/charlesvestal/fm1-loom">the source</a>. LOOM-8 is GPL-3.0, built on fm1-base and
+    Felucca by Leo Kuroshita (Hügelton Instruments). <a href="../manual/#samples">The manual's Samples section</a>.</p>
+</main>
+<script type="module">
+/*LIB*/
+const $ = (id) => document.getElementById(id);
+const HDR = [0x7D, 0x46, 0x4C];
+const RC = { 1: "a size or offset", 2: "erasing", 3: "writing", 4: "the bank not begun", 5: "the header", 6: "the data's check",
+  7: "no samples", 8: "a reserved mark" };
+const KB = (b) => `${(b / 1024).toFixed(0)} KB`;
+let link = null, busy = false, readOk = false;
+// the samples in order: kept ({name, n, root, loop, bars, rate, ckb, adpcm, pic}) or new ({name, x, sr, loop, root,
+// rootSet, bars, rate: null, file, isNew, pic}); devImg: the bank as read (null: empty)
+let items = [], devImg = null, replaceAt = -1, plan = null;
+const cache = new Map();
+
+function say(t) { $("alert").textContent = ""; $("status").textContent = t; }
+function fail(t) { $("status").textContent = ""; $("alert").textContent = t; }
+let shown = { t: "", at: 0, pct: -100 };
+function sayPct(t, frac) {                          // progress, at most every 2 s or 10 percent (screen readers)
+  const pct = Math.floor(frac * 100), now = performance.now();
+  if (shown.t === t && now - shown.at < 2000 && pct - shown.pct < 10) return;
+  $("alert").textContent = "";
+  $("status").textContent = `${t}, ${pct} percent`;
+  shown = { t, at: now, pct };
+}
+
+// ---- the bank these items make (null: too much) ---------------------------------------
+function rateChoice() { const v = $("rate").value; return v === "auto" ? null : Number(v); }
+function replan() {
+  plan = null;
+  if (!items.length) { plan = { img: null, chose: null, used: 0 }; return; }
+  try {
+    const { img, chose } = build(items, rateChoice(), cache);
+    plan = { img, chose, used: img.length - BANK_HDR };
+  } catch (e) { plan = { err: e.message }; }
+}
+function changed() {
+  if (!plan || plan.err) return false;
+  if (!plan.img || !devImg) return !plan.img !== !devImg;
+  if (plan.img.length !== devImg.length) return true;
+  for (let i = 0; i < plan.img.length; i++) if (plan.img[i] !== devImg[i]) return true;
+  return false;
+}
+function rateOf(it) { return it.adpcm ? it.rate : it.rate || (plan && plan.chose) || rateChoice() || 22050; }
+function lengthOf(it) { return it.adpcm ? it.n : lengthAt(it.x.length, it.sr, rateOf(it)); }
+
+// ---- the list ----------------------------------------------------------------------
+function noteOptions(sel) {
+  let h = "";
+  for (let n = 0; n < 128; n++) h += `<option value="${n}"${n === sel ? " selected" : ""}>${noteName(n)}</option>`;
+  return h;
+}
+function barsOptions(sel) {
+  let h = `<option value="0"${!sel ? " selected" : ""}>no (a one-shot)</option>`;
+  for (let b = 1; b <= BARS_MAX; b++) h += `<option value="${b}"${b === sel ? " selected" : ""}>${b} bar${b > 1 ? "s" : ""}</option>`;
+  return h;
+}
+
+function render(focus = null) {
+  replan();
+  const list = $("list");
+  list.textContent = "";
+  if (!readOk)
+    list.innerHTML = `<div class="empty">${link ? "Reading…" : "Connect to see the samples on the FM-1."}</div>`;
+  else if (!items.length)
+    list.innerHTML = '<div class="empty">No samples of your own yet. Add some below.</div>';
+  items.forEach((it, i) => {
+    const r = document.createElement("div"), n = lengthOf(it), rate = rateOf(it), id = `s${i}`;
+    r.className = it.isNew ? "smp new" : "smp";
+    r.setAttribute("role", "group");
+    r.setAttribute("aria-label", `user ${i + 1}, ${it.name}`);
+    const bpm = it.bars ? ` · ${(it.bars * 240 * rate / n).toFixed(1)} BPM at its own speed` : "";
+    r.innerHTML = `<div class="num">user ${i + 1}</div>
+      <div class="top">
+        <input type="text" id="${id}n" maxlength="11" value="" aria-label="user ${i + 1}: name" spellcheck="false">
+        <span class="facts">${(n / rate).toFixed(2)} s · ${(rate / 1000).toFixed(rate % 1000 ? 1 : 0)} kHz${it.isNew ? " · new" : ""}${bpm}</span>
+        <span class="acts">
+          <button class="link up" aria-label="Move user ${i + 1} up"${i ? "" : " disabled"}>↑</button>
+          <button class="link dn" aria-label="Move user ${i + 1} down"${i < items.length - 1 ? "" : " disabled"}>↓</button>
+          <button class="link rep" aria-label="Replace user ${i + 1}">Replace</button>
+          <button class="link del" aria-label="Remove user ${i + 1}">Remove</button>
+        </span>
+      </div>
+      <canvas width="900" height="72" aria-hidden="true"></canvas>
+      <div class="opts">
+        <label>Root <select class="root" aria-label="user ${i + 1}: root note">${noteOptions(it.root)}</select></label>
+        <label>Loop <select class="bars" aria-label="user ${i + 1}: a loop of how many bars">${barsOptions(it.bars)}</select></label>
+      </div>`;
+    const nm = r.querySelector("input");
+    nm.value = it.name;
+    nm.onchange = () => { it.name = cleanName(nm.value); render({ sel: `#${id}n` }); };
+    if (it.file) r.title = it.file;
+    r.querySelector(".up").onclick = () => { [items[i - 1], items[i]] = [items[i], items[i - 1]]; render({ row: i - 1, sel: ".up" }); say(`Moved to user ${i}.`); };
+    r.querySelector(".dn").onclick = () => { [items[i + 1], items[i]] = [items[i], items[i + 1]]; render({ row: i + 1, sel: ".dn" }); say(`Moved to user ${i + 2}.`); };
+    r.querySelector(".rep").onclick = () => { replaceAt = i; $("files").multiple = false; $("files").click(); };
+    r.querySelector(".del").onclick = () => { items.splice(i, 1); render({ row: i, sel: ".del" }); say(`user ${i + 1} removed.`); };
+    r.querySelector(".root").onchange = (ev) => { it.root = Number(ev.target.value); it.rootSet = true; render(); };
+    r.querySelector(".bars").onchange = (ev) => {
+      it.bars = Number(ev.target.value);
+      if (it.isNew && !it.rootSet) it.root = it.bars ? LOOP_ROOT : noteFromName(it.file || it.name);
+      render({ row: i, sel: ".bars" });
+    };
+    for (const b of r.querySelectorAll("button, select, input")) if (busy) b.disabled = true;
+    r.ondragover = (ev) => { ev.preventDefault(); ev.stopPropagation(); r.classList.add("over"); };
+    r.ondragleave = () => r.classList.remove("over");
+    r.ondrop = (ev) => { ev.preventDefault(); ev.stopPropagation(); r.classList.remove("over"); addFiles([...ev.dataTransfer.files], i); };
+    list.appendChild(r);
+    wave(r.querySelector("canvas"), picOf(it), it.isNew ? "--accent" : "--wave");
+  });
+  const ok = plan && !plan.err;
+  $("fill").style.width = ok ? `${Math.min(100, plan.used / BANK_MAX_DATA * 100)}%` : "100%";
+  $("room").className = ok ? "" : "bad";
+  $("room").textContent = !readOk ? "" : !ok ? `Too much for the FM-1: ${plan.err.replace(/^too long: /, "")}. Remove a sample, shorten one, or pick a lower quality.`
+    : `${items.length} sample${items.length === 1 ? "" : "s"}, ${KB(plan.used)} of ${KB(BANK_MAX_DATA)}` +
+      (plan.chose && items.some((it) => !it.adpcm && !it.rate) ? `; new samples at ${(plan.chose / 1000).toFixed(plan.chose % 1000 ? 1 : 0)} kHz.` : ".");
+  const ch = readOk && changed();
+  $("send").disabled = busy || !ch;
+  $("discard").hidden = !ch && !(readOk && plan && plan.err);
+  $("discard").disabled = busy;
+  $("add").disabled = busy || !readOk || items.length >= BANK_N;
+  $("rate").disabled = busy;
+  $("connect").disabled = busy;
+  if (focus) {                                       // the focused control went with its row: the same one there
+    const rows = list.querySelectorAll(".smp");
+    const row = rows[Math.min(focus.row ?? 0, rows.length - 1)];
+    const el = focus.row === undefined ? list.querySelector(focus.sel) : row && row.querySelector(focus.sel);
+    (el && !el.disabled ? el : $("add")).focus();
+  }
+}
+
+function picOf(it) {
+  if (it.pic) return it.pic;
+  if (it.adpcm) return (it.pic = imaDecode(it.adpcm, it.n));
+  const x = it.x, out = new Int16Array(Math.min(x.length, 20000));
+  let pk = 1e-9;
+  for (const v of x) pk = Math.max(pk, Math.abs(v));
+  for (let i = 0; i < out.length; i++) out[i] = x[Math.floor(i * x.length / out.length)] / pk * 30000;
+  return (it.pic = out);
+}
+function wave(cv, s, colour) {                      // the peak in each pixel column
+  const g = cv.getContext("2d"), W = cv.width, H = cv.height;
+  g.clearRect(0, 0, W, H);
+  g.fillStyle = getComputedStyle(document.documentElement).getPropertyValue(colour);
+  for (let x = 0; x < W; x++) {
+    let pk = 0;
+    for (let i = Math.floor(x * s.length / W), e = Math.floor((x + 1) * s.length / W); i < e; i++) pk = Math.max(pk, Math.abs(s[i]));
+    const h = Math.max(1, pk / 32768 * H);
+    g.fillRect(x, (H - h) / 2, 1, h);
+  }
+}
+
+// ---- files -> samples ------------------------------------------------------------------
+async function decode(file) {
+  const buf = new Uint8Array(await file.arrayBuffer());
+  try { return readWav(buf); } catch (_) { /* not a WAV the reader takes: the browser's decoder */ }
+  const ab = await new OfflineAudioContext(1, 1, 44100).decodeAudioData(buf.buffer.slice(0));
+  const n = ab.length, x = new Float64Array(n), chs = [];
+  for (let c = 0; c < ab.numberOfChannels; c++) chs.push(ab.getChannelData(c));
+  for (let i = 0; i < n; i++) { let acc = 0; for (const ch of chs) acc += ch[i]; x[i] = acc / chs.length; }
+  return { rate: ab.sampleRate, x, loop: null };
+}
+async function addFiles(list, at = -1) {
+  if (busy || !readOk || !list.length) return;
+  const room = BANK_N - items.length + (at >= 0 ? 1 : 0);
+  const take = at >= 0 ? list.slice(0, 1) : list.slice(0, room), got = [], bad = [];
+  say("Reading the files…");
+  for (const f of take) {
+    try {
+      const { rate, x, loop } = await decode(f);
+      if (x.length < 2) throw new Error("no audio");
+      const stem = f.name.replace(/\.[^.]*$/, "");
+      got.push({ name: cleanName(stem), x, sr: rate, loop, root: noteFromName(stem), rootSet: false, bars: 0, rate: null,
+        file: f.name, isNew: true });
+    } catch (_) { bad.push(f.name); }
+  }
+  if (at >= 0 && got.length) items[at] = got[0];
+  else items.push(...got);
+  if (bad.length) fail(`Couldn't read ${bad.join(", ")}. Use WAV, AIFF, MP3 or FLAC files.`);
+  else if (list.length > take.length) fail(`The FM-1 holds ${BANK_N} samples: ${list.length - take.length} not added.`);
+  else say(at >= 0 ? `user ${at + 1} replaced.` : got.length === 1 ? "1 sample added." : `${got.length} samples added.`);
+  render();
+}
+
+// ---- the FM-1 ----------------------------------------------------------------------
+class Link {
+  constructor(input, output) {
+    this.input = input; this.output = output; this.wait = null;
+    input.onmidimessage = (ev) => {
+      const d = ev.data;
+      if (d[0] !== 0xF0 || d[1] !== HDR[0] || d[2] !== HDR[1] || d[3] !== HDR[2] || !this.wait || d[4] !== this.wait.cmd) return;
+      const w = this.wait;
+      this.wait = null;
+      clearTimeout(w.timer);
+      w.resolve([...d.slice(5, d.length - 1)]);
+    };
+  }
+  req(cmd, args, ms = 3000) {
+    return new Promise((resolve, reject) => {
+      this.wait = { cmd, resolve, timer: setTimeout(() => { this.wait = null; reject(new Error("The FM-1 stopped answering.")); }, ms) };
+      this.output.send([0xF0, ...HDR, cmd, ...args, 0xF7]);
+    });
+  }
+  async retry(cmd, args, ms, tries = 3) {
+    for (let k = 1; ; k++) { try { return await this.req(cmd, args, ms); } catch (e) { if (k >= tries) throw e; } }
+  }
+}
+async function connect() {
+  if (!navigator.requestMIDIAccess) throw new Error("This browser can't talk to MIDI devices. Use Chrome or Edge.");
+  const midi = await navigator.requestMIDIAccess({ sysex: true });
+  const outs = [...midi.outputs.values()];
+  const ins = [...midi.inputs.values()].filter((i) => i.state !== "disconnected" && /loom|fm-1/i.test(i.name || ""))
+    .sort((a, b) => /loom/i.test(b.name) - /loom/i.test(a.name));
+  for (const input of ins) {
+    const output = outs.find((o) => o.name === input.name);
+    if (!output) continue;
+    await input.open();
+    await output.open();
+    const l = new Link(input, output);
+    try { await l.retry(25, [], 1000); return l; } catch (_) { /* not answering: the next */ }
+  }
+  throw new Error("No FM-1 running LOOM-8 found. Connect it by USB, and close other apps that use its MIDI port.");
+}
+async function readBytes(off, n, onPart) {          // SMP_READ, 224 bytes a request
+  const out = new Uint8Array(n);
+  for (let at = 0; at < n;) {
+    const want = Math.min(READ_MAX, n - at), adr = off + at;
+    const r = await link.retry(17, [0, adr & 0x7F, (adr >> 7) & 0x7F, (adr >> 14) & 0x7F, want & 0x7F, want >> 7], 3000);
+    if (r[4]) throw new Error(r[4] === 4 ? "The FM-1 is in the middle of writing its samples." : "The FM-1 couldn't read its samples.");
+    const b = unpack7(r.slice(5));
+    if (b.length < want) throw new Error("short read");
+    out.set(b.subarray(0, want), at);
+    at += want;
+    if (onPart) onPart(at / n);
+  }
+  return out;
+}
+async function readAll() {
+  const info = await link.req(15, [0]);
+  if (info[0] !== 2) throw new Error("This LOOM-8 is too old for this page. Update it from the install page, then connect again.");
+  const bar = $("progress");
+  items = [];
+  devImg = null;
+  if (!info[5]) { readOk = true; return; }
+  let hdr;
+  try { hdr = await readBytes(0, HDR_USED); } catch (e) {
+    if (/stopped answering/.test(e.message))
+      throw new Error("This LOOM-8 can't send its samples back to the page. Update it from the install page (0.5-beta or later), then connect again.");
+    throw e;
+  }
+  const h = parseHeader(hdr);
+  if (!h || !h.count) { readOk = true; return; }
+  bar.hidden = false;
+  try {
+    const data = await readBytes(BANK_HDR, h.dataLen, (f) => { bar.value = f * 100; sayPct("Reading the samples", f); });
+    const img = new Uint8Array(BANK_HDR + h.dataLen);
+    img.set(hdr);
+    img.set(data, BANK_HDR);
+    items = keptOf(img);
+    devImg = build(items).img;                       // (the same bytes: what Send compares with)
+  } finally { bar.hidden = true; }
+  readOk = true;
+}
+
+async function run(fn) {
+  busy = true;
+  render();
+  try { await fn(); } catch (e) { fail(e.message || String(e)); }
+  busy = false;
+  render();
+}
+async function readFromDevice() {
+  say("Connecting…");
+  readOk = false;
+  if (!link) link = await connect();
+  render();
+  say("Reading the samples…");
+  await readAll();
+  $("connect").textContent = "Read again";
+  say(`Read ${items.length} sample${items.length === 1 ? "" : "s"} from the FM-1.`);
+}
+$("connect").onclick = () => run(async () => { link = null; await readFromDevice(); });
+$("discard").onclick = () => run(readFromDevice);
+
+$("send").onclick = () => run(async () => {
+  const bar = $("progress");
+  if (!plan.img) {                                   // nothing left: the bank erased
+    say("Erasing the samples…");
+    const r = await link.req(14, [0], 60000);
+    if (r[1]) throw new Error(`The FM-1 couldn't erase its samples (${RC[r[1]] || r[1]}).`);
+  } else {
+    const fr = [...frames(plan.img)], total = plan.img.length - BANK_HDR;
+    bar.hidden = false;
+    bar.value = 0;
+    say("Sending…");
+    for (const [cmd, args, ms, what] of fr) {
+      let r;
+      for (let k = 1; ; k++) {                       // a write again when its answer is lost (the same bytes)
+        try { r = await link.req(cmd, args, ms); break; } catch (e) { if (cmd !== 12 || k >= 4) throw e; }
+      }
+      const rc = r.length ? r[r.length - 1] : 99;
+      if (rc) throw new Error(`The FM-1 didn't take the samples (${RC[rc] || rc}${cmd === 12 ? ` at ${what}` : ""}).`);
+      if (cmd === 12) {
+        const done = Math.min(what + 256, plan.img.length) - BANK_HDR;
+        bar.value = done / total * 100;
+        sayPct("Sending", done / total);
+      }
+    }
+    bar.hidden = true;
+  }
+  say("Reading back…");
+  await readAll();
+  say(`Done: ${items.length} sample${items.length === 1 ? "" : "s"} on the FM-1, user 1 to user ${items.length}.`);
+});
+
+$("add").onclick = () => { replaceAt = -1; $("files").multiple = true; $("files").click(); };
+$("files").onchange = (ev) => { addFiles([...ev.target.files], replaceAt); ev.target.value = ""; replaceAt = -1; };
+$("rate").onchange = () => render();
+document.body.ondragover = (ev) => { if (readOk) { ev.preventDefault(); $("list").classList.add("over"); } };
+document.body.ondragleave = (ev) => { if (!ev.relatedTarget) $("list").classList.remove("over"); };
+document.body.ondrop = (ev) => { ev.preventDefault(); $("list").classList.remove("over"); addFiles([...ev.dataTransfer.files]); };
+render();
+</script>
+</body>
+</html>
