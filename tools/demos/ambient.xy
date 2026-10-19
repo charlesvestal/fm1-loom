@@ -58,6 +58,8 @@ knob 5 send1 56
 knob 5 send2 100
 # T6 organ "pedal bass": the 16'
 preset 6 pedal_bass organ
+# (the song was written before a bass preset sat an octave down)
+param 6 oct 2
 knob 6 brain no
 knob 6 level 90
 knob 6 send2 30

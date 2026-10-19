@@ -1490,7 +1490,7 @@ static void master_knob(int k, int32_t e)
     int m = mst_base(ui.page) + k;
     if (m == MS_RSV3)
         return;                                  /* (EQ: three knobs) */
-    proj.master[m] = (uint8_t)clampi(proj.master[m] + e, 0, 127);
+    proj.master[m] = (uint8_t)clampi(proj.master[m] + e, 0, master_max(m));
     engine_master(m, proj.master[m]);
     mark_dirty();
 }
@@ -1578,7 +1578,7 @@ static void knob(int k, int32_t e)
     case P_SONG: song_knob(k, e); return;
     case P_STEPS: steps_knob(k, e); return;
     case P_BAR: bar_knob(k, e); return;
-    case P_MASTER: case P_MASTER3: master_knob(k, e); return;
+    case P_MASTER: case P_MASTER2: case P_MASTER3: master_knob(k, e); return;
     case P_SETUP: setup_knob(k, e); return;
     case P_STATUS: debug_knob(k, e); return;
     default: break;

@@ -167,7 +167,7 @@ static void steps_print(int t, int p)
 static int isnum(const char *s);
 static int ieq(const char *a, const char *b);
 static int param_of(const char *s);
-static const char *const MN[NMS] = {"lo", "mid", "hi", "-", "-", "-", "-", "-", "perc", "mel",
+static const char *const MN[NMS] = {"lo", "mid", "hi", "-", "color", "camount", "ctone", "cmix", "perc", "mel",
                                     "comp", "pump", "pumpby", "release", "accent", "level"};
 /* fm1-base's expect, for LOOM-8's own state with one value */
 int app_expect(const char *what, int *got)
@@ -335,7 +335,7 @@ static int expect_more(const char *what, const char *a, const char *b, const cha
  *   scenemute N MASK             scene N's mutes: a character a track 1-8, COND, THROW: x muted, . not
  *   song S:R [S:R ...]           the song: scene S (1-based) for R bars (16 sixteenths each)
  *   songloop 0|1
- *   mst NAME VALUE               a master knob (lo mid hi perc mel comp pump) or the
+ *   mst NAME VALUE               a master knob (lo mid hi color camount ctone cmix perc mel comp pump) or the
  *                                out page's list (pumpby kick|t1..t8|metro, release, accent on|off, level)
  *   groove NAME                  the project's groove type (swing lilt weave ...)
  *   play T NOTE on|off [VEL]     a key on track T (through its player and the conductor), at any octave

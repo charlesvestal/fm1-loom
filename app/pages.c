@@ -66,16 +66,16 @@ static uint16_t trk_tint(int t) { return ink_mix(trk_ink(t), theme->tint); }
  * track: Engine, Play, Play 2 (the octave), then Sub where the engine has a second page of knobs (TP_X1..X4: brocade's
  * sub, orbit's fall); a kit or an FX track Engine and Play; the conductor Engine, Play (routing), Sub (Follow) */
 enum { P_ARRANGE, P_SONG, P_STEPS, P_BAR, P_ENGINE, P_PLAY, P_PLAY2, P_SUB, P_ENV, P_FILTER, P_ENV2, P_KITF, P_CHARACTER, P_SENDS,
-       P_FX1, P_FX2, P_THROWS, P_LFO, P_LFO2, P_PLAYERS, P_PLAYERS2, P_PLAYERS3, P_WEAVE, P_MIX, P_MASTER, P_MASTER3, P_SETUP,
+       P_FX1, P_FX2, P_THROWS, P_LFO, P_LFO2, P_PLAYERS, P_PLAYERS2, P_PLAYERS3, P_WEAVE, P_MIX, P_MASTER, P_MASTER2, P_MASTER3, P_SETUP,
        P_STATUS, NPAGES };
 static const char *const PAGE_NAME[NPAGES] = {"Arrange", "Song", "Steps", "Bar", "Engine", "Play", "Play 2", "Sub", "Envelope",
                                               "Filter", "Filter env", "Kit filter", "Character", "Sends", "FX I",
                                               "FX II", "Throws", "LFO", "LFO 2", "Players", "Players 2", "Hold", "Weave", "Mix",
-                                              "Master EQ", "Master out", "Setup", "Debug"};
-static int mst_base(int p) { return p == P_MASTER ? MS_EQ_LO : MS_PERC; }   /* a master page's first knob */
+                                              "Master EQ", "Master color", "Master out", "Setup", "Debug"};
+static int mst_base(int p) { return p == P_MASTER ? MS_EQ_LO : p == P_MASTER2 ? MS_CTYPE : MS_PERC; }   /* its first knob */
 static const struct { uint8_t btn, first, n; } PAGE_BTN[] = {
     {B_HOME, P_ARRANGE, 2}, {B_SEQ, P_STEPS, 2}, {B_EDIT, P_ENGINE, 4}, {B_ENV, P_ENV, 4}, {B_FX, P_CHARACTER, 5},
-    {B_LFO, P_LFO, 2}, {B_ARP, P_PLAYERS, 4}, {B_GLO, P_MIX, 5}};
+    {B_LFO, P_LFO, 2}, {B_ARP, P_PLAYERS, 4}, {B_GLO, P_MIX, 6}};
 #define NPAGE_BTN (sizeof PAGE_BTN / sizeof PAGE_BTN[0])
 static int page_group(int p)
 {
@@ -496,7 +496,7 @@ static int group_n(int g)
     if (b == B_ENV)
         return is_drum(trk) ? 4 : 3;                 /* a kit: the key's envelope, filter; the kit's envelope, filter */
     if (b == B_GLO)
-        return DEBUG_BUILD ? 5 : 4;                  /* Debug last, in a debug build only */
+        return DEBUG_BUILD ? 6 : 5;                  /* Debug last, in a debug build only */
     return PAGE_BTN[g].n;
 }
 /* a button's i-th page now (ARP's depend on the player: the arp has Hold before Weave; the conductor and the
@@ -779,6 +779,23 @@ static void kn(knob_t *k, const char *name, int32_t v, int32_t max)
     num_i(v, k->val);
     k->num = v;
     k->max = max;
+}
+/* the master color's knob m (amount, tone, mix): printed as a voice's character stage of the same type prints it
+ * (tp_text_par: the tape's tone and the sampler's rate and filter in Hz, the rest in %) */
+static void kmc(knob_t *k, int m)
+{
+    static const uint8_t CT_OF[NMC] = {CT_OFF, CT_TAPE, CT_SAMPLER};
+    uint8_t par[NTP_SOUND] = {0};
+    char num[12], unit[6], val[24], *e;
+    int p = TP_CAMT + (m - MS_CAMT), v = proj.master[m];
+    par[TP_CTYPE] = CT_OF[proj.master[MS_CTYPE] % NMC];
+    tp_text_par(p, v, par, num, unit);
+    if (p == TP_CTONE && par[TP_CTYPE] == CT_OFF)      /* (off: the tone a plain number) */
+        num_i(v, num), unit[0] = 0;
+    e = s_cat(val, num);
+    if (unit[0])
+        s_cat(unit[0] != '%' ? s_cat(e, " ") : e, unit);
+    kv(k, MS_NAME[m], val, v, 127);
 }
 /* the master's pump: its depth (0 .. 24 dB), its source, its release */
 static void pump_text(int v, char *t)
@@ -1134,12 +1151,16 @@ static void page_knobs(knob_t *k)
             k[1].name = "FX II";
         }
         break;
-    case P_MASTER: case P_MASTER3:
+    case P_MASTER: case P_MASTER2: case P_MASTER3:
         for (int i = 0; i < 4; i++) {
             int m = mst_base(p) + i;
             if (m == MS_RSV3)
                 continue;                            /* (EQ: three knobs) */
-            if (m == MS_PUMP) {
+            if (m == MS_CTYPE)
+                kname(&k[i], MS_NAME[m], MC_NAME, proj.master[m] % NMC, NMC);
+            else if (m >= MS_CAMT && m <= MS_CMIX)
+                kmc(&k[i], m);
+            else if (m == MS_PUMP) {
                 char t[12];
                 pump_text(proj.master[m], t);
                 kv(&k[i], MS_NAME[m], t, proj.master[m], 127);
@@ -1282,7 +1303,7 @@ static void page_tag(char *t)
             s_cat(s_cat(e, ">"), fx_pick_name(pick));
         break;
     }
-    case P_MASTER: case P_MASTER3: case P_SETUP: case P_STATUS:
+    case P_MASTER: case P_MASTER2: case P_MASTER3: case P_SETUP: case P_STATUS:
         s_cat(t, "all tracks");
         break;
     default:
@@ -1410,7 +1431,7 @@ static void page_footer(char *t)
     case P_MASTER3:
         s_cat(t, "SEL pump by, level");
         break;
-    case P_MASTER: case P_SETUP: case P_STATUS:
+    case P_MASTER: case P_MASTER2: case P_SETUP: case P_STATUS:
         break;
     case P_SENDS:
         s_cat(t, "KEYS play");
@@ -3837,6 +3858,37 @@ static void draw_mix(void)
         text_r(236, 108, &FONT_XS, "solo", K_TEXT);
     cv_blit(0, MAIN_Y);
 }
+/* Master color: the type and what it does, and the Character page's picture of it (synth.c char_picture, through a
+ * voice's bytes made from the master's knobs: the same curves) */
+static void draw_master_color(void)
+{
+    static const char *const ABOUT[NMC] = {"the mix as it is", "warmth and wow", "an old sampler's grain"};
+    const uint8_t *m = proj.master;
+    int ty = m[MS_CTYPE] % NMC;
+    uint32_t h = hash_u(hash_u(2166136261u, 0xC0u), (uint32_t)ty | (uint32_t)m[MS_CAMT] << 8 | (uint32_t)m[MS_CTONE] << 16 |
+                                                    (uint32_t)m[MS_CMIX] << 24);
+    int32_t x0 = 128, y0 = 8, w = 100, hh = 72, cy = y0 + hh / 2;
+    uint8_t par[NTP_SOUND];
+    pen_t pn = {0, 0, 0};
+    if (!begin_main(h))
+        return;
+    cv_text(12, 4, &FONT_L, MC_NAME[ty], K_TEXT);
+    cv_text(12, 40, &FONT_XS, ABOUT[ty], K_DIM);
+    cv_text(12, 56, &FONT_XS, "on the whole mix", K_DIM);
+    for (int i = 0; i < NTP_SOUND; i++)
+        par[i] = 0;
+    par[TP_CTYPE] = ty == MC_TAPE ? CT_TAPE : ty == MC_SAMPLER ? CT_SAMPLER : CT_OFF;
+    par[TP_CAMT] = m[MS_CAMT];
+    par[TP_CTONE] = m[MS_CTONE];
+    par[TP_CMIX] = m[MS_CMIX];
+    cv_rect(x0, cy, w, 1, K_LINE);
+    for (int32_t i = 0; i <= w; i++) {
+        float u = ty == MC_SAMPLER ? (float)i / (float)w : (float)i * 2.0f / (float)w - 1.0f;
+        float y = fm_clampf(char_picture(par, u), -1.2f, 1.2f);
+        pen_to(&pn, (float)(x0 + i), (float)cy - y * (float)(hh / 2 - 6) / 1.2f, ty == MC_OFF ? K_FAINT : K_NOW);
+    }
+    cv_blit(0, MAIN_Y);
+}
 static void draw_master(void)
 {
     int pg = ui.page == P_MASTER ? 0 : 2;
@@ -4208,6 +4260,7 @@ static void draw_page(void)
     case P_THROWS: draw_punch(); break;
     case P_WEAVE: draw_weave(); break;
     case P_MASTER: case P_MASTER3: draw_master(); break;
+    case P_MASTER2: draw_master_color(); break;
     case P_SETUP: draw_setup(); break;
     default: draw_status(); break;
     }

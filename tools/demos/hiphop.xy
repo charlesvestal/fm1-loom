@@ -52,6 +52,8 @@ knob 2 level 82
 knob 2 send2 10
 # T3 tines "felt bass": the bass, round and low-passed
 preset 3 felt_bass tines
+# (the song was written before a bass preset sat an octave down)
+param 3 oct 2
 knob 3 brain no
 knob 3 cut 64
 knob 3 level 103

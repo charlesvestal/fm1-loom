@@ -105,6 +105,18 @@ turn SELECT 1
 wait 40
 shot master.png
 turn SELECT 1
+expect page Master_color
+spin K1 1
+expect mst.color 1
+wait 40
+shot master_color_tape.png
+spin K1 1
+expect mst.color 2
+wait 40
+shot master_color_sampler.png
+spin K1 -2
+expect mst.color 0
+turn SELECT 1
 wait 40
 shot master3.png
 turn SELECT 1

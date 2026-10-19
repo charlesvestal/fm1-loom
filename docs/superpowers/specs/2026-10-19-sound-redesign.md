@@ -76,6 +76,8 @@ part 4 what is open. The A/B pages this came from: `build/ab/index.html`, `build
   26 kHz with its filter, the SP-1200 / S950 colour; drive as now), fold / ring / crush kept for FX and digital
   presets. Cost each in `bench.c` first.
 - Maybe a third FX slot or a voice-level stereo spread (the chorus is a send: a pad cannot have chorus and reverb).
+- Heard (2026-10-19, build/ab3, ab4): tape sounds good; sampler is very characterful: **no factory preset uses
+  the sampler** (it stays for the user), and both are on the master too (GLO, Master color: done).
 
 ### 3.2 The preset format and its checks
 - **Octave** in the sound part (default by role: sub -2, bass -1, else 0, bells +1). PRESETS_FORMAT / PROJ_FORMAT

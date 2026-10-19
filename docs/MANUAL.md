@@ -175,7 +175,7 @@ press…" means keep **HOME** down while you press the next thing.
 | **FX** | Opens Character, the track's own effect. Then Sends, the track's sends to FX I and FX II. Then FX I and FX II, the two effects. |
 | **LFO** | Opens LFO. Its page 2 has the type's fourth and fifth knobs. |
 | **ARP** | Opens Players. With the arp, page 2 is its second set of knobs and page 3 is hold. |
-| **GLO** | Opens Mix. Turn **SELECT** for Master EQ, Master out and Setup. |
+| **GLO** | Opens Mix. Turn **SELECT** for Master EQ, Master color, Master out and Setup. |
 | **SAVE** | Saves. Hold it and press a white key to save to a slot, or to keep a sound. With a step held, clears its locks. |
 | **OCT−** / **OCT+** | Move the keys an octave. On Steps, show the bar before or after; with a step held, nudge it. In step record, move the cursor. |
 | **SELECT** | Turns to a button's next page. In a list, it moves up and down. |
@@ -821,12 +821,19 @@ Turn **ALGORITHM** past T8. Each aux track has its own page under **EDIT** and i
 
 Press **GLO**. The Mix page shows a meter for each track. A black key picks its track: a tap mutes or unmutes
 it, and holding it solos the track until you let go. The knobs are the sends to FX I and FX II, the pan and the
-level. Turn **SELECT** for Master EQ (low, mid and high; 64 is flat) and
+level. Turn **SELECT** for Master EQ (low, mid and high; 64 is flat), Master color (below) and
 Master out (the drums' level, the melodic tracks' level, the compressor and the pump; its **SEL** list has
 what the pump follows, its release and accent, and the output level). Setup's knobs are the lights, sending MIDI
 clock, sending MIDI notes and the theme (tape deck or blueprint); the page also says where the tempo comes from
 (LOOM-8, or a MIDI clock coming in), the USB audio level, the autosave and the version, and **GLO**'s **SEL** list
 sets the USB audio level and AUTOSAVE. The projects are on **HOME**'s **SEL** list; the count-in is on **REC**'s knobs.
+
+**Master color** gives the whole mix a colour after the EQ: **color** picks it, **amount**, **tone** and **mix**
+shape it. **tape** is worn tape: a slow wow and a quick flutter on the pitch (more with the amount), a soft
+saturation and a gentle roll-off of the top (tone: where it starts, 1.5 to 18 kHz). **sampler** is an old
+sampler's grain: the mix held at a lower rate and fewer bits (amount: 26 kHz and 14 bits down to 11 kHz and 11
+bits), then its filter (tone). **off** (a new project's) leaves the mix as it is. The same two are on each
+synth track's Character page, for one sound.
 
 **Pump** (Master out's fourth knob) lowers the whole mix each time the kick plays, by up to 24 dB, and lets it
 swell back up: the big-beat breathing of house and French touch. Accented kicks pump harder. It works even with
@@ -906,6 +913,7 @@ On a sound page, hold **SAVE** and press white key 1 to 16 to keep the track's s
 | ARP, SELECT (last) | Weave | with | pattern | rule | plays | black: the track woven in, white: its pattern; SEL: KEEP AS PATTERN |
 | GLO | Mix | FX I | FX II | pan | level | black: a tap mutes, held: solo |
 | GLO, SELECT | Master EQ | low | mid | high | | |
+| GLO, SELECT | Master color | color | amount | tone | mix | |
 | GLO, SELECT | Master out | drums | melodic | comp | pump | SEL: pump by, release, accent, level |
 | GLO, SELECT | Setup | lights | clock | notes | theme | SEL: USB audio |
 

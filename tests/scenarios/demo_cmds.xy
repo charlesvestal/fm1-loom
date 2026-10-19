@@ -16,6 +16,8 @@ knob 3 brain no
 expect par3.brain 0
 # preset by name (spaces as _), the engine's first as a fallback with ENGINE
 preset 2 rope_sub stack
+# (the song was written before a bass preset sat an octave down)
+param 2 oct 2
 expect par2.0 1
 expect par2.1 64
 preset 4 no_such_preset tines

@@ -30,6 +30,8 @@ knob 1 level 107
 knob 1 send2 10
 # T2 stack "rope sub": the sub, alone below 100 Hz
 preset 2 rope_sub stack
+# (the song was written before a bass preset sat an octave down)
+param 2 oct 2
 knob 2 brain no
 knob 2 level 94
 # T3 brocade "chenille" as the reese: seven saws, legato, the low-pass at 1 kHz moved by a slow LFO, resonant

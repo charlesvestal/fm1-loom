@@ -8,7 +8,7 @@ expect mst.release 60
 expect mst.accent 1
 tap GLO
 expect page Mix
-turn SELECT 2
+turn SELECT 3
 expect mst.pump 0
 spin K4 64
 expect mst.pump 64

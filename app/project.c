@@ -208,12 +208,14 @@ void project_defaults(void)
         tr->par[TP_CHAN] = 0;
     }
     aux_defaults();
-    /* the master: the EQ's blend off (neutral), the groups at unity, a touch of compression (4..7, the tape's that
-     * was: 0, and ignored) */
+    /* the master: the EQ flat, the color off (tape when on: amount 40, tone 64, all wet), the groups at unity, a touch
+     * of compression */
     for (k = 0; k < NMS; k++)
         proj.master[k] = 64;
-    for (k = MS_RSV4; k <= MS_RSV7; k++)
-        proj.master[k] = 0;
+    proj.master[MS_RSV3] = 0;
+    proj.master[MS_CTYPE] = MC_OFF;
+    proj.master[MS_CAMT] = 40;
+    proj.master[MS_CMIX] = 127;
     proj.master[MS_PERC] = 100;
     proj.master[MS_MEL] = 100;
     proj.master[MS_COMP] = 30;

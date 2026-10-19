@@ -29,6 +29,8 @@ notes 2 2 7 1 96 D5
 notes 2 2 11 2 110 E5
 notes 2 2 14 1 90 C5
 preset 3 denim_bass weft
+# (the song was written before a bass preset sat an octave down)
+param 3 oct 2
 knob 3 brain no
 knob 3 level 96
 pat 3 1 16

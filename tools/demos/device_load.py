@@ -126,20 +126,20 @@ def release_all():
     time.sleep(0.2)
 
 
-GLO = ["Mix", "Master EQ", "Master out", "Setup", "Debug"]   # (Debug: a debug build's, as the DEVTEST one)
+GLO = ["Mix", "Master EQ", "Master color", "Master out", "Setup", "Debug"]   # (Debug: a debug build's, as the DEVTEST one)
 
 
 def glo(page):
     s = where()
     for _ in range(4):
-        if " of 5." in s and " list." not in s and "?" not in s:
+        if " of 6." in s and " list." not in s and "?" not in s:
             break
         run("tap", "HOME" if (" list." in s or "?" in s) else "GLO", "wait", 400)
         s = where()
     for _ in range(8):
         if s.startswith(page + ","):
             return s
-        m = re.search(r"page (\d) of 5", s)
+        m = re.search(r"page (\d) of 6", s)
         cur = int(m.group(1)) if m else 1
         run("turn", "SELECT", 1 if cur < GLO.index(page) + 1 else -1, "wait", 300)
         s = where()

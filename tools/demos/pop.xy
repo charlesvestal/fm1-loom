@@ -44,6 +44,8 @@ knob 1 level 93
 knob 1 send2 10
 # T2 stack "ply bass": round, a little brighter than its preset, mono in the middle
 preset 2 ply_bass stack
+# (the song was written before a bass preset sat an octave down)
+param 2 oct 2
 knob 2 brain no
 knob 2 cut 76
 knob 2 level 103

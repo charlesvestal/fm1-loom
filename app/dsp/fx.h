@@ -72,25 +72,33 @@ int fx_awake(const fxslot_t *f);                            /* the slot works th
                                                             * others always work) */
 
 /* ---- master ---- */
-/* the master's knobs, two pages: EQ (low, mid, high; 64 flat), out (drums, melodic, comp, pump); then the out page's
- * list (SEL): what the pump follows, its release, accent, and the level (the drive into the limiter). Value 3 was the
- * EQ's blend, values 4..7 the master tape's (TapeScam-lite: drive, color, wobble, noise), gone: a project's bytes there are ignored.
+/* the master's knobs, three pages: EQ (low, mid, high; 64 flat), color (type, amount, tone, mix), out (drums, melodic,
+ * comp, pump); then the out page's list (SEL): what the pump follows, its release, accent, and the level (the drive
+ * into the limiter). Value 3 was the EQ's blend, gone: a project's byte there is ignored.
+ * color (after the EQ, before the compressor; the voices' character stage's warm types, on the whole mix):
+ *   tape:    a wow (0.55 Hz, a 6 Hz flutter an eighth as deep) on the whole mix, ~1 .. 6 cents by the amount (times the
+ *            mix, not mixed: no comb with the dry), then the saturation (gain 0.5 .. 6, made up) into a two-pole
+ *            roll-off (tone 1.5 .. 18 kHz), mixed
+ *   sampler: the mix low-passed, held at 26 .. 11 kHz and 14 .. 11 bits by the amount, its output filter (tone 2 ..
+ *            20 kHz), mixed
  * PUMP (X0X's master PUMP): every hit of its source lowers the whole mix by up to 24 dB (rising in 12 ms) and
  * lets it swell back over the release; it is keyed by the sequencer, not by audio, so a muted track drives it
  * too. pump by: PB_KICK any kick of a kit (its first key, or a key on the kick model), PB_T1.. any note of
  * track 1..8, PB_METRO the metronome's click. release 0..127: 10 .. 1500 ms (60 = 107 ms, X0X's); accent
  * 0 / 1: a hit pumps by its velocity (0.5 .. 1 of the depth) or always fully. */
-enum { MS_EQ_LO, MS_EQ_MID, MS_EQ_HI, MS_RSV3, MS_RSV4, MS_RSV5, MS_RSV6, MS_RSV7,
+enum { MS_EQ_LO, MS_EQ_MID, MS_EQ_HI, MS_RSV3, MS_CTYPE, MS_CAMT, MS_CTONE, MS_CMIX,
        MS_PERC, MS_MEL, MS_COMP, MS_PUMP, MS_PUMP_BY, MS_PUMP_REL, MS_PUMP_ACC, MS_LEVEL, NMS };
-#define MS_NKNOB 12                   /* the knobs' places (EQ 0..3, out 8..11); MS_PUMP_BY.. are the out page's list */
+#define MS_NKNOB 12                   /* the knobs' places (EQ 0..3, color 4..7, out 8..11); MS_PUMP_BY.. the out page's list */
+enum { MC_OFF, MC_TAPE, MC_SAMPLER, NMC };   /* the master color's types */
+extern const char *const MC_NAME[NMC];
 enum { PB_KICK, PB_T1, PB_METRO = PB_T1 + 8, NPB };
 #define MS_PUMP_REL_DEF 60
 extern const char *const MS_NAME[NMS];
 typedef struct master master_t;
-#define MASTER_BYTES 1280
+#define MASTER_BYTES 1792
 void master_init(master_t *m);
-void master_set(master_t *m, int p, int v);                 /* 0..127 (EQ 64 = flat; pump by 0..NPB-1, accent
-                                                             * 0..1; 3..7 ignored) */
+void master_set(master_t *m, int p, int v);                 /* 0..127 (EQ 64 = flat; color type 0..NMC-1; pump by
+                                                             * 0..NPB-1, accent 0..1; 3 ignored) */
 int master_max(int p);                                      /* a value's top: 127, NPB - 1 or 1 */
 float master_pump_ms(int v);                                /* the pump's release, ms */
 /* a hit on pump source src (PB_*), velocity 1..127: the pump drops if it follows src (the audio interrupt) */
