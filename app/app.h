@@ -114,7 +114,8 @@ int plat_last_crash(uint32_t v[5]);     /* 1: a crash since power-on (vec, pc, e
 void loom_lights(uint32_t buttons, uint32_t keys, int glow, uint32_t dim_keys, int red);
 
 /* a debug build (not tools/build.py --release): GLO's last page, Debug, with the load, the voices and CORES */
-#define DEBUG_BUILD (APP_VERSION[0] == 'D' && APP_VERSION[1] == 'E' && APP_VERSION[2] == 'V' && !APP_VERSION[3])
+#define DEBUG_BUILD (APP_VERSION[0] == 'D' && APP_VERSION[1] == 'E' && APP_VERSION[2] == 'V' && \
+                     (!APP_VERSION[3] || APP_VERSION[3] == 'T'))   /* DEV, or the load test's DEVTEST */
 #define PROJ_MAGIC 0x384D4F4Cu          /* "LOM8" (was "XXY1": XY-1's projects start fresh) */
 #define PROJ_FORMAT 9u                  /* (pre-release: an older project does not load, nothing is migrated)
                                          * 9: the sound's octave (TP_OCT) moved TP_PLAYER on;

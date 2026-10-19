@@ -308,6 +308,8 @@ def main():
     B, O = Path(sys.argv[1]), Path(sys.argv[2])
     songs = sys.argv[3:] or list(BANKS)
     for s in songs:
+        if s not in BANKS:                           # (ambient, stress: no samples of their own)
+            continue
         d = O / s
         d.mkdir(parents=True, exist_ok=True)
         specs = BANKS[s](B, d)

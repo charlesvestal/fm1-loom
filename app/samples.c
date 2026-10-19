@@ -22,8 +22,9 @@
  *   PROF       26 part               -> part, count, then count 32-bit values (5 bytes each, 7 bits, low first): the
  *                                       profiler's running totals (tools/perf_read.py takes differences). part 0:
  *                                       the clock, the frames, engine.h's stages, the slowest block's stages, the
- *                                       load, voices, their cap, saws, guard trips, dropouts; part 1: synth.h's
- *                                       synth_prof (each engine's time, both halves); part 2: each drum track's time.
+ *                                       load, voices, their cap, saws, guard trips, dropouts, the note-start
+ *                                       check's steals; part 1: synth.h's synth_prof (each engine's time, both
+ *                                       halves); part 2: each drum track's time.
  *                                       part | 64: the slowest block starts again after this reply
  *   BENCH      27 k reps             -> k, count, name (0-terminated), runs, then 4 32-bit values (5 bytes each, as PROF):
  *                                       the fastest run, the median, the slowest, the samples a run (dsp/bench.h): the
@@ -169,7 +170,7 @@ static int smp_frame(const uint8_t *p, uint32_t n)
         sb_b(0);
         break;
     case SB_PROF: {
-        uint32_t part = na ? a[0] & 63u : 0u, v[2 + 2 * ENG_PROF_N + 6], nv = 0;
+        uint32_t part = na ? a[0] & 63u : 0u, v[2 + 2 * ENG_PROF_N + 7], nv = 0;
         if (part == 0u) {
             v[nv++] = plat_cycles();
             v[nv++] = eng_prof_frames;
@@ -183,6 +184,7 @@ static int smp_frame(const uint8_t *p, uint32_t n)
             v[nv++] = 9;                             /* (once brocade's saws under the guard: they no longer thin) */
             v[nv++] = eng_guard_count;
             v[nv++] = plat_xruns();
+            v[nv++] = synth_load_steals;
         } else if (part == 1u) {
             for (i = 0; i < 2u * (NENGINE + 1u); i++)
                 v[nv++] = synth_prof[i / (NENGINE + 1u)][i % (NENGINE + 1u)];

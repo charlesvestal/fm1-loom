@@ -240,6 +240,8 @@ int synth_voices_used(const synth_t *s);
  * the sample; 0 when none plays. Called from the main loop: a racy read of the voices, for the screen only */
 int synth_slice_now(const synth_t *s, int trk, int *slice, int32_t *pos);
 void synth_limit(synth_t *s, int max_voices);                  /* the overload guard: fewer voices */
+void synth_load_hint(synth_t *s, uint32_t pct);              /* the last block's load, %: the note-start check */
+extern uint32_t synth_load_steals;                            /* notes that took a sounding voice by the load check */
 /* what voice vi costs to render, in rough units for the cores' split (engine.c split_at): 0 silent, 4 an
  * ordinary voice (bellows 5), knit 3 + its unison (+ 1 osc 2, + 1 sub or noise); the Braids engines by their model
  * (braids.h: 3 .. 8, cane's bell the most) */

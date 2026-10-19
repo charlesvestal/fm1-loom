@@ -21,7 +21,7 @@ STAGES = ["seq", "synth0", "synth1", "drum", "fx1", "master", "wait", "fx2", "pr
 ENGINES = ["knit", "rayon", "jacquard", "bellows", "cane", "voile", "sample", "slice", "kit", "chunk"]
 TICK_HZ = 24e6
 SR = 44100.0
-TRAIL = ["load", "voices", "cap", "saws", "guard", "drops"]
+TRAIL = ["load", "voices", "cap", "saws", "guard", "drops", "steals"]
 
 
 class Port:
@@ -148,7 +148,7 @@ def line(d):
     if dr:
         s += " | drums " + " ".join(dr)
     s += " | slowest voice %.0f %% (%s, %d frames)" % d["vworst"]
-    s += f" | load {d['load']} voices {d['voices']}/{d['cap']} saws {d['saws']} guard {d['guard']} drops {d['drops']}"
+    s += f" | load {d['load']} voices {d['voices']}/{d['cap']} saws {d['saws']} guard {d['guard']} drops {d['drops']} steals {d.get('steals', 0)}"
     return s
 
 

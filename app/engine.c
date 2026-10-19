@@ -146,6 +146,7 @@ void engine_load(uint32_t pct)
 {
     uint32_t frames = guard_frames;
     guard_frames = 0;
+    synth_load_hint(SY, pct);                        /* (the note-start check: synth.c load_over) */
     guard_avg_q8 = (guard_avg_q8 * 15u + pct * 256u) / 16u;
     guard_run = pct > GUARD_ON_LAST ? (uint8_t)(guard_run < 255u ? guard_run + 1u : 255u) : 0u;
     if (guard_run >= GUARD_ON_RUN || guard_avg_q8 > GUARD_ON_AVG * 256u) {
