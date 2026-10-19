@@ -5,7 +5,7 @@ wait 300
 knob 3 engine slice
 expect par3.0 7
 knob 3 e1 classic
-expect par3.1 7
+expect par3.1 12
 knob 3 ftype hp12
 expect par3.21 3
 knob 1 d3.model shaker

@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-3.0-only
-"""LOOM-8's factory samples: placeholders made here, procedurally (no recordings), until the real ones
-are chosen: a kick, a snare, a hat, a clap, a sung "ah" (a steady vowel, looped), a piano-ish tone, a
-noise sweep and a break (a bar of drums at 120 BPM, made of the kick, snare and hat: the slice engine's), mono at 22050 Hz, IMA ADPCM with a checkpoint every 64 samples (tools/sampleio.py), into a
-header the firmware compiles in (dsp/sample.c). Deterministic: the same bytes every run.
+"""LOOM-8's factory samples: drums and a noise sweep made here, procedurally (mono at 22050 Hz); the
+recorded instruments (app/samples/, tools/prep_recordings.py: VSCO 2 CE, CC0); a vinyl loop made here; the four
+breaks (app/samples/: the slice engine's). Each at its own rate, IMA ADPCM with a checkpoint every 64
+samples (tools/sampleio.py), into a header the firmware compiles in (dsp/sample.c). Deterministic: the same bytes every run.
 
   gen_samples.py OUT.h [WAVDIR]      WAVDIR: also each sample as a 16-bit WAV (to listen to)
 """
@@ -107,57 +107,20 @@ def clap():
     return out
 
 
-def formant_gain(f, formants):
-    g = 0.0
-    for fc, bw, a in formants:
-        q = fc / bw
-        x = f / fc
-        g += a / math.sqrt((1.0 - x * x) ** 2 + (x / q) ** 2)
-    return g
-
-
-def ah():
-    """a sung "ah": a period of exactly 100 samples (220.5 Hz, A3 + 4 cents) built from its harmonics
-    under three formants, so whole periods loop seamlessly; a 40 ms onset, then the steady vowel"""
-    per = 100
-    f0 = SR / per
-    formants = [(800.0, 80.0, 1.0), (1150.0, 90.0, 0.5), (2900.0, 120.0, 0.25)]
-    r = Rng(5)
-    harm = []
-    for h in range(1, int(9000 / f0)):
-        f = h * f0
-        harm.append((h, formant_gain(f, formants) / math.sqrt(h), (r() + 1.0) * math.pi))
-    cyc = [sum(a * math.sin(TWO_PI * h * i / per + p) for h, a, p in harm) for i in range(per)]
-    n = per * 110                                    # 0.5 s
-    out = []
-    for i in range(n):
-        t = i / SR
-        on = min(1.0, t / 0.04)
-        out.append(cyc[i % per] * on * on)
-    loop = (per * 10, n)                             # from the 10th period (past the onset) to the end
-    return out, loop, 57
-
-
-def piano():
-    """a struck string: twelve partials, slightly stretched, the higher ones dying sooner, and a felt thump"""
-    n, r, out = secs(0.90), Rng(6), []
-    f0 = sio.midi_hz(60)
-    parts = []
-    for k in range(1, 13):
-        f = f0 * k * math.sqrt(1.0 + 0.0004 * k * k)
-        if f > 10000:
-            break
-        parts.append((f, 1.0 / (k ** 1.1) * (1.0 if k != 7 else 0.3), 0.9 / (1.0 + 0.45 * (k - 1))))
-    ph = [r() for _ in parts]
-    thump = onepole([r() for _ in range(n)], 400.0)
-    for i in range(n):
-        t = i / SR
-        v = 0.0
-        for j, (f, a, d) in enumerate(parts):
-            v += a * math.sin(TWO_PI * (f * t + ph[j])) * math.exp(-t / d)
-        v *= min(1.0, t / 0.002)
-        out.append(v + 3.0 * thump[i] * math.exp(-t / 0.012))
-    return out, None, 60
+def vinyl():
+    """a record's run-out: crackle (sparse clicks, each a few samples, bright and dull) over a low hiss and a little
+    rumble, a second that loops (each click whole inside it)"""
+    n, r = secs(1.0), Rng(8)
+    hiss = onepole(onepole([r() for _ in range(n)], 3500.0), 3500.0)
+    rumble = onepole(onepole([r() for _ in range(n)], 60.0), 60.0)
+    out = [0.25 * h + 1.5 * u for h, u in zip(hiss, rumble)]
+    i = secs(0.004)
+    while i < n - secs(0.004):
+        a, tau = r() * (1.0 if r() > -0.6 else 3.0), (0.00015 if r() > -0.3 else 0.0006)
+        for k in range(secs(0.004)):
+            out[i + k] += a * math.exp(-(k / SR) / tau)
+        i += int(secs(0.012) + (r() + 1.0) * secs(0.045))
+    return out, (0, n), 60
 
 
 def sweep():
@@ -172,26 +135,50 @@ BREAK_ROOT = 53                                      # F3, the lowest key: slice
 
 
 
-SAMPLES = [("kick", kick), ("snare", snare), ("hat", hat), ("clap", clap), ("ah", ah), ("piano", piano),
-           ("sweep", sweep)]
+SAMPLES = [("kick", kick), ("snare", snare), ("hat", hat), ("clap", clap), ("sweep", sweep)]
+# recorded instruments (app/samples/, tools/prep_recordings.py: from VSCO 2 CE, CC0), after the made drums: name, file,
+# rate the bank keeps it at, root; a sustained one's loop comes from its file ('smpl')
+INSTRUMENTS = [("piano", "piano.wav", 16000, 60), ("upright", "upright.wav", 11025, 28),
+               ("strings", "strings.wav", 16000, 60), ("brass", "brass.wav", 16000, 62),
+               ("flute", "flute.wav", 16000, 72), ("orch hit", "orch_hit.wav", 16000, 60)]
+MADE_AFTER = [("vinyl", vinyl, 11025)]               # made here, after the instruments, at their own rate
 # recordings (app/samples/: one bar each, mono, cut from the source loops), after the made ones: name, file, rate the
 # bank keeps it at, bars (a break: the slice engine plays it at the song's tempo, slice 1 on BREAK_ROOT). The breaks:
 # free loops posted on Reddit, their author's words "You have my full permission to use these loops in commercial
 # or personal projects" (LICENSING.md has the source)
 RECORDINGS = [("classic", "classic.wav", 16000, 1), ("heat", "heat.wav", 16000, 1), ("choke", "choke.wav", 16000, 1),
               ("ecstasy", "ecstasy.wav", 16000, 1)]
+BUDGET = 184 * 1024                                  # B: the image's room for the factory bank
 SAMPLE_DIR = Path(__file__).resolve().parents[1] / "app" / "samples"
 
 
+def names():
+    """the factory bank's names, in its order"""
+    return ([n for n, _ in SAMPLES] + [i[0] for i in INSTRUMENTS] + [m[0] for m in MADE_AFTER] +
+            [r[0] for r in RECORDINGS])
+
+
+def made(name, fn, rate):
+    v = fn()
+    loop, root, bars = None, 60, 0
+    if isinstance(v, tuple):
+        v, loop, root, *more = v
+        bars = more[0] if more else 0
+    if rate != SR:
+        v = sio.resample(v, SR, rate)
+        loop = loop and (loop[0] * rate // SR, min(len(v), loop[1] * rate // SR))
+    return (name, sio.to_int16(v), root, loop, bars, rate)
+
+
 def build():
-    out = []
-    for name, fn in SAMPLES:
-        v = fn()
-        loop, root, bars = None, 60, 0
-        if isinstance(v, tuple):
-            v, loop, root, *more = v
-            bars = more[0] if more else 0
-        out.append((name, sio.to_int16(v), root, loop, bars, sio.RATE))
+    out = [made(name, fn, SR) for name, fn in SAMPLES]
+    for name, f, rate, root in INSTRUMENTS:
+        sr, x, loop = sio.read_any_wav(SAMPLE_DIR / f)
+        if sr != rate:
+            x = sio.resample(x, sr, rate)
+            loop = loop and (loop[0] * rate // sr, loop[1] * rate // sr)
+        out.append((name, sio.to_int16(sio.emphasis(x)), root, loop and (loop[0], loop[1] + 1), 0, rate))
+    out += [made(name, fn, rate) for name, fn, rate in MADE_AFTER]
     for name, f, rate, bars in RECORDINGS:
         sr, x, _ = sio.read_any_wav(SAMPLE_DIR / f)
         out.append((name, sio.to_int16(sio.emphasis(sio.resample(x, sr, rate))), BREAK_ROOT if bars else 60, None,
@@ -211,8 +198,8 @@ def main():
         adp_all += adp
         ck_all += ck
     total = len(adp_all) + 4 * len(ck_all)
-    if total > 160 * 1024:
-        sys.exit(f"gen_samples: {total} B, over the 160 KB the factory bank may take (the image's room)")
+    if total > BUDGET:
+        sys.exit(f"gen_samples: {total} B, over the {BUDGET // 1024} KB the factory bank may take (the image's room)")
     lines = ["/* generated by tools/gen_samples.py: LOOM-8's factory samples (made procedurally, then recordings: the",
              f" * breaks), IMA ADPCM each at its rate, a checkpoint every {sio.BLK} samples; {len(adp_all)} B of ADPCM + "
              f"{4 * len(ck_all)} B of checkpoints */",

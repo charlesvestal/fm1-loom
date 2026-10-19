@@ -54,6 +54,9 @@ Where LOOM-8's own parts come from:
   "The Classic", "Heat", "Choke" and "Ecstasy", cut and resampled) are free loops shared on Reddit, whose author
   wrote: "You have my full permission to use these loops in commercial or personal projects." (Author and post
   link: TODO.)
+- The recorded instruments (`app/samples/piano.wav`, `upright.wav`, `strings.wav`, `brass.wav`, `flute.wav`,
+  `orch_hit.wav`) are cut from the Versilian Studios Chamber Orchestra 2 Community Edition (VSCO 2 CE,
+  github.com/sgossner/VSCO-2-CE), CC0 1.0, by `tools/prep_recordings.py`.
 - The reverb's PlayStation modes come from schwung-psxverb, and
   brocade's saw bank from NuSaw (Copyright (c) 2026 Charles Vestal), under the MIT License:
 

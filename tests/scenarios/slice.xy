@@ -1,7 +1,7 @@
-# the slice engine on track 3: picked from SEL's list (ENGINE: slice, its first preset "loom break", the track
-# off the conductor), the factory break cut in eight. Written on the steps a slice every two steps (F3 = slice 1
+# the slice engine on track 3: picked from SEL's list (ENGINE: slice, its first preset "breaks", the track
+# off the conductor), the classic break cut in eight. Written on the steps a slice every two steps (F3 = slice 1
 # .. C4 = slice 8) it plays the break straight; then re-sequenced; the same at 90 BPM (the slices follow the
-# tempo); "chop" (16 slices, mono) on a sixteenth pattern; the keys by hand; the picture with the slice playing.
+# tempo); "jungle" (16 slices, mono) on a sixteenth pattern; the keys by hand; the picture with the slice playing.
 # WAVs of each (tools/slice_renders.sh copies them into build/slice_renders/ with an index).
 wait 300
 spin ALGO 2
@@ -12,7 +12,7 @@ tap SEL
 turn ALGO 6 30
 tap SEL
 expect par3.0 7
-expect par3.1 7
+expect par3.1 12
 expect par3.2 1
 expect par3.brain 0
 wait 60
@@ -62,8 +62,8 @@ tap PLAY
 wait 400
 wavstop
 bpm 120
-# chop: sixteen slices, mono (each note cuts the last), on every sixteenth
-turn PRESET 1
+# jungle: sixteen slices, mono (each note cuts the last), on every sixteenth
+turn PRESET 4
 expect par3.2 2
 expect par3.5 1
 wait 60
@@ -90,7 +90,7 @@ wait 4000
 tap PLAY
 wait 400
 wavstop
-# the keys by hand: the white keys from F3 play slices 1, 3, 5 ... of eight (loom break again)
+# the keys by hand: the white keys from F3 play slices 1, 3, 5 ... of eight (breaks again)
 turn PRESET -1
 expect par3.2 1
 wav slice_keys.wav

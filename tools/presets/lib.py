@@ -67,3 +67,9 @@ def P(name, role, engine, knobs, mode="poly", glide=0, bend=2, volume=100, amp=(
                         glide=glide, bend=bend, volume=volume, amp=tuple(amp), fenv=tuple(fenv), filter=tuple(filter),
                         sends=tuple(sends), lfo=tuple(lf), char=tuple(ch), x=tuple(xs), octave=oc,
                         genres=tuple(genres)))
+
+
+def smp(name):
+    """a factory sample's index by its name (tools/gen_samples.py's order)"""
+    import gen_samples
+    return gen_samples.names().index(name)

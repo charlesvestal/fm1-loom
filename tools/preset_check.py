@@ -4,9 +4,9 @@
 their role renders (tools/render_presets.sh --roles: each preset played as its role is used, through the default
 chain: FX I delay, FX II lush, the master) and on their recipes (tools/gen_presets.py --json):
   rasp     the share of 2-6 kHz in the whole render: at most RASP dB (leads LEAD_RASP; fx, drum and loop free)
-  boom     the share of 40-150 Hz: at most BOOM dB for anything but a bass or a drum
-  level    the level of the frames that sound (within 20 dB of the loudest) within LEVEL dBFS (a stab, pluck, drum or
-           bell 5 dB lower: short by nature; a lead or a bass 4 dB: one note at a time); the peak under PEAK
+  boom     the share of 40-150 Hz: at most BOOM dB for anything but a bass, a drum or a loop (a break keeps its kick)
+  level    the level of the frames that sound (within 20 dB of the loudest) within LEVEL dBFS (a stab, pluck, drum,
+           bell or loop 5 dB lower: short by nature; a lead or a bass 4 dB: one note at a time); the peak under PEAK
   twin     the nearest other preset (tools/preset_distance.py's distance: spectrum and envelope, dB) at least TWIN
   sampler  no factory preset uses the sampler character (it is the user's)
 Prints a line a preset that fails, then a count per rule; exits 1 when one fails (--report: always 0). The limits
@@ -24,7 +24,7 @@ ROOT = Path(__file__).resolve().parents[1]
 RASP, LEAD_RASP, BOOM = -9.0, -6.0, -12.0
 LEVEL, PEAK, TWIN = (-41.0, -31.0), -1.0, 3.0     # (LEVEL: the new presets' median under the bus's headroom, -36, +-5 dB)
 FREE_RASP = {"fx", "drum", "loop"}
-SHORT = {"stab", "pluck", "drum", "bell"}           # (short by nature: their window 5 dB lower)
+SHORT = {"stab", "pluck", "drum", "bell", "loop"}         # (short by nature: their window 5 dB lower)
 LINE = {"lead", "bass"}                             # (one note at a time, against the others' chords: 4 dB lower)
 
 
@@ -84,7 +84,7 @@ def main(argv):
             lim = LEAD_RASP if r["role"] == "lead" else RASP
             if r["role"] not in FREE_RASP and rasp > lim:
                 bad.append(f"rasp {rasp:.1f} dB > {lim:.0f}")
-            if r["role"] not in ("bass", "drum") and boom > BOOM:
+            if r["role"] not in ("bass", "drum", "loop") and boom > BOOM:
                 bad.append(f"boom {boom:.1f} dB > {BOOM:.0f}")
             lo = LEVEL[0] - (5.0 if r["role"] in SHORT else 4.0 if r["role"] in LINE else 0.0)
             if not lo <= rms <= LEVEL[1]:

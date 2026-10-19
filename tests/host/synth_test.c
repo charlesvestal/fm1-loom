@@ -278,6 +278,20 @@ static void bank_sine(float hz, int n, int root)       /* one sample, a sine, as
     bank_gen(gen_sine, n, root, 0);
 }
 
+static int smp_ix(const char *name)                  /* a factory sample by its name */
+{
+    int i;
+    for (i = 0; i < smp_factory(); i++)
+        if (!strcmp(smp_name(i), name))
+            return i;
+    printf("    no factory sample \"%s\"\n", name);
+    return 0;
+}
+static int smp_frames(int i)                          /* its length played at its root, frames at 44.1 kHz */
+{
+    return (int)((float)smp_get(i)->n * 44100.0f / (float)smp_get(i)->rate);
+}
+
 static void sample_tests(void)
 {
     int n, stop, stop2, p1, p2, ok, sm, md, nt;
@@ -291,52 +305,59 @@ static void sample_tests(void)
     par[0][TP_R] = 20;
     par[0][TP_CUT] = 127;
     par[0][TP_RES] = 0;
-    par[0][TP_E1] = 0;                            /* the kick, one-shot: 0.3 s at its root */
+    {
+    int kick = smp_ix("kick"), piano = smp_ix("piano"), brass = smp_ix("brass"), sweep = smp_ix("sweep");
+    par[0][TP_E1] = (uint8_t)kick;                /* the kick, one-shot: 0.3 s at its root */
     par[0][TP_E4] = SM_ONESHOT;
     stop = sample_run(60, 1.0f, &n);
     stop2 = sample_run(72, 1.0f, &n);
     sprintf(what, "a sample at its root plays at its rate: the kick ends after %d frames (%d), an octave up %d",
-            stop, (int)(smp_get(0)->n * 2u), stop2);
-    check(what, abs(stop - (int)(smp_get(0)->n * 2u)) < 200 && abs(stop2 * 2 - stop) < 300);
-    par[0][TP_E1] = 4;                            /* the ah: 220.5 Hz at its root A3, looped */
+            stop, smp_frames(kick), stop2);
+    check(what, abs(stop - smp_frames(kick)) < 200 && abs(stop2 * 2 - stop) < 300);
+    par[0][TP_E1] = (uint8_t)piano;               /* the piano (16 kHz): C4 at its root, looped */
     par[0][TP_E4] = SM_LOOP;
-    stop = sample_run(57, 1.5f, &n);
-    p1 = period_of(sbuf + 22050, 8192, 150, 250);
-    e0 = rms_d(sbuf + 4410, 4410);
-    e1 = rms_d(sbuf + n - 4410, 4410);
-    sample_run(69, 0.6f, &n);
-    p2 = period_of(sbuf + 8820, 8192, 70, 130);
-    sprintf(what, "the ah's period at its root %d frames (200), an octave up %d (100); looped held 1.5 s: still on (%d)",
+    stop = sample_run(60, 1.5f, &n);
+    p1 = period_of(sbuf + 13230, 8192, 140, 200);
+    sample_run(72, 0.6f, &n);
+    p2 = period_of(sbuf + 8820, 8192, 70, 100);
+    sprintf(what, "the piano's period at its root %d frames (169: C4), an octave up %d (84); looped held 1.5 s: still on (%d)",
             p1, p2, stop);
-    check(what, abs(p1 - 200) <= 1 && abs(p2 - 100) <= 1 && stop == -1);
-    sprintf(what, "loop: as loud at 1.5 s as at 0.1 s (RMS %.3f, %.3f)", (double)e0, (double)e1);
-    check(what, e1 > e0 * 0.8f && e1 < e0 * 1.25f);
+    check(what, abs(p1 - 169) <= 2 && abs(p2 * 2 - p1) <= 2 && stop == -1);
+    par[0][TP_E1] = (uint8_t)brass;               /* the brass section: its loop holds its level */
+    stop = sample_run(62, 1.6f, &n);
+    e0 = rms_d(sbuf + 39690, 4410);
+    e1 = rms_d(sbuf + n - 4410, 4410);
+    sprintf(what, "loop: the brass as loud at 1.5 s as at 0.9 s (RMS %.3f, %.3f), still on (%d)", (double)e0, (double)e1,
+            stop);
+    check(what, e1 > e0 * 0.7f && e1 < e0 * 1.4f && stop == -1);
     par[0][TP_E4] = SM_ONESHOT;
-    stop = sample_run(57, 1.5f, &n);
-    sprintf(what, "one-shot: the same ah ends with its sample (%d frames, %d)", stop, (int)(smp_get(4)->n * 2u));
-    check(what, abs(stop - (int)(smp_get(4)->n * 2u)) < 200);
-    par[0][TP_E1] = 5;                            /* the piano reversed: it swells */
+    stop = sample_run(62, 1.6f, &n);
+    sprintf(what, "one-shot: the same brass ends with its sample (%d frames, %d)", stop, smp_frames(brass));
+    check(what, abs(stop - smp_frames(brass)) < 200);
+    par[0][TP_E1] = (uint8_t)piano;               /* the piano reversed: it swells */
     par[0][TP_E4] = SM_REVERSE;
-    stop = sample_run(60, 1.2f, &n);
+    stop = sample_run(60, 1.8f, &n);
     e0 = rms_d(sbuf + 2205, 8820);
-    e1 = rms_d(sbuf + (int)(smp_get(5)->n * 2u) - 8820, 8820 - 441);
+    e1 = rms_d(sbuf + smp_frames(piano) - 8820, 8820 - 441);
     sprintf(what, "reverse: the piano swells into its attack (RMS %.4f -> %.4f), ends with it (%d)", (double)e0, (double)e1, stop);
-    check(what, e1 > e0 * 1.8f && abs(stop - (int)(smp_get(5)->n * 2u)) < 300);
-    par[0][TP_E1] = 6;                            /* the sweep, pingpong: on past its 0.6 s, forth and back */
+    check(what, e1 > e0 * 1.8f && abs(stop - smp_frames(piano)) < 300);
+    par[0][TP_E1] = (uint8_t)sweep;               /* the sweep, pingpong: on past its 0.6 s, forth and back */
     par[0][TP_E4] = SM_PINGPONG;
     stop = sample_run(60, 2.0f, &n);
     e1 = rms_d(sbuf + 66150, 4410);
     sprintf(what, "pingpong: the sweep still sounds at 1.5 s, held (RMS %.4f)", (double)e1);
     check(what, stop == -1 && e1 > 0.01f);
-    par[0][TP_E1] = 5;                            /* start and length: the piano from 50 %, a quarter of the rest */
+    par[0][TP_E1] = (uint8_t)piano;               /* start and length: the piano from 50 %, a quarter of the rest */
     par[0][TP_E2] = 64;
     par[0][TP_E3] = 32;
     par[0][TP_E4] = SM_ONESHOT;
     stop = sample_run(60, 1.0f, &n);
     {
-        int want = (int)((float)(smp_get(5)->n - smp_get(5)->n * 64u / 127u) * 32.0f / 127.0f) * 2;
+        int want = (int)((float)(smp_get(piano)->n - smp_get(piano)->n * 64u / 127u) * 32.0f / 127.0f * 44100.0f /
+                         (float)smp_get(piano)->rate);
         sprintf(what, "start 64, length 32: a region of %d frames plays (%d)", stop, want);
         check(what, abs(stop - want) < 300);
+    }
     }
     par[0][TP_E2] = 0;
     par[0][TP_E3] = 127;
@@ -844,8 +865,8 @@ static void bench(void)
             par[t][TP_FTYPE] = FT_LP24;
             par[t][TP_E4] = e == EG_BELLOWS ? 8 : 100;   /* stereo where the engine has it: the dear case */
             par[t][TP_E3] = e == EG_BELLOWS ? 8 : 60;
-            if (e == EG_SAMPLE) {                /* the sung ah, looped: every voice sounds throughout */
-                par[t][TP_E1] = 4;
+            if (e == EG_SAMPLE) {                /* the strings, looped: every voice sounds throughout */
+                par[t][TP_E1] = (uint8_t)smp_ix("strings");
                 par[t][TP_E2] = 0;
                 par[t][TP_E3] = 127;
                 par[t][TP_E4] = SM_LOOP;

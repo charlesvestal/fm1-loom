@@ -46,7 +46,7 @@
 #define SMP_ENT0 64u                      /* the header's first entry */
 #define SMP_ENT 40u                       /* bytes an entry */
 #define SMP_HDR_USED (SMP_ENT0 + SMP_NUSER * SMP_ENT)   /* 1344: what an upload stages */
-#define SMP_BREAK 7                       /* the factory break (tools/gen_samples.py): the slice engine's default */
+#define SMP_BREAK 12                      /* the factory break (tools/gen_samples.py): the slice engine's default */
 #define SMP_BARS_MAX 16                   /* a user entry's bars above this: not stated */
 
 typedef struct {
