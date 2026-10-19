@@ -112,7 +112,8 @@ def render(md):
                 rows.append([c.strip() for c in lines[i].strip().strip("|").split("|")])
                 i += 1
             rows = [r for r in rows if not all(re.fullmatch(r"-*", c) for c in r)]
-            t = ['<div class="wrap"><table>']
+            t = ['<div class="wrap" tabindex="0" role="region" aria-label="table">']
+            t[0] += "<table>"
             for k, r in enumerate(rows):
                 tag = "th" if k == 0 else "td"
                 t.append("<tr>" + "".join(f"<{tag}>{inline(c)}</{tag}>" for c in r) + "</tr>")

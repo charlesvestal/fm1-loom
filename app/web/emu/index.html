@@ -11,9 +11,9 @@
 <style>
 :root { --ground: #faf4e8; --ink: #48392f; --muted: #8a7764; --rule: #e6dccb; --accent: #e0683a; --teal: #26a69a; --card: #fffaf1; color-scheme: light; }
 @media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) { --ground: #1c1814; --ink: #f2e8d8; --muted: #b3a28e; --rule: #3a322a; --accent: #f28a5a; --teal: #4cc3b6; --card: #26201b; color-scheme: dark; }
+  :root:not([data-theme="light"]) { --ground: #1c1814; --ink: #f2e8d8; --muted: #b3a28e; --rule: #3a322a; --accent: #e6b432; --teal: #46aaa0; --card: #26201b; color-scheme: dark; }
 }
-:root[data-theme="dark"] { --ground: #1c1814; --ink: #f2e8d8; --muted: #b3a28e; --rule: #3a322a; --accent: #f28a5a; --teal: #4cc3b6; --card: #26201b; color-scheme: dark; }
+:root[data-theme="dark"] { --ground: #1c1814; --ink: #f2e8d8; --muted: #b3a28e; --rule: #3a322a; --accent: #e6b432; --teal: #46aaa0; --card: #26201b; color-scheme: dark; }
 body { background: var(--ground); color: var(--ink); margin: 0; padding-inline: 16px; padding-block: 28px 48px;
        font: 400 16px/1.55 "Barlow", "Helvetica Neue", Arial, sans-serif; }
 main { max-width: 1040px; margin: 0 auto; }
@@ -26,22 +26,22 @@ a { color: var(--accent); }
 .device svg { pointer-events: none; }
 .hit { position: absolute; touch-action: none; cursor: pointer; -webkit-tap-highlight-color: transparent; border-radius: 12px; }
 .hit.knob { cursor: ns-resize; border-radius: 50%; }
-.hit:focus-visible { outline: 2px solid #f28a5a; outline-offset: 2px; }
+.hit:focus-visible { outline: 2px solid #e6b432; outline-offset: 2px; }
 .device svg { position: absolute; inset: 0; width: 100%; height: 100%; }
 .device canvas { position: absolute; left: 31.8%; top: 9.6875%; width: 20%; height: 31.25%; image-rendering: pixelated; background: #000; border-radius: 2px; }
 .ctl { cursor: pointer; }
 .ctl.knob { cursor: ns-resize; }
 .btnface { transition: fill .06s; }
-.lit .btnface { fill: #f28a5a; }
-.lit text.btn { fill: #2a140a; }
-.held .btnface, .held .keyface { stroke: #f28a5a; stroke-width: 3; }
+.lit .btnface { fill: #e6b432; }
+.lit text.btn { fill: #18120e; }
+.held .btnface, .held .keyface { stroke: #e6b432; stroke-width: 3; }
 .latched .btnface { stroke: #6fc3ff; stroke-width: 3; }
 .keyface { transition: fill .06s; }
-.lit .keyface.white { fill: #f6b48e; }
-.lit .keyface.black { fill: #4cc3b6; }
+.lit .keyface.white { fill: #f0d58a; }
+.lit .keyface.black { fill: #46aaa0; }
 .start { position: absolute; inset: 0; display: grid; place-items: center; background: rgba(10, 11, 13, .55); border-radius: 4.4% / 6.9%; }
 .start button { font: 600 1.25rem "Barlow Semi Condensed", "Barlow", sans-serif; letter-spacing: .04em; padding: .7em 1.6em;
-                border-radius: 999px; border: 0; background: #f28a5a; color: #2a140a; cursor: pointer; }
+                border-radius: 999px; border: 0; background: #e6b432; color: #18120e; cursor: pointer; }
 .start[hidden] { display: none; }
 .turn { display: none; margin: 0 0 .8rem; color: var(--muted); font-size: .92rem; }
 @media (orientation: portrait) and (max-width: 700px) { .turn { display: block; } }
@@ -62,7 +62,6 @@ kbd { font: 600 .85em ui-monospace, Menlo, monospace; background: var(--card); b
 <header>
   <h1>LOOM-8</h1>
   <p>a pocket groovebox for the FM-1, in the browser: the same code the FM-1 runs</p>
-  <nav><a href="../">About</a><a href="../install/">Install</a><a href="https://github.com/charlesvestal/fm1-loom">Source</a></nav>
 </header>
 
 <p class="turn">Turn your phone sideways for bigger controls.</p>
@@ -206,6 +205,9 @@ function hit(c, cls) {
   d.className = "hit" + (cls ? " " + cls : "");
   Object.assign(d.style, { left: `${b.x / 10}%`, top: `${b.y / 6.4}%`, width: `${b.width / 10}%`, height: `${b.height / 6.4}%` });
   for (const a of ["role", "aria-label", "tabindex"]) if (c.g.hasAttribute(a)) { d.setAttribute(a, c.g.getAttribute(a)); c.g.removeAttribute(a); }
+  if (d.getAttribute("role") === "slider")      /* (an encoder turns without end: a slider's values for the reader) */
+    for (const [a, v] of [["aria-valuemin", 0], ["aria-valuemax", 100], ["aria-valuenow", 50], ["aria-valuetext", "turn with the arrow keys"]])
+      d.setAttribute(a, v);
   if (c.g.hasAttribute("aria-description")) { d.title = c.g.getAttribute("aria-description"); d.setAttribute("aria-description", d.title); }
   c.g.setAttribute("aria-hidden", "true");
   d.addEventListener("touchstart", (e) => e.preventDefault(), { passive: false });
