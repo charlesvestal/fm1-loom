@@ -5,7 +5,8 @@ their role renders (tools/render_presets.sh --roles: each preset played as its r
 chain: FX I delay, FX II lush, the master) and on their recipes (tools/gen_presets.py --json):
   rasp     the share of 2-6 kHz in the whole render: at most RASP dB (leads LEAD_RASP; fx, drum and loop free)
   boom     the share of 40-150 Hz: at most BOOM dB for anything but a bass or a drum
-  level    the level of the frames that sound (within 20 dB of the loudest) within LEVEL dBFS; the peak under PEAK
+  level    the level of the frames that sound (within 20 dB of the loudest) within LEVEL dBFS (a stab, pluck, drum or
+           bell 5 dB lower: short by nature); the peak under PEAK
   twin     the nearest other preset (tools/preset_distance.py's distance: spectrum and envelope, dB) at least TWIN
   sampler  no factory preset uses the sampler character (it is the user's)
 Prints a line a preset that fails, then a count per rule; exits 1 when one fails (--report: always 0). The limits
@@ -23,6 +24,7 @@ ROOT = Path(__file__).resolve().parents[1]
 RASP, LEAD_RASP, BOOM = -9.0, -6.0, -12.0
 LEVEL, PEAK, TWIN = (-37.0, -26.0), -1.0, 3.0     # (LEVEL: the old bank's median, -31.5, +-5 dB)
 FREE_RASP = {"fx", "drum", "loop"}
+SHORT = {"stab", "pluck", "drum", "bell"}           # (short by nature: their window 5 dB lower)
 
 
 def load(p):
@@ -83,7 +85,8 @@ def main(argv):
                 bad.append(f"rasp {rasp:.1f} dB > {lim:.0f}")
             if r["role"] not in ("bass", "drum") and boom > BOOM:
                 bad.append(f"boom {boom:.1f} dB > {BOOM:.0f}")
-            if not LEVEL[0] <= rms <= LEVEL[1]:
+            lo = LEVEL[0] - (5.0 if r["role"] in SHORT else 0.0)
+            if not lo <= rms <= LEVEL[1]:
                 bad.append(f"level {rms:.1f} dBFS")
             if peak > PEAK:
                 bad.append(f"peak {peak:.1f} dBFS")
