@@ -1,0 +1,34 @@
+# REC held while playing, on a sound page: the knobs turn and are recorded (motion punched in, as keys punch in
+# notes); let go, they no longer record. On Steps, REC held keeps the record settings; stopped, everywhere
+wait 300
+spin ALGO 1
+expect trk 2
+tap EDIT
+expect page Engine
+tap PLAY
+wait 300
+press REC
+wait 20
+shot recknob.png
+spin K1 4
+wait 260
+spin K1 4
+wait 260
+spin K1 4
+release REC
+expect lane 2 1 e1 2
+wait 200
+spin K2 4
+expect lane 2 1 e2 0
+tap SEQ
+expect page Steps
+press REC
+spin K3 -10
+release REC
+tap PLAY
+expect playing 0
+tap EDIT
+press REC
+spin K1 1
+release REC
+expect lane 2 1 e1 2

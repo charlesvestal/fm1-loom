@@ -143,7 +143,8 @@ press…" means keep **HOME** down while you press the next thing.
 | play | Press **PLAY**: every track starts from step 1. |
 | record live | Hold **REC** and press **PLAY**: it records from step 1 at once (after the count-in, if set). |
 | record while playing | Hold **REC** and play: it records while you hold it. Hold **REC** and press **PLAY** to keep it on. |
-| set the click, count-in, quantise | Hold **REC** and turn the knobs: CLICK, COUNT, QUANT, MODE (overdub or replace). |
+| record a knob's motion | While it plays, on a sound page, hold **REC** and turn the knob: it is recorded while you hold **REC**. |
+| set the click, count-in, quantise | Stopped, hold **REC** and turn the knobs: CLICK, COUNT, QUANT, MODE (overdub or replace). |
 | record step by step | Stopped, on Steps, tap **REC**. The red cursor starts after the last note; each key (or chord) you play writes it and moves on. **OCT+** leaves a rest, **OCT−** goes back. **REC** again ends. |
 | undo | Hold **HOME** and press **REC**. Hold **HOME** and press **PLAY** to redo. |
 | set the tempo | Press **HOME** and turn **KNOB 1**. Hold **HOME** and turn it for tenths. On any page, hold **HOME** and turn **SELECT**. |
@@ -165,7 +166,7 @@ press…" means keep **HOME** down while you press the next thing.
 | Control | What it does |
 | --- | --- |
 | **PLAY** | Starts (every track from step 1) and stops. A track whose scale or length you change stays in phase with the rest. On the Song page, it plays the song from the slot picked. With **REC** held, it starts live recording. |
-| **REC** | Held while playing: records while held. Stopped: a tap arms step record. Held, the knobs are the record settings (click, count-in, quantise, mode). |
+| **REC** | Held while playing: records while held. Stopped: a tap arms step record. Held while playing on a sound page, the knobs you turn are recorded; held while stopped (or on Steps), the knobs are the record settings (click, count-in, quantise, mode). |
 | **SEL** | Opens a list of this page's settings and actions. With a step held, its notes. When LOOM-8 asks a question, **SEL** means yes. |
 | **HOME** | Opens Arrange. On Arrange, it opens the Song page. Held, it is the shift key for buttons and knobs: undo and redo, the fine tempo, the scenes on **PRESETS**. When LOOM-8 asks a question, **HOME** means no. |
 | **SEQ** | Opens Steps. Its page 2 is Bar. Hold it on Steps and the keys play the track and set what a step writes. |
@@ -383,10 +384,13 @@ variations; a drum pattern's rhythm with a melody's notes makes a riff.
   land on one step together. Press **PLAY** to stop.
 - **While playing**: hold **REC** and play. It records only while you hold **REC**. Hold **REC** and press
   **PLAY** to keep it on; press **REC** again to turn it off.
+- **Motion**: while recording, a knob you turn on a sound page (Engine, Envelope, Filter, Character, Sends,
+  LFO ...) is written onto the steps as they play, as locks. To punch it in, hold **REC** while it plays and turn
+  the knob: it records while you hold **REC**, the keys too.
 - **Chords on the conductor**: turn **ALGORITHM** to COND and record the same way. Each chord lands on the
   nearest step (set its scale to 4 on the Bar page, so a step is a beat), and a new chord replaces the one
   that was there.
-- **Record settings**: hold **REC** and turn the knobs: CLICK (off, while recording, on), COUNT (a count-in of
+- **Record settings**: stopped (or on Steps and Bar), hold **REC** and turn the knobs: CLICK (off, while recording, on), COUNT (a count-in of
   off, 1 or 2 bars), QUANT (how far notes are pulled onto the steps) and MODE (overdub adds to the pattern;
   replace clears the steps the playhead passes as you record over them). Holding **REC** to turn them
   changes nothing else.

@@ -293,6 +293,18 @@ static int expect_more(const char *what, const char *a, const char *b, const cha
             host_fails++;
         } else
             printf("  ok note %s %s %s == %d\n", t, pt, st, got);
+    } else if (!strcmp(what, "lane")) {            /* expect lane T PAT PARAM N: the steps a lock / motion lane holds */
+        char t[16] = {0}, pt[16] = {0}, pn[24] = {0}, nv[16] = {0};
+        int ln, got = 0;
+        sscanf(plat_host_line, "%*s %*s %15s %15s %23s %15s", t, pt, pn, nv);
+        ln = lane_find(pats.lane, atoi(t) - 1, atoi(pt) - 1, param_of(pn));
+        for (int i = 0; ln >= 0 && i < NSTEP; i++)
+            got += pats.lane[ln].val[i] != LOCK_NONE;
+        if ((atoi(nv) == 0) != (got == 0) || (atoi(nv) > 0 && got < atoi(nv))) {
+            printf("FAIL expect lane %s %s %s >= %s, got %d\n", t, pt, pn, nv, got);
+            host_fails++;
+        } else
+            printf("  ok lane %s %s %s: %d steps\n", t, pt, pn, got);
     } else if (!strcmp(what, "weave")) {           /* expect weave PAT S MASK LEN: the WEAVE track's step */
         char pt[16] = {0}, st[16] = {0}, m[16] = {0}, l[16] = {0};
         const wv_step_t *w;

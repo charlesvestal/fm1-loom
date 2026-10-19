@@ -481,6 +481,12 @@ static int playing(void) { return seq.playing; }
 static int recording(void) { return seq.rec || seq.rec_wait || ui.rec_armed; }
 static int step_shown(int i) { return ui.bar * 16 + i; }
 static int home_held(void) { return ui.btn >> B_HOME & 1u; }
+/* REC held: its knobs are the record settings while stopped and on Steps and Bar; on a sound page while playing,
+ * the page's own, recorded as they turn (a punch-in of motion, as the keys punch in notes) */
+static int rec_settings(void)
+{
+    return (ui.btn >> B_REC & 1u) && !home_held() && (!playing() || ui.page == P_STEPS || ui.page == P_BAR);
+}
 static int pl_type(int t) { return is_aux(t) ? PL_OFF : proj.trk[t].par[TP_PLAYER] % NPL; }
 #define CTYPE_NAME(par) (tp_info_par(TP_CTYPE, par)->names[(par)[TP_CTYPE] % NCT])   /* the character's type */
 static int inst_trk(void) { return is_aux(sel_trk()) ? ui.last_inst % NTRK : sel_trk(); }   /* the keys' instrument */
@@ -1029,7 +1035,7 @@ static void page_knobs(knob_t *k)
     memset(k, 0, 4 * sizeof k[0]);
     for (int i = 0; i < 4; i++)
         k[i].live = -1;
-    if ((ui.btn >> B_REC & 1u) && !home_held()) {   /* REC held: the record settings */
+    if (rec_settings()) {                            /* REC held: the record settings */
         static const char *const CIN[3] = {"off", "1 bar", "2 bars"};
         static const char *const MODE[2] = {"overdub", "replace"};
         kname(&k[0], "CLICK", METRO_NAME, proj.metronome, 3);
@@ -1404,8 +1410,12 @@ static void page_footer(char *t)
             s_cat(t, "SEL yes|HOME no");
         return;
     }
-    if ((ui.btn >> B_REC & 1u) && !home_held()) {   /* REC held: its knobs, and step record */
+    if (rec_settings()) {                            /* REC held: its knobs, and step record */
         s_cat(t, playing() ? "KNOBS record settings|KEYS record" : "KNOBS record settings|PLAY record");
+        return;
+    }
+    if ((ui.btn >> B_REC & 1u) && !home_held()) {   /* (playing, a sound page: the knobs record) */
+        s_cat(t, "KNOBS record motion|KEYS record notes");
         return;
     }
     if (ui.card) {

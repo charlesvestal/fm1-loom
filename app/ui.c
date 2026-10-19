@@ -1535,7 +1535,7 @@ static void knob(int k, int32_t e)
     int trk = sel_trk(), p;
     e = accel(EN_K1 + k, e);
     touch(k);
-    if ((ui.btn >> B_REC & 1u) && !home_held()) {
+    if (rec_settings()) {
         rec_knob(k, e);
         return;
     }
@@ -1582,8 +1582,11 @@ static void knob(int k, int32_t e)
     if (ui.page == P_SENDS) {
         trk = inst_trk();
         p = tp_page_param(P_SENDS, k, trk);
-        if (p >= 0)
-            set_tp(trk, p, proj.trk[trk].par[p] + (int)e);
+        if (p < 0)
+            return;
+        set_tp(trk, p, proj.trk[trk].par[p] + (int)e);
+        if (seq.rec && playing() && trk == sel_trk())
+            seq_rec_knob(&seq, trk, p, proj.trk[trk].par[p]);
         return;
     }
     if (ui.page == P_CHARACTER) {                /* the instrument's (an effect track selected: the last one played) */
