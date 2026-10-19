@@ -445,6 +445,8 @@ static const char *page_name_of(int p, int trk)
         return "Key";
     if (is_drum(trk) && p == P_ENV2)
         return "Kit env";
+    if (is_drum(trk) && p == P_PLAY2)
+        return "Sends";
     if (trk == AUX_WEAVE && p == P_ENGINE)
         return "Weave";
     if (trk == AUX_BRAIN && p == P_SUB)
@@ -487,8 +489,8 @@ static int group_n(int g)
     if (b == B_SEQ && trk == AUX_WEAVE)
         return 1;                                    /* (WEAVE's steps: no Bar page) */
     if (b == B_EDIT)                                 /* (grp_page: the conductor's Sub third; a kit, an FX track: two) */
-        return trk == AUX_PUNCH || trk == AUX_WEAVE ? 1 : trk == AUX_BRAIN ? 3 : is_aux(trk) || is_drum(trk) ? 2
-             : x_page(trk) ? 4 : 3;
+        return trk == AUX_PUNCH || trk == AUX_WEAVE ? 1 : trk == AUX_BRAIN ? 3 : is_aux(trk) ? 2
+             : is_drum(trk) ? 3 : x_page(trk) ? 4 : 3;      /* (a kit: Engine, Key, Sends: the key's own) */
     if (b == B_ARP)                                  /* (grp_page: Players, Players 2, Hold the arp's, Weave) */
         return is_aux(trk) ? 1 : pl_type(trk) == PL_ARP ? 4 : 3;
     if (b == B_ENV)
@@ -581,8 +583,8 @@ static int tp_page_param(int p, int k, int trk)
             return k < 2 ? -1 : M[p - P_ENGINE][k];
         if (p == P_ENV2)                             /* the kit's envelope: lag, attack, random, length */
             return M[P_ENV - P_ENGINE][k];
-        if (p == P_PLAY2)                            /* (a kit has no octave page) */
-            return -1;
+        if (p == P_PLAY2)                            /* (a kit has no octave page: the key's sends, as FX's Sends) */
+            return k < 2 ? TP_DRUM(key, DP_SEND1 + k) : -1;
     }
     if (p == P_SUB && !x_page(trk))
         return -1;
@@ -2054,13 +2056,13 @@ static void draw_arrange(void)
         text_r(22, y - 3, &FONT_XS, nm, tr == sel_trk() ? K_TEXT : ink);
         num_s((uint32_t)pt + 1u, s_cat(t, "P"));
         text_c(37, y - 3, &FONT_XS, t, muted ? K_FAINT : trk_ink(tr));
-        cv_rect(52, y + 3, 96, 2, K_PANEL2);
+        cv_rect(52, y + 3, 88, 2, K_PANEL2);         /* (88 px: "mute" fits before the rule at 168) */
         if (len > 0 && len <= NSTEP)
-            cv_rect(52, y + 3, 96 * len / NSTEP, 2, muted ? K_LINE : trk_tint(tr));
+            cv_rect(52, y + 3, 88 * len / NSTEP, 2, muted ? K_LINE : trk_tint(tr));
         if (playing() && !muted && len > 0)
-            cv_round(52 + 94 * (pos % len) / (len > 1 ? len - 1 : 1), y + 1, 3, 6, 1, trk_ink(tr));
+            cv_round(52 + 86 * (pos % len) / (len > 1 ? len - 1 : 1), y + 1, 3, 6, 1, trk_ink(tr));
         if (muted)
-            cv_text(152, y - 3, &FONT_XS, "mute", K_DIM);
+            cv_text(144, y - 3, &FONT_XS, "mute", K_DIM);
     }
     cv_rect(168, 4, 1, 112, K_LINE);
     text_c(204, 8, &FONT_XS, cue == 0xFF || cue == sc ? "scene" : seq.cue_end ? "at the end" : "next bar", K_DIM);
@@ -4036,6 +4038,8 @@ static void draw_page(void)
             draw_engine();
         else if (ui.page == P_PLAY)
             draw_play();
+        else if (ui.page == P_PLAY2 && is_drum(trk))
+            draw_sends();
         else if (ui.page == P_PLAY2)
             draw_play2();
         else if (ui.page == P_SUB)

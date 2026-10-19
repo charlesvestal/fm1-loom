@@ -24,3 +24,18 @@ spin K1 5
 expect par1.d4.send1 5
 wait 60
 shot kit_sends_key.png
+# EDIT's third page on a kit: Sends, the key's own (the same values as FX's)
+tap EDIT
+turn SELECT 2
+expect page Sends
+spin K2 4
+expect par1.d4.send2 4
+wait 60
+shot kit_edit_sends.png
+# from the WEAVE track, ARP goes back to the last track picked (as Mix's FX strips: ALGO passed T8 on the way)
+turn ALGO 1
+expect trk 2
+turn ALGO 9
+expect trk 13
+tap ARP
+expect trk 8

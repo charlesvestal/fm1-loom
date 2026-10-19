@@ -71,7 +71,7 @@ static void say_no(const char *a, const char *b)
     ui.msg_until = plat_ms() + 2000u;
 }
 void ui_say(const char *a, const char *b) { say(a, b); }
-const char *ui_page_name(void) { return sel_trk() == AUX_BRAIN && ui.page == P_SUB ? "Follow" : PAGE_NAME[ui.page % NPAGES]; }
+const char *ui_page_name(void) { return page_name_of(ui.page, sel_trk()); }   /* (the header's: a kit's Key, Sends ...) */
 
 #define SONG_REP_DEF 4                           /* a song's first slot: four bars */
 static void mark_dirty(void)
@@ -1209,12 +1209,9 @@ static void page_button(int b)
 {
     if (b != B_GLO && is_fx(sel_trk()))          /* (FX I and FX II are Mix's strips: elsewhere the instrument again) */
         track_select(ui.last_inst);
-    if (is_aux(sel_trk()) && (b == B_ENV || b == B_LFO || (b == B_ARP && (is_fx(sel_trk()) || sel_trk() == AUX_WEAVE)))) {
-        /* (no such page here: EDIT's instead, saying where it is) */
-        say(TRACK_NAME[sel_trk()], sel_trk() == AUX_WEAVE && b == B_ARP ? "each track's weave: on its ARP"
-                                                                         : "its knobs are on EDIT");
-        b = B_EDIT;
-    }
+    if (is_aux(sel_trk()) && (b == B_ENV || b == B_LFO || (b == B_ARP && sel_trk() == AUX_WEAVE)))
+        track_select(ui.last_inst);              /* (the conductor, the throws, WEAVE have no such page: the track
+                                                  * played last, as Mix's FX strips do; each track's weave is its ARP's) */
     for (uint32_t i = 0; i < NPAGE_BTN; i++)
         if (PAGE_BTN[i].btn == b) {
             ui.page = (uint8_t)(b == B_HOME && ui.page == P_ARRANGE ? P_SONG : grp_page((int)i, 0));
@@ -1638,7 +1635,8 @@ static void presets(int32_t e)
     default:
         if (is_fx(trk))
             fx_pick(trk, d);
-        else if (is_drum(trk) && (ui.page == P_ENGINE || ui.page == P_PLAY || ui.page == P_ENV || ui.page == P_SENDS)) {
+        else if (is_drum(trk) && (ui.page == P_ENGINE || ui.page == P_PLAY || ui.page == P_PLAY2 || ui.page == P_ENV ||
+                                  ui.page == P_SENDS)) {
             ui.dsound = (uint8_t)((ui.dsound + d + DL_NSOUND) % DL_NSOUND);
             say("KEY", DL_SOUND_NAME[ui.dsound]);
         } else if (!is_aux(trk) && ui.page >= P_ENGINE && ui.page <= P_PLAYERS3)

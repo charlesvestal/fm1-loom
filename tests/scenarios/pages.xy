@@ -19,13 +19,18 @@ expect page Engine
 wait 40
 shot drum_engine.png
 turn SELECT 1
-expect page Play
+expect page Key
 wait 40
 shot drum_key.png
 tap SEL
 wait 40
 shot drum_key_list.png
 tap HOME
+tap EDIT
+turn SELECT 2
+expect page Sends
+wait 40
+shot drum_sends.png
 tap ENV
 wait 40
 shot drum_envelope.png
