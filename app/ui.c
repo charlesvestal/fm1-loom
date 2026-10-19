@@ -163,17 +163,25 @@ static void set_tp(int trk, int p, int v)
         v = clampi(v, 0, 127);
     if (par[p] == v)
         return;
-    par[p] = (uint8_t)v;
-    if (p == TP_LTYPE && !is_aux(trk)) {         /* another LFO type: its own knobs start from their defaults */
+    if (p == TP_LTYPE && !is_aux(trk)) {         /* another LFO type: a knob that means the same there keeps its
+                                                  * value (wave and drift share speed, amount, dest, param); one
+                                                  * that means another thing starts from its default */
         static const uint8_t LQ[5] = {TP_LSPEED, TP_LAMT, TP_LDEST, TP_LX, TP_LX2};
+        const char *was[5];
+        for (int i = 0; i < 5; i++)
+            was[i] = tp_info_par(LQ[i], par)->name;
+        par[p] = (uint8_t)v;
         engine_set(trk, p, v);
         for (int i = 0; i < 5; i++) {
-            par[LQ[i]] = tp_info_par(LQ[i], par)->def;
+            const tp_info_t *in = tp_info_par(LQ[i], par);
+            if (!s_eq(was[i], in->name) || par[LQ[i]] < in->lo || par[LQ[i]] > in->hi)
+                par[LQ[i]] = in->def;
             engine_set(trk, LQ[i], par[LQ[i]]);
         }
         mark_dirty();
         return;
     }
+    par[p] = (uint8_t)v;
     if (is_drum(trk) && p >= TP_DRUM0 && (p - TP_DRUM0) % DP_N == DP_MODEL) {   /* another model on a key: its
                                                                                 * own knobs from its defaults */
         int key = (p - TP_DRUM0) / DP_N;

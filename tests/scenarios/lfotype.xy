@@ -1,0 +1,18 @@
+# another LFO type keeps the knobs that mean the same there: wave -> drift keeps speed, amount, dest and param;
+# -> wobble, whose third knob is a volume amount, starts that one from its default (96)
+wait 300
+spin ALGO 2
+expect trk 3
+knob 3 ltype wave
+knob 3 ldest synth
+knob 3 lamt 100
+knob 3 lspeed 40
+expect par3.ldest 0
+knob 3 ltype drift
+expect par3.ltype 3
+expect par3.ldest 0
+expect par3.lamt 100
+knob 3 ltype wave
+expect par3.ldest 0
+knob 3 ltype wobble
+expect par3.ldest 96
