@@ -33,8 +33,9 @@ const char *fx_knob_name(int pick, int k);     /* the four knobs' names (the pla
  *   plate       size motion tone damp            100 40 44 72   combs x1.43 (feedback 0.88), a little wander, 7.4 kHz, damp 0.45
  *   SPU modes   size decay tone damp             127 64 64 0    the console's own: its delays (x4 of the registers), its
  *                                                               wall feedback, flat, its own reflection filter
- *   lush        size decay tone damp             64 80 56 48    Dattorro's lengths x1 (pre-delay 19 ms), decay 0.69,
- *                                                               a little darker, the tank's damping at 0.39
+ *   lush        size decay tone damp             64 64 56 48    Dattorro's lengths x1 (pre-delay 19 ms), a tail of
+ *                                                               ~1.4 s (decay: 0.6 .. 7 s to fall 60 dB, whatever the
+ *                                                               size), a little darker, the tank's damping at 0.39
  * delay time: 1/32 1/32D 1/16 1/16D 1/8 1/8D 1/4 1/2 of the tempo, fine +-25 %; delay tone: the repeats' low-pass,
  * 800 Hz .. 19 kHz; reverb tone: a low-pass below the centre, a high-pass above it; plate damp: the combs' damping.
  * SPU size: the delays from x1 of the registers (schwung-psxverb's) to x4 (the console's: the registers count

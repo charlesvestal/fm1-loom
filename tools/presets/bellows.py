@@ -7,11 +7,11 @@ from lib import P
 TRANSISTOR, COMBO, JAZZ, GOSPEL, ROCK, THEATRE, PIPE, CHURCH = range(1, 9)
 
 # its sound in a new project: jazz drawbars, a slow rotor
-P("bellows", "keys", "bellows", knobs=dict(stops=JAZZ, pedal=1, rotor=4, rate=2), volume=100,
+P("bellows", "keys", "bellows", knobs=dict(stops=JAZZ, pedal=1, rotor=4, rate=2), volume=84,
   amp=(0, 64, 127, 40), fenv=(0, 64, 0, 64), filter=("lp12", 110, 0, 64, 64), sends=(0, 15),
   genres=("house", "lofi"))
 # the house organ bass (the M1's percussive organ): struck, decaying to a third, an octave down
-P("organ bass", "bass", "bellows", knobs=dict(stops=ROCK, pedal=4, rotor=1, rate=1), mode="mono", volume=110,
+P("organ bass", "bass", "bellows", knobs=dict(stops=ROCK, pedal=4, rotor=1, rate=1), mode="mono", volume=127,
   amp=(0, 78, 40, 30), fenv=(0, 64, 0, 64), filter=("lp24", 90, 0, 64, 40), genres=("house", "garage"))
 # gospel: every bar out, the rotor fast, a little tape
 P("gospel", "chord", "bellows", knobs=dict(stops=GOSPEL, pedal=3, rotor=6, rate=7), volume=92,

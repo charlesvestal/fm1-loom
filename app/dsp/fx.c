@@ -66,7 +66,7 @@ const uint8_t FXT_DEFAULT[NFXT][4] = {
     {100, 40, 44, 72},                        /* plate       combs x1.43, 2.4 samples of wander, 7.4 kHz, damp 0.45 */
 };
 const uint8_t RV_SPU_DEFAULT[4] = {127, 64, 64, 0};   /* the console's sizes, its decay, flat, its own filter */
-const uint8_t RV_LUSH_DEFAULT[4] = {64, 80, 56, 48};  /* (fx.h) */
+const uint8_t RV_LUSH_DEFAULT[4] = {64, 64, 56, 48};  /* (fx.h) */
 
 const char *fx_pick_name(int pick)
 {
@@ -233,7 +233,10 @@ static void fx_derive(fxslot_t *f)
     case FXT_REVERB:
         if (f->mode_t == RV_LUSH) {
             f->pt[0] = 0.5f + a;                                      /* size: Dattorro's lengths x0.5 .. x1.5 */
-            f->pt[1] = 0.2f + 0.78f * fm_sqrtf(b);                    /* decay: the tank's gain 0.2 .. 0.98 */
+            /* decay: the tail's time, the tank's gain from it and the size (a trip round both halves ~0.715 s x size,
+             * the gain met twice: 40 log10(g) = -60 trip / T, T 0.4 .. 19 s); the damping takes more, so measured
+             * (an impulse, 60 dB down): 0 0.56 s, 45 0.9 s, 64 ~1.4 s, 100 3.7 s, 127 7.2 s, whatever the size */
+            f->pt[1] = fm_exp2f(-1.5f * 3.32192809f * 0.715f * (0.5f + a) / (0.4f * fm_exp2f(b * 5.6f)));
             f->pt[2] = c < 0.5f ? onepole_k(20000.0f * fm_exp2f(-(0.5f - c) * 9.29f)) : 1.0f;   /* tone: the plate's */
             f->pt[5] = c > 0.5f ? onepole_k(20.0f * fm_exp2f((c - 0.5f) * 13.29f)) : 0.0f;
             f->pt[3] = 0.05f + 0.85f * d;                             /* damp: the tank's low-pass, 0.05 open .. 0.9 */
@@ -794,8 +797,8 @@ static void do_lush(fxslot_t *f, const float *x, float *ol, float *orr, int m, i
 #undef T
             u->prev[0] = u->cur[0];
             u->prev[1] = u->cur[1];
-            u->cur[0] = l0 * 0.6f;
-            u->cur[1] = r0 * 0.6f;
+            u->cur[0] = l0 * 0.45f;                 /* (0.6 was a little loud beside the dry: Charles) */
+            u->cur[1] = r0 * 0.45f;
             u->base = b - 1u;
             u->quiet = (wz == 0 && !any) ? u->quiet + 2 : 0;
         }
@@ -930,6 +933,13 @@ struct master {
 };
 _Static_assert(sizeof(struct master) <= MASTER_BYTES, "master_t does not fit MASTER_BYTES");
 
+/* the bus's headroom: the groups enter it 8 dB down, so a project's chords and its kit peak a few dB under full scale
+ * before the EQ, the color, the compressor and the limiter (at unity they peaked at +2 .. +9 dBFS: the limiter always
+ * working, the organs audibly squashed; 2026-10-19). The drums and the synths keep their balance; the FM-1's volume
+ * makes up the level */
+#ifndef MST_HEADROOM                          /* (tests/host/fx_test.sh: 1, the master's mechanics at unity) */
+#define MST_HEADROOM 0.4f
+#endif
 static float level_lin(int v)                 /* 0 .. 100 .. 127: silence, unity (exactly), 2x */
 {
     float x = (float)(v < 0 ? 0 : v > 127 ? 127 : v);
@@ -1113,7 +1123,8 @@ void master_init(master_t *m)
     for (i = 0; i < NMS; i++)
         m->pot[i] = DEF[i];
     m->gain = 1.0f;
-    m->gp = m->gp_c = m->gm = m->gm_c = m->glev = m->lev_c = 1.0f;
+    m->gp = m->gp_c = m->gm = m->gm_c = MST_HEADROOM;
+    m->glev = m->lev_c = 1.0f;
     eq_coefs(m);
     comp_coefs(m);
     color_coefs(m);
@@ -1131,9 +1142,9 @@ void master_set(master_t *m, int p, int v)
     else if (p <= MS_CMIX)
         color_coefs(m);
     else if (p == MS_PERC)
-        m->gp = level_lin(v);
+        m->gp = level_lin(v) * MST_HEADROOM;
     else if (p == MS_MEL)
-        m->gm = level_lin(v);
+        m->gm = level_lin(v) * MST_HEADROOM;
     else if (p == MS_LEVEL)
         m->glev = level_lin(v);
     else

@@ -42,7 +42,7 @@ P("chip lead", "lead", "jacquard", knobs=dict(table=GRIT, scan=30, bend=0, rippl
 P("shimmer", "bell", "jacquard", knobs=dict(table=GLASS, scan=100, bend=0, ripple=20), volume=100,
   amp=(0, 100, 0, 90), fenv=(0, 64, 0, 64), filter=("lp12", 96, 0, 64, 64), sends=(0, 45), genres=("synthpop",))
 # a nasal lead: the climbing resonance, mid-scan, a vibrato
-P("nasal lead", "lead", "jacquard", knobs=dict(table=NASAL, scan=50, bend=0, ripple=0), mode="mono", volume=124,
+P("nasal lead", "lead", "jacquard", knobs=dict(table=NASAL, scan=50, bend=0, ripple=0), mode="mono", volume=127,
   amp=(10, 70, 115, 50), fenv=(0, 64, 0, 64), filter=("lp24", 86, 10, 64, 64), sends=(20, 15),
   lfo=("wobble", 92, 74, 64, 20, 0), genres=("synthpop",))
 # a digital pluck: the grit table's steps, rippled, the filter's snap, a delay throw

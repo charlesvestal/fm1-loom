@@ -17,11 +17,11 @@ def ratio(q):
 
 
 # its sound in a new project: the DX e-piano, 1:1 with the tine's bark, its brightness falling as a tine's does
-P("rayon", "keys", "rayon", knobs=dict(bright=58, ratio=ratio(1), edge=0, tine=70), volume=104,
+P("rayon", "keys", "rayon", knobs=dict(bright=58, ratio=ratio(1), edge=0, tine=70), volume=87,
   amp=(0, 94, 0, 70), fenv=(0, 64, 0, 64), filter=("lp12", 110, 0, 64, 64), sends=(0, 18), x=(62, 30, 50, 0),
   genres=("synthpop", "lofi", "garage"))
 # a mellow electric piano: less bark, a slower fall, a tremolo, tape
-P("mellow ep", "keys", "rayon", knobs=dict(bright=46, ratio=ratio(1), edge=0, tine=36), volume=110,
+P("mellow ep", "keys", "rayon", knobs=dict(bright=46, ratio=ratio(1), edge=0, tine=36), volume=92,
   amp=(0, 96, 0, 76), fenv=(0, 64, 0, 64), filter=("lp12", 96, 0, 64, 64), sends=(0, 22), x=(80, 35, 50, 0),
   lfo=("wobble", 70, 64, 82, 64, 0), char=("tape", 35, 70, 127), genres=("lofi", "house"))
 # the DX bass: a half-ratio modulator, plucked
@@ -29,7 +29,7 @@ P("dx bass", "bass", "rayon", knobs=dict(bright=80, ratio=ratio(0.5), edge=30, t
   amp=(0, 80, 70, 40), fenv=(0, 64, 0, 40), filter=("lp24", 90, 5, 64, 40), x=(35, 20, 30, 0),
   genres=("synthpop", "house"))
 # the slap: a bright 1:1 snapping shut in ~70 ms, the tine for the pop, a tilt up for the click
-P("slap", "bass", "rayon", knobs=dict(bright=110, ratio=ratio(1), edge=30, tine=40), mode="mono", volume=100,
+P("slap", "bass", "rayon", knobs=dict(bright=110, ratio=ratio(1), edge=30, tine=40), mode="mono", volume=127,
   amp=(0, 70, 55, 25), fenv=(0, 30, 0, 30), filter=("lp12", 110, 0, 100, 64), x=(28, 55, 40, 0),
   char=("tilt", 50, 106, 127), genres=("synthpop", "garage", "house"))
 # a glass bell: 3.5:1, ringing long, in the room
@@ -53,6 +53,6 @@ P("glass pad", "pad", "rayon", knobs=dict(bright=35, ratio=ratio(2.0), edge=0, t
   amp=(90, 90, 120, 100), fenv=(0, 64, 0, 64), filter=("lp12", 90, 0, 64, 64), sends=(0, 50), x=(0, 0, 70, 0),
   lfo=("wave", 20, 74, "filter free", 0, 1), char=("tape", 40, 60, 127), genres=("lofi",))
 # toy keys: 3:1 with the tine, short and bright, a music box gone a little wrong
-P("toy keys", "keys", "rayon", knobs=dict(bright=45, ratio=ratio(3.0), edge=0, tine=50), volume=108,
+P("toy keys", "keys", "rayon", knobs=dict(bright=45, ratio=ratio(3.0), edge=0, tine=50), volume=91,
   amp=(0, 82, 0, 60), fenv=(0, 64, 0, 64), filter=("lp12", 108, 0, 64, 64), sends=(10, 25), x=(40, 10, 50, 0),
   genres=("lofi",))
