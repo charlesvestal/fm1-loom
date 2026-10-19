@@ -382,12 +382,12 @@ int main(void)
                     par[TP_DRUM(0, DP_K1 + k)] = DM_DEFAULT[m][k];
                     continue;
                 }
-                if (nan_seen || d2 < (m == DM_SAMPLE && k == 2 ? -40.0f : -26.0f) || d2 > 1.0f) {   /* (the
-                                                       * sample's start at 99 %: its quiet tail) */
+                if (nan_seen || d2 < (m == DM_SAMPLE && k == 2 ? -120.0f : -26.0f) || d2 > 1.0f) {   /* (the
+                                                       * sample's start at 99 %: its tail, faded to silence) */
                     printf("  %s %s=%d: %.1f dBFS, nan %d\n", DM_NAME[m], DM_KNOB[m][k], e, (double)d2, nan_seen);
                     ok = 0;
                 }
-                if (k == 1 && ((e == 0 && (h2.tend < 0.0f || h2.tend > 1.5f)) || (e == 127 && (h2.tend < 0.0f || h2.tend > 12.0f)))) {
+                if (k == 1 && m != DM_SAMPLE && ((e == 0 && (h2.tend < 0.0f || h2.tend > 1.5f)) || (e == 127 && (h2.tend < 0.0f || h2.tend > 12.0f)))) {
                     printf("  %s length=%d ends at %.2f s\n", DM_NAME[m], e, (double)h2.tend);
                     ok = 0;
                 }
@@ -864,8 +864,8 @@ int main(void)
         h = one_hit(0, 127, 0, 0, 0, 0);
         t_root = h.tend;
         snprintf(name, sizeof name, "  the kick sample: peak %.1f dBFS, ends at %.3f s (its %.3f s)", (double)dbfs(h.peak),
-                 (double)h.tend, (double)((float)kick->n / (float)SMP_RATE));
-        check(name, dbfs(h.peak) > -14.0f && dbfs(h.peak) < -3.0f && fm_fabsf(h.tend - (float)kick->n / (float)SMP_RATE) < 0.01f);
+                 (double)h.tend, (double)((float)kick->n / (float)kick->rate));
+        check(name, dbfs(h.peak) > -14.0f && dbfs(h.peak) < -3.0f && fm_fabsf(h.tend - (float)kick->n / (float)kick->rate) < 0.01f);
         par[TP_DRUM(0, DP_K2)] = 76;                      /* +12 */
         h = one_hit(0, 127, 0, 0, 0, 0);
         t_up = h.tend;

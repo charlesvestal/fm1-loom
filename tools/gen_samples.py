@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-3.0-only
-"""LOOM-8's factory samples: drums and a noise sweep made here, procedurally (mono at 22050 Hz); the
+"""LOOM-8's factory samples: 9W9's 909 drums (app/samples/909_*, tools/prep_909.py) and a noise sweep made here
+(mono at 22050 Hz); the
 recorded instruments (app/samples/, tools/prep_recordings.py: VSCO 2 CE, CC0); a vinyl loop made here; the four
 breaks (app/samples/: the slice engine's). Each at its own rate, IMA ADPCM with a checkpoint every 64
 samples (tools/sampleio.py), into a header the firmware compiles in (dsp/sample.c). Deterministic: the same bytes every run.
@@ -56,57 +57,6 @@ def bandpass(x, hz_of, q):
     return out
 
 
-def kick():
-    n, ph, out, r = secs(0.30), 0.0, [], Rng(1)
-    for i in range(n):
-        t = i / SR
-        hz = 48.0 + 110.0 * math.exp(-t / 0.035)
-        ph += hz / SR
-        body = math.sin(TWO_PI * ph) * math.exp(-t / 0.11)
-        click = r() * math.exp(-t / 0.002) * 0.5
-        out.append(math.tanh(1.6 * body) + click)
-    return out
-
-
-def snare():
-    n, r, out = secs(0.25), Rng(2), []
-    noise = bandpass([r() for _ in range(n)], lambda i: 3000.0, 0.8)
-    p1 = p2 = 0.0
-    for i in range(n):
-        t = i / SR
-        p1 += 185.0 * (1.0 + 0.3 * math.exp(-t / 0.01)) / SR
-        p2 += 330.0 * (1.0 + 0.3 * math.exp(-t / 0.01)) / SR
-        body = (0.6 * math.sin(TWO_PI * p1) + 0.4 * math.sin(TWO_PI * p2)) * math.exp(-t / 0.045)
-        out.append(body + 1.6 * noise[i] * math.exp(-t / 0.07))
-    return out
-
-
-def hat(length=0.10, tau=0.025, seed=3):
-    n, r, out = secs(length), Rng(seed), []
-    hz = [205.3, 304.4, 369.6, 522.7, 540.0, 800.0]
-    ph = [0.0] * 6
-    for i in range(n):
-        m = 0.0
-        for k in range(6):
-            ph[k] = (ph[k] + hz[k] * 1.9 / SR) % 1.0
-            m += 1.0 if ph[k] < 0.5 else -1.0
-        out.append((m / 6.0) * 0.6 + r() * 0.5)
-    out = onepole(onepole(out, 6000.0, hp=True), 6000.0, hp=True)
-    return [v * math.exp(-(i / SR) / tau) for i, v in enumerate(out)]
-
-
-def clap():
-    n, r, out = secs(0.25), Rng(4), []
-    noise = bandpass([r() for _ in range(n)], lambda i: 1100.0, 1.6)
-    starts = [0.0, 0.011, 0.022, 0.033]
-    for i in range(n):
-        t = i / SR
-        e = sum(math.exp(-(t - s) / 0.006) for s in starts if t >= s)
-        tail = math.exp(-(t - 0.033) / 0.07) if t >= 0.033 else 0.0
-        out.append(noise[i] * (e + 0.8 * tail))
-    return out
-
-
 def vinyl():
     """a record's run-out: crackle (sparse clicks, each a few samples, bright and dull) over a low hiss and a little
     rumble, a second that loops (each click whole inside it)"""
@@ -135,7 +85,11 @@ BREAK_ROOT = 53                                      # F3, the lowest key: slice
 
 
 
-SAMPLES = [("kick", kick), ("snare", snare), ("hat", hat), ("clap", clap), ("sweep", sweep)]
+# the drums first (their places in the bank as the made ones had: projects name samples by number): renders of 9W9,
+# the TR-909 model (GPL-3.0), cut where they fall silent (tools/prep_909.py): name, file, rate
+DRUMS = [("kick", "909_kick.wav", 16000), ("snare", "909_snare.wav", 22050), ("hat", "909_hat.wav", 22050),
+         ("clap", "909_clap.wav", 22050)]
+SAMPLES = [("sweep", sweep)]
 # recorded instruments (app/samples/, tools/prep_recordings.py: from VSCO 2 CE, CC0), after the made drums: name, file,
 # rate the bank keeps it at, root; a sustained one's loop comes from its file ('smpl')
 INSTRUMENTS = [("piano", "piano.wav", 16000, 60), ("upright", "upright.wav", 11025, 28),
@@ -149,13 +103,13 @@ MADE_AFTER = [("vinyl", vinyl, 11025)]               # made here, after the inst
 # or personal projects" (LICENSING.md has the source)
 RECORDINGS = [("classic", "classic.wav", 16000, 1), ("heat", "heat.wav", 16000, 1), ("choke", "choke.wav", 16000, 2),
               ("ecstasy", "ecstasy.wav", 16000, 1)]
-BUDGET = 184 * 1024                                  # B: the image's room for the factory bank
+BUDGET = 192 * 1024                                  # B: the image's room for the factory bank
 SAMPLE_DIR = Path(__file__).resolve().parents[1] / "app" / "samples"
 
 
 def names():
     """the factory bank's names, in its order"""
-    return ([n for n, _ in SAMPLES] + [i[0] for i in INSTRUMENTS] + [m[0] for m in MADE_AFTER] +
+    return ([d[0] for d in DRUMS] + [n for n, _ in SAMPLES] + [i[0] for i in INSTRUMENTS] + [m[0] for m in MADE_AFTER] +
             [r[0] for r in RECORDINGS])
 
 
@@ -172,7 +126,12 @@ def made(name, fn, rate):
 
 
 def build():
-    out = [made(name, fn, SR) for name, fn in SAMPLES]
+    out = []
+    for name, f, rate in DRUMS:
+        sr, x, _ = sio.read_any_wav(SAMPLE_DIR / f)
+        out.append((name, sio.to_int16(sio.emphasis(sio.resample(x, sr, rate) if sr != rate else x)), 60, None, 0,
+                    rate))
+    out += [made(name, fn, SR) for name, fn in SAMPLES]
     for name, f, rate, root in INSTRUMENTS:
         sr, x, loop = sio.read_any_wav(SAMPLE_DIR / f)
         if sr != rate:

@@ -54,6 +54,9 @@ Where LOOM-8's own parts come from:
   "The Classic", "Heat", "Choke" and "Ecstasy", cut and resampled) are free loops by u/FCTRYBEATS, shared on Reddit,
   who wrote: "You have my full permission to use these loops in commercial or personal projects."
   (https://www.reddit.com/r/Drumkits/comments/ovkpgs/comment/h7db0wl/)
+- The factory drum samples (`app/samples/909_kick.wav`, `909_snare.wav`, `909_hat.wav`, `909_clap.wav`) are renders
+  of [9W9](https://github.com/athousanddetails/schwung-9W9), a TR-909 model (its ER-99 engine and its hat samples),
+  GPL-3.0, cut by `tools/prep_909.py`.
 - The recorded instruments (`app/samples/piano.wav`, `upright.wav`, `strings.wav`, `brass.wav`, `flute.wav`,
   `orch_hit.wav`) are cut from the Versilian Studios Chamber Orchestra 2 Community Edition (VSCO 2 CE,
   github.com/sgossner/VSCO-2-CE), CC0 1.0, by `tools/prep_recordings.py`.
