@@ -72,9 +72,13 @@ typedef struct {
     int16_t b[SMP_WIN + 1];               /* its samples and the next window's first */
 } smp_cache_t;
 
-int smp_slots(void);                      /* factory + user slots: a knob's range */
+extern const uint16_t smp_nslots;
+static inline int smp_slots(void) { return smp_nslots; }   /* factory + user slots: a knob's range (inline: the
+                                                            * note-start code in RAM reads it: size_fns.py) */
 int smp_factory(void);                    /* the factory samples */
 const smp_t *smp_get(int i);              /* 0: nothing there (an empty user slot, the bank being written) */
+extern const smp_t *(*volatile smp_get_far)(int i);   /* the same through a pointer: for the note-start code in
+                                                         * RAM, which cannot call the flash directly (size_fns.py) */
 const char *smp_name(int i);              /* "kick", an upload's name, "user 3" for an empty slot */
 void smp_fill(smp_cache_t *c, const smp_t *s, int32_t w);     /* decode the window from sample w (a multiple of
                                                                  * SMP_WIN) into the cache */

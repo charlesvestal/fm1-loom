@@ -196,7 +196,7 @@ static int smp_frame(const uint8_t *p, uint32_t n)
             for (i = 0; i < NTRK; i++)
                 v[nv++] = eng_prof_drum[i];
         } else if (part == 4u) {                     /* the slowest block's voices (engine.h eng_vworst) */
-            for (i = 0; i < NVOICE + 1u; i++)
+            for (i = 0; i < NVOICE + 2u; i++)
                 v[nv++] = eng_vworst[i];
         } else if (part == 3u) {                     /* the trace up to the slowest block, two values a word */
             for (i = 0; i < TRACE_N * TRACE_K / 2u; i++)

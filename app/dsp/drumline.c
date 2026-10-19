@@ -529,7 +529,7 @@ static void start(drumline_t *d, dvoice_t *v, int sound, int vel, int pitch_semi
     case DM_SAMPLE: {                                 /* a sample of the bank: pitch about its own rate, start,
                                                        * reverse (from its end back to the start) */
         int idx = p[DP_K1] < smp_slots() ? p[DP_K1] : smp_slots() - 1;
-        const smp_t *sm = smp_get(idx);
+        const smp_t *sm = smp_get_far(idx);   /* (drumline_hit runs from RAM: sample.h) */
         v->sidx = (uint8_t)idx;
         v->sci = sc_claim(d, (int)(v - d->v));
         v->k = v->k2 = 1.0f;                          /* (its length is the sample's: the env only chokes) */

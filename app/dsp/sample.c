@@ -54,7 +54,7 @@ static void fact_init(void)
     fact_ready = 1;
 }
 
-int smp_slots(void) { return SMP_NFACT + SMP_NUSER; }
+const uint16_t smp_nslots = SMP_NFACT + SMP_NUSER;
 int smp_factory(void) { return SMP_NFACT; }
 int smp_user_count(void) { return user_n; }
 uint32_t smp_user_bytes(void) { return user_n ? user_bytes : 0u; }
@@ -70,6 +70,8 @@ const smp_t *smp_get(int i)
         return &user[i];
     return 0;
 }
+
+const smp_t *(*volatile smp_get_far)(int i) = smp_get;
 
 const char *smp_name(int i)
 {

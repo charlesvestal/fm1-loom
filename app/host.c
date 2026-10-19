@@ -104,6 +104,7 @@ int plat_cpu2_run(void (*fn)(uint32_t), uint32_t arg)
     return 1;
 }
 int plat_cpu2_wait(void) { return 0; }
+void plat_cpu2_sync(void) {}
 int plat_cpu2_busy(void) { return 0; }   /* (a job ran at once) */
 int plat_cpu2_gave_up(void) { return 0; }
 uint32_t plat_cpu2_bad(void) { return 0; }

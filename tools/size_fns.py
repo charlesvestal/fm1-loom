@@ -45,8 +45,8 @@ COLD = {
                  "fx_set", "fx_init"],
     "dsp/sample.c": ["smp_user_scan", "fact_init"],
     "dsp/bench.c": [],
-    "dsp/synth.c": ["tp_text_i", "tp_text_par", "tp_info_par", "tp_text", "char_picture", "voice_start",
-                    "voice_take", "synth_note_on", "synth_note_off", "synth_duck_trigger", "synth_all_off",
+    "dsp/synth.c": ["tp_text_i", "tp_text_par", "tp_info_par", "tp_text", "char_picture",
+                    "synth_note_off", "synth_duck_trigger", "synth_all_off",
                     "sound_default", "synth_init", "eknob_init"],
     "seq/pattern.c": [],
     "seq/seq.c": ["fire_notes", "key_in", "seq_init", "bar_end", "do_start", "emit_drum", "rec_key_off",
@@ -57,7 +57,10 @@ COLD = {
 # .ram_text's ~3 KB and the second core's loop besides)
 RAM_DSP = ["fx_process", "fx_process_lag", "do_spu", "spu_interp", "do_lush", "master_process", "color_block"]
 RAM_INLINE = ["fx_states", "zero16"]
-RAM_UNITS = ["dsp/fx.c"]
+# and a synth note's start (a drum hit's, with every model's set-up inlined, came to ~15 KB: left out): the code a chord change runs once, cold in the XIP cache when
+# it does (on the FM-1, 2026-10-19: the blocks where notes start took twice the others). RAMTEXT is 32 KB for them
+RAM_SETS = {"dsp/fx.c": (RAM_DSP, RAM_INLINE), "dsp/synth.c": (["synth_note_on"], [])}
+RAM_UNITS = list(RAM_SETS)
 RAM_SECTION = ".c1_text.dsp"
 ROOTS = re.compile(r"^(?:\w+_irq|fm1_fault_c|fm1_fatal_common|core2_job)$")
 DEF = re.compile(r"^(?:static\s+|inline\s+|const\s+|unsigned\s+|signed\s+|struct\s+\w+\s+|__attribute__\s*\(\(.*?\)\)\s*)*"
@@ -132,8 +135,9 @@ def ram_place(ir, names, inl, groups, made):
             line = line[:-1].rstrip() + ' section "' + RAM_SECTION + '" {'
         return line
     ir = re.sub(r"^define [^\n]* #\d+ [^\n]*\{$", place, ir, flags=re.M)
+    back = {str(v): k for k, v in made.items()}  # (a cold helper's new group: its attributes come later; its old ones)
     for g, new in extra.items():
-        src = re.search(r"^attributes #%s = \{ (.*) \}$" % g, ir, re.M).group(1)
+        src = groups[back.get(g, g)]
         src = " ".join(a for a in src.split() if a not in ("noinline", "minsize", "optnone", "inlinehint"))
         ir += f"\nattributes #{new} = {{ alwaysinline {src} }}\n"
     return ir
@@ -173,8 +177,8 @@ def main(src, dst, unit=None):
             nxt += 1
         return m.group(0)[:m.start(1) - m.start(0)] + str(made[g]) + m.group(0)[m.end(1) - m.start(0):]
     ir = re.sub(r"^define [^\n]* #(\d+) [^\n]*\{$", mark, ir, flags=re.M)
-    if unit in RAM_UNITS:
-        ir = ram_place(ir, RAM_DSP, RAM_INLINE, groups, made)
+    if unit in RAM_SETS:
+        ir = ram_place(ir, RAM_SETS[unit][0], RAM_SETS[unit][1], groups, made)
     for g, new in made.items():
         a = groups[g] if "optsize" in groups[g].split() else "optsize " + groups[g]
         if unit and "noinline" not in a.split():

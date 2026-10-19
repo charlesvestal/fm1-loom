@@ -2436,6 +2436,21 @@ void synth_render(synth_t *s, int v0, int v1, float *l, float *r, float *s1, flo
     synth_render_on(s, v0 == 0 && v1 < NVOICE, v0, v1, l, r, s1, s2, n);   /* (the second core's: [0, k), k < 16) */
 }
 
+void synth_order(const synth_t *s, int8_t *ord)
+{
+    int vi, j;
+    for (vi = 0; vi < NVOICE; vi++) {
+        j = vi;
+#ifndef PLAT_HOST
+        while (j > 0 && s->v[ord[j - 1]].engine > s->v[vi].engine) {
+            ord[j] = ord[j - 1];
+            j--;
+        }
+#endif
+        ord[j] = (int8_t)vi;
+    }
+    (void)s;
+}
 void synth_render_on(synth_t *s, int core, int v0, int v1, float *l, float *r, float *s1, float *s2, uint32_t n)
 {
     int vi;

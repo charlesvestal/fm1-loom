@@ -22,7 +22,7 @@ static inline void *dsp_far(void *p) { void *volatile q = p; return q; }
 /* time per stage of the render, in plat_cycles() units: running totals (wrapping; the Status page
  * takes differences) and the frames rendered */
 volatile uint32_t eng_prof[ENG_PROF_N], eng_prof_frames, eng_prof_worst[ENG_PROF_N];
-volatile uint32_t eng_vworst[NVOICE + 1];          /* (engine.h) */
+volatile uint32_t eng_vworst[NVOICE + 2];          /* (engine.h) */
 volatile uint8_t eng_prof_reset;
 volatile uint32_t eng_prof_drum[NTRK];
 static uint32_t prof_block0[ENG_PROF_N];
@@ -456,7 +456,7 @@ static void s_note_on(void *x, int trk, int note, int vel, int glide_ms, uint32_
     PROF_T(pn);
     if (trk < 0 || trk >= NTRK || eng_drum[trk])
         return;
-    synth_note_on(SY, trk, note, vel, glide_ms, tag);
+    DSP_FAR(synth_note_on)(SY, trk, note, vel, glide_ms, tag);   /* (in RAM: tools/size_fns.py RAM_SETS) */
 #ifdef PLAT_HOST
     host_note_ons++;                                   /* (the host's load model: a note's set-up) */
 #endif
@@ -733,10 +733,9 @@ __attribute__((noinline)) static void zerof(float *b, uint32_t n)
         b[i] = 0.0f;
 }
 
-/* the second core's job (or the first's, after its own part, with one core): the voices [0, k) of the
- * pool into its own buffers (k: arg bits 16..20, split_at); arg bit 8: not timed (the cycle counter is
- * the first core's). Nothing here is mixed: the first core does that afterwards, in one core's order.
- * The synth wants every range rendered each stretch after its prepare (synth.h), sounding or not */
+/* the second core's job: the voices it takes (ws_take1, below) into its own buffers; arg: the frames, bit 8 not
+ * timed (the cycle counter is the first core's). Nothing here is mixed: the first core does that afterwards, in one
+ * core's order. The synth wants every voice rendered each stretch after its prepare (synth.h), sounding or not */
 /* the effects a block behind: the sends of each block (both cores' voices and the drums, FX I's return into FX II's
  * send included) gathered into snd_acc, and the next block's first job runs the chorus, the delay and the
  * reverb (fx_lags) on them, whole, into fx_ret, which that block's stretches mix in, at their place, as they would
@@ -783,19 +782,56 @@ static void fx_done(void)
     fx_dirty = 0;
 }
 static volatile uint32_t c2_took;                          /* the last job's time (plat_cycles) */
+/* the voices shared out as the cores go (render_sub): the stretch's voices in ws_ord (grouped by engine: each core
+ * fetches an engine's code once), the second core taking from the bottom, the first from the top, until they meet;
+ * neither decides the split ahead, so neither waits on the other's misjudged half (a whole knit voice is ~12 % of a
+ * block: a split fixed ahead could miss by that, on 2026-10-19's FM-1 by 25 points). No atomics between the cores:
+ * each writes its own count, syncs, then reads the other's (Dekker's order: one of two that took the same voice sees
+ * it, and gives it back); a voice both gave back the first core renders after the wait. Core 1 checks the index it
+ * reads (on some FM-1s its reads come back wrong now and then: loom_cpu1.h) */
+static int8_t ws_ord[NVOICE];
+static volatile int32_t ws_a, ws_b;                        /* taken: by the second core (the bottom), the first (the top) */
+static int ws_take1(void)                                  /* the second core's next voice, -1 none */
+{
+    int32_t a = ws_a + 1, vi;
+    ws_a = a;
+    plat_cpu2_sync();
+    if (a + ws_b > NVOICE || a > NVOICE) {
+        ws_a = a - 1;
+        plat_cpu2_sync();
+        return -1;
+    }
+    vi = ws_ord[a - 1];
+    return vi >= 0 && vi < NVOICE ? vi : -1;
+}
+static int ws_take0(void)                                  /* the first core's next voice, -1 none */
+{
+    int32_t b = ws_b + 1;
+    ws_b = b;
+    plat_cpu2_sync();
+    if (ws_a + b > NVOICE) {
+        ws_b = b - 1;
+        plat_cpu2_sync();
+        return -1;
+    }
+    return ws_ord[NVOICE - b];
+}
 static void core2_job(uint32_t arg)
 {
     uint32_t n = arg & 0xFFu ? arg & 0xFFu : 256u, pt = plat_cycles(), p0 = pt;   /* (the clock: a timer both cores read) */
+    int vi;
     zerof(c2_l, n);
     zerof(c2_r, n);
     zerof(c2_s1, n);
     zerof(c2_s2, n);
-    synth_render_on(SY, 1, 0, (int)(arg >> 16 & 31u), c2_l, c2_r, c2_s1, c2_s2, n);
+    while ((vi = ws_take1()) >= 0)
+        synth_render_on(SY, 1, vi, vi + 1, c2_l, c2_r, c2_s1, c2_s2, n);
     PROF_ADD(PR_SYNTH1, pt);
     c2_took = plat_cycles() - p0;
 }
 
-/* where the pool splits between the cores: the second renders voices [0, k), the first [k, NVOICE) and
+/* (the host's load model's estimate of the split, app/host.c load_model; the FM-1 shares the voices out as the cores
+ * go: render_sub) where the pool splits between the cores: the second renders voices [0, k), the first [k, NVOICE) and
  * the drum tracks, so k evens the two out. A free voice is the lowest one (synth.c find_voice): with a
  * fixed half, eight voices or fewer all landed on the second core while the first waited (and the
  * overload guard's eight did too). The cost in rough units: a synth voice 4 (brocade's more, by its saws,
@@ -803,7 +839,8 @@ static void core2_job(uint32_t arg)
  * instructions a sample). Of the k that
  * do best, the one nearest the middle (the old fixed split). The same k with one core or two: the
  * samples stay the same either way (only the order of the halves' sum depends on k). */
-static uint8_t split_units[2], split_blk[4];                 /* (the block's first stretch: k, the units, stretches) */
+static uint8_t split_units[2], split_blk[4], split_last[3];   /* (the profiler: the block's first stretch's voices taken
+                                                              * by the second core and the first, late; its last's) */
 static uint32_t split_at(int extra2, int top)          /* voices [0, top) shared out: the second core's [0, k) */
 {
     int pre[NVOICE + 1], i, k, t, drum = 0, best = top / 2, cost = 1 << 30;
@@ -858,30 +895,40 @@ static void metro_tick(uint32_t n)
 #endif
 /* one stretch: the upper half of the voices and the drumlines here while the second core renders the
  * lower half; then the halves are summed in the order one core always used, the FX tracks, the master */
-/* the split's correction, learnt on the FM-1 from the two cores' times (split_at's units on the second core's side:
- * a stretch whose second core took longer than the first core's part moves a unit to the first, and back), held
- * within three voices' worth either way: the model stays in charge (a split by each voice's measured time misjudged
- * the blocks where notes start, the ones that matter). The simulator's split stays the model's alone (its samples
- * the same every run; the split only changes the order of the halves' sum) */
-static int split_bias;
-#define SPLIT_BIAS_MAX 12
-static void split_learn(uint32_t t0, uint32_t t1)
+static void render_drums(uint32_t n)                    /* the drum tracks (the first core's: render_sub) */
 {
-#ifndef PLAT_HOST
-    uint32_t dz = (t0 + t1) >> 4;                          /* (a dead band: 6 % of the two) */
-    if (t1 > t0 + dz && split_bias < SPLIT_BIAS_MAX)
-        split_bias++;
-    else if (t0 > t1 + dz && split_bias > -SPLIT_BIAS_MAX)
-        split_bias--;
-#else
-    (void)t0;
-    (void)t1;
-#endif
+    int t;
+    PROF_T(pd);
+    for (t = 0; t < NTRK; t++) {
+        float g, gl, gr;
+        uint32_t pt1;
+        if (!eng_drum[t] || !drumline_sounding(DL(t)))
+            continue;
+        pt1 = plat_cycles();
+        zerof(tl, n);
+        zerof(tr, n);
+        zerof(ts1, n);
+        zerof(ts2, n);
+        drumline_render(DL(t), tl, tr, ts1, ts2, n);
+        g = perf_mute[t] || !HOST_ON(t) ? 0.0f : tp_level_gain(epar[t][TP_LEVEL]);
+        pan_gains(epar[t][TP_PAN] + perf_pan[t], &gl, &gr);
+        glide_set(&trk_glide[t][GL_L], g * gl);
+        glide_set(&trk_glide[t][GL_R], g * gr);
+        glide_set(&trk_glide[t][GL_SEND], g);
+        add_glide(perc_l, tl, &trk_glide[t][GL_L], n);
+        add_glide(perc_r, tr, &trk_glide[t][GL_R], n);
+        add_glide(s1, ts1, &trk_glide[t][GL_SEND], n);
+        add_glide(s2, ts2, &trk_glide[t][GL_SEND], n);
+        meter(t, tl, tr, g * gl, g * gr, n);
+        eng_prof_drum[t] += plat_cycles() - pt1;
+    }
+    metro_tick(n);
+    PROF_ADD(PR_DRUM, pd);
 }
 static void render_sub(uint32_t n, uint32_t at)
 {
-    uint32_t arg = n & 0xFFu, pt, split, ps;
-    int on2 = 0, t, k, learn = 1;
+    uint32_t arg = n & 0xFFu, pt, ps;
+    int on2 = 0, t, k, vi, i, late, late_at0, drums_left = 0;
     PROF_T(pp);
     eng_prof[PR_SUBS]++;
     zerof(perc_l, n);
@@ -892,79 +939,57 @@ static void render_sub(uint32_t n, uint32_t at)
     zerof(s2, n);
     perf_tick(n);
     synth_prepare(SY, n);                                 /* the shared per-chunk values, before either core renders */
-    if (fx_c2 && plat_cpu2_busy()) {
-        /* the second core still at the effects' job (begun with the block): the voices from the top here, one at a
-         * time, until it is free; then it takes the lower part of what is left (the model's split of it) */
-        int j = NVOICE;
-        PROF_ADD(PR_PREP, pp);
-        ps = plat_cycles();
-        learn = 0;
-        split = 0;
-        while (j > 0) {
-            if (!plat_cpu2_busy()) {
-                fx_done();
-                split = split_at(split_bias, j);
-                arg = (n & 0xFFu) | split << 16;
-                on2 = c2_run ? c2_run(core2_job, arg | 0x100u) : 0;
-                synth_render_on(SY, 0, (int)split, j, mel_l, mel_r, s1, s2, n);
-                break;
-            }
-            synth_render_on(SY, 0, j - 1, j, mel_l, mel_r, s1, s2, n);
-            j--;
-        }
-        arg = (n & 0xFFu) | split << 16;
-        PROF_ADD(PR_SYNTH0, ps);
-    } else {
+    synth_order(SY, ws_ord);
+    ws_a = ws_b = 0;
+    plat_cpu2_sync();
+    late = late_at0 = fx_c2 && plat_cpu2_busy();          /* the second core still at the effects' job (begun with the
+                                                           * block): it joins when it is free (below) */
+    if (!late) {
         fx_done();                                        /* (done already, or one core) */
-        split = split_at(split_bias, NVOICE);
-        arg |= split << 16;
         on2 = c2_run ? c2_run(core2_job, arg | 0x100u) : 0;
-        PROF_ADD(PR_PREP, pp);
-        ps = plat_cycles();
-        synth_render_on(SY, 0, (int)split, NVOICE, mel_l, mel_r, s1, s2, n);
-        PROF_ADD(PR_SYNTH0, ps);
     }
-    if (at == 0) {
-        split_blk[0] = (uint8_t)split;
-        split_blk[1] = split_units[0];
-        split_blk[2] = (uint8_t)(split_units[1] | (learn ? 0u : 128u));   /* (128: handed over late) */
-    }
-    {
-        PROF_T(pd);
-        for (t = 0; t < NTRK; t++) {
-            float g, gl, gr;
-            uint32_t pt1;
-            if (!eng_drum[t] || !drumline_sounding(DL(t)))
-                continue;
-            pt1 = plat_cycles();
-            zerof(tl, n);
-            zerof(tr, n);
-            zerof(ts1, n);
-            zerof(ts2, n);
-            drumline_render(DL(t), tl, tr, ts1, ts2, n);
-            g = perf_mute[t] || !HOST_ON(t) ? 0.0f : tp_level_gain(epar[t][TP_LEVEL]);
-            pan_gains(epar[t][TP_PAN] + perf_pan[t], &gl, &gr);
-            glide_set(&trk_glide[t][GL_L], g * gl);
-            glide_set(&trk_glide[t][GL_R], g * gr);
-            glide_set(&trk_glide[t][GL_SEND], g);
-            add_glide(perc_l, tl, &trk_glide[t][GL_L], n);
-            add_glide(perc_r, tr, &trk_glide[t][GL_R], n);
-            add_glide(s1, ts1, &trk_glide[t][GL_SEND], n);
-            add_glide(s2, ts2, &trk_glide[t][GL_SEND], n);
-            meter(t, tl, tr, g * gl, g * gr, n);
-            eng_prof_drum[t] += plat_cycles() - pt1;
+    PROF_ADD(PR_PREP, pp);
+    if (on2)                                              /* the second core at the voices: the drums here first */
+        render_drums(n);
+    ps = plat_cycles();
+    while ((vi = ws_take0()) >= 0) {
+        synth_render_on(SY, 0, vi, vi + 1, mel_l, mel_r, s1, s2, n);
+        if (late && !plat_cpu2_busy()) {                  /* free now: it takes from the bottom */
+            late = 0;
+            fx_done();
+            on2 = c2_run ? c2_run(core2_job, arg | 0x100u) : 0;
+            drums_left = 1;
         }
-        metro_tick(n);
-        PROF_ADD(PR_DRUM, pd);
     }
+    PROF_ADD(PR_SYNTH0, ps);
+    if (!on2 || drums_left)
+        render_drums(n);
     pt = plat_cycles();
     fx_done();                                            /* (the voices all done here first: the effects' job) */
-    if (!on2 || c2_wait()) {
-        core2_job(arg);                                   /* one core (or the second failed): here */
-    } else {
+    if (on2 && c2_wait()) {                               /* the second failed: what it took, here (it may not have) */
+        zerof(c2_l, n);
+        zerof(c2_r, n);
+        zerof(c2_s1, n);
+        zerof(c2_s2, n);
+        for (i = 0; i < ws_a && i < NVOICE; i++)
+            synth_render_on(SY, 0, ws_ord[i], ws_ord[i] + 1, c2_l, c2_r, c2_s1, c2_s2, n);
+    } else if (on2) {
         PROF_ADD(PR_WAIT, pt);                            /* what the first core waited for the second */
-        if (learn)
-            split_learn(pt - ps, c2_took);
+    } else {
+        zerof(c2_l, n);
+        zerof(c2_r, n);
+        zerof(c2_s1, n);
+        zerof(c2_s2, n);
+    }
+    for (i = ws_a; i < NVOICE - ws_b; i++)                /* any both gave back */
+        synth_render_on(SY, 0, ws_ord[i], ws_ord[i] + 1, mel_l, mel_r, s1, s2, n);
+    split_last[0] = (uint8_t)ws_a;                        /* (the profiler: the voices each core took) */
+    split_last[1] = (uint8_t)ws_b;
+    split_last[2] = (uint8_t)(late_at0 ? 128u : 0u);
+    if (at == 0) {
+        split_blk[0] = split_last[0];
+        split_blk[1] = split_last[1];
+        split_blk[2] = split_last[2];
     }
     pt = plat_cycles();
     add_in(mel_l, c2_l, n);
@@ -1123,6 +1148,8 @@ void engine_render(int32_t *out_lr, uint32_t n, uint32_t gain_q12)
                 eng_vworst[i] = (synth_vblk[i] * 1000u / bud) | (uint32_t)synth_vinfo[i] << 16;
             eng_vworst[NVOICE] = (uint32_t)split_blk[0] | (uint32_t)split_blk[1] << 8 | (uint32_t)split_blk[2] << 16 |
                                  (eng_prof[PR_SUBS] - prof_block0[PR_SUBS]) << 24;
+            eng_vworst[NVOICE + 1] = (uint32_t)split_last[0] | (uint32_t)split_last[1] << 8 |
+                                     (uint32_t)split_last[2] << 16;
         }
         for (p = 0; p < ENG_PROF_N; p++)
             prof_block0[p] = eng_prof[p];

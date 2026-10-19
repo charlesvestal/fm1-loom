@@ -29,6 +29,7 @@ int plat_cpu2_set(int on)
 int plat_cpu2_on(void) { return fm1_c1_on; }
 int plat_cpu2_run(void (*fn)(uint32_t), uint32_t arg) { return fm1_cpu1_run(fn, arg); }
 int plat_cpu2_wait(void) { return fm1_cpu1_wait(); }
+void plat_cpu2_sync(void) { FM1_C1_SYNC(); }
 int plat_cpu2_busy(void)                           /* (core 0 reads core 1's word: core 0's reads are sound) */
 {
     FM1_C1_SYNC();

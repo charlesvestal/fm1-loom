@@ -234,6 +234,8 @@ void synth_prepare(synth_t *s, uint32_t n);
 void synth_render(synth_t *s, int v0, int v1, float *l, float *r, float *s1, float *s2, uint32_t n);
 /* the same, saying which core renders (0 the first, 1 the second: the profiler's halves) */
 void synth_render_on(synth_t *s, int core, int v0, int v1, float *l, float *r, float *s1, float *s2, uint32_t n);
+void synth_order(const synth_t *s, int8_t *ord);   /* the NVOICE voices, grouped by engine on the FM-1 (the order the
+                                                      * cores take them in: engine.c render_sub); the simulator's in order */
 int synth_sounding(const synth_t *s, int v0, int v1);          /* a voice in the range is sounding */
 int synth_voices_used(const synth_t *s);
 /* the slice engine's newest playing voice on a track (the picture): its slice (0-based) and the position in

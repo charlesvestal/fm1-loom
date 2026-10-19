@@ -109,7 +109,8 @@ def diff(a, b):
 
 def vblk_text(vb):
     """the slowest block's voices: each sounding one's time (% of the block), engine, * started there, the core
-    (0 / 1); the first stretch's split: k, the model's units for core 0 / core 1, and the block's stretches"""
+    (0 / 1); the voices each core took in the first stretch and the last (engine.c render_sub: the cores share
+    them out as they go), whether core 1 joined late (from the effects' job), and the block's stretches"""
     if not vb or len(vb) < 17:
         return ""
     parts, sums = [], [0.0, 0.0]
@@ -123,8 +124,11 @@ def vblk_text(vb):
         eng = ENGINES[info & 31] if (info & 31) < len(ENGINES) else "?"
         parts.append(f"v{i} {eng}{'*' if info & 32 else ''} c{core} {t:.1f}")
     x = vb[16]
-    return (f"split k {x & 255} model units c0 {x >> 8 & 255} c1 {x >> 16 & 255}, {x >> 24} stretches; voices c0 "
-            f"{sums[0]:.1f} % c1 {sums[1]:.1f} %: " + ", ".join(parts))
+    took = f"first stretch: core 1 took {x & 255}, core 0 {x >> 8 & 255}{' (core 1 late)' if x >> 16 & 128 else ''}"
+    if len(vb) > 17:                         # the last stretch's
+        y = vb[17]
+        took += f"; last: core 1 {y & 255}, core 0 {y >> 8 & 255}{' (late)' if y >> 16 & 128 else ''}"
+    return (f"{took}, {x >> 24} stretches; voices c0 {sums[0]:.1f} % c1 {sums[1]:.1f} %: " + ", ".join(parts))
 
 
 def trace_text(tr):

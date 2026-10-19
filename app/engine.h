@@ -26,7 +26,7 @@ extern volatile uint32_t eng_prof[ENG_PROF_N], eng_prof_frames, eng_prof_worst[E
 extern volatile uint8_t eng_prof_reset;
 /* the slowest block's voices: [i] its time in permille of the block | (engine | 32 started | 64 core 1 | 128 sounded) << 16;
  * [NVOICE] the first stretch's split k | the first core's units << 8 | the second's << 16 | stretches << 24 */
-extern volatile uint32_t eng_vworst[NVOICE + 1];
+extern volatile uint32_t eng_vworst[NVOICE + 2];
 /* the blocks around the slowest one since eng_prof_reset (the oldest first; it is the 8th, 4 follow): each its whole render, the synth on each
  * core, the sequencer, the drums, the notes (permille of the block's budget), its stretches, its voices */
 #define TRACE_N 12
