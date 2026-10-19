@@ -154,7 +154,7 @@ press…" means keep **HOME** down while you press the next thing.
 | save | LOOM-8 saves by itself when stopped and quiet. **SAVE** saves at once; hold **SAVE** and press white key 1 to 3 to save to that slot. |
 | name a project | Press **HOME**, press **SEL**, pick RENAME and type on the keys (**OCT−** capitals, **OCT+** digits). **SEL** keeps it. |
 | keep a sound | On a sound page, hold **SAVE** and press a white key. The sound becomes that user preset. |
-| load a project | Press **HOME**, press **SEL**, turn **ALGORITHM** on LOAD PROJECT to the slot, and press **SEL**. NEW PROJECT starts an empty one in a free slot. |
+| load a project | Press **HOME**, press **SEL**, turn **ALGORITHM** on LOAD PROJECT to the slot, and press **SEL**. NEW PROJECT starts an empty one in a free slot, its sounds picked at random (RANDOMIZE PRESETS: new ones). |
 
 ### The buttons
 
@@ -848,6 +848,11 @@ once. To save to another slot, hold **SAVE** and press white key 1 to 3, or use 
 (turn **ALGORITHM** to the slot); LOOM-8 asks first if the slot holds another project. NEW PROJECT starts in the
 first empty slot; when all three are taken it has none, and waits for SAVE TO before it saves. To save only when you
 press **SAVE**, set AUTOSAVE to off in **GLO**'s **SEL** list (Setup shows it); a new project keeps the choice.
+
+A new project starts with a band picked at random from the factory presets: the kit on T1, then a bass (mono), a
+polyphonic synth, a pad, a mono lead, keys, an effect and a pluck or bell on T2 to T8, every track following the
+conductor. RANDOMIZE PRESETS on **HOME**'s **SEL** list picks another band for T2 to T8 (it asks first); the
+patterns, the kit and the mix stay. A project saves every knob as you left it, not the preset it came from.
 
 **A project's name.** **HOME**'s **SEL** list has RENAME. The keys type: F3 to E5 are a to z and G5 deletes;
 hold **OCT−** for capitals and **OCT+** for digits, a space and symbols. The keys on the screen show what each

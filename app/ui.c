@@ -2145,11 +2145,21 @@ static void do_load_proj(void)
     after_load();
     ui.dirty = 0;
 }
+static uint32_t proj_seed = 1;
+static void do_random_sounds(void)               /* HOME's RANDOMIZE PRESETS: T2-T8 a new band, the patterns kept */
+{
+    project_random_sounds(plat_ms() * 2654435761u ^ proj_seed++);
+    for (int t = 1; t < NTRK; t++)
+        engine_set_all(t);
+    mark_dirty();
+    say("RANDOMIZED", "T2 to T8");
+}
 static void do_new_proj(void)
 {
     engine_transport(0);
     engine_panic();
     project_defaults();
+    project_random_sounds(plat_ms() * 2654435761u ^ proj_seed++);   /* a band of its own each time */
     after_load();
     ui.dirty = 1;
     proj_slot = PROJ_NOSLOT;                     /* its slot: the first free one; none free, SAVE TO picks one */
@@ -2293,6 +2303,7 @@ static void action_run(int a)
         }
         return;
     case A_NEW_PROJ: ask("NEW PROJECT?", do_new_proj); return;
+    case A_RANDOM_SOUNDS: ask("NEW SOUNDS ON T2 TO T8?", do_random_sounds); return;
     case A_SAVE_TO: act_save_slot(ui.pick_save % NPROJ); break;
     case A_RENAME:                               /* (a new project's NEW: typed over, from empty) */
         ui.nm_len = 0;
@@ -2997,13 +3008,14 @@ static void speak_dump(void)
         {"PASTED", "pattern"}, {"WOVEN", "copied rhythm"}, {"ROTATED", "forward"}, {"DUPLICATED", "bar"}, {"NO ROOM", "four bars at most"},
         {"SCRAMBLED", 0}, {"PRESET SAVED", "U2"}, {"RESET", "weft"}, {"SONG FULL", "64 slots"}, {"NO SLOT HERE", 0},
         {"NO SONG", "white keys add scenes"}, {"LOADED", "slot 2"}, {"EMPTY SLOT", "defaults loaded"},
-        {"NEW PROJECT", "unsaved"}, {"SCENE IN USE", "pick another first"}, {"ALL NOTES OFF", 0},
+        {"NEW PROJECT", "unsaved"}, {"RANDOMIZED", "T2 to T8"}, {"SCENE IN USE", "pick another first"}, {"ALL NOTES OFF", 0},
         {"STOP FIRST", "to change slots"}, {"THREE SLOTS", "white keys 1 to 3"}, {"ENGINE", "stack"}, {"LIST", "nothing here"},
         {"DELETED", "slot"}, {"REMOVED", 0}, {"NO EFFECT YET", "play a key on EDIT"}, {"NO SEGMENT YET", "play a key on EDIT"},
         {"snare", "on the step"}, {"snare", "off the step"}, {"T2", "follows"}, {"T2", "on its own"},
         {"UPDATE MODE IN", "3.."}, {"UPDATE MODE", "CANCELLED"}};
     static const char *const ASK[] = {"CLEAR SCENE 3?", "REPLACE USER PRESET 2?", "REPLACE PROJECT 2?",
-                                      "LOSE UNSAVED CHANGES?", "NEW PROJECT?", "CLEAR THE SONG?"};
+                                      "LOSE UNSAVED CHANGES?", "NEW PROJECT?", "CLEAR THE SONG?",
+                                      "NEW SOUNDS ON T2 TO T8?"};
     uint8_t keep_page = ui.page, keep_trk = proj.trk_sel, keep_lst = lst.open, keep_card = ui.card;
     knob_t k[4];
     char t[64];

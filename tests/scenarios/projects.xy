@@ -48,3 +48,16 @@ tapkey w0
 tapkey w1
 wait 50
 shot proj_song.png
+# RANDOMIZE PRESETS (after NEW PROJECT on HOME's list), asked first: T2 a bass, mono; T3 polyphonic; T5 a mono lead
+tap SEL
+turn SELECT 4
+tap SEL
+wait 100
+shot proj_random_ask.png
+tap SEL
+wait 200
+expect par2.vmode 1
+expect par3.vmode 0
+expect par5.vmode 1
+expect par1.engine 8
+expect dirty 1

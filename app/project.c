@@ -120,6 +120,39 @@ static void aux_defaults(void)
     proj.trk[AUX_FX2].par[TP_FENV] = 52;                 /* the reverb from 230 Hz: the kick and the bass stay dry */
 }
 
+/* a new band: T2-T8 each a random factory preset of a part, so a project starts as one: a bass, a polyphonic synth,
+ * a pad, a mono lead, keys, an effect, a pluck or bell. Sample and slice presets are left out (they need the bank's
+ * sounds); the kit (T1) stays. The tracks keep their mix, player and following (a preset is the sound part) */
+void project_random_sounds(uint32_t seed)
+{
+    static const uint8_t ROLES[NTRK - 1][3] = {
+        {RL_BASS, RL_BASS, RL_BASS}, {RL_CHORD, RL_STAB, RL_BRASS}, {RL_PAD, RL_PAD, RL_STRINGS},
+        {RL_LEAD, RL_LEAD, RL_LEAD}, {RL_KEYS, RL_KEYS, RL_KEYS}, {RL_FX, RL_FX, RL_FX}, {RL_PLUCK, RL_BELL, RL_VOICE}};
+    static const uint8_t VMODE[NTRK - 1] = {VM_MONO, VM_POLY, VM_POLY, VM_MONO, VM_POLY, 0xFF, 0xFF};   /* 0xFF: its own */
+    uint32_t r = seed ? seed : 0x9E3779B9u;
+    for (int t = 1; t < NTRK; t++) {
+        int n = 0, k, pick = -1;
+        const uint8_t *rl;
+        r ^= r << 13, r ^= r >> 17, r ^= r << 5;
+        rl = ROLES[t - 1];
+        for (k = 0; k < NPRESETS; k++) {                 /* reservoir: one of the matching presets, evenly */
+            int eg = PRESETS[k].par[TP_ENGINE], role = PRESETS[k].role;
+            if (eg == EG_SAMPLE || eg == EG_SLICE || eg == EG_DRUMLINE ||
+                (role != rl[0] && role != rl[1] && role != rl[2]))
+                continue;
+            n++;
+            r ^= r << 13, r ^= r >> 17, r ^= r << 5;
+            if (r % (uint32_t)n == 0)
+                pick = k;
+        }
+        if (pick < 0)
+            continue;
+        apply_preset(&proj.trk[t], pick);
+        if (VMODE[t - 1] != 0xFF)
+            proj.trk[t].par[TP_VMODE] = VMODE[t - 1];
+    }
+}
+
 void project_defaults(void)
 {
     static const uint8_t ORDER[NTRK] = {EG_DRUMLINE, EG_STACK, EG_WEFT, EG_WAVETABLE, EG_ORBIT, EG_TINES,

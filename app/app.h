@@ -168,6 +168,7 @@ extern user_preset_t user_presets[NUSER_PRESETS];
 extern uint8_t proj_slot;               /* the slot loaded */
 
 void project_defaults(void);
+void project_random_sounds(uint32_t seed);   /* T2-T8: a random preset each of a part (bass, poly, pad, lead, keys, fx, pluck) */
 int project_mem_pct(void);              /* how full the patterns' room in flash is, % (the last save or load) */
 int project_load(int slot);             /* 0 = loaded; else defaults are in place */
 int project_save(int slot);             /* 0 = saved and verified; -1 = full / failed */
