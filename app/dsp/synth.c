@@ -1513,6 +1513,12 @@ void synth_lock(synth_t *s, int trk, int param, int val)
     if (trk >= 0 && trk < NTRK && param >= 0 && param < NTP_LOCK)
         s->t[trk].lock[param] = (uint8_t)(val < 0 ? 0 : val > 255 ? 255 : val);
 }
+int synth_lock_value(const synth_t *s, int trk, int param)
+{
+    if (trk < 0 || trk >= NTRK || param < 0 || param >= NTP_LOCK || s->t[trk].lock[param] == LOCK_NONE)
+        return -1;
+    return s->t[trk].lock[param];
+}
 void synth_tempo(synth_t *s, float bpm) { s->bpm = bpm < 20.0f ? 20.0f : bpm > 400.0f ? 400.0f : bpm; }
 void synth_limit(synth_t *s, int max_voices)
 {

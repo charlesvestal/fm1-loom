@@ -765,6 +765,7 @@ typedef struct {
     const char *name;
     char val[24];
     int32_t num, max;
+    int32_t live;                                    /* (max > 0) a lock or a motion's value now, as num; -1 none: a dot */
 } knob_t;
 static void kv(knob_t *k, const char *name, const char *val, int32_t num, int32_t max)
 {
@@ -847,8 +848,15 @@ static void ktp_val(knob_t *k, int trk, int p, int v)
 }
 static void ktp(knob_t *k, int trk, int p)
 {
-    if (p >= 0 && p < NTP)
+    if (p >= 0 && p < NTP) {
+        int lv = engine_live(trk, p);
         ktp_val(k, trk, p, proj.trk[trk].par[p]);
+        if (lv >= 0 && k->max > 0) {             /* the base shown, the locked value now a dot on its bar */
+            const tp_info_t *in = tp_info_par(p, proj.trk[trk].par);
+            lv -= in->lo;
+            k->live = lv < 0 ? 0 : lv > k->max ? k->max : lv;
+        }
+    }
 }
 /* a length in steps, from quarter steps: "1/2", "1", "1 1/2", "8"; 0: the pattern's note length, "1/2 auto" */
 static void quarters_text(int q, char *t)
@@ -1002,6 +1010,8 @@ static void page_knobs(knob_t *k)
     tpat_t *tp = tpat(trk);
     char t[16], *e;
     memset(k, 0, 4 * sizeof k[0]);
+    for (int i = 0; i < 4; i++)
+        k[i].live = -1;
     if ((ui.btn >> B_REC & 1u) && !home_held()) {   /* REC held: the record settings */
         static const char *const CIN[3] = {"off", "1 bar", "2 bars"};
         static const char *const MODE[2] = {"overdub", "replace"};
@@ -1205,7 +1215,7 @@ static void draw_knobs(void)
     for (i = 0; i < 4; i++) {
         h = hash_s(h, k[i].val);
         h = hash_s(h, k[i].name);
-        h = hash_u(h, (uint32_t)k[i].num << 8 | (uint32_t)(k[i].name != 0));
+        h = hash_u(h, (uint32_t)k[i].num << 8 | (uint32_t)(k[i].name != 0) | (uint32_t)(k[i].live + 1) << 20);
     }
     h = hash_u(h, (uint32_t)now_touch | (uint32_t)ui.lockpg << 1);
     if (h == ui.sig[2])
@@ -1242,6 +1252,11 @@ static void draw_knobs(void)
             cv_round(cx - 22, 41, 44, 6, 3, K_LINE);
             if (bw > 0)
                 cv_round(cx - 22, 41, bw < 6 ? 6 : bw, 6, 3, hot ? K_SEL : K_NOW);
+            if (k[i].live >= 0) {                    /* a lock or a motion holds it now: where, a dot on the bar */
+                int32_t lx = cx - 22 + 38 * k[i].live / k[i].max;
+                cv_round(lx - 1, 39, 8, 10, 4, K_BG);
+                cv_round(lx, 40, 6, 8, 3, K_REC);
+            }
         }
     }
     cv_blit(0, KNB_Y);

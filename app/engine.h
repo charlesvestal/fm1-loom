@@ -36,6 +36,7 @@ extern volatile uint32_t eng_prof_drum[NTRK];          /* each drum track's time
 
 void engine_init(patterns_t *P, uint8_t (*par)[NTP]);    /* par: NALLTRK arrays (the project's) */
 void engine_render(int32_t *out_lr, uint32_t n, uint32_t gain_q12);   /* ISR: n stereo frames, 24-bit in int32 */
+int engine_live(int trk, int param);                     /* a lock's value now on a parameter, -1 none */
 void engine_load(uint32_t pct);                          /* ISR, after a block: the overload guard's input */
 void engine_set_core2(int (*run)(void (*)(uint32_t), uint32_t), int (*wait)(void));   /* 0, 0 = one core */
 

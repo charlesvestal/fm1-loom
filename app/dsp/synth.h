@@ -243,6 +243,7 @@ int synth_voices_used(const synth_t *s);
  * the sample; 0 when none plays. Called from the main loop: a racy read of the voices, for the screen only */
 int synth_slice_now(const synth_t *s, int trk, int *slice, int32_t *pos);
 void synth_limit(synth_t *s, int max_voices);                  /* the overload guard: fewer voices */
+int synth_lock_value(const synth_t *s, int trk, int param);   /* a lock's value now, -1 none (the UI's dot) */
 void synth_load_hint(synth_t *s, uint32_t pct);              /* the last block's load, %: the note-start check */
 extern uint32_t synth_load_steals;                            /* notes that took a sounding voice by the load check */
 /* what voice vi costs to render, in rough units for the cores' split (engine.c split_at): 0 silent, 4 an

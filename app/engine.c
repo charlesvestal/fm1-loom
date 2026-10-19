@@ -535,6 +535,16 @@ static void s_lock(void *x, int trk, int param, int val)
         dl_filter_update(trk);
     PROF_ADD(PR_NOTE, pn);
 }
+/* a parameter's value as a lock (a p-lock, a motion recording) holds it now, -1 when none does: the knobs' dot
+ * (main loop: a byte read beside the interrupt's write) */
+int engine_live(int trk, int param)
+{
+    if (trk < 0 || trk >= NALLTRK || param < 0 || param >= NTP)
+        return -1;
+    if (trk < NTRK && !eng_drum[trk])
+        return synth_lock_value(SY, trk, param);
+    return lock_on[trk][param >> 3] >> (param & 7) & 1u ? epar[trk][param] : -1;
+}
 static void s_bend(void *x, int trk, int cents)
 {
     (void)x;
