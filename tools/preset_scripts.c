@@ -139,7 +139,7 @@ static void dry(int k, double *pk, double *rms, double *ld)
     synth_t *s = (synth_t *)mem;
     int t, j, o = is_bass(k) ? -12 : 0;
     for (t = 0; t < NTRK; t++)
-        sound_default(par[t], EG_STACK);
+        sound_default(par[t], EG_KNIT);
     memcpy(par[1], PRESETS[k].par, NTP_SOUND);
     synth_init(s, par);
     synth_tempo(s, 120.0f);

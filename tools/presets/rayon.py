@@ -42,7 +42,7 @@ P("marimba", "pluck", "rayon", knobs=dict(bright=50, ratio=ratio(4.0), edge=0, t
   genres=("lofi", "house"))
 # a tubular bell: root 2, long, its brightness slow to go
 P("tubular", "bell", "rayon", knobs=dict(bright=55, ratio=ratio(1.4142135), edge=0, tine=0), volume=100,
-  amp=(0, 104, 0, 96), fenv=(0, 64, 0, 64), filter=("lp12", 108, 0, 64, 64), sends=(0, 45), x=(100, 30, 50, 0),
+  amp=(0, 104, 0, 96), fenv=(0, 64, 0, 64), filter=("lp12", 108, 0, 64, 64), sends=(0, 45), x=(100, 30, 50, 0), octave=1,
   genres=("synthpop",))
 # FM brass: 1:1 with feedback for the saw, the filter's swell, a late vibrato
 P("fm brass", "brass", "rayon", knobs=dict(bright=70, ratio=ratio(1), edge=60, tine=0), volume=90,
