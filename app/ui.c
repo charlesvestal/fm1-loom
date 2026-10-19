@@ -919,6 +919,13 @@ static void keyboard_down(int k)
     }
     if (is_aux(trk))
         trk = inst_trk();                        /* FX tracks: the keys audition the instrument selected last */
+    if (b >= 0 && is_drum(trk) && playing() && !srec && !seq.rec && !seq.rec_wait && ui.page != P_STEPS) {
+        ui.kmode[k] = KM_IDLE;                   /* playing: a black key on a kit's page picks the key it edits,
+                                                  * without a preview over the beat (white keys still play it) */
+        ui.dsound = (uint8_t)(key_sound(k) - 1);
+        say("KEY", DL_SOUND_NAME[ui.dsound]);
+        return;
+    }
     {
         int note = is_drum(trk) ? key_sound(k) : key_note(k);
         ui.kmode[k] = KM_PLAY;
@@ -1067,11 +1074,13 @@ static void key_down(int k)
             mark_dirty();
             return;
         }
-        if (b >= 0 && is_drum(trk) && !ui.held) {   /* a drum track: pick (and hear) the sound */
-            ui.kmode[k] = KM_SOUND;
+        if (b >= 0 && is_drum(trk) && !ui.held) {   /* a drum track: pick (and hear, stopped) the sound */
+            ui.kmode[k] = playing() ? KM_IDLE : KM_SOUND;   /* (playing: a pick only, no preview over the beat,
+                                                              * and no note-off at its release) */
             ui.dsound = (uint8_t)b;
-            engine_key(trk, b + 1, 1, 127);
             ui.knote[k] = (uint8_t)(b + 1);
+            if (!playing())
+                engine_key(trk, b + 1, 1, 127);
             return;
         }
         ui.kmode[k] = KM_IDLE;                   /* (the other tracks' black keys: nothing, ALGORITHM picks a track) */

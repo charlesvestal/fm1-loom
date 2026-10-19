@@ -21,7 +21,8 @@
  *                                upload would leave it (empty at boot)
  *   upload FILE                  an upload's SysEx frames (tools/loom_samples.py syx), each through samples.c as from
  *                                USB; a frame not answered, or answered with an error, fails the run
- *   expect WHAT VALUE            besides fm1-base's: playing, scene, mute (the tracks' bits), voices, guard, cores, dirty, ask, mem (the last save's
+ *   expect WHAT VALUE            besides fm1-base's: playing, scene, mute (the tracks' bits), voices, drumhits (the kit's hits),
+ *                                guard, cores, dirty, ask, mem (the last save's
  *                                share of a project slot, %), model_avg /
  *                                model_peak (the last meter's, %), tempo, trk, user / userbytes / rateN (the user bank's
  *                                samples, its data's bytes, user N's rate), punch_drum / punch_mel (the masks in effect,
@@ -181,6 +182,8 @@ int app_expect(const char *what, int *got)
         *got = seq.mute;
     else if (!strcmp(what, "voices"))
         *got = eng_voices;
+    else if (!strcmp(what, "drumhits"))             /* the kit's hits so far (sequenced and played) */
+        *got = (int)host_drum_hits;
     else if (!strcmp(what, "guard"))
         *got = eng_voices_max;
     else if (!strcmp(what, "model_avg"))            /* the last "meter": the model's mean and peak load, % */

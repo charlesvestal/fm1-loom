@@ -1,0 +1,23 @@
+# a kit's key picked while playing: no preview over the beat (Steps' black key, a sound page's black key); stopped,
+# the same keys sound it; a white key on a sound page still plays while playing
+wait 300
+expect trk 1
+tap PLAY
+wait 200
+tap SEQ
+tapkey b1
+wait 20
+expect drumhits 0
+tap EDIT
+tapkey b2
+wait 20
+expect drumhits 0
+key w3 down
+wait 20
+key w3 up
+expect drumhits 1
+tap PLAY
+wait 300
+tapkey b3
+wait 20
+expect drumhits 2
