@@ -951,8 +951,10 @@ static void key_down(int k)
         ui.knote[k] = (uint8_t)(w < 0 ? 255 : w);
         return;
     }
-    if (lst.open)
+    if (lst.open) {                              /* (the keys play under a list: a preset auditioned as it is picked) */
+        keyboard_down(k);
         return;
+    }
     if (home_held())                             /* (HOME shifts the knobs and buttons, not the keys) */
         return;
     if (p == P_ARRANGE || p == P_SONG) {
@@ -1075,7 +1077,10 @@ static void key_down(int k)
             ui.kmode[k] = KM_SOLO;               /* a tap mutes it, a hold solos it (holds()) */
             ui.knote[k] = T[b];
             track_select(T[b]);
+            return;
         }
+        keyboard_down(k);                        /* (the white keys play: the keys play wherever a page gives them no
+                                                  * job of their own) */
         return;
     }
     if (p == P_WEAVE) {                          /* ARP's Weave: black keys the track woven in (again: none), white its pattern */
@@ -1099,8 +1104,10 @@ static void key_down(int k)
         punch_key(k, 1);
         return;
     }
-    if (p >= P_MASTER)
+    if (p >= P_MASTER) {                         /* (the master pages, Setup: the keys play) */
+        keyboard_down(k);
         return;
+    }
     if (trk == AUX_BRAIN && p == P_PLAY) {       /* the brain's routing page: black keys toggle the followers */
         if (b >= 0 && b < NTRK) {
             ui.kmode[k] = KM_ROUTE;

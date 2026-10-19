@@ -1422,7 +1422,7 @@ static void page_footer(char *t)
             s_cat(t, "WHITE steps|SEQ held: play notes");
         break;
     case P_MIX:
-        s_cat(t, "BLACK mute|hold: solo");
+        s_cat(t, "BLACK mute|hold: solo|WHITE play");
         break;
     case P_THROWS:
         s_cat(t, "KEYS throw: low drums, high melodic|REC held: record");
@@ -1431,9 +1431,10 @@ static void page_footer(char *t)
         s_cat(t, "BLACK the track woven in|WHITE its pattern");
         break;
     case P_MASTER3:
-        s_cat(t, "SEL pump by, level");
+        s_cat(t, "SEL pump by, level|KEYS play");
         break;
     case P_MASTER: case P_MASTER2: case P_SETUP: case P_STATUS:
+        s_cat(t, "KEYS play");
         break;
     case P_SENDS:
         s_cat(t, "KEYS play");
@@ -2889,15 +2890,28 @@ static void pic_drumline(int32_t x0, int32_t y0, int32_t w, int32_t h, const uin
         cv_text(x + 3, y, &FONT_XS, t, hit > 40 ? K_BG : K_FAINT);
     }
 }
-static void pic_clock(int trk)
+static void pic_clock(int trk)                       /* (the clock eases out: its speed follows the sound up at once and
+                                                      * down over ~half a second, so a picture slows to rest, not stops) */
 {
     static uint32_t last;
+    static float ft, spd;
+    static int shown = -1;
     float q = (float)ui_peak[trk] * (1.0f / 16383.5f);   /* (meters_take's) */
+    if (trk != shown) {                              /* another track: its own level and speed, not the last one's fade */
+        shown = trk;
+        pic_lvl = 0.0f;
+        spd = q > 0.005f ? 1.0f : 0.0f;
+    }
     pic_lvl = fm_maxf(fm_minf(q * 2.0f, 1.0f), pic_lvl * 0.86f);
     if (pic_lvl < 0.01f)
         pic_lvl = 0.0f;
-    else
-        pic_f += ui.frame - last;
+    spd += ((pic_lvl > 0.0f ? 1.0f : 0.0f) - spd) * (pic_lvl > 0.0f ? 0.5f : 0.06f);
+    if (spd < 0.02f && pic_lvl <= 0.0f)
+        spd = 0.0f;
+    ft += spd * (float)(ui.frame - last);
+    if (ft >= 16777216.0f)                           /* (a float counts whole frames exactly to 2^24) */
+        ft -= 16777216.0f;
+    pic_f = (uint32_t)ft;
     last = ui.frame;
 }
 static void draw_engine(void)
