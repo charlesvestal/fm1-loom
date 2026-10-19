@@ -47,12 +47,12 @@
 /* ------------------------------------------------------------------ names --- */
 const char *const RL_NAME[NRL] = {"bass", "lead", "pad", "keys", "pluck", "bell", "stab", "strings", "brass", "voice",
                                   "chord", "fx", "drum", "loop"};
-const char *const EG_NAME[NENGINE] = {"weft", "stack", "wavetable", "orbit", "tines", "organ", "sync",
+const char *const EG_NAME[NENGINE] = {"weft", "stack", "wavetable", "rayon", "tines", "organ", "sync",
                                       "swarm", "kit", "sample", "slice", "brocade", "cane", "voile", "gingham",
                                       "knit"};
 const char *const EG_KNOB[NENGINE][4] = {
     {"bend", "wave", "sweep", "spread"},   {"wave", "ratio", "detune", "spread"}, {"table", "scan", "bend", "ripple"},
-    {"bright", "ratio", "edge", "wobble"}, {"bright", "grit", "bite", "bell"},    {"stops", "pedal", "rotor", "rate"},
+    {"bright", "ratio", "edge", "tine"},   {"bright", "grit", "bite", "bell"},    {"stops", "pedal", "rotor", "rate"},
     {"reach", "sub", "hiss", "thin"},      {"swarm", "ring", "tone", "spread"},   {"-", "-", "-", "-"},
     {"sample", "start", "length", "mode"},  {"sample", "slices", "pitch", "gate"}, {"saws", "detune", "mix", "spread"},
     {"model", "timbre", "color", "damp"},   {"model", "timbre", "color", "breath"}, {"model", "timbre", "color", "arp"},
@@ -342,8 +342,8 @@ static void eng_init(voice_t *v)
         br_init(v);
     if (v->engine == EG_KNIT)
         knit_init(v);
-    if (v->engine == EG_ORBIT)
-        v->o[5] = 1.0f;                          /* orbit: its fall starts full */
+    if (v->engine == EG_RAYON)
+        v->o[5] = v->o[7] = 1.0f;                /* rayon: its fall and its tine start full */
     v->o[15] = 1.0f;                             /* tines: its brightness envelopes start full */
     v->o[14] = 1.0f;
     if (v->engine == EG_ORGAN)
@@ -686,41 +686,44 @@ static void wt_run(voice_t *v, float *xl, float *xr, int m)
     v->o[1] = mp;
 }
 
-/* orbit: two-operator FM for strings: bright = index, ratio from a detuned 1:1 (0..50: slow beating) to
- * harmonic divisions (51..100), edge = modulator feedback (sine toward saw), wobble = the speed of a pitch wobble that fades in over the first second of a note (0 = none).
- * Its second page (TP_X1..X3, ORBIT_X_P): fall, the index falling from the note's start (0 = held, as before; else a
- * time constant 20 ms .. 4 s), velocity then scaling the start; floor, what of the index remains (0..100 %);
- * keyscale, the index lower for higher notes (0 .. -6 dB an octave above C3). At 0, 0, 0 the engine is as it was */
-static const float AXIS_RATIO[12] = {0.5f, 0.6666667f, 0.75f, 1.25f, 1.3333334f, 1.5f, 1.75f, 2.0f, 3.0f, 4.0f, 6.0f, 8.0f};
-static void orbit_prep(voice_t *v)
+/* rayon (was orbit): two-operator FM, the DX's way, for e-pianos, bells, mallets and basses. bright = the index (velocity
+ * sets how much of it a note gets: 0.4 .. 1 of it); ratio from a detuned 1:1 (0..50: slow beating) to the modulator's
+ * ratios (51..100: RAYON_RATIO, the bells' inharmonic ones among them); edge = the modulator's feedback (sine toward
+ * saw); tine = a 14:1 partial struck with the note and dying in ~0.25 s, by velocity (the e-piano's bark, tines'
+ * bell). Its second page (TP_X1..X3, RAYON_X_P): fall, the index falling from the note's start (0 = held; else a time
+ * constant 20 ms .. 4 s); floor, what of it remains (0..100 %); keyscale, the index lower for higher notes (0 .. -6 dB
+ * an octave above C3). o[0..2] the carrier, the modulator, the feedback; o[5] the fall (1 at the note's start); o[6]
+ * the tine's phase, o[7] its envelope. ex[0] / ex[1] the increments, ex[2] the index now (rayon_chunk: the fall),
+ * ex[3] the feedback, ex[4] the tine's level at the start, ex[5] its increment, ex[8..10] the second page's
+ * (voice_chunk), ex[11] the index before the fall */
+static const float RAYON_RATIO[16] = {0.5f, 0.6666667f, 0.75f, 1.25f, 1.3333334f, 1.4142135f, 1.5f, 1.75f, 2.0f, 2.5f,
+                                      3.0f, 3.5f, 4.0f, 5.0f, 7.0f, 8.0f};
+static void rayon_prep(voice_t *v)
 {
     cfg_t *c = &v->c;
-    float r = c->e[1] * 100.0f, ratio;
+    float r = c->e[1] * 100.0f, ratio, vs = 0.4f + 0.6f * v->vel;
     if (r <= 50.0f)
         ratio = fm_exp2f(r * 0.6f * (1.0f / 1200.0f));          /* 0 .. 30 cents */
     else {
-        int k = (int)((r - 51.0f) * (11.99f / 49.0f));
-        ratio = AXIS_RATIO[k < 0 ? 0 : k > 11 ? 11 : k];
+        int k = (int)((r - 51.0f) * (15.99f / 49.0f));
+        ratio = RAYON_RATIO[k < 0 ? 0 : k > 15 ? 15 : k];
     }
-    c->ex[6] = fm_minf(c->freq * INV_SR, 0.45f);                 /* the base increments; orbit_chunk wobbles them */
-    c->ex[7] = fm_minf(c->freq * ratio * INV_SR, 0.45f);
-    c->ex[0] = c->ex[6];
-    c->ex[1] = c->ex[7];
-    c->ex[2] = c->e[0] * c->e[0] * 5.0f;                        /* index, turns */
+    c->ex[0] = fm_minf(c->freq * INV_SR, 0.45f);
+    c->ex[1] = fm_minf(c->freq * ratio * INV_SR, 0.45f);
+    c->ex[2] = c->e[0] * c->e[0] * 5.0f * vs;                   /* index, turns */
     if (c->ex[10] > 0.0f && c->freq > 130.81f)                  /* keyscale: the index an octave above C3 x 2^-k */
         c->ex[2] *= fm_exp2f(-c->ex[10] * fm_log2f(c->freq * (1.0f / 130.81f)));
-    if (c->ex[8] > 0.0f)                                         /* with a fall, velocity sets the start */
-        c->ex[2] *= 0.4f + 0.6f * v->vel;
-    c->ex[11] = c->ex[2];                                        /* (the index before the fall: orbit_chunk) */
+    c->ex[11] = c->ex[2];                                        /* (the index before the fall: rayon_chunk) */
     c->ex[3] = c->e[2] * 1.3f;                                  /* feedback */
-    c->ex[4] = c->e[3] > 0.004f ? (0.3f + c->e[3] * 7.7f) * INV_SR : 0.0f;   /* the wobble's rate, 0.3 .. 8 Hz */
+    c->ex[5] = c->freq * 14.0f * INV_SR;                         /* the tine: 14:1, only while under 0.45 */
+    c->ex[4] = c->ex[5] < 0.45f ? c->e[3] * 0.5f * vs : 0.0f;
     c->stereo = 0;
 }
-static void orbit_run(voice_t *v, float *xl, float *xr, int m)
+static void rayon_run(voice_t *v, float *xl, float *xr, int m)
 {
     const cfg_t *c = &v->c;
     float cp = v->o[0], mp = v->o[1], fbv = v->o[2];
-    float dc = c->ex[0], dm = c->ex[1], idx = c->ex[2] * 0.25f, fb = c->ex[3] * 0.25f;
+    float dc = c->ex[0], dm = c->ex[1], idx = c->ex[2] * 0.25f, fb = c->ex[3] * 0.25f, tl = c->ex[4] * v->o[7];
     int i;
     (void)xr;
     for (i = 0; i < m; i++) {
@@ -731,25 +734,26 @@ static void orbit_run(voice_t *v, float *xl, float *xr, int m)
         fbv = mo;
         xl[i] = fm_sin_turns(cp + mo * idx);
     }
+    if (tl > 1e-4f) {                            /* the tine, added */
+        float tp = v->o[6], dt = c->ex[5];
+        for (i = 0; i < m; i++) {
+            tp = step1(tp, dt);
+            xl[i] += fm_sin_turns(tp) * tl;
+        }
+        v->o[6] = tp;
+    }
     v->o[0] = cp;
     v->o[1] = mp;
     v->o[2] = fbv;
 }
-static void orbit_chunk(voice_t *v)               /* the fall; the wobble: +-20 cents at the knob's speed, fading in */
+static void rayon_chunk(voice_t *v)              /* the fall, the tine's decay */
 {
     cfg_t *c = &v->c;
-    float w;
     if (c->ex[8] > 0.0f) {                       /* the fall: o[5] 1 at the note's start, toward 0 */
         c->ex[2] = c->ex[11] * (c->ex[9] + (1.0f - c->ex[9]) * v->o[5]);
         v->o[5] *= c->ex[8];
     }
-    if (c->ex[4] <= 0.0f)
-        return;
-    v->o[3] = wrap1(v->o[3] + c->ex[4] * (float)SY_CHUNK);
-    v->o[4] += (1.0f - v->o[4]) * 0.0015f;       /* the fade: most of the way in a second */
-    w = 1.0f + 0.012f * v->o[4] * fm_sin_turns(v->o[3]);
-    c->ex[0] = fm_minf(c->ex[6] * w, 0.45f);
-    c->ex[1] = fm_minf(c->ex[7] * w, 0.45f);
+    v->o[7] *= 0.994f;                           /* the tine: ~0.25 s (tines') */
 }
 
 /* tines: a tine (carrier with a 1:1 modulator whose index decays, as a struck reed's brightness),
@@ -1679,7 +1683,7 @@ static void slc_retrigger(voice_t *v)            /* a mono retrigger: the playin
 static void eng_chunk(voice_t *v)                /* every chunk: the engines' own slow movements */
 {
     switch (v->engine) {
-    case EG_ORBIT: orbit_chunk(v); break;
+    case EG_RAYON: rayon_chunk(v); break;
     case EG_TINES: tines_chunk(v); break;
     case EG_ORGAN: organ_chunk(v); break;
     case EG_CANE: cn_chunk(v); break;
@@ -1695,7 +1699,7 @@ static void eng_prep(voice_t *v, float bpm)
     case EG_WEFT: weft_prep(v); break;
     case EG_STACK: stack_prep(v); break;
     case EG_WAVETABLE: wt_prep(v); break;
-    case EG_ORBIT: orbit_prep(v); break;
+    case EG_RAYON: rayon_prep(v); break;
     case EG_TINES: tines_prep(v); break;
     case EG_ORGAN: organ_prep(v); break;
     case EG_SYNC: hs_prep(v); break;
@@ -1715,7 +1719,7 @@ static void eng_run(voice_t *v, float *xl, float *xr, int m)
     case EG_WEFT: weft_run(v, xl, xr, m); break;
     case EG_STACK: stack_run(v, xl, xr, m); break;
     case EG_WAVETABLE: wt_run(v, xl, xr, m); break;
-    case EG_ORBIT: orbit_run(v, xl, xr, m); break;
+    case EG_RAYON: rayon_run(v, xl, xr, m); break;
     case EG_TINES: tines_run(v, xl, xr, m); break;
     case EG_ORGAN: organ_run(v, xl, xr, m); break;
     case EG_SYNC: hs_run(v, xl, xr, m); break;
@@ -2693,7 +2697,7 @@ static void voice_chunk(synth_t *s, voice_t *v)
             c->ek[i] = fm_minf(pf(s, trk, TP_E1 + i, dest, off), 127.0f);   /* a foreign lock value stays in range */
             c->e[i] = c->ek[i] * (1.0f / 127.0f);
         }
-        if ((v->engine == EG_ORBIT || v->engine == EG_TINES) && !v->fresh)   /* bright, an FM index: slewed (~10 ms) */
+        if ((v->engine == EG_RAYON || v->engine == EG_TINES) && !v->fresh)   /* bright, an FM index: slewed (~10 ms) */
             c->e[0] = e0 + (c->e[0] - e0) * BRIGHT_SLEW;
     }
     {   /* the envelopes' coefficients cost an exp each: only for a knob that moved */
@@ -2756,7 +2760,7 @@ static void voice_chunk(synth_t *s, voice_t *v)
          * chunk: the organ's pitch wobble and phasor trim); brocade's sub: when it starts or its offset moved */
         float pin = v->pitch_cur + c->pitch_off * 0.01f;
         int moved = pin != v->pitch_in || v->fresh || (v->nchunk & 3) == 0;
-        if (v->engine == EG_ORBIT) {             /* its second page (orbit_prep, orbit_chunk) */
+        if (v->engine == EG_RAYON) {             /* its second page (rayon_prep, rayon_chunk) */
             int fl = P(s, trk, TP_X1), fo = P(s, trk, TP_X2), ks = P(s, trk, TP_X3);
             float fall = fl ? fm_expf(-(float)SY_CHUNK / (0.02f * fm_exp2f((float)fl * (7.64f / 127.0f)) * SY_SR)) : 0.0f;
             float fv = (float)fo * (1.0f / 127.0f), kv = (float)ks * (1.0f / 127.0f);
@@ -3314,8 +3318,8 @@ _Static_assert(BR_SUB_DEF >= 40 && BR_SUB_DEF <= 52, "the sub's offset by defaul
 /* knit's second page: osc 2's interval (+-24 semitones about 64) and level, the sub, the noise (knit_prep) */
 static const tp_info_t KNIT_X_P[4] = {{"osc 2", 40, 88, 64, PK_BIPST, 0}, {"level", 0, 127, 0, PK_PCT, 0},
                                     {"sub", 0, 127, 0, PK_PCT, 0}, {"noise", 0, 127, 0, PK_PCT, 0}};
-/* orbit's second page: the index's fall (0 held; 20 ms .. 4 s), its floor, keyscale (orbit_prep) */
-static const tp_info_t ORBIT_X_P[4] = {{"fall", 0, 127, 0, PK_NUM, 0}, {"floor", 0, 127, 0, PK_PCT, 0},
+/* orbit's second page: the index's fall (0 held; 20 ms .. 4 s), its floor, keyscale (rayon_prep) */
+static const tp_info_t RAYON_X_P[4] = {{"fall", 0, 127, 0, PK_NUM, 0}, {"floor", 0, 127, 0, PK_PCT, 0},
                                        {"keyscale", 0, 127, 0, PK_PCT, 0}, {"-", 0, 0, 0, PK_NUM, 0}};
 static const tp_info_t STRUM_P[4] = {{"roll", 0, 63, 30, PK_NUM, 0}, {"pattern", 0, 3, 0, PK_NAMES, MPAT_N},
                                        {"-", 0, 0, 0, PK_NUM, 0}, {"hold", 0, 1, 0, PK_SWITCH, 0}};
@@ -3426,7 +3430,7 @@ const tp_info_t *tp_info(int p, int engine)
         return &eknob[engine][p - TP_E1];
     }
     if (p >= TP_X1 && p <= TP_X4)                /* the engine's second page: brocade's sub, else none */
-        return engine == EG_BROCADE ? &BR_SUB_P[p - TP_X1] : engine == EG_ORBIT ? &ORBIT_X_P[p - TP_X1]
+        return engine == EG_BROCADE ? &BR_SUB_P[p - TP_X1] : engine == EG_RAYON ? &RAYON_X_P[p - TP_X1]
              : engine == EG_KNIT ? &KNIT_X_P[p - TP_X1] : &NONE_P;
     if (engine == EG_DRUMLINE) {
         if (p >= TP_A && p <= TP_R)
@@ -3546,6 +3550,19 @@ static void tp_text_i(const tp_info_t *i, int p, int v, int engine, char *num, c
     }
     if (p == TP_PORTA && v == 0) {
         put_s(num, "off");
+        return;
+    }
+    if (p == TP_E2 && engine == EG_RAYON) {       /* the ratio: "1:1 +12c" in the detuned stretch, else "3.5:1" */
+        float r = (float)(v > 127 ? 127 : v) * (100.0f / 127.0f);
+        if (r <= 50.0f) {
+            char *e = put_s(num, "1:1");
+            if (r * 0.6f >= 0.5f)
+                put_s(put_i(put_s(e, "+"), (int)(r * 0.6f + 0.5f)), "c");
+        } else {
+            int k = (int)((r - 51.0f) * (15.99f / 49.0f));
+            float q = RAYON_RATIO[k < 0 ? 0 : k > 15 ? 15 : k];
+            put_s((float)(int)q == q ? put_i(num, (int)q) : put_f1(num, q), ":1");
+        }
         return;
     }
     if (p == TP_E2 && engine == EG_STACK) {

@@ -482,7 +482,7 @@ static int page_trk(int p)
 static int x_page(int t)                             /* the engine has a second page of knobs (TP_X1..X4) */
 {
     int e = t < NTRK ? proj.trk[t].par[TP_ENGINE] : -1;
-    return e == EG_BROCADE || e == EG_ORBIT || e == EG_KNIT;
+    return e == EG_BROCADE || e == EG_RAYON || e == EG_KNIT;
 }
 static int group_n(int g)
 {
@@ -2609,7 +2609,7 @@ static void pic_wave(int32_t x0, int32_t y0, int32_t w, int32_t h, const uint8_t
         pen_to(&pn, (float)(x0 + x), cy - (a * (127 - p[TP_E2]) + b * p[TP_E2]) / 127.0f * amp, K_NOW);
     }
 }
-static void pic_orbit(int32_t x0, int32_t y0, int32_t w, int32_t h, const uint8_t *p, uint32_t f)
+static void pic_rayon(int32_t x0, int32_t y0, int32_t w, int32_t h, const uint8_t *p, uint32_t f)
 {
     /* bright: the ring's size; ratio: the modulator's orbit; edge: its dots; wobble: its speed */
     float cx = (float)(x0 + w / 2), cy = (float)(y0 + h / 2), r1 = 14.0f + p[TP_E1] * (float)(h / 2 - 20) / 127.0f;
@@ -3099,7 +3099,7 @@ static void draw_engine(void)
     case EG_WEFT: pic_weft(20, 24, 200, 88, p, pic_f); break;
     case EG_STACK: pic_stack(20, 24, 200, 88, p, pic_f); break;
     case EG_WAVETABLE: pic_wave(20, 24, 200, 88, p, pic_f); break;
-    case EG_ORBIT: pic_orbit(20, 24, 200, 88, p, pic_f); break;
+    case EG_RAYON: pic_rayon(20, 24, 200, 88, p, pic_f); break;
     case EG_TINES: pic_tines(20, 24, 200, 88, p, pic_f); break;
     case EG_ORGAN: pic_organ(20, 24, 200, 88, p, pic_f); break;
     case EG_SYNC: pic_sync(20, 24, 200, 88, p, pic_f); break;
@@ -3318,7 +3318,7 @@ static void draw_play2(void)
 }
 /* orbit's Sub page: the FM index from the note's start over two seconds (fall, floor), and how keyscale lowers it
  * up the keyboard (a second, fainter curve: two octaves up) */
-static void draw_orbit_fall(void)
+static void draw_rayon_fall(void)
 {
     int trk = sel_trk();
     const uint8_t *p = proj.trk[trk].par;
@@ -3393,8 +3393,8 @@ static void draw_sub(void)
     const uint8_t *p = proj.trk[trk].par;
     int lv = p[TP_X1], st = clampi((int)p[TP_X2] - 64, -24, -12), d = -st - 12;
     uint32_t h = hash_u(hash_u(2166136261u, 0x5Bu), (uint32_t)trk | (uint32_t)lv << 4 | (uint32_t)(st + 64) << 12);
-    if (p[TP_ENGINE] == EG_ORBIT) {
-        draw_orbit_fall();
+    if (p[TP_ENGINE] == EG_RAYON) {
+        draw_rayon_fall();
         return;
     }
     if (p[TP_ENGINE] == EG_KNIT) {

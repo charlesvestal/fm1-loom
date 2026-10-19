@@ -25,10 +25,10 @@ files list them (gen_presets.py FILES); an engine's first preset is its sound in
 
 ROLES = ["bass", "lead", "pad", "keys", "pluck", "bell", "stab", "strings", "brass", "voice", "chord", "fx", "drum",
          "loop"]                                      # synth.h RL_*, in order
-ENGINES = ["weft", "stack", "wavetable", "orbit", "tines", "organ", "sync", "swarm", "kit", "sample", "slice",
+ENGINES = ["weft", "stack", "wavetable", "rayon", "tines", "organ", "sync", "swarm", "kit", "sample", "slice",
            "brocade", "cane", "voile", "gingham", "knit"]   # synth.h EG_*, in order
 KNOBS = {"weft": ["bend", "wave", "sweep", "spread"], "stack": ["wave", "ratio", "detune", "spread"],
-         "wavetable": ["table", "scan", "bend", "ripple"], "orbit": ["bright", "ratio", "edge", "wobble"],
+         "wavetable": ["table", "scan", "bend", "ripple"], "rayon": ["bright", "ratio", "edge", "tine"],
          "tines": ["bright", "grit", "bite", "bell"], "organ": ["stops", "pedal", "rotor", "rate"],
          "sync": ["reach", "sub", "hiss", "thin"], "swarm": ["swarm", "ring", "tone", "spread"],
          "sample": ["sample", "start", "length", "mode"], "slice": ["sample", "slices", "pitch", "gate"],

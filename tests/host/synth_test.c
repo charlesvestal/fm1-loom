@@ -936,7 +936,7 @@ static void bench(void)
                     worst = di;
             }
         }
-        if (e == EG_ORBIT)
+        if (e == EG_RAYON)
             orbit_mean = (double)total / (380.0 * N * NVOICE);
 #ifdef __APPLE__
         printf("  %-10s %6.1f / %6.1f   (%d voices sounding)\n", EG_NAME[e], (double)total / (380.0 * N * NVOICE),
@@ -1144,7 +1144,7 @@ static void char_tests(void)
     /* ring: a sine (orbit, bright 0) at A3 times one at 1.5 x: sidebands at 0.5 and 2.5 x, the carrier gone */
     {
         double c, lo, hi, f = 220.0;
-        char_sound(EG_ORBIT, CT_RING, 127, 48, 127);
+        char_sound(EG_RAYON, CT_RING, 127, 48, 127);
         par[0][TP_E1] = 0;
         par[0][TP_E4] = 0;
         par[0][TP_FTYPE] = FT_DYNAMIC;
@@ -1382,10 +1382,10 @@ int main(void)
     {
         static const uint8_t DEF[8][4] = {{40, 0, 20, 0}, {0, 2, 12, 64}, {0, 40, 0, 0}, {40, 25, 0, 0},
                                           {50, 0, 40, 50}, {3, 4, 2, 5}, {30, 0, 0, 0}, {30, 0, 30, 20}};
-        static const char *const NAMES[8] = {"weft", "stack", "wavetable", "orbit", "tines", "organ", "sync", "swarm"};
+        static const char *const NAMES[8] = {"weft", "stack", "wavetable", "rayon", "tines", "organ", "sync", "swarm"};
         static const char *const KNOBS[8][4] = {
             {"bend", "wave", "sweep", "spread"},   {"wave", "ratio", "detune", "spread"}, {"table", "scan", "bend", "ripple"},
-            {"bright", "ratio", "edge", "wobble"}, {"bright", "grit", "bite", "bell"},    {"stops", "pedal", "rotor", "rate"},
+            {"bright", "ratio", "edge", "tine"},   {"bright", "grit", "bite", "bell"},    {"stops", "pedal", "rotor", "rate"},
             {"reach", "sub", "hiss", "thin"},      {"swarm", "ring", "tone", "spread"}};
         int ok = 1, names = 1;
         for (e = 0; e < EG_DRUMLINE; e++) {
@@ -1404,9 +1404,9 @@ int main(void)
         check("the engines and their knobs have their names", names && !strcmp(EG_NAME[EG_DRUMLINE], "kit"));
         tp_text(TP_E1, 40, EG_WEFT, num, unit);
         check("weft's bend 40 shows 31", !strcmp(num, "31"));
-        tp_text(TP_E1, 51, EG_ORBIT, num, unit);
+        tp_text(TP_E1, 51, EG_RAYON, num, unit);
         check("engine knobs show two digits 00..99", !strcmp(num, "40") && !unit[0]);
-        tp_text(TP_E1, 0, EG_ORBIT, num, unit);
+        tp_text(TP_E1, 0, EG_RAYON, num, unit);
         check("engine knob 0 shows 00", !strcmp(num, "00"));
         tp_text(TP_E2, 2, EG_STACK, num, unit);
         check("stack ratio shows N:1", !strcmp(num, "2:1") && tp_info(TP_E2, EG_STACK)->lo == 1 && tp_info(TP_E2, EG_STACK)->hi == 8);
