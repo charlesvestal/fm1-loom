@@ -86,8 +86,9 @@ static const uint16_t DRUM_DS[6] = {65083, 64715, 64715, 64715, 64715, 62312};
 #define PT_S 44
 #define PT_D 55
 #define PT_K 66                                  /* (the frequency and knobs they were made from: 4) */
-/* the outputs' gains: each model's raw note near LOOM-8's engines' (a cycle peaking near 1) */
-static const float CN_GAIN[NCANE] = {2.6f, 2.7f, 1.45f, 0.8f, 2.0f, 1.2f};
+/* the outputs' gains: each model's raw note near LOOM-8's engines' (a cycle peaking near 1; the pluck raised
+ * 2026-10-19: its decaying phrases sat ~6 dB under the bank, its attack's peak now ~2.9 at the knobs' corners) */
+static const float CN_GAIN[NCANE] = {4.2f, 2.7f, 1.45f, 0.8f, 2.0f, 1.2f};
 
 /* what a voice of each model costs in the cores' split's units (an ordinary voice 4, ~1.1 % of a block a unit): as the
  * FM-1 measured them (tools/measure_load.sh 2026-10-18, two cores: cane's bell twice an ordinary voice, voile's choir

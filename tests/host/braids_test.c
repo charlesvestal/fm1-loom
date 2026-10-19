@@ -166,7 +166,7 @@ int main(void)
                     finite_ok = 1;
                     peak = 0.0f;
                     held(n, 0, 30, 0);
-                    if (!finite_ok || peak > 2.0f) {
+                    if (!finite_ok || peak > 3.0f) {   /* (the pluck's attack, at the knobs' corners: ~2.9) */
                         printf("    %s %s knobs %d %d %d note %d: peak %.2f%s\n", EG_NAME[ENG[e]], MNAME[e][m], V[k % 3],
                                V[(k + 1) % 3], e4, n, (double)peak, finite_ok ? "" : " NOT FINITE");
                         ok = 0;
@@ -186,12 +186,12 @@ int main(void)
         int ok = 1;
         double lo = 1e9, hi = 0.0;
         printf("\nlevels: a held A3 (57), the default knobs, the raw voice (the loudest 100 ms, dBFS RMS / peak)\n");
-        for (e = 0; e < 4; e++)
-            for (m = 0; m < (e < 3 ? NMOD[e] : 1); m++) {
+        for (e = 0; e <= NENG; e++)                  /* the engines' models, then knit for the scale */
+            for (m = 0; m < (e < NENG ? NMOD[e] : 1); m++) {
                 double r = 0.0;
                 int w;
                 uint8_t d[NTP];
-                if (e < 3) {
+                if (e < NENG) {
                     sound_default(d, ENG[e]);
                     reset(ENG[e], m, d[TP_E2], d[TP_E3], d[TP_E4]);
                 } else {
@@ -204,9 +204,9 @@ int main(void)
                     if (x > r)
                         r = x;
                 }
-                printf("  %-8s %-8s %6.1f / %6.1f\n", e < 3 ? EG_NAME[ENG[e]] : "weft", e < 3 ? MNAME[e][m] : "(scale)",
+                printf("  %-8s %-8s %6.1f / %6.1f\n", e < NENG ? EG_NAME[ENG[e]] : "knit", e < NENG ? MNAME[e][m] : "(scale)",
                        20.0 * log10(r + 1e-12), 20.0 * log10((double)peak + 1e-12));
-                if (e == 3)
+                if (e == NENG)
                     break;
                 if (r < 0.01)
                     ok = 0;

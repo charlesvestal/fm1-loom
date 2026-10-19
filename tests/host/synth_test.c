@@ -1975,7 +1975,8 @@ int main(void)
         int same = 1, i;
         reset();
         for (t = 0; t < NTRK; t++) {
-            load_preset(t, preset_first(t) + 3);
+            /* (cane keeps its models' state in slots outside the synth's, which this copies: knit on its track) */
+            load_preset(t, preset_first(t == EG_CANE ? EG_KNIT : t) + 3);
             par[t][TP_LTYPE] = (uint8_t)(t & 1 ? LT_WOBBLE : LT_WAVE);
             par[t][TP_LDEST] = (uint8_t)(t & 1 ? 100 : LD_FILTER);
             par[t][TP_LAMT] = 100;
