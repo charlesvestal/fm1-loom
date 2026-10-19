@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-only
-"""slice's presets, the first set (2026-10-19): the four recorded breaks (one bar each, played at the song's tempo:
-classic 98 BPM, heat 96, choke 69, ecstasy 121 as recorded). knobs: sample (by name), slices (0: 4, 1: 8, 2: 16,
-3: 32), pitch (64: as recorded, +-24 st), gate. A loop keeps its kick (the boom check leaves loops and drums be);
+"""slice's presets, the first set (2026-10-19): the four recorded breaks, played at the song's tempo (classic 98 BPM,
+heat 96 and ecstasy 121 a bar each; choke two bars at 138: labelled 69, half-time). knobs: sample (by name), slices
+(0: 4, 1: 8, 2: 16, 3: 32), pitch (64: as recorded, +-24 st), gate. A loop keeps its kick (the boom check leaves loops and drums be);
 dust comes from tape (the rules: tools/presets/knit.py)."""
 from lib import P, smp
 

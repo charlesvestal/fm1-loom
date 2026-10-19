@@ -50,10 +50,10 @@ Where LOOM-8's own parts come from:
   `base/assets/fonts/Terminus-LICENSE.txt`).
 - The package tool (fm1-base's `tools/fm1pkg_make.py`) uses three files of JieLi's AC79 SDK (Apache-2.0), which
   are not part of this tree: see `BUILDING.md`. LOOM-8 links nothing of JieLi's (no Bluetooth, no WiFi).
-- The four factory breaks (`app/samples/classic.wav`, `heat.wav`, `choke.wav`, `ecstasy.wav`: one bar each of
-  "The Classic", "Heat", "Choke" and "Ecstasy", cut and resampled) are free loops shared on Reddit, whose author
-  wrote: "You have my full permission to use these loops in commercial or personal projects." (Author and post
-  link: TODO.)
+- The four factory breaks (`app/samples/classic.wav`, `heat.wav`, `choke.wav`, `ecstasy.wav`: a bar each, as labelled, of
+  "The Classic", "Heat", "Choke" and "Ecstasy", cut and resampled) are free loops by u/FCTRYBEATS, shared on Reddit,
+  who wrote: "You have my full permission to use these loops in commercial or personal projects."
+  (https://www.reddit.com/r/Drumkits/comments/ovkpgs/comment/h7db0wl/)
 - The recorded instruments (`app/samples/piano.wav`, `upright.wav`, `strings.wav`, `brass.wav`, `flute.wav`,
   `orch_hit.wav`) are cut from the Versilian Studios Chamber Orchestra 2 Community Edition (VSCO 2 CE,
   github.com/sgossner/VSCO-2-CE), CC0 1.0, by `tools/prep_recordings.py`.

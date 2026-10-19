@@ -142,11 +142,12 @@ INSTRUMENTS = [("piano", "piano.wav", 16000, 60), ("upright", "upright.wav", 110
                ("strings", "strings.wav", 16000, 60), ("brass", "brass.wav", 16000, 62),
                ("flute", "flute.wav", 16000, 72), ("orch hit", "orch_hit.wav", 16000, 60)]
 MADE_AFTER = [("vinyl", vinyl, 11025)]               # made here, after the instruments, at their own rate
-# recordings (app/samples/: one bar each, mono, cut from the source loops), after the made ones: name, file, rate the
-# bank keeps it at, bars (a break: the slice engine plays it at the song's tempo, slice 1 on BREAK_ROOT). The breaks:
-# free loops posted on Reddit, their author's words "You have my full permission to use these loops in commercial
+# recordings (app/samples/: one bar each as labelled, mono, cut from the source loops), after the made ones: name,
+# file, rate the bank keeps it at, bars (a break: the slice engine plays it at the song's tempo, slice 1 on
+# BREAK_ROOT; choke is labelled 69 BPM but is a half-time beat at 138, so its cut holds two bars). The breaks:
+# free loops posted on Reddit by u/FCTRYBEATS, their words "You have my full permission to use these loops in commercial
 # or personal projects" (LICENSING.md has the source)
-RECORDINGS = [("classic", "classic.wav", 16000, 1), ("heat", "heat.wav", 16000, 1), ("choke", "choke.wav", 16000, 1),
+RECORDINGS = [("classic", "classic.wav", 16000, 1), ("heat", "heat.wav", 16000, 1), ("choke", "choke.wav", 16000, 2),
               ("ecstasy", "ecstasy.wav", 16000, 1)]
 BUDGET = 184 * 1024                                  # B: the image's room for the factory bank
 SAMPLE_DIR = Path(__file__).resolve().parents[1] / "app" / "samples"
