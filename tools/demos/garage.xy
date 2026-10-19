@@ -53,7 +53,7 @@ knob 2 brain no
 knob 2 porta 30
 knob 2 level 102
 # T3 organ "reed combo": the stabs, short
-preset 3 reed_combo organ
+preset 3 reed_combo bellows
 knob 3 brain no
 knob 3 d 62
 knob 3 s 40

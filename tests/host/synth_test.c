@@ -904,8 +904,8 @@ static void bench(void)
         for (t = 0; t < NTRK; t++) {
             sound_default(par[t], e);
             par[t][TP_FTYPE] = FT_LP24;
-            par[t][TP_E4] = e == EG_ORGAN ? 8 : 100;   /* stereo where the engine has it: the dear case */
-            par[t][TP_E3] = e == EG_ORGAN ? 8 : 60;
+            par[t][TP_E4] = e == EG_BELLOWS ? 8 : 100;   /* stereo where the engine has it: the dear case */
+            par[t][TP_E3] = e == EG_BELLOWS ? 8 : 60;
             if (e == EG_SAMPLE) {                /* the sung ah, looped: every voice sounds throughout */
                 par[t][TP_E1] = 4;
                 par[t][TP_E2] = 0;
@@ -1382,7 +1382,7 @@ int main(void)
     {
         static const uint8_t DEF[8][4] = {{40, 0, 20, 0}, {0, 2, 12, 64}, {0, 40, 0, 0}, {40, 25, 0, 0},
                                           {50, 0, 40, 50}, {3, 4, 2, 5}, {30, 0, 0, 0}, {30, 0, 30, 20}};
-        static const char *const NAMES[8] = {"weft", "stack", "wavetable", "rayon", "tines", "organ", "sync", "swarm"};
+        static const char *const NAMES[8] = {"weft", "stack", "jacquard", "rayon", "tines", "bellows", "sync", "swarm"};
         static const char *const KNOBS[8][4] = {
             {"bend", "wave", "sweep", "spread"},   {"wave", "ratio", "detune", "spread"}, {"table", "scan", "bend", "ripple"},
             {"bright", "ratio", "edge", "tine"},   {"bright", "grit", "bite", "bell"},    {"stops", "pedal", "rotor", "rate"},
@@ -1410,12 +1410,12 @@ int main(void)
         check("engine knob 0 shows 00", !strcmp(num, "00"));
         tp_text(TP_E2, 2, EG_STACK, num, unit);
         check("stack ratio shows N:1", !strcmp(num, "2:1") && tp_info(TP_E2, EG_STACK)->lo == 1 && tp_info(TP_E2, EG_STACK)->hi == 8);
-        check("organ knobs are discrete 1..8", tp_info(TP_E1, EG_ORGAN)->lo == 1 && tp_info(TP_E1, EG_ORGAN)->hi == 8
-                                                   && tp_info(TP_E4, EG_ORGAN)->hi == 8);
-        check("nine wavetables", tp_info(TP_E1, EG_WAVETABLE)->hi == 8);
-        tp_text(TP_E1, 8, EG_WAVETABLE, num, unit);
+        check("organ knobs are discrete 1..8", tp_info(TP_E1, EG_BELLOWS)->lo == 1 && tp_info(TP_E1, EG_BELLOWS)->hi == 8
+                                                   && tp_info(TP_E4, EG_BELLOWS)->hi == 8);
+        check("nine wavetables", tp_info(TP_E1, EG_JACQUARD)->hi == 8);
+        tp_text(TP_E1, 8, EG_JACQUARD, num, unit);
         check("the last table is chirp", !strcmp(num, "chirp"));
-        tp_text(TP_E1, 3, EG_WAVETABLE, num, unit);
+        tp_text(TP_E1, 3, EG_JACQUARD, num, unit);
         check("table 3 is vocal", !strcmp(num, "vocal"));
     }
     /* the filter and play page texts */
@@ -1647,7 +1647,7 @@ int main(void)
     {
         int ok = 1;
         reset();
-        sound_default(par[0], EG_ORGAN);
+        sound_default(par[0], EG_BELLOWS);
         for (k = 1; k <= 8; k++) {
             par[0][TP_E1] = (uint8_t)k;
             fingerprint(0, k & 1 ? fp1 : fp2);
@@ -1656,13 +1656,13 @@ int main(void)
         }
         check("organ: eight models, each its own sound", ok);
         ok = 1;
-        sound_default(par[0], EG_ORGAN);
+        sound_default(par[0], EG_BELLOWS);
         par[0][TP_E3] = 8;
         par[0][TP_E4] = 8;
         synth_note_on(S, 0, 60, 100, 0, 1);
         check("organ: rotor 8 at rate 8 moves the level", swing(20, 60, &finite) > 1.3f);
         synth_all_off(S, -1);
-        sound_default(par[0], EG_WAVETABLE);
+        sound_default(par[0], EG_JACQUARD);
         for (k = 0; k < 9; k++) {
             par[0][TP_E1] = (uint8_t)k;
             fingerprint(0, k & 1 ? fp1 : fp2);
@@ -1674,7 +1674,7 @@ int main(void)
 
     /* a six-note chord of the loudest kind stays inside full scale */
     reset();
-    sound_default(par[0], EG_ORGAN);
+    sound_default(par[0], EG_BELLOWS);
     par[0][TP_E1] = 8;
     par[0][TP_VOLUME] = 127;
     synth_all_off(S, -1);
@@ -1801,7 +1801,7 @@ int main(void)
     {   /* on an engine knob with a narrow range: the organ's type sweeps its 1..8 without leaving it */
         int ok = 1;
         reset();
-        sound_default(par[0], EG_ORGAN);
+        sound_default(par[0], EG_BELLOWS);
         par[0][TP_LTYPE] = LT_WAVE;
         par[0][TP_LSPEED] = 60;
         par[0][TP_LAMT] = 127;
@@ -1867,7 +1867,7 @@ int main(void)
     }
     /* wobble: volume, vibrato, envelope, shapes */
     reset();
-    sound_default(par[0], EG_ORGAN);
+    sound_default(par[0], EG_BELLOWS);
     par[0][TP_LTYPE] = LT_WOBBLE;
     par[0][TP_LSPEED] = 70;
     par[0][TP_LAMT] = 64;
@@ -1879,7 +1879,7 @@ int main(void)
         int sh, ok = 1;
         for (sh = 0; sh < 5; sh++) {
             reset();
-            sound_default(par[0], EG_ORGAN);
+            sound_default(par[0], EG_BELLOWS);
             par[0][TP_LTYPE] = LT_WOBBLE;
             par[0][TP_LSPEED] = 70;
             par[0][TP_LAMT] = 64;
@@ -1894,7 +1894,7 @@ int main(void)
     }
     {
         reset();
-        sound_default(par[0], EG_ORGAN);
+        sound_default(par[0], EG_BELLOWS);
         par[0][TP_LTYPE] = LT_WOBBLE;
         par[0][TP_LSPEED] = 90;
         par[0][TP_LAMT] = 127;                   /* vibrato only */
@@ -1910,7 +1910,7 @@ int main(void)
     {
         float early, late;
         reset();
-        sound_default(par[0], EG_ORGAN);
+        sound_default(par[0], EG_BELLOWS);
         par[0][TP_LTYPE] = LT_WOBBLE;
         par[0][TP_LSPEED] = 90;
         par[0][TP_LAMT] = 64;
@@ -1922,7 +1922,7 @@ int main(void)
         printf("    wobble fade in: swing %.2f early, %.2f late\n", (double)early, (double)late);
         check("wobble envelope: fade in (little early, full late)", early < 1.15f && late > 1.5f);
         reset();
-        sound_default(par[0], EG_ORGAN);
+        sound_default(par[0], EG_BELLOWS);
         par[0][TP_LTYPE] = LT_WOBBLE;
         par[0][TP_LSPEED] = 90;
         par[0][TP_LAMT] = 64;
@@ -1938,7 +1938,7 @@ int main(void)
     {
         float quiet, loud;
         reset();
-        sound_default(par[0], EG_ORGAN);
+        sound_default(par[0], EG_BELLOWS);
         par[0][TP_VOLUME] = 0;
         synth_note_on(S, 0, 48, 100, 0, 1);
         for (b = 0; b < 20; b++)
@@ -1966,7 +1966,7 @@ int main(void)
     {
         float a, c, held, rel;
         reset();
-        sound_default(par[0], EG_ORGAN);
+        sound_default(par[0], EG_BELLOWS);
         par[0][TP_LTYPE] = LT_PUMP;
         par[0][TP_LSPEED] = 3;                   /* source: track 4 */
         par[0][TP_LAMT] = 127;

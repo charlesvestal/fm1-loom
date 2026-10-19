@@ -49,7 +49,7 @@ P("fm brass", "brass", "rayon", knobs=dict(bright=70, ratio=ratio(1), edge=60, t
   amp=(50, 80, 110, 60), fenv=(60, 80, 70, 60), filter=("lp24", 80, 5, 90, 64), sends=(0, 18), x=(70, 60, 40, 0),
   lfo=("wobble", 92, 74, 64, 20, 0), genres=("synthpop",))
 # a glass pad: 2:1 still, the filter breathing, wide in the room, tape
-P("glass pad", "pad", "rayon", knobs=dict(bright=35, ratio=ratio(2.0), edge=0, tine=0), volume=104,
+P("glass pad", "pad", "rayon", knobs=dict(bright=35, ratio=ratio(2.0), edge=0, tine=0), volume=90,
   amp=(90, 90, 120, 100), fenv=(0, 64, 0, 64), filter=("lp12", 90, 0, 64, 64), sends=(0, 50), x=(0, 0, 70, 0),
   lfo=("wave", 20, 74, "filter free", 0, 1), char=("tape", 40, 60, 127), genres=("lofi",))
 # toy keys: 3:1 with the tine, short and bright, a music box gone a little wrong

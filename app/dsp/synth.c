@@ -47,7 +47,7 @@
 /* ------------------------------------------------------------------ names --- */
 const char *const RL_NAME[NRL] = {"bass", "lead", "pad", "keys", "pluck", "bell", "stab", "strings", "brass", "voice",
                                   "chord", "fx", "drum", "loop"};
-const char *const EG_NAME[NENGINE] = {"weft", "stack", "wavetable", "rayon", "tines", "organ", "sync",
+const char *const EG_NAME[NENGINE] = {"weft", "stack", "jacquard", "rayon", "tines", "bellows", "sync",
                                       "swarm", "kit", "sample", "slice", "brocade", "cane", "voile", "gingham",
                                       "knit"};
 const char *const EG_KNOB[NENGINE][4] = {
@@ -333,7 +333,7 @@ static void eng_init(voice_t *v)
     for (i = 0; i < 16; i++)
         v->o[i] = 0.0f;
     smp_cache_reset(&smp_vc[v->vi % NVOICE]);
-    if (v->engine == EG_ORGAN)
+    if (v->engine == EG_BELLOWS)
         for (i = 0; i < 6; i++)
             v->o[i * 2] = 1.0f;                  /* the rotating phasors start at 1 + 0i */
     if (v->engine == EG_WEFT)
@@ -346,7 +346,7 @@ static void eng_init(voice_t *v)
         v->o[5] = v->o[7] = 1.0f;                /* rayon: its fall and its tine start full */
     v->o[15] = 1.0f;                             /* tines: its brightness envelopes start full */
     v->o[14] = 1.0f;
-    if (v->engine == EG_ORGAN)
+    if (v->engine == EG_BELLOWS)
         v->o[13] = 1.0f, v->o[14] = 0.0f;        /* the rotor's gain and its ramp */
     if (v->engine == EG_CANE)
         cn_init(v);
@@ -1685,7 +1685,7 @@ static void eng_chunk(voice_t *v)                /* every chunk: the engines' ow
     switch (v->engine) {
     case EG_RAYON: rayon_chunk(v); break;
     case EG_TINES: tines_chunk(v); break;
-    case EG_ORGAN: organ_chunk(v); break;
+    case EG_BELLOWS: organ_chunk(v); break;
     case EG_CANE: cn_chunk(v); break;
     case EG_KNIT: knit_chunk(v); break;
     case EG_VOILE: vo_chunk(v); break;
@@ -1698,10 +1698,10 @@ static void eng_prep(voice_t *v, float bpm)
     switch (v->engine) {
     case EG_WEFT: weft_prep(v); break;
     case EG_STACK: stack_prep(v); break;
-    case EG_WAVETABLE: wt_prep(v); break;
+    case EG_JACQUARD: wt_prep(v); break;
     case EG_RAYON: rayon_prep(v); break;
     case EG_TINES: tines_prep(v); break;
-    case EG_ORGAN: organ_prep(v); break;
+    case EG_BELLOWS: organ_prep(v); break;
     case EG_SYNC: hs_prep(v); break;
     case EG_SAMPLE: smp_prep(v); break;
     case EG_SLICE: slc_prep(v, bpm); break;
@@ -1718,10 +1718,10 @@ static void eng_run(voice_t *v, float *xl, float *xr, int m)
     switch (v->engine) {
     case EG_WEFT: weft_run(v, xl, xr, m); break;
     case EG_STACK: stack_run(v, xl, xr, m); break;
-    case EG_WAVETABLE: wt_run(v, xl, xr, m); break;
+    case EG_JACQUARD: wt_run(v, xl, xr, m); break;
     case EG_RAYON: rayon_run(v, xl, xr, m); break;
     case EG_TINES: tines_run(v, xl, xr, m); break;
-    case EG_ORGAN: organ_run(v, xl, xr, m); break;
+    case EG_BELLOWS: organ_run(v, xl, xr, m); break;
     case EG_SYNC: hs_run(v, xl, xr, m); break;
     case EG_SAMPLE: smp_run(v, xl, xr, m); break;
     case EG_SLICE: slc_run(v, xl, xr, m); break;
@@ -2201,7 +2201,7 @@ int synth_voice_cost(const synth_t *s, int vi)
         return v->engine == EG_CANE ? CN_COST[md < NCANE ? md : 0] : v->engine == EG_VOILE ? VO_COST[md < NVOILE ? md : 0]
                                                                                           : GH_COST[md < NGINGHAM ? md : 0];
     }
-    if (v->engine == EG_WEFT || v->engine == EG_STACK || v->engine == EG_ORGAN)
+    if (v->engine == EG_WEFT || v->engine == EG_STACK || v->engine == EG_BELLOWS)
         return 5;                                /* (the FM-1, tools/measure_load.sh 2026-10-18: a quarter above the rest) */
     if (v->engine == EG_KNIT)                  /* (a guess until measured: brocade's, a unit a voice and a part) */
         return 3 + (int)v->c.ex[2] + (v->c.ex[14] > 0.0f) + (v->c.ex[16] > 0.0f || v->c.ex[17] > 0.0f);
@@ -3354,12 +3354,12 @@ static void eknob_init(void)
             i->def = EG_DEF[e][k];
             i->kind = PK_NN;
             i->names = 0;
-            if (e == EG_WAVETABLE && k == 0) {
+            if (e == EG_JACQUARD && k == 0) {
                 i->hi = WT_NTABLE - 1;
                 i->kind = PK_NAMES;
                 i->names = WTNAME_N;
             }
-            if ((e == EG_STACK && k == 1) || e == EG_ORGAN) {   /* the discrete 1..8 knobs */
+            if ((e == EG_STACK && k == 1) || e == EG_BELLOWS) {   /* the discrete 1..8 knobs */
                 i->lo = 1;
                 i->hi = 8;
                 i->kind = PK_NUM;              /* stack's ratio prints "N:1" (tp_text) */

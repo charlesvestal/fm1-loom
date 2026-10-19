@@ -91,7 +91,7 @@ knob 5 level 107
 knob 5 send1 30
 knob 5 send2 24
 # T6 wavetable "lace keys" through the arp: the plucks
-preset 6 lace_keys wavetable
+preset 6 lace_keys jacquard
 knob 6 brain no
 knob 6 player arp
 knob 6 p1 1/8

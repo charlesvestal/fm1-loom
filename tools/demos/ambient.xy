@@ -31,7 +31,7 @@ knob 1 level 80
 knob 1 send1 24
 knob 1 send2 70
 # T2 organ "chapel": the chords, a soft pipe, dark, into the hall
-preset 2 chapel organ
+preset 2 chapel bellows
 knob 2 brain no
 knob 2 cut 66
 knob 2 level 88
@@ -57,7 +57,7 @@ knob 5 level 82
 knob 5 send1 56
 knob 5 send2 100
 # T6 organ "pedal bass": the 16'
-preset 6 pedal_bass organ
+preset 6 pedal_bass bellows
 # (the song was written before a bass preset sat an octave down)
 param 6 oct 2
 knob 6 brain no

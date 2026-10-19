@@ -3098,10 +3098,10 @@ static void draw_engine(void)
     switch (eg) {
     case EG_WEFT: pic_weft(20, 24, 200, 88, p, pic_f); break;
     case EG_STACK: pic_stack(20, 24, 200, 88, p, pic_f); break;
-    case EG_WAVETABLE: pic_wave(20, 24, 200, 88, p, pic_f); break;
+    case EG_JACQUARD: pic_wave(20, 24, 200, 88, p, pic_f); break;
     case EG_RAYON: pic_rayon(20, 24, 200, 88, p, pic_f); break;
     case EG_TINES: pic_tines(20, 24, 200, 88, p, pic_f); break;
-    case EG_ORGAN: pic_organ(20, 24, 200, 88, p, pic_f); break;
+    case EG_BELLOWS: pic_organ(20, 24, 200, 88, p, pic_f); break;
     case EG_SYNC: pic_sync(20, 24, 200, 88, p, pic_f); break;
     case EG_SWARM: pic_swarm(20, 24, 200, 88, p, pic_f); break;
     case EG_SAMPLE: pic_sample(20, 24, 200, 88, p); break;

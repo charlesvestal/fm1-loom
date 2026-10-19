@@ -155,8 +155,8 @@ void project_random_sounds(uint32_t seed)
 
 void project_defaults(void)
 {
-    static const uint8_t ORDER[NTRK] = {EG_DRUMLINE, EG_STACK, EG_WEFT, EG_WAVETABLE, EG_ORBIT, EG_TINES,
-                                        EG_ORGAN, EG_SYNC};
+    static const uint8_t ORDER[NTRK] = {EG_DRUMLINE, EG_STACK, EG_WEFT, EG_JACQUARD, EG_RAYON, EG_TINES,
+                                        EG_BELLOWS, EG_SYNC};
     int t, k;
     uint8_t *z = (uint8_t *)&proj, theme = proj.rsv[1], aoff = proj.rsv[2] & 4u;   /* a new project keeps the theme
                                                                                     * and the autosave (pages.c AUTOSAVE_OFF) */

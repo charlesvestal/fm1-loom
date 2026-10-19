@@ -26,7 +26,7 @@
  * the slice plays). The note at the sample's root plays slice 1, the next note slice 2 ..., wrapping:
  * slice = (note - root) mod slices. A sample that states its bars (sample.h smp_t.bars) plays at the
  * tempo (its bars last as many bars of the song), the pitch knob on top; one that does not, at its own rate */
-enum { EG_WEFT, EG_STACK, EG_WAVETABLE, EG_RAYON, EG_TINES, EG_ORGAN, EG_SYNC, EG_SWARM, EG_DRUMLINE, EG_SAMPLE,
+enum { EG_WEFT, EG_STACK, EG_JACQUARD, EG_RAYON, EG_TINES, EG_BELLOWS, EG_SYNC, EG_SWARM, EG_DRUMLINE, EG_SAMPLE,
        EG_SLICE, EG_BROCADE, EG_CANE, EG_VOILE, EG_GINGHAM, EG_KNIT, NENGINE };   /* (saved by number: a new engine goes at the end) */
 /* the Braids engines (dsp/braids.h, after Mutable Instruments Braids, MIT): E1 the model, E2 Braids' timbre, E3 its
  * color, E4 cane's damp, voile's breath, gingham's arp (NARP chords, 0 off). cane: pluck, bow, reed, flute, bell,

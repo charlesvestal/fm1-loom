@@ -110,7 +110,7 @@ int main(void)
     int d, i, e;
     printf("-- the cores' split: the critical path, instructions a sample (fixed k = 8 -> split_at)\n");
     for (e = 0; e < 3; e++) {
-        int eng = e == 2 ? EG_BROCADE : e ? EG_WAVETABLE : EG_WEFT;
+        int eng = e == 2 ? EG_BROCADE : e ? EG_JACQUARD : EG_WEFT;
         for (d = 0; d < 2; d++)
             for (i = 0; i < (int)(sizeof NV / sizeof NV[0]); i++) {
                 int k0, k1;
