@@ -76,6 +76,17 @@ wait 1600
 shot lock.png
 key w0 up
 wait 200
+# a trick on step 7: multiply, three hits (taken off again after)
+key w6 down
+wait 60
+tap ARP
+turn K1 3
+turn K2 1
+wait 1600
+shot trick.png
+turn K1 -3
+key w6 up
+wait 200
 # ---- T3: chords
 turn ALGO 1
 tap EDIT
@@ -190,6 +201,13 @@ turn ALGO 8
 tap EDIT
 wait 1600
 shot conductor.png
+turn SELECT 2
+tapkey b2
+wait 1600
+shot conductor_follow.png
+tapkey b2
+turn SELECT -2
+wait 3500
 # ---- throws
 turn ALGO 1
 tap EDIT

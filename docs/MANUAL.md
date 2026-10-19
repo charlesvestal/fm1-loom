@@ -34,7 +34,7 @@ to 16 from the left, black keys 1 to 11.
    13. Press black key 3 for the hat and press every other white key. Press **PLAY**.
 
    <img src="img/screen-beat-playing.png" width="240" alt="Steps on T1 kit, playing: kick on 1, 5, 9 and 13, snare on 5 and 13, hats between; a tick for every sound on a step, the playhead lit" title="The beat playing">
-2. **A bass line.** Turn **ALGORITHM** to T2 stack. On the Steps page, hold **SEQ** and play a low note:
+2. **A bass line.** Turn **ALGORITHM** to T2, the bass. On the Steps page, hold **SEQ** and play a low note:
    the keys are a keyboard while **SEQ** is down, and the note is remembered. Let go and press white keys 1, 4,
    7 and 11. Hold **SEQ**, play another note, let go and press white key 14. Or tap **REC** and play the
    notes one after another: each one goes on the next step. Press **EDIT** and turn **KNOB 1** while it plays
@@ -54,12 +54,13 @@ to 16 from the left, black keys 1 to 11.
    chords.
 
    <img src="img/screen-chords.png" width="240" alt="Steps on T3: a C chord on step 1 and a D minor on step 9, each named in its cell, with a bar under the steps they last" title="Two chords">
-5. **The conductor.** Turn **ALGORITHM** to COND (the conductor). Press **EDIT**: the key is C major and T2 and T3 follow.
-   Play an F, then a G, then a C while it plays: everything moves with you, in the scale. Press **SEQ**, turn
-   **SELECT** for the Bar page and press black key 4 so a step is a beat. Back on Steps, hold **SEQ** and play
-   a chord, let go and press a step, and so on: four steps are a bar of progression.
+5. **The conductor.** Turn **ALGORITHM** to COND (the conductor). Press **EDIT**: the key is C major and every
+   melodic track follows. Play an F, then a G, then a C while it plays: everything moves with you, in the scale.
+   Press **SEQ**, turn **SELECT** for the Bar page and press black key 4 so a step is a beat. Back on Steps, hold
+   **SEQ** and play a chord, let go and press a step, and so on: four steps are a bar of progression. Or let
+   T3's chords lead: **EDIT**, turn **SELECT** to Follow and press black key 3.
 
-   <img src="img/screen-conductor.png" width="240" alt="The conductor&#x27;s Engine page: C major, degree 0, the tracks that follow lit; knobs key, scale, link" title="The conductor">
+   <img src="img/screen-conductor.png" width="240" alt="The conductor&#x27;s Engine page: C major, degree 0, the tracks that follow lit; knobs key, scale, link" title="The conductor"> <img src="img/screen-conductor-follow.png" width="240" alt="The conductor&#x27;s Follow page: chords from T3, its box in its colour among the tracks that follow; T3&#x27;s lowest note sets the chord" title="Chords from a track">
 6. **Throws.** Press **FX** and turn **SELECT** to its last page, Throws. Hold a low key: F3 mutes the
    drums, G3 stutters them, A3 repeats, B3 echoes, C4 builds, D4 plays four on the floor, E4 jumbles them. A
    high key does the same on the melodic tracks. Let go and the pattern comes back.
@@ -91,10 +92,12 @@ knob on it; press **ARP** on T2 and turn **KNOB 1** to arp; press **GLO**, turn 
 - **Lock**: a knob value a step sets as it plays.
 - **Scene** (S1 to S16): which pattern each track plays, plus the mutes and the conductor's key.
 - **Song**: a chain of scenes, each played for a number of bars.
-- **Engine**: the way a track makes its sound. Eight synths and the kit, a drum synth.
+- **Engine**: the way a track makes its sound. Twelve synths, two for samples (sample and slice) and the kit, a
+  drum synth.
 - **Preset**: a sound to load. 224 come with LOOM-8, sixteen for each engine, and 16 are yours.
 - **Player**: what the keys do on a track: arp, strum or hold.
-- **Conductor**: the aux track that moves the other tracks through a key and scale.
+- **Conductor**: the aux track that moves the other tracks through a key and scale, from its own chords or from
+  a track's notes.
 - **Throw**: a momentary effect on the drums or the melodic tracks, from a key on FX's Throws page.
 - **Weave**: a track's pattern crossed with another, live: bars or steps in turn, or one's rhythm with the other's notes.
   Set up on the track's ARP, played on the WEAVE track.
@@ -151,6 +154,8 @@ press…" means keep **HOME** down while you press the next thing.
 | make the whole mix pump with the kick | Press **GLO**, turn **SELECT** to Master out and turn **KNOB 4** (pump). **SEL** picks what drives it and how fast it swells back. |
 | solo a track | On Mix, hold its black key. Let go, and the mutes come back. |
 | play a progression | Turn **ALGORITHM** to COND (the conductor). Press **EDIT** and play a chord: it moves the tracks that follow. Press **SEQ** and press a step: the chord goes on it. Set the scale to 4 on the Bar page so a step is a beat. |
+| let a track lead the chords | On COND, press **EDIT** and turn **SELECT** to Follow. Press the track's black key: its lowest note sets the chord for the others (a chord part or a bass line). The same key again: off. |
+| get new sounds for the band | Press **HOME**, press **SEL** and pick RANDOMIZE PRESETS: T2 to T8 each get a random preset of their part. **SEL** says yes. |
 | save | LOOM-8 saves by itself when stopped and quiet. **SAVE** saves at once; hold **SAVE** and press white key 1 to 3 to save to that slot. |
 | name a project | Press **HOME**, press **SEL**, pick RENAME and type on the keys (**OCT−** capitals, **OCT+** digits). **SEL** keeps it. |
 | keep a sound | On a sound page, hold **SAVE** and press a white key. The sound becomes that user preset. |
@@ -165,7 +170,7 @@ press…" means keep **HOME** down while you press the next thing.
 | **SEL** | Opens a list of this page's settings and actions. With a step held, its notes. When LOOM-8 asks a question, **SEL** means yes. |
 | **HOME** | Opens Arrange. On Arrange, it opens the Song page. Held, it is the shift key for buttons and knobs: undo and redo, the fine tempo, the scenes on **PRESETS**. When LOOM-8 asks a question, **HOME** means no. |
 | **SEQ** | Opens Steps. Its page 2 is Bar. Hold it on Steps and the keys play the track and set what a step writes. |
-| **EDIT** | Opens Engine. Its page 2 is Play; on a drum track, the key's model, random, pan and volume. Brocade has a page 3, Sub. |
+| **EDIT** | Opens Engine. Its page 2 is Play; on a drum track, the key's model, random, pan and volume. Brocade has a page 3, Sub; the conductor's pages are its key, the routing and Follow. |
 | **ENV** | Opens Envelope (a drum track: lag, attack, random, length), then Filter, then the filter's envelope. |
 | **FX** | Opens Character, the track's own effect. Then Sends, the track's sends to FX I and FX II. Then FX I and FX II, the two effects. |
 | **LFO** | Opens LFO. Its page 2 has the type's fourth and fifth knobs. |
@@ -407,18 +412,18 @@ through keys, plucks and bells to pads, and end with the ones that move. Most ar
 bells send to the reverb, and some plucks and leads to the delay. Press **SEL** for the list: ENGINE changes the engine and loads its first sound, then a preset,
 SCRAMBLE for a random sound, SAVE AS PRESET, RESET SOUND, and whether the track FOLLOWS CONDUCTOR.
 
-<img src="img/screen-engine.png" width="240" alt="Engine on T2: stack, its picture, the preset name, and its four knobs shape, ratio, detune, stereo from 00 to 99" title="The Engine page"> <img src="img/screen-play.png" width="240" alt="Play: voice mode, portamento, bend range and volume" title="The Play page">
+<img src="img/screen-engine.png" width="240" alt="Engine on T2: stack, its picture, the preset name, and its four knobs wave, ratio, detune, spread from 00 to 99" title="The Engine page"> <img src="img/screen-play.png" width="240" alt="Play: voice mode, portamento, bend range and volume" title="The Play page">
 
 | Engine | Knobs |
 | --- | --- |
-| simple | shape, pw, noise, stereo |
-| stack | shape, ratio, detune, stereo |
-| wavetable | table, position, warp, drift |
-| orbit | tone, ratio, shape, tremolo |
-| epiano | tone, texture, punch, tine |
-| organ | type, bass, tremolo, speed |
-| sync | freq, sub, noise, lowcut |
-| swarm | swarm, am, fm, detune |
+| weft | bend, wave, sweep, spread |
+| stack | wave, ratio, detune, spread |
+| wavetable | table, scan, bend, ripple |
+| orbit | bright, ratio, edge, wobble |
+| tines | bright, grit, bite, bell |
+| organ | stops, pedal, rotor, rate |
+| sync | reach, sub, hiss, thin |
+| swarm | swarm, ring, tone, spread |
 | brocade | saws, detune, mix, spread |
 | cane | model, timbre, color, damp |
 | voile | model, timbre, color, breath |
@@ -871,7 +876,7 @@ On a sound page, hold **SAVE** and press white key 1 to 16 to keep the track's s
 
 | Button | Page | KNOB 1 | KNOB 2 | KNOB 3 | KNOB 4 | Keys |
 | --- | --- | --- | --- | --- | --- | --- |
-| HOME | Arrange | tempo | groove | amount | click | white: scenes, black: mutes; SEL: load or new project, when scenes switch |
+| HOME | Arrange | tempo | groove | amount | click | white: scenes, black: mutes; SEL: load, save to, rename, new project, randomize presets, the song, when scenes switch |
 | HOME, SELECT | Song | slot | scene | bars | at end | white: add a scene |
 | SEQ | Steps | pattern | length | scale | groove | white: steps, black: sound (drums); SEQ held: a keyboard |
 | SEQ, a step held | Steps | velocity | length | chance | pitch | white: length, black: sounds |
@@ -879,6 +884,7 @@ On a sound page, hold **SAVE** and press white key 1 to 16 to keep the track's s
 | SEQ, SELECT | Bar | quant | note | groove | shape | black: scale |
 | EDIT | Engine | the engine's four | | | | play |
 | EDIT, SELECT | Play | mode | porta | bend | volume | play |
+| EDIT, SELECT twice (brocade) | Sub | sub | offset | | | play |
 | EDIT, drum track | Engine, Key | the key's knobs; model, random, pan, volume | | | | black: the key |
 | ENV | Envelope | attack | decay | sustain | release | play |
 | ENV, SELECT | Filter | cutoff | reso | env | keytrack | play; PRESETS: the type |
@@ -901,9 +907,9 @@ On a sound page, hold **SAVE** and press white key 1 to 16 to keep the track's s
 | GLO, SELECT | Master out | drums | melodic | comp | pump | SEL: pump by, release, accent, level |
 | GLO, SELECT | Setup | lights | clock | notes | theme | SEL: USB audio |
 
-The aux tracks' Engine page: COND has key, scale and link, page 2 the routing and page 3 Follow; THROW has latch;
-FX I and FX II have the effect's four knobs, and on page 2 hp, lp
-and the send to FX II.
+The aux tracks' **EDIT** pages: COND has key, scale and link, page 2 the routing (black keys toggle a track) and
+page 3 Follow (**KNOB 1**, or a black key: the track the chords come from); THROW has latch; WEAVE has latch; FX I
+and FX II have the effect's four knobs, and on page 2 hp, lp and the send to FX II.
 
 ## Screen reader
 
