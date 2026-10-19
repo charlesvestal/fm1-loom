@@ -95,7 +95,7 @@ static const char *const NOTE_NAME[12] = {"C", "C#", "D", "Eb", "E", "F", "F#", 
 /* the step components (SC_*: the OP-XY's 14, on the white keys with HOME and a step held), their letter on
  * the grid and their name */
 static const char *const COMP_NAME[NSC] = {"none", "pulse", "hold", "multiply", "velocity", "ramp up", "ramp down",
-                                           "random", "portamento", "bend", "tonality", "jump", "skip lock",
+                                           "random", "glide", "bend", "tonality", "jump", "skip lock",
                                            "skip trick", "skip trig"};
 static const char *const COMP_GLYPH[NSC] = {"", "P", "H", "M", "V", "^", "v", "?", "~", "B", "T", "J", "L", "C", "S"};
 static const char *const VEL_VAL[10] = {"4", "8", "16", "32", "64", "100", "112", "127", "0", "random"};
@@ -334,7 +334,18 @@ static int32_t text_fit(int32_t x, int32_t y, const felucca_font_t *f, const cha
     b[n] = 0;
     while (n && text_w(f, b) > w)
         b[--n] = 0;
+#ifdef GFX_AUDIT
+    if (s[n])                                        /* (the layout audit: a text cut to fit is cut off on the screen) */
+        ga_report("CUT TO FIT", s, b, x, y + cv_oy);
+#endif
     return cv_text(x, y, f, b, c);
+}
+static uint32_t s_find_sp(const char *s)            /* the first space's place (the end: none) */
+{
+    uint32_t i = 0;
+    while (s[i] && s[i] != ' ')
+        i++;
+    return i;
 }
 static int upper_only(const char *s)
 {
@@ -720,7 +731,12 @@ static void draw_header(void)
         int32_t x;
         alert_box(no ? AL_NO : ui.msg_kind);
         x = cv_text(AL_X, 4, &FONT_B, ui.msg[0], K_TEXT);
-        text_fit(x + 8, 4, &FONT_B, ui.msg[1], 232 - (x + 8), K_DIM);
+        {   /* the second part smaller when it does not fit (cut only past the smallest) */
+            int32_t room = 232 - (x + 8);
+            const felucca_font_t *f = text_w(&FONT_B, ui.msg[1]) <= room ? &FONT_B
+                                    : text_w(&FONT_S, ui.msg[1]) <= room ? &FONT_S : &FONT_XS;
+            text_fit(x + 8, f == &FONT_XS ? 6 : 4, f, ui.msg[1], room, K_DIM);
+        }
     } else {
         int32_t r = 232, x = 8;
         const char *bn = BTN_LABEL[PAGE_BTN[page_group(ui.page)].btn];
@@ -1246,7 +1262,16 @@ static void draw_knobs(void)
             text_c(cx, cap_y(12, 28, &FONT_B), &FONT_B, k[i].val, vc);
         else if (text_w(&FONT_XS, k[i].val) <= 48)
             text_c(cx, cap_y(12, 28, &FONT_XS), &FONT_XS, k[i].val, vc);
-        else
+        else if (k[i].val[s_find_sp(k[i].val)]) {   /* two words: two lines ("ramp" / "down") */
+            char a[24];
+            const char *sp = k[i].val + s_find_sp(k[i].val);
+            uint32_t n = (uint32_t)(sp - k[i].val) < sizeof a - 1u ? (uint32_t)(sp - k[i].val) : sizeof a - 1u;
+            for (uint32_t j = 0; j < n; j++)
+                a[j] = k[i].val[j];
+            a[n] = 0;
+            text_fit(cx - (text_w(&FONT_XS, a) < 48 ? text_w(&FONT_XS, a) : 48) / 2, 11, &FONT_XS, a, 48, vc);
+            text_fit(cx - (text_w(&FONT_XS, sp + 1) < 48 ? text_w(&FONT_XS, sp + 1) : 48) / 2, 24, &FONT_XS, sp + 1, 48, vc);
+        } else
             text_fit(cx - 24, cap_y(12, 28, &FONT_XS), &FONT_XS, k[i].val, 48, vc);
         if (k[i].max > 0) {
             int32_t bw = 44 * k[i].num / k[i].max;
@@ -2121,7 +2146,7 @@ static void draw_song(void)
         return;
     if (!sg->len) {
         text_c(120, 40, &FONT_B, "No scenes in the song yet", K_TEXT);
-        text_c(120, 62, &FONT_S, "Press a white key to add scene 1 to 16", K_DIM);
+        text_c(120, 62, &FONT_S, "White keys add scenes 1 to 16", K_DIM);
         cv_blit(0, MAIN_Y);
         return;
     }
@@ -2281,7 +2306,7 @@ static void draw_steps(void)
         if (!begin_main(h))
             return;
         text_c(120, 40, &FONT_B, TRACK_NAME[trk], K_TEXT);
-        text_c(120, 62, &FONT_S, "has no steps. Turn ALGORITHM for a track.", K_DIM);
+        text_c(120, 62, &FONT_S, "has no steps: turn ALGORITHM", K_DIM);
         cv_blit(0, MAIN_Y);
         return;
     }
@@ -2890,7 +2915,7 @@ static void pic_drumline(int32_t x0, int32_t y0, int32_t w, int32_t h, const uin
     (void)f;
     for (int k = 0; k < DL_NSOUND; k++) {
         int32_t x = x0 + (k % 6) * pw + 2, y = y0 + (k / 6) * ph + 2, hit = eng_drum_hit[k];
-        static const char *const PAD[NDM] = {"kick", "snare", "hat", "clap", "shakr", "tamb", "strng", "conga", "tom", "fm",
+        static const char *const PAD[NDM] = {"kick", "snare", "hat", "clap", "shakr", "tamb", "strng", "cong", "tom", "fm",
                                              "smpl"};
         const char *nm = PAD[p[TP_DRUM(k, DP_MODEL)] % NDM];
         char t[4];
@@ -3060,8 +3085,11 @@ static void draw_punch(void)
             e = s_cat(e, PUNCH_NAME[fx & 15]);
     }
     if (!n)
-        s_cat(t, "hold a key: mute, stutter, echo, build...");
-    text_fit(10, 4, n ? &FONT_B : &FONT_S, t, 220, n ? K_NOW : K_DIM);
+        s_cat(t, "hold a key for an effect");
+    {   /* (the effects held: smaller as more are held, cut only past the smallest) */
+        const felucca_font_t *f = !n ? &FONT_S : text_w(&FONT_B, t) <= 220 ? &FONT_B : text_w(&FONT_S, t) <= 220 ? &FONT_S : &FONT_XS;
+        text_fit(10, f == &FONT_XS ? 6 : 4, f, t, 220, n ? K_NOW : K_DIM);
+    }
     cv_text(10, 24, &FONT_XS, "drums", K_DIM);
     text_r(230, 24, &FONT_XS, "melodic", K_DIM);
     for (int k = 0; k < 16; k++) {                   /* the keys: two octaves, the ones in effect lit */
@@ -3652,7 +3680,7 @@ static void draw_players(void)
     else if (pl == PL_ARP)
         cv_text(12, 24, &FONT_XS, "held notes play one after another", K_DIM);
     else if (pl == PL_STRUM)
-        cv_text(12, 24, &FONT_XS, "a key strums the chord from it; keys together: a new one", K_DIM);
+        cv_text(12, 24, &FONT_XS, "one key strums the chord; keys together set it", K_DIM);
     else
         cv_text(12, 24, &FONT_XS, "notes stay until the next", K_DIM);
     e = s_cat(t, pl == PL_STRUM ? "chord: " : "held: ");

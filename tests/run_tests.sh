@@ -72,5 +72,9 @@ for s in tests/scenarios/*.xy; do
     rm -rf "$B/scenarios/$n" && mkdir -p "$B/scenarios/$n"
     run "scenario-$n" $B/host/loom_host "$s" "$B/scenarios/$n"
 done
+# every page, engine and type, through the layout audit (tools/layout_sweep.py)
+"$PY" tools/layout_sweep.py build/gen/layout_sweep.xy
+rm -rf "$B/scenarios/layout_sweep" && mkdir -p "$B/scenarios/layout_sweep"
+run layout-sweep $B/host/loom_host build/gen/layout_sweep.xy "$B/scenarios/layout_sweep"
 [ $FAIL -eq 0 ] && echo "all tests passed" || echo "TESTS FAILED"
 exit $FAIL

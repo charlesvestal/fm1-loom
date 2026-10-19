@@ -123,7 +123,7 @@ press…" means keep **HOME** down while you press the next thing.
 | change a step's note | Hold its step and turn **KNOB 4** (a drum step too: its hits play higher or lower). |
 | put a second sound on a drum step | Hold the step and press the sound's black key. |
 | take one note off a step | Hold the step, press **SEL**, pick the note and press **SEL**. |
-| add a trick | Hold the step and press **ARP**. **KNOB 1** picks the first trick (pulse, hold, multiply, velocity, ramp up, ramp down, random, portamento, bend, tonality, jump, skip lock, skip trick, skip trigger) and **KNOB 2** its value; **KNOB 3** and **KNOB 4** the second. Turn a trick back to "-" to take it off. |
+| add a trick | Hold the step and press **ARP**. **KNOB 1** picks the first trick (pulse, hold, multiply, velocity, ramp up, ramp down, random, glide, bend, tonality, jump, skip lock, skip trick, skip trigger) and **KNOB 2** its value; **KNOB 3** and **KNOB 4** the second. Turn a trick back to "-" to take it off. |
 | set a skip's pattern | Turn its value on past "random": the same cycles come again "not on the last pass", then "only the first". |
 | give a step a chance | Hold the step and turn **KNOB 3**. Past 99 % come the A:B cycles. |
 | lock a knob on a step | Hold the step and press **EDIT**, **ENV**, **FX** or **LFO**. Turn a knob. **SAVE** clears the step's locks. |
@@ -277,7 +277,7 @@ several steps and they all take the same turn. Let go of the steps when you are 
 | 5 | ramp up: the note climbs the scale each pass | 2 to 6 steps over one octave, then over three |
 | 6 | ramp down | the same |
 | 7 | random: another note of the scale each pass | the same |
-| 8 | portamento: glide into the note | 10 % to 80 %, then off |
+| 8 | glide: slide into the note | 10 % to 80 %, then off |
 | 9 | bend | down-up, up-down, bumps, springs, fades, random 1 and 2 |
 | 10 | tonality: how the step takes the conductor | ignore, transpose only, octave up, fifth up, third up, chromatic up, chromatic down, quantize 33 %, 66 %, 100 % |
 | 11 | jump: move the playhead | to step 1, 5, 9, 13, forward, back, either, stay, align |
@@ -287,7 +287,7 @@ several steps and they all take the same turn. Let go of the steps when you are 
 
 For the three skips, the value goes on past random: the same cycles again, playing all but the last pass, then
 again playing only the first. A new trick starts at its default: pulse and hold 4, multiply 2, velocity 64, the
-ramps and random 4, portamento 40 %, bend down-up, tonality fifth up, jump forward, the skips a cycle of 2.
+ramps and random 4, glide 40 %, bend down-up, tonality fifth up, jump forward, the skips a cycle of 2.
 
 Pulse and hold keep time: the playhead goes on, the steps they cover give way to them, and the track carries on
 where it would have been. On a drum track only the sounds on the trick's step give way: the other sounds play
