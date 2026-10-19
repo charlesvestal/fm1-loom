@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* LOOM-8 synth: a pool of voices playing fourteen engines (weft, stack, wavetable, orbit, tines, organ,
- * sync, swarm, sample, slice, brocade, cane, voile and gingham), each voice with two ADSRs, a state-variable filter, a character stage, an LFO
- * and sends. (The kit, EG_DRUMLINE, is dsp/drumline.c's.)
+/* LOOM-8 synth: a pool of voices playing eight engines (knit, rayon, jacquard, bellows, cane, voile, sample and slice),
+ * each voice with two ADSRs, a state-variable filter, a character stage, an LFO and sends. (The kit, EG_DRUMLINE, is
+ * dsp/drumline.c's.)
  *
  * A track's sound is a flat byte array par[NTP] (four modules, four knobs each: engine, envelope, filter,
  * LFO; plus the play page, sends, the character stage, player and mix). Continuous values are 0..127, switches small integers (ranges in
@@ -19,23 +19,21 @@
 #define NVOICE 16                     /* synth voices, all tracks */
 #define NVOICE_TRK 6                  /* the most one track takes */
 
-/* the engines; the kit (EG_DRUMLINE) is the drum engine, EG_SAMPLE (after it, so a saved kit stays a kit)
- * plays a sample of the bank (dsp/sample.h) pitched by the note: sample, start, length, mode (one-shot,
+/* the engines (2026-10-19: knit the subtractive voice, rayon FM, jacquard the wavetables, bellows the organ; weft,
+ * stack, sync, swarm, brocade, gingham and tines gone); the kit (EG_DRUMLINE) is the drum engine, EG_SAMPLE plays a
+ * sample of the bank (dsp/sample.h) pitched by the note: sample, start, length, mode (one-shot,
  * loop, reverse, pingpong). EG_SLICE plays a loop (a break) cut into even slices, a note picking one:
  * sample, slices (4, 8, 16, 32: TP_E2 0..3), pitch (+-24 semitones about 64, TP_E3 40..88), gate (how much of
  * the slice plays). The note at the sample's root plays slice 1, the next note slice 2 ..., wrapping:
  * slice = (note - root) mod slices. A sample that states its bars (sample.h smp_t.bars) plays at the
  * tempo (its bars last as many bars of the song), the pitch knob on top; one that does not, at its own rate */
-enum { EG_WEFT, EG_STACK, EG_JACQUARD, EG_RAYON, EG_TINES, EG_BELLOWS, EG_SYNC, EG_SWARM, EG_DRUMLINE, EG_SAMPLE,
-       EG_SLICE, EG_BROCADE, EG_CANE, EG_VOILE, EG_GINGHAM, EG_KNIT, NENGINE };   /* (saved by number: a new engine goes at the end) */
+enum { EG_KNIT, EG_RAYON, EG_JACQUARD, EG_BELLOWS, EG_CANE, EG_VOILE, EG_SAMPLE, EG_SLICE, EG_DRUMLINE,
+       NENGINE };                                    /* (saved by number: PROJ_FORMAT 10 renumbered them) */
 /* the Braids engines (dsp/braids.h, after Mutable Instruments Braids, MIT): E1 the model, E2 Braids' timbre, E3 its
- * color, E4 cane's damp, voile's breath, gingham's arp (NARP chords, 0 off). cane: pluck, bow, reed, flute, bell,
- * drum, at most CN_SLOTS of its voices (each a slot of CN_LEN int16 for its lines); voile: vosim, vowel, choir,
- * whisper; gingham: toy, chord, ring, peak, band, noise */
+ * color, E4 cane's damp, voile's breath. cane: pluck, bow, reed, flute, bell, drum, at most CN_SLOTS of its voices
+ * (each a slot of CN_LEN int16 for its lines); voile: vosim, vowel, choir, whisper */
 #define NCANE 6
 #define NVOILE 4
-#define NGINGHAM 6
-#define NARP 9
 #define CN_SLOTS 4
 #define CN_LEN 1536
 static inline int eg_synth(int e) { return e >= 0 && e < NENGINE && e != EG_DRUMLINE; }   /* a voice engine */
@@ -72,8 +70,8 @@ enum {
     TP_CTYPE, TP_CAMT, TP_CTONE, TP_CMIX,           /* Character: the voice's own effect after the filter (CT_*),
                                                      * its amount, tone (per type, below) and mix (dry .. wet) */
     TP_X1, TP_X2, TP_X3, TP_X4,                     /* the engine's second page (its names per engine: tp_info; "-"
-                                                     * where unused): brocade's Sub, level (0 off) and offset (52..40:
-                                                     * -12..-24 semitones, PK_BIPST); orbit's fall, floor, keyscale */
+                                                     * where unused): knit's osc 2, level, sub, noise; rayon's fall,
+                                                     * floor, keyscale */
     TP_OCT,                                         /* Play 2: the sound's octave, 0..4 = -2..+2 (2: as played); a
                                                      * preset's by its role (a bass -1). Moves the notes, sequenced too */
     TP_PLAYER, TP_P1, TP_P2, TP_P3, TP_P4,          /* Players: off / arp / strum / hold and its four knobs */
@@ -88,7 +86,6 @@ _Static_assert(NTP <= 255, "a parameter's index is a byte (the engine's queue, t
 #define TP_DRUM(s, k) (TP_DRUM0 + (s) * DP_N + (k))
 #define NTP_SOUND TP_PLAYER                          /* a preset keeps par[0..TP_PLAYER): the character, the engine's
                                                       * second page (TP_X1..X4) too */
-#define BR_SUB_DEF 52                                /* brocade's sub offset by default: -12 semitones (64 = 0) */
 
 enum { VM_POLY, VM_MONO, VM_LEGATO };
 /* filter types: lp24 (two state-variable stages, 24 dB, aggressive), ladder (Moog-like, saturating feedback),
@@ -243,11 +240,8 @@ int synth_voices_used(const synth_t *s);
  * the sample; 0 when none plays. Called from the main loop: a racy read of the voices, for the screen only */
 int synth_slice_now(const synth_t *s, int trk, int *slice, int32_t *pos);
 void synth_limit(synth_t *s, int max_voices);                  /* the overload guard: fewer voices */
-/* brocade (EG_BROCADE), the supersaw after NuSaw: up to seven saws a voice (E1) and NuSaw's sine sub (TP_X1 level,
- * TP_X2 offset), and at most six of its voices in the pool (five at seven saws: synth.c br_cap) */
-int synth_brocade_voices(const synth_t *s);                    /* brocade's voices sounding */
 /* what voice vi costs to render, in rough units for the cores' split (engine.c split_at): 0 silent, 4 an
- * ordinary voice (weft, stack and organ 5), brocade 4 + its saws (+ 1 the sub); the Braids engines by their model
+ * ordinary voice (bellows 5), knit 3 + its unison (+ 1 osc 2, + 1 sub or noise); the Braids engines by their model
  * (braids.h: 3 .. 8, cane's bell the most) */
 int synth_voice_cost(const synth_t *s, int vi);
 extern volatile uint16_t synth_peak[NTRK];                     /* per track meters, Q14, decaying (UI) */

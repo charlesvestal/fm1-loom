@@ -3,7 +3,7 @@ wait 300
 turn ALGO 2
 tap EDIT
 turn PRESET 3
-expect par3.0 0
+expect par3.0 1
 wait 60
 shot c02_preset.png
 tap SEQ

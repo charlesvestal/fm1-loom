@@ -18,8 +18,7 @@ import time
 HDR = [0x7D, 0x46, 0x4C]
 CMD = 26
 STAGES = ["seq", "synth0", "synth1", "drum", "fx1", "master", "wait", "fx2", "prep", "mix", "out", "all", "subs", "note", "six", "step", "sub", "comp", "locks", "notes", "fire", "drain", "fxj"]
-ENGINES = ["weft", "stack", "jacquard", "rayon", "tines", "bellows", "sync", "swarm", "kit", "sample", "slice",
-           "brocade", "cane", "voile", "gingham", "chunk"]
+ENGINES = ["knit", "rayon", "jacquard", "bellows", "cane", "voile", "sample", "slice", "kit", "chunk"]
 TICK_HZ = 24e6
 SR = 44100.0
 TRAIL = ["load", "voices", "cap", "saws", "guard", "drops"]

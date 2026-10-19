@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: MIT */
-/* LOOM-8's three Braids engines: cane (the physical models), voile (the voices) and gingham (the toys and
- * chips). Included by synth.c only (static code on its voice_t, no unit of its own).
+/* LOOM-8's two Braids engines: cane (the physical models) and voile (the voices). (gingham, the toys and chips, went
+ * 2026-10-19.) Included by synth.c only (static code on its voice_t, no unit of its own).
  *
  * Ported from Mutable Instruments Braids (github.com/pichenettes/eurorack, braids/digital_oscillator.cc,
  * macro_oscillator.cc and the tables braids/resources/ makes), Copyright 2012 Emilie Gillet, MIT License
@@ -9,7 +9,7 @@
  * from the period in samples at 44.1 kHz, the one-poles and resonators moved to the same cutoff (a pole p at
  * 96 kHz is p^(96/44.1) here), the envelopes and decays in seconds, the oscillators' increments in turns of
  * 44.1 kHz. What each knob does is Braids': E2 is its TIMBRE, E3 its COLOR; E1 picks the model (Braids' shape)
- * and E4 is LOOM-8's own (cane: damp, voile: breath, gingham: arp).
+ * and E4 is LOOM-8's own (cane: damp, voile: breath).
  *
  *   cane    pluck  PLUK: a Karplus-Strong string read at the note's rate from a line of one period (Braids'
  *                  stretched, randomised averaging); timbre the decay, color the pluck's width; damp softens
@@ -34,17 +34,6 @@
  *           whisper TWNQ: two resonant peaks (the note's and one color sets) on noise; timbre their
  *                  sharpness; breath 127 is all noise (Braids'), lower brings a buzz in under it
  *   (voile's breath: noise into the excitation, 0 clean)
- *   gingham toy    TOY*: an 8-bit phase, its bits flipped and masked by color, sampled and held at the rate
- *                  timbre sets (a circuit-bent toy), 4x oversampled with Braids' FIR
- *           chord  -_x3: three squares, the second and third at Braids' intervals (timbre, color): a chord a key
- *           ring   RING: three sines multiplied, the second and third +-32 semitones (timbre, color)
- *           peak   ZPKF: Braids' digital filter: a sine at the resonance (timbre), reset each period, under a
- *                  saw window, mixed with a square's (color: saw, square, triangle window)
- *           band   ZBPF: the same, the band-pass flavour
- *           noise  CLKN: clocked noise, the clock an exact divisor of the sample rate at the note; timbre the
- *                  noise's period (white to pitched loops), color its steps (1 bit to smooth)
- *   (gingham's arp: the note cycles a chord at 49 Hz, the chip way: off, octave, fifth, power, major, minor,
- *   maj7, min7, sus4)
  *
  * Changes from Braids, and why:
  *   - one note a voice: Braids' three overlapping plucked strings are LOOM-8's voices; the waveguides keep one
@@ -105,7 +94,6 @@ static const float CN_GAIN[NCANE] = {2.6f, 2.7f, 1.45f, 0.8f, 2.0f, 1.2f};
  * one and a half, the rest about one) */
 static const uint8_t CN_COST[NCANE] = {4, 4, 4, 5, 8, 5};
 static const uint8_t VO_COST[NVOILE] = {4, 4, 6, 4};
-static const uint8_t GH_COST[NGINGHAM] = {4, 5, 5, 4, 4, 3};
 static inline float bd_mtof(float n) { return 440.0f * fm_exp2f((n - 69.0f) * (1.0f / 12.0f)); }
 static inline float bd_note(float hz) { return 69.0f + 12.0f * fm_log2f(hz * (1.0f / 440.0f)); }
 /* a one-pole's coefficient k at 96 kHz moved to 44.1 kHz (the same cutoff) */
@@ -981,279 +969,4 @@ static void vo_run(voice_t *v, float *xl, float *xr, int m)   /* (each model's g
     case VO_CHOIR: vo_choir(v, xl, m, g); break;
     default: vo_whisper(v, xl, m, g); break;
     }
-}
-
-/* ---------------------------------------------------------- gingham ---- */
-enum { GH_TOY, GH_CHORD, GH_RING, GH_PEAK, GH_BAND, GH_NOISE };
-static const float GH_GAIN[NGINGHAM] = {0.9f, 0.8f, 1.25f, 1.2f, 1.2f, 0.75f};
-/* chord: Braids' intervals (1/128 semitone), the knob's 65 stops */
-#define SEMI_ * 128
-static const int16_t GH_IV[65] = {
-    -24 SEMI_, -24 SEMI_, -24 SEMI_ + 4, -23 SEMI_, -22 SEMI_, -21 SEMI_, -20 SEMI_, -19 SEMI_, -18 SEMI_, -17 SEMI_ - 4,
-    -17 SEMI_, -16 SEMI_, -15 SEMI_, -14 SEMI_, -13 SEMI_, -12 SEMI_ - 4, -12 SEMI_, -11 SEMI_, -10 SEMI_, -9 SEMI_, -8 SEMI_,
-    -7 SEMI_ - 4, -7 SEMI_, -6 SEMI_, -5 SEMI_, -4 SEMI_, -3 SEMI_, -2 SEMI_, -1 SEMI_, -24, -8, -4, 0, 4, 8, 24, 1 SEMI_, 2 SEMI_,
-    3 SEMI_, 4 SEMI_, 5 SEMI_, 6 SEMI_, 7 SEMI_, 7 SEMI_ + 4, 8 SEMI_, 9 SEMI_, 10 SEMI_, 11 SEMI_, 12 SEMI_, 12 SEMI_ + 4,
-    13 SEMI_, 14 SEMI_, 15 SEMI_, 16 SEMI_, 17 SEMI_, 17 SEMI_ + 4, 18 SEMI_, 19 SEMI_, 20 SEMI_, 21 SEMI_, 22 SEMI_, 23 SEMI_,
-    24 SEMI_ - 4, 24 SEMI_, 24 SEMI_};
-#undef SEMI_
-/* arp: the chords the note cycles (semitones; a step each GH_ARP_CHUNKS chunks, 49 Hz) */
-#define GH_ARP_CHUNKS 14
-static const int8_t GH_ARP[NARP][5] = {{0}, {2, 0, 12}, {2, 0, 7}, {3, 0, 7, 12}, {3, 0, 4, 7}, {3, 0, 3, 7},
-                                       {4, 0, 4, 7, 11}, {4, 0, 3, 7, 10}, {3, 0, 5, 7}};
-static const uint8_t FIR4[4] = {41, 58, 64, 58};   /* Braids' kFIR4Coefficients / 256 (10530 14751 16384 14751) */
-static inline int gh_model(float k) { int m = (int)(k + 0.5f); return m < 0 ? 0 : m >= NGINGHAM ? NGINGHAM - 1 : m; }
-static inline int gh_arp(float k) { int a = (int)(k + 0.5f); return a < 0 ? 0 : a >= NARP ? NARP - 1 : a; }
-static float gh_interval(float e)                /* Braids' interval knob: a stop, then a glide to the next */
-{
-    float x = e * 64.0f, fr;
-    int k = (int)x;
-    if (k > 63)
-        k = 63;
-    fr = x - (float)k;
-    fr = fr < 0.5f ? 0.0f : (fr - 0.5f) * 2.0f;
-    return ((float)GH_IV[k] + (float)(GH_IV[k + 1] - GH_IV[k]) * fr) * (1.0f / 128.0f);
-}
-/* o[]: 0 the model (+1), 1..3 phases; toy 2 the held byte, 3 the hold's count; peak / band 2 the resonance's
- * phase, 3 the square's, 4 the integrator, 5 the polarity, 6 the resonance's increment now; noise 2 / 6 the
- * generator (its halves), 3 the clocks since its seed, 4 the seed, 5 the sample; 14 the arp's chunks, 15 its step */
-static void gh_init(voice_t *v)
-{
-    int i;
-    for (i = 0; i < 16; i++)
-        v->o[i] = 0.0f;
-}
-static void gh_strike(voice_t *v)
-{
-    v->o[14] = 0.0f;
-    v->o[15] = 0.0f;
-    if ((int)v->c.ex[19] == GH_NOISE)            /* a new seed each note (Braids' strike) */
-        v->o[4] = (float)(xs(&v->rng) >> 8);
-}
-static void gh_prep(voice_t *v)
-{
-    cfg_t *c = &v->c;
-    int m = gh_model(c->ek[0]), a = gh_arp(c->ek[3]), st = (int)v->o[15];
-    float tb = c->e[1], co = c->e[2], f, d;
-    c->stereo = 0;
-    c->ex[19] = (float)m;
-    if ((int)v->o[0] != m + 1) {
-        float a14 = v->o[14], a15 = v->o[15];
-        gh_init(v);
-        v->o[0] = (float)(m + 1);
-        v->o[14] = a14;
-        v->o[15] = a15;
-        if (m == GH_NOISE)
-            v->o[4] = (float)(xs(&v->rng) >> 8);
-    }
-    if (a > 0 && st >= GH_ARP[a][0])
-        st = 0;
-    f = c->freq * (a > 0 ? fm_exp2f((float)GH_ARP[a][1 + st] * (1.0f / 12.0f)) : 1.0f);
-    d = fm_minf(f * INV_SR, 0.45f);
-    c->ex[0] = d;
-    switch (m) {
-    case GH_TOY:
-        c->ex[0] = d * 0.25f;                    /* 4x */
-        /* the hold: Braids' 512 - timbre / 64 ticks of 384 kHz, here in ticks of 176.4 kHz */
-        c->ex[1] = 1.0f / fm_maxf((float)(512 - ((int)(tb * 32767.0f) >> 6)) * (4.0f * SY_SR / 384000.0f), 1.0f);
-        c->ex[2] = (float)((int)(co * 32767.0f) >> 8);
-        break;
-    case GH_CHORD:
-        c->ex[1] = fm_minf(d * fm_exp2f(gh_interval(tb) * (1.0f / 12.0f)), 0.45f);
-        c->ex[2] = fm_minf(d * fm_exp2f(gh_interval(co) * (1.0f / 12.0f)), 0.45f);
-        break;
-    case GH_RING:
-        c->ex[1] = fm_minf(d * fm_exp2f((tb - 0.5f) * (32.0f / 12.0f)), 0.45f);
-        c->ex[2] = fm_minf(d * fm_exp2f((co - 0.5f) * (32.0f / 12.0f)), 0.45f);
-        break;
-    case GH_PEAK:
-    case GH_BAND: {
-        float n = fm_minf(bd_note(f) + ((tb * 32767.0f) - 2048.0f) * (1.0f / 256.0f), 128.0f);
-        int p1 = (int)(co * 32767.0f);
-        c->ex[1] = fm_minf(bd_mtof(n) * INV_SR, 0.45f);
-        c->ex[2] = (float)(p1 < 16384 ? p1 : 32767 - p1) * (1.0f / 16384.0f);   /* to the square's, and back */
-        c->ex[3] = p1 >= 16384;                   /* the triangle window */
-        if (v->o[6] <= 0.0f)
-            v->o[6] = c->ex[1];
-        break;
-    }
-    default: {                                   /* noise: the clock at the note (x 8 while under half the rate) */
-        int k;
-        float per = 48000.0f / bd_mtof((tb * 32767.0f - 16384.0f) * (1.0f / 128.0f));
-        for (k = 0; k < 3 && d < 0.25f; k++)
-            d *= 2.0f;
-        c->ex[0] = d;
-        c->ex[1] = fm_clampf((float)(int)(per + 0.999f), 1.0f, 16777216.0f);   /* the noise's period, in clocks */
-        k = 1 + ((int)(co * 32767.0f) >> 10);
-        c->ex[2] = (float)(65536 / (k == 1 ? 2 : k));
-        break;
-    }
-    }
-}
-static void gh_chunk(voice_t *v)                 /* the arp's step */
-{
-    int a = gh_arp(v->c.ek[3]);
-    if (a == 0) {
-        if (v->o[15] != 0.0f) {
-            v->o[15] = 0.0f;
-            gh_prep(v);
-        }
-        return;
-    }
-    if ((v->o[14] += 1.0f) >= (float)GH_ARP_CHUNKS) {
-        v->o[14] = 0.0f;
-        v->o[15] += 1.0f;
-        if (v->o[15] >= (float)GH_ARP[a][0])
-            v->o[15] = 0.0f;
-        gh_prep(v);
-    }
-}
-static void gh_toy(voice_t *v, float *xl, int m)
-{
-    const cfg_t *c = &v->c;
-    float p = v->o[1], acc = v->o[3], d = c->ex[0], rate = c->ex[1];
-    int held = (int)v->o[2], x = (int)c->ex[2], i, t;
-    for (i = 0; i < m; i++) {
-        int sum = 0;
-        for (t = 0; t < 4; t++) {
-            p = step1(p, d);
-            acc += rate;
-            if (acc >= 1.0f) {                   /* sample the bent byte */
-                acc -= fm_floorf(acc);
-                held = (((((int)(p * 256.0f) & 255) ^ (x << 1)) & ~x) + (x >> 1)) & 255;
-            }
-            sum += FIR4[t] * held;
-        }
-        xl[i] = (float)sum * (1.0f / (221.0f * 128.0f)) - 1.0f;
-    }
-    v->o[1] = p;
-    v->o[2] = (float)held;
-    v->o[3] = acc;
-}
-SY_INLINE float gh_sq(float p, float d, float id)
-{
-    return (p < 0.5f ? 1.0f : -1.0f) + blep(p, d, id) - blep(wrap1(p + 0.5f), d, id);
-}
-static void gh_chord(voice_t *v, float *xl, int m)
-{
-    const cfg_t *c = &v->c;
-    float p0 = v->o[1], p1 = v->o[2], p2 = v->o[3], d0 = c->ex[0], d1 = c->ex[1], d2 = c->ex[2];
-    float i0 = 1.0f / d0, i1 = 1.0f / d1, i2 = 1.0f / d2;
-    int i;
-    for (i = 0; i < m; i++) {
-        p0 = step1(p0, d0);
-        p1 = step1(p1, d1);
-        p2 = step1(p2, d2);
-        xl[i] = (gh_sq(p0, d0, i0) + gh_sq(p1, d1, i1) + gh_sq(p2, d2, i2)) * (21.0f / 64.0f);
-    }
-    v->o[1] = p0;
-    v->o[2] = p1;
-    v->o[3] = p2;
-}
-static void gh_ring(voice_t *v, float *xl, int m)
-{
-    const cfg_t *c = &v->c;
-    float p0 = v->o[1], p1 = v->o[2], p2 = v->o[3], d0 = c->ex[0], d1 = c->ex[1], d2 = c->ex[2];
-    int i;
-    for (i = 0; i < m; i++) {
-        p0 = step1(p0, d0);
-        p1 = step1(p1, d1);
-        p2 = step1(p2, d2);
-        xl[i] = bd_od(fm_sin_turns(p0 + 0.25f) * fm_sin_turns(p1) * fm_sin_turns(p2) * 0.5f);
-    }
-    v->o[1] = p0;
-    v->o[2] = p1;
-    v->o[3] = p2;
-}
-/* peak / band: Braids' RenderDigitalFilter, types 1 and 2 (in its int16 units) */
-SY_INLINE void gh_zf(voice_t *v, float *xl, int m, const int band)
-{
-    const cfg_t *c = &v->c;
-    float p = v->o[1], mp = v->o[2], sp = v->o[3], ig = v->o[4], md = v->o[6], d = c->ex[0], bal = c->ex[2];
-    float dm = (c->ex[1] - md) / (float)m;
-    int pol = v->o[5] > 0.5f, tri = c->ex[3] > 0.5f, i;
-    for (i = 0; i < m; i++) {
-        float car, sq, saw, dsaw, h2, win, pulse, sts, sqs;
-        p += d;
-        md += dm;
-        mp = step1(mp, md);
-        sp = step1(sp, md);
-        if (p >= 1.0f) {                         /* a period: the resonance from its start */
-            p -= 1.0f;
-            mp = band ? 0.25f : 0.5f;
-        }
-        h2 = 2.0f * p;
-        h2 -= h2 >= 1.0f ? 1.0f : 0.0f;
-        if (h2 < 2.0f * d) {                     /* a half period: the square's polarity turns */
-            pol = !pol;
-            sp = band ? 0.25f : 0.5f;
-        }
-        car = fm_sin_turns(mp) * 32767.0f;
-        sq = fm_sin_turns(sp) * 32767.0f;
-        saw = 1.0f - p;
-        dsaw = 1.0f - h2;
-        win = tri ? (p < 0.5f ? h2 : 1.0f - h2) : saw;
-        pulse = sq * dsaw;
-        if (pol)
-            pulse = -pulse;
-        ig = fm_clampf(ig + pulse * 4.0f * md, -32767.0f, 32767.0f);
-        if (band) {
-            sts = car * win;
-            sqs = pulse;
-        } else {
-            sts = win * (car + 32768.0f) - 32768.0f;
-            sqs = (pulse + ig) * 0.5f;
-        }
-        xl[i] = (sts + (sqs - sts) * bal) * (1.0f / 32768.0f);
-    }
-    v->o[1] = p;
-    v->o[2] = mp;
-    v->o[3] = sp;
-    v->o[4] = ig;
-    v->o[5] = (float)pol;
-    v->o[6] = md;
-}
-static void gh_noise(voice_t *v, float *xl, int m)
-{
-    const cfg_t *c = &v->c;
-    float p = v->o[1], d = c->ex[0], s = v->o[5];
-    uint32_t rs, cnt = (uint32_t)v->o[3], per = (uint32_t)c->ex[1], div = (uint32_t)c->ex[2];
-    int i;
-    rs = (uint32_t)v->o[2] << 16 | (uint32_t)v->o[6];   /* (the generator in two exact halves) */
-    for (i = 0; i < m; i++) {
-        p += d;
-        if (p >= 1.0f) {                         /* a clock: the next value */
-            uint16_t x;
-            p = d;                               /* (the clock an exact divisor of the rate) */
-            rs = rs * 1664525u + 1013904223u;
-            if (++cnt >= per) {                  /* its period: from the seed again */
-                cnt = 0;
-                rs = (uint32_t)v->o[4];
-            }
-            x = (uint16_t)rs;
-            x = (uint16_t)(x - x % div + (div >> 1));
-            s = (float)(int16_t)x * (1.0f / 32768.0f);
-        }
-        xl[i] = s;
-    }
-    v->o[2] = (float)(rs >> 16);
-    v->o[6] = (float)(rs & 0xFFFFu);
-    v->o[1] = p;
-    v->o[3] = (float)cnt;
-    v->o[5] = s;
-}
-static void gh_run(voice_t *v, float *xl, float *xr, int m)
-{
-    int md = (int)v->c.ex[19], i;
-    float g = GH_GAIN[md];
-    (void)xr;
-    switch (md) {
-    case GH_TOY: gh_toy(v, xl, m); break;
-    case GH_CHORD: gh_chord(v, xl, m); break;
-    case GH_RING: gh_ring(v, xl, m); break;
-    case GH_PEAK: gh_zf(v, xl, m, 0); break;
-    case GH_BAND: gh_zf(v, xl, m, 1); break;
-    default: gh_noise(v, xl, m); break;
-    }
-    for (i = 0; i < m; i++)
-        xl[i] *= g;
 }

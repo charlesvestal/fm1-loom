@@ -74,7 +74,7 @@ static void reset(void)
     patterns_init(&P);
     memset(par, 0, sizeof par);
     for (t = 0; t < NTRK; t++)
-        par[t][TP_ENGINE] = EG_WEFT;
+        par[t][TP_ENGINE] = EG_KNIT;
     seq_init(&S, &P, par);
     S.send_clock = 0;
     nev = 0;

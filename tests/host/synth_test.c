@@ -77,7 +77,7 @@ static void reset(void)
 {
     int t;
     for (t = 0; t < NTRK; t++)
-        sound_default(par[t], EG_WEFT);
+        sound_default(par[t], EG_KNIT);
     synth_init(S, par);
     synth_tempo(S, 120.0f);
 }
@@ -184,7 +184,7 @@ static double bench_weft(int variant, double *worst_out)
     uint64_t total = 0, worst = 0;
     reset();
     for (t = 0; t < NTRK; t++) {
-        sound_default(par[t], EG_WEFT);
+        sound_default(par[t], EG_KNIT);
         par[t][TP_FTYPE] = FT_LP24;
         par[t][TP_E1] = 90;
         par[t][TP_E2] = (uint8_t)(variant == 1 ? 40 : 110);
@@ -210,70 +210,7 @@ static double bench_weft(int variant, double *worst_out)
     return (double)total / (380.0 * N * NVOICE);
 }
 
-/* weft's brightness: a held note through no filter (dynamic is a bypass on a synth voice), the energy of
- * the first difference over the energy (rises with the upper partials); also its peak and DC */
-static float weft_bright(int bend, int wave, int sweep, int note, float *peak, float *dc)
-{
-    int finite = 1, b, i;
-    double e = 0.0, d = 0.0, m = 0.0;
-    float prev = 0.0f, pk = 0.0f;
-    reset();
-    sound_default(par[0], EG_WEFT);
-    par[0][TP_E1] = (uint8_t)bend;
-    par[0][TP_E2] = (uint8_t)wave;
-    par[0][TP_E3] = (uint8_t)sweep;
-    par[0][TP_E4] = 0;
-    par[0][TP_FTYPE] = FT_DYNAMIC;
-    par[0][TP_VOLUME] = 127;
-    par[0][TP_S] = 127;
-    synth_note_on(S, 0, note, 127, 0, 1);
-    for (b = 0; b < 60; b++) {
-        float p = block(N, &finite);
-        if (b < 20)
-            continue;
-        if (p > pk)
-            pk = p;
-        for (i = 0; i < N; i++) {
-            e += (double)L[i] * (double)L[i];
-            d += (double)(L[i] - prev) * (double)(L[i] - prev);
-            m += (double)L[i];
-            prev = L[i];
-        }
-    }
-    if (peak)
-        *peak = finite ? pk : 1e9f;
-    if (dc)
-        *dc = (float)(fabs(m / (40.0 * N)) / sqrt(e / (40.0 * N) + 1e-20));
-    return e > 0.0 ? (float)(d / e) : 0.0f;
-}
 
-/* weft's even partials: a held A2 (110 Hz, a period of 401 samples) and the same half a period later
- * added, over the plain energy: a wave with half-wave symmetry (the pulse) cancels to nearly 0 */
-static float weft_even(int bend, int wave)
-{
-    static float buf[N * 24];
-    int finite = 1, b, i;
-    double e = 0.0, s = 0.0;
-    reset();
-    sound_default(par[0], EG_WEFT);
-    par[0][TP_E1] = (uint8_t)bend;
-    par[0][TP_E2] = (uint8_t)wave;
-    par[0][TP_E4] = 0;
-    par[0][TP_FTYPE] = FT_DYNAMIC;
-    par[0][TP_S] = 127;
-    synth_note_on(S, 0, 45, 100, 0, 1);
-    for (b = 0; b < 44; b++) {
-        block(N, &finite);
-        if (b >= 20)
-            memcpy(buf + (b - 20) * N, L, sizeof L);
-    }
-    for (i = 0; i + 200 < N * 24; i++) {
-        double a = (double)buf[i], c = (double)buf[i + 200] * 0.55 + (double)buf[i + 201] * 0.45;   /* T/2 = 200.45 */
-        e += a * a;
-        s += (a + c) * (a + c);
-    }
-    return finite && e > 0.0 ? (float)(s / e) : 1e9f;
-}
 
 /* ---- the sample engine ---- */
 static float sbuf[44100 * 3];
@@ -1019,14 +956,14 @@ static void char_tests(void)
     float pk, r0, r1;
     uint8_t p[NTP];
     /* texts and tables */
-    sound_default(p, EG_STACK);
+    sound_default(p, EG_KNIT);
     check("character: off by default, mix 100 %", p[TP_CTYPE] == CT_OFF && p[TP_CMIX] == 127);
     check("character knobs: type amount tone mix", !strcmp(tp_info(TP_CTYPE, 0)->name, "type") &&
                                                      !strcmp(tp_info(TP_CAMT, 0)->name, "amount") &&
                                                      !strcmp(tp_info(TP_CTONE, 0)->name, "tone") &&
                                                      !strcmp(tp_info(TP_CMIX, 0)->name, "mix"));
     for (ty = 0; ty < NCT; ty++) {
-        tp_text(TP_CTYPE, ty, EG_STACK, num, unit);
+        tp_text(TP_CTYPE, ty, EG_KNIT, num, unit);
         if (strcmp(num, CT_N[ty]))
             check("character type names", 0);
     }
@@ -1055,7 +992,7 @@ static void char_tests(void)
             for (a = 0; a <= 127; a += 127)
                 for (t = 0; t <= 128; t += 64) {
                     reset();
-                    sound_default(par[0], e ? EG_WEFT : EG_SYNC);
+                    sound_default(par[0], e ? EG_KNIT : EG_KNIT);
                     if (e)
                         par[0][TP_E4] = 100;   /* weft spread: stereo */
                     par[0][TP_RES] = 127;
@@ -1074,10 +1011,10 @@ static void char_tests(void)
     /* drive and fold keep the level (+-3 dB) at mid amount; and they change the sound */
     for (ty = CT_DRIVE; ty <= CT_TILT; ty++) {
         int tone = ty == CT_DRIVE ? 127 : 64;
-        char_sound(EG_STACK, CT_OFF, 64, tone, 127);
+        char_sound(EG_KNIT, CT_OFF, 64, tone, 127);
         par[0][TP_E1] = 0;                       /* a saw */
         r0 = held_rms(57, ref, &finite);
-        char_sound(EG_STACK, ty, 64, tone, 127);
+        char_sound(EG_KNIT, ty, 64, tone, 127);
         par[0][TP_E1] = 0;
         if (ty == CT_TILT)
             par[0][TP_CTONE] = 100;
@@ -1095,12 +1032,12 @@ static void char_tests(void)
     }
     for (ty = CT_DRIVE; ty <= CT_FOLD; ty++) {   /* and at full amount, a quiet and a loud input */
         float lo0, lo1;
-        char_sound(EG_STACK, CT_OFF, 127, 127, 127);
+        char_sound(EG_KNIT, CT_OFF, 127, 127, 127);
         par[0][TP_E1] = 0;
         r0 = held_rms(57, 0, &finite);
         par[0][TP_CTYPE] = (uint8_t)ty;
         r1 = held_rms(57, 0, &finite);
-        char_sound(EG_STACK, CT_OFF, 127, 127, 127);
+        char_sound(EG_KNIT, CT_OFF, 127, 127, 127);
         par[0][TP_E1] = 0;
         par[0][TP_CUT] = 40;                     /* (the filter low: a quieter input) */
         lo0 = held_rms(57, 0, &finite);
@@ -1116,7 +1053,7 @@ static void char_tests(void)
     {
         int nl = 0, held = 0;
         float lv[64];
-        char_sound(EG_STACK, CT_CRUSH, 127, 127, 127);
+        char_sound(EG_KNIT, CT_CRUSH, 127, 127, 127);
         par[0][TP_E4] = 0;
         held_rms(57, buf, &finite);
         r0 = 0.0f;
@@ -1132,7 +1069,7 @@ static void char_tests(void)
         }
         printf("    crush bits at amount 127: %d levels\n", nl);
         check("crush (bits) quantises: at most 12 levels", nl <= 12);
-        char_sound(EG_STACK, CT_CRUSH, 127, 0, 127);
+        char_sound(EG_KNIT, CT_CRUSH, 127, 0, 127);
         par[0][TP_E4] = 0;
         held_rms(57, buf, &finite);
         for (i = 40 * N + 1; i < 60 * N; i++)
@@ -1163,7 +1100,7 @@ static void char_tests(void)
         float worst = 0.0f;
         for (st = 0; st < 2; st++)
             for (ft = 0; ft < NFT; ft++) {
-                char_sound(EG_STACK, CT_OFF, 64, 64, 127);
+                char_sound(EG_KNIT, CT_OFF, 64, 64, 127);
                 par[0][TP_E4] = (uint8_t)(st ? 100 : 0);
                 par[0][TP_FTYPE] = (uint8_t)ft;
                 par[0][TP_CUT] = 90;
@@ -1178,17 +1115,17 @@ static void char_tests(void)
         check("a flat tilt matches off (mono, stereo, every filter)", worst < 1e-4f);
     }
     /* mix 0: a bypass, sample for sample; mix 127 is not */
-    char_sound(EG_SYNC, CT_OFF, 100, 64, 127);
+    char_sound(EG_KNIT, CT_OFF, 100, 64, 127);
     held_rms(60, ref, &finite);
-    char_sound(EG_SYNC, CT_FOLD, 100, 64, 0);
+    char_sound(EG_KNIT, CT_FOLD, 100, 64, 0);
     held_rms(60, buf, &finite);
     check("character mix 0 is bit-identical to off", !memcmp(buf, ref, sizeof buf));
-    char_sound(EG_SYNC, CT_FOLD, 100, 64, 127);
+    char_sound(EG_KNIT, CT_FOLD, 100, 64, 127);
     held_rms(60, buf, &finite);
     check("character mix 100 % differs", memcmp(buf, ref, sizeof buf) != 0);
 
     /* a lock on the amount and the LFO on it change the sound */
-    char_sound(EG_SYNC, CT_DRIVE, 0, 127, 127);
+    char_sound(EG_KNIT, CT_DRIVE, 0, 127, 127);
     held_rms(60, ref, &finite);
     synth_init(S, par);
     synth_lock(S, 0, TP_CAMT, 127);
@@ -1199,7 +1136,7 @@ static void char_tests(void)
     for (i = 0; i < N; i++)
         ok |= fabs_f(L[i] - ref[29 * N + i]) > 1e-3f;
     check("a lock on the character's amount changes the sound", ok);
-    char_sound(EG_SYNC, CT_DRIVE, 0, 127, 127);
+    char_sound(EG_KNIT, CT_DRIVE, 0, 127, 127);
     par[0][TP_LTYPE] = LT_WAVE;
     par[0][TP_LSPEED] = 100;
     par[0][TP_LAMT] = 127;
@@ -1226,7 +1163,7 @@ static void bench_char(void)
         double m;
         reset();
         for (t = 0; t < NTRK; t++) {
-            sound_default(par[t], EG_STACK);
+            sound_default(par[t], EG_KNIT);
             par[t][TP_FTYPE] = FT_LP24;
             par[t][TP_E4] = (uint8_t)(st ? 100 : 0);
             par[t][TP_CTYPE] = (uint8_t)ty;
@@ -1270,7 +1207,7 @@ int main(void)
     /* the parameter tables */
     check("every parameter has info and text", 1);
     for (k = 0; k < NTP; k++) {
-        const tp_info_t *i = tp_info(k, EG_STACK);
+        const tp_info_t *i = tp_info(k, EG_KNIT);
         int v;
         if (!i->name || i->lo > i->hi || i->def < i->lo || i->def > i->hi) {
             printf("    parameter %d\n", k);
@@ -1278,7 +1215,7 @@ int main(void)
             break;
         }
         for (v = i->lo; v <= i->hi; v++)
-            tp_text(k, v, EG_STACK, num, unit);
+            tp_text(k, v, EG_KNIT, num, unit);
     }
     for (e = 0; e < NENGINE; e++)
         for (k = 0; k < 4; k++) {
@@ -1321,7 +1258,7 @@ int main(void)
     }
     {
         uint8_t p[NTP];
-        sound_default(p, EG_STACK);
+        sound_default(p, EG_KNIT);
         p[TP_PLAYER] = PL_STRUM;
         check("player knob names follow the player", !strcmp(tp_info_par(TP_P1, p)->name, "roll"));
         p[TP_PLAYER] = PL_ARP;
@@ -1348,7 +1285,7 @@ int main(void)
         check("wave LFO: the filter module's knob 0 is cutoff", !strcmp(num, "cutoff"));
         p[TP_LDEST] = LD_SYNTH + LD_FREE;
         tp_text_par(TP_LX, 1, p, num, unit);
-        check("wave LFO: the synth module's knobs are the engine's", !strcmp(num, "ratio"));
+        check("wave LFO: the synth module's knobs are the engine's", !strcmp(num, "detune"));
         p[TP_LDEST] = LD_AMP;
         tp_text_par(TP_LX, 1, p, num, unit);
         check("wave LFO: the voice module's knob 1 is pitch", !strcmp(num, "pitch"));
@@ -1380,13 +1317,15 @@ int main(void)
     }
     /* the engines' plain defaults (INIT), names and displays */
     {
-        static const uint8_t DEF[8][4] = {{40, 0, 20, 0}, {0, 2, 12, 64}, {0, 40, 0, 0}, {40, 25, 0, 0},
-                                          {50, 0, 40, 50}, {3, 4, 2, 5}, {30, 0, 0, 0}, {30, 0, 30, 20}};
-        static const char *const NAMES[8] = {"weft", "stack", "jacquard", "rayon", "tines", "bellows", "sync", "swarm"};
-        static const char *const KNOBS[8][4] = {
-            {"bend", "wave", "sweep", "spread"},   {"wave", "ratio", "detune", "spread"}, {"table", "scan", "bend", "ripple"},
-            {"bright", "ratio", "edge", "tine"},   {"bright", "grit", "bite", "bell"},    {"stops", "pedal", "rotor", "rate"},
-            {"reach", "sub", "hiss", "thin"},      {"swarm", "ring", "tone", "spread"}};
+        static const uint8_t DEF[EG_DRUMLINE][4] = {{0, 20, 1, 0},  {40, 25, 0, 0}, {0, 40, 0, 0},  {3, 4, 2, 5},
+                                                    {0, 64, 64, 0}, {2, 0, 64, 0},  {5, 0, 127, SM_ONESHOT},
+                                                    {SMP_BREAK, 1, 64, 127}};
+        static const char *const NAMES[EG_DRUMLINE] = {"knit", "rayon", "jacquard", "bellows", "cane", "voile", "sample",
+                                                       "slice"};
+        static const char *const KNOBS[EG_DRUMLINE][4] = {
+            {"wave", "detune", "voices", "width"}, {"bright", "ratio", "edge", "tine"},    {"table", "scan", "bend", "ripple"},
+            {"stops", "pedal", "rotor", "rate"},   {"model", "timbre", "color", "damp"},  {"model", "timbre", "color", "breath"},
+            {"sample", "start", "length", "mode"}, {"sample", "slices", "pitch", "gate"}};
         int ok = 1, names = 1;
         for (e = 0; e < EG_DRUMLINE; e++) {
             uint8_t p[NTP];
@@ -1402,14 +1341,15 @@ int main(void)
         }
         check("the engines' defaults are their plain sounds", ok);
         check("the engines and their knobs have their names", names && !strcmp(EG_NAME[EG_DRUMLINE], "kit"));
-        tp_text(TP_E1, 40, EG_WEFT, num, unit);
-        check("weft's bend 40 shows 31", !strcmp(num, "31"));
+        tp_text(TP_E2, 40, EG_KNIT, num, unit);
+        check("knit's detune 40 shows 31", !strcmp(num, "31"));
         tp_text(TP_E1, 51, EG_RAYON, num, unit);
         check("engine knobs show two digits 00..99", !strcmp(num, "40") && !unit[0]);
         tp_text(TP_E1, 0, EG_RAYON, num, unit);
         check("engine knob 0 shows 00", !strcmp(num, "00"));
-        tp_text(TP_E2, 2, EG_STACK, num, unit);
-        check("stack ratio shows N:1", !strcmp(num, "2:1") && tp_info(TP_E2, EG_STACK)->lo == 1 && tp_info(TP_E2, EG_STACK)->hi == 8);
+        tp_text(TP_E2, 110, EG_RAYON, num, unit);
+        check("rayon's ratio shows N:1", !strcmp(num, "3.5:1"));
+        check("knit's voices are 1..7", tp_info(TP_E3, EG_KNIT)->lo == 1 && tp_info(TP_E3, EG_KNIT)->hi == 7);
         check("organ knobs are discrete 1..8", tp_info(TP_E1, EG_BELLOWS)->lo == 1 && tp_info(TP_E1, EG_BELLOWS)->hi == 8
                                                    && tp_info(TP_E4, EG_BELLOWS)->hi == 8);
         check("nine wavetables", tp_info(TP_E1, EG_JACQUARD)->hi == 8);
@@ -1461,7 +1401,12 @@ int main(void)
                 printf("    preset %d \"%s\"\n", k, n);
         }
         check("preset names: lower case, <= 11 characters, unique", ok);
-        check("stack's first preset is its bass (a new project's track 2)", strstr(PRESETS[preset_first(EG_STACK)].name, "bass") != 0);
+        {
+            int sub = 0;                         /* (project.c: a new project's track 2 is knit's sub) */
+            for (k = 0; k < NPRESETS; k++)
+                sub |= PRESETS[k].par[TP_ENGINE] == EG_KNIT && strstr(PRESETS[k].name, "sub") != 0;
+            check("knit has a sub (a new project's track 2)", sub);
+        }
     }
     for (e = 0; e < NENGINE; e++) {
         if (!eg_synth(e))
@@ -1539,7 +1484,7 @@ int main(void)
         int ft;
         for (ft = 0; ft < NFT; ft++) {
             reset();
-            sound_default(par[0], EG_STACK);
+            sound_default(par[0], EG_KNIT);
             par[0][TP_E4] = 0;
             par[0][TP_FTYPE] = (uint8_t)ft;
             par[0][TP_CUT] = 20;
@@ -1561,7 +1506,7 @@ int main(void)
         {   /* bp12 is a band: at a high cutoff it drops the saw's low partials (much less than lp12 there) */
             float lp, bp;
             reset();
-            sound_default(par[0], EG_STACK);
+            sound_default(par[0], EG_KNIT);
             par[0][TP_E4] = 0;
             par[0][TP_CUT] = 90;
             par[0][TP_RES] = 0;
@@ -1580,7 +1525,7 @@ int main(void)
             check("bp12 at a high cutoff passes much less than lp12", bp < lp * 0.5f && bp > 0.0f && finite);
         }
         reset();                                 /* the ladder with its feedback at full self-limits */
-        sound_default(par[0], EG_STACK);
+        sound_default(par[0], EG_KNIT);
         par[0][TP_FTYPE] = FT_LADDER;
         par[0][TP_RES] = 127;
         par[0][TP_CUT] = 80;
@@ -1611,36 +1556,6 @@ int main(void)
         check("the preset peaks sit within 18 dB of each other", db(hi) - db(lo) < 18.0f);
         printf("    preset peaks %.1f (%s) .. %.1f (%s) dBFS\n", (double)db(lo), PRESETS[klo].name, (double)db(hi),
                PRESETS[khi].name);
-    }
-
-    /* weft: phase distortion; each knob moves the spectrum; bounded and finite to the top note */
-    {
-        float b0, b1, w0, w1, s0, s1, pk, dc, worst = 0.0f;
-        int ok = 1, n;
-        b0 = weft_bright(0, 0, 0, 48, &pk, &dc);
-        b1 = weft_bright(127, 0, 0, 48, &pk, &dc);
-        printf("    weft brightness: bend 0 %.4f, bend 127 %.4f\n", (double)b0, (double)b1);
-        check("weft: bend 0 is a plain sine, bend up brightens it (x4)", b1 > b0 * 4.0f);
-        w0 = weft_even(100, 0);
-        w1 = weft_even(100, 64);
-        printf("    weft even partials at bend 100: saw %.3f, pulse %.3f\n", (double)w0, (double)w1);
-        check("weft: wave turns the saw into the pulse (half-wave symmetric: no even partials)", w1 < 0.05f && w0 > 0.3f);
-        s0 = weft_bright(60, 127, 0, 48, &pk, &dc);
-        s1 = weft_bright(60, 127, 127, 48, &pk, &dc);
-        printf("    weft resonant: sweep 0 %.4f, sweep 127 %.4f, DC %.4f of the RMS\n", (double)s0, (double)s1, (double)dc);
-        check("weft: sweep raises the resonance (x4)", s1 > s0 * 4.0f);
-        check("weft: the resonant wave carries no DC (blocked)", dc < 0.05f);
-        for (n = 24; n <= 127 && ok; n += 13) {
-            int bend, wave;
-            for (bend = 0; bend <= 127; bend += 127)
-                for (wave = 0; wave <= 127; wave += 32) {
-                    weft_bright(bend, wave, 127, n, &pk, &dc);
-                    if (pk > worst)
-                        worst = pk;
-                }
-        }
-        printf("    weft at full velocity and volume, knobs at the ends, notes 24..127: peak %.1f dBFS\n", (double)db(worst));
-        check("weft stays finite and inside full scale, notes 24..127", worst <= 1.0f);
     }
 
     /* the organ's eight models and the nine tables each sound, and differently */
@@ -1691,7 +1606,7 @@ int main(void)
 
     /* mono / legato */
     reset();
-    sound_default(par[0], EG_WEFT);
+    sound_default(par[0], EG_KNIT);
     par[0][TP_VMODE] = VM_MONO;
     par[0][TP_A] = 100;                          /* a slow attack: a retrigger shows as a dip */
     synth_note_on(S, 0, 60, 100, 0, 1);
@@ -1715,7 +1630,7 @@ int main(void)
         check("mono: releasing the last note ends the voice", !synth_sounding(S, 0, NVOICE));
     }
     reset();
-    sound_default(par[0], EG_WEFT);
+    sound_default(par[0], EG_KNIT);
     par[0][TP_VMODE] = VM_LEGATO;
     par[0][TP_A] = 100;
     synth_note_on(S, 0, 60, 100, 0, 1);
@@ -1732,10 +1647,10 @@ int main(void)
         check("legato: a note on a held note does not retrigger", mn > before * 0.7f && synth_voices_used(S) == 1);
     }
 
-    /* the pool: 16 voices, stealing */
+    /* the pool: 16 voices, stealing (jacquard: no cap of its own) */
     reset();
     for (t = 0; t < NTRK; t++)
-        sound_default(par[t], EG_STACK);
+        sound_default(par[t], EG_JACQUARD);
     for (k = 0; k < 16; k++)
         synth_note_on(S, k % NTRK, 40 + k, 100, 0, (uint32_t)k);
     check("16 notes: 16 voices", synth_voices_used(S) == 16);
@@ -1764,7 +1679,7 @@ int main(void)
 
     /* locks override the knob and release */
     reset();
-    sound_default(par[0], EG_WEFT);
+    sound_default(par[0], EG_KNIT);
     par[0][TP_CUT] = 127;
     par[0][TP_A] = 0;
     par[0][TP_FTYPE] = FT_LP24;
@@ -1788,7 +1703,7 @@ int main(void)
 
     /* the wave LFO moves a parameter */
     reset();
-    sound_default(par[0], EG_WEFT);
+    sound_default(par[0], EG_KNIT);
     par[0][TP_CUT] = 40;
     par[0][TP_LTYPE] = LT_WAVE;
     par[0][TP_LSPEED] = 60;                      /* a few Hz */
@@ -1815,7 +1730,7 @@ int main(void)
     }
     {   /* on the pitch: the amp module's knob 1 */
         reset();
-        sound_default(par[0], EG_WEFT);
+        sound_default(par[0], EG_KNIT);
         par[0][TP_LTYPE] = LT_WAVE;
         par[0][TP_LSPEED] = 40;
         par[0][TP_LAMT] = 127;
@@ -1836,7 +1751,7 @@ int main(void)
         for (pass = 0; pass < 2; pass++) {
             float a, c;
             reset();
-            sound_default(par[0], EG_WEFT);
+            sound_default(par[0], EG_KNIT);
             par[0][TP_VOLUME] = 64;
             par[0][TP_A] = 0;
             par[0][TP_LTYPE] = LT_WAVE;
@@ -2011,7 +1926,7 @@ int main(void)
 
     /* perf: mute, pitch */
     reset();
-    sound_default(par[0], EG_WEFT);
+    sound_default(par[0], EG_KNIT);
     synth_note_on(S, 0, 48, 100, 0, 1);
     for (b = 0; b < 20; b++)
         block(N, &finite);
@@ -2023,7 +1938,8 @@ int main(void)
 
     /* stereo engines differ between the sides, mono ones do not */
     reset();
-    sound_default(par[0], EG_WEFT);
+    sound_default(par[0], EG_KNIT);
+    par[0][TP_E3] = 3;                               /* (a unison: a voice is stereo when it has one and a width) */
     par[0][TP_E4] = 100;
     par[0][TP_PAN] = 64;
     synth_note_on(S, 0, 48, 100, 0, 1);
@@ -2034,7 +1950,7 @@ int main(void)
         block(N, &finite);
         for (i = 0; i < N; i++)
             d |= L[i] != R[i];
-        check("weft with spread up: the sides differ", d);
+        check("knit with width up: the sides differ", d);
         par[0][TP_E4] = 0;
         for (b = 0; b < 20; b++)
             block(N, &finite);
@@ -2042,7 +1958,7 @@ int main(void)
         d = 0;
         for (i = 0; i < N; i++)
             d |= L[i] != R[i];
-        check("weft with spread at 0, centred: the sides are the same", !d);
+        check("knit with width at 0, centred: the sides are the same", !d);
     }
 
     /* a drumline track takes no synth voice */

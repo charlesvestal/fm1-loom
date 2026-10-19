@@ -482,7 +482,7 @@ static int page_trk(int p)
 static int x_page(int t)                             /* the engine has a second page of knobs (TP_X1..X4) */
 {
     int e = t < NTRK ? proj.trk[t].par[TP_ENGINE] : -1;
-    return e == EG_BROCADE || e == EG_RAYON || e == EG_KNIT;
+    return e == EG_RAYON || e == EG_KNIT;
 }
 static int group_n(int g)
 {
@@ -2545,57 +2545,6 @@ static float weft_pic_v(float ph, float d, float kd, float kd2, float mo, float 
  * pic_lvl is the track's level (eng_peak, held and falling: a plucked string rings and settles with its note) */
 static uint32_t pic_f;
 static float pic_lvl;
-static void pic_weft(int32_t x0, int32_t y0, int32_t w, int32_t h, const uint8_t *p, uint32_t f)
-{
-    /* two cycles of the wave over its bent phase (the faint ramp): bend moves the bend point, wave turns
-     * saw into pulse into the resonant sine under its falling window, sweep packs that sine's cycles in,
-     * spread draws the detuned copy drifting beside it */
-    float b = (float)p[TP_E1] * (1.0f / 127.0f), wv = (float)p[TP_E2] * (1.0f / 127.0f);
-    float r = 1.0f + 15.0f * (float)p[TP_E3] * (1.0f / 127.0f), d = 0.5f * fm_exp2f(-4.64f * b);
-    float kd = 0.5f / d, kd2 = 0.5f / (1.0f - d), mo = wv < 0.5f ? wv * 2.0f : wv * 2.0f - 1.0f;
-    int reso = wv >= 0.5f, sp = p[TP_E4];
-    int32_t per = w / 2, cy = y0 + h / 2, amp = h / 2 - 8, py = -1;
-    for (int32_t x = 0; x < w; x++) {                /* the bent phase, a faint ramp each cycle */
-        float ph = (float)(x % per) / (float)per;
-        float qs = ph < d ? ph * kd : 0.5f + (ph - d) * kd2;
-        float qp = ph < 0.5f ? fm_minf(ph * kd, 0.5f) : 0.5f + fm_minf((ph - 0.5f) * kd, 0.5f);
-        float q = reso ? qp + (qs - qp) * mo : qs + (qp - qs) * mo;
-        int32_t y = y0 + h - 4 - (int32_t)(q * (float)(h - 8));
-        if (py >= 0 && x % per)
-            cv_line(x0 + x - 1, py, x0 + x, y, K_LINE);
-        py = y;
-    }
-    for (int line = sp > 8 ? 1 : 0; line >= 0; line--) {   /* the copy first, the wave on top */
-        int32_t off = line ? (int32_t)((f * (1u + (uint32_t)sp / 24u)) % (uint32_t)per) : 0;
-        py = -1;
-        for (int32_t x = 0; x < w; x++) {
-            float ph = (float)((x + off) % per) / (float)per;
-            int32_t y = cy - (int32_t)(weft_pic_v(ph, d, kd, kd2, mo, r, reso) * (float)amp);
-            if (py >= 0)
-                cv_line(x0 + x - 1, py, x0 + x, y, line ? K_DIM : K_NOW);
-            py = y;
-        }
-    }
-}
-static void pic_stack(int32_t x0, int32_t y0, int32_t w, int32_t h, const uint8_t *p, uint32_t f)
-{
-    /* two oscillators stacked: wave bends the first from sine to saw; ratio: the second's cycles over it
-     * (1..8); detune: the second slides against the first; spread: the two drawn apart */
-    float gap = 6.0f + p[TP_E4] * 18.0f / 127.0f, amp = ((float)h - gap) / 4.0f - 2.0f;
-    float ratio = (float)(p[TP_E2] < 1 ? 1 : p[TP_E2] > 8 ? 8 : p[TP_E2]);
-    float cy0 = (float)y0 + (float)h / 2.0f - gap / 2.0f - amp, cy1 = (float)y0 + (float)h / 2.0f + gap / 2.0f + amp;
-    float slide = p[TP_E3] ? (float)f * (1.0f + (float)(p[TP_E3] / 16)) / 64.0f : 0.0f;
-    cv_rect(x0, y0 + h / 2, w, 1, K_LINE);
-    for (int osc = 0; osc < 2; osc++) {
-        pen_t pn = {0, 0, 0};
-        for (int32_t x = 0; x <= w; x++) {
-            float ph = (float)x / (float)w * 2.0f * (osc ? ratio : 1.0f) + (osc ? slide : 0.0f), v;
-            float fr = ph - fm_floorf(ph), sn = fm_sin_turns(ph), saw = 1.0f - 2.0f * fr;
-            v = osc ? sn : (sn * (127 - p[TP_E1]) + saw * p[TP_E1]) / 127.0f;
-            pen_to(&pn, (float)(x0 + x), (osc ? cy1 : cy0) - v * amp, osc ? K_DIM : K_NOW);
-        }
-    }
-}
 static void pic_wave(int32_t x0, int32_t y0, int32_t w, int32_t h, const uint8_t *p, uint32_t f)
 {
     /* table: the harmonics; scan: their mix; bend: the phase bent; ripple: a second cycle sliding */
@@ -2629,23 +2578,6 @@ static void pic_rayon(int32_t x0, int32_t y0, int32_t w, int32_t h, const uint8_
         }
     }
 }
-static void pic_tines(int32_t x0, int32_t y0, int32_t w, int32_t h, const uint8_t *p, uint32_t f)
-{
-    /* bright: the bar's brightness; grit: specks on it; bite: how far the keys sink; bell: the tine's place */
-    int32_t kw = w / 8, sink = p[TP_E3] * 10 / 127;
-    uint32_t r = 5u;
-    (void)f;
-    cv_round(x0 + 4, y0 + 6, w - 8, 10, 3, p[TP_E1] > 64 ? K_NOW_M : K_DIM);
-    for (int i = 0; i < p[TP_E2] / 4; i++) {
-        r = r * 1664525u + 1013904223u;
-        cv_rect(x0 + 6 + (int32_t)((r >> 8) % (uint32_t)(w - 12)), y0 + 7 + (int32_t)((r >> 20) % 8u), 1, 1, K_BG);
-    }
-    cv_round(x0 + 4 + p[TP_E4] * (w - 20) / 127, y0 + 4, 12, 14, 4, K_NOW);
-    for (int k = 0; k < 8; k++) {
-        int black = k % 7 == 1 || k % 7 == 3 || k % 7 == 6;
-        cv_round(x0 + k * kw + 1, y0 + 24 + (k == 3 ? sink : 0), kw - 2, h - 28 - (k == 3 ? sink : 0), 2, black ? K_TEXT : K_PANEL2);
-    }
-}
 static void pic_organ(int32_t x0, int32_t y0, int32_t w, int32_t h, const uint8_t *p, uint32_t f)
 {
     /* the six drawbars stops and pedal pull out (synth.c organ_bars), each from the top as far as its level, its
@@ -2673,55 +2605,6 @@ static void pic_organ(int32_t x0, int32_t y0, int32_t w, int32_t h, const uint8_
         cv_linef((float)rx - fm_sin_turns(a + 0.25f) * r, (float)ry - fm_sin_turns(a) * r * 0.4f,
                  (float)rx + fm_sin_turns(a + 0.25f) * r, (float)ry + fm_sin_turns(a) * r * 0.4f, K_NOW, 2.0f);
         text_c(rx, y0 + bh + 4, &FONT_XS, "rotor", K_DIM);
-    }
-}
-static void pic_sync(int32_t x0, int32_t y0, int32_t w, int32_t h, const uint8_t *p, uint32_t f)
-{
-    /* reach: the reset's period; sub: a square under it; hiss: grain; thin: the line lifted */
-    int32_t base = y0 + h - 6 - p[TP_E4] * 12 / 127, period = 10 + (127 - p[TP_E1]) * 50 / 127, py = base, top = h - 24;
-    uint32_t r = 9u;
-    (void)f;
-    for (int32_t x = 0; x < w; x++) {
-        int32_t y = base - (x % period) * top / period;
-        r = r * 1664525u + 1013904223u;
-        y += (int32_t)((r >> 24) % 9u) * p[TP_E3] / 127 - 4 * p[TP_E3] / 127;
-        cv_line(x0 + x, py, x0 + x, y, x % period == 0 ? K_DIM : K_NOW);
-        py = y;
-        if (p[TP_E2] > 8)
-            cv_rect(x0 + x, (x / 40) & 1 ? base - p[TP_E2] * 12 / 127 : base, 1, 1, K_DIM);
-    }
-}
-static void pic_swarm(int32_t x0, int32_t y0, int32_t w, int32_t h, const uint8_t *p, uint32_t f)
-{
-    /* swarm: how many; ring: squashed tall; tone: smeared wide; spread: two clouds apart */
-    uint32_t r = 0x9E3779B9u ^ (f / 3);
-    int32_t sep = p[TP_E4] * 40 / 127, rx = w / 4 + p[TP_E3] * (w / 4) / 127, ry = h / 2 - p[TP_E2] * (h / 4) / 127;
-    for (int k = 0; k < 30 + p[TP_E1] / 2; k++) {
-        int32_t cx = x0 + w / 2 + (k & 1 ? sep : -sep) / 2, dx, dy;
-        r = r * 1664525u + 1013904223u;
-        dx = (int32_t)((r >> 8) % (uint32_t)(2 * rx)) - rx;
-        dy = (int32_t)((r >> 20) % (uint32_t)(2 * ry)) - ry;
-        if (dx * dx * ry * ry + dy * dy * rx * rx < rx * rx * ry * ry)
-            cv_rect(cx + dx, y0 + h / 2 + dy, 2, 2, (r >> 4 & 3u) ? K_DIM : K_NOW);
-    }
-}
-static void pic_brocade(int32_t x0, int32_t y0, int32_t w, int32_t h, const uint8_t *p, uint32_t f)
-{
-    /* saws: one line each; detune: their cycles drift apart (the moire of a supersaw); mix: the side saws
-     * brighter; spread: the pairs fanned up and down from the centre one */
-    static const float OFF[9] = {0.0f, 0.1f, -0.1f, 0.3f, -0.3f, 0.6f, -0.6f, 1.0f, -1.0f};
-    int n = p[TP_E1] < 1 ? 1 : p[TP_E1] > 9 ? 9 : p[TP_E1];
-    float det = (float)p[TP_E2] / 127.0f, amp = (float)h / 6.0f, fan = (float)p[TP_E4] / 127.0f * ((float)h / 2.0f - amp - 2.0f);
-    cv_rect(x0, y0 + h / 2, w, 1, K_LINE);
-    for (int j = n - 1; j >= 0; j--) {          /* the centre one last, on top */
-        pen_t pn = {0, 0, 0};
-        float o = OFF[j], cyc = 3.0f * (1.0f + o * det * 0.25f), drift = o * det * (float)f / 24.0f;
-        float cy = (float)(y0 + h / 2) - o * fan;
-        uint16_t col = j == 0 ? K_NOW : p[TP_E3] > 64 ? K_DIM : K_FAINT;
-        for (int32_t x = 0; x <= w; x++) {
-            float ph = (float)x / (float)w * cyc + drift, fr = ph - fm_floorf(ph);
-            pen_to(&pn, (float)(x0 + x), cy - (1.0f - 2.0f * fr) * amp, col);
-        }
     }
 }
 /* knit: the wave (saw .. square .. pulse) a line a voice, the voices drifting apart as detune opens (one voice:
@@ -2860,40 +2743,6 @@ static void pic_voile(int32_t x0, int32_t y0, int32_t w, int32_t h, const uint8_
         r = r * 1664525u + 1013904223u;
         cv_rect(x0 + (int32_t)((r >> 8) % (uint32_t)w), y0 + h - 4 - (int32_t)((r >> 20) % 24u), 2, 2, K_DIM);
     }
-}
-/* gingham: the checked cloth (its checks larger as timbre rises), the model's wave drawn over it in steps,
- * the pixels; the arp's chord below, its step now lit */
-static void pic_gingham(int32_t x0, int32_t y0, int32_t w, int32_t h, const uint8_t *p, uint32_t f)
-{
-    static const uint8_t ALEN[9] = {0, 2, 2, 3, 3, 3, 4, 4, 3};
-    int md = p[TP_E1] < NGINGHAM ? p[TP_E1] : 0, ar = p[TP_E4] < 9 ? p[TP_E4] : 0;
-    int32_t cs = 6 + p[TP_E2] * 10 / 127, wh = h - 18, py = 0;
-    float co = (float)p[TP_E3] / 127.0f;
-    uint32_t r = 5u;
-    for (int32_t j = 0; j * cs < wh; j++)
-        for (int32_t i = 0; i * cs < w; i++) {
-            int a = i & 1, b = j & 1;
-            cv_rect(x0 + i * cs, y0 + j * cs, cs, j * cs + cs > wh ? wh - j * cs : cs, a && b ? K_FAINT : a || b ? K_PANEL2 : K_PANEL);
-        }
-    for (int32_t x = 0; x < w; x += 4) {
-        float t = (float)x / (float)w * 3.0f, ph = t - fm_floorf(t), y;
-        switch (md) {
-        case 0: y = fm_floorf((1.0f - ph) * (3.0f + co * 8.0f)) / (3.0f + co * 8.0f) * 2.0f - 1.0f; break;
-        case 1: y = ((ph < 0.5f ? 1.0f : -1.0f) + (pic_wrap(t * 1.26f) < 0.5f ? 1.0f : -1.0f) + (pic_wrap(t * 1.5f) < 0.5f ? 1.0f : -1.0f)) / 3.0f; break;
-        case 2: y = fm_sin_turns(t) * fm_sin_turns(t * (1.5f + co)); break;
-        case 5: r = r * 1664525u + 1013904223u; y = (float)((r >> 24) & 3u) / 1.5f - 1.0f; break;
-        default: y = (1.0f - ph) * fm_sin_turns(ph * (2.0f + 6.0f * (float)p[TP_E2] / 127.0f)); break;
-        }
-        {
-            int32_t yy = y0 + wh / 2 - (int32_t)(y * (float)(wh / 2 - 6));
-            yy -= (yy - y0) % 4;
-            if (x)
-                cv_rect(x0 + x - 1, yy < py ? yy : py, 3, (yy < py ? py - yy : yy - py) + 3, K_NOW);
-            py = yy;
-        }
-    }
-    for (int k = 0; k < ALEN[ar]; k++)
-        cv_round(x0 + w / 2 - ALEN[ar] * 9 + k * 18, y0 + h - 12, 14, 10, 3, (int)(f / 3u) % ALEN[ar] == k ? K_NOW : K_PANEL2);
 }
 /* the sample engine: the sample's waveform (each column its lowest and highest), the region that plays bright,
  * the rest faint, the loop's ends marked; its name, root and the mode above */
@@ -3096,20 +2945,13 @@ static void draw_engine(void)
             text_r(230, 3, &FONT_S, nm, K_DIM);
     }
     switch (eg) {
-    case EG_WEFT: pic_weft(20, 24, 200, 88, p, pic_f); break;
-    case EG_STACK: pic_stack(20, 24, 200, 88, p, pic_f); break;
     case EG_JACQUARD: pic_wave(20, 24, 200, 88, p, pic_f); break;
     case EG_RAYON: pic_rayon(20, 24, 200, 88, p, pic_f); break;
-    case EG_TINES: pic_tines(20, 24, 200, 88, p, pic_f); break;
     case EG_BELLOWS: pic_organ(20, 24, 200, 88, p, pic_f); break;
-    case EG_SYNC: pic_sync(20, 24, 200, 88, p, pic_f); break;
-    case EG_SWARM: pic_swarm(20, 24, 200, 88, p, pic_f); break;
     case EG_SAMPLE: pic_sample(20, 24, 200, 88, p); break;
     case EG_SLICE: pic_slice(20, 24, 200, 88, p, trk); break;
-    case EG_BROCADE: pic_brocade(20, 24, 200, 88, p, pic_f); break;
     case EG_CANE: pic_cane(20, 24, 200, 88, p, pic_f); break;
     case EG_VOILE: pic_voile(20, 24, 200, 88, p, pic_f); break;
-    case EG_GINGHAM: pic_gingham(20, 24, 200, 88, p, pic_f); break;
     case EG_KNIT: pic_knit(20, 24, 200, 88, p, pic_f); break;
     default: pic_drumline(10, 26, 220, 90, p, pic_f); break;
     }
@@ -3383,44 +3225,13 @@ static void draw_knit_x(void)
     text_r(230, 100, &FONT_XS, t, K_DIM);
     cv_blit(0, MAIN_Y);
 }
-/* brocade's Sub page: the interval under the note, the centre saw (faint) and the sub's sine under it at its
- * level (off: a flat line) */
+/* the Sub page: the engine's second page of knobs (TP_X1..X4), knit's layers or rayon's fall */
 static void draw_sub(void)
 {
-    static const char *const IV[13] = {"", "a semitone", "a tone", "a minor third", "a third", "a fourth", "a tritone",
-                                       "a fifth", "a minor sixth", "a sixth", "a minor seventh", "a seventh", ""};
-    int trk = sel_trk();
-    const uint8_t *p = proj.trk[trk].par;
-    int lv = p[TP_X1], st = clampi((int)p[TP_X2] - 64, -24, -12), d = -st - 12;
-    uint32_t h = hash_u(hash_u(2166136261u, 0x5Bu), (uint32_t)trk | (uint32_t)lv << 4 | (uint32_t)(st + 64) << 12);
-    if (p[TP_ENGINE] == EG_RAYON) {
+    if (proj.trk[sel_trk()].par[TP_ENGINE] == EG_RAYON)
         draw_rayon_fall();
-        return;
-    }
-    if (p[TP_ENGINE] == EG_KNIT) {
+    else
         draw_knit_x();
-        return;
-    }
-    float ratio = fm_exp2f((float)st * (1.0f / 12.0f)), amp = 30.0f * (float)lv / 127.0f, cy = 80.0f;
-    pen_t ps = {0, 0, 0}, pw = {0, 0, 0};
-    char t[48], *e;
-    if (!begin_main(h))
-        return;
-    e = num_i(st, t);
-    s_cat(e, " st");
-    cv_text(12, 6, &FONT_B, lv ? t : "off", K_TEXT);
-    e = s_cat(t, d == 12 ? "two octaves" : "an octave");
-    if (d > 0 && d < 12)
-        e = s_cat(s_cat(e, " and "), IV[d]);
-    s_cat(e, " under the note");
-    text_fit(12, 26, &FONT_XS, t, 216, K_DIM);
-    cv_rect(12, (int32_t)cy, 216, 1, K_LINE);
-    for (int32_t x = 0; x <= 216; x++) {             /* six cycles of the note's saw; the sub's under them */
-        float ph = (float)x * (6.0f / 216.0f), fr = ph - fm_floorf(ph);
-        pen_to(&pw, (float)(12 + x), cy - 14.0f + (1.0f - 2.0f * fr) * 6.0f, K_FAINT);
-        pen_to(&ps, (float)(12 + x), cy - amp * fm_sin_turns(ph * ratio), lv ? K_NOW : K_DIM);
-    }
-    cv_blit(0, MAIN_Y);
 }
 /* a drum key's own envelope: its lag (flat), the attack's rise, the hold, the decay's fall (or, off, the level
  * held to the right edge: the sound's own length rules), the key's colour under it */

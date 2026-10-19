@@ -10,13 +10,13 @@
 # It starts a NEW PROJECT itself (GLO, Setup, SEL: the current one is lost, unsaved) and ends on another. The cases:
 #   idle                       stopped, nothing held
 #   <engine> xN                N keys held (1, 3, 6, and the engine's cap where lower) on T3, its engine picked
-#                              from SEL's list (its first preset), set to poly; brocade at 7, 5 and 3 saws (seven its most), cane's
-#                              pluck and bell, voile's vowel and choir, gingham's chord with an arp; the sample
-#                              engine looping (its one-shot piano would end)
+#                              from SEL's list (its first preset), set to poly; knit at a unison of 7, 5 and 3 (seven its
+#                              most), cane's pluck and bell, voile's vowel and choir; the sample engine looping (its
+#                              one-shot piano would end)
 #   kit playing                a beat written on T1's empty pattern 1 (kick, snare, hats), playing
-#   kit + weft x6              the beat and six weft voices
-#   kit + weft x3              the beat and three weft voices
-#   kit + brocade 7 xN         the beat and brocade at seven saws (its cap is 5)
+#   kit + knit x6              the beat and six knit voices
+#   kit + knit x3              the beat and three knit voices
+#   kit + knit 7 xN            the beat and knit at a unison of seven (its cap is 5)
 # Each case waits for the load's average to settle, then reads it four times: the load is their median, the peak
 # the highest the page showed meanwhile, the voices the most, the saws the fewest; a case that holds fewer voices
 # than it wanted is flagged (and tried once more). The keys are released a frame at a time (fm1_remote's
@@ -47,24 +47,18 @@ pick = opt("--engines")
 WHITE_K = [0, 2, 4, 6, 7, 9, 11, 12, 14, 16, 18, 19, 21, 23, 24, 26]
 BLACK_K = [1, 3, 5, 8, 10, 13, 15, 17, 20, 22, 25]
 CHORD = [WHITE_K[i] for i in (1, 3, 5, 7, 9, 11)]          # G3 B3 D4 F4 A4 C5: six keys a third apart
-EG = ["weft", "stack", "wavetable", "orbit", "tines", "organ", "sync", "swarm", "kit", "sample", "slice",
-      "brocade", "cane", "voile", "gingham"]                # synth.c EG_NAME, in order (the list's pick)
+EG = ["knit", "rayon", "jacquard", "bellows", "cane", "voile", "sample", "slice", "kit"]   # synth.c EG_NAME, in order
 NAMES = {"model": {"cane": ["pluck", "bow", "reed", "flute", "bell", "drum"],
-                   "voile": ["vosim", "vowel", "choir", "whisper"],
-                   "gingham": ["toy", "chord", "ring", "peak", "band", "noise"]},
-         "arp": ["off", "oct", "fifth", "power", "major", "minor", "maj7", "min7", "sus4"],
+                   "voile": ["vosim", "vowel", "choir", "whisper"]},
          "mode": ["one-shot", "loop", "reverse", "ping-pong"]}
 # (case name, engine, knob settings on the Engine page [(encoder, knob, value)], voice cap)
-ENGINES = [("weft", "weft", [], 16), ("stack", "stack", [], 16), ("wavetable", "wavetable", [], 16),
-           ("orbit", "orbit", [], 16), ("tines", "tines", [], 16), ("organ", "organ", [], 16),
-           ("sync", "sync", [], 16), ("swarm", "swarm", [], 16),
+ENGINES = [("knit", "knit", [], 6), ("knit 7", "knit", [("K3", "voices", 7)], 5),
+           ("knit 5", "knit", [("K3", "voices", 5)], 6), ("knit 3", "knit", [("K3", "voices", 3)], 6),
+           ("rayon", "rayon", [], 16), ("jacquard", "jacquard", [], 16), ("bellows", "bellows", [], 16),
            ("sample loop", "sample", [("K4", "mode", "loop")], 16), ("slice", "slice", [], 16),
-           ("brocade 7", "brocade", [("K1", "saws", 7)], 5), ("brocade 5", "brocade", [("K1", "saws", 5)], 6),
-           ("brocade 3", "brocade", [("K1", "saws", 3)], 6),
            ("cane pluck", "cane", [("K1", "model", "pluck")], 4), ("cane bell", "cane", [("K1", "model", "bell")], 4),
            ("voile vowel", "voile", [("K1", "model", "vowel")], 16),
-           ("voile choir", "voile", [("K1", "model", "choir")], 16),
-           ("gingham chord arp", "gingham", [("K1", "model", "chord"), ("K4", "arp", "major")], 16)]
+           ("voile choir", "voile", [("K1", "model", "choir")], 16)]
 if pick:
     want = pick.split(",")
     ENGINES = [e for e in ENGINES if e[1] in want or e[0] in want]
@@ -336,7 +330,7 @@ if only in (None, "engines"):
 
 if only in (None, "kit"):
     track(3)
-    engine("weft")
+    engine("knit")
     mode_poly()
     track(1)
     run("tap", "SEQ", "wait", 400)
@@ -357,28 +351,28 @@ if only in (None, "kit"):
         log_ok("kit")
         track(3)
         hold(CHORD)
-        read_status("kit + weft x6", 6 + 0)
+        read_status("kit + knit x6", 6 + 0)
         release_all()
         time.sleep(2.0)
         track(3)
         hold(CHORD[:3])
-        read_status("kit + weft x3")
+        read_status("kit + knit x3")
         release_all()
-        log_ok("kit + weft")
+        log_ok("kit + knit")
         time.sleep(2.0)
         track(3)
-        engine("brocade")
+        engine("knit")
         mode_poly()
-        set_knob("K1", "saws", 7)
+        set_knob("K3", "voices", 7)
         for n in (4, 5):
             on_edit()
             hold(CHORD[:n])
-            read_status(f"kit + brocade 7 x{n}")
+            read_status(f"kit + knit 7 x{n}")
             time.sleep(3.0)
-            read_status(f"kit + brocade 7 x{n}, 3 s on")
+            read_status(f"kit + knit 7 x{n}, 3 s on")
             release_all()
             time.sleep(2.0)
-        log_ok("kit + brocade")
+        log_ok("kit + knit")
         run("tap", "PLAY", "wait", 300)      # stop
 
 finish()

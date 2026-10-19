@@ -1,6 +1,6 @@
 #!/bin/sh
 # SPDX-License-Identifier: GPL-3.0-only
-# LOOM-8's tests: the units' own (the synth, brocade's supersaw, the Braids engines, the drumline, the FX, the sequencer: tests/host/*_test.sh; the DSP's
+# LOOM-8's tests: the units' own (the synth, the Braids engines, the drumline, the FX, the sequencer: tests/host/*_test.sh; the DSP's
 # fingerprints when a reference was saved: tests/host/dsp_hash.sh save), the user sample bank's tool, the update path
 # against LOOM-8's package (./build.sh first), the whole app in fm1-base's simulator (tests/scenarios/*.xy: UI,
 # patterns, persistence, backup and restore; screenshots and audio in app/build/scenarios/, the layout audit), and
@@ -35,7 +35,7 @@ run sample-bank sh -c "'$PY' tools/loom_samples.py build build/gen/user_bank.bin
     'piano two=build/gen/wav/piano.wav:60%16k' vowel=build/gen/wav/ah.wav:57"
 run bank-tool "$PY" tests/host/bank_test.py
 # the units' own tests, written beside them (their WAVs in build/host/)
-for t in synth brocade braids drumline fx seq; do
+for t in synth braids drumline fx seq; do
     run "$t" sh "tests/host/${t}_test.sh"
 done
 if [ -f build/host/dsp_hash.ref ]; then

@@ -105,9 +105,9 @@ tap HOME
 spin ALGO 2
 expect trk 3
 tap EDIT
-param 3 0 9
+param 3 0 6
 turn PRESET 1
-expect par3.0 9
+expect par3.0 6
 wait 60
 shot sample_engine.png
 wav sample_presets.wav

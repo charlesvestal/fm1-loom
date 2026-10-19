@@ -93,7 +93,7 @@ static void aux_defaults(void)
     int t, k;
     for (t = NTRK; t < NALLTRK; t++) {
         uint8_t *p = proj.trk[t].par;
-        sound_default(p, EG_WEFT);                       /* mix and sends at their defaults */
+        sound_default(p, EG_KNIT);                       /* mix and sends at their defaults */
         for (k = TP_ENGINE; k <= TP_E4; k++)
             p[k] = 0;
         p[TP_LEVEL] = 100;
@@ -155,8 +155,8 @@ void project_random_sounds(uint32_t seed)
 
 void project_defaults(void)
 {
-    static const uint8_t ORDER[NTRK] = {EG_DRUMLINE, EG_STACK, EG_WEFT, EG_JACQUARD, EG_RAYON, EG_TINES,
-                                        EG_BELLOWS, EG_SYNC};
+    static const uint8_t ORDER[NTRK] = {EG_DRUMLINE, EG_KNIT, EG_RAYON, EG_JACQUARD, EG_KNIT, EG_BELLOWS, EG_CANE,
+                                        EG_VOILE};
     int t, k;
     uint8_t *z = (uint8_t *)&proj, theme = proj.rsv[1], aoff = proj.rsv[2] & 4u;   /* a new project keeps the theme
                                                                                     * and the autosave (pages.c AUTOSAVE_OFF) */
@@ -196,7 +196,7 @@ void project_defaults(void)
             tr->par[TP_R] = 64;
             set_name(tr, "kit");
         } else if (t == 1) {
-            apply_preset(tr, preset_named(EG_STACK, "bass"));   /* a stack bass under everything */
+            apply_preset(tr, preset_named(EG_KNIT, "sub"));     /* knit's round sub under everything */
         } else {
             apply_preset(tr, preset_first(ORDER[t]));
         }

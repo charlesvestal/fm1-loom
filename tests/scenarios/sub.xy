@@ -1,8 +1,10 @@
-# brocade's Sub page: EDIT's fourth page (after Play 2), only where the engine has one (brocade, rayon, knit); its knobs edit the sub's level (TP_X1) and offset
-# (TP_X2, -24..-12 semitones), and the screen reader says them; another engine, or another track, takes the page away
+# the Sub page: EDIT's fourth page (after Play 2), only where the engine has a second page of knobs (knit, rayon);
+# knit's: osc 2's interval (TP_X1, +-24 semitones about 64) and level, the sub, the noise, and the screen reader says
+# them; another engine, or another track, takes the page away
 wait 300
 spin ALGO 2
 expect trk 3
+knob 3 engine jacquard
 tap EDIT
 expect page Engine
 turn SELECT 1
@@ -12,43 +14,41 @@ expect page Play_2
 expect par3.oct 2
 turn SELECT 1
 expect page Engine
-# brocade: the sub off at -12 semitones, a fourth page
-knob 3 engine brocade
-expect par3.engine 11
-expect par3.x1 0
-expect par3.x2 52
+# knit: osc 2 in unison and off, a fourth page
+knob 3 engine knit
+expect par3.engine 0
+expect par3.x1 64
+expect par3.x2 0
 listen
 turn SELECT 3
 expect page Sub
 wait 400
 said Sub
 shot sub_off.png
-spin K1 40
-expect par3.x1 40
+spin K1 7
+expect par3.x1 71
 wait 400
-said sub 31%
-spin K2 -7
-expect par3.x2 45
-wait 400
-said offset -19 st
+said osc 2 +7 st
+spin K2 50
+expect par3.x2 50
+spin K3 40
+expect par3.x3 40
+spin K4 20
+expect par3.x4 20
 wait 40
-shot sub_fifth.png
-spin K2 -20
-expect par3.x2 40
-spin K2 30
-expect par3.x2 52
-spin K2 -7
-# (knobs 3 and 4: none)
-spin K3 5
-spin K4 5
-expect par3.x3 0
-expect par3.x4 0
+shot sub_layers.png
+spin K1 -40
+expect par3.x1 40
+spin K1 60
+expect par3.x1 88
+spin K1 -17
+expect par3.x1 71
 # the list: the Sub page's knobs among EDIT's
 tap SEL
 wait 40
 shot sub_list.png
 tap HOME
-# a note with the sub on
+# a note with the layers on
 key 7 down
 wait 200
 expect voices 1
@@ -58,7 +58,7 @@ turn SELECT 1
 expect page Engine
 turn SELECT -1
 expect page Sub
-# another track (weft): back to the button's first page; SELECT has three pages there
+# another track (jacquard: no Sub page): back to the button's first page
 spin ALGO 1
 expect trk 4
 expect page Engine
@@ -66,11 +66,9 @@ spin ALGO -1
 expect trk 3
 turn SELECT -1
 expect page Sub
-# another engine on the Sub page: back to Engine, the sub's values gone with brocade's defaults
-knob 3 engine weft
+# another engine on the Sub page (jacquard): back to Engine, three pages
+knob 3 engine jacquard
 expect page Engine
-expect par3.x1 0
-expect par3.x2 0
 turn SELECT 1
 expect page Play
 turn SELECT 1

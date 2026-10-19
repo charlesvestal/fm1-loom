@@ -64,10 +64,10 @@ static double run(int e, int nv, int drums, int dynamic, int *k_out)
 {
     int t, b, s, k;
     uint64_t total = 0;
-    for (t = 0; t < NTRK; t++)                   /* brocade: track 1 nine saws, the others weft */
-        sound_default(par[t], e == EG_BROCADE && t ? EG_WEFT : e);
-    if (e == EG_BROCADE)
-        par[0][TP_E1] = 9;
+    for (t = 0; t < NTRK; t++)                   /* knit: track 1 a unison of seven, the others one voice */
+        sound_default(par[t], e);
+    if (e == EG_KNIT)
+        par[0][TP_E3] = 7;
     synth_init(S, par);
     synth_tempo(S, 120.0f);
     memset(par[7], 0, NTP);
@@ -110,7 +110,7 @@ int main(void)
     int d, i, e;
     printf("-- the cores' split: the critical path, instructions a sample (fixed k = 8 -> split_at)\n");
     for (e = 0; e < 3; e++) {
-        int eng = e == 2 ? EG_BROCADE : e ? EG_JACQUARD : EG_WEFT;
+        int eng = e == 2 ? EG_RAYON : e ? EG_JACQUARD : EG_KNIT;
         for (d = 0; d < 2; d++)
             for (i = 0; i < (int)(sizeof NV / sizeof NV[0]); i++) {
                 int k0, k1;

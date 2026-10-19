@@ -1,9 +1,10 @@
 # the overload guard (engine.c engine_load), on synthetic loads ("load N": every block costs N % as the guard sees
-# it): brocade's saws never thin (the knob's count plays, whatever the load); the voice guard takes the pool to eight
+# it): knit's unison never thins (the knob's count plays, whatever the load); the voice guard takes the pool to eight
 # voices on sustained load and gives them back two a second
 wait 300
 load 40
-preset 3 sequin brocade
+preset 3 dusty_pad knit
+param 3 e3 7
 knob 3 vmode poly
 play 3 G3 on
 play 3 B3 on
@@ -13,7 +14,7 @@ expect voices 3
 load 82
 wait 1000
 tap GLO
-turn SELECT 4
+turn SELECT 5
 wait 100
 listen
 where

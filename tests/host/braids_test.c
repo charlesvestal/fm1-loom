@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* The Braids engines (dsp/braids.h: cane, voile, gingham, after Mutable Instruments Braids, MIT) on their own:
+/* The Braids engines (dsp/braids.h: cane, voile, after Mutable Instruments Braids, MIT) on their own:
  * every model bounded and finite at its knobs' corners and across the notes; each model sounds (and the knobs
  * change it); the waveguides and the oscillators in tune (the measured pitch against the note's); the models'
  * raw levels near each other's; cane keeps to its CN_SLOTS voices, and stays bounded while notes steal and a
@@ -63,11 +63,11 @@ static void block(void)
     }
 }
 
-static const int ENG[3] = {EG_CANE, EG_VOILE, EG_GINGHAM};
-static const int NMOD[3] = {NCANE, NVOILE, NGINGHAM};
-static const char *const MNAME[3][6] = {{"pluck", "bow", "reed", "flute", "bell", "drum"},
-                                        {"vosim", "vowel", "choir", "whisper"},
-                                        {"toy", "chord", "ring", "peak", "band", "noise"}};
+#define NENG 2
+static const int ENG[NENG] = {EG_CANE, EG_VOILE};
+static const int NMOD[NENG] = {NCANE, NVOILE};
+static const char *const MNAME[NENG][6] = {{"pluck", "bow", "reed", "flute", "bell", "drum"},
+                                           {"vosim", "vowel", "choir", "whisper"}};
 
 /* a plain sound: the filter wide open (lp12 at 20 kHz), full sustain, no LFO, no character */
 static void reset(int eng, int model, int e2, int e3, int e4)
@@ -154,13 +154,13 @@ int main(void)
     printf("synth_t %d bytes of %d\n", synth_sizeof(), SYNTH_BYTES);
 
     /* bounded and finite: every model, knobs at corners and the middle, notes 24..108 */
-    for (e = 0; e < 3; e++) {
+    for (e = 0; e < NENG; e++) {
         int ok = 1;
         float worst = 0.0f;
         for (m = 0; m < NMOD[e]; m++)
             for (k = 0; k < 9; k++) {
                 static const int V[3] = {0, 64, 127};
-                int top = e == 2 ? NARP - 1 : 127, e4 = k / 3 == 0 ? 0 : k / 3 == 1 ? (e == 2 ? 4 : 64) : top;
+                int e4 = k / 3 == 0 ? 0 : k / 3 == 1 ? 64 : 127;
                 for (n = 24; n <= 108; n += 21) {
                     reset(ENG[e], m, V[k % 3], V[(k + 1) % 3], e4);
                     finite_ok = 1;
@@ -177,8 +177,7 @@ int main(void)
             }
         printf("    %s: the loudest corner %.2f\n", EG_NAME[ENG[e]], (double)worst);
         check(e == 0 ? "cane: every model bounded and finite, knobs' corners, notes 24..108"
-                     : e == 1 ? "voile: every model bounded and finite, knobs' corners, notes 24..108"
-                              : "gingham: every model bounded and finite, knobs' corners, notes 24..108", ok);
+                     : "voile: every model bounded and finite, knobs' corners, notes 24..108", ok);
     }
 
     /* each model sounds, at its engine's default knobs: its raw level (the loudest 100 ms of a held A3's first
@@ -196,7 +195,7 @@ int main(void)
                     sound_default(d, ENG[e]);
                     reset(ENG[e], m, d[TP_E2], d[TP_E3], d[TP_E4]);
                 } else {
-                    reset(EG_WEFT, 40, 0, 20, 0);
+                    reset(EG_KNIT, 40, 0, 20, 0);
                 }
                 peak = 0.0f;
                 held(57, 0, 172, buf);
@@ -253,7 +252,7 @@ int main(void)
     {
         int ok = 1;
         static float a[N * 40];
-        for (e = 0; e < 3; e++)
+        for (e = 0; e < NENG; e++)
             for (m = 0; m < NMOD[e]; m++) {
                 int kn;
                 for (kn = 0; kn < 2; kn++) {
@@ -292,7 +291,7 @@ int main(void)
         ok &= synth_voices_used(S) == CN_SLOTS && finite_ok;
         check("cane keeps to its CN_SLOTS voices", ok);
         reset(EG_CANE, 1, 64, 64, 0);            /* others beside it keep theirs */
-        par[1][TP_ENGINE] = EG_WEFT;
+        par[1][TP_ENGINE] = EG_KNIT;
         for (n = 0; n < 4; n++)
             synth_note_on(S, 0, 48 + 3 * n, 100, 0, (uint32_t)n + 1);
         for (n = 0; n < 4; n++)
@@ -303,7 +302,7 @@ int main(void)
         /* churn: fast notes on two cane tracks and a weft one, stolen and released; bounded throughout */
         reset(EG_CANE, 0, 100, 64, 0);
         par[1][TP_E1] = 1;
-        par[2][TP_ENGINE] = EG_WEFT;
+        par[2][TP_ENGINE] = EG_KNIT;
         finite_ok = 1;
         peak = 0.0f;
         for (b = 0; b < 400; b++) {
@@ -312,31 +311,18 @@ int main(void)
             if (b > 3)
                 synth_note_off(S, (b - 3) % 3, (uint32_t)b - 2);
             if (b % 50 == 25)                    /* a track turned to cane and back mid-flight */
-                par[2][TP_ENGINE] = par[2][TP_ENGINE] == EG_WEFT ? EG_CANE : EG_WEFT;
+                par[2][TP_ENGINE] = par[2][TP_ENGINE] == EG_KNIT ? EG_CANE : EG_KNIT;
             block();
         }
         printf("    churn: peak %.2f\n", (double)peak);
         check("cane under churn: bounded, finite", finite_ok && peak < 4.0f);
     }
 
-    /* gingham's arp: over a second the note and its octave take turns (a step each 14 chunks) */
-    {
-        int i, steps = 0;
-        reset(EG_GINGHAM, 2, 64, 64, 1);         /* ring, arp: octave */
-        held(57, 2, 100, buf);
-        for (i = 0; i + 896 <= 100 * N; i += 896) {
-            double f = pitch_of(buf + i + 100, 700, mtof(63));
-            steps += f > mtof(57) * 1.5;
-        }
-        printf("    arp octave over 100 blocks: %d of %d steps an octave up\n", steps, 100 * N / 896);
-        check("gingham's arp steps between the note and its octave", steps >= 8 && steps <= 22);
-    }
-
     /* the model turned mid-note: bounded */
     {
         finite_ok = 1;
         peak = 0.0f;
-        for (e = 0; e < 3; e++) {
+        for (e = 0; e < NENG; e++) {
             reset(ENG[e], 0, 64, 64, 0);
             synth_note_on(S, 0, 50, 100, 0, 1);
             for (b = 0; b < 60; b++) {
@@ -353,7 +339,7 @@ int main(void)
         printf("\ncost: one voice, lp24, instructions a sample (the whole voice: engine, filter, envelopes, outputs)\n");
         for (k = 0; k < 2; k++) {
             uint64_t t0, t;
-            int eg = k ? EG_STACK : EG_WEFT;
+            int eg = k ? EG_RAYON : EG_KNIT;
             reset(EG_CANE, 0, 64, 64, 0);
             sound_default(par[0], eg);
             par[0][TP_FTYPE] = FT_LP24;
@@ -368,7 +354,7 @@ int main(void)
             printf("  %-8s (default)   %6.1f\n", EG_NAME[eg], (double)t / (400.0 * N));
             base += (double)t / (800.0 * N);
         }
-        for (e = 0; e < 3; e++)
+        for (e = 0; e < NENG; e++)
             for (m = 0; m < NMOD[e]; m++) {
                 uint64_t t0, t;
                 double c, worst = 0.0;
@@ -376,7 +362,7 @@ int main(void)
                 for (nt = 0; nt < 2; nt++) {     /* a low note and a high one: the worse */
                     uint8_t d[NTP];
                     sound_default(d, ENG[e]);
-                    reset(ENG[e], m, d[TP_E2], d[TP_E3], e == 2 ? 0 : 64);
+                    reset(ENG[e], m, d[TP_E2], d[TP_E3], 64);
                     par[0][TP_FTYPE] = FT_LP24;
                     par[0][TP_E2] = 127;         /* timbre up: the longest ring (pluck, bell, drum) */
                     synth_note_on(S, 0, nt ? 81 : 40, 100, 0, 1);

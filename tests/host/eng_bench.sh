@@ -1,7 +1,7 @@
 #!/bin/sh
 # SPDX-License-Identifier: GPL-3.0-only
 # An engine's cost on the host, a preset at a time (tests/host/eng_bench.c): the full voice path and the engine alone.
-#   tests/host/eng_bench.sh [engine ...]      (default: weft stack tines)
+#   tests/host/eng_bench.sh [engine ...]      (default: knit rayon jacquard)
 set -eu
 cd "$(dirname "$0")/../.."
 PY="${PYTHON:-python3}"

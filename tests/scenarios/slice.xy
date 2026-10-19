@@ -9,9 +9,9 @@ expect trk 3
 tap EDIT
 expect page Engine
 tap SEL
-turn ALGO 10 30
+turn ALGO 6 30
 tap SEL
-expect par3.0 10
+expect par3.0 7
 expect par3.1 7
 expect par3.2 1
 expect par3.brain 0

@@ -108,7 +108,7 @@ static void synth_cases(void)
     for (k = 0; k < NPRESETS; k++) {
         int t;
         for (t = 0; t < NTRK; t++)
-            sound_default(par[t], EG_WEFT);
+            sound_default(par[t], EG_KNIT);
         memcpy(par[0], PRESETS[k].par, NTP_SOUND);
         memcpy(par[1], PRESETS[(k + 7) % NPRESETS].par, NTP_SOUND);
         snprintf(name, sizeof name, "preset %d %s", k, PRESETS[k].name);

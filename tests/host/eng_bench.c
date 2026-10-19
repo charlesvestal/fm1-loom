@@ -1,12 +1,12 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* An engine's cost on the host: for each preset of the engines named (or weft, stack and tines), a chord of four
+/* An engine's cost on the host: for each preset of the engines named (or knit, rayon and jacquard), a chord of four
  * held through synth_render (the full voice path: engine, filter, character, outputs), and the engine's run
  * alone (eng_run on a copy of a sounding voice, its chunk configuration fixed). Instructions a voice-sample
  * (macOS: proc_pid_rusage) and nanoseconds. It includes synth.c to reach the static engine functions.
  * Nothing here plays audio.
  *   tests/host/eng_bench.sh [engine ...]
  *   BENCH_FLAGS='-DSYNTH_C="/path/synth.c"' tests/host/eng_bench.sh    (another synth.c: before / after)
- *   BENCH_MONO=1 tests/host/eng_bench.sh     (weft's and stack's spread at 0: their voice path mono) */
+ *   BENCH_MONO=1 tests/host/eng_bench.sh     (knit's width at 0: its voice path mono) */
 #ifndef SYNTH_C
 #define SYNTH_C "../../app/dsp/synth.c"
 #endif
@@ -53,11 +53,11 @@ static void full(int k, double *ins, double *ns)
     int t, b;
     uint64_t i0, n0, ti = 0, tn = 0;
     for (t = 0; t < NTRK; t++)
-        sound_default(par[t], EG_WEFT);
+        sound_default(par[t], EG_KNIT);
     memcpy(par[0], PRESETS[k].par, NTP_SOUND);
     par[0][TP_VMODE] = VM_POLY;                  /* (a chord of four even for the mono presets) */
-    if (getenv("BENCH_MONO") && (PRESETS[k].par[TP_ENGINE] == EG_WEFT || PRESETS[k].par[TP_ENGINE] == EG_STACK))
-        par[0][TP_E4] = 0;                       /* (BENCH_MONO: spread 0, the voice path mono) */
+    if (getenv("BENCH_MONO") && PRESETS[k].par[TP_ENGINE] == EG_KNIT)
+        par[0][TP_E4] = 0;                       /* (BENCH_MONO: width 0, the voice path mono) */
     synth_init(S, par);
     synth_tempo(S, 120.0f);
     synth_note_on(S, 0, 48, 100, 0, 1);
@@ -110,7 +110,7 @@ static void alone(double *ins, double *ns)
 
 int main(int argc, char **argv)
 {
-    static const int DEF[] = {EG_WEFT, EG_STACK, EG_TINES};
+    static const int DEF[] = {EG_KNIT, EG_RAYON, EG_JACQUARD};
     int engines[NENGINE], ne = 0, a, k;
     for (a = 1; a < argc; a++)
         for (k = 0; k < NENGINE; k++)
