@@ -3619,6 +3619,7 @@ static void draw_lfo(void)
         cv_text(x0, y0 + hh + 3, &FONT_XS, tp_info_par(TP_LTYPE, p)->names[lt], K_DIM);
     cv_blit(0, MAIN_Y);
 }
+#define BLACK_KEY(n) ((0x54Au >> ((n) % 12)) & 1)          /* C# D# F# G# A#: a black key's semitones */
 static void draw_players(void)
 {
     int trk = sel_trk(), pl = pl_type(trk);
@@ -3627,9 +3628,12 @@ static void draw_players(void)
                                           (uint32_t)pr->nchord << 12 | (uint32_t)pr->arp_note << 16 | (uint32_t)pr->chord[0] << 24);
     char t[48], *e;
     for (int i = 0; i < 16; i++)
-        h = hash_u(h, pr->held[i]);
+        h = hash_u(h, pr->held[i] | (uint32_t)(i < pr->nsounding ? pr->sounding[i] : 0) << 8);
     for (int i = 0; i < SN * 2; i++)
         h = hash_u(h, pr->chord[i]);
+    for (int i = 0; i < 4; i++)
+        h = hash_u(h, pr->phys[i]);
+    h = hash_u(h, (uint32_t)ui.oct + 8u);
     if (!begin_main(h))
         return;
     cv_text(12, 4, &FONT_B, tp_info_par(TP_PLAYER, proj.trk[trk].par)->names[pl], K_TEXT);
@@ -3658,13 +3662,39 @@ static void draw_players(void)
             e = s_cat(e, "-");
     }
     text_fit(12, 48, &FONT_S, t, 216, K_TEXT);
-    for (int k = 0; k < 24; k++) {
-        int32_t x = 12 + k * 9;
-        int n = 48 + k, held = 0;
-        for (int i = 0; i < pr->nheld && i < 16; i++)
-            held |= pr->held[i] == n;
-        cv_round(x, 76, 8, 30, 2, pr->arp_note == n ? K_TEXT : held ? K_NOW_M : (k % 12 == 1 || k % 12 == 3 ||
-                                                           k % 12 == 6 || k % 12 == 8 || k % 12 == 10) ? K_DIM : K_PANEL2);
+    {   /* the keys as they are under the hands (F3 .. G5 at this octave): down (held, or latched by hold) in the track's
+         * ink, the notes the player sounds now bright, the strum's chord marked under its keys */
+        int base = KEY_BASE + ui.oct * 12, wi = 0;
+        int32_t wx[27], y0 = 64, wh = 44, bh = 27, ww = 13;
+        uint16_t ink = trk_ink(trk);
+        for (int k = 0; k < 27; k++)                 /* the white keys first, then the black on top */
+            wx[k] = BLACK_KEY(base + k) ? 6 + wi * ww + 2 - 4 : 6 + (wi++) * ww + 2;
+        for (int pass = 0; pass < 2; pass++)
+            for (int k = 0; k < 27; k++) {
+                int n = base + k, blk = BLACK_KEY(n), down = 0, snd = 0, ch = 0;
+                if (blk != pass)
+                    continue;
+                for (int i = 0; i < pr->nheld && i < 16; i++)
+                    down |= pr->held[i] == n;
+                down |= n < 128 && (pr->phys[n >> 5] >> (n & 31) & 1u);
+                for (int i = 0; i < pr->nsounding && i < 16; i++)
+                    snd |= pr->sounding[i] == n;
+                snd |= pr->arp_note == n;
+                for (int i = 0; i < pr->nchord && i < SN * 2; i++)
+                    ch |= pr->chord[i] == n;
+                uint16_t c = snd ? K_TEXT : down ? ink : blk ? K_BG : K_PANEL2;
+                if (blk) {
+                    cv_round(wx[k], y0, 9, bh, 2, c);
+                    if (!snd && !down)
+                        cv_frame(wx[k], y0, 9, bh, 2, K_LINE, c);
+                } else
+                    cv_round(wx[k], y0, ww - 1, wh, 2, c);
+                if (ch && pl == PL_STRUM)            /* the chord a key strums: a dot under each of its notes */
+                    cv_round(wx[k] + (blk ? 2 : 3), blk ? y0 + bh + 3 : y0 + wh + 3, 5, 4, 2, ink);
+            }
+        for (int i = 0; i < pr->nheld && i < 16; i++)    /* a held note off these keys (another octave): an arrow */
+            if (pr->held[i] < base || pr->held[i] >= base + 27)
+                cv_text(pr->held[i] < base ? 0 : 232, y0 + 16, &FONT_XS, pr->held[i] < base ? "<" : ">", ink);
     }
     cv_blit(0, MAIN_Y);
 }

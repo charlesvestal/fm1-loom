@@ -33,6 +33,19 @@
 #define INV_SR (1.0f / SY_SR)
 #define CHUNK_S ((float)SY_CHUNK / SY_SR)     /* a chunk in seconds */
 #define BRIGHT_SLEW 0.13f                    /* a chunk's share of the way: about 10 ms to 1 / e */
+#define SLEW_SNAP 0.002f                     /* nearer than this: there (the engine's prep stops being redone) */
+/* the engine knobs that glide (~10 ms, BRIGHT_SLEW) rather than step a chunk at a time, bit i = TP_E1 + i: the
+ * continuous ones; a choice (a model, a table, a ratio, the voices, the organ's switches, a sample) jumps */
+static const uint8_t E_GLIDE[NENGINE] = {
+    0xB, /* knit: wave, detune, width (not the voices) */  0xD, /* rayon: bright, edge, tine (not the ratio) */
+    0xE, /* jacquard: scan, bend, ripple (not the table) */ 0x0, /* bellows: four switches */
+    0xE, /* cane: timbre, color, damp */ 0xE,               /* voile: timbre, color, breath */
+    0x0, 0x0, 0x0};                                        /* sample, slice (where a note starts), the kit */
+static inline float glide_to(float from, float to)
+{
+    float d = to - from;
+    return d < SLEW_SNAP && d > -SLEW_SNAP ? to : from + d * BRIGHT_SLEW;
+}
 #define LD_PITCH (-2)                         /* the LFO destination "pitch" (no TP_* holds it) */
 #define LD_NONE (-1)
 /* the sample loops must be inlined into their callers (the compiler folds their constant arguments
@@ -482,23 +495,36 @@ static const float ORGAN_SET[8][5] = {{1.0f, 0.15f, 0.0f, 0.6f, 0.0f},    /* 1 t
                                       {1.0f, 0.8f, 0.9f, 0.9f, 0.9f}};    /* 8 church: the full chorus */
 static const float ORGAN_RATIO[6] = {0.5f, 1.0f, 2.0f, 3.0f, 4.0f, 6.0f};
 static inline int knob8(float raw) { int k = (int)(raw + 0.5f); return k < 1 ? 1 : k > 8 ? 8 : k; }
-static void organ_prep(voice_t *v)
+/* the drawbars the stops and the pedal ask for (bars[0..5]) and the rotor's depth (*amt): organ_chunk glides the
+ * voice's toward them (a stop changed while a note sounds: no click); a new note starts at them (organ_prep) */
+static void organ_want(const cfg_t *c, float *bars, float *amt)
 {
-    cfg_t *c = &v->c;
     int k = knob8(c->ek[0]) - 1, j;
-    float bass = (float)(knob8(c->ek[1]) - 1) * (1.0f / 7.0f), amt = (float)(knob8(c->ek[2]) - 1) * (1.0f / 7.0f);
-    float tr = 0.5f * fm_exp2f((float)(knob8(c->ek[3]) - 1) * (4.0f / 7.0f)) * INV_SR, sum, base;   /* 0.5 .. 8 Hz */
-    sum = bass;
-    c->ex[0] = bass * 0.8f;
+    float bass = (float)(knob8(c->ek[1]) - 1) * (1.0f / 7.0f), sum = bass;
+    *amt = (float)(knob8(c->ek[2]) - 1) * (1.0f / 7.0f);
+    bars[0] = bass * 0.8f;
     for (j = 1; j < 6; j++) {
-        c->ex[j] = ORGAN_SET[k][j - 1];
-        sum += c->ex[j];
+        bars[j] = ORGAN_SET[k][j - 1];
+        sum += bars[j];
     }
     sum = 1.4f / (sum + 0.5f);                  /* the bars share a level near the other engines' */
     for (j = 0; j < 6; j++)
-        c->ex[j] *= sum;
+        bars[j] *= sum;
+}
+static void organ_prep(voice_t *v)
+{
+    cfg_t *c = &v->c;
+    int j;
+    float tr = 0.5f * fm_exp2f((float)(knob8(c->ek[3]) - 1) * (4.0f / 7.0f)) * INV_SR, base, amt;   /* 0.5 .. 8 Hz */
+    if (v->fresh) {                             /* (sounding: organ_chunk glides them) */
+        float bars[6];
+        organ_want(c, bars, &amt);
+        for (j = 0; j < 6; j++)
+            c->ex[j] = bars[j];
+        c->ex[19] = amt;
+    }
+    amt = c->ex[19];
     c->ex[18] = tr;
-    c->ex[19] = amt;
     base = c->freq * INV_SR * (1.0f + amt * 0.004f * fm_sin_turns(v->o[12]));   /* the tremolo's pitch wobble */
     for (j = 0; j < 6; j++) {
         float a = fm_minf(base * ORGAN_RATIO[j], 0.45f) * FM_TWO_PI, re = v->o[j * 2], im = v->o[j * 2 + 1], r2;
@@ -559,10 +585,15 @@ static void organ_run(voice_t *v, float *xl, float *xr, int m)
         v->o[j * 2 + 1] = im[j];
     }
 }
-static void organ_chunk(voice_t *v)              /* the tremolo's phase and the chunk's gain ramp */
+static void organ_chunk(voice_t *v)              /* the drawbars' glide, the tremolo's phase and the chunk's gain ramp */
 {
-    const cfg_t *c = &v->c;
-    float g1;
+    cfg_t *c = &v->c;
+    float g1, bars[6], amt;
+    int j;
+    organ_want(c, bars, &amt);
+    for (j = 0; j < 6; j++)
+        c->ex[j] = glide_to(c->ex[j], bars[j]);
+    c->ex[19] = glide_to(c->ex[19], amt);
     v->o[12] = wrap1(v->o[12] + c->ex[18] * (float)SY_CHUNK);
     g1 = 1.0f - c->ex[19] * 0.5f * (0.5f - 0.5f * fm_sin_turns(v->o[12]));
     v->o[14] = (g1 - v->o[13]) * (1.0f / (float)SY_CHUNK);
@@ -1998,13 +2029,13 @@ static void voice_chunk(synth_t *s, voice_t *v)
     off = t->loff[k] * lenv;
     lg = 1.0f - (1.0f - t->lgain[k]) * lenv;
     {
-        float e0 = c->e[0];
+        int gm = v->fresh ? 0 : E_GLIDE[v->engine < NENGINE ? v->engine : 0];
         for (i = 0; i < 4; i++) {
+            float e;
             c->ek[i] = fm_minf(pf(s, trk, TP_E1 + i, dest, off), 127.0f);   /* a foreign lock value stays in range */
-            c->e[i] = c->ek[i] * (1.0f / 127.0f);
+            e = c->ek[i] * (1.0f / 127.0f);
+            c->e[i] = gm >> i & 1 ? glide_to(c->e[i], e) : e;   /* (a fresh voice: at its values at once) */
         }
-        if (v->engine == EG_RAYON && !v->fresh)  /* bright, an FM index: slewed (~10 ms) */
-            c->e[0] = e0 + (c->e[0] - e0) * BRIGHT_SLEW;
     }
     {   /* the envelopes' coefficients cost an exp each: only for a knob that moved */
         static const uint8_t EP[8] = {TP_A, TP_D, TP_S, TP_R, TP_FA, TP_FD, TP_FS, TP_FR};
@@ -2020,10 +2051,15 @@ static void voice_chunk(synth_t *s, voice_t *v)
         }
     }
     /* the filter: 50 Hz .. 20 kHz over the knob, the performance offset, keytrack, velocity */
-    c->cut_oct = (pf(s, trk, TP_CUT, dest, off) + (float)t->perf.cut) * (8.64385619f / 127.0f)
-                 + pf(s, trk, TP_KTRK, dest, off) * (1.0f / 127.0f) * (v->pitch - 60.0f) * (1.0f / 12.0f);
+    {   /* the cutoff and the resonance glide too (~10 ms), as the engine knobs */
+        float co = (pf(s, trk, TP_CUT, dest, off) + (float)t->perf.cut) * (8.64385619f / 127.0f)
+                   + pf(s, trk, TP_KTRK, dest, off) * (1.0f / 127.0f) * (v->pitch - 60.0f) * (1.0f / 12.0f);
+        c->cut_oct = v->fresh ? co : glide_to(c->cut_oct, co);
+    }
     c->fenv_oct = (pf(s, trk, TP_FENV, dest, off) - 64.0f) * (6.0f / 64.0f) * (0.5f + 0.5f * v->vel);
     res = pf(s, trk, TP_RES, dest, off) * (1.0f / 127.0f);
+    if (!v->fresh)
+        res = glide_to(c->kres * 0.25f, res);
     c->kq = 2.0f * fm_exp2f(-res * 4.3f);        /* Q 0.5 .. 10 */
     c->kres = res * 4.0f;                        /* the ladder's feedback */
     c->ftype = (uint8_t)P(s, trk, TP_FTYPE);
