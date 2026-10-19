@@ -40,8 +40,8 @@ P("glass bell", "bell", "rayon", knobs=dict(bright=60, ratio=ratio(3.5), edge=0,
 P("marimba", "pluck", "rayon", knobs=dict(bright=50, ratio=ratio(4.0), edge=0, tine=0), volume=112,
   amp=(0, 76, 0, 60), fenv=(0, 64, 0, 64), filter=("lp12", 104, 0, 64, 64), sends=(0, 20), x=(30, 0, 40, 0),
   genres=("lofi", "house"))
-# a tubular bell: root 2, long, its brightness slow to go
-P("tubular", "bell", "rayon", knobs=dict(bright=55, ratio=ratio(1.4142135), edge=0, tine=0), volume=100,
+# a tubular bell: 5:1 (a whole ratio keeps the pitch; root 2 sounded out of tune), long, its brightness slow to go
+P("tubular", "bell", "rayon", knobs=dict(bright=50, ratio=ratio(5.0), edge=0, tine=0), volume=100,
   amp=(0, 104, 0, 96), fenv=(0, 64, 0, 64), filter=("lp12", 108, 0, 64, 64), sends=(0, 45), x=(100, 30, 50, 0), octave=1,
   genres=("synthpop",))
 # FM brass: 1:1 with feedback for the saw, the filter's swell, a late vibrato
