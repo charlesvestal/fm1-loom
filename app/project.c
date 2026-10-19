@@ -628,20 +628,6 @@ int project_exists(int slot)
     return n >= 8 && get32(io_buf) == PROJ_MAGIC && get32(io_buf + 4) == PROJ_FORMAT;
 }
 
-void project_name_of(int slot, char *name)
-{
-    int n, i;
-    name[0] = 0;
-    if (slot < 0 || slot >= NPROJ)
-        return;
-    n = plat_store_load(OBJ_PROJ(slot, 0), io_buf, 8 + NAME_LEN);
-    if (n < 8 + NAME_LEN || get32(io_buf) != PROJ_MAGIC)
-        return;
-    for (i = 0; i < NAME_LEN - 1; i++)
-        name[i] = (char)io_buf[8 + i];
-    name[NAME_LEN - 1] = 0;
-}
-
 int presets_load(void)
 {
     int n = plat_store_load(OBJ_PRESETS, io_buf, sizeof io_buf), k;

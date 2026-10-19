@@ -157,7 +157,6 @@ press…" means keep **HOME** down while you press the next thing.
 | let a track lead the chords | On COND, press **EDIT** and turn **SELECT** to Follow. Press the track's black key: its lowest note sets the chord for the others (a chord part or a bass line). The same key again: off. |
 | get new sounds for the band | Press **HOME**, press **SEL** and pick RANDOMIZE PRESETS: T2 to T8 each get a random preset of their part. **SEL** says yes. |
 | save | LOOM-8 saves by itself when stopped and quiet. **SAVE** saves at once; hold **SAVE** and press white key 1 to 3 to save to that slot. |
-| name a project | Press **HOME**, press **SEL**, pick RENAME and type on the keys (**OCT−** capitals, **OCT+** digits). **SEL** keeps it. |
 | keep a sound | On a sound page, hold **SAVE** and press a white key. The sound becomes that user preset. |
 | load a project | Press **HOME**, press **SEL**, turn **ALGORITHM** on LOAD PROJECT to the slot, and press **SEL**. NEW PROJECT starts an empty one in a free slot, its sounds picked at random (RANDOMIZE PRESETS: new ones). |
 
@@ -873,9 +872,8 @@ polyphonic synth, a pad, a mono lead, keys, an effect and a pluck or bell on T2 
 conductor. RANDOMIZE PRESETS on **HOME**'s **SEL** list picks another band for T2 to T8 (it asks first); the
 patterns, the kit and the mix stay. A project saves every knob as you left it, not the preset it came from.
 
-**A project's name.** **HOME**'s **SEL** list has RENAME. The keys type: F3 to E5 are a to z and G5 deletes;
-hold **OCT−** for capitals and **OCT+** for digits, a space and symbols. The keys on the screen show what each
-one types. **SEL** keeps the name, **HOME** leaves it as it was. The name shows in LOAD PROJECT and SAVE TO.
+**Projects have no names.** A project is its slot: LOAD PROJECT and SAVE TO show Proj 1, Proj 2 and Proj 3
+(and which are empty).
 
 **Backup.** To keep the three projects and the user presets on a computer, and put them back later, open
 <https://charlesvestal.github.io/fm1-loom/backup/> in Chrome or Edge with the FM-1 connected by USB (or run
@@ -890,7 +888,7 @@ On a sound page, hold **SAVE** and press white key 1 to 16 to keep the track's s
 
 | Button | Page | KNOB 1 | KNOB 2 | KNOB 3 | KNOB 4 | Keys |
 | --- | --- | --- | --- | --- | --- | --- |
-| HOME | Arrange | tempo | groove | amount | click | white: scenes, black: mutes; SEL: load, save to, rename, new project, randomize presets, the song, when scenes switch |
+| HOME | Arrange | tempo | groove | amount | click | white: scenes, black: mutes; SEL: load, save to, new project, randomize presets, the song, when scenes switch |
 | HOME, SELECT | Song | slot | scene | bars | at end | white: add a scene |
 | SEQ | Steps | pattern | length | scale | groove | white: steps, black: sound (drums); SEQ held: a keyboard |
 | SEQ, a step held | Steps | velocity | length | chance | pitch | white: length, black: sounds |

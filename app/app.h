@@ -142,7 +142,8 @@ typedef struct {
  * an LZ stream across the slot's other objects */
 typedef struct {
     uint32_t magic, format;
-    char name[NAME_LEN];
+    char name[NAME_LEN];                /* (unused since projects lost their names: a project is its slot, "Proj 2";
+                                         * kept, so format 10's projects load) */
     uint16_t tempo_x10;                 /* 400..3000 */
     uint8_t swing;                      /* unused since the grooves (a reserved byte; the UI may still write it) */
     uint8_t groove;                     /* the project's groove type (pattern.h GR_*); each track has its amount */
@@ -181,7 +182,6 @@ void project_apply(void);               /* every value to the engine (boot, load
 int project_exists(int slot);
 int project_last_slot(void);            /* the slot saved or loaded last (0 when none holds a project) */
 int project_touch(int slot);            /* the loaded slot the last: its settings saved again, its count the next */
-void project_name_of(int slot, char *name);   /* "" if empty */
 int presets_load(void);
 int presets_save(void);
 

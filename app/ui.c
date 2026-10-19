@@ -951,16 +951,6 @@ static void key_down(int k)
         ui.knote[k] = (uint8_t)(w < 0 ? 255 : w);
         return;
     }
-    if (ui.naming) {                             /* RENAME: the key types (or deletes) */
-        char c = name_char(k, name_layer());   /* (k: the key from F3) */
-        ui.kmode[k] = KM_IDLE;
-        if (!c) {
-            if (ui.nm_len)
-                ui.nm_len--;
-        } else if (ui.nm_len < NAME_LEN - 1)
-            ui.nm_buf[ui.nm_len++] = c;
-        return;
-    }
     if (lst.open)
         return;
     if (home_held())                             /* (HOME shifts the knobs and buttons, not the keys) */
@@ -1246,30 +1236,8 @@ static void button_down(int b)
     if (b == B_PLAY)
         play_press();
 }
-static void name_end(int keep)                   /* RENAME done (SEL) or cancelled (HOME) */
-{
-    ui.naming = 0;
-    ui.sig[1] = 0;
-    if (!keep)
-        return;
-    for (int i = 0; i < NAME_LEN; i++)
-        proj.name[i] = i < ui.nm_len ? ui.nm_buf[i] : 0;
-    mark_dirty();
-    {
-        char t[NAME_LEN + 1];
-        for (int i = 0; i < NAME_LEN; i++)
-            t[i] = proj.name[i];
-        t[NAME_LEN] = 0;
-        say("NAMED", t[0] ? t : "-");
-    }
-}
 static void button_up(int b)
 {
-    if (ui.naming) {                             /* (OCT- and OCT+ are the keys' layers meanwhile) */
-        if (b == B_SEL || b == B_HOME)
-            name_end(b == B_SEL);
-        return;
-    }
     if (lst.open && b == PAGE_BTN[page_group(ui.page)].btn && b != B_HOME) {
         ui.ask = 0;
         lst.open = 0;
@@ -1343,7 +1311,7 @@ static void holds(void)
 {
     uint32_t now = plat_ms();
     for (int b = 0; b < NB; b++)
-        if (ui.btn == 1u << b && !ui.keys && b != B_HOME && !ui.naming && !(ui.btn_used >> b & 1u) &&
+        if (ui.btn == 1u << b && !ui.keys && b != B_HOME && !(ui.btn_used >> b & 1u) &&
             now - ui.btn_t[b] >= CARD_MS) {
             ui.card = (uint8_t)(b + 1);
             ui.btn_used |= 1u << b;
@@ -2306,15 +2274,6 @@ static void action_run(int a)
     case A_NEW_PROJ: ask("NEW PROJECT?", do_new_proj); return;
     case A_RANDOM_SOUNDS: ask("NEW SOUNDS ON T2 TO T8?", do_random_sounds); return;
     case A_SAVE_TO: act_save_slot(ui.pick_save % NPROJ); break;
-    case A_RENAME:                               /* (a new project's NEW: typed over, from empty) */
-        ui.nm_len = 0;
-        while (ui.nm_len < NAME_LEN - 1 && proj.name[ui.nm_len])
-            ui.nm_buf[ui.nm_len] = proj.name[ui.nm_len], ui.nm_len++;
-        if (ui.nm_len == 3 && ui.nm_buf[0] == 'N' && ui.nm_buf[1] == 'E' && ui.nm_buf[2] == 'W')
-            ui.nm_len = 0;
-        ui.naming = 1;
-        ui.sig[1] = 0;
-        break;
     case A_CLEAR_SCENE: act_clear_scene_ask(); return;
     case A_PANIC: engine_panic(); say("ALL NOTES OFF", 0); break;
     default: break;
@@ -3145,7 +3104,7 @@ void ui_init(void)
 #define AUTOSAVE_QUIET 90u                       /* blocks of quiet (256 samples: about 0.5 s) */
 static void autosave(void)
 {
-    if (!ui.dirty || (proj.rsv[2] & AUTOSAVE_OFF) || proj_slot >= NPROJ || playing() || seq.rec || seq.rec_wait || ui.ask || ui.naming || lst.open ||
+    if (!ui.dirty || (proj.rsv[2] & AUTOSAVE_OFF) || proj_slot >= NPROJ || playing() || seq.rec || seq.rec_wait || ui.ask || lst.open ||
         ui.btn || ui.keys || plat_ms() - ui.act_t < AUTOSAVE_MS || eng_voices || eng_quiet < AUTOSAVE_QUIET)
         return;
     if (project_save(proj_slot) == 0)
@@ -3179,7 +3138,7 @@ void ui_frame(void)
     draw_header();
     draw_page();
     draw_rec_strip();
-    if (!(lst.open && !ui.card) && !ui.naming) {
+    if (!(lst.open && !ui.card)) {
         draw_tag();
         draw_knobs();
     }
