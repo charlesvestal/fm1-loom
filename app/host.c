@@ -276,6 +276,15 @@ static int expect_more(const char *what, const char *a, const char *b, const cha
         printf("  comp %s step %s: %d/%d and %d/%d\n", a, b, tp->st[s].comp, tp->st[s].cval, tp->st[s].comp2,
                tp->st[s].cval2);
         host_fails += expect_val(what, tp->st[s].comp, c);
+    } else if (!strcmp(what, "cval")) {             /* expect cval T S VALUE: step S's first component's value */
+        tpat_t *tp = pat_of(atoi(a), 0);
+        int s = atoi(b) - 1;
+        if (!tp || s < 0 || s >= NSTEP) {
+            printf("FAIL expect cval: no track %s step %s\n", a, b);
+            host_fails++;
+            return 1;
+        }
+        host_fails += expect_val(what, tp->st[s].cval, c);
     } else if (!strcmp(what, "note")) {             /* expect note T PAT S VALUE: five words */
         char t[16], pt[16], st[16], v[16];
         tpat_t *tp;
@@ -769,8 +778,8 @@ static int song_cmd(const char *cmd)
         if (k == NSC)
             host_die("no trick", w[4]);
         v = atoi(w[5]) - 1;
-        if (v < 0 || v > SC_RANDOM_VAL)
-            host_die("a trick's value is 1..10", w[5]);
+        if (v < 0 || v > (k == SC_JUMP ? JUMP_LAST : SC_RANDOM_VAL))
+            host_die("a trick's value is 1..10 (a jump's 1..22)", w[5]);
         if (k >= SC_SKIP_LOCK)
             v = SK_VAL(v, strchr(w[5], ':') ? atoi(strchr(w[5], ':') + 1) : 0);
         if (!st->comp || st->comp == k) {

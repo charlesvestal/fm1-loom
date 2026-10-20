@@ -30,6 +30,7 @@ enum { AUX_BRAIN = NTRK, AUX_PUNCH, AUX_FX1, AUX_FX2, AUX_WEAVE, NALLTRK };   /*
 enum { SC_NONE, SC_PULSE, SC_HOLD, SC_MULTIPLY, SC_VELOCITY, SC_RAMP_UP, SC_RAMP_DOWN, SC_RANDOM,
        SC_PORTAMENTO, SC_BEND, SC_TONALITY, SC_JUMP, SC_SKIP_LOCK, SC_SKIP_COMP, SC_SKIP, NSC };
 #define SC_RANDOM_VAL 9
+#define JUMP_LAST 21                       /* SC_JUMP's values run 0..21 (see below) */
 extern const uint8_t SC_DEFAULT[NSC];      /* pulse 3 (= 4), hold 3, multiply 1, velocity 4, ramps 3, random 3,
                                             * portamento 3, bend 0, tonality 3, jump 3, skips 1 (0-based values) */
 /* SC_PULSE / SC_HOLD: 1..9 repeats (the total count includes the original trigger), random
@@ -41,7 +42,8 @@ extern const uint8_t SC_DEFAULT[NSC];      /* pulse 3 (= 4), hold 3, multiply 1,
  * SC_BEND: down-up, up-down, bump-down, bump-up, spring-out, spring-in, fade-down, fade-up, random 1, random 2
  * SC_TONALITY: ignore progression, transpose only, octave up, fifth up, third up (by the scale), chromatic up,
  *   chromatic down, quantize 33 %, 66 %, 100 %
- * SC_JUMP: to 1, 5, 9, 13, forward (skips the next step), back, forward-or-back, stay, align, random
+ * SC_JUMP: to 1, 5, 9, 13 (0..3), forward (skips the next step), back, forward-or-back, stay, align, random (4..9),
+ *   then to 17, 21 .. 61 (10..21: a longer pattern's beats; the knob turns through the beats the pattern has first)
  * SC_SKIP_LOCK / SC_SKIP_COMP / SC_SKIP: a cycle of 1..9 passes (random); which passes play is the cycle's
  *   mode in the value's upper bits: SK_MODE(v) 0 = play on the last pass of the cycle, 1 = skip the last pass,
  *   2 = play only on the first; SK_N(v) = the cycle length value 0..9 */

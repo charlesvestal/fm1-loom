@@ -106,8 +106,7 @@ static const char *const BEND_VAL[10] = {"down-up", "up-down", "bump dn", "bump 
                                          "fade dn", "fade up", "random 1", "random 2"};
 static const char *const TON_VAL[10] = {"ignore", "transpose", "oct up", "5th up", "3rd up", "chrom up", "chrom dn",
                                         "q 33%", "q 66%", "q 100%"};
-static const char *const JUMP_VAL[10] = {"to 1", "to 5", "to 9", "to 13", "forward", "back", "fwd/back", "stay",
-                                         "align", "random"};
+static const char *const JUMP_MOVE[6] = {"forward", "back", "fwd/back", "stay", "align", "random"};   /* 4..9 */
 static const char *const TS_NAME[NTS] = {"1/2", "1", "2", "3", "4", "5", "6", "8", "16"};
 static const uint8_t BAR_SCALE_KEY[9] = {TS_1, TS_2, TS_3, TS_4, TS_5, TS_6, TS_8, TS_16, TS_HALF};   /* Bar's black keys */
 static const char *const LIGHTS_NAME[3] = {"off", "on", "keys"};
@@ -202,12 +201,19 @@ static struct {
     struct { const char *name; char val[24]; uint8_t kind, id; } row[LIST_ROWS];
 } lst;
 
-/* the undo: one stage, the selected track's pattern as it was before the last edit (HOME + REC swaps it
- * back, HOME + PLAY swaps again: redo). Locks (the lanes) are not part of it */
+/* the undo: one stage, whatever was changed last (HOME + REC swaps it back, HOME + PLAY swaps again: redo): a
+ * pattern with its locks, a track's sound (or T2-T8 at once), the master, or the arrangement (song, scenes, weave) */
+enum { U_PAT, U_SOUND, U_MASTER, U_ARR };
+#define UNDO_LANES 12
 static struct {
-    tpat_t pat;
-    uint8_t valid, trk, pt, redo;
+    uint8_t valid, redo, kind, trk, n, pt, nl, rsv;
     uint32_t t;
+    union {
+        struct { tpat_t pat; lane_t lane[UNDO_LANES]; } p;
+        trk_t s[NTRK - 1];
+        uint8_t master[NMS];
+        struct { song_t song; scene_t scene[NSCENE]; wvpat_t weave[NPATT]; } a;
+    } u;
 } undo PLAT_POOL;
 static tpat_t clip PLAT_POOL;
 static uint8_t clip_ok;
@@ -487,7 +493,7 @@ static int rec_settings(void)
 {
     return (ui.btn >> B_REC & 1u) && !home_held() && (!playing() || ui.page == P_STEPS || ui.page == P_BAR);
 }
-static int pl_type(int t) { return is_aux(t) ? PL_OFF : proj.trk[t].par[TP_PLAYER] % NPL; }
+static int pl_type(int t) { return is_aux(t) || is_drum(t) ? PL_OFF : proj.trk[t].par[TP_PLAYER] % NPL; }   /* (a kit has no player) */
 #define CTYPE_NAME(par) (tp_info_par(TP_CTYPE, par)->names[(par)[TP_CTYPE] % NCT])   /* the character's type */
 static int inst_trk(void) { return is_aux(sel_trk()) ? ui.last_inst % NTRK : sel_trk(); }   /* the keys' instrument */
 static int fx_page(int p) { return p == P_FX1 || p == P_FX2; }
@@ -510,7 +516,7 @@ static int group_n(int g)
         return trk == AUX_PUNCH || trk == AUX_WEAVE ? 1 : trk == AUX_BRAIN ? 3 : is_aux(trk) ? 2
              : is_drum(trk) ? 3 : x_page(trk) ? 4 : 3;      /* (a kit: Engine, Key, Sends: the key's own) */
     if (b == B_ARP)                                  /* (grp_page: Players, Players 2, Hold the arp's, Weave) */
-        return is_aux(trk) ? 1 : pl_type(trk) == PL_ARP ? 4 : 3;
+        return is_aux(trk) ? 1 : is_drum(trk) ? 2 : pl_type(trk) == PL_ARP ? 4 : 3;
     if (b == B_ENV)
         return is_drum(trk) ? 4 : 3;                 /* a kit: the key's envelope, filter; the kit's envelope, filter */
     if (b == B_GLO)
@@ -533,6 +539,8 @@ static int grp_page(int g, int i)
         static const uint8_t ARPP[4] = {P_PLAYERS, P_PLAYERS2, P_PLAYERS3, P_WEAVE};
         static const uint8_t OTHER[3] = {P_PLAYERS, P_PLAYERS2, P_WEAVE};
         int trk = sel_trk();
+        if (is_drum(trk))
+            return i & 1 ? P_WEAVE : P_PLAYERS;      /* (a kit: its player page shows it off, then Weave) */
         return is_aux(trk) ? P_WEAVE : pl_type(trk) == PL_ARP ? ARPP[i & 3] : OTHER[(i % 3 + 3) % 3];
     }
     return PAGE_BTN[g].first + i;
@@ -606,6 +614,8 @@ static int tp_page_param(int p, int k, int trk)
     }
     if (p == P_SUB && !x_page(trk))
         return -1;
+    if (is_drum(trk) && (p == P_PLAYERS || p == P_PLAYERS2 || p == P_PLAYERS3))
+        return -1;                                   /* a kit: no player (its page shows it off) */
     if (p == P_PLAYERS2 && pl_type(trk) != PL_ARP)
         return k == 0 ? TP_P4 : -1;
     if (p == P_PLAYERS3 && pl_type(trk) != PL_ARP)
@@ -927,7 +937,11 @@ static const char *comp_val_text(int comp, int v, char *t)
     case SC_PORTAMENTO: return PORTA_VAL[clampi(v, 0, 9)];
     case SC_BEND: return BEND_VAL[clampi(v, 0, 9)];
     case SC_TONALITY: return TON_VAL[clampi(v, 0, 9)];
-    case SC_JUMP: return JUMP_VAL[clampi(v, 0, 9)];
+    case SC_JUMP:                                    /* "to 13", "to 49": a beat (0..3, then 10..21), or a move */
+        if (v >= 4 && v <= 9)
+            return JUMP_MOVE[v - 4];
+        num_s((uint32_t)(v < 4 ? v * 4 : (clampi(v, 10, JUMP_LAST) - 6) * 4) + 1u, s_cat(t, "to "));
+        return t;
     case SC_SKIP_LOCK: case SC_SKIP_COMP: case SC_SKIP: {   /* "on 4", "not 4", "1st/4" of the cycle */
         int n = (int)SK_N((uint32_t)v), m = (int)SK_MODE((uint32_t)v);
         char *e;
@@ -1752,23 +1766,23 @@ static void draw_footer(void)
 static const struct { uint8_t btn; uint32_t pages; const char *title, *l1, *l2; } CARD[] = {
     {B_SEQ, PG_ANY, "Steps", "The bar's 16 steps on the white keys. Hold SEQ and play the notes,",
      "then press steps to write them. A step held + ARP: its tricks."},
-    {B_EDIT, PG_STEPS, "Lock", "With a step held, EDIT, ENV, FX or LFO show that module's knobs.",
-     "Turn one to lock it on the step; SELECT turns pages. SAVE clears."},
-    {B_EDIT, PG_ANY, "Engine", "The track's engine and its four knobs. PRESETS: its next sound.",
-     "SEL changes the engine. Page 2: Play, 3: octave; knit and rayon: 4, Sub. Drums: black keys pick a key."},
-    {B_ENV, PG_ANY, "Envelope", "The amp's envelope, then the filter, then the filter's envelope.",
-     "PRESETS on Filter: its type. A kit: the key's envelope and filter, then the kit's."},
-    {B_FX, PG_ANY, "Effects", "The track's character, its sends, FX I and FX II, then Throws: the keys fire effects.",
-     "PRESETS: the character's type; on FX I and FX II the effect, SEL its filter."},
+    {B_EDIT, PG_STEPS, "Lock", "With a step held, EDIT, ENV, FX or LFO show their knobs.",
+     "Turn one to lock it on the step. SELECT: pages. SAVE clears."},
+    {B_EDIT, PG_ANY, "Engine", "The engine's four knobs. PRESETS: its next sound.",
+     "Held: the keys play, ALGORITHM picks the engine. SELECT: pages."},
+    {B_ENV, PG_ANY, "Envelope", "The amp's envelope, the filter, its envelope.",
+     "PRESETS on Filter: its type. A kit: the key's, then the kit's."},
+    {B_FX, PG_ANY, "Effects", "Character, sends, FX I, FX II, then Throws: keys fire effects.",
+     "PRESETS: the type or effect. SEL: an FX's filter."},
     {B_LFO, PG_ANY, "LFO", "Type, then its first three knobs.", "Page 2 has the type's fourth and fifth."},
-    {B_ARP, PG_ANY, "Players", "Arp, strum or hold on the track's keys and steps; the last page, Weave.",
-     "Strum: a key strums the chord from that key; keys held together become the chord."},
+    {B_ARP, PG_ANY, "Players", "Arp, strum or hold on the track's keys; last page, Weave.",
+     "Strum: a key strums its chord; keys held together set it."},
     {B_ARP, PG_STEPS, "Tricks", "With a step held, ARP: KNOB 1 and 3 pick its two tricks,",
      "KNOB 2 and 4 their values. Let go of the step when done."},
-    {B_GLO, PG_ANY, "Mix", "Sends, pan, level. Black keys: a tap mutes a track, held: solo.",
-     "SELECT: Master EQ, Master out and Setup. HOME's SEL has the projects."},
-    {B_HOME, PG_ANY, "Arrange", "Each track's pattern in the scene. White keys: scenes, black: mutes.",
-     "SEL: projects (load, new) and when scenes switch. HOME + REC undoes, + PLAY redoes."},
+    {B_GLO, PG_ANY, "Mix", "Sends, pan, level. Black keys: tap mutes, hold solos.",
+     "SELECT: Master EQ, out, Setup. HOME's SEL: projects."},
+    {B_HOME, PG_ANY, "Arrange", "Each track's pattern in the scene. White: scenes, black: mutes.",
+     "SEL: projects, scene timing. + REC undoes, + PLAY redoes."},
     {B_SEL, PG_ANY, "Lists", "The page's knobs, then its actions. SEL runs the one picked.",
      "SELECT moves, ALGORITHM changes, HOME goes back."},
     {B_SAVE, PG_STEPS, "Save", "Tap to save the project. With a step held, clears its locks.",
@@ -1781,9 +1795,9 @@ static const struct { uint8_t btn; uint32_t pages; const char *title, *l1, *l2; 
     {B_PLAY, PG(P_SONG), "Play", "Plays the song from the slot picked. PLAY again stops.", "SEL's PLAY SONG: from the top."},
     {B_PLAY, PG_ANY, "Play", "Starts and stops. Twice quickly: from the top.", "HOME + PLAY redoes."},
     {B_OCTDN, PG_STEPS, "Bar", "Shows the bar before. A step held: nudges it earlier.",
-     "Step record: the cursor back. Hold both for 5 seconds for update mode."},
+     "Step record: the cursor back. Both held 5 s: update mode."},
     {B_OCTUP, PG_STEPS, "Bar", "Shows the next bar. A step held: nudges it later.",
-     "Step record: the cursor on. Hold both for 5 seconds for update mode."},
+     "Step record: the cursor on. Both held 5 s: update mode."},
     {B_OCTDN, PG_ANY, "Octave", "The keys an octave down.", "Hold both for 5 seconds for update mode."},
     {B_OCTUP, PG_ANY, "Octave", "The keys an octave up.", "Hold both for 5 seconds for update mode."},
 };
@@ -1795,6 +1809,29 @@ static int card_find(int btn)
             return (int)i;
     return -1;
 }
+/* where card i's text ends (the box's top in *top): both lines wrapped at 200 px */
+static int32_t card_end(int i, int32_t *top)
+{
+    int32_t n = wrap_do(0, 0, 200, &FONT_S, CARD[i].l1, 0, 0) / 17 +
+                (CARD[i].l2 ? wrap_do(0, 0, 200, &FONT_S, CARD[i].l2, 0, 0) / 17 : 0);
+    int32_t bh = 42 + (n - 1) * 17 + (CARD[i].l2 ? 4 : 0), t = 4 + (MAIN_H - 8 - bh) / 2;
+    if (t < 10)
+        t = 10;
+    *top = t;
+    return t + 30 + n * 17 + (CARD[i].l2 ? 4 : 0);
+}
+#if defined(PLAT_HOST) && !defined(PLAT_WEB)
+static void cards_audit(void)                  /* every card on every page it is shown: its text fits the box */
+{
+    for (uint32_t i = 0; i < NCARDS; i++) {
+        int32_t top;
+        if (card_end((int)i, &top) - 1 > MAIN_H - 4) {
+            printf("  FAIL card too long: %s (%s)\n", CARD[i].title, CARD[i].l1);
+            msg_too_wide++;
+        }
+    }
+}
+#endif
 static void draw_card(void)
 {
     int i = card_find(ui.card - 1);
@@ -1806,10 +1843,10 @@ static void draw_card(void)
     cv_begin(240, MAIN_H, K_BG);
     cv_round(8, 4, 224, MAIN_H - 8, 8, K_PANEL);
     {
-        int32_t n = i < 0 ? 0 : wrap_do(0, 0, 200, &FONT_S, CARD[i].l1, 0, 0) / 17 +
-                                (CARD[i].l2 ? wrap_do(0, 0, 200, &FONT_S, CARD[i].l2, 0, 0) / 17 : 0);
-        int32_t bh = i < 0 ? 20 : 42 + (n - 1) * 17 + (CARD[i].l2 ? 4 : 0), top = 4 + (MAIN_H - 8 - bh) / 2;
-        if (top < 10)
+        int32_t top = 4 + (MAIN_H - 8 - 20) / 2;
+        if (i >= 0)
+            card_end(i, &top);
+        else if (top < 10)
             top = 10;
         x = pill_o(18, top, 0, BTN_LABEL[(ui.card - 1) % NB], K_TEXT, K_TEXT);
         y = top + 30;
@@ -1820,12 +1857,6 @@ static void draw_card(void)
         y = wrap(20, y, 200, &FONT_S, CARD[i].l1, K_TEXT);
         if (CARD[i].l2)
             y = wrap(20, y + 4, 200, &FONT_S, CARD[i].l2, K_DIM);
-#if defined(PLAT_HOST) && !defined(PLAT_WEB)
-        if (y - 1 > MAIN_H - 4) {
-            printf("  FAIL card too long: %s\n", CARD[i].title);
-            msg_too_wide++;
-        }
-#endif
     }
     cv_blit(0, MAIN_Y);
 }
@@ -3353,6 +3384,15 @@ static float filt_db(float dx, float q, int hp, int bp, int steep)
         m2 = m2 * q * q / (wn * wn > 1e-6f ? wn * wn : 1e-6f);
     return -3.0103f * fm_log2f(m2 > 1e-6f ? m2 : 1e-6f) * (steep ? 2.0f : 1.0f);
 }
+/* the y of db on a filter picture: 0 dB sits 22 px under the top, -48 dB at the bottom; a peak eases into the top
+ * rather than running into it (a resonant 24 dB filter reaches +30 dB: cut off flat, it would look square) */
+static float filt_y(float db, int32_t y0, int32_t hh)
+{
+    float s = (float)(hh - 22) / 48.0f;
+    if (db > 0.0f)
+        return (float)y0 + 22.0f - 22.0f * (1.0f - fm_exp2f(-db * s * (1.0f / 22.0f) * 1.4427f));
+    return (float)y0 + 22.0f - db * s;
+}
 /* a drum key's own filter: its response at the cutoff (bright), at where the envelope takes the cutoff
  * (faint), the cutoff's mark; off: a flat line */
 static void draw_key_filter(void)
@@ -3369,7 +3409,7 @@ static void draw_key_filter(void)
         return;
     cv_rect(x0, y0 + hh, w, 1, K_LINE);
     if (ft == DF_OFF) {
-        cv_rect(x0, y0 + 14, w, 2, K_DIM);
+        cv_rect(x0, y0 + 22, w, 2, K_DIM);
         s_cat(s_cat(t, DL_SOUND_NAME[key]), ": no filter, PRESET picks one");
         text_fit(x0, y0 + hh + 3, &FONT_XS, t, w, K_DIM);
         cv_blit(0, MAIN_Y);
@@ -3381,8 +3421,8 @@ static void draw_key_filter(void)
         int hp = ft == DF_HP, bp = ft == DF_BP;
         pen_t pn = {0, 0, 0}, pe = {0, 0, 0};
         for (int32_t x = 0; x <= w; x++) {
-            float y = (float)y0 + 14.0f - filt_db((float)(x0 + x - fc), q, hp, bp, 0) * (float)(hh - 14) / 48.0f;
-            float z = (float)y0 + 14.0f - filt_db((float)(x0 + x - fc) - reach, q, hp, bp, 0) * (float)(hh - 14) / 48.0f;
+            float y = filt_y(filt_db((float)(x0 + x - fc), q, hp, bp, 0), y0, hh);
+            float z = filt_y(filt_db((float)(x0 + x - fc) - reach, q, hp, bp, 0), y0, hh);
             ys[x] = y < (float)y0 ? (float)y0 : y > (float)(y0 + hh) ? (float)(y0 + hh) : y;
             ye[x] = z < (float)y0 ? (float)y0 : z > (float)(y0 + hh) ? (float)(y0 + hh) : z;
         }
@@ -3491,7 +3531,7 @@ static void draw_filter(void)
         return;
     cv_rect(x0, y0 + hh, w, 1, K_LINE);
     if (is_drum(trk) && !dyn) {                      /* the kit's bus filter, switched off */
-        cv_rect(x0, y0 + 14, w, 2, K_DIM);
+        cv_rect(x0, y0 + 22, w, 2, K_DIM);
         cv_text(x0, y0 + hh + 3, &FONT_XS, "all keys: no bus filter, PRESET turns it on", K_DIM);
         cv_blit(0, MAIN_Y);
         return;
@@ -3507,14 +3547,13 @@ static void draw_filter(void)
     }
     {
         /* the response: a resonant two-pole section (squared for the 24 dB types) on a log frequency axis, an
-         * octave every 22 px, in dB from +12 at the top to -48 at the bottom */
+         * octave every 22 px, in dB, 0 dB 22 px under the top, -48 at the bottom */
         float q = 0.7f + (float)res * 6.0f / 127.0f, ys[209];
         int steep = ft == FT_LP24 || ft == FT_LADDER, hp = ft == FT_HP12, bp = ft == FT_BP12;
         pen_t pn = {0, 0, 0};
         (void)py;
         for (int32_t x = 0; x <= w; x++) {
-            float db = filt_db((float)(x0 + x - fc), q, hp, bp, steep), y;
-            y = (float)y0 + 14.0f - db * (float)(hh - 14) / 48.0f;
+            float y = filt_y(filt_db((float)(x0 + x - fc), q, hp, bp, steep), y0, hh);
             ys[x] = y < (float)y0 ? (float)y0 : y > (float)(y0 + hh) ? (float)(y0 + hh) : y;
         }
         for (int32_t x = 0; x < w; x++) {            /* under the curve, the track's colour thinned */
@@ -3684,6 +3723,13 @@ static void draw_players(void)
     h = hash_u(h, (uint32_t)ui.oct + 8u);
     if (!begin_main(h))
         return;
+    if (is_drum(trk)) {
+        cv_text(12, 4, &FONT_B, "no player", K_DIM);
+        cv_text(12, 24, &FONT_XS, "a kit's keys are its sounds: no arp, no strum", K_DIM);
+        cv_text(12, 48, &FONT_S, "WEAVE is on the last page (SELECT)", K_DIM);
+        cv_blit(0, MAIN_Y);
+        return;
+    }
     cv_text(12, 4, &FONT_B, tp_info_par(TP_PLAYER, proj.trk[trk].par)->names[pl], K_TEXT);
     if (pl == PL_OFF)
         cv_text(12, 24, &FONT_XS, "the keys play as they are", K_DIM);

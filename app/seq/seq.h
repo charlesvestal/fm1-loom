@@ -136,6 +136,7 @@ typedef struct {                      /* one track's runtime (interrupt only) */
     uint8_t act[NSC];                 /* the step's components in force: act[SC_x] = value + 1, 0 = absent */
     uint8_t loop_on;                  /* a punch loop runs: steps loop_from .. loop_from + loop_span - 1 */
     uint8_t loop_from, loop_span;
+    uint16_t loop_pass, loop_grid_pass;   /* at the punch-in: the pass count, and the grid's pass (loop_release) */
     uint16_t echo_gain;               /* the loop's velocity, Q8 (echo: x 0.7 a pass) */
     uint8_t stall_kind;               /* SC_PULSE or SC_HOLD while stall > 0 */
     uint8_t stall_p;                  /* the trick's step (a pulse plays it again) */
@@ -151,7 +152,10 @@ typedef struct {                      /* one track's runtime (interrupt only) */
     uint8_t fill_kind;                /* 1 build, 2 floor, 3 jumble: the counter restarts when it changes */
     uint8_t nfill;                    /* synth fills: the pattern's distinct notes, sorted */
     uint8_t fill_notes[16];
-    uint8_t skip_note;                /* the note live recording just put on step 1: the step does not sound it again */
+    uint8_t skip_note[SN];            /* notes live recording put on step skip_pos just before it plays (the key already sounded them):
+                                       * that step does not sound them again */
+    uint16_t skip_kit;                /* a kit's sounds (bit k: sound k + 1), the same */
+    uint8_t skip_pos;                 /* the step the skips are for, 0xFF none */
     uint8_t bend_last_set;
     int16_t bend_last;                /* cents last sent */
     int16_t bend_amp;                 /* random 2: the amplitude rolled */

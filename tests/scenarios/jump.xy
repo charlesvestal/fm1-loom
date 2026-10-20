@@ -1,0 +1,48 @@
+# a jump trick's value on the knob: the beats the pattern has (to 1 .. to 13 in 16 steps), then the moves; a four-bar
+# pattern has sixteen beats to jump to
+wait 300
+turn ALGO 2
+expect trk 3
+pat 3 1 16
+step 3 1 1 60
+key w0 down
+wait 60
+tap ARP
+turn K1 11
+expect comp 3 1 11
+expect cval 3 1 3
+shot jump_13.png
+turn K2 1
+expect cval 3 1 4
+turn K2 1
+expect cval 3 1 5
+turn K2 -1
+turn K2 -1
+expect cval 3 1 3
+turn K2 -3
+expect cval 3 1 0
+turn K2 -1
+expect cval 3 1 0
+turn K2 20
+expect cval 3 1 9
+turn K2 1
+expect cval 3 1 9
+key w0 up
+wait 60
+pat 3 1 64
+key w0 down
+wait 60
+tap ARP
+turn K2 -21
+expect cval 3 1 0
+turn K2 4
+expect cval 3 1 10
+shot jump_17.png
+turn K2 11
+expect cval 3 1 21
+shot jump_61.png
+turn K2 1
+expect cval 3 1 4
+turn K2 -1
+expect cval 3 1 21
+key w0 up

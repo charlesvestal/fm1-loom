@@ -1,0 +1,20 @@
+# EDIT held: ALGORITHM changes the engine (not the track); undo brings the old engine back
+wait 300
+turn ALGO 1
+expect trk 2
+param 2 engine 0
+tap EDIT
+expect page Engine
+press EDIT
+turn ALGO 1
+expect trk 2
+expect par2.engine 1
+wait 1200
+turn ALGO 1
+expect par2.engine 2
+release EDIT
+expect page Engine
+press HOME
+tap REC
+release HOME
+expect par2.engine 1

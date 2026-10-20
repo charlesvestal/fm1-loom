@@ -151,6 +151,11 @@ static void apply_aux(int trk)
     else if (is_fx(trk))
         apply_fx(trk);
 }
+static void undo_keep(void);
+static void undo_sound(int trk);
+static void undo_sounds(int first, int n);
+static void undo_master(void);
+static void undo_arr(void);
 static void set_tp(int trk, int p, int v)
 {
     uint8_t *par = proj.trk[trk].par;
@@ -163,6 +168,7 @@ static void set_tp(int trk, int p, int v)
         v = clampi(v, 0, 127);
     if (par[p] == v)
         return;
+    undo_sound(trk);
     if (p == TP_LTYPE && !is_aux(trk)) {         /* another LFO type: a knob that means the same there keeps its
                                                   * value (wave and drift share speed, amount, dest, param); one
                                                   * that means another thing starts from its default */
@@ -238,6 +244,7 @@ static void set_mute(int trk, int on)
 static void load_preset(int trk, const preset_t *pr)
 {
     uint8_t *par = proj.trk[trk].par;
+    undo_sound(trk);
     memcpy(par, pr->par, NTP_SOUND);
     for (int i = 0; i < NAME_LEN; i++)
         proj.trk[trk].name[i] = pr->name[i] ? pr->name[i] : 0;
@@ -316,6 +323,7 @@ static int preset_apply(int trk, int i)
         int u = i - NPRESETS;
         if (!user_presets[u].name[0] && !user_presets[u].par[TP_E1])
             return 0;
+        undo_sound(trk);
         memcpy(proj.trk[trk].par, user_presets[u].par, NTP_SOUND);
         proj.trk[trk].par[TP_ENGINE] = user_presets[u].engine;
         memcpy(proj.trk[trk].name, user_presets[u].name, NAME_LEN);
@@ -327,51 +335,186 @@ static int preset_apply(int trk, int i)
 
 /* ------------------------------------------------------------- undo --- */
 #define UNDO_RUN_MS 1000u
-static void undo_keep(void)
+#define UNDO_REC_MS 3000u
+static void swap_bytes(void *a, void *b, size_t n)
 {
-    int trk = sel_trk(), pt = cur_pat(trk);
-    uint32_t now = plat_ms();
-    if (!is_seqt(trk))
-        return;
-    if (undo.valid && !undo.redo && undo.trk == trk && undo.pt == pt && now - undo.t < UNDO_RUN_MS) {
-        undo.t = now;
-        return;
+    uint8_t *x = a, *y = b;
+    while (n--) {
+        uint8_t c = *x;
+        *x++ = *y;
+        *y++ = c;
     }
-    undo.pat = pats.pat[trk][pt];
+}
+static int undo_run(int kind, int trk, int n, int pt, uint32_t ms)   /* 1: the stage there goes on (kept as it is) */
+{
+    uint32_t now = plat_ms();
+    if (undo.valid && !undo.redo && undo.kind == kind && undo.trk == trk && undo.n == n && undo.pt == pt && now - undo.t < ms) {
+        undo.t = now;
+        return 1;
+    }
+    undo.kind = (uint8_t)kind;
     undo.trk = (uint8_t)trk;
+    undo.n = (uint8_t)n;
     undo.pt = (uint8_t)pt;
     undo.valid = 1;
     undo.redo = 0;
     undo.t = now;
+    return 0;
 }
+static int lanes_get(int trk, int pt, lane_t *out, int max)   /* a pattern's lanes: how many (-1: more than max) */
+{
+    int n = 0;
+    for (int k = 0; k < NLANE; k++)
+        if (pats.lane[k].used && pats.lane[k].trk == trk && pats.lane[k].pat == pt) {
+            if (n < max)
+                out[n] = pats.lane[k];
+            n++;
+        }
+    return n > max ? -1 : n;
+}
+static void lanes_set(int trk, int pt, const lane_t *src, int n)   /* a pattern's lanes become these */
+{
+    for (int k = 0; k < NLANE; k++)
+        if (pats.lane[k].used && pats.lane[k].trk == trk && pats.lane[k].pat == pt) {
+            int keep = 0;
+            for (int i = 0; i < n; i++)
+                keep |= src[i].param == pats.lane[k].param;
+            if (!keep)
+                lane_clear(pats.lane, k);
+        }
+    for (int i = 0; i < n; i++) {
+        int k = lane_alloc(pats.lane, trk, pt, src[i].param);
+        if (k >= 0)
+            memcpy(pats.lane[k].val, src[i].val, NSTEP);
+    }
+}
+static void undo_pat(int trk, int pt, uint32_t ms)
+{
+    if (!is_seqt(trk) || undo_run(U_PAT, trk, 0, pt, ms))
+        return;
+    undo.u.p.pat = pats.pat[trk][pt];
+    undo.nl = (uint8_t)lanes_get(trk, pt, undo.u.p.lane, UNDO_LANES);   /* (-1 = 255: the locks stay out of it) */
+}
+static void undo_keep(void)
+{
+    undo_pat(sel_trk(), cur_pat(sel_trk()), UNDO_RUN_MS);
+}
+static void undo_sounds(int first, int n)         /* tracks first.. (n of them) before a change to their sound */
+{
+    if (seq.rec || seq.rec_wait || undo_run(U_SOUND, first, n, 0, UNDO_RUN_MS))
+        return;
+    for (int i = 0; i < n; i++)
+        undo.u.s[i] = proj.trk[first + i];
+}
+static void undo_sound(int trk) { undo_sounds(trk, 1); }
+static void undo_master(void)
+{
+    if (undo_run(U_MASTER, 0, 0, 0, UNDO_RUN_MS))
+        return;
+    memcpy(undo.u.master, proj.master, NMS);
+}
+static void undo_arr(void)                        /* before a change to the song, the scenes or the weave */
+{
+    if (undo_run(U_ARR, 0, 0, 0, UNDO_RUN_MS))
+        return;
+    undo.u.a.song = pats.song;
+    memcpy(undo.u.a.scene, pats.scene, sizeof pats.scene);
+    memcpy(undo.u.a.weave, pats.weave, sizeof pats.weave);
+}
+static void weave_apply(int t);
 static void do_undo(int redo)
 {
-    tpat_t tmp;
+    char t[24];
     if (!undo.valid || (redo && !undo.redo) || (!redo && undo.redo)) {
         say_no(redo ? "NOTHING TO REDO" : "NOTHING TO UNDO", 0);
         return;
     }
-    tmp = pats.pat[undo.trk][undo.pt];
-    pats.pat[undo.trk][undo.pt] = undo.pat;
-    undo.pat = tmp;
+    switch (undo.kind) {
+    case U_PAT: {
+        tpat_t tmp = pats.pat[undo.trk][undo.pt];
+        pats.pat[undo.trk][undo.pt] = undo.u.p.pat;
+        undo.u.p.pat = tmp;
+        if (undo.nl != 0xFFu) {
+            lane_t cur[UNDO_LANES];
+            int cn = lanes_get(undo.trk, undo.pt, cur, UNDO_LANES);
+            if (cn >= 0) {
+                lanes_set(undo.trk, undo.pt, undo.u.p.lane, undo.nl);
+                memcpy(undo.u.p.lane, cur, (size_t)cn * sizeof cur[0]);
+                undo.nl = (uint8_t)cn;
+            }
+        }
+        num_s((uint32_t)undo.pt + 1u, s_cat(s_cat(t, TRACK_NAME[undo.trk]), " P"));
+        break;
+    }
+    case U_SOUND:
+        for (int i = 0; i < undo.n; i++) {
+            int tr = undo.trk + i;
+            swap_bytes(&proj.trk[tr], &undo.u.s[i], sizeof proj.trk[0]);
+            engine_set_all(tr);
+            if (is_aux(tr))
+                apply_aux(tr);
+        }
+        apply_brain();
+        if (grp_index(ui.page) < 0)              /* (a kit has a page more under ENV: off it, back to the first) */
+            ui.page = (uint8_t)grp_page(page_group(ui.page), 0);
+        if (undo.n > 1)
+            s_cat(s_cat(s_cat(t, TRACK_NAME[undo.trk]), " to "), TRACK_NAME[undo.trk + undo.n - 1]);
+        else
+            s_cat(s_cat(t, TRACK_NAME[undo.trk]), " sound");
+        break;
+    case U_MASTER:
+        swap_bytes(proj.master, undo.u.master, NMS);
+        for (int m = 0; m < NMS; m++)
+            engine_master(m, proj.master[m]);
+        s_cat(t, "master");
+        break;
+    default: {
+        scene_t live = pats.scene[cur_scene()];
+        swap_bytes(&pats.song, &undo.u.a.song, sizeof pats.song);
+        swap_bytes(pats.scene, undo.u.a.scene, sizeof pats.scene);
+        swap_bytes(pats.weave, undo.u.a.weave, sizeof pats.weave);
+        {                                        /* the scene playing keeps its patterns and mutes: they are live */
+            scene_t *c = &pats.scene[cur_scene()];
+            memcpy(c->pat, live.pat, sizeof c->pat);
+            c->mute = live.mute;
+            c->used = 1;
+            c->brain_key = live.brain_key;
+            c->brain_scale = live.brain_scale;
+            c->brain_deg = live.brain_deg;
+            seq.wv_ppat = c->weave;
+        }
+        if (ui.name_slot > pats.song.len)
+            ui.name_slot = pats.song.len;
+        for (int tr = 0; tr < NSEQT; tr++)
+            weave_apply(tr);
+        s_cat(t, "song and scenes");
+        break;
+    }
+    }
     undo.redo = (uint8_t)!redo;
     undo.t = 0;
     mark_dirty();
-    {
-        char t[24];
-        num_s((uint32_t)undo.pt + 1u, s_cat(s_cat(t, TRACK_NAME[undo.trk]), " P"));
-        say(redo ? "REDO" : "UNDO", t);
-    }
+    say(redo ? "REDO" : "UNDO", t);
 }
 
 /* -------------------------------------------------------- transport --- */
 #define PLAY_TWICE_MS 400u
+static void rec_begin(void)                      /* a take: one undo for it (and the punches close after it) */
+{
+    undo_pat(sel_trk(), cur_pat(sel_trk()), UNDO_REC_MS);
+    seq_rec(&seq, 1);
+}
+static void rec_end(void)
+{
+    undo.t = plat_ms();
+    seq_rec(&seq, 0);
+}
 static void rec_off(void)
 {
     ui.rec_latched = 0;
     ui.rec_held = 0;
     if (seq.rec || seq.rec_wait)
-        seq_rec(&seq, 0);
+        rec_end();
 }
 static void play_press(void)
 {
@@ -382,7 +525,7 @@ static void play_press(void)
         if (rec_down) {                          /* REC + PLAY while playing: recording stays on */
             ui.rec_latched = 1;
             ui.btn_used |= 1u << B_REC;
-            seq_rec(&seq, 1);
+            rec_begin();
             say("RECORDING", "latched");
             return;
         }
@@ -407,7 +550,7 @@ static void play_press(void)
         ui.rec_armed = 0;
         ui.rec_latched = 1;
         seq.count_in = (uint8_t)(proj.rsv[0] % 3u);   /* (the count-in: REC's knobs, Setup's list; 0, 1 or 2 bars) */
-        seq_rec(&seq, 1);
+        rec_begin();
         say(seq.count_in ? "COUNT-IN" : "RECORDING", seq.count_in ? "then recording" : "latched");
         engine_transport(3);
         return;
@@ -416,7 +559,7 @@ static void play_press(void)
         ui.rec_armed = 0;
         if (proj.rsv[0] % 3u) {
             seq.count_in = (uint8_t)(proj.rsv[0] % 3u);
-            seq_rec(&seq, 1);
+            rec_begin();
             ui.rec_latched = 1;
         }
     }
@@ -447,13 +590,13 @@ static void rec_down(void)                       /* REC pressed while playing: m
         return;
     }
     ui.rec_held = 1;
-    seq_rec(&seq, 1);
+    rec_begin();
     ui.btn_used |= 1u << B_REC;
 }
 static void rec_up(void)
 {
     if (ui.rec_held && !ui.rec_latched)
-        seq_rec(&seq, 0);
+        rec_end();
     ui.rec_held = 0;
 }
 /* REC held: the knobs are the record settings (turning one means the release does nothing else) */
@@ -535,6 +678,18 @@ static void step_length_to(int j)
     say("LENGTH", t + 3);
     mark_dirty();
 }
+/* a jump's value turned: in the order to 1, 5 .. 61 (values 0..3, 10..21; only the beats the pattern has), then
+ * forward, back, fwd/back, stay, align, random (4..9) */
+static int jump_turn(int v, int d, int len)
+{
+    int beats = (len + 3) / 4, pos = v < 4 ? v : v >= 10 ? v - 6 : 16 + v - 4, n = pos;
+    do
+        n += d;
+    while (n >= beats && n < 16 && n >= 0 && n <= 21);
+    if (n < 0 || n > 21)
+        return v;
+    return n < 4 ? n : n < 16 ? n + 6 : n - 16 + 4;
+}
 /* a step held + ARP: its tricks on the knobs, on every step held: KNOB 1 / 3 the first / second trick (none, then
  * SC_*), KNOB 2 / 4 its value (0..8 = 1..9, 9 = random; the skips: their cycle 1..9 or random, in each of their
  * three modes). The interrupt reads comp then cval as two bytes: the kind goes off before its value changes and on
@@ -560,6 +715,11 @@ static void trick_knob(int k, int32_t e)
                 uint8_t v = SK_VAL((uint32_t)(pos % 10), (uint32_t)(pos / 10));
                 *kind = SC_NONE;
                 *val = v;
+                *kind = (uint8_t)c;
+            } else if (c == SC_JUMP) {           /* the beats the pattern has (to 1, 5 ..), then the moves */
+                int v = jump_turn(*val, d, tpat(trk)->len);
+                *kind = SC_NONE;
+                *val = (uint8_t)v;
                 *kind = (uint8_t)c;
             } else if (c) {
                 uint8_t v = (uint8_t)clampi(*val + d, 0, 9);
@@ -651,6 +811,7 @@ static void lock_knob(int k, int32_t e)
     if (p < 0)
         return;
     in = tp_info_par(p, proj.trk[trk].par);
+    undo_keep();
     ln = lane_find(pats.lane, trk, pt, p);
     if (ln < 0)
         ln = lane_alloc(pats.lane, trk, pt, p);
@@ -672,6 +833,7 @@ static void lock_knob(int k, int32_t e)
 static void step_clear_locks_held(void)
 {
     int trk = sel_trk(), pt = cur_pat(trk);
+    undo_keep();
     for (int i = 0; i < 16; i++)
         if (ui.held >> i & 1u)
             step_clear_locks(pats.lane, trk, pt, step_shown(i));
@@ -808,6 +970,7 @@ static void scene_go(int n, int when)
     int cur = cur_scene();
     char t[16];
     if (!pats.scene[n].used) {
+        undo_arr();
         pats.scene[n] = pats.scene[cur];
         pats.scene[n].used = 1;
         mark_dirty();
@@ -890,6 +1053,11 @@ static void solo_end(void)
 /* the keys as a keyboard for the selected track (the play pages; Steps with SEQ held or while recording): they
  * play it and set what a step press writes; step record writes the cursor step */
 static void weave_key(int k, int on);           /* (below: the weave) */
+/* a sound page's own button held on its pages (EDIT on Engine...): the keys play, and ALGORITHM turns EDIT's engine */
+static int page_btn_held(int b)
+{
+    return (ui.btn >> b & 1u) && PAGE_BTN[page_group(ui.page)].btn == b;
+}
 static void keyboard_down(int k)
 {
     int trk = sel_trk(), b = ordinal(BLACK_K, 11, k), srec = ui.rec_armed && !playing();
@@ -919,7 +1087,8 @@ static void keyboard_down(int k)
     }
     if (is_aux(trk))
         trk = inst_trk();                        /* FX tracks: the keys audition the instrument selected last */
-    if (b >= 0 && is_drum(trk) && playing() && !srec && !seq.rec && !seq.rec_wait && !steps_page(ui.page)) {
+    if (b >= 0 && is_drum(trk) && playing() && !srec && !seq.rec && !seq.rec_wait && !steps_page(ui.page) &&
+        !page_btn_held(PAGE_BTN[page_group(ui.page)].btn)) {
         ui.kmode[k] = KM_IDLE;                   /* playing: a black key on a kit's page picks the key it edits,
                                                   * without a preview over the beat (white keys still play it) */
         ui.dsound = (uint8_t)(key_sound(k) - 1);
@@ -981,6 +1150,7 @@ static void key_down(int k)
                     say_no("SONG FULL", "64 slots");
                     return;
                 }
+                undo_arr();
                 for (int i = sg->len; i > at; i--)
                     sg->slot[i] = sg->slot[i - 1];
                 sg->slot[at].scene = (uint8_t)w;
@@ -1026,6 +1196,7 @@ static void key_down(int k)
             int s = ui.bar * 16 + w, l = s - ui.wv_step + 1;
             ui.kmode[k] = KM_IDLE;
             if (l > 0) {
+                undo_arr();
                 wp->st[ui.wv_step].len = (uint8_t)(l > NSTEP ? NSTEP : l);
                 ui.held_used = 1;
                 mark_dirty();
@@ -1033,6 +1204,7 @@ static void key_down(int k)
         } else if (b >= 0 && b < NSEQT && ui.wv_step < NSTEP) {
             wv_step_t *st = &wp->st[ui.wv_step];
             uint32_t m = wv_mask(st) ^ 1u << b;
+            undo_arr();
             ui.kmode[k] = KM_IDLE;
             st->m1 = (uint8_t)(m >> 8);
             st->m0 = (uint8_t)m;
@@ -1167,7 +1339,9 @@ static void key_up(int k)
             int s = ui.bar * 16 + w;
             if (s == ui.wv_step && !ui.held_used && plat_ms() - ui.key_t[k] < STEP_TAP_MS) {
                 wv_step_t *st = &wp->st[s];
-                uint32_t m = wv_mask(st) ? 0u : (ui.wv_last ? ui.wv_last : 1u);
+                uint32_t m;
+                undo_arr();
+                m = wv_mask(st) ? 0u : (ui.wv_last ? ui.wv_last : 1u);
                 st->m1 = (uint8_t)(m >> 8);
                 st->m0 = (uint8_t)m;
                 st->len = m ? 4 : 0;
@@ -1394,12 +1568,14 @@ static void song_knob(int k, int32_t e)
         return;
     }
     if (k == 3) {
+        undo_arr();
         sg->loop = (uint8_t)(e > 0);
         mark_dirty();
         return;
     }
     if (cur >= sg->len)
         return;
+    undo_arr();
     if (k == 1)
         sg->slot[cur].scene = (uint8_t)clampi(sg->slot[cur].scene + e, 0, NSCENE - 1);
     else
@@ -1431,6 +1607,7 @@ static void steps_knob(int k, int32_t e)
         scene_t *sc = &pats.scene[cur_scene()];
         wvpat_t *wp = &pats.weave[sc->weave % NPATT];
         int d = e > 0 ? 1 : -1;
+        undo_arr();
         if (k == 0) {
             sc->weave = (uint8_t)clampi(sc->weave % NPATT + d, 0, NPATT - 1);
             seq.wv_ppat = sc->weave;
@@ -1481,6 +1658,7 @@ static void master_knob(int k, int32_t e)
     int m = mst_base(ui.page) + k;
     if (m == MS_RSV3)
         return;                                  /* (EQ: three knobs) */
+    undo_master();
     proj.master[m] = (uint8_t)clampi(proj.master[m] + e, 0, master_max(m));
     engine_master(m, proj.master[m]);
     mark_dirty();
@@ -1828,6 +2006,7 @@ static void list_change(int32_t e)
             int v = clampi(proj.master[m] + (m == MS_PUMP_REL || m == MS_LEVEL ? (int)accel(EN_ALGO, e) : d), 0,
                            master_max(m));
             if (v != proj.master[m]) {
+                undo_master();
                 proj.master[m] = (uint8_t)v;
                 engine_master(m, v);
                 mark_dirty();
@@ -1958,6 +2137,7 @@ static void act_keep_weave(void)
         say_no("NO EMPTY PATTERN", "clear one first");
         return;
     }
+    undo_pat(trk, to, UNDO_RUN_MS);
     pattern_woven(&out, tpat(trk), wv_kind(trk), &pats.pat[f - 1][wv_pat(trk)], wv_kind(f - 1), wv_rule(trk));
     pats.pat[trk][to] = out;
     mark_dirty();
@@ -1988,6 +2168,7 @@ static void act_scramble(void)                   /* a random sound: the engine s
     static const uint8_t P[] = {TP_E1, TP_E2, TP_E3, TP_E4, TP_CUT, TP_RES, TP_A, TP_D, TP_S, TP_R, TP_FENV, TP_LAMT};
     uint32_t r = plat_ms() * 2654435761u + ui.frame;
     int n = (int)sizeof P;
+    undo_sound(trk);
     if (is_drum(trk)) {
         int key = ui.dsound % DL_NSOUND;
         for (int k = 0; k < 4; k++) {
@@ -2044,6 +2225,7 @@ static void act_save_preset(int slot)
 }
 static void do_clear_song(void)
 {
+    undo_arr();
     memset(&pats.song, 0, sizeof pats.song);
     ui.name_slot = 0;
     mark_dirty();
@@ -2057,6 +2239,7 @@ static void act_clear_scene(void)
         say_no("SCENE IN USE", "pick another first");
         return;
     }
+    undo_arr();
     pats.scene[n].used = 0;
     mark_dirty();
     num_s((uint32_t)n + 1u, s_cat(t, "S"));
@@ -2144,6 +2327,7 @@ static void do_load_proj(void)
 static uint32_t proj_seed = 1;
 static void do_random_sounds(void)               /* HOME's RANDOMIZE PRESETS: T2-T8 a new band, the patterns kept */
 {
+    undo_sounds(1, NTRK - 1);
     project_random_sounds(plat_ms() * 2654435761u ^ proj_seed++);
     for (int t = 1; t < NTRK; t++)
         engine_set_all(t);
@@ -2203,6 +2387,7 @@ static void action_run(int a)
     case A_CLEAR_NOTES:
         if (sel_trk() == AUX_WEAVE) {            /* WEAVE: the scene's weave pattern, empty */
             wvpat_t *wp = &pats.weave[pats.scene[cur_scene()].weave % NPATT];
+            undo_arr();
             memset(wp->st, 0, sizeof wp->st);
             mark_dirty();
             say("CLEARED", "weaves");
@@ -2247,6 +2432,7 @@ static void action_run(int a)
     case A_SCRAMBLE: act_scramble(); say("SCRAMBLED", 0); break;
     case A_SAVE_PRESET: act_save_preset(ui.pick_slot % NUSER_PRESETS); return;
     case A_INIT:
+        undo_sound(sel_trk());
         sound_default(proj.trk[sel_trk()].par, proj.trk[sel_trk()].par[TP_ENGINE]);
         memset(proj.trk[sel_trk()].name, 0, NAME_LEN);
         engine_set_all(sel_trk());
@@ -2261,6 +2447,7 @@ static void action_run(int a)
             say_no("SONG FULL", "64 slots");
             return;
         }
+        undo_arr();
         for (int i = sg->len; i > cur; i--)
             sg->slot[i] = sg->slot[i - 1];
         sg->slot[cur].scene = (uint8_t)cur_scene();
@@ -2275,6 +2462,7 @@ static void action_run(int a)
             say_no("NO SLOT HERE", 0);
             return;
         }
+        undo_arr();
         for (int i = cur; i + 1 < sg->len; i++)
             sg->slot[i] = sg->slot[i + 1];
         sg->len--;
@@ -2458,7 +2646,11 @@ static void input(void)
     if ((e = ev[EN_ALGO]) != 0) {
         if (lst.open)
             list_change(e);
-        else
+        else if (page_btn_held(B_EDIT) && !is_aux(sel_trk())) {   /* EDIT held: ALGORITHM picks the engine */
+            ui.pick_engine = (uint8_t)clampi(proj.trk[sel_trk()].par[TP_ENGINE] + (e > 0 ? 1 : -1), 0, NENGINE - 1);
+            if (ui.pick_engine != proj.trk[sel_trk()].par[TP_ENGINE])
+                action_run(A_ENGINE);
+        } else
             track_step((int)e);
     }
     if ((e = ev[EN_PRESET]) != 0) {
@@ -3104,6 +3296,9 @@ void ui_init(void)
     memset(&ui, 0, sizeof ui);
     memset(&lst, 0, sizeof lst);
     ui.touched = -1;
+#if defined(PLAT_HOST) && !defined(PLAT_WEB)
+    cards_audit();
+#endif
     ui.page = P_STEPS;
     ui.rem[0] = 60;
     ui.nrem = 1;

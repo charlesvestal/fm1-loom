@@ -613,6 +613,28 @@ static void t_jump(void)
     start();
     run(4 * L16);
     CHECK(on_n(2)->a == 63 && on_n(3)->a == 64);
+    /* a four-bar pattern: the beats past step 16 (values 10..21: to 17 .. 61) */
+    reset();
+    P.pat[0][0].len = 64;
+    for (i = 0; i < 64; i++)
+        note(0, i, 30 + i, 100);
+    st(0, 1)->comp = SC_JUMP;
+    st(0, 1)->cval = 10;              /* to step 17 */
+    start();
+    run(4 * L16);
+    CHECK(on_n(2)->a == 30 + 16 && on_n(3)->a == 30 + 17);
+    st(0, 1)->cval = 21;              /* to step 61 */
+    stop();
+    nev = 0;
+    start();
+    run(4 * L16);
+    CHECK(on_n(2)->a == 30 + 60 && on_n(3)->a == 30 + 61);
+    st(0, 1)->cval = 13;              /* to step 29 */
+    stop();
+    nev = 0;
+    start();
+    run(4 * L16);
+    CHECK(on_n(2)->a == 30 + 28);
     printf("ok %s\n", cur);
 }
 
@@ -1546,7 +1568,7 @@ static void t_loops(void)
     CHECK(near(on_n(7)->t, 7 * L16 + 3, 2));
     seq_punch_key(&S, PX_MEL + PX_STUTTER, 0, -1);
     run(2 * L16);
-    CHECK(on_n(11)->a == 65 && on_n(12)->a == 66);   /* released on 65: on it goes */
+    CHECK(on_n(12)->a == 72 && on_n(13)->a == 73);   /* released after the loop's step at 12: on at the grid's steps 13, 14 */
     /* loop 2: a beat */
     reset();
     for (i = 0; i < 16; i++)
@@ -1572,6 +1594,49 @@ static void t_loops(void)
     printf("ok %s\n", cur);
 }
 
+static int last_step(int trk)
+{
+    int i;
+    for (i = nev - 1; i >= 0; i--)
+        if (ev[i].kind == E_STEP && ev[i].trk == trk)
+            return ev[i].a;
+    return -1;
+}
+/* a loop throw let go: the track goes on at the step it would be at had it never looped (a track beside it, with the
+ * same pattern, shows where), and its passes count on from there (conditions, weaves) */
+static void t_loop_release(void)
+{
+    static const int fxs[3] = {PX_STUTTER, PX_REPEAT, PX_ECHO};
+    static const struct { int len, scale; } cfg[4] = {{16, TS_1}, {12, TS_1}, {16, TS_2}, {20, TS_HALF}};
+    int c, f, h, r, i;
+    cur = "loop release";
+    for (c = 0; c < 4; c++)
+        for (f = 0; f < 3; f++)
+            for (h = 0; h < 5; h++) {
+                uint32_t punch_at = (uint32_t)(3 * c + 5) * L16 + 10u, hold = (uint32_t)(5 + 2 * h) * L16 / 2u + 40u * (uint32_t)h;
+                reset();
+                for (i = 0; i < 2; i++) {
+                    P.pat[i][0].len = (uint8_t)cfg[c].len;
+                    P.pat[i][0].scale = (uint8_t)cfg[c].scale;
+                }
+                start();
+                run_to(punch_at);
+                seq_punch_key(&S, PX_MEL + fxs[f], 1, 0);
+                run(hold);
+                seq_punch_key(&S, PX_MEL + fxs[f], 0, 0);
+                run(2u * L16 + 100u);          /* (it steps on its own grid from the next step: from there it agrees) */
+                for (r = 0; r < 12; r++) {
+                    run(L16 / 3u + 7u);
+                    if (last_step(0) != last_step(1) || S.t[0].pass != S.t[1].pass) {
+                        printf("cfg %d fx %d hold %d at %d: steps %d / %d, pass %d / %d\n", c, f, h, r, last_step(0),
+                               last_step(1), S.t[0].pass, S.t[1].pass);
+                        fail("a released loop is out of step");
+                    }
+                }
+            }
+    printf("ok %s\n", cur);
+}
+
 static void t_echo(void)
 {
     cur = "echo";
@@ -1587,7 +1652,7 @@ static void t_echo(void)
     seq_punch_key(&S, PX_MEL + PX_ECHO, 0, -1);
     nev = 0;
     run(17 * L16);
-    CHECK(count(E_ON, 0) >= 2 && on_n(1)->b == 100 && on_n(1)->a == 60);   /* a fresh pass at full velocity */
+    CHECK(count(E_ON, 0) >= 2 && on_n(0)->b == 100 && on_n(0)->a == 60 && on_n(1)->a == 62);   /* the grid's step 1 again, at full velocity */
     /* drums too */
     reset();
     par[0][TP_ENGINE] = EG_DRUMLINE;
@@ -2067,6 +2132,53 @@ static void t_rec_wait(void)
     printf("ok %s\n", cur);
 }
 
+/* a note played just before a step lands on that step: heard once (the key), not again when the step comes */
+static void t_rec_early(void)
+{
+    cur = "rec-early";
+    reset();
+    S.rec = 1;
+    start();
+    run(L16 * 6 / 10);                /* 60 % into step 1: nearer step 2 */
+    seq_key(&S, 0, 60, 1, 99);
+    run(L16 * 5 / 10);
+    seq_key(&S, 0, 60, 0, 0);
+    run(L16 * 2);
+    CHECK(st(0, 1)->note[0] == 60);
+    CHECK(count(E_ON, 0) == 1);       /* the key's own sound only */
+    /* a chord of two early keys, and a kit's two sounds */
+    reset();
+    S.rec = 1;
+    start();
+    run(L16 * 6 / 10);
+    seq_key(&S, 0, 60, 1, 99);
+    seq_key(&S, 0, 64, 1, 99);
+    run(L16);
+    seq_key(&S, 0, 60, 0, 0);
+    seq_key(&S, 0, 64, 0, 0);
+    run(L16 * 2);
+    CHECK(st(0, 1)->note[0] == 60 && st(0, 1)->note[1] == 64 && count(E_ON, 0) == 2);
+    reset();
+    par[0][TP_ENGINE] = EG_DRUMLINE;
+    S.rec = 1;
+    start();
+    run(L16 * 6 / 10);
+    seq_key(&S, 0, 1, 1, 99);
+    seq_key(&S, 0, 3, 1, 99);
+    run(L16 * 3);
+    CHECK(kit_mask(st(0, 1)) == 5u && count(E_DRUM, 0) == 2);
+    /* the recorded step does sound on the next pass, and a note on the current step still records late */
+    reset();
+    S.rec = 1;
+    start();
+    run(L16 * 6 / 10);
+    seq_key(&S, 0, 60, 1, 99);
+    seq_key(&S, 0, 60, 0, 0);
+    run_to(16 * L16 + 2 * L16);
+    CHECK(count(E_ON, 0) == 2);
+    printf("ok %s\n", cur);
+}
+
 static void t_ext_clock(void)
 {
     int i;
@@ -2127,6 +2239,49 @@ static void t_count_in(void)
     CHECK(count(E_METRO, -1) >= 5 && nth(E_METRO, -1, 0)->t == 0 && nth(E_METRO, -1, 0)->a == 1 &&
           near(nth(E_METRO, -1, 1)->t, 4 * L16 + 2, 2) && nth(E_METRO, -1, 1)->a == 0);
     CHECK(count(E_ON, 0) == 1 && near(on_n(0)->t, 16 * L16 + 8, 1) && S.count_in == 0 && S.rec == 1);
+    /* keys in the count-in: the last half step before the downbeat lands on step 1, sounding once; earlier ones
+     * are only heard */
+    reset();
+    S.rec = 1;
+    S.count_in = 1;
+    start();
+    run_to(16 * L16 - L16 * 3 / 10);
+    seq_key(&S, 0, 60, 1, 99);
+    run(10);
+    seq_key(&S, 0, 60, 0, 0);
+    run_to(16 * L16 + L16);
+    CHECK(S.count_in == 0 && st(0, 0)->note[0] == 60 && st(0, 0)->vel == 99);
+    CHECK(count(E_ON, 0) == 1);
+    reset();
+    S.rec = 1;
+    S.count_in = 1;
+    start();
+    run_to(16 * L16 - L16 * 7 / 10);
+    seq_key(&S, 0, 60, 1, 99);
+    seq_key(&S, 0, 60, 0, 0);
+    run_to(16 * L16 + L16);
+    CHECK(st(0, 0)->note[0] == 0 && count(E_ON, 0) == 1);
+    reset();
+    S.rec = 1;
+    S.count_in = 2;
+    start();
+    run_to(16 * L16 - L16 * 3 / 10);
+    seq_key(&S, 0, 60, 1, 99);
+    seq_key(&S, 0, 60, 0, 0);
+    run_to(32 * L16 + L16);
+    CHECK(st(0, 0)->note[0] == 0);
+    /* a kit key, and the second pass plays it */
+    reset();
+    par[0][TP_ENGINE] = EG_DRUMLINE;
+    S.rec = 1;
+    S.count_in = 1;
+    start();
+    run_to(16 * L16 - L16 * 2 / 10);
+    seq_key(&S, 0, 3, 1, 99);
+    run_to(16 * L16 + L16);
+    CHECK(kit_mask(st(0, 0)) == 1u << 2 && count(E_DRUM, 0) == 1);
+    run_to(32 * L16 + L16);
+    CHECK(count(E_DRUM, 0) == 2);
     /* the metronome off while playing without rec */
     reset();
     S.metronome = 1;
@@ -2399,6 +2554,7 @@ int main(void)
     t_duck();
     t_loops();
     t_echo();
+    t_loop_release();
     t_fills();
     t_slice_throws();
     t_pitch_short_long();
@@ -2406,6 +2562,7 @@ int main(void)
     t_punch_seq();
     t_record();
     t_rec_wait();
+    t_rec_early();
     t_ext_clock();
     t_midi_out();
     t_count_in();

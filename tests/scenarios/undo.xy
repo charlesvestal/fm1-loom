@@ -1,0 +1,38 @@
+# undo (HOME + REC) and redo (HOME + PLAY) of more than a pattern's notes: a track's sound (a knob, PRESETS), the master,
+# the song; a pattern's step with its locks
+wait 300
+turn ALGO 1
+expect trk 2
+tap EDIT
+param 2 e1 40
+turn K1 5
+expect par2.e1 45
+press HOME
+tap REC
+release HOME
+expect par2.e1 40
+press HOME
+tap PLAY
+release HOME
+expect par2.e1 45
+wait 1200
+param 2 e1 40
+turn PRESET 1
+press HOME
+tap REC
+release HOME
+expect par2.e1 40
+# a step on the pattern, undone: gone; redone: back
+turn ALGO -1
+expect trk 1
+tap SEQ
+tapkey w0
+expect note 1 1 1 1
+press HOME
+tap REC
+release HOME
+expect note 1 1 1 0
+press HOME
+tap PLAY
+release HOME
+expect note 1 1 1 1
