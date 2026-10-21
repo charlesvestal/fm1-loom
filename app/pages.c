@@ -1498,6 +1498,11 @@ static void page_footer(char *t)
     }
     switch (ui.page) {
     case P_ARRANGE:
+        for (int i = 0; i < NKEYS; i++)             /* a kit's black key held: its sounds' mutes on the white keys */
+            if (ui.kmode[i] == KM_MUTE && (ui.keys >> i & 1u) && is_drum(ui.knote[i] & 0x7F)) {
+                s_cat(t, ui.knote[i] & 0x80 ? "WHITE mute a sound|let go: done" : "WHITE mute a sound|let go: mutes the kit");
+                return;
+            }
         s_cat(t, proj.rsv[2] & SCENES_AT_END ? "WHITE scene at the pattern's end|BLACK mute|OCT 1-16, 17-32"
                                              : "WHITE scene at the bar, again: now|BLACK mute|OCT 1-16, 17-32");
         break;

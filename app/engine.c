@@ -1055,6 +1055,8 @@ static void render_sub(uint32_t n, uint32_t at)
     }
 }
 
+#define VOL_SLEW 0.0045f                                 /* MASTER's glide: ~5 ms to most of a turn (1 - e^-1 in 220 samples) */
+static float vol_s;                                      /* MASTER's gain as it glides (the render only) */
 void engine_render(int32_t *out_lr, uint32_t n, uint32_t gain_q12)
 {
     uint32_t done = 0, i;
@@ -1121,7 +1123,10 @@ void engine_render(int32_t *out_lr, uint32_t n, uint32_t gain_q12)
         eng_quiet = pk > 0.001f ? 0 : (uint16_t)(eng_quiet < 65535u ? eng_quiet + 1u : 65535u);
     }
     for (i = 0; i < n; i++) {                            /* Felucca's -6 dBFS ceiling of the 24-bit codec (2^22) */
-        float l = mix_l[i] * vol, r = mix_r[i] * vol;
+        float l, r;
+        vol_s += (vol - vol_s) * VOL_SLEW;               /* MASTER's gain glides (a block's step would zipper) */
+        l = mix_l[i] * vol_s;
+        r = mix_r[i] * vol_s;
         l = l > 2.0f ? 2.0f : l < -2.0f ? -2.0f : l;
         r = r > 2.0f ? 2.0f : r < -2.0f ? -2.0f : r;
         out_lr[2u * i] = (int32_t)(l * 4194303.0f);
