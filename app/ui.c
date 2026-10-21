@@ -2987,7 +2987,7 @@ static void input(void)
 /* ------------------------------------------------------------- lights --- */
 static void leds(void)
 {
-    uint32_t b = 0, k = 0, dim = 0, i;
+    uint32_t b = 0, k = 0, dim = 0, mid = 0, i;
     int trk = sel_trk(), rec = recording();
     if (playing())
         b |= 1u << B_PLAY;
@@ -3005,7 +3005,7 @@ static void leds(void)
             for (i = 0; i < 16; i++) {
                 int s = ui.bar * 16 + (int)i;
                 if (step_on(&tp->st[s], trk) && s < tp->len)
-                    dim |= 1u << WHITE_K[i];
+                    mid |= 1u << WHITE_K[i];         /* (the steps with notes: the mid level, brighter than the glow) */
                 if (playing() && s == ph)
                     k |= 1u << WHITE_K[i];
             }
@@ -3044,7 +3044,8 @@ static void leds(void)
             }
         }
     }
-    loom_lights(b, k, proj.lights == 1, dim & ~k, rec);
+    loom_lights(b, k, proj.lights == 1, (dim | mid) & ~k, rec);
+    plat_lights_mid(0, mid & ~k);
 }
 
 /* ------------------------------------------------------ screen reader --- */
