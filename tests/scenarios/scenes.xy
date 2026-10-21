@@ -86,3 +86,14 @@ tapkey b1
 wait 40
 expect mute 2
 shot mix_mute.png
+# Mix: two black keys held solo both; one let go, the other stays soloed; both let go, the mutes as they were
+key b1 down
+key b2 down
+wait 900
+expect mute 1017
+key b1 up
+wait 40
+expect mute 1019
+key b2 up
+wait 40
+expect mute 2

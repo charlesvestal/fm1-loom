@@ -1116,11 +1116,12 @@ static void track_step(int e)
     i = ((i + d * n) % N + N) % N;
     track_select(L[i]);
 }
-static void solo_begin(int trk)
+static void solo_begin(int trk)                  /* a track joins the solo (the first: the mutes kept to go back to) */
 {
-    ui.solo = (uint8_t)(trk + 1);
-    ui.solo_mute = seq.mute;
-    seq.mute = (uint16_t)(((1u << NSEQT) - 1u) & ~(1u << trk));
+    if (!ui.solo)
+        ui.solo_mute = seq.mute;
+    ui.solo |= (uint16_t)(1u << trk);
+    seq.mute = (uint16_t)(((1u << NSEQT) - 1u) & ~ui.solo);
 }
 static void solo_end(void)
 {
@@ -1552,12 +1553,13 @@ static void key_up(int k)
             int b = ui.knote[k];
             set_mute(b, !(seq.mute >> b & 1u));
             say(seq.mute >> b & 1u ? "MUTED" : "UNMUTED", TRACK_NAME[b]);
-        } else if (ui.solo) {
-            int any = 0;
-            for (int i = 0; i < NKEYS; i++)
-                any |= ui.kmode[i] == KM_SOLO;
-            if (!any)
+        } else if (ui.solo) {                    /* let go: that track leaves the solo; the last, the mutes back */
+            ui.solo &= (uint16_t)~(1u << (ui.knote[k] % NSEQT));
+            if (!ui.solo) {
+                ui.solo = 1;                         /* (solo_end: only while one is on) */
                 solo_end();
+            } else
+                seq.mute = (uint16_t)(((1u << NSEQT) - 1u) & ~ui.solo);
         }
         break;
     default:
@@ -1687,8 +1689,8 @@ static void holds(void)
     if (home_held() && now - ui.btn_t[B_HOME] >= CARD_MS)
         ui.btn_used |= 1u << B_HOME;
     for (int k = 0; k < NKEYS; k++)               /* Mix: a track's key held: solo while held */
-        if ((ui.keys >> k & 1u) && ui.kmode[k] == KM_SOLO && !ui.solo && ui.knote[k] < NSEQT &&
-            now - ui.key_t[k] >= STEP_TAP_MS)
+        if ((ui.keys >> k & 1u) && ui.kmode[k] == KM_SOLO && ui.knote[k] < NSEQT && !(ui.solo >> ui.knote[k] & 1u) &&
+            now - ui.key_t[k] >= STEP_TAP_MS)        /* (more held: more soloed) */
             solo_begin(ui.knote[k]);
     for (int k = 0; k < NKEYS; k++)
         if ((ui.keys >> k & 1u) && ui.kmode[k] == KM_SCENE && now - ui.key_t[k] >= KEY_LONG_MS) {

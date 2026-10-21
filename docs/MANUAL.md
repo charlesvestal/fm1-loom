@@ -773,7 +773,8 @@ what it was holding.
 
 ## Arrange, scenes and the song
 
-Press **HOME**. Each row is a track with its pattern and a playhead, and at its left a small meter of what it plays;
+Press **HOME**. Each row is a track with its pattern and a playhead, and at its left a small meter of what it plays
+(COND's and THROW's: lit while a step of theirs plays);
 muted tracks are dimmed. The scene's
 number is at the right, with the next one when a scene is cued, the beats until it starts and its key
 blinking. The 16 white keys are scenes 1 to 16; **OCT+** puts 17 to 32 on them (**OCT−** back; the dots at the
@@ -884,7 +885,8 @@ Turn **ALGORITHM** past T8. Each aux track has its own page under **EDIT** and i
 ## Mix and master
 
 Press **GLO**. The Mix page shows a meter for each track. A black key picks its track: a tap mutes or unmutes
-it, and holding it solos the track until you let go. The knobs are the sends to FX I and FX II, the pan and the
+it, and holding it solos the track until you let go; hold several to solo them together (each one let go leaves
+the solo, the last one brings the mutes back as they were). The knobs are the sends to FX I and FX II, the pan and the
 level (a drum track's sends are its keys': **FX**, Sends). Turn **SELECT** for Master EQ (low, mid and high; 64 is flat), Master color (below) and
 Master out (the drums' level, the melodic tracks' level, the compressor and the pump; its **SEL** list has
 what the pump follows, its release and accent, and the output level). Setup's knobs are the lights, sending MIDI

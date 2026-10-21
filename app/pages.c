@@ -195,7 +195,7 @@ static struct {
     uint32_t play_t;
     uint32_t punch_latched;
     uint8_t last_inst;                               /* the instrument track selected last (the FX pages audition it) */
-    uint8_t solo;                                    /* a black key held on Mix: track + 1 soloed */
+    uint16_t solo;                                   /* the black keys held on Mix: the tracks soloed (bit t) */
     uint16_t solo_mute;                              /* the mutes before the solo */
     uint16_t preset_i, pick_preset;               /* (more than 255 presets and user slots) */
     uint8_t pick_engine, pick_slot, pick_fx, pick_weave, pick_save;   /* (pick_save: SAVE TO's slot) */
@@ -1873,7 +1873,7 @@ static const struct { uint8_t btn; uint32_t pages; const char *title, *l1, *l2; 
      "Strum: a key strums its chord; keys held together set it."},
     {B_ARP, PG_STEPS, "Tricks", "With a step held, ARP: KNOB 1 and 3 pick its two tricks,",
      "KNOB 2 and 4 their values. Let go of the step when done."},
-    {B_GLO, PG_ANY, "Mix", "Sends, pan, level. Black keys: tap mutes, hold solos.",
+    {B_GLO, PG_ANY, "Mix", "Sends, pan, level. Black keys: tap mutes, hold solos (several held: together).",
      "SELECT: Master EQ, out, Setup. HOME's SEL: projects."},
     {B_HOME, PG_ANY, "Arrange", "Each track's pattern in the scene. White: scenes, black: mutes.",
      "SEL: projects, scene timing. + REC undoes, + PLAY redoes."},
@@ -2251,6 +2251,12 @@ static void draw_arrange(void)
         mh[t] = (int)fm_clampf((a_db[t] + 45.0f) * (AR_MH / 36.0f) + 0.5f, 0.0f, (float)AR_MH);
         h = hash_u(h, (uint32_t)mh[t]);
     }
+    int amh[2];                                   /* COND and THROW make no sound: a step of theirs playing lights it */
+    for (int a = 0; a < 2; a++) {
+        const tpat_t *tp = tpat(NTRK + a);
+        amh[a] = playing() && !step_empty(&tp->st[eng_step[NTRK + a] % NSTEP]) ? AR_MH : 0;
+        h = hash_u(h, (uint32_t)amh[a] << 4 | (uint32_t)a);
+    }
     char t[16];
     for (int tr = 0; tr < NSEQT; tr++)
         h = hash_u(h, (uint32_t)seq.ppat[tr] | (uint32_t)eng_step[tr] << 8 | (uint32_t)(seq.mute >> tr & 1u) << 16 |
@@ -2271,6 +2277,8 @@ static void draw_arrange(void)
         text_r(22, y - 3, &FONT_XS, nm, tr == sel_trk() ? K_TEXT : ink);
         if (tr < NTRK && mh[tr] > 0)                 /* (its meter, at the left of its number) */
             cv_rect(4, y + 5 - mh[tr], 3, mh[tr], muted ? K_FAINT : trk_ink(tr));
+        else if (tr >= NTRK && amh[tr - NTRK] > 0)
+            cv_rect(4, y + 5 - AR_MH, 3, AR_MH, muted ? K_FAINT : trk_ink(tr));
         num_s((uint32_t)pt + 1u, s_cat(t, "P"));
         text_c(37, y - 3, &FONT_XS, t, muted ? K_FAINT : trk_ink(tr));
         cv_rect(52, y + 3, 88, 2, K_PANEL2);         /* (88 px: "mute" fits before the rule at 168) */
@@ -3999,7 +4007,7 @@ static void draw_mix(void)
                                                                               * throws make no sound: none) */
     uint32_t now = plat_ms(), dt = now - m_last;
     int sel = sel_trk();
-    uint32_t h = hash_u(hash_u(2166136261u, 0x3Cu), (uint32_t)sel | (uint32_t)seq.mute << 4 | (uint32_t)ui.solo << 20);
+    uint32_t h = hash_u(hash_u(hash_u(2166136261u, 0x3Cu), (uint32_t)sel | (uint32_t)seq.mute << 4), ui.solo);
     float fall = (float)(dt > 1000u ? 1000u : dt) * 0.024f;
     m_last = now;
     for (int t = 0; t < NALLTRK; t++) {          /* the engine's loudest since the last look, then the fall */
