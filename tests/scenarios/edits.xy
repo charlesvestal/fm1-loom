@@ -251,3 +251,23 @@ wait 40
 expect kvel1.1.1.2 50
 expect kvel1.1.1.1 0
 expect note 1 1 1 1
+# SEQ held on Steps: OCT moves the keyboard's octave (not the bar), PRESETS the track's sound (not its pattern)
+projnew
+turn ALGO 1
+expect trk 2
+tap SEQ
+press SEQ
+tapkey w0
+release SEQ
+tapkey w0
+wait 40
+press SEQ
+tap OCT+
+tapkey w0
+turn PRESET 1
+release SEQ
+tapkey w1
+wait 40
+expect note 2 1 1 53
+expect note 2 1 2 65
+expect pat2 1

@@ -129,7 +129,7 @@ press…" means keep **HOME** down while you press the next thing.
 | set a skip's pattern | Turn its value on past "random": the same cycles come again "not on the last pass", then "only the first". |
 | give a step a chance | Hold the step and turn **KNOB 3**. Past 99 % come the A:B cycles. |
 | lock a knob on a step | Hold the step and press **EDIT**, **ENV**, **FX** or **LFO**. Turn a knob. **SAVE** clears the step's locks. |
-| see the next bar | Press **OCT+** on Steps. |
+| see the next bar | Press **OCT+** on Steps. (With **SEQ** held, **OCT** is the keys' octave and **PRESETS** the track's sound, to try the notes before they are written.) |
 | play one bar of a long pattern, or jump about in it | **SEQ**, **SELECT** to the Bar page, hold **SEQ** and press black key 1 to 4: a bar to jump to; two held loop them; one tapped twice loops that bar. |
 | set the track scale | On Steps, turn **KNOB 3**. Or on the Bar page of a synth track, press a black key: 1, 2, 3, 4, 5, 6, 8, 16 sixteenths a step, or black key 9 for half a sixteenth. |
 | change the pattern | On Steps, turn **KNOB 1**. Playing, it comes at the next bar line: the knob reads NEXT 1>2 and the tag line "next P2" until it does. |

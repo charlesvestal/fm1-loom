@@ -1642,8 +1642,9 @@ static void button_up(int b)
             say("SCENES", ui.scene_pg ? "17 to 32" : "1 to 16");
             break;
         }
-        if (steps_page(ui.page) || (ui.page == P_WEAVE && wv_from(sel_trk()))) {   /* (Weave: the bar its rows show) */
-            ui.bar = (uint8_t)clampi(ui.bar + d, 0, NBAR - 1);
+        if ((steps_page(ui.page) && !(ui.btn >> B_SEQ & 1u)) || (ui.page == P_WEAVE && wv_from(sel_trk()))) {
+            ui.bar = (uint8_t)clampi(ui.bar + d, 0, NBAR - 1);   /* (SEQ held: the keyboard's octave, below; Weave:
+                                                                  * the bar its rows show) */
             num_s((uint32_t)ui.bar + 1u, t);
             say("BAR", t);
             break;
@@ -1963,7 +1964,9 @@ static void presets(int32_t e)
         if (is_drum(trk)) {
             ui.dsound = (uint8_t)((ui.dsound + d + DL_NSOUND) % DL_NSOUND);
             say("SOUND", DL_SOUND_NAME[ui.dsound]);
-        } else if (is_seqt(trk))
+        } else if ((ui.btn >> B_SEQ & 1u) && !is_aux(trk))   /* SEQ held (the keys a keyboard): the track's sound */
+            preset_step(trk, d);
+        else if (is_seqt(trk))
             pattern_pick(trk, cur_pat(trk) + d);
         break;
     case P_MIX:
