@@ -88,6 +88,7 @@ expect par1.20 17
 expect par1.17 18
 expect par1.10 19
 expect par1.12 20
+# TP_A ("lag" on a kit): untouched by 75, still its default
 expect par1.9 0
 # FX I on 9, FX II on 10
 midi B8 07 21
@@ -101,6 +102,7 @@ midi B9 5D 28
 wait 40
 expect par11.48 33
 expect par11.1 34
+expect epar11.1 34
 expect par11.4 35
 expect par11.17 36
 expect par11.19 37
@@ -119,7 +121,14 @@ expect mst.release 43
 midi BA 14 40
 wait 40
 expect mst.color 1
-# recorded: REC held while playing, a CC on channel 3 writes T3's lane (T2 selected)
+# rounding, on a range that isn't 0..127: color's 0..2 rounds 0x20 up to 1, 0x1F down to 0
+midi BA 14 20
+wait 40
+expect mst.color 1
+midi BA 14 1F
+wait 40
+expect mst.color 0
+# recorded: REC held while playing, a CC on channel 3 writes T3's lane, not T2's (T2 selected); REC off records nothing
 turn ALGO 1
 tap PLAY
 wait 300
@@ -130,5 +139,27 @@ wait 200
 midi B2 07 70
 wait 200
 release REC
+wait 20
+midi B2 0A 20
+wait 200
 tap PLAY
-expect lane 3 1 48 1
+expect lane 3 1 48 2
+expect lane 2 1 48 0
+expect lane 3 1 49 0
+
+# channels 12-16 reach the track playing (inst_trk()), not just the one selected: play T3, then select an aux track
+# (spin, not turn: a step at a time through T4..T8 would make T8 last_inst, not T3)
+projnew
+spin ALGO 2
+expect trk 3
+spin ALGO 6
+expect trk 9
+# eng_midi_trk follows inst_trk() once a frame (ui_frame)
+wait 20
+out
+midi 9B 3C 64
+wait 20
+expect_out USB 92 3C 64
+midi BB 07 50
+wait 40
+expect par3.48 80

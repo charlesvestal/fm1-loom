@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* LOOM-8's MIDI map (docs/superpowers/specs/2026-10-21-midi-cc-map-design.md): CCs in, as the knob or key would set
- * them (recorded with REC on, playing); CCs out for a knob turned by hand; the scenes by Program Change or notes on the
- * master's channel. Part of app.c's unity build, after ui.c: set_tp, set_mute, kit_sound_mute, scene_go. */
+/* LOOM-8's MIDI CC map: a CC on channel 1-8 (a track), 9 / 10 (FX I / II) or 11 (the master) sets a parameter as its
+ * knob would, scaled onto the parameter's range; a track's CC is also recorded into its own lane with REC on and
+ * playing. Part of app.c's unity build, after ui.c: is_aux, is_drum, inst_trk, set_tp. */
 
 #define CC_NONE 0xFFu                         /* (the map's "nothing here") */
 #define CC_MUTE 0xFEu                         /* the track's mute, not a parameter */
@@ -16,9 +16,10 @@ static const struct { uint8_t cc, syn, kit; } CC_TRK[] = {
 #define CC_KMUTE 16
 #define CC_KPAN 80
 #define CC_KLEVEL 102
-/* FX I / II (FX II has no feed: 93 on channel 10 does nothing) */
-static const struct { uint8_t cc, par; } CC_FX[] = {
-    {7, TP_LEVEL}, {16, TP_E1}, {17, TP_E2}, {18, TP_E3}, {19, TP_E4}, {74, TP_CUT}, {75, TP_FENV}, {93, TP_SEND2}};
+/* FX I / II: the return level, the four knobs, low-pass / high-pass; fx1: FX I only (93, its feed into FX II) */
+static const struct { uint8_t cc, par, fx1; } CC_FX[] = {
+    {7, TP_LEVEL, 0}, {16, TP_E1, 0}, {17, TP_E2, 0}, {18, TP_E3, 0}, {19, TP_E4, 0}, {74, TP_CUT, 0},
+    {75, TP_FENV, 0}, {93, TP_SEND2, 1}};
 /* the master */
 static const struct { uint8_t cc, m; } CC_MST[] = {
     {7, MS_LEVEL},  {16, MS_EQ_LO}, {17, MS_EQ_MID}, {18, MS_EQ_HI}, {20, MS_CTYPE}, {21, MS_CAMT},     {22, MS_CTONE},
@@ -28,15 +29,22 @@ static int cc_to(int v, int lo, int hi) { return lo + (v * (hi - lo) + 63) / 127
 
 static void cc_par(int t, int p, int v)       /* a track's parameter from a CC (recorded as a knob turn would be) */
 {
-    const tp_info_t *in = tp_info_par(p, proj.trk[t].par);
-    set_tp(t, p, is_aux(t) ? v : cc_to(v, in->lo, in->hi));
+    if (is_aux(t))
+        set_tp(t, p, v);                       /* an FX track's knobs: 0..127 as they come */
+    else {
+        const tp_info_t *in = tp_info_par(p, proj.trk[t].par);
+        set_tp(t, p, cc_to(v, in->lo, in->hi));
+    }
     if (seq.rec && playing() && !is_aux(t))
         seq_rec_knob(&seq, t, p, proj.trk[t].par[p]);
 }
 static void cc_master(int m, int v)
 {
+    int nv = cc_to(v, 0, master_max(m));
+    if (nv == proj.master[m])                  /* (as the master list's knob: no undo step for a value that holds) */
+        return;
     undo_master();
-    proj.master[m] = (uint8_t)cc_to(v, 0, master_max(m));
+    proj.master[m] = (uint8_t)nv;
     engine_master(m, proj.master[m]);
     mark_dirty();
 }
@@ -64,7 +72,7 @@ static void cc_in(uint32_t pkt)
     } else if (ch == CH_FX1 || ch == CH_FX2) {
         int ft = ch == CH_FX1 ? AUX_FX1 : AUX_FX2;
         for (uint32_t i = 0; i < sizeof CC_FX / sizeof CC_FX[0]; i++)
-            if (CC_FX[i].cc == d1 && !(ft == AUX_FX2 && CC_FX[i].par == TP_SEND2))
+            if (CC_FX[i].cc == d1 && !(CC_FX[i].fx1 && ft != AUX_FX1))
                 cc_par(ft, CC_FX[i].par, v);
     } else
         cc_track(ch < NTRK ? ch : inst_trk(), d1, v);

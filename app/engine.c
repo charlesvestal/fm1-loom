@@ -100,8 +100,9 @@ static uint32_t metro_left;                       /* the metronome's click: samp
 static float metro_ph, metro_inc;
 static int16_t bend_c[NTRK];                      /* the bend component's cents, per track */
 /* MIDI for the main loop (midicc.c): every CC, Program Change and the master channel's note-ons, raw USB-MIDI
- * packets; the interrupt writes, the main loop reads (engine_cc_take); full, a message is dropped */
-#define CCQ 16u
+ * packets; the interrupt writes, the main loop reads (engine_cc_take); full, the newest is dropped. 64 is about
+ * 17 ms of a busy controller's CCs between two UI frames (longer during a flash write) */
+#define CCQ 64u
 static volatile uint32_t ccq[CCQ];
 static volatile uint8_t ccq_w, ccq_r;
 static void ccq_put(uint32_t pkt)
@@ -668,14 +669,16 @@ static void perf_tick(uint32_t n)
 }
 
 /* ---------------------------------------------------------------- MIDI in --- */
-static int midi_track(int ch)                      /* the track a channel plays: 1-8 theirs, 12-16 the one selected
+volatile uint8_t eng_midi_trk;                      /* channels 12-16's track (the main loop's inst_trk(), set once a
+                                                    * frame before cc_in_drain): the keys' instrument, not trk_sel */
+static int midi_track(int ch)                      /* the track a channel plays: 1-8 theirs, 12-16 the one playing
                                                     * (else T1); FX and the master none (-1) */
 {
     if (ch < NTRK)
         return ch;
     if (ch <= CH_MASTER)
         return -1;
-    return proj.trk_sel < NTRK ? proj.trk_sel : 0;
+    return eng_midi_trk % NTRK;
 }
 static void midi_in(uint32_t pkt)
 {
@@ -697,9 +700,9 @@ static void midi_in(uint32_t pkt)
                 ccq_put(pkt);
         } else if (t >= 0)
             seq_key(&seq, t, d1, ty == 0x90, d2);
-    } else if (ty == 0xB0 || ty == 0xC0)            /* CCs and Program Change: the main loop's (midicc.c) */
+    } else if (ty == 0xB0 || ty == 0xC0) {          /* CCs and Program Change: the main loop's (midicc.c) */
         ccq_put(pkt);
-    else if (ty == 0xE0) {                       /* pitch bend: +-2 semitones onto the track's bend */
+    } else if (ty == 0xE0) {                        /* pitch bend: +-2 semitones onto the track's bend */
         int t = midi_track(ch);
         if (t >= 0)
             bend_c[t] = (int16_t)((((int)d2 << 7 | d1) - 8192) * 200 / 8192);

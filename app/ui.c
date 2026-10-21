@@ -3753,6 +3753,7 @@ void ui_frame(void)
         if (ui.bar * 16 >= tpat(sel_trk())->len)
             ui.bar = 0;
     }
+    eng_midi_trk = (uint8_t)inst_trk();          /* channels 12-16's track, for midi_track() in the interrupt */
     cc_in_drain();                               /* MIDI in: the CC map, the scenes (midicc.c) */
     if (seq.crop_dirty) {                        /* a queued loop reached its bar line */
         seq.crop_dirty = 0;
