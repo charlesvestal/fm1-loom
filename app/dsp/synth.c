@@ -799,6 +799,7 @@ static void smp_prep(voice_t *v)
     c->ex[4] = le;
 }
 #define SMP_FADE 64.0f                           /* a one-shot's fade at its region's end: samples of it (~3 ms) */
+#define SMP_SWITCH 64.0f                         /* a mono retrigger's fade of the sound playing (1.5 ms; slice's SL_SWITCH) */
 static void smp_run(voice_t *v, float *xl, float *xr, int m)
 {
     const cfg_t *c = &v->c;
@@ -810,13 +811,35 @@ static void smp_run(voice_t *v, float *xl, float *xr, int m)
     int32_t pos = (int32_t)v->o[0], dir = v->o[2] < 0.0f ? -1 : 1;
     int i = 0, done = !sm || inc <= 0.0f || v->o[3] > 0.5f, turns = 0;
     (void)xr;
-    if (!done && v->o[4] < 0.5f) {               /* the note's first sample: the region's start (reverse: its end) */
+    if (!done && v->o[5] > 0.5f) {               /* a mono retrigger: the sound playing fades out over SMP_SWITCH
+                                                  * samples, then the note starts (smp_retrigger) */
+        float sw = v->o[6];
+        int k = (int)((1.0f - sw) * SMP_SWITCH + 0.999f);
+        k = k < 1 ? 1 : k > m ? m : k;
+        if (pos >= s0 && pos < s1) {
+            int got = smp_play(&smp_vc[v->vi % NVOICE], sm, &pos, &fr, inc, dir, s0, s1, xl, k);
+            for (int j = 0; j < got; j++)
+                xl[j] *= fm_maxf(1.0f - (sw + (float)j * (1.0f / SMP_SWITCH)), 0.0f);
+            for (int j = got; j < k; j++)
+                xl[j] = 0.0f;
+        } else
+            for (int j = 0; j < k; j++)
+                xl[j] = 0.0f;
+        sw += (float)k * (1.0f / SMP_SWITCH);
+        i = k;
+        if (sw >= 1.0f) {
+            v->o[5] = v->o[6] = 0.0f;
+            v->o[4] = 0.0f;
+        } else
+            v->o[6] = sw;
+    }
+    if (!done && v->o[4] < 0.5f && v->o[5] < 0.5f) {   /* the note's first sample: the region's start (reverse: its end) */
         v->o[4] = 1.0f;
         pos = mode == SM_REVERSE ? s1 - 1 : s0;
         fr = 0.0f;
         dir = mode == SM_REVERSE ? -1 : 1;
     }
-    while (!done && i < m) {
+    while (!done && i < m && v->o[5] < 0.5f) {
         int32_t lo = s0, hi = s1;
         if (mode == SM_LOOP || mode == SM_PINGPONG) {   /* into the loop, then round (or across) it */
             hi = le;
@@ -1010,6 +1033,14 @@ static void slc_run(voice_t *v, float *xl, float *xr, int m)
     v->o[5] = fin;
     v->o[6] = sw;
     v->o[7] = (float)pend;
+}
+static void smp_retrigger(voice_t *v)            /* a mono retrigger: what plays fades out first (smp_run), no click */
+{
+    if (v->o[4] > 0.5f && v->o[3] < 0.5f) {
+        v->o[5] = 1.0f;
+        v->o[6] = 0.0f;
+    } else
+        v->o[3] = v->o[4] = v->o[5] = 0.0f;
 }
 static void slc_retrigger(voice_t *v)            /* a mono retrigger: the playing slice fades, the note's starts */
 {
@@ -1409,7 +1440,7 @@ void synth_note_on(synth_t *s, int trk, int note, int vel, int glide_ms, uint32_
                 if (v->engine == EG_RAYON)
                     v->o[5] = v->o[7] = 1.0f;
                 if (v->engine == EG_SAMPLE)
-                    v->o[3] = v->o[4] = 0.0f;
+                    smp_retrigger(v);
                 if (v->engine == EG_SLICE)
                     slc_retrigger(v);
                 if (v->engine == EG_CANE)        /* the lines as they are, the exciter again */
@@ -1432,6 +1463,16 @@ static void voice_release(voice_t *v)
         v->amp.stage = ENV_RELEASE;
         v->flt.stage = ENV_RELEASE;
     }
+}
+
+/* a key let go: the release; a slice plays on to its gate's end (the GATE knob is how much of it plays, whatever the
+ * note's length: slices on the steps play through as the break did) */
+static void key_release(voice_t *v)
+{
+    if (v->engine == EG_SLICE && v->amp.stage != ENV_RELEASE)
+        v->held = 0;
+    else
+        voice_release(v);
 }
 
 void synth_note_off(synth_t *s, int trk, uint32_t tag)
@@ -1469,7 +1510,7 @@ void synth_note_off(synth_t *s, int trk, uint32_t tag)
             v->pitch = (float)v->note;
             t->last_pitch = v->pitch;
         } else {
-            voice_release(v);
+            key_release(v);
         }
         return;
     }
@@ -1478,7 +1519,7 @@ void synth_note_off(synth_t *s, int trk, uint32_t tag)
         if (v->trk != trk)
             continue;
         if (v->held && v->tag == tag && v->steal_phase != 1)
-            voice_release(v);
+            key_release(v);
         if (v->steal_phase == 1 && v->pend_tag == tag)
             v->pend_held = 0;                    /* let go before its steal finished: just its release */
     }

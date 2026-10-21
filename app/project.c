@@ -205,7 +205,7 @@ void project_defaults(void)
         tr->par[TP_ENGINE] = ORDER[t];                    /* (a preset carries its engine; the kit keeps its own) */
         tr->par[TP_BRAIN] = t ? 1 : 0;                    /* the melodic tracks follow the brain from the start
                                                            * (the notebook: "several tracks are routed by default") */
-        tr->par[TP_CHAN] = 0;
+        tr->par[TP_CHAN] = (uint8_t)(t + 1);              /* MIDI: track N on channel N (out with Setup's NOTES on) */
     }
     aux_defaults();
     /* the master: the EQ flat, the color off (tape when on: amount 40, tone 64, all wet), the groups at unity, a touch

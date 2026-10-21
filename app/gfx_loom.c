@@ -129,25 +129,28 @@ static float f_sqrt1(float v)                   /* sqrt for v >= 1 (Newton, a fe
 }
 
 /* an anti-aliased line w pixels wide between sub-pixel points: along its long axis, each step lights the few
- * pixels across it by their distance from the line. The long axis is half-open (the end column is the next
- * segment's first), so a polyline of short segments blends each pixel once. */
-static void cv_linef(float x0, float y0, float x1, float y1, uint16_t c, float w)
+ * pixels across it by their distance from the line. The long axis is half-open: the line's own end (whichever way it
+ * runs) is the next segment's first, so a polyline of short segments blends each pixel once. end_only: just that end
+ * column (a polyline turning from one long axis to the other draws it: the next segment, walking the other axis, would
+ * leave a notch there). Returns 1 if it walked y. */
+static int cv_line_ex(float x0, float y0, float x1, float y1, uint16_t c, float w, int end_only)
 {
     float dx = x1 - x0, dy = y1 - y0, hw = w * 0.5f;
-    int steep = f_abs(dy) > f_abs(dx);
+    int steep = f_abs(dy) > f_abs(dx), back = 0;
     float k, cs, reach;
-    int32_t a, e;
+    int32_t a, e, from, to;
     if (steep) {                                 /* walk y: swap the axes */
         float t;
         t = x0, x0 = y0, y0 = t;
         t = x1, x1 = y1, y1 = t;
         t = dx, dx = dy, dy = t;
     }
-    if (dx < 0.0f) {
+    if (dx < 0.0f) {                             /* walk it forwards (its end is then the first column) */
         float t;
         t = x0, x0 = x1, x1 = t;
         t = y0, y0 = y1, y1 = t;
         dx = -dx, dy = -dy;
+        back = 1;
     }
     k = dx > 1e-4f ? dy / dx : 0.0f;
     cs = 1.0f / f_sqrt1(1.0f + k * k);           /* across the line, per pixel of the short axis */
@@ -156,7 +159,11 @@ static void cv_linef(float x0, float y0, float x1, float y1, uint16_t c, float w
     e = f_floor(x1 + 0.5f);
     if (e == a)
         e = a + 1;
-    for (int32_t i = a; i < e; i++) {
+    from = back ? a + 1 : a;                     /* [start, end): the end column left out */
+    to = back ? e : e - 1;
+    if (end_only)
+        from = to = back ? a : e;
+    for (int32_t i = from; i <= to; i++) {
         float yc = y0 + ((float)i - x0) * k;
         int32_t j0 = f_floor(yc - reach), j1 = f_floor(yc + reach) + 1;
         for (int32_t j = j0; j <= j1; j++) {
@@ -171,6 +178,11 @@ static void cv_linef(float x0, float y0, float x1, float y1, uint16_t c, float w
                 cv_blend(i, j, c, (uint32_t)(cov * 256.0f));
         }
     }
+    return steep;
+}
+static void cv_linef(float x0, float y0, float x1, float y1, uint16_t c, float w)
+{
+    cv_line_ex(x0, y0, x1, y1, c, w, 0);
 }
 
 /* a soft round dot of radius r at a sub-pixel point */

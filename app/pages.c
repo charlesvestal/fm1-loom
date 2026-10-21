@@ -184,14 +184,14 @@ enum { A_CLEAR_NOTES, A_CLEAR_LOCKS, A_CLEAR_BOTH, A_COPY_PAT, A_PASTE_PAT, A_RO
        A_ENGINE, A_PRESET, A_SCRAMBLE, A_SAVE_PRESET, A_INIT, A_FOLLOW, A_INSERT_SLOT, A_DELETE_SLOT, A_CLEAR_SONG,
        A_PLAY_SONG, A_LOAD_PROJ, A_NEW_PROJ, A_USB_AUDIO, A_CLEAR_SCENE, A_PANIC, A_EFFECT, A_REMOVE_NOTE,
        A_COUNT_IN, A_PLAYMODE, A_FTYPE, A_FX_HP, A_FX_LP, A_FX_SEND, A_WEAVE, A_THEME, A_PUMP_BY, A_PUMP_REL,
-       A_PUMP_ACC, A_LEVEL, A_SCENE_AT, A_SAVE_TO, A_AUTOSAVE, A_RANDOM_SOUNDS, NACTIONS };
+       A_PUMP_ACC, A_LEVEL, A_SCENE_AT, A_SAVE_TO, A_AUTOSAVE, A_RANDOM_SOUNDS, A_MIDI_CH, NACTIONS };
 static const char *const ACTION_NAME[NACTIONS] = {
     "CLEAR NOTES", "CLEAR LOCKS", "CLEAR NOTES AND LOCKS", "COPY PATTERN", "PASTE PATTERN", "ROTATE FORWARD",
     "ROTATE BACK", "DUPLICATE BAR", "ENGINE", "PRESET", "SCRAMBLE", "SAVE AS PRESET", "RESET SOUND", "FOLLOWS CONDUCTOR",
     "INSERT SCENE", "DELETE SLOT", "CLEAR SONG", "PLAY SONG", "LOAD PROJECT", "NEW PROJECT", "USB AUDIO", "CLEAR SCENE",
     "ALL NOTES OFF", "EFFECT", "REMOVE", "COUNT-IN", "PLAY MODE", "FILTER TYPE", "HIGH-PASS", "LOW-PASS",
     "TO FX II", "KEEP AS PATTERN", "THEME", "PUMP BY", "RELEASE", "ACCENT", "LEVEL", "SCENES SWITCH", "SAVE TO", "AUTOSAVE",
-    "RANDOMIZE PRESETS"};
+    "RANDOMIZE PRESETS", "MIDI CHANNEL"};
 /* the weave's ways (pattern.h WV_*): what this pattern keeps of itself */
 static const char *const WEAVE_NAME[NWV] = {"bars", "steps", "rhythm", "notes"};
 #define LIST_ROWS 28
@@ -623,12 +623,19 @@ static int tp_page_param(int p, int k, int trk)
 }
 
 /* a pen for smooth curves: pen_to draws an anti-aliased line from the last point (pen_up lifts it) */
-typedef struct { float x, y; int down; } pen_t;
+typedef struct { float x, y, px, py; int down, steep; } pen_t;   /* (px, py: the last segment's start; steep: its axis,
+                                                                 * -1 none yet) */
 static void pen_up(pen_t *p) { p->down = 0; }
 static void pen_to(pen_t *p, float x, float y, uint16_t c)
 {
-    if (p->down)
-        cv_linef(p->x, p->y, x, y, c, 1.7f);
+    if (p->down) {
+        int st = f_abs(y - p->y) > f_abs(x - p->x);
+        if (p->steep >= 0 && st != p->steep)     /* the curve turns to the other axis: the last segment's end column too */
+            cv_line_ex(p->px, p->py, p->x, p->y, c, 1.7f, 1);
+        p->steep = cv_line_ex(p->x, p->y, x, y, c, 1.7f, 0);
+        p->px = p->x, p->py = p->y;
+    } else
+        p->steep = -1;
     p->x = x, p->y = y, p->down = 1;
 }
 static float ease_exp(float t)                       /* 1 -> 0 along an exponential, reaching 0 at t = 1 */
@@ -2007,6 +2014,14 @@ static void list_build(void)
             list_add(ACTION_NAME[A_INIT], 0, LK_ACTION, A_INIT);
             s_cat(fol_t, FOLLOW_NAME[proj.trk[trk].par[TP_BRAIN] % 3]);
             list_add(ACTION_NAME[A_FOLLOW], fol_t, LK_PICK, A_FOLLOW);
+            {                                        /* the track's notes out over USB (Setup's NOTES on) and in */
+                static char ch_t[4];
+                if (proj.trk[trk].par[TP_CHAN])
+                    num_s(proj.trk[trk].par[TP_CHAN], ch_t);
+                else
+                    s_cat(ch_t, "off");
+                list_add(ACTION_NAME[A_MIDI_CH], ch_t, LK_PICK, A_MIDI_CH);
+            }
         }
     } else if (keep >= P_MIX) {                     /* GLO's one list: the pump's settings, the level, USB audio */
         static char by[8], rel[12], lev[8];
@@ -2650,7 +2665,7 @@ static void pic_wave(int32_t x0, int32_t y0, int32_t w, int32_t h, const uint8_t
 {
     /* table: the harmonics; scan: their mix; bend: the phase bent; ripple: a second cycle sliding */
     float cy = (float)(y0 + h / 2), amp = (float)(h / 2 - 8), harm = (float)(1 + p[TP_E1] * 7 / 127);
-    pen_t pn = {0, 0, 0};
+    pen_t pn = {0};
     (void)f;
     cv_rect(x0, y0 + h / 2, w, 1, K_LINE);
     for (int32_t x = 0; x <= w; x++) {
@@ -2665,7 +2680,7 @@ static void pic_rayon(int32_t x0, int32_t y0, int32_t w, int32_t h, const uint8_
     float cx = (float)(x0 + w / 2), cy = (float)(y0 + h / 2), r1 = 14.0f + p[TP_E1] * (float)(h / 2 - 20) / 127.0f;
     float r2 = 4.0f + p[TP_E2] * 16.0f / 127.0f, k = (float)f * (1.0f + (float)(p[TP_E4] / 32)) / 64.0f;
     uint32_t dots = 4u + p[TP_E3] / 10u;
-    pen_t ring = {0, 0, 0};
+    pen_t ring = {0};
     for (int i = 0; i <= 64; i++) {
         float t = (float)i / 64.0f;
         pen_to(&ring, cx + fm_sin_turns(t + 0.25f) * r1, cy + fm_sin_turns(t) * r1, K_DIM);
@@ -2698,7 +2713,7 @@ static void pic_organ(int32_t x0, int32_t y0, int32_t w, int32_t h, const uint8_
     {
         float a = amt > 1 ? (float)f * 0.012f * (float)rate : 0.0f;   /* (rate 1..8: 0.5 .. 8 Hz, drawn slower) */
         float r = 6.0f + (float)(amt - 1) * 2.0f;
-        pen_t ring = {0, 0, 0};
+        pen_t ring = {0};
         for (int i = 0; i <= 32; i++) {
             float t = (float)i / 32.0f;
             pen_to(&ring, (float)rx + fm_sin_turns(t + 0.25f) * 20.0f, (float)ry + fm_sin_turns(t) * 20.0f, K_LINE);
@@ -2718,7 +2733,7 @@ static void pic_knit(int32_t x0, int32_t y0, int32_t w, int32_t h, const uint8_t
     float det = (float)p[TP_E2] / 127.0f, amp = (float)h / 6.0f, fan = (float)p[TP_E4] / 127.0f * ((float)h / 2.0f - amp - 2.0f);
     cv_rect(x0, y0 + h / 2, w, 1, K_LINE);
     for (int j = n - 1; j >= 0; j--) {          /* the centre one last, on top */
-        pen_t pn = {0, 0, 0};
+        pen_t pn = {0};
         float o = n > 1 ? OFF[j] : 0.0f, drift = n > 1 ? o * det * (float)f / 24.0f : det * 0.1f * fm_sin_turns((float)f / 97.0f);
         float cy = (float)(y0 + h / 2) - o * fan;
         uint16_t col = j == 0 ? K_NOW : K_DIM;
@@ -2741,7 +2756,7 @@ static void pic_cane(int32_t x0, int32_t y0, int32_t w, int32_t h, const uint8_t
     float xl = (float)(x0 + 8), xr = (float)(x0 + w - 8), xp = xl + (0.1f + 0.8f * co) * (xr - xl);
     uint16_t ink = p[TP_E4] > 64 ? K_DIM : K_NOW;
     uint32_t r = 77u ^ (f / 2);
-    pen_t pn = {0, 0, 0};
+    pen_t pn = {0};
     if (md <= 1) {                                   /* a string between its nut and its bridge */
         float a = (float)h * 0.3f * fm_sin_turns((float)f * 0.09f) * (md ? 0.25f : 0.3f + 0.7f * tb) * pic_lvl;
         cv_round(x0 + 2, (int32_t)cy - 8, 6, 16, 2, K_DIM);
@@ -2816,7 +2831,7 @@ static void pic_voile(int32_t x0, int32_t y0, int32_t w, int32_t h, const uint8_
     int md = p[TP_E1] < NVOILE ? p[TP_E1] : 0, np = md == 0 || md == 3 ? 2 : md == 1 ? 3 : 5;
     float tb = (float)p[TP_E2] / 127.0f, co = (float)p[TP_E3] / 127.0f, cx[5], wd, base = (float)(y0 + h - 4);
     uint32_t r = 31u ^ (f / 3);
-    pen_t pn = {0, 0, 0};
+    pen_t pn = {0};
     if (md == 0) {
         cx[0] = tb;
         cx[1] = co;
@@ -3200,7 +3215,7 @@ static void draw_fxtrack(int trk)                    /* AUX_FX1 / AUX_FX2: the e
         uint32_t f = ui.frame;
         switch (type) {
         case FXT_CHORUS: {
-            pen_t p0 = {0, 0, 0}, p1 = {0, 0, 0};
+            pen_t p0 = {0}, p1 = {0};
             for (int32_t x = 0; x <= w; x++) {
                 float t = (float)x / 192.0f + (float)f / 96.0f;
                 pen_to(&p1, (float)(x0 + x), (float)(y0 + 20) + 10.0f * fm_sin_turns(t + 0.16f), K_DIM);
@@ -3225,7 +3240,7 @@ static void draw_fxtrack(int trk)                    /* AUX_FX1 / AUX_FX2: the e
         default:
             for (int k = 0; k < 6; k++) {                /* rings spreading out, fainter as they go */
                 float rr = 8.0f + (float)k * 7.0f;
-                pen_t pn = {0, 0, 0};
+                pen_t pn = {0};
                 for (int i = 0; i <= 48; i++) {
                     float t = (float)i / 48.0f;
                     pen_to(&pn, (float)(x0 + 50) + rr * fm_sin_turns(t + 0.25f), (float)(y0 + 20) + rr * 0.5f * fm_sin_turns(t),
@@ -3287,7 +3302,7 @@ static void draw_rayon_fall(void)
     float tau = 0.02f * fm_exp2f((float)fl * (7.64f / 127.0f)), floor_ = (float)fo / 127.0f;
     float hi = fm_exp2f(-2.0f * (float)ks / 127.0f);
     int32_t x0 = 12, y0 = 40, w = 216, hh = 56;
-    pen_t pa = {0, 0, 0}, pb = {0, 0, 0};
+    pen_t pa = {0}, pb = {0};
     if (!begin_main(h))
         return;
     cv_text(12, 6, &FONT_B, fl ? "the brightness falls" : "the brightness holds", K_TEXT);
@@ -3321,7 +3336,7 @@ static void draw_knit_x(void)
     if (!begin_main(h))
         return;
     for (int l = 0; l < 4; l++) {
-        pen_t pn = {0, 0, 0};
+        pen_t pn = {0};
         float cy = 14.0f + (float)l * 26.0f, amp = 10.0f * lv[l];
         cv_text(8, (int32_t)cy - 6, &FONT_XS, NM[l], lv[l] > 0.0f ? K_DIM : K_FAINT);
         for (int32_t x = 0; x <= 170; x++) {
@@ -3360,7 +3375,7 @@ static void draw_key_env(void)
                                           (uint32_t)p[DP_HOLD] << 16 | (uint32_t)p[DP_DECAY] << 24);
     float x0 = 16.0f, w = 208.0f, hh = 84.0f, base = 16.0f + hh, x = x0, px[48], py[48];
     int n = 0, open = p[DP_DECAY] >= 127;
-    pen_t pn = {0, 0, 0};
+    pen_t pn = {0};
     char t[48];
     h = hash_u(h, p[DP_LAG] | (uint32_t)p[DP_MODEL] << 8);
     if (!begin_main(h))
@@ -3446,7 +3461,7 @@ static void draw_key_filter(void)
         float q = 0.7f + (float)p[DP_RES] * 6.0f / 127.0f, ys[209], ye[209];
         float reach = ((float)p[DP_FENV] - 64.0f) * (6.0f / 64.0f) * 22.0f;   /* the envelope's reach, px */
         int hp = ft == DF_HP, bp = ft == DF_BP;
-        pen_t pn = {0, 0, 0}, pe = {0, 0, 0};
+        pen_t pn = {0}, pe = {0};
         for (int32_t x = 0; x <= w; x++) {
             float y = filt_y(filt_db((float)(x0 + x - fc), q, hp, bp, 0), y0, hh);
             float z = filt_y(filt_db((float)(x0 + x - fc) - reach, q, hp, bp, 0), y0, hh);
@@ -3484,7 +3499,7 @@ static void draw_env(int filter)
     float x0 = 16.0f, y0 = 16.0f, w = 208.0f, hh = 84.0f, base = y0 + hh, x = x0, a, d, r, s;
     float px[64], py[64];
     int n = 0;
-    pen_t pn = {0, 0, 0};
+    pen_t pn = {0};
     h = hash_u(h, p[b + 3] | (uint32_t)drum << 8);
     if (!begin_main(h))
         return;
@@ -3577,7 +3592,7 @@ static void draw_filter(void)
          * octave every 22 px, in dB, 0 dB 22 px under the top, -48 at the bottom */
         float q = 0.7f + (float)res * 6.0f / 127.0f, ys[209];
         int steep = ft == FT_LP24 || ft == FT_LADDER, hp = ft == FT_HP12, bp = ft == FT_BP12;
-        pen_t pn = {0, 0, 0};
+        pen_t pn = {0};
         (void)py;
         for (int32_t x = 0; x <= w; x++) {
             float y = filt_y(filt_db((float)(x0 + x - fc), q, hp, bp, steep), y0, hh);
@@ -3622,7 +3637,7 @@ static void draw_character(void)
         cv_rect(x0 + w / 2, y0, 1, hh, K_LINE);
     {
         float ys[101], ds[101];
-        pen_t pd = {0, 0, 0}, pn = {0, 0, 0};
+        pen_t pd = {0}, pn = {0};
         uint8_t dry[NTP_SOUND];
         int32_t i;
         for (i = 0; i < NTP_SOUND; i++)
@@ -3701,7 +3716,7 @@ static void draw_lfo(void)
     if (lt == LT_OFF)
         text_c(120, 40, &FONT_S, "LFO off", K_DIM);
     {
-        pen_t pn = {0, 0, 0};
+        pen_t pn = {0};
         float scroll = (float)(ui.frame / 2u) * 2.0f;     /* the curve slides left as it runs */
         (void)r;
         for (int32_t x = 0; lt && x <= w; x++) {
@@ -3906,7 +3921,7 @@ static void draw_master_color(void)
                                                     (uint32_t)m[MS_CMIX] << 24);
     int32_t x0 = 128, y0 = 8, w = 100, hh = 72, cy = y0 + hh / 2;
     uint8_t par[NTP_SOUND];
-    pen_t pn = {0, 0, 0};
+    pen_t pn = {0};
     if (!begin_main(h))
         return;
     cv_text(12, 4, &FONT_L, MC_NAME[ty], K_TEXT);
@@ -3940,7 +3955,7 @@ static void draw_master(void)
         return;
     cv_rect(x0, cy, w, 1, K_LINE);
     if (pg == 0) {
-        pen_t pn = {0, 0, 0};
+        pen_t pn = {0};
         for (int32_t x = 0; x <= w; x++) {           /* the three bands, eased into each other */
             float u = (float)x / (float)w * 3.0f - 0.5f, g0, g1, t, b;
             int i = u < 0.0f ? 0 : u >= 2.0f ? 2 : (int)u;
@@ -4040,7 +4055,7 @@ static void draw_rec_strip(void)
     for (int i = 0; i < 16; i++) {
         int st = b * 16 + i;
         int32_t x = 8 + i * 14;
-        uint16_t c = st >= tp->len ? K_BG : !step_empty(&tp->st[st]) ? K_PANEL2 : K_PANEL;
+        uint16_t c = st >= tp->len ? K_BG : !step_empty(&tp->st[st]) ? K_TINT : K_PANEL;   /* (as Steps draws them) */
         cv_round(x, 3, 12, 11, 2, c);
         if (st == ui.cursor)
             cv_frame(x - 1, 2, 14, 13, 3, K_REC, c);

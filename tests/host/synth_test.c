@@ -330,6 +330,44 @@ static void sample_tests(void)
     sprintf(what, "loop: the brass as loud at 1.5 s as at 0.9 s (RMS %.3f, %.3f), still on (%d)", (double)e0, (double)e1,
             stop);
     check(what, e1 > e0 * 0.7f && e1 < e0 * 1.4f && stop == -1);
+    {                                             /* mono, a note over a note: the one playing fades, no click (a
+                                                   * click: a step, which the second difference shows) */
+        int flute = smp_ix("flute"), finite = 1, b, i, keep_e1 = par[0][TP_E1], keep_vm = par[0][TP_VMODE];
+        float before = 0.0f, after = 0.0f, x1 = 0.0f, x2 = 0.0f;
+        par[0][TP_E1] = (uint8_t)flute;
+        par[0][TP_VMODE] = VM_MONO;
+        synth_all_off(S, -1);
+        for (b = 0; b < 400 && synth_sounding(S, 0, NVOICE); b++)
+            block(32, &finite);
+        synth_note_on(S, 0, 72, 100, 0, 81);
+        for (b = 0; b < 608; b++) {               /* 0.44 s: into the flute's loop; its last 0.1 s, the most it bends */
+            block(32, &finite);
+            for (i = 0; i < 32; i++) {
+                float x = (L[i] + R[i]) * 0.5f, d2 = fabsf(x - 2.0f * x1 + x2);
+                if (b >= 470)
+                    before = d2 > before ? d2 : before;
+                x2 = x1;
+                x1 = x;
+            }
+        }
+        synth_note_on(S, 0, 74, 100, 0, 82);      /* (key 72 still held) */
+        for (b = 0; b < 8; b++) {
+            block(32, &finite);
+            for (i = 0; i < 32; i++) {
+                float x = (L[i] + R[i]) * 0.5f, d2 = fabsf(x - 2.0f * x1 + x2);
+                after = d2 > after ? d2 : after;
+                x2 = x1;
+                x1 = x;
+            }
+        }
+        synth_note_off(S, 0, 81);
+        synth_note_off(S, 0, 82);
+        par[0][TP_E1] = (uint8_t)keep_e1;
+        par[0][TP_VMODE] = (uint8_t)keep_vm;
+        sprintf(what, "mono: the flute retriggered over itself bends at most %.4f a sample (playing: %.4f): no click",
+                (double)after, (double)before);
+        check(what, finite && after < before * 1.5f);
+    }
     par[0][TP_E4] = SM_ONESHOT;
     stop = sample_run(62, 1.6f, &n);
     sprintf(what, "one-shot: the same brass ends with its sample (%d frames, %d)", stop, smp_frames(brass));
@@ -657,6 +695,25 @@ static void slice_tests(void)
         }
     }
     check("4 / 8 / 16 / 32 slices: the slice's length and place", ok);
+    {                                             /* a short note: the slice plays on to its gate's end */
+        int finite = 1, b, at = -1, keep_r = par[0][TP_R];
+        par[0][TP_E2] = 1;                        /* 8 slices */
+        par[0][TP_R] = 0;                         /* (the shortest release: the key would end it at once) */
+        synth_all_off(S, -1);
+        for (b = 0; b < 400 && synth_sounding(S, 0, NVOICE); b++)
+            block(32, &finite);
+        synth_note_on(S, 0, root + 3, 100, 0, 79);
+        for (b = 0; b < 700 && at < 0; b++) {
+            if (b == 8)
+                synth_note_off(S, 0, 79);         /* let go after 6 ms */
+            block(32, &finite);
+            if (!synth_sounding(S, 0, NVOICE))
+                at = (b + 1) * 32;
+        }
+        par[0][TP_R] = (uint8_t)keep_r;
+        sprintf(what, "a slice let go after 6 ms plays on to its end (%d frames, %d)", at, 2 * SL_SEC);
+        check(what, finite && abs(at - 2 * SL_SEC) <= 96);
+    }
     par[0][TP_E2] = 1;
     par[0][TP_E4] = 64;                          /* the gate: about half the slice */
     stop = slice_run(root + 1, 0.2f, &n, 1);

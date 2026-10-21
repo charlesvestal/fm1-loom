@@ -1,6 +1,6 @@
 # edits the testers reported (docs/feedback-2026-10-21.md): clearing the scene playing (it hands over to the nearest
 # other scene, or the only one starts again plain); song slots inserted and deleted while the song plays (the slot
-# playing keeps playing); CLEAR LOCKS (undone; a kit's tunes stay) and PASTE (with the locks; never across kinds)
+# playing keeps playing); CLEAR LOCKS (undone; a kit's tunes stay) and PASTE (with the locks; never across kinds); SAVE with no slot; the MIDI channels
 wait 300
 bpm 120
 # the scene playing cleared: scene 2 goes, scene 1 plays
@@ -106,3 +106,30 @@ turn SELECT 4
 tap SEL
 wait 40
 expect note 1 1 1 0
+# a new project: track N on MIDI channel N; with every slot taken it has none, and SAVE saves to the slot SAVE TO
+# shows (asking, as it holds another project)
+projsave 1 one
+projsave 2 two
+projsave 3 three
+projnew
+wait 40
+expect par1.51 1
+expect par2.51 2
+expect par8.51 8
+expect dirty 1
+tap SAVE
+wait 40
+expect ask 1
+tap SEL
+wait 40
+expect ask 0
+expect dirty 0
+# a track's MIDI channel on its sound pages' SEL list (MIDI CHANNEL, the last row)
+turn ALGO 1
+tap EDIT
+tap SEL
+turn SELECT 20
+turn ALGO 3
+wait 40
+expect par2.51 5
+tap HOME

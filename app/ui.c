@@ -156,6 +156,12 @@ static void undo_sound(int trk);
 static void undo_sounds(int first, int n);
 static void undo_master(void);
 static void undo_arr(void);
+static void sound_reset(uint8_t *par, int engine)   /* the engine's defaults; the MIDI channel stays (routing, not sound) */
+{
+    int ch = par[TP_CHAN];
+    sound_default(par, engine);
+    par[TP_CHAN] = (uint8_t)ch;
+}
 static void set_tp(int trk, int p, int v)
 {
     uint8_t *par = proj.trk[trk].par;
@@ -200,7 +206,7 @@ static void set_tp(int trk, int p, int v)
         return;
     }
     if (p == TP_ENGINE && !is_aux(trk)) {
-        sound_default(par, v);
+        sound_reset(par, v);
         memset(proj.trk[trk].name, 0, NAME_LEN);
         engine_set_all(trk);
         {                                        /* a kit has a page more under ENV: off it, back to the first */
@@ -1187,6 +1193,7 @@ static void bar_key(int k, int b)
 }
 static void ask_end(int yes);
 static void act_clear_scene(void);
+static void act_save_slot(int slot);
 static void weave_set(int t, int from, int pat, int rule);   /* (below: the weave) */
 static void key_down(int k)
 {
@@ -1547,8 +1554,8 @@ static void button_up(int b)
             page_button(B_HOME);
         break;
     case B_SAVE:
-        if (proj_slot >= NPROJ)
-            say_no("NO SLOT YET", "HOME, SEL: SAVE TO");
+        if (proj_slot >= NPROJ)                  /* no slot yet: the one SAVE TO shows (asked if it holds another) */
+            act_save_slot(ui.pick_save % NPROJ);
         else if (save_project(proj_slot) == 0)
             say("SAVED", 0);
         break;
@@ -2075,6 +2082,9 @@ static void list_change(int32_t e)
             set_tp(ft, q, proj.trk[ft].par[q] + (int)accel(EN_ALGO, e));
             break;
         }
+        case A_MIDI_CH:
+            set_tp(sel_trk(), TP_CHAN, clampi(proj.trk[sel_trk()].par[TP_CHAN] + d, 0, 16));
+            break;
         case A_FOLLOW: {
             int t = list_follow_trk();
             set_tp(t, TP_BRAIN, (proj.trk[t].par[TP_BRAIN] % 3 + d + 3) % 3);
@@ -2480,7 +2490,7 @@ static void do_new_proj(void)
         num_s((uint32_t)proj_slot + 1u, s_cat(t, "slot "));
         say("NEW PROJECT", t);
     } else
-        say("NEW PROJECT", "no free slot: SAVE TO");
+        say("NEW PROJECT", "no free slot");
 }
 static void act_remove_note(int row)             /* a step held: the row's note off the step */
 {
@@ -2569,14 +2579,15 @@ static void action_run(int a)
     case A_SAVE_PRESET: act_save_preset(ui.pick_slot % NUSER_PRESETS); return;
     case A_INIT:
         undo_sound(sel_trk());
-        sound_default(proj.trk[sel_trk()].par, proj.trk[sel_trk()].par[TP_ENGINE]);
+        sound_reset(proj.trk[sel_trk()].par, proj.trk[sel_trk()].par[TP_ENGINE]);
         memset(proj.trk[sel_trk()].name, 0, NAME_LEN);
         engine_set_all(sel_trk());
         mark_dirty();
         say("RESET", EG_NAME[proj.trk[sel_trk()].par[TP_ENGINE] % NENGINE]);
         break;
     case A_FOLLOW: case A_USB_AUDIO: case A_COUNT_IN: case A_THEME: case A_PLAYMODE: case A_FTYPE: case A_FX_HP: case A_FX_LP:
-    case A_FX_SEND: case A_PUMP_BY: case A_PUMP_REL: case A_PUMP_ACC: case A_LEVEL: case A_SCENE_AT: case A_AUTOSAVE: return;                      /* (ALGORITHM sets them; SEL leaves the list) */
+    case A_FX_SEND: case A_PUMP_BY: case A_PUMP_REL: case A_PUMP_ACC: case A_LEVEL: case A_SCENE_AT: case A_AUTOSAVE:
+    case A_MIDI_CH: return;                      /* (ALGORITHM sets them; SEL leaves the list) */
     case A_REMOVE_NOTE: act_remove_note(lst.sel); break;
     case A_INSERT_SLOT:
         if (sg->len >= NSONG) {
