@@ -33,6 +33,13 @@ param 3 51 5
 projsave 1
 reboot
 expect par3.51 1
+# and its notes go out on its own channel, 3, not the 5 it held
+out
+play 3 60 on
+wait 20
+expect_out USB 92 3C 64
+play 3 60 off
+wait 20
 
 # channel 12: the track selected (T2 after ALGO 1), played and not sent back out either; channels 9, 10 and 11:
 # no notes (0x50, note 80: outside the master's scene notes 36-67, so it picks no scene either)
@@ -42,10 +49,10 @@ wait 300
 midi 9B 3E 64
 wait 20
 expect voices 1
-expect midi_out 2
+expect midi_out 4
 midi 8B 3E 00
 wait 20
-expect midi_out 2
+expect midi_out 4
 # the synth's release tail: T2's voice needs this long to die down after the note off, before "voices" reads 0
 wait 300
 expect voices 0
@@ -61,7 +68,7 @@ play 3 64 on
 wait 20
 play 3 64 off
 wait 20
-expect midi_out 2
+expect midi_out 4
 
 # the map in: a synth (T2 on channel 2)
 projnew
@@ -119,6 +126,11 @@ expect par11.17 36
 expect par11.19 37
 expect par11.23 38
 expect par12.2 39
+# CC 93 on FX II's channel: nothing (FX II has no feed; only FX I's goes into FX II)
+param 12 23 50
+midi B9 5D 7F
+wait 40
+expect par12.23 50
 # the master on 11: level, EQ, a switch scaled (color type 0..2), release
 midi BA 07 29
 midi BA 10 2A
@@ -230,6 +242,24 @@ midi B0 09 00
 wait 20
 expect mute 0
 
+# a kit sound's mutes on the first four kits only (Arrange's): T4 is the fourth kit here, T5 the fifth, ignored
+projnew
+param 2 0 8
+param 3 0 8
+param 4 0 8
+param 5 0 8
+wait 20
+midi B3 11 7F
+wait 20
+expect kmute4 2
+midi B3 11 00
+wait 20
+expect kmute4 0
+midi B4 11 7F
+wait 20
+expect kmute4 0
+expect kmute1 0
+
 # CC OUT: on in a new project; a knob turned by hand sends its CC; a CC in sends nothing
 projnew
 turn ALGO 1
@@ -287,6 +317,45 @@ ccreset
 turn K4 1
 wait 20
 expect ccouts 0
+
+# FX I's and FX II's knobs by hand: on channels 9 and 10 (0xB8 = 184, 0xB9 = 185), the first knob CC 16
+projnew
+tap FX
+turn SELECT 2
+expect page FX_I
+ccreset
+turn K1 1
+wait 20
+expect ccouts 1
+expect ccst 184
+expect ccd1 16
+turn SELECT 1
+expect page FX_II
+ccreset
+turn K1 1
+wait 20
+expect ccouts 1
+expect ccst 185
+expect ccd1 16
+
+# a kit sound's pan and level by hand: 80 + k and 102 + k (sound 2, the second black key: 81 and 103) on T1's channel
+projnew
+expect trk 1
+tap EDIT
+turn SELECT 1
+expect page Key
+tapkey b1
+wait 20
+ccreset
+turn K3 -1
+wait 20
+expect ccst 176
+expect ccd1 81
+ccreset
+turn K4 -1
+wait 20
+expect ccst 176
+expect ccd1 103
 
 # the exact value and channel: T2's level at 100, turned down by 1
 projnew
