@@ -2353,6 +2353,30 @@ static void act_dup_bar(void)
     mark_dirty();
     say("DUPLICATED", "bar");
 }
+static void act_double(void)                     /* the pattern twice as long, played twice (its locks too) */
+{
+    int trk = sel_trk(), pt = cur_pat(trk);
+    tpat_t *tp = tpat(trk);
+    int n = tp->len < 1 ? 1 : tp->len;
+    if (n * 2 > NSTEP) {
+        say_no("NO ROOM", "64 steps at most");
+        return;
+    }
+    undo_keep();
+    for (int i = 0; i < n; i++)
+        tp->st[n + i] = tp->st[i];
+    for (int k = 0; k < NLANE; k++)
+        if (pats.lane[k].used && pats.lane[k].trk == trk && pats.lane[k].pat == pt)
+            for (int i = 0; i < n; i++)
+                pats.lane[k].val[n + i] = pats.lane[k].val[i];
+    tp->len = (uint8_t)(n * 2);
+    mark_dirty();
+    {
+        char t[16];
+        s_cat(num_s((uint32_t)n * 2u, t), " steps");
+        say("DOUBLED", t);
+    }
+}
 static void act_scramble(void)                   /* a random sound: the engine stays (a drum key keeps its model) */
 {
     int trk = sel_trk();
@@ -2621,6 +2645,7 @@ static void action_run(int a)
     case A_ROT_FWD: act_rotate(1); say("ROTATED", "forward"); break;
     case A_ROT_BACK: act_rotate(-1); say("ROTATED", "back"); break;
     case A_DUP_BAR: act_dup_bar(); break;
+    case A_DOUBLE: act_double(); break;
     case A_ENGINE: {                             /* another engine: its first sound */
         int f = preset_first(ui.pick_engine);
         set_tp(sel_trk(), TP_ENGINE, ui.pick_engine);

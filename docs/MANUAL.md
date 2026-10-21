@@ -337,7 +337,8 @@ and **OCT+** move it. On a synth track the black keys set the track scale: 1, 2,
 sixteenths a step on black keys 1 to 8, half a sixteenth on black key 9. Press **SEL** on either page for the
 actions: clear notes, clear locks, clear both, copy the pattern or the bar shown, paste it (a bar onto the bar
 shown; the copy is read when you paste, and a kit's steps go only onto a kit) or its locks alone, rotate it a step
-forward or back, duplicate the bar into the next.
+forward or back, duplicate the bar into the next, or double the pattern (twice as long, playing itself twice, its
+locks too: a 16-step pattern becomes 32, to vary its second half).
 
 On the Bar page, hold **SEQ** and press black keys 1 to 4: they are the pattern's bars. One key jumps to that bar at
 the next bar line and plays on from there (a loop you had is let go). Two held loop that range of bars; one tapped

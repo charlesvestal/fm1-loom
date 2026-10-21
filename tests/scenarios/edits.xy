@@ -197,3 +197,15 @@ tap SEL
 key w9 up
 wait 40
 expect note 2 1 10 0
+# DOUBLE PATTERN: 32 steps, the first 16 again (with their locks)
+projnew
+step 2 1 1 60 100
+lock 2 1 1 e1 30
+turn ALGO 1
+tap SEQ
+tap SEL
+turn SELECT 20
+tap SEL
+wait 40
+expect note 2 1 17 60
+expect lane 2 1 e1 2
