@@ -2165,6 +2165,68 @@ static void act_paste_pat(void)
     else
         say("PASTED", "pattern");
 }
+/* N steps of the copied pattern from FROM onto this pattern's AT, with their locks (a lane of this pattern the copy
+ * has not: those steps unlocked); locks_only: the locks and motion alone (not a kit's tunes: they are notes).
+ * Returns 0 when a lock found no lane free */
+static int paste_steps(int trk, int pt, int at, int from, int n, int locks_only)
+{
+    tpat_t *dst = &pats.pat[trk][pt];
+    const tpat_t *src = &pats.pat[clip_trk][clip_pat];
+    int ok = 1;
+    for (int k = 0; k < NLANE; k++) {
+        lane_t *l = &pats.lane[k];
+        if (l->used && l->trk == trk && l->pat == pt && !(locks_only && l->param == LANE_TUNE))
+            for (int i = 0; i < n && at + i < NSTEP; i++)
+                if (!(clip_trk == trk && clip_pat == pt && at + i >= from && at + i < from + n))
+                    l->val[at + i] = LOCK_NONE;
+    }
+    for (int k = 0; k < NLANE; k++) {
+        const lane_t *l = &pats.lane[k];
+        int d;
+        if (!l->used || l->trk != clip_trk || l->pat != clip_pat || (locks_only && l->param == LANE_TUNE))
+            continue;
+        d = lane_alloc(pats.lane, trk, pt, l->param);
+        if (d < 0) {
+            ok = 0;
+            continue;
+        }
+        for (int i = 0; i < n && at + i < NSTEP && from + i < NSTEP; i++)
+            pats.lane[d].val[at + i] = l->val[from + i];
+    }
+    if (!locks_only)
+        for (int i = 0; i < n && at + i < NSTEP && from + i < NSTEP; i++)
+            dst->st[at + i] = src->st[from + i];
+    return ok;
+}
+/* PASTE BAR (onto the bar shown, the pattern made long enough), PASTE STEP (onto each step held), PASTE LOCKS ONLY
+ * (what was copied, its locks alone: a pattern's all of them) */
+static void act_paste(int locks_only)
+{
+    int trk = sel_trk(), pt = cur_pat(trk), ok = 1;
+    ui.held_used = 1;                            /* (a step held: its release writes nothing) */
+    if (pat_kind(clip_trk) != pat_kind(trk)) {
+        say_no("CAN'T PASTE", is_drum(clip_trk) ? "a kit's steps" : is_drum(trk) ? "on a kit" : "on this track");
+        return;
+    }
+    undo_keep();
+    if (clip_kind == CK_STEP) {
+        for (int i = 0; i < 16; i++)
+            if (ui.held >> i & 1u)
+                ok &= paste_steps(trk, pt, step_shown(i), clip_from, 1, locks_only);
+        ui.held_used = 1;
+    } else if (clip_kind == CK_BAR) {
+        tpat_t *tp = tpat(trk);
+        ok = paste_steps(trk, pt, ui.bar * 16, clip_from, 16, locks_only);
+        if (!locks_only && tp->len < (ui.bar + 1) * 16)
+            tp->len = (uint8_t)((ui.bar + 1) * 16);
+    } else
+        ok = paste_steps(trk, pt, 0, 0, NSTEP, 1);
+    mark_dirty();
+    if (!ok)
+        say_no("PASTED, LOCKS FULL", "some locks left out");
+    else
+        say("PASTED", locks_only ? "locks" : clip_kind == CK_BAR ? "bar" : "step");
+}
 static void act_rotate(int d)
 {
     tpat_t *tp = tpat(sel_trk());
@@ -2544,13 +2606,17 @@ static void action_run(int a)
         break;
     case A_CLEAR_LOCKS: act_clear_locks(); say("CLEARED", "locks"); break;
     case A_CLEAR_BOTH: act_clear_notes(); act_clear_locks(); say("CLEARED", "notes and locks"); break;
-    case A_COPY_PAT:
+    case A_COPY_PAT: case A_COPY_BAR: case A_COPY_STEP:
         clip_trk = (uint8_t)sel_trk();
         clip_pat = (uint8_t)cur_pat(sel_trk());
+        clip_kind = a == A_COPY_PAT ? CK_PAT : a == A_COPY_BAR ? CK_BAR : CK_STEP;
+        clip_from = (uint8_t)(a == A_COPY_BAR ? ui.bar * 16 : a == A_COPY_STEP ? step_shown(ui.held_first) : 0);
         clip_ok = 1;
-        say("COPIED", "pattern");
+        ui.held_used = 1;
+        say("COPIED", a == A_COPY_PAT ? "pattern" : a == A_COPY_BAR ? "bar" : "step");
         break;
     case A_PASTE_PAT: act_paste_pat(); break;
+    case A_PASTE_BAR: case A_PASTE_STEP: case A_PASTE_LOCKS: act_paste(a == A_PASTE_LOCKS); break;
     case A_WEAVE: act_keep_weave(); break;
     case A_ROT_FWD: act_rotate(1); say("ROTATED", "forward"); break;
     case A_ROT_BACK: act_rotate(-1); say("ROTATED", "back"); break;

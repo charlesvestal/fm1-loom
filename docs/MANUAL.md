@@ -263,7 +263,9 @@ effect you played. The four squares at the right are the bars.
   pattern goes on round from its start. The bar under the cells shows how far it reaches, with an arrow where it
   goes on onto another bar or comes in from one.
 - **Hold a step and press a black key** on a drum track to put that sound on the step, or take it off.
-- **Hold a step and press SEL** for a list of its notes. Pick one and press **SEL** to take it off.
+- **Hold a step and press SEL** for a list of its notes. Pick one and press **SEL** to take it off. The list
+  also has COPY STEP; hold another step (or several) and its list has PASTE STEP (the notes and locks) and PASTE
+  LOCKS ONLY (the locks onto the notes already there).
 - **Hold a step and press ARP** for its tricks (below).
 
 ### Tricks
@@ -333,8 +335,9 @@ of a step, the groove amount and the shape. The keys write steps as on Steps (a 
 locks; on a kit the black keys pick and place its sounds); the box of the bar they write is outlined, **OCT-**
 and **OCT+** move it. On a synth track the black keys set the track scale: 1, 2, 3, 4, 5, 6, 8, 16
 sixteenths a step on black keys 1 to 8, half a sixteenth on black key 9. Press **SEL** on either page for the
-actions: clear notes, clear locks, clear both, copy and paste the pattern, rotate it a step forward or back,
-duplicate the bar into the next.
+actions: clear notes, clear locks, clear both, copy the pattern or the bar shown, paste it (a bar onto the bar
+shown; the copy is read when you paste, and a kit's steps go only onto a kit) or its locks alone, rotate it a step
+forward or back, duplicate the bar into the next.
 
 On the Bar page, hold **SEQ** and press black keys 1 to 4: they are the pattern's bars. One key jumps to that bar at
 the next bar line and plays on from there (a loop you had is let go). Two held loop that range of bars; one tapped

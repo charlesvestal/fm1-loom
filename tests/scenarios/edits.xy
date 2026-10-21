@@ -94,7 +94,7 @@ tap SEL
 turn K1 1
 wait 40
 tap SEL
-turn SELECT 4
+turn SELECT 5
 shot paste_list.png
 tap SEL
 expect note 2 2 1 60
@@ -139,3 +139,61 @@ midi B2 07 40
 wait 40
 expect par3.48 64
 expect dirty 1
+# COPY BAR onto the next bar (with its lock); a held step's COPY STEP onto another step held; PASTE LOCKS ONLY
+projnew
+step 2 1 1 60 100
+step 2 1 3 64 100
+lock 2 1 3 e1 30
+turn ALGO 1
+expect trk 2
+tap SEQ
+tap SEL
+turn SELECT 4
+tap SEL
+tap OCT+
+tap SEL
+turn SELECT 5
+tap SEL
+wait 40
+expect note 2 1 17 60
+expect note 2 1 19 64
+expect lane 2 1 e1 2
+tap OCT-
+key w2 down
+tap SEL
+turn SELECT 1
+tap SEL
+key w2 up
+key w5 down
+tap SEL
+turn SELECT 1
+tap SEL
+key w5 up
+wait 40
+expect note 2 1 6 64
+expect lane 2 1 e1 3
+# the locks alone: onto a step with a note of its own, which stays
+step 2 1 8 67 100
+key w7 down
+tap SEL
+turn SELECT 3
+tap SEL
+key w7 up
+wait 40
+expect note 2 1 8 67
+expect lane 2 1 e1 4
+# a kit's pattern is not pasted onto a synth's steps
+turn ALGO -1
+expect trk 1
+key w0 down
+tap SEL
+tap SEL
+key w0 up
+turn ALGO 1
+key w9 down
+tap SEL
+turn SELECT 1
+tap SEL
+key w9 up
+wait 40
+expect note 2 1 10 0

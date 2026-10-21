@@ -185,14 +185,16 @@ enum { A_CLEAR_NOTES, A_CLEAR_LOCKS, A_CLEAR_BOTH, A_COPY_PAT, A_PASTE_PAT, A_RO
        A_ENGINE, A_PRESET, A_SCRAMBLE, A_SAVE_PRESET, A_INIT, A_FOLLOW, A_INSERT_SLOT, A_DELETE_SLOT, A_CLEAR_SONG,
        A_PLAY_SONG, A_LOAD_PROJ, A_NEW_PROJ, A_USB_AUDIO, A_CLEAR_SCENE, A_PANIC, A_EFFECT, A_REMOVE_NOTE,
        A_COUNT_IN, A_PLAYMODE, A_FTYPE, A_FX_HP, A_FX_LP, A_FX_SEND, A_WEAVE, A_THEME, A_PUMP_BY, A_PUMP_REL,
-       A_PUMP_ACC, A_LEVEL, A_SCENE_AT, A_SAVE_TO, A_AUTOSAVE, A_RANDOM_SOUNDS, A_MIDI_CH, A_LOOP_FREE, NACTIONS };
+       A_PUMP_ACC, A_LEVEL, A_SCENE_AT, A_SAVE_TO, A_AUTOSAVE, A_RANDOM_SOUNDS, A_MIDI_CH, A_LOOP_FREE, A_COPY_BAR, A_COPY_STEP, A_PASTE_BAR,
+       A_PASTE_STEP, A_PASTE_LOCKS, NACTIONS };
 static const char *const ACTION_NAME[NACTIONS] = {
     "CLEAR NOTES", "CLEAR LOCKS", "CLEAR NOTES AND LOCKS", "COPY PATTERN", "PASTE PATTERN", "ROTATE FORWARD",
     "ROTATE BACK", "DUPLICATE BAR", "ENGINE", "PRESET", "SCRAMBLE", "SAVE AS PRESET", "RESET SOUND", "FOLLOWS CONDUCTOR",
     "INSERT SCENE", "DELETE SLOT", "CLEAR SONG", "PLAY SONG", "LOAD PROJECT", "NEW PROJECT", "USB AUDIO", "CLEAR SCENE",
     "ALL NOTES OFF", "EFFECT", "REMOVE", "COUNT-IN", "PLAY MODE", "FILTER TYPE", "HIGH-PASS", "LOW-PASS",
     "TO FX II", "KEEP AS PATTERN", "THEME", "PUMP BY", "RELEASE", "ACCENT", "LEVEL", "SCENES SWITCH", "SAVE TO", "AUTOSAVE",
-    "RANDOMIZE PRESETS", "MIDI CHANNEL", "LOOP THROWS"};
+    "RANDOMIZE PRESETS", "MIDI CHANNEL", "LOOP THROWS", "COPY BAR", "COPY STEP", "PASTE BAR", "PASTE STEP",
+    "PASTE LOCKS ONLY"};
 /* the weave's ways (pattern.h WV_*): what this pattern keeps of itself */
 static const char *const WEAVE_NAME[NWV] = {"bars", "steps", "rhythm", "pitch"};
 #define LIST_ROWS 28
@@ -216,7 +218,10 @@ static struct {
         struct { song_t song; scene_t scene[NSCENE]; wvpat_t weave[NPATT]; } a;
     } u;
 } undo PLAT_POOL;
-static uint8_t clip_ok, clip_trk, clip_pat;   /* COPY PATTERN: which, read at PASTE (no copy kept: the pool is short) */
+enum { CK_PAT, CK_BAR, CK_STEP };
+static uint8_t clip_ok, clip_trk, clip_pat, clip_kind, clip_from;   /* COPY PATTERN / BAR / STEP: which (CK_*: the
+                                                 * bar's or the step's first step), read at PASTE (no copy kept: the
+                                                 * pool is short) */
 
 /* ---------------------------------------------------------- helpers --- */
 static char *num_s(uint32_t v, char *b)
@@ -1901,6 +1906,14 @@ static void proj_slot_text(int slot, char *t)     /* "Proj 2", "Proj 3 (empty)":
     if (!project_exists(slot))
         s_cat(e, " (empty)");
 }
+static void list_clip_step(void)                   /* a held step's list, after its notes: copy it, paste a step */
+{
+    list_add(ACTION_NAME[A_COPY_STEP], 0, LK_ACTION, A_COPY_STEP);
+    if (clip_ok && clip_kind == CK_STEP) {
+        list_add(ACTION_NAME[A_PASTE_STEP], 0, LK_ACTION, A_PASTE_STEP);
+        list_add(ACTION_NAME[A_PASTE_LOCKS], 0, LK_ACTION, A_PASTE_LOCKS);
+    }
+}
 static void list_build(void)
 {
     int keep = ui.page, g = page_group(keep), f = PAGE_BTN[g].first, n = group_n(g), trk = sel_trk();
@@ -1915,6 +1928,7 @@ static void list_build(void)
                     s_cat(s_cat(rm[r], "REMOVE "), DL_SOUND_NAME[i - 1]);
                     list_add(rm[r++], 0, LK_ACTION, A_REMOVE_NOTE);
                 }
+            list_clip_step();
             return;
         }
         for (int i = 0; i < SN && st->note[i]; i++) {
@@ -1927,6 +1941,7 @@ static void list_build(void)
                 note_name(st->note[i], e);
             list_add(rm[i], 0, LK_ACTION, A_REMOVE_NOTE);
         }
+        list_clip_step();
         return;
     }
     if (PAGE_BTN[g].btn == B_FX)                     /* (FX I and FX II each their own effect: the page's list) */
@@ -1952,8 +1967,12 @@ static void list_build(void)
             list_add(ACTION_NAME[A_CLEAR_LOCKS], 0, LK_ACTION, A_CLEAR_LOCKS);
             list_add(ACTION_NAME[A_CLEAR_BOTH], 0, LK_ACTION, A_CLEAR_BOTH);
             list_add(ACTION_NAME[A_COPY_PAT], 0, LK_ACTION, A_COPY_PAT);
-            if (clip_ok)
-                list_add(ACTION_NAME[A_PASTE_PAT], 0, LK_ACTION, A_PASTE_PAT);
+            list_add(ACTION_NAME[A_COPY_BAR], 0, LK_ACTION, A_COPY_BAR);
+            if (clip_ok && clip_kind != CK_STEP) {    /* (a step pastes onto steps held: their list) */
+                list_add(ACTION_NAME[clip_kind == CK_BAR ? A_PASTE_BAR : A_PASTE_PAT], 0, LK_ACTION,
+                         clip_kind == CK_BAR ? A_PASTE_BAR : A_PASTE_PAT);
+                list_add(ACTION_NAME[A_PASTE_LOCKS], 0, LK_ACTION, A_PASTE_LOCKS);
+            }
             list_add(ACTION_NAME[A_ROT_FWD], 0, LK_ACTION, A_ROT_FWD);
             list_add(ACTION_NAME[A_ROT_BACK], 0, LK_ACTION, A_ROT_BACK);
             list_add(ACTION_NAME[A_DUP_BAR], 0, LK_ACTION, A_DUP_BAR);
