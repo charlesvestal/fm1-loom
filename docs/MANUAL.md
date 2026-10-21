@@ -894,13 +894,11 @@ the solo, the last one brings the mutes back as they were). The knobs are the se
 level (a drum track's sends are its keys': **FX**, Sends). Turn **SELECT** for Master EQ (low, mid and high; 64 is flat), Master color (below) and
 Master out (the drums' level, the melodic tracks' level, the compressor and the pump; its **SEL** list has
 what the pump follows, its release and accent, and the output level). Setup's knobs are the lights, sending MIDI
-clock, sending MIDI notes (on in a new project; over USB, each track on its own channel, T1 on 1 to T8 on 8 in a new
-project and in one saved by 0.5-beta; a track's
-**SEL** list on its sound pages has MIDI CHANNEL, off or 1 to 16, which also picks the track for notes coming in on
-that channel) and the theme (tape deck or blueprint); the page also says where the tempo comes from
-(LOOM-8, or a MIDI clock coming in), the USB audio level, the autosave and the version, and **GLO**'s **SEL** list
-sets the USB audio level, LOOP THROWS and AUTOSAVE. The header shows the scene playing ("S3") before the tempo, on
-every page. The projects are on **HOME**'s **SEL** list; the count-in is on **REC**'s knobs.
+clock, sending MIDI notes (on in a new project) and the theme (tape deck or blueprint); the page also says where
+the tempo comes from (LOOM-8, or a MIDI clock coming in), the USB audio level, the autosave and the version, and
+**GLO**'s **SEL** list sets the USB audio level, LOOP THROWS, AUTOSAVE, CC OUT and SCENES OUT. The header shows
+the scene playing ("S3") before the tempo, on every page. The projects are on **HOME**'s **SEL** list; the
+count-in is on **REC**'s knobs.
 
 **LFO** (after Master out) is the shared LFO: one for the project, moving the tracks you give it, so a single
 sweep can open the filters of a few tracks together, or breathe across a 16-bar section of a one-bar loop.
@@ -939,6 +937,55 @@ The pump is the whole mix's; a track's own pump LFO (above) still ducks just tha
 out of the kick's way while the rest plays on.
 
 <img src="img/screen-mix.png" width="240" alt="Mix: a meter for each track while playing; knobs fx I, fx II, pan and level" title="The mixer"> <img src="img/screen-sends.png" width="240" alt="FX&#x27;s Sends page: the track&#x27;s sends to FX I (delay) and FX II (reverb lush), its pan and level" title="The sends"> <img src="img/screen-master.png" width="240" alt="Master EQ: low, mid and high, flat at 64" title="Master EQ"> <img src="img/screen-master-out.png" width="240" alt="Master out: bars for drums, melodic, comp and pump; knobs drums 100, melodic 100, comp 30, pump 4.0 dB" title="Master out">
+
+### MIDI
+
+Over USB each track has its own channel: T1 to T8 on channels 1 to 8, FX I on 9, FX II on 10, and the master and
+the scenes on 11; notes on 12 to 16 play the instrument track selected (notes on 9 and 10 do nothing). A track's
+**SEL** list on its sound pages has MIDI OUT (on in a new project; an old project's channel number reads as on):
+its notes go out on its own channel, with Setup's NOTES on.
+
+A CC moves the matching knob or switch, scaled to its range:
+
+| CC | Synth track | Kit track |
+| --- | --- | --- |
+| 7 | level | level |
+| 10 | pan | pan |
+| 91 / 93 | send I / send II | every sound's send I / II, moved by the same amount |
+| 9 | mute (64 and up: muted) | mute |
+| 74 | cutoff | the bus's hi cut |
+| 71 | resonance | the bus's low cut |
+| 73 | attack | kit attack |
+| 72 | release | kit length |
+| 75 | decay | - |
+| 5 | glide | - |
+| 1 | LFO amount | - |
+| 16-26 | - | mute sound 1-11 (64 and up: muted) |
+| 80-90 | - | pan of sound 1-11 |
+| 102-112 | - | level of sound 1-11 |
+
+| CC | FX I / FX II | Master |
+| --- | --- | --- |
+| 7 | return level | level |
+| 16-19 | the effect's four knobs | EQ low / mid / high |
+| 20-23 | - | color type / amount / tone / mix |
+| 24-27 | - | drums level / melodic level / comp / pump |
+| 28 | - | pump release |
+| 74 / 75 | low-pass / high-pass | - |
+| 93 | feed into FX II (channel 9 only) | - |
+
+A mute (CC 9, or 16 to 26 on a kit) does what the Mix page's mute does, saved into the scene playing. With **REC**
+held while the sequencer plays, a CC on a track's parameter records into that track's own automation.
+
+Scenes: Program Change 0 to 31 on channel 11, or notes 36 to 67 (C1 up) there, pick scenes 1 to 32 the way
+Arrange's white keys do (SCENES SWITCH decides when).
+
+CC OUT, in **GLO**'s **SEL** list (on in a new project): a mapped knob or **SEL** row turned by hand sends its CC
+on its channel, when the track's MIDI OUT is on (FX and the master: always); what comes in, a lock, automation
+and a preset are never sent back.
+
+SCENES OUT, after CC OUT in **GLO**'s **SEL** list (off in a new project): a scene changed on LOOM-8, or by
+loading a project, sends its Program Change on channel 11; one that came in over MIDI isn't sent back.
 
 ## Saving
 
