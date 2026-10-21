@@ -985,7 +985,12 @@ static void step_knobs(knob_t *k)
     const tpat_t *tp = tpat(sel_trk());
     const step_t *st = &tp->st[step_shown(ui.held_first)];
     char t[16];
-    kn(&k[0], "VEL", st->vel, 127);
+    if (is_drum(sel_trk())) {                         /* a kit: the velocity of the sound shown (its own, or the step's) */
+        int own = kit_has(st, ui.dsound % NDRUM + 1) ? step_vel(pats.lane, sel_trk(), cur_pat(sel_trk()),
+                                                              step_shown(ui.held_first), ui.dsound % NDRUM) : 0;
+        kn(&k[0], "VEL", own ? own : st->vel, 127);
+    } else
+        kn(&k[0], "VEL", st->vel, 127);
     t[0] = 0;
     step_len_text(st->len, t, tp->nlen);
     kv(&k[1], "LENGTH", t, st->len, step_len_code(tp->len * 4));

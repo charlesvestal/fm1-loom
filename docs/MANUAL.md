@@ -253,8 +253,9 @@ effect you played. The four squares at the right are the bars.
   together become the remembered notes (a chord). On a drum track, the key you play becomes the sound shown.
   Let go of **SEQ** and nothing else changes.
 - **Tap a white key** to put the remembered notes on that step, or to clear the step.
-- **Hold a white key** to see the step (held longer than a tap, it stays as it is). **KNOB 1** is its velocity,
-  **KNOB 2** its length in steps, **KNOB 3** its chance (always, a percentage, then the A:B cycles: on the A-th
+- **Hold a white key** to see the step (held longer than a tap, it stays as it is). **KNOB 1** is its velocity
+  (on a drum track, the velocity of the sound shown: each sound of a step has its own; the black keys pick the
+  sound), **KNOB 2** its length in steps, **KNOB 3** its chance (always, a percentage, then the A:B cycles: on the A-th
   of every B passes) and **KNOB 4** its pitch: on a synth track its notes move by semitones, a chord together;
   on a drum track the step's hits play up to 24 semitones from their key's pitch, the step's own note, apart
   from the key's pitch knob and its locks. **OCT−** and **OCT+** nudge it, earlier or later.

@@ -668,10 +668,23 @@ static void fire_notes(seq_t *s, int t, const step_t *st, int p, uint32_t L, int
             len_q8 = len_q8 > L * (tr->stall + 1u) ? len_q8 : L * (tr->stall + 1u);
         if (act[SC_MULTIPLY] && tr->ratchets > 1 && len_q8 > L / tr->ratchets)
             len_q8 = L / tr->ratchets;
+        int8_t vl[NDRUM];             /* the sounds' own velocity lanes (-1 none), found in one pass */
+        int base = st->vel ? st->vel : 100;
+        for (i = 0; i < NDRUM; i++)
+            vl[i] = -1;
+        for (i = 0; i < NLANE; i++) {
+            const lane_t *l = &s->P->lane[i];
+            if (l->used && l->trk == t && l->pat == s->ppat[t] && l->param >= LANE_VEL0 && l->param < LANE_VEL0 + NDRUM)
+                vl[l->param - LANE_VEL0] = (int8_t)i;
+        }
         tr->last_vel = (uint8_t)vel;
         for (i = 1; i <= NDRUM; i++)
-            if (kit_has(st, i) && !(tr->skip_pos == p && (tr->skip_kit >> (i - 1) & 1u)))
-                emit_drum(s, t, i - 1, vel, semi, TAG_STEP | (uint32_t)(ratchet * 1024), len_q8, o);
+            if (kit_has(st, i) && !(tr->skip_pos == p && (tr->skip_kit >> (i - 1) & 1u))) {
+                int own = vl[i - 1] >= 0 ? s->P->lane[vl[i - 1]].val[p] : LOCK_NONE, v = vel;
+                if (own != LOCK_NONE)         /* its own velocity: the step's groove, tricks and echo scale it alike */
+                    v = vel * own / base;
+                emit_drum(s, t, i - 1, v < 1 ? 1 : v > 127 ? 127 : v, semi, TAG_STEP | (uint32_t)(ratchet * 1024), len_q8, o);
+            }
         return;
     }
     if (fx_on(s, t, PX_CHOP))
@@ -883,8 +896,8 @@ static void apply_locks(seq_t *s, int t, int p, uint32_t L, const seq_sink_t *o)
             r->trk = l->trk;
             r->param = l->param;
         }
-        if (l->param == LANE_TUNE)
-            continue;                 /* (a drum step's note: fire_notes reads it) */
+        if (lane_is_note(l->param))
+            continue;                 /* (a drum step's note and its sounds' velocities: fire_notes reads them) */
         if (l->pat != s->ppat[t]) {   /* another pattern's lane: the knob has it */
             lock_put(s, t, l, r, LOCK_NONE, o);
             r->ramp = 0;

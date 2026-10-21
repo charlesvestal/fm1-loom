@@ -790,6 +790,33 @@ static void step_pitch(int trk, int s, int e)
         if (st->note[i])
             st->note[i] = (uint8_t)(st->note[i] + e);
 }
+/* KNOB 1 on a held kit step: the velocity of the sound shown (ui.dsound). With other sounds on the step its own (a
+ * LANE_VEL0 lane, only while it differs from the step's), alone (or not on the step) the step's */
+static void kit_vel(int trk, int s, int e)
+{
+    step_t *st = &tpat(trk)->st[s];
+    int snd = ui.dsound % NDRUM, pt = cur_pat(trk), ln = lane_find(pats.lane, trk, pt, (int)(LANE_VEL0 + (unsigned)snd));
+    int own = ln >= 0 ? pats.lane[ln].val[s] : LOCK_NONE, v;
+    if (!kit_has(st, snd + 1) || __builtin_popcount(kit_mask(st)) < 2) {
+        st->vel = (uint8_t)clampi((own != LOCK_NONE ? own : st->vel) + e, 1, 127);
+        if (ln >= 0)
+            pats.lane[ln].val[s] = LOCK_NONE;
+        return;
+    }
+    v = clampi((own != LOCK_NONE ? own : st->vel) + e, 1, 127);
+    if (v == st->vel) {
+        if (ln >= 0)
+            pats.lane[ln].val[s] = LOCK_NONE;
+        return;
+    }
+    if (ln < 0)
+        ln = lane_alloc(pats.lane, trk, pt, (int)(LANE_VEL0 + (unsigned)snd));
+    if (ln < 0) {
+        say_no("NO LANE LEFT", "clear locks first");
+        return;
+    }
+    pats.lane[ln].val[s] = (uint8_t)v;
+}
 static void step_knob(int k, int32_t e)          /* k 4: the nudge (OCT-/OCT+) */
 {
     int trk = sel_trk();
@@ -797,7 +824,9 @@ static void step_knob(int k, int32_t e)          /* k 4: the nudge (OCT-/OCT+) *
     for (int i = 0; i < 16; i++)
         if (ui.held >> i & 1u) {
             step_t *st = &tpat(trk)->st[step_shown(i)];
-            if (k == 0)
+            if (k == 0 && is_drum(trk))
+                kit_vel(trk, step_shown(i), (int)e);
+            else if (k == 0)
                 st->vel = (uint8_t)clampi(st->vel + e, 1, 127);
             else if (k == 1)
                 st->len = (uint8_t)clampi(st->len + e, 0, step_len_code(tpat(trk)->len * 4));   /* (the pattern's
@@ -2163,7 +2192,10 @@ static void act_clear_notes(void)
         memset(&tp->st[i], 0, sizeof tp->st[i]);
         tp->st[i].vel = 100;
     }
-    lane_clear(pats.lane, lane_find(pats.lane, sel_trk(), cur_pat(sel_trk()), LANE_TUNE));   /* (a kit's steps' notes) */
+    for (int k = 0; k < NLANE; k++)                /* (a kit's steps' notes: their tunes, their sounds' velocities) */
+        if (pats.lane[k].used && pats.lane[k].trk == sel_trk() && pats.lane[k].pat == cur_pat(sel_trk()) &&
+            lane_is_note(pats.lane[k].param))
+            lane_clear(pats.lane, k);
     mark_dirty();
 }
 static void act_clear_locks(void)
@@ -2215,7 +2247,7 @@ static int paste_steps(int trk, int pt, int at, int from, int n, int locks_only)
     int ok = 1;
     for (int k = 0; k < NLANE; k++) {
         lane_t *l = &pats.lane[k];
-        if (l->used && l->trk == trk && l->pat == pt && !(locks_only && l->param == LANE_TUNE))
+        if (l->used && l->trk == trk && l->pat == pt && !(locks_only && lane_is_note(l->param)))
             for (int i = 0; i < n && at + i < NSTEP; i++)
                 if (!(clip_trk == trk && clip_pat == pt && at + i >= from && at + i < from + n))
                     l->val[at + i] = LOCK_NONE;
@@ -2223,7 +2255,7 @@ static int paste_steps(int trk, int pt, int at, int from, int n, int locks_only)
     for (int k = 0; k < NLANE; k++) {
         const lane_t *l = &pats.lane[k];
         int d;
-        if (!l->used || l->trk != clip_trk || l->pat != clip_pat || (locks_only && l->param == LANE_TUNE))
+        if (!l->used || l->trk != clip_trk || l->pat != clip_pat || (locks_only && lane_is_note(l->param)))
             continue;
         d = lane_alloc(pats.lane, trk, pt, l->param);
         if (d < 0) {

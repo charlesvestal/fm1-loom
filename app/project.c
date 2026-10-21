@@ -303,9 +303,9 @@ static void patterns_clamp(void)
         }
     for (k = 0; k < NLANE; k++) {
         lane_t *l = &pats.lane[k];
-        if (l->used && (l->trk >= NALLTRK || l->pat >= NPATT || (l->param >= NTP && l->param != LANE_TUNE)))
+        if (l->used && (l->trk >= NALLTRK || l->pat >= NPATT || (l->param >= NTP && !lane_is_note(l->param))))
             l->used = 0;                  /* (a drum step's tune lane is no parameter: kept; it was dropped before 10) */
-        if (l->used && l->param != LANE_TUNE) {                /* a value past the parameter's range would reach the voices unclamped */
+        if (l->used && !lane_is_note(l->param)) {                /* a value past the parameter's range would reach the voices unclamped */
             const tp_info_t *i = tp_info_par(l->param, proj.trk[l->trk].par);
             int st;
             if (i)

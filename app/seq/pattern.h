@@ -115,6 +115,12 @@ static inline void pat_loop(const tpat_t *p, int *from, int *to)
 /* a lane that is no parameter: a drum step's note, the semitones its hits play away from the key's pitch (TUNE_0 =
  * none; held step + KNOB 4). It is not a lock: no knob gets it, no red dot shows it, SAVE's clear leaves it */
 #define LANE_TUNE 0xFFFEu                     /* (past every parameter: synth.h NTP) */
+#define LANE_VEL0 0xFF00u                     /* a kit step's own velocity for sound k: lane LANE_VEL0 + k (k 0..10; none:
+                                               * the step's velocity), only where a sound of a step has its own */
+static inline int lane_is_note(unsigned param)   /* a lane of notes (a kit's tunes, its sounds' velocities), not locks */
+{
+    return param == LANE_TUNE || (param >= LANE_VEL0 && param < LANE_VEL0 + 16u);
+}
 #define TUNE_0 64
 #define TUNE_MAX 24
 typedef struct {
@@ -184,6 +190,7 @@ int lane_count(const lane_t *L);
 int step_has_lock(const lane_t *L, int trk, int pat, int step);
 void step_clear_locks(lane_t *L, int trk, int pat, int step);
 int step_tune(const lane_t *L, int trk, int pat, int step);       /* a drum step's note: semitones, 0 = none */
+int step_vel(const lane_t *L, int trk, int pat, int step, int sound);   /* a kit step's sound's own velocity, 0 = none */
 void pattern_clear_locks(lane_t *L, int trk, int pat);   /* (not the kit tune lane: that is notes) */
 void cond_ab(int k, int *a, int *b);  /* COND_AB + k -> A:B */
 /* a weave: pattern a (the track's) crossed with b (WITH). weave_step: the step the weave plays at pos, the track's

@@ -183,7 +183,12 @@ int app_expect(const char *what, int *got)
         *got = seq.mute;
     else if (!strcmp(what, "pat2"))                 /* track 2's pattern in the scene playing, from 1 */
         *got = pats.scene[seq.scene % NSCENE].pat[1] + 1;
-    else if (!strcmp(what, "kmute"))                /* the scene's kit sounds muted (bit k: sound k + 1) */
+    else if (!strncmp(what, "kvel", 4)) {          /* kvelT.PAT.S.K: kit sound K's own velocity on that step (0 none) */
+        int t, pt, st, k;
+        if (sscanf(what + 4, "%d.%d.%d.%d", &t, &pt, &st, &k) != 4)
+            return 0;
+        *got = step_vel(pats.lane, t - 1, pt - 1, st - 1, k - 1);
+    } else if (!strcmp(what, "kmute"))                /* the scene's kit sounds muted (bit k: sound k + 1) */
         *got = seq.kmute;
     else if (!strcmp(what, "songpos"))              /* the song slot playing, from 1 */
         *got = seq.song_pos + 1;

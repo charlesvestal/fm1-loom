@@ -98,7 +98,7 @@ int step_has_lock(const lane_t *L, int trk, int pat, int step)
     if (step < 0 || step >= NSTEP)
         return 0;
     for (k = 0; k < NLANE; k++)
-        if (L[k].used && L[k].trk == trk && L[k].pat == pat && L[k].param != LANE_TUNE && L[k].val[step] != LOCK_NONE)
+        if (L[k].used && L[k].trk == trk && L[k].pat == pat && !lane_is_note(L[k].param) && L[k].val[step] != LOCK_NONE)
             return 1;
     return 0;
 }
@@ -114,13 +114,24 @@ int step_tune(const lane_t *L, int trk, int pat, int step)
     return 0;
 }
 
+int step_vel(const lane_t *L, int trk, int pat, int step, int sound)
+{
+    int k;
+    if (step < 0 || step >= NSTEP)
+        return 0;
+    for (k = 0; k < NLANE; k++)
+        if (L[k].used && L[k].param == LANE_VEL0 + (unsigned)sound && L[k].trk == trk && L[k].pat == pat)
+            return L[k].val[step] == LOCK_NONE ? 0 : L[k].val[step];
+    return 0;
+}
+
 void step_clear_locks(lane_t *L, int trk, int pat, int step)
 {
     int k;
     if (step < 0 || step >= NSTEP)
         return;
     for (k = 0; k < NLANE; k++)
-        if (L[k].used && L[k].trk == trk && L[k].pat == pat && L[k].param != LANE_TUNE)
+        if (L[k].used && L[k].trk == trk && L[k].pat == pat && !lane_is_note(L[k].param))
             L[k].val[step] = LOCK_NONE;
 }
 
@@ -128,7 +139,7 @@ void pattern_clear_locks(lane_t *L, int trk, int pat)
 {
     int k;
     for (k = 0; k < NLANE; k++)
-        if (L[k].used && L[k].trk == trk && L[k].pat == pat && L[k].param != LANE_TUNE)
+        if (L[k].used && L[k].trk == trk && L[k].pat == pat && !lane_is_note(L[k].param))
             L[k].used = 0;
 }
 

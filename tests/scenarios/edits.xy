@@ -235,3 +235,18 @@ expect pat2 3
 tap SEQ
 expect page Steps
 tap HOME
+# a kit step's sounds each their velocity: the snare shown, KNOB 1 on the held step turns its own; the kick keeps
+# the step's; a step with one sound: the step's own
+projnew
+hits 1 1 1 x...............
+hits 1 1 2 x...............
+tap SEQ
+expect trk 1
+tapkey b1
+key w0 down
+turn K1 -50
+key w0 up
+wait 40
+expect kvel1.1.1.2 50
+expect kvel1.1.1.1 0
+expect note 1 1 1 1
