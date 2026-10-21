@@ -164,7 +164,7 @@ uninstalls the way every fm1-base firmware does, and the installer can put M-VAV
   <li><b>Players</b>: arp, strum (one key plays a recorded chord) and hold.</li>
   <li><b>The conductor</b> moves the tracks that follow it through a key, a scale and a progression.</li>
   <li><b>Throws</b>: twelve momentary effects a hand, held from the keys, and recorded if you like.</li>
-  <li>Two <b>send effects</b> (the reverb with the PlayStation's own reverbs among its modes), a mixer with EQ and a compressor on the master, sixteen <b>scenes</b> and a <b>song</b>.</li>
+  <li>Two <b>send effects</b> (the reverb with the PlayStation's own reverbs among its modes), a mixer with EQ and a compressor on the master, thirty-two <b>scenes</b> and a <b>song</b>.</li>
   <li>A <b>screen reader</b>: the FM-1 says its screen through <a href="https://charlesvestal.github.io/fm1-reader/">FM-1 Screen Reader</a>.</li>
 </ul>
 <p class="small">To go back to the official firmware, use the installer's "Back to the stock firmware", or
