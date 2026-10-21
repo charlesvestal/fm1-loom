@@ -105,13 +105,13 @@ static void cc_track(int t, int cc, int v)
             return;
         }
 }
-static uint8_t cc_scene_quiet = 0xFF;         /* a scene asked for over MIDI: its change is not sent back out */
+static uint8_t cc_scene_quiet = 0xFF;         /* the last scene asked for over MIDI: its landing is not sent back
+                                                * out; cleared the moment any scene change is seen (ui_frame) */
 static void cc_scene(int n)                   /* as a white key on Arrange: made if unused, cued by SCENES SWITCH */
 {
     if (n < 0 || n >= NSCENE)
         return;
-    if (n != cur_scene())
-        cc_scene_quiet = (uint8_t)n;
+    cc_scene_quiet = (uint8_t)n;               /* quiet for whichever scene lands next, even this one again */
     scene_go(n, proj.rsv[2] & SCENES_AT_END ? SCENE_END : SCENE_BAR);
 }
 static void cc_in(uint32_t pkt)
@@ -124,7 +124,7 @@ static void cc_in(uint32_t pkt)
         return;
     }
     if (ty == 0x90) {                         /* the master's channel's notes 36-67: scenes 1-32 */
-        if (ch == CH_MASTER && v && d1 >= 36)
+        if (ch == CH_MASTER && v && d1 >= 36 && d1 <= 67)
             cc_scene(d1 - 36);
         return;
     }
@@ -152,13 +152,18 @@ static void cc_in_drain(void)                 /* the main loop: what MIDI in bro
 /* ---- out: a mapped value changed by hand (a knob, a SEL list row), with CC OUT on ---- */
 static uint32_t cc_out_last, cc_out_n;        /* (the host's expect ccouts, ccst, ccd1, ccd2) */
 static int cc_from(int x, int lo, int hi) { return hi > lo ? ((x - lo) * 127 + (hi - lo) / 2) / (hi - lo) : 0; }
-static void cc_send(int st, int d1, int d2)  /* a channel message out over USB (st: 0xB0 / 0xC0 | channel) */
+static void cc_out(int st, int d1, int d2)   /* a channel message out over USB (st: 0xB0 / 0xC0 | channel); the
+                                              * host's expect ccouts, ccst, ccd1, ccd2 count every message this
+                                              * sends, CCs and scenes' Program Changes alike */
 {
-    if (proj.rsv[2] & CC_OUT_OFF)
-        return;
     cc_out_last = (uint32_t)st << 16 | (uint32_t)d1 << 8 | (uint32_t)d2;
     cc_out_n++;
     plat_midi_out((uint32_t)st >> 4 | (uint32_t)st << 8 | (uint32_t)d1 << 16 | (uint32_t)d2 << 24);
+}
+static void cc_send(int st, int d1, int d2)  /* a CC out, with CC OUT on (st: 0xB0 | channel) */
+{
+    if (!(proj.rsv[2] & CC_OUT_OFF))
+        cc_out(st, d1, d2);
 }
 static int cc_of(int t, int p)                /* the CC a track's parameter has, -1 none */
 {
@@ -202,9 +207,10 @@ static void cc_out_master(int m)              /* master_knob, the master's list 
 }
 static void cc_out_scene(int n)               /* ui_frame: the scene playing changed */
 {
-    if (cc_scene_quiet == n) {
-        cc_scene_quiet = 0xFF;
+    int q = cc_scene_quiet == n;
+    cc_scene_quiet = 0xFF;                     /* quiet lives only till the next scene change, of any kind */
+    if (q)
         return;
-    }
-    cc_send(0xC0 | CH_MASTER, n, 0);
+    if (proj.rsv[2] & SCENES_OUT)              /* its own switch: CC OUT does not govern this (SCENES OUT alone) */
+        cc_out(0xC0 | CH_MASTER, n, 0);
 }

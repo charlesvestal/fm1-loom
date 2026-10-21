@@ -251,11 +251,11 @@ turn K4 1
 wait 20
 expect ccst 186
 expect ccd1 27
-# the SEL list's LEVEL row (A_LEVEL), turned by hand: its CC too
+# the SEL list's LEVEL row (A_LEVEL), turned by hand: its CC too (six up: SCENES OUT and CC OUT come after it now)
 ccreset
 tap SEL
 turn SELECT 40
-turn SELECT -5
+turn SELECT -6
 expect ccouts 0
 ccreset
 turn ALGO 1
@@ -265,10 +265,10 @@ expect ccd1 7
 # tap HOME closes the list (SEL on a PICK row doesn't: list_sel's A_LEVEL is a no-op)
 tap HOME
 expect page Master_out
-# CC OUT off (GLO's SEL list: the row before ALL NOTES OFF, the last): nothing sent
+# CC OUT off (GLO's SEL list: two up from the last row, SCENES OUT now sitting between it and ALL NOTES OFF): nothing sent
 tap SEL
 turn SELECT 40
-turn SELECT -1
+turn SELECT -2
 turn ALGO -1
 tap HOME
 expect page Master_out
@@ -305,30 +305,71 @@ turn K1 1
 wait 20
 expect ccouts 0
 
-# scenes: Program Change and notes 36-67 on channel 11, as Arrange's white keys
+# scenes: Program Change and notes 36-67 on channel 11, as Arrange's white keys; SCENES OUT starts off
 projnew
+# scene 1 (a new project)
 ccreset
 midi CA 02
 wait 40
-expect scene 3
+expect scene 3                 # scene 3
 midi 9A 25 64
 wait 40
-expect scene 2
-expect ccouts 0
-# playing: cued for the next bar (SCENES SWITCH next bar)
+expect scene 2                 # scene 2
+expect ccouts 0                # SCENES OUT off: nothing sent either way
+
+# turn SCENES OUT on (GLO's SEL list, the row after CC OUT; tap HOME closes the list, tap SEL would not)
+tap GLO
+tap SEL
+turn SELECT 40
+turn SELECT -1
+turn ALGO 1
+tap HOME
+
+# playing: cued for the next bar (SCENES SWITCH next bar); its landing stays quiet (came in over MIDI, SCENES OUT on)
+ccreset
 tap PLAY
 wait 100
 midi CA 04
 wait 20
-expect scene 2
+expect scene 2                 # scene 2 (still; the cue hasn't landed)
 wait 2200
-expect scene 5
+expect scene 5                 # scene 5
+expect ccouts 0                # quiet: this scene came in over MIDI
 tap PLAY
-# a scene picked on the FM-1 goes out as its Program Change (scene 1: CA 00; 0xCA = 202)
+
+# a scene picked on the FM-1 goes out as its Program Change (scene 1: CA 00; 0xCA = 202), SCENES OUT on
+ccreset
 tap HOME
 expect page Arrange
 tapkey w0
 wait 40
-expect scene 1
+expect scene 1                 # scene 1
 expect ccst 202
 expect ccd1 0
+
+# ignore rules (SCENES OUT on): none of these touch the scene playing or send anything
+ccreset
+midi CA 20                     # Program Change 32: out of range
+wait 40
+expect scene 1                 # scene 1 (unchanged)
+expect ccouts 0
+ccreset
+midi 9A 44 64                  # note 68: out of range
+wait 40
+expect scene 1                 # scene 1 (unchanged)
+expect ccouts 0
+ccreset
+midi 9A 23 64                  # note 35: below the range
+wait 40
+expect scene 1                 # scene 1 (unchanged)
+expect ccouts 0
+ccreset
+midi 9A 25 00                  # note 37, velocity 0: a note off
+wait 40
+expect scene 1                 # scene 1 (unchanged)
+expect ccouts 0
+ccreset
+midi C9 02                     # Program Change on channel 10, not the master's 11
+wait 40
+expect scene 1                 # scene 1 (unchanged)
+expect ccouts 0

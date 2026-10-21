@@ -2270,6 +2270,10 @@ static void list_change_do(int32_t e)
             proj.rsv[2] = (uint8_t)(d > 0 ? proj.rsv[2] & ~CC_OUT_OFF : proj.rsv[2] | CC_OUT_OFF);
             mark_dirty();
             break;
+        case A_SCENES_OUT:
+            proj.rsv[2] = (uint8_t)(d > 0 ? proj.rsv[2] | SCENES_OUT : proj.rsv[2] & ~SCENES_OUT);
+            mark_dirty();
+            break;
         default: break;
         }
         break;
@@ -2856,7 +2860,8 @@ static void action_run(int a)
         break;
     case A_FOLLOW: case A_USB_AUDIO: case A_COUNT_IN: case A_THEME: case A_PLAYMODE: case A_FTYPE: case A_FX_HP: case A_FX_LP:
     case A_FX_SEND: case A_PUMP_BY: case A_PUMP_REL: case A_PUMP_ACC: case A_LEVEL: case A_SCENE_AT: case A_AUTOSAVE:
-    case A_MIDI_OUT: case A_LOOP_FREE: case A_CC_OUT: return;       /* (ALGORITHM sets them; SEL leaves the list) */
+    case A_MIDI_OUT: case A_LOOP_FREE: case A_CC_OUT: case A_SCENES_OUT: return;   /* (ALGORITHM sets them; SEL
+                                                                                    * leaves the list) */
     case A_REMOVE_NOTE: act_remove_note(lst.sel); break;
     case A_INSERT_SLOT:
         if (sg->len >= NSONG) {
