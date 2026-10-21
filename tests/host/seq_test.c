@@ -2345,6 +2345,26 @@ static void t_midi_out(void)
             }
         CHECK(on_t && off_t && off_t > on_t + L16 / 4u);
     }
+    {                                             /* a note still on when the same note comes again: off, then on (never
+                                                   * two ons, the first's off ending the second) */
+        int last = 0, twice = 0, offs = 0;
+        reset();
+        S.send_notes = 1;
+        par[0][TP_CHAN] = 1;
+        note(0, 0, 60, 100);
+        st(0, 0)->len = 8;                        /* two steps long */
+        note(0, 1, 60, 100);
+        start();
+        run(4u * L16);
+        for (i = 0; i < nev; i++)
+            if (ev[i].kind == E_MIDI && ev[i].b == 60 && (ev[i].a & 0xF0) != 0xF0) {
+                int on = (ev[i].a & 0xF0) == 0x90;
+                twice |= on && last == 1;
+                offs += !on;
+                last = on ? 1 : 2;
+            }
+        CHECK(!twice && offs >= 2);
+    }
     printf("ok %s\n", cur);
 }
 

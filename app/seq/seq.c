@@ -544,8 +544,17 @@ static int tonal(seq_t *s, int t, int note, int tv)
 /* ------------------------------------------------------------- emitting --- */
 static void midi_on(seq_t *s, int t, int note, int vel, const seq_sink_t *o)
 {
-    if (s->send_notes && s->par[t][TP_CHAN])
-        midi(o, (uint8_t)(0x90 | ((s->par[t][TP_CHAN] - 1) & 15)), (uint8_t)note, (uint8_t)vel);
+    if (!s->send_notes || !s->par[t][TP_CHAN])
+        return;
+    for (int i = 0; i < SEQ_PENDING; i++) {      /* the same note still on (its off pending): off first, so a receiver
+                                                  * hears two notes, not one ended early by the old note's off */
+        seq_off_t *e = &s->t[t].off[i];
+        if (e->used && e->kind == OFF_NOTE && e->note == note) {
+            midi(o, (uint8_t)(0x80 | ((s->par[t][TP_CHAN] - 1) & 15)), (uint8_t)note, 0);
+            e->note = 0;                         /* (its off still ends the voice; no MIDI off from it) */
+        }
+    }
+    midi(o, (uint8_t)(0x90 | ((s->par[t][TP_CHAN] - 1) & 15)), (uint8_t)note, (uint8_t)vel);
 }
 
 static void midi_off(seq_t *s, int t, int note, const seq_sink_t *o)
