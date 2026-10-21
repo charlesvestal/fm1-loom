@@ -945,7 +945,9 @@ the scenes on 11; notes on 12 to 16 play the instrument track selected (notes on
 **SEL** list on its sound pages has MIDI OUT (on in a new project; an old project's channel number reads as on):
 its notes go out on its own channel, with Setup's NOTES on. Notes that come in play the track (and record) but
 aren't sent back out, nor the arp or strum they start, so a DAW that sends them back doesn't loop; the keys you
-play on LOOM-8 and the sequencer's notes go out.
+play on LOOM-8 and the sequencer's notes go out. A track's arp, strum or hold follows the last key that played
+it: a note from your DAW joining the arp you're holding on LOOM-8 keeps the arp off MIDI out until you play a key
+on LOOM-8 again.
 
 A CC moves the matching knob or switch, scaled to its range (on 12 to 16: the instrument track selected's):
 
