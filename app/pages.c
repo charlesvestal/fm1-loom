@@ -1891,7 +1891,7 @@ static const struct { uint8_t btn; uint32_t pages; const char *title, *l1, *l2; 
      "SEL: projects, scene timing. + REC undoes, + PLAY redoes."},
     {B_SEL, PG_ANY, "Lists", "The page's knobs, then its actions. SEL runs the one picked.",
      "SELECT moves, ALGORITHM changes, HOME goes back."},
-    {B_SAVE, PG_STEPS, "Save", "Tap to save the project. With a step held, clears its locks.",
+    {B_SAVE, PG_STEPS, "Save", "Tap to save the project. A held step's SEL list clears locks.",
      "Hold SAVE and press white key 1 to 3 to save to that slot."},
     {B_SAVE, PG_SOUND, "Save", "Tap to save the project.",
      "Hold SAVE and press a white key: the sound as that user preset."},
