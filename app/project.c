@@ -186,7 +186,7 @@ void project_defaults(void)
     proj.metronome = 1;                                   /* while recording */
     proj.lights = 1;
     proj.send_clock = 1;
-    proj.send_notes = 0;
+    proj.send_notes = 1;                                  /* MIDI notes out (each track on its channel: below) */
     proj.one_core = 0;
     proj.usb_full = 0;
     proj.scene = 0;
@@ -558,6 +558,13 @@ int project_load(int slot)
             ((uint8_t *)&proj)[i] = io_buf[i];
         load_format = (uint8_t)proj.format;
         proj.format = PROJ_FORMAT;                    /* (an older one migrated: saved as this format next) */
+        if (load_format == 10u) {                     /* 0.5-beta had no way to set a track's MIDI channel: they are
+                                                       * all off there. As a new project's: notes out, T1-T8 on 1-8 */
+            proj.send_notes = 1;
+            for (int t = 0; t < NTRK; t++)
+                if (!proj.trk[t].par[TP_CHAN])
+                    proj.trk[t].par[TP_CHAN] = (uint8_t)(t + 1);
+        }
         stored_known[OBJ_PROJ(slot, 0)] = 1;
         stored_hash[OBJ_PROJ(slot, 0)] = hash_of(io_buf, (uint32_t)n);
     } else {

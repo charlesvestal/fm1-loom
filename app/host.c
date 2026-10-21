@@ -181,6 +181,8 @@ int app_expect(const char *what, int *got)
         *got = seq.scene + 1;
     else if (!strcmp(what, "mute"))
         *got = seq.mute;
+    else if (!strcmp(what, "sendnotes"))            /* Setup's NOTES: MIDI notes out */
+        *got = seq.send_notes;
     else if (!strcmp(what, "pat2"))                 /* track 2's pattern in the scene playing, from 1 */
         *got = pats.scene[seq.scene % NSCENE].pat[1] + 1;
     else if (!strncmp(what, "kvel", 4)) {          /* kvelT.PAT.S.K: kit sound K's own velocity on that step (0 none) */

@@ -116,6 +116,7 @@ wait 40
 expect par1.51 1
 expect par2.51 2
 expect par8.51 8
+expect sendnotes 1
 expect dirty 1
 tap SAVE
 wait 40

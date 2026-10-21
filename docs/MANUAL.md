@@ -888,7 +888,8 @@ it, and holding it solos the track until you let go. The knobs are the sends to 
 level (a drum track's sends are its keys': **FX**, Sends). Turn **SELECT** for Master EQ (low, mid and high; 64 is flat), Master color (below) and
 Master out (the drums' level, the melodic tracks' level, the compressor and the pump; its **SEL** list has
 what the pump follows, its release and accent, and the output level). Setup's knobs are the lights, sending MIDI
-clock, sending MIDI notes (over USB: each track on its own channel, T1 on 1 to T8 on 8 in a new project; a track's
+clock, sending MIDI notes (on in a new project; over USB, each track on its own channel, T1 on 1 to T8 on 8 in a new
+project and in one saved by 0.5-beta; a track's
 **SEL** list on its sound pages has MIDI CHANNEL, off or 1 to 16, which also picks the track for notes coming in on
 that channel) and the theme (tape deck or blueprint); the page also says where the tempo comes from
 (LOOM-8, or a MIDI clock coming in), the USB audio level, the autosave and the version, and **GLO**'s **SEL** list
