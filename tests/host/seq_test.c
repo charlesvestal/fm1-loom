@@ -137,6 +137,13 @@ static ev_t *nth(int kind, int trk, int k)
     return 0;
 }
 static ev_t *on_n(int k) { return nth(E_ON, 0, k); }
+static int midi_n(int status)         /* the MIDI messages with this status byte (0x90 | ch, 0x80 | ch) */
+{
+    int i, n = 0;
+    for (i = 0; i < nev; i++)
+        n += ev[i].kind == E_MIDI && ev[i].a == status;
+    return n;
+}
 static ev_t *off_of(const ev_t *on)   /* the off of this note on (the first off with its tag after it) */
 {
     int i;
@@ -2419,35 +2426,111 @@ static void t_midi_out(void)
         seq_key(&S, 0, 64, 0, 0);
         seq_key(&S, 0, 67, 0, 0);
         run(2 * L16);
+        CHECK(midi_n(0x90) == midi_n(0x80));
     }
-    {                                             /* MIDI OUT turned off while a note sounds: its off still goes (a key's,
-                                                   * a step's), so a receiver never hangs; a note whose on never went out
-                                                   * sends no off */
-        int offs = 0;
+    {                                             /* hold, and the strum rolled (roll > 0), from MIDI in: quiet; the
+                                                   * FM-1's own key turns them back on, every on with its off */
+        static const uint8_t chord[3] = {60, 64, 67};
         reset();
         S.send_notes = 1;
         par[0][TP_CHAN] = 1;
+        par[0][TP_PLAYER] = PL_HOLD;
+        seq_key_midi(&S, 0, 60, 1, 100);
+        seq_key_midi(&S, 0, 60, 0, 0);
+        run(100);
+        CHECK(count(E_ON, 0) == 1 && count(E_MIDI, -1) == 0);
+        seq_key(&S, 0, 62, 1, 100);
+        seq_key(&S, 0, 62, 0, 0);
+        run(100);
+        CHECK(midi_n(0x90) == 1);
+        seq_key_all_off(&S, 0);
+        run(100);
+        CHECK(midi_n(0x80) == 1);
+        reset();
+        S.send_notes = 1;
+        par[0][TP_CHAN] = 1;
+        par[0][TP_PLAYER] = PL_STRUM;
+        par[0][TP_P1] = 20;                       /* rolled */
+        seq_maestro_record(&S, 0, chord, 3);
+        seq_key_midi(&S, 0, 62, 1, 100);
+        run(2 * L16);
+        seq_key_midi(&S, 0, 62, 0, 0);
+        run(100);
+        CHECK(count(E_ON, 0) == 3 && count(E_MIDI, -1) == 0);
+        seq_key(&S, 0, 64, 1, 100);
+        run(2 * L16);
+        seq_key(&S, 0, 64, 0, 0);
+        run(100);
+        CHECK(midi_n(0x90) == 3 && midi_n(0x80) == 3);
+    }
+    for (int order = 0; order < 2; order++) {     /* MIDI in and the FM-1's key on one note, either way round: the one
+                                                   * on out has its one off */
+        reset();
+        S.send_notes = 1;
+        par[0][TP_CHAN] = 1;
+        if (order)
+            seq_key_midi(&S, 0, 60, 1, 100);
         seq_key(&S, 0, 60, 1, 100);
+        if (!order)
+            seq_key_midi(&S, 0, 60, 1, 100);
         run(100);
-        par[0][TP_CHAN] = 0;
-        seq_key(&S, 0, 60, 0, 0);
+        if (order)
+            seq_key(&S, 0, 60, 0, 0);
+        seq_key_midi(&S, 0, 60, 0, 0);
+        if (!order)
+            seq_key(&S, 0, 60, 0, 0);
         run(100);
-        CHECK(ev[nev - 1].kind == E_MIDI && ev[nev - 1].a == 0x80 && ev[nev - 1].b == 60);
+        CHECK(midi_n(0x90) == 1 && midi_n(0x80) == 1);
+    }
+    {                                             /* a key held while a step plays its note: two ons out, two offs (an
+                                                   * off before the second on, so the receiver hears both) */
         reset();
         S.send_notes = 1;
         par[0][TP_CHAN] = 1;
         note(0, 0, 60, 100);
-        st(0, 0)->len = 8;
+        seq_key(&S, 0, 60, 1, 100);
+        run(100);
         start();
         run(L16 / 2);
-        S.send_notes = 0;                        /* (NOTES off) */
-        run(3u * L16);
-        for (i = 0; i < nev; i++)
-            offs += ev[i].kind == E_MIDI && ev[i].a == 0x80 && ev[i].b == 60;
-        CHECK(offs == 1);
-        nev = 0;
-        run(16u * L16);                          /* the loop comes round: no on, so no off */
-        CHECK(count(E_MIDI, -1) == 0);
+        seq_key(&S, 0, 60, 0, 0);
+        run(2u * L16);
+        stop();
+        CHECK(midi_n(0x90) == 2 && midi_n(0x80) == 2);
+    }
+    {                                             /* a kit key held when the keys let go (another track selected): its
+                                                   * GM note's off goes out with it */
+        reset();
+        S.send_notes = 1;
+        par[0][TP_ENGINE] = EG_DRUMLINE;
+        par[0][TP_CHAN] = 1;
+        seq_key(&S, 0, 1, 1, 100);                /* the kick: GM 36 */
+        run(100);
+        seq_key_all_off(&S, 0);
+        run(100);
+        seq_key(&S, 0, 1, 0, 0);
+        run(100);
+        CHECK(midi_n(0x90) == 1 && midi_n(0x80) == 1);
+    }
+    {                                             /* ALL NOTES OFF: every note still on out there gets its off, even one
+                                                   * nothing else remembers (hold keeps sixteen: the seventeenth) */
+        reset();
+        S.send_notes = 1;
+        par[0][TP_CHAN] = 1;
+        par[0][TP_PLAYER] = PL_HOLD;
+        for (i = 0; i < 17; i++)
+            seq_key(&S, 0, 40 + i, 1, 100);
+        run(100);
+        for (i = 0; i < 17; i++)
+            seq_key(&S, 0, 40 + i, 0, 0);
+        run(100);
+        CHECK(midi_n(0x90) == 17 && midi_n(0x80) == 0);
+        seq_key_all_off(&S, 0);
+        seq_midi_notes_off(&S);
+        run(100);
+        CHECK(midi_n(0x80) == 17);
+        seq_midi_notes_off(&S);                   /* (once only) */
+        run(100);
+        CHECK(midi_n(0x80) == 17);
     }
     printf("ok %s\n", cur);
 }

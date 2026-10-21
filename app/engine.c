@@ -708,7 +708,6 @@ static void midi_in(uint32_t pkt)
             bend_c[t] = (int16_t)((((int)d2 << 7 | d1) - 8192) * 200 / 8192);
     }
 }
-void engine_midi_in(uint32_t pkt) { midi_in(pkt); }   /* (the render drains plat_midi_in itself) */
 
 /* ---------------------------------------------------------------- render --- */
 static void drain(void)
@@ -749,6 +748,7 @@ static void drain(void)
                     drumline_choke(DL(t));
                 bend_c[t] = 0;
             }
+            seq_midi_notes_off(&seq);                /* (after the keys' offs: whatever is still on out there) */
             break;
         }
         case C_METRO: seq.metronome = (uint8_t)a; break;

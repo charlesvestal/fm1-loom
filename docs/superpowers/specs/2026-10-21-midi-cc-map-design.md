@@ -115,7 +115,7 @@ put.
 
 ## Tests
 
-- Host test (tests/host): feed packets into `engine_midi_in`, drain, check each mapped parameter on a synth track,
+- Host test (the scenarios' `midi`): feed packets in as MIDI, drain, check each mapped parameter on a synth track,
   a kit track, FX I / II and the master; scaling of a switch; channels 12-16 reach the selected track; a mute CC
   matches the Mix page's (the scene too); the kit send offset holds the balance.
 - Recording: REC on, playing, a CC on track 3 while track 1 is selected writes track 3's lane.

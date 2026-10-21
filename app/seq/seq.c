@@ -392,17 +392,19 @@ static int groove_vel(seq_t *s, int t, int p, int vel)
  * player) is playing it: s->quiet */
 static void midi_on(seq_t *s, int t, int note, int vel, const seq_sink_t *o)
 {
+    uint32_t *w, b = 1u << (note & 31);
     if (t >= NTRK || !s->send_notes || !s->par[t][TP_CHAN] || s->quiet)
         return;
-    for (int i = 0; i < SEQ_PENDING; i++) {      /* the same note still on (its off pending): off first, so a receiver
-                                                  * hears two notes, not one ended early by the old note's off */
+    for (int i = 0; i < SEQ_PENDING; i++) {      /* the same note's off pending: it no longer ends the new one */
         seq_off_t *e = &s->t[t].off[i];
-        if (e->used && e->kind == OFF_NOTE && e->note == note) {
-            midi(o, (uint8_t)(0x80 | (t & 15)), (uint8_t)note, 0);
+        if (e->used && e->kind == OFF_NOTE && e->note == note)
             e->note = 0;                         /* (its off still ends the voice; no MIDI off from it) */
-        }
     }
-    s->player[t].sent[note >> 5 & 3] |= 1u << (note & 31);
+    w = &s->player[t].sent[note >> 5 & 3];
+    if (*w & b)                                  /* still on out there (a key, a step, a ratchet): off first, so a
+                                                  * receiver hears two notes and each on has its off */
+        midi(o, (uint8_t)(0x80 | (t & 15)), (uint8_t)note, 0);
+    *w |= b;
     midi(o, (uint8_t)(0x90 | (t & 15)), (uint8_t)note, (uint8_t)vel);
 }
 
@@ -574,6 +576,17 @@ static int tonal(seq_t *s, int t, int note, int tv)
 }
 
 /* ------------------------------------------------------------- emitting --- */
+/* ALL NOTES OFF: every note still on out there ends (a key let go on a track that turned into a kit, an off the key
+ * ring dropped: nothing else would end them) */
+static void midi_flush(seq_t *s, const seq_sink_t *o)
+{
+    for (int t = 0; t < NTRK; t++)
+        for (int w = 0; w < 4; w++)
+            for (int i = 0; s->player[t].sent[w] && i < 32; i++)
+                if (s->player[t].sent[w] >> i & 1u)
+                    midi_off(s, t, w * 32 + i, o);
+}
+
 /* a note of a synth track with a scheduled off */
 static void emit_note(seq_t *s, int t, int note, int vel, int glide_ms, uint32_t tag, uint32_t len_q8,
                       const seq_sink_t *o)
@@ -2335,9 +2348,12 @@ static void keys_all_off(seq_t *s, int t, const seq_sink_t *o)
 {
     player_t *pl = &s->player[t];
     int i, w;
-    for (i = 0; i < NDRUM; i++)       /* a drum track's held sounds let go */
-        if (pl->drums_down >> i & 1u && o->drum_off)
-            o->drum_off(o->ctx, t, i);
+    for (i = 0; i < NDRUM; i++)       /* a drum track's held sounds let go, their MIDI notes too */
+        if (pl->drums_down >> i & 1u) {
+            if (o->drum_off)
+                o->drum_off(o->ctx, t, i);
+            midi_off(s, t, GM_DRUM[i], o);
+        }
     pl->drums_down = 0;
     if (s->par[t][TP_PLAYER] == PL_OFF)   /* direct keys: their notes; a player's notes are in sounding[] */
         for (w = 0; w < 4; w++)
@@ -2398,7 +2414,7 @@ static void punch_in(seq_t *s, int fx, int on, int tgt)
 }
 
 /* the main loop's keys, played here */
-enum { KQ_KEY, KQ_ALLOFF, KQ_BRAIN, KQ_PUNCH, KQ_MIDI };
+enum { KQ_KEY, KQ_ALLOFF, KQ_BRAIN, KQ_PUNCH, KQ_MIDI, KQ_FLUSH };
 static void key_queue(seq_t *s, int kind, int trk, int note, int on, int vel)
 {
     uint8_t w = s->kq_w, n = (uint8_t)((w + 1) & 31);
@@ -2427,6 +2443,7 @@ static void keys_play(seq_t *s, const seq_sink_t *o)
         case KQ_ALLOFF: if (trk < NTRK) keys_all_off(s, trk, o); break;
         case KQ_BRAIN: brain_key_in(s, note, on, o); break;
         case KQ_PUNCH: punch_in(s, note, on, trk == 15 ? -1 : trk); break;
+        case KQ_FLUSH: midi_flush(s, o); break;
         default: break;
         }
     }
@@ -3050,6 +3067,7 @@ void seq_cue_pattern(seq_t *s, int trk, int pat)
 void seq_key(seq_t *s, int trk, int note, int on, int vel) { key_queue(s, KQ_KEY, trk, note, on, vel); }
 void seq_key_midi(seq_t *s, int trk, int note, int on, int vel) { key_queue(s, KQ_MIDI, trk, note, on, vel); }
 void seq_key_all_off(seq_t *s, int trk) { key_queue(s, KQ_ALLOFF, trk, 0, 0, 0); }
+void seq_midi_notes_off(seq_t *s) { key_queue(s, KQ_FLUSH, 0, 0, 0, 0); }
 void seq_brain_key(seq_t *s, int note, int on) { key_queue(s, KQ_BRAIN, AUX_BRAIN, note, on, 0); }
 
 void seq_punch_key(seq_t *s, int fx, int on, int target_trk)

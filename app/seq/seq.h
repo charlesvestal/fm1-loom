@@ -197,6 +197,7 @@ typedef struct {                      /* a player (per track; the arp's clock ru
     uint8_t arp_wait;                 /* the first arp note waits for the grid */
     uint16_t drums_down;              /* a drum track: bit sound = its key is down (released through drum_off) */
     uint8_t type_seen, latch_seen;    /* TP_PLAYER and TP_P4 last seen: a change lets the old player's notes go */
+    uint8_t quiet;                    /* the last key came in over MIDI: what the player plays from it is not sent */
     uint8_t sq[SN], nsq;              /* arp: the step's notes, held with the keys for the step's length */
     uint32_t sq_to_off;               /* Q8, NEVER none */
     uint8_t sroll[SN * 2], nsroll;    /* strum: a step's chord in its order, rolled */
@@ -205,7 +206,6 @@ typedef struct {                      /* a player (per track; the arp's clock ru
     uint32_t sroll_tag;               /* TAG_STEP | the step's: a note's tag adds its index */
     uint32_t sent[4];                 /* the MIDI notes on out on the track's channel (bit note): their offs follow
                                        * them, MIDI OUT turned off meanwhile or not */
-    uint8_t quiet;                    /* the last key came in over MIDI: what the player plays from it is not sent */
 } player_t;
 
 typedef struct {
@@ -311,6 +311,8 @@ void seq_key(seq_t *s, int trk, int note, int on, int vel);
  * what a player makes of it: a DAW monitoring the FM-1 would loop) */
 void seq_key_midi(seq_t *s, int trk, int note, int on, int vel);
 void seq_key_all_off(seq_t *s, int trk);
+/* ALL NOTES OFF's last word: an off for every MIDI note still on out there (after the tracks' seq_key_all_off) */
+void seq_midi_notes_off(seq_t *s);
 void seq_maestro_record(seq_t *s, int trk, const uint8_t *notes, int n);   /* the maestro's chord (up to 8) */
 /* a key on the BRAIN track: the lowest key held is the chord's root, its pitch class against the key's tonic
  * (in the octave of middle C) sets the degree; the link track plays the key as pressed, in parallel */
