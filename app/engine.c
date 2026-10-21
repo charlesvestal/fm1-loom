@@ -647,12 +647,13 @@ static void perf_tick(uint32_t n)
 }
 
 /* ---------------------------------------------------------------- MIDI in --- */
-static int midi_track(int ch)                      /* the track on this channel, else the one selected */
+static int midi_track(int ch)                      /* the track a channel plays: 1-8 theirs, 12-16 the one selected
+                                                    * (else T1); FX and the master none (-1) */
 {
-    int t;
-    for (t = 0; t < NTRK; t++)
-        if (ppar[t][TP_CHAN] == ch + 1)
-            return t;
+    if (ch < NTRK)
+        return ch;
+    if (ch <= CH_MASTER)
+        return -1;
     return proj.trk_sel < NTRK ? proj.trk_sel : 0;
 }
 static void midi_in(uint32_t pkt)
@@ -668,13 +669,18 @@ static void midi_in(uint32_t pkt)
     }
     if (ty == 0x90 && d2 == 0)
         ty = 0x80;
-    if (ty == 0x90 || ty == 0x80)
-        seq_key(&seq, midi_track(ch), d1, ty == 0x90, d2);
-    else if (ty == 0xB0 && d1 == 7)                /* CC 7, volume: the track's level */
-        eng_cc_level[midi_track(ch)] = d2;
-    else if (ty == 0xE0) {                         /* pitch bend: +-2 semitones onto the track's bend */
+    if (ty == 0x90 || ty == 0x80) {
         int t = midi_track(ch);
-        bend_c[t] = (int16_t)((((int)d2 << 7 | d1) - 8192) * 200 / 8192);
+        if (t >= 0)
+            seq_key(&seq, t, d1, ty == 0x90, d2);
+    } else if (ty == 0xB0 && d1 == 7) {            /* CC 7, volume: the track's level (Task 2 replaces it) */
+        int t = midi_track(ch);
+        if (t >= 0)
+            eng_cc_level[t] = d2;
+    } else if (ty == 0xE0) {                       /* pitch bend: +-2 semitones onto the track's bend */
+        int t = midi_track(ch);
+        if (t >= 0)
+            bend_c[t] = (int16_t)((((int)d2 << 7 | d1) - 8192) * 200 / 8192);
     }
 }
 void engine_midi_in(uint32_t pkt) { midi_in(pkt); }   /* (the render drains plat_midi_in itself) */

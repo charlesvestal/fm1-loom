@@ -67,6 +67,10 @@ void engine_scene(int scene, int when);                  /* a scene: now (seq_se
  * type is not dynamic), and sets perf_t.hp for the synth's sake. */
 #define PUNCH_HP 90
 
+/* MIDI's fixed channels (from 0): tracks 1-8 on 0-7, FX I and FX II on 8 and 9, the master and the scenes on 10;
+ * 11-15 the track selected (docs/superpowers/specs/2026-10-21-midi-cc-map-design.md) */
+enum { CH_FX1 = NTRK, CH_FX2, CH_MASTER };
+
 /* state for the screen (written by the interrupt) */
 extern volatile uint8_t eng_step[NSEQT];                 /* playheads */
 float engine_glfo_now(void);                             /* the shared LFO's value now, -1..1 (GLO's LFO page) */

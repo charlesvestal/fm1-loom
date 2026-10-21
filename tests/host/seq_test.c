@@ -2312,7 +2312,7 @@ static void t_midi_out(void)
     reset();
     S.send_clock = 1;
     S.send_notes = 1;
-    par[0][TP_CHAN] = 3;
+    par[0][TP_CHAN] = 1;              /* MIDI OUT on; the note goes out on the track's own channel (0 for T1) */
     note(0, 0, 60, 100);
     start();
     run_blocks(4 * L16 + 1);          /* (the clock waits for a stretch's end: at most a block late, never early) */
@@ -2320,7 +2320,7 @@ static void t_midi_out(void)
         if (ev[i].kind == E_MIDI) {
             clocks += ev[i].a == 0xF8;
             starts += ev[i].a == 0xFA;
-            ons += ev[i].a == 0x92 && ev[i].b == 60;
+            ons += ev[i].a == 0x90 && ev[i].b == 60;
         }
     CHECK(clocks >= 24 && clocks <= 25 && starts == 1 && ons == 1);
     CHECK(nth(E_MIDI, -1, 3)->t >= 918 && nth(E_MIDI, -1, 3)->t < 918 + 256);   /* start, note on, clock, clock at
@@ -2332,15 +2332,15 @@ static void t_midi_out(void)
         reset();
         S.send_notes = 1;
         par[0][TP_ENGINE] = EG_DRUMLINE;
-        par[0][TP_CHAN] = 10;
+        par[0][TP_CHAN] = 1;                      /* MIDI OUT on */
         note(0, 0, 1, 100);                       /* the kick */
         start();
         run(L16 + 10u);
         for (i = 0; i < nev; i++)
             if (ev[i].kind == E_MIDI && ev[i].b == 36) {
-                if (ev[i].a == 0x99 && !on_t)
+                if (ev[i].a == 0x90 && !on_t)
                     on_t = ev[i].t + 1u;
-                if (ev[i].a == 0x89 && !off_t)
+                if (ev[i].a == 0x80 && !off_t)
                     off_t = ev[i].t + 1u;
             }
         CHECK(on_t && off_t && off_t > on_t + L16 / 4u);

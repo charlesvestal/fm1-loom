@@ -2862,7 +2862,7 @@ static const tp_info_t FIXED[NTP_SOUND + 13] = {
     {"style", 0, 5, 0, PK_NAMES, ARPSTY_N},             {"glide", 0, 2, 0, PK_NAMES, ARPGLD_N},
     {"stereo", 0, 2, 0, PK_NAMES, ARPSTE_N},            {"level", 0, 127, 100, PK_FADER, 0},
     {"pan", 0, 127, 64, PK_BIP, 0},                     {"follow", 0, 2, 1, PK_NAMES, BRAIN_N},
-    {"channel", 0, 16, 0, PK_NUM, 0}};
+    {"midi out", 0, 1, 1, PK_SWITCH, 0}};
 /* a drumline key's values (synth.h DP_*); its model's knobs take their names and defaults from drumline.c
  * (tp_info_par). The key's envelope and filter: its Envelope and Filter pages */
 static const tp_info_t DRUMP[DP_N] = {{"model", 0, NDM - 1, 0, PK_NAMES, DM_NAME}, {"knob 1", 0, 127, 64, PK_NN, 0},
@@ -3107,10 +3107,6 @@ static void tp_text_i(const tp_info_t *i, int p, int v, int engine, char *num, c
     unit[0] = 0;
     if (p == TP_X2 && engine == EG_SAMPLE && v == 0) {   /* (the loop's length: the sample's own, or the rest) */
         put_s(num, "auto");
-        return;
-    }
-    if (p == TP_CHAN && v == 0) {
-        put_s(num, "off");
         return;
     }
     if (p == TP_PORTA && v == 0) {

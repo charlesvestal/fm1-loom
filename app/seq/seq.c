@@ -400,13 +400,13 @@ static void fire_off(seq_t *s, int t, seq_off_t *e, const seq_sink_t *o)
         if (o->drum_off)
             o->drum_off(o->ctx, t, (int)e->note - 1);
         if (e->note >= 1 && e->note <= NDRUM && s->send_notes && s->par[t][TP_CHAN])   /* its MIDI note ends with it */
-            midi(o, (uint8_t)(0x80 | ((s->par[t][TP_CHAN] - 1) & 15)), GM_DRUM[e->note - 1], 0);
+            midi(o, (uint8_t)(0x80 | (t & 15)), GM_DRUM[e->note - 1], 0);
         break;
     default:
         if (o->note_off)
             o->note_off(o->ctx, t, e->tag);
         if (e->note && s->send_notes && s->par[t][TP_CHAN])
-            midi(o, (uint8_t)(0x80 | ((s->par[t][TP_CHAN] - 1) & 15)), e->note, 0);
+            midi(o, (uint8_t)(0x80 | (t & 15)), e->note, 0);
         break;
     }
 }
@@ -550,17 +550,17 @@ static void midi_on(seq_t *s, int t, int note, int vel, const seq_sink_t *o)
                                                   * hears two notes, not one ended early by the old note's off */
         seq_off_t *e = &s->t[t].off[i];
         if (e->used && e->kind == OFF_NOTE && e->note == note) {
-            midi(o, (uint8_t)(0x80 | ((s->par[t][TP_CHAN] - 1) & 15)), (uint8_t)note, 0);
+            midi(o, (uint8_t)(0x80 | (t & 15)), (uint8_t)note, 0);
             e->note = 0;                         /* (its off still ends the voice; no MIDI off from it) */
         }
     }
-    midi(o, (uint8_t)(0x90 | ((s->par[t][TP_CHAN] - 1) & 15)), (uint8_t)note, (uint8_t)vel);
+    midi(o, (uint8_t)(0x90 | (t & 15)), (uint8_t)note, (uint8_t)vel);
 }
 
 static void midi_off(seq_t *s, int t, int note, const seq_sink_t *o)
 {
     if (s->send_notes && s->par[t][TP_CHAN])
-        midi(o, (uint8_t)(0x80 | ((s->par[t][TP_CHAN] - 1) & 15)), (uint8_t)note, 0);
+        midi(o, (uint8_t)(0x80 | (t & 15)), (uint8_t)note, 0);
 }
 
 /* a note of a synth track with a scheduled off */

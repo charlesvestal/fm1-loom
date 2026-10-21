@@ -106,7 +106,7 @@ turn SELECT 4
 tap SEL
 wait 40
 expect note 1 1 1 0
-# a new project: track N on MIDI channel N; with every slot taken it has none, and SAVE saves to the slot SAVE TO
+# a new project: every track's MIDI OUT on; with every slot taken it has none, and SAVE saves to the slot SAVE TO
 # shows (asking, as it holds another project)
 projsave 1 one
 projsave 2 two
@@ -114,8 +114,8 @@ projsave 3 three
 projnew
 wait 40
 expect par1.51 1
-expect par2.51 2
-expect par8.51 8
+expect par2.51 1
+expect par8.51 1
 expect sendnotes 1
 expect dirty 1
 tap SAVE
@@ -125,14 +125,17 @@ tap SEL
 wait 40
 expect ask 0
 expect dirty 0
-# a track's MIDI channel on its sound pages' SEL list (MIDI CHANNEL, the last row)
+# a track's MIDI OUT on its sound pages' SEL list (MIDI OUT, the last row): on in a new project, ALGORITHM sets it
 turn ALGO 1
 tap EDIT
 tap SEL
 turn SELECT 20
-turn ALGO 3
+turn ALGO -1
 wait 40
-expect par2.51 5
+expect par2.51 0
+turn ALGO 1
+wait 40
+expect par2.51 1
 tap HOME
 # MIDI CC 7 in: the level of the track on that channel (T3 on 3, a new project's)
 projnew
@@ -271,15 +274,15 @@ wait 40
 expect note 2 1 1 53
 expect note 2 1 2 65
 expect pat2 1
-# a kit track's MIDI CHANNEL: on its Engine page's list too (the last row)
+# a kit track's MIDI OUT: on its Engine page's list too (the last row)
 projnew
 expect trk 1
 tap EDIT
 tap SEL
 turn SELECT 30
-turn ALGO 1
+turn ALGO -1
 wait 40
-expect par1.51 2
+expect par1.51 0
 tap HOME
 # two kits: T1's hat muted in the scene, T2's kit (the second) keeps its own
 projnew

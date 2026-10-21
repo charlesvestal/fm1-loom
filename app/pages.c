@@ -220,7 +220,7 @@ static const char *const ACTION_NAME[NACTIONS] = {
     "INSERT SCENE", "DELETE SLOT", "CLEAR SONG", "PLAY SONG", "LOAD PROJECT", "NEW PROJECT", "USB AUDIO", "CLEAR SCENE",
     "ALL NOTES OFF", "EFFECT", "REMOVE", "COUNT-IN", "PLAY MODE", "FILTER TYPE", "HIGH-PASS", "LOW-PASS",
     "TO FX II", "KEEP AS PATTERN", "THEME", "PUMP BY", "RELEASE", "ACCENT", "LEVEL", "SCENES SWITCH", "SAVE TO", "AUTOSAVE",
-    "RANDOMIZE PRESETS", "MIDI CHANNEL", "LOOP THROWS", "COPY BAR", "COPY STEP", "PASTE BAR", "PASTE STEP",
+    "RANDOMIZE PRESETS", "MIDI OUT", "LOOP THROWS", "COPY BAR", "COPY STEP", "PASTE BAR", "PASTE STEP",
     "PASTE LOCKS ONLY", "DOUBLE PATTERN", "CLEAR LOCKS"};
 /* the weave's ways (pattern.h WV_*): what this pattern keeps of itself */
 static const char *const WEAVE_NAME[NWV] = {"bars", "steps", "rhythm", "pitch"};
@@ -1986,14 +1986,9 @@ static void proj_slot_text(int slot, char *t)     /* "Proj 2", "Proj 3 (open)", 
     else if (!project_exists(slot))
         s_cat(e, " (empty)");
 }
-static void list_midi_ch(int trk)                  /* the track's notes out over USB (Setup's NOTES on) and in */
+static void list_midi_ch(int trk)                  /* the track's notes out over USB, on its own channel (Setup's NOTES on) */
 {
-    static char ch_t[4];
-    if (proj.trk[trk].par[TP_CHAN])
-        num_s(proj.trk[trk].par[TP_CHAN], ch_t);
-    else
-        s_cat(ch_t, "off");
-    list_add(ACTION_NAME[A_MIDI_CH], ch_t, LK_PICK, A_MIDI_CH);
+    list_add(ACTION_NAME[A_MIDI_CH], proj.trk[trk].par[TP_CHAN] ? "on" : "off", LK_PICK, A_MIDI_CH);
 }
 static void list_clip_step(void)                   /* a held step's list, after its notes: copy it, paste a step, its
                                                     * locks cleared */

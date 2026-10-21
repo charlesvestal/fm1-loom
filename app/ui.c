@@ -156,7 +156,7 @@ static void undo_sound(int trk);
 static void undo_sounds(int first, int n);
 static void undo_master(void);
 static void undo_arr(void);
-static void sound_reset(uint8_t *par, int engine)   /* the engine's defaults; the MIDI channel stays (routing, not sound) */
+static void sound_reset(uint8_t *par, int engine)   /* the engine's defaults; MIDI OUT stays (routing, not sound) */
 {
     int ch = par[TP_CHAN];
     sound_default(par, engine);
@@ -2228,7 +2228,7 @@ static void list_change(int32_t e)
             break;
         }
         case A_MIDI_CH:
-            set_tp(sel_trk(), TP_CHAN, clampi(proj.trk[sel_trk()].par[TP_CHAN] + d, 0, 16));
+            set_tp(sel_trk(), TP_CHAN, d > 0);
             break;
         case A_FOLLOW: {
             int t = list_follow_trk();

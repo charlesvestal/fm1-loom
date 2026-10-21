@@ -230,7 +230,7 @@ void project_defaults(void)
         tr->par[TP_ENGINE] = ORDER[t];                    /* (a preset carries its engine; the kit keeps its own) */
         tr->par[TP_BRAIN] = t ? 1 : 0;                    /* the melodic tracks follow the brain from the start
                                                            * (the notebook: "several tracks are routed by default") */
-        tr->par[TP_CHAN] = (uint8_t)(t + 1);              /* MIDI: track N on channel N (out with Setup's NOTES on) */
+        tr->par[TP_CHAN] = 1;                             /* MIDI OUT on: track N's notes on channel N (with Setup's NOTES) */
     }
     aux_defaults();
     /* the master: the EQ flat, the color off (tape when on: amount 40, tone 64, all wet), the groups at unity, a touch
@@ -586,8 +586,11 @@ int project_load(int slot)
             proj.send_notes = 1;
             for (int t = 0; t < NTRK; t++)
                 if (!proj.trk[t].par[TP_CHAN])
-                    proj.trk[t].par[TP_CHAN] = (uint8_t)(t + 1);
+                    proj.trk[t].par[TP_CHAN] = 1;
         }
+        for (int t = 0; t < NTRK; t++)                /* (before C3 a track held its channel, 1-16: now MIDI OUT on) */
+            if (proj.trk[t].par[TP_CHAN])
+                proj.trk[t].par[TP_CHAN] = 1;
         stored_known[OBJ_PROJ(slot, 0)] = 1;
         stored_hash[OBJ_PROJ(slot, 0)] = hash_of(io_buf, (uint32_t)n);
     } else {

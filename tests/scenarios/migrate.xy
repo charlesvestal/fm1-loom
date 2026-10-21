@@ -1,5 +1,5 @@
 # a project saved by 0.5-beta (format 10: 16 scenes, no kit mutes; tests/fixtures/make_v10.xy) loads: its notes,
-# locks, tempo, scenes and song as they were, the other 16 scenes empty, MIDI notes out on T1-T8's channels 1-8; it is this format's from its first touch, and
+# locks, tempo, scenes and song as they were, the other 16 scenes empty, MIDI OUT on for every track; it is this format's from its first touch, and
 # a kit sound muted in a scene is kept over a restart
 storeload tests/fixtures/store_v10.bin
 reboot
@@ -21,8 +21,8 @@ expect lane 2 1 e1 1
 expect used 7
 expect sendnotes 1
 expect par1.51 1
-expect par2.51 2
-expect par8.51 8
+expect par2.51 1
+expect par8.51 1
 scene 3
 wait 40
 expect mute 2
