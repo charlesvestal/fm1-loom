@@ -2169,7 +2169,7 @@ static void draw_arrange(void)
     uint32_t h = hash_u(hash_u(2166136261u, 0xA0u), (uint32_t)sc | (uint32_t)cue << 8 | (uint32_t)playing() << 16 |
                                           (uint32_t)sel_trk() << 20 | (uint32_t)seq.cue_end << 24 |
                                           (uint32_t)ui.scene_pg << 25);
-    h = hash_u(h, (uint32_t)(left + 1));
+    h = hash_u(h, (uint32_t)(left + 1) | (uint32_t)seq.kmute << 16);
     a_last = now;
     for (int t = 0; t < NTRK; t++) {             /* each track's meter: what it plays now (Mix's fall; the header's
                                                   * range, -45 to -9 dB: activity more than level) */
@@ -2219,6 +2219,11 @@ static void draw_arrange(void)
         }
         if (muted)
             cv_text(144, y - 3, &FONT_XS, "mute", K_DIM);
+        else if (tr < NTRK && is_drum(tr) && seq.kmute) {   /* the scene's kit sounds muted: how many */
+            char ko[12];
+            s_cat(num_s((uint32_t)__builtin_popcount(seq.kmute), ko), " off");
+            cv_text(144, y - 3, &FONT_XS, ko, K_DIM);
+        }
     }
     cv_rect(168, 4, 1, 112, K_LINE);
     text_c(204, 8, &FONT_XS, cue == 0xFF || cue == sc ? "scene" : seq.cue_end ? "at the end" : "next bar", K_DIM);

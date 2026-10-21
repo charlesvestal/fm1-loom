@@ -247,6 +247,7 @@ typedef struct {
     uint32_t step_tick;               /* sixteenths since start (the metronome, the arp grid) */
     uint8_t metro_beat;
     /* added runtime */
+    volatile uint16_t kmute;          /* the scene's kit sounds muted, on every kit track (bit k: sound k + 1) */
     volatile uint8_t loop_free;       /* a loop throw let go: the track goes on from where the loop left it (0: back in
                                        * time, where it would be had it never looped) */
     volatile uint8_t crop_dirty;      /* a queued loop was applied to a pattern: the main loop marks the project unsaved */

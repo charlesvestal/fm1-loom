@@ -783,7 +783,10 @@ the cue back. **SEL**'s SCENES SWITCH set to "pattern end" makes a key wait for 
 instead: the tracks can have different lengths and drift apart, so T1's pattern is the scene's length (on a
 64-step T1, up to four bars). Turning **PRESETS** cues the next scene for the bar the same way. An empty scene
 becomes a copy of the scene playing. Hold a white key for a second to clear that scene. The black keys
-mute: 1 to 8 the tracks, 9 and 10 the conductor and the throws. Hold **HOME** and turn **PRESETS** to change scenes
+mute: 1 to 8 the tracks, 9 and 10 the conductor and the throws. A kit track's black key mutes it when you let go;
+hold it instead and press white keys 1 to 11 to mute that kit's sounds one by one (lit: playing), in this scene
+(every kit track's sound alike; the row says how many are off). A muted sound still drives the pump; its key
+still plays when you press it. Hold **HOME** and turn **PRESETS** to change scenes
 from any page.
 
 <img src="img/screen-song.png" width="240" alt="The Song page: S1, S1 and S2 in a row, a bar each, looping" title="The song">

@@ -33,6 +33,16 @@ uint8_t proj_slot;
 #define STREAM_HDR 16u                  /* in the first object: format, raw length, raw CRC, packed length */
 #define STREAM_CAP ((uint32_t)NSTREAM * (PLAT_STORE_MAX - 4u) - (STREAM_HDR - 4u))
 #define RAW_LEN sizeof(patterns_t)
+/* format 10 (0.5-beta): the same store but 16 scenes of scene10_t, the song after them */
+#define RAW_LEN10 (sizeof(patterns_t) - sizeof pats.scene + NSCENE10 * sizeof(scene10_t))
+typedef char scene10_size[(sizeof(scene10_t) == 18 && sizeof(scene_t) == 20) ? 1 : -1];
+typedef char song10_apart[(NSCENE10 * sizeof(scene10_t) + sizeof(song_t) <= NSCENE * sizeof(scene_t)) ? 1 : -1];   /* (the
+                                                   * old song's bytes end before the new song's start) */
+static uint8_t load_format;                       /* the format of the project being loaded (10: migrated) */
+static uint8_t migrated = 0xFF;                   /* the slot loaded from an older format and not saved since (0xFF
+                                                   * none): its next touch saves it whole, never its settings alone
+                                                   * beside the old format's patterns */
+#define FORMAT_OK(f) ((f) == PROJ_FORMAT || (f) == 10u)   /* the formats a slot loads (10: migrate10) */
 typedef char raw_fits[(RAW_LEN < 0x100000u) ? 1 : -1];   /* (lz.c packs up to 16 MB; the header's length is a u32) */
 typedef char settings_fit[(sizeof(settings_t) <= PLAT_STORE_MAX) ? 1 : -1];
 typedef char presets_fit[(sizeof user_presets + 4u <= PLAT_STORE_MAX) ? 1 : -1];
@@ -234,7 +244,7 @@ void project_defaults(void)
 static int settings_valid(settings_t *s)
 {
     int t, k;
-    if (s->magic != PROJ_MAGIC || s->format != PROJ_FORMAT)
+    if (s->magic != PROJ_MAGIC || !FORMAT_OK(s->format))
         return 0;
     if (s->tempo_x10 < 400u || s->tempo_x10 > 3000u || s->scene >= NSCENE || s->trk_sel >= NALLTRK)
         return 0;
@@ -476,19 +486,47 @@ static int st_get(void *ctx)
     return io_buf[s->pos++];
 }
 
-/* 0 = loaded; -1 = not there or not good (pats then holds garbage) */
+/* format 10's store, unpacked at the start of pats, made this format's: its 16 scenes spread to their new size (the
+ * rest of the 32 unused, no kit sound muted), the song moved after them */
+static void migrate10(void)
+{
+    uint8_t *raw = (uint8_t *)&pats, *sc = (uint8_t *)pats.scene;
+    const uint32_t old_song = (uint32_t)((uint8_t *)pats.scene - raw) + NSCENE10 * sizeof(scene10_t);
+    memcpy(&pats.song, raw + old_song, sizeof pats.song);   /* (apart: song10_apart) */
+    for (int i = NSCENE10 - 1; i >= 0; i--) {         /* (from the last: each moves up, over none not yet read) */
+        scene10_t o;
+        memcpy(&o, sc + (uint32_t)i * sizeof o, sizeof o);
+        memset(&pats.scene[i], 0, sizeof pats.scene[i]);
+        memcpy(pats.scene[i].pat, o.pat, NSEQT);
+        pats.scene[i].used = o.used;
+        pats.scene[i].mute = o.mute;
+        pats.scene[i].brain_key = o.brain_key;
+        pats.scene[i].brain_scale = o.brain_scale;
+        pats.scene[i].brain_deg = o.brain_deg;
+        pats.scene[i].weave = o.weave;
+    }
+    memset(&pats.scene[NSCENE10], 0, sizeof pats.scene - NSCENE10 * sizeof pats.scene[0]);
+}
+
+/* 0 = loaded; -1 = not there or not good (pats then holds garbage). An older format's (load_format) as it was
+ * saved, then migrated */
 static int load_stream(int n, uint32_t prev)
 {
     uint8_t *raw = (uint8_t *)&pats;
-    uint32_t crc = get32(io_buf + 8), plen = get32(io_buf + 12);
+    uint32_t crc = get32(io_buf + 8), plen = get32(io_buf + 12), len = get32(io_buf + 4);
     st_in_t s = {0, n, STREAM_HDR, plen, prev};
     lz_src_t src = {st_get, &s};
-    if (n < (int)STREAM_HDR || get32(io_buf + 4) != RAW_LEN || plen > STREAM_CAP)
-        return -1;
+    if (n < (int)STREAM_HDR || (len != RAW_LEN && len != RAW_LEN10) || plen > STREAM_CAP)
+        return -1;                                /* (its own length says its format: settings saved alone, as
+                                                   * this format's, before a power cut beside format 10's patterns) */
     stored_known[stream_obj[0]] = !(prev & 1u);
     stored_hash[stream_obj[0]] = hash_of(io_buf, (uint32_t)n);
-    if (lz_decompress(&src, raw, RAW_LEN) || crc32_of(raw, RAW_LEN) != crc)
+    if (lz_decompress(&src, raw, len) || crc32_of(raw, len) != crc)
         return -1;
+    if (len == RAW_LEN10) {
+        migrate10();
+        load_format = 10u;
+    }
     packed_len = plen;
     return 0;
 }
@@ -512,16 +550,19 @@ int project_load(int slot)
     slot_objects(slot);
     project_defaults();
     packed_len = 0;
+    load_format = PROJ_FORMAT;
     n = plat_store_load(OBJ_PROJ(slot, 0), io_buf, sizeof io_buf);
     if (n == (int)sizeof proj && settings_valid((settings_t *)(void *)io_buf)) {
         uint32_t i;
         for (i = 0; i < sizeof proj; i++)
             ((uint8_t *)&proj)[i] = io_buf[i];
+        load_format = (uint8_t)proj.format;
+        proj.format = PROJ_FORMAT;                    /* (an older one migrated: saved as this format next) */
         stored_known[OBJ_PROJ(slot, 0)] = 1;
         stored_hash[OBJ_PROJ(slot, 0)] = hash_of(io_buf, (uint32_t)n);
     } else {
         bad = 1;
-        if (n >= 8 && get32(io_buf) == PROJ_MAGIC && get32(io_buf + 4) != PROJ_FORMAT)
+        if (n >= 8 && get32(io_buf) == PROJ_MAGIC && !FORMAT_OK(get32(io_buf + 4)))
             proj_slot = NPROJ;            /* another format's project there: no slot, so nothing (autosave, SAVE)
                                            * writes over it unasked (it took a song once, 2026-10-19); SAVE TO
                                            * chooses a slot */
@@ -548,15 +589,16 @@ int project_load(int slot)
     } else {
         bad = 1;
     }
+    migrated = !bad && load_format != PROJ_FORMAT ? (uint8_t)slot : 0xFF;
     return bad ? -1 : 0;
 }
 
 static void count_next(void);                         /* (below: the save count) */
 /* 0 = saved and verified; -1 = the settings failed; -7 = the patterns do not fit (nothing written) */
+static int project_write(int slot);
 int project_save(int slot)
 {
     uint32_t i;
-    int rc;
     if (slot < 0 || slot >= NPROJ)
         return -1;
     if (slot != proj_slot) {                          /* a new slot: nothing known about its flash */
@@ -570,12 +612,23 @@ int project_save(int slot)
     proj.send_notes = seq.send_notes;
     proj.metronome = seq.metronome;
     proj.scene = seq.scene;
+    return project_write(slot);
+}
+/* the project as it is in proj and pats, into its slot (project_save takes the sequencer's live values first; a
+ * migrated project's first touch does not: just loaded, they are not the sequencer's yet) */
+static int project_write(int slot)
+{
+    uint32_t i;
+    int rc;
     count_next();
     for (i = 0; i < sizeof proj; i++)
         io_buf[i] = ((const uint8_t *)&proj)[i];
     if ((rc = save_buf(OBJ_PROJ(slot, 0), sizeof proj)) != 0)
         return rc < 0 ? -1 : rc;
-    return save_stream();
+    rc = save_stream();
+    if (rc == 0 && migrated == slot)
+        migrated = 0xFF;                          /* (saved whole: this format now) */
+    return rc;
 }
 
 /* the save count (settings rsv[4..7]): every save and every load takes the next, so the highest is the slot used
@@ -585,7 +638,7 @@ static uint32_t count_max;
 static uint32_t slot_count(int slot)
 {
     int n = plat_store_load(OBJ_PROJ(slot, 0), io_buf, (uint32_t)(COUNT_AT + 4u));
-    if (n < (int)(COUNT_AT + 4u) || get32(io_buf) != PROJ_MAGIC || get32(io_buf + 4) != PROJ_FORMAT)
+    if (n < (int)(COUNT_AT + 4u) || get32(io_buf) != PROJ_MAGIC || !FORMAT_OK(get32(io_buf + 4)))
         return 0;
     return get32(io_buf + COUNT_AT);
 }
@@ -613,6 +666,8 @@ int project_touch(int slot)                       /* (only the settings change: 
     uint32_t i;
     if (slot < 0 || slot >= NPROJ)
         return -1;
+    if (migrated == slot)                         /* (an older format's patterns there: the whole project, now) */
+        return project_write(slot) == 0 ? 0 : -1;
     count_next();
     for (i = 0; i < sizeof proj; i++)
         io_buf[i] = ((const uint8_t *)&proj)[i];
@@ -625,7 +680,7 @@ int project_exists(int slot)
     if (slot < 0 || slot >= NPROJ)
         return 0;
     n = plat_store_load(OBJ_PROJ(slot, 0), io_buf, 8);
-    return n >= 8 && get32(io_buf) == PROJ_MAGIC && get32(io_buf + 4) == PROJ_FORMAT;
+    return n >= 8 && get32(io_buf) == PROJ_MAGIC && FORMAT_OK(get32(io_buf + 4));
 }
 
 int presets_load(void)

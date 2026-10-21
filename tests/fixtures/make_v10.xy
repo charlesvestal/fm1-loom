@@ -1,0 +1,19 @@
+# a format 10 project (LOOM-8 0.5-beta's): saved by that build, for the migration's test (tests/scenarios/migrate.xy)
+# (run by a format 10 build, 4f0454c, with storesave: from the repository root, its loom_host tests/fixtures/make_v10.xy OUT)
+wait 300
+bpm 97
+wait 50
+hits 1 1 1 x...x...x...x...
+notes 2 1 1 1 100 C4
+notes 2 1 5 1 100 E4
+notes 2 2 3 1 90 G4
+lock 2 1 1 e1 30
+scenedef 2 1 2
+scenedef 3 1 2 1
+scenemute 3 .x
+song 1:2 3:1 2:4
+projsave 1 v10_test
+projnew
+notes 3 1 9 1 80 A3
+projsave 2 second
+storesave tests/fixtures/store_v10.bin

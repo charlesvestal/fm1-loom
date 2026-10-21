@@ -16,6 +16,7 @@
  *   bpm N                        the project's tempo (a decimal allowed: 0.1 BPM steps)
  *   projnew                      a new project (Setup's NEW PROJECT)
  *   projsave SLOT [NAME]         the project saved into slot SLOT (1..3), named NAME ('_' for a space) if given
+ *   storesave FILE, storeload FILE   the simulated flash's store to a file, and back (an old build's projects)
  *   cores N                      the second core on (1) or off (0): its job then runs in place
  *   samples FILE                 the user sample bank from FILE (an image from tools/loom_samples.py build), as an
  *                                upload would leave it (empty at boot)
@@ -180,6 +181,8 @@ int app_expect(const char *what, int *got)
         *got = seq.scene + 1;
     else if (!strcmp(what, "mute"))
         *got = seq.mute;
+    else if (!strcmp(what, "kmute"))                /* the scene's kit sounds muted (bit k: sound k + 1) */
+        *got = seq.kmute;
     else if (!strcmp(what, "songpos"))              /* the song slot playing, from 1 */
         *got = seq.song_pos + 1;
     else if (!strcmp(what, "used"))                 /* the scenes that exist: bit s-1 for scene s */
@@ -1223,6 +1226,30 @@ int app_host_cmd(const char *cmd, const char *a, const char *b, const char *c, c
         if (project_save(slot))
             host_die("upgrade9: not saved", a);
         printf("upgrade9: slot %d made format %u (%d lanes)\n", slot + 1, PROJ_FORMAT, nl);
+    }
+    else if (!strcmp(cmd, "storesave") || !strcmp(cmd, "storeload")) {   /* storesave FILE / storeload FILE: the
+                                                     * simulated flash's store objects to a file and back (an old
+                                                     * build's projects, for the migrations' tests) */
+        int save = cmd[5] == 's';
+        FILE *f = fopen(a, save ? "wb" : "rb");
+        if (!f)
+            host_die(save ? "storesave: cannot write" : "storeload: cannot read", a);
+        store_ready();
+        for (uint32_t o = 0; o < OBJ_NOBJ; o++) {
+            int32_t n = store_len[o];
+            if (save) {
+                fwrite(&n, 4, 1, f);
+                if (n > 0)
+                    fwrite(store[o], 1, (size_t)n, f);
+            } else {
+                if (fread(&n, 4, 1, f) != 1 || n > (int32_t)PLAT_STORE_MAX ||
+                    (n > 0 && fread(store[o], 1, (size_t)n, f) != (size_t)n))
+                    host_die("storeload: a short or broken file", a);
+                store_len[o] = n;
+                store_prev_len[o] = -1;
+            }
+        }
+        fclose(f);
     }
     else if (!strcmp(cmd, "projsave")) {           /* projsave SLOT [NAME]: saved into slot 1..3 (as SAVE there) */
         int slot = atoi(a) - 1;

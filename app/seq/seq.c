@@ -570,6 +570,11 @@ static void emit_drum(seq_t *s, int t, int sound, int vel, int semi, uint32_t ta
 {
     if (sound < 0 || sound >= NDRUM)
         return;
+    if (tag != TAG_KEY && (s->kmute >> sound & 1u)) {   /* a kit sound the scene mutes: the pump hears it, nothing sounds */
+        if (o->ghost)
+            o->ghost(o->ctx, t, sound, vel);
+        return;
+    }
     if (o->drum)
         o->drum(o->ctx, t, sound, vel, semi + (fx_on(s, t, PX_OCTAVE) ? 12 : 0), fx_on(s, t, PX_CHOP), fx_on(s, t, PX_RING));
     if (s->send_notes && s->par[t][TP_CHAN]) {   /* the MIDI note: off with the hit's (fire_off), or with its key */
@@ -1018,6 +1023,7 @@ static void scene_read(seq_t *s, int k, uint8_t *next)
     for (t = 0; t < NSEQT; t++)
         next[t] = sc->pat[t] < NPATT ? sc->pat[t] : 0;
     s->mute = sc->mute;
+    s->kmute = sc->kmute;
     s->brain_key = (uint8_t)(sc->brain_key % 12);
     s->brain_scale = sc->brain_scale < NBS ? sc->brain_scale : BS_MAJOR;
     s->brain_deg = sc->brain_deg;
@@ -2707,6 +2713,7 @@ void seq_init(seq_t *s, patterns_t *P, uint8_t (*par)[NTP_ALL])
     for (i = 0; i < NLANE; i++)
         s->lrt[i].applied = LOCK_NONE;
     s->mute = P->scene[0].mute;
+    s->kmute = P->scene[0].kmute;
     s->brain_scale = BS_MAJOR;
     s->wv_ppat = (uint8_t)(P->scene[0].weave % NPATT);
     s->six_to_next = NEVER;

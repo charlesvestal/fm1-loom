@@ -1,0 +1,54 @@
+# a project saved by 0.5-beta (format 10: 16 scenes, no kit mutes; tests/fixtures/make_v10.xy) loads: its notes,
+# locks, tempo, scenes and song as they were, the other 16 scenes empty; it is this format's from its first touch, and
+# a kit sound muted in a scene is kept over a restart
+storeload tests/fixtures/store_v10.bin
+reboot
+wait 400
+expect note 3 1 9 57
+tap HOME
+tap SEL
+wait 40
+tap SEL
+wait 400
+expect ask 0
+expect tempo 97
+expect note 2 1 1 60
+expect note 2 1 5 64
+expect note 2 2 3 67
+expect note 1 1 5 1
+expect lane 2 1 e1 1
+expect used 7
+scene 3
+wait 40
+expect mute 2
+scene 2
+wait 40
+expect mute 0
+scene 1
+turn SELECT 1
+expect page Song
+turn K1 -5
+tap PLAY
+bars 0.5
+expect scene 1
+bars 2
+expect scene 3
+bars 1
+expect scene 2
+tap PLAY
+reboot
+wait 400
+expect tempo 97
+expect note 2 2 3 67
+expect used 7
+# a kit sound muted in a scene (T1's black key held, white key 3: the hat), saved, kept
+tap HOME
+key b0 down
+tapkey w2
+key b0 up
+wait 40
+expect mute 0
+projsave 1
+reboot
+wait 400
+expect kmute 4

@@ -235,6 +235,22 @@ static void set_groove_type(int g)
     engine_groove(proj.groove);
     mark_dirty();
 }
+/* Arrange: the key of a kit track's black key held (its white keys 1-11 then mute its sounds), -1 none */
+static int kit_mute_hold(void)
+{
+    for (int i = 0; i < NKEYS; i++)
+        if (ui.kmode[i] == KM_MUTE && (ui.keys >> i & 1u) && is_drum(ui.knote[i] & 0x7F))
+            return i;
+    return -1;
+}
+static void kit_sound_mute(int snd)              /* a kit sound muted or back in the scene playing (every kit track) */
+{
+    uint16_t m = (uint16_t)(seq.kmute ^ (1u << snd));
+    seq.kmute = m;
+    pats.scene[cur_scene()].kmute = m;
+    mark_dirty();
+    say(m >> snd & 1u ? "MUTED" : "UNMUTED", DL_SOUND_NAME[snd]);
+}
 static void set_mute(int trk, int on)
 {
     uint16_t m = seq.mute;
@@ -1241,9 +1257,21 @@ static void key_down(int k)
                 }
                 return;
             }
+            {
+                int kh = kit_mute_hold();
+                if (p == P_ARRANGE && kh >= 0) {   /* a kit's black key held: white keys 1-11 its sounds' mutes */
+                    ui.knote[kh] |= 0x80;            /* (its release then leaves the track as it is) */
+                    if (w < NDRUM)
+                        kit_sound_mute(w);
+                    return;
+                }
+            }
             scene_key(k, ui.scene_pg * 16 + w, proj.rsv[2] & SCENES_AT_END ? SCENE_END : SCENE_BAR);
         } else if (b >= 0 && b < NSEQT) {
             ui.kmode[k] = KM_MUTE;
+            ui.knote[k] = (uint8_t)b;
+            if (is_drum(b))                         /* a kit: muted when let go, unless its sounds were (kit_mute_hold) */
+                return;
             set_mute(b, !(seq.mute >> b & 1u));
             say(seq.mute >> b & 1u ? "MUTED" : "UNMUTED", TRACK_NAME[b]);
         }
@@ -1405,6 +1433,14 @@ static void key_up(int k)
     int trk = sel_trk(), m = ui.kmode[k];
     ui.kmode[k] = KM_NONE;
     switch (m) {
+    case KM_MUTE: {                               /* a kit track's black key on Arrange: its mute, if no sound was */
+        int b = ui.knote[k] & 0x7F;
+        if (!(ui.knote[k] & 0x80) && b < NSEQT && is_drum(b)) {
+            set_mute(b, !(seq.mute >> b & 1u));
+            say(seq.mute >> b & 1u ? "MUTED" : "UNMUTED", TRACK_NAME[b]);
+        }
+        break;
+    }
     case KM_BARK: {
         int b = ordinal(BLACK_K, 11, k);
         if (b >= 0)
@@ -2945,6 +2981,11 @@ static void leds(void)
             if (is_drum(trk))
                 k |= 1u << BLACK_K[ui.dsound % 11];
             k |= ui.keys;
+        } else if (ui.page == P_ARRANGE && kit_mute_hold() >= 0) {   /* a kit's black key held: its sounds playing */
+            for (i = 0; i < NDRUM; i++)
+                if (!(seq.kmute >> i & 1u))
+                    k |= 1u << WHITE_K[i];
+            k |= 1u << kit_mute_hold();
         } else if (ui.page == P_ARRANGE) {       /* the page of scenes on the white keys (scene_pg) */
             int f = ui.scene_pg * 16;
             for (i = 0; i < 16; i++)

@@ -130,7 +130,17 @@ typedef struct {
     uint16_t mute;                    /* bit t = track t muted (NSEQT bits) */
     uint8_t brain_key, brain_scale, brain_deg;   /* the brain's state in this scene */
     uint8_t weave;                    /* the WEAVE track's pattern */
-} scene_t;
+    uint16_t kmute;                   /* the kit sounds muted, on every kit track (bit k: sound k + 1) */
+} scene_t;                            /* 20 bytes */
+/* format 10's scene (0.5-beta's: 16 of them, no kit mutes), read by project.c's migration */
+typedef struct {
+    uint8_t pat[NSEQT];
+    uint8_t used;
+    uint16_t mute;
+    uint8_t brain_key, brain_scale, brain_deg;
+    uint8_t weave;
+} scene10_t;                          /* 18 bytes */
+#define NSCENE10 16
 /* the WEAVE track's step: the tracks it weaves (a bit each: T1-T8, COND, THROW) and for how long, in sixteenths
  * (0 = one); its pattern: steps on the sequencer's sixteenths, len of them (16, 32, 48 or 64) */
 typedef struct {
