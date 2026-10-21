@@ -189,11 +189,6 @@ int app_expect(const char *what, int *got)
         *got = epar[t][p];
     } else if (!strcmp(what, "sendnotes"))            /* Setup's NOTES: MIDI notes out */
         *got = seq.send_notes;
-    else if (!strcmp(what, "midiout_last")) {         /* the last MIDI message out (fm1-base's out_pkt, n_out),
-                                                       * as status<<16 | d1<<8 | d2; 0 if nothing has gone out */
-        uint32_t pkt = n_out ? out_pkt[n_out - 1] : 0;
-        *got = (int)((((pkt >> 8) & 0xFFu) << 16) | (((pkt >> 16) & 0xFFu) << 8) | ((pkt >> 24) & 0xFFu));
-    }
     else if (!strcmp(what, "pat2"))                 /* track 2's pattern in the scene playing, from 1 */
         *got = pats.scene[seq.scene % NSCENE].pat[1] + 1;
     else if (!strncmp(what, "kvel", 4)) {          /* kvelT.PAT.S.K: kit sound K's own velocity on that step (0 none) */
