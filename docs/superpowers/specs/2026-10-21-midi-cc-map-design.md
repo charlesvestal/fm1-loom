@@ -10,10 +10,10 @@ into automation.
 |---|---|
 | 1-8 | tracks T1-T8 |
 | 9 / 10 | FX I / FX II |
-| 11 | the master |
+| 11 | the master, and the scenes (Program Change, notes 36-67) |
 | 12-16 | the selected instrument track (`inst_trk()`) |
 
-Notes, pitch bend and CCs all follow this table (`engine.c midi_track` becomes a fixed lookup). A track's notes go
+Notes, pitch bend and CCs all follow this table (notes on 9 and 10 are ignored; on 11 they pick scenes) (`engine.c midi_track` becomes a fixed lookup). A track's notes go
 out on its own channel; a kit's GM notes too.
 
 The per-track MIDI CHANNEL row (`TP_CHAN`) becomes **MIDI OUT: on / off**. The byte keeps its place: 0 off, any
@@ -81,11 +81,21 @@ automation (`seq_rec_knob(&seq, trk, p, v)`), whichever track is selected. Mutes
 
 ## Out
 
-A new Setup row, **CC OUT**, off by default (otherwise turning a knob would move the cutoff of someone's external
-synth on channel 1). With it on, a mapped parameter **turned by hand** on the FM-1 sends its CC on its channel, when
-the track's MIDI OUT is on (FX and master: always). Not sent: locks, automation playing, the shared LFO, a preset
-loaded, a CC that came in (no loops with a DAW). The setting is saved with the project's other Setup values
-(`proj.rsv[2]` bit 16, `CC_OUT` beside `AUTOSAVE_OFF` in pages.c: no format change).
+A new row in GLO's SEL list (Setup's group), **CC OUT**, **on by default** (as notes out is; the user's call). With
+it on, a mapped parameter **turned by hand** on the FM-1 sends its CC on its channel, when the track's MIDI OUT is on
+(FX and master: always). Not sent: locks, automation playing, the shared LFO, a preset loaded, a CC that came in (no
+loops with a DAW). Stored as an off bit, `proj.rsv[2]` bit 16 (`CC_OUT_OFF` beside `AUTOSAVE_OFF` in pages.c): new
+and old projects alike start with it on; no format change.
+
+## Scenes
+
+- In, on channel 11 (the master's): **Program Change** 0..31 picks scene 1..32, and **notes 36..67** (C1 up, where
+  pads start) pick scenes 1..32 too, for pad controllers without Program Change (note off ignored). Either goes the
+  white key's way (ui.c `scene_go`): an unused scene is made from the one playing; stopped, at once; playing, cued by
+  SCENES SWITCH (next bar / pattern end). Other programs and notes on 11 are ignored.
+- Out, with CC OUT on: when the scene playing changes (ui.c's frame sees `cur_scene()` change), Program Change
+  0..31 on channel 11. Not for a change that came in over MIDI (the scene asked for is remembered and skipped once):
+  no loop with a DAW that echoes.
 
 ## Cost
 
@@ -98,11 +108,13 @@ Flash: the table (~60 entries, 3 bytes each) and the code, ~1 KB. RAM: the ring 
   a kit track, FX I / II and the master; scaling of a switch; channels 12-16 reach the selected track; a mute CC
   matches the Mix page's (the scene too); the kit send offset holds the balance.
 - Recording: REC on, playing, a CC on track 3 while track 1 is selected writes track 3's lane.
-- Out: CC OUT on, a knob turned sends the CC; an incoming CC, a lock or automation sends nothing; MIDI OUT off on
+- Scenes: Program Change 2 and note 37 on channel 11 cue scene 3 / scene 2 by SCENES SWITCH; a scene changed on
+  the FM-1 sends its Program Change; one asked for over MIDI does not echo.
+- Out: CC OUT on (a new project's default), a knob turned sends the CC; an incoming CC, a lock or automation sends nothing; MIDI OUT off on
   a track sends nothing for it.
 - Old projects: a track with `TP_CHAN` 5 reads as MIDI OUT on and sends on its own channel.
 
 ## Docs
 
-The manual: the channel table and the map (both tables), CC OUT in Setup, MIDI OUT in the SEL list. words.tsv for
+The manual: the channel table and the map (both tables), scenes over MIDI, CC OUT in GLO's list, MIDI OUT in the SEL list. words.tsv for
 the new row names; the release notes (MIDI section).
