@@ -2188,6 +2188,44 @@ int main(void)
         check("ranges and frame splits combined, one prepare", same);
     }
 
+    {   /* the sample engine's loop page: the piano looped from its attack to near its tail, crossfaded at the
+         * point (no step: 0.061 without the crossfade) */
+        int finite = 1, piano = 0;
+        float worst = 0.0f, typ = 0.0f, x1 = 0.0f, x2 = 0.0f;
+        for (int k = 0; k < smp_slots(); k++)
+            if (smp_get(k) && !strcmp(smp_get(k)->name, "piano"))
+                piano = k;
+        reset();
+        sound_default(par[0], EG_SAMPLE);
+        par[0][TP_E1] = (uint8_t)piano;
+        par[0][TP_E4] = SM_LOOP;
+        par[0][TP_A] = 0;
+        par[0][TP_S] = 127;
+        par[0][TP_CUT] = 127;
+        par[0][TP_X1] = 6;                            /* the loop from the attack ... */
+        par[0][TP_X2] = 110;                          /* ... to near the tail: each crossing a jump, quiet to loud */
+        synth_note_on(S, 0, 60, 100, 0, 1);
+        for (int b = 0; b < 2800; b++) {
+            block(32, &finite);
+            for (int i = 0; i < 32; i++) {
+                float x = (L[i] + R[i]) * 0.5f, d2 = fabsf(x - 2.0f * x1 + x2);
+                if (b > 400) {
+                    worst = d2 > worst ? d2 : worst;
+                    typ += d2;
+                }
+                x2 = x1;
+                x1 = x;
+            }
+        }
+        synth_note_off(S, 0, 1);
+        typ /= 2399.0f * 32.0f;
+        {
+            char what[128];
+            sprintf(what, "the sample's loop page: a loop crossfaded, its worst bend %.4f (typical %.5f)",
+                    (double)worst, (double)typ);
+            check(what, finite && worst < typ * 40.0f);
+        }
+    }
     {   /* the shared LFO (GLO's LFO page, the conductor's row): a 4 Hz square on T1's volume swings its level;
          * T2, not routed, stays as it is */
         float lo[2] = {1e9f, 1e9f}, hi[2] = {0.0f, 0.0f};

@@ -501,6 +501,8 @@ static const char *page_name_of(int p, int trk)
         return "Weave";
     if (trk == AUX_BRAIN && p == P_SUB)
         return "Follow";
+    if (trk < NTRK && p == P_SUB && proj.trk[trk].par[TP_ENGINE] == EG_SAMPLE)
+        return "Loop";
     return PAGE_NAME[p % NPAGES];
 }
 /* the filter type the Filter pages' PRESET and their list turn: a drum track's key's own (its Envelope and
@@ -545,8 +547,9 @@ static int page_trk(int p)
 }
 static int x_page(int t)                             /* the engine has a second page of knobs (TP_X1..X4) */
 {
-    int e = t < NTRK ? proj.trk[t].par[TP_ENGINE] : -1;
-    return e == EG_RAYON || e == EG_KNIT;
+    int e = t < NTRK ? proj.trk[t].par[TP_ENGINE] : -1, m = t < NTRK ? proj.trk[t].par[TP_E4] % NSM : 0;
+    return e == EG_RAYON || e == EG_KNIT || (e == EG_SAMPLE && (m == SM_LOOP || m == SM_PINGPONG));   /* (the sample's
+                                                                                               * loop page: looping) */
 }
 static int group_n(int g)
 {
@@ -3056,6 +3059,19 @@ static void pic_sample(int32_t x0, int32_t y0, int32_t w, int32_t h, const uint8
             la = (int32_t)((float)sm->ls * (float)w / n);
             lb = (int32_t)((float)sm->le * (float)w / n);
         }
+        if ((mode == SM_LOOP || mode == SM_PINGPONG) && (p[TP_X1] || p[TP_X2])) {   /* the loop page's (synth.c smp_prep) */
+            float ls = s0 + (s1 - s0 - 32.0f) * (float)p[TP_X1] * (1.0f / 127.0f), le;
+            if (p[TP_X2])
+                le = ls + (s1 - ls) * (float)p[TP_X2] * (1.0f / 127.0f);
+            else if (sm->le > sm->ls && (float)sm->ls >= ls && (float)sm->le <= s1)
+                le = (float)sm->le;
+            else
+                le = s1;
+            if (le < ls + 32.0f)
+                le = ls + 32.0f;
+            la = (int32_t)(ls * (float)w / n);
+            lb = (int32_t)(le * (float)w / n);
+        }
         cv_rect(x0, cy, w, 1, K_LINE);
         if (xb > xa)
             cv_rect(x0 + xa, wy, xb - xa, wh, K_TINT);
@@ -3202,6 +3218,8 @@ static void draw_engine(void)
         h = hash_u(h, p[TP_E1 + i]);
     if (eg == EG_SAMPLE || eg == EG_SLICE)           /* (the bank: an upload changes what the picture shows) */
         h = hash_u(h, (uint32_t)smp_user_count() << 16 ^ smp_user_bytes());
+    if (eg == EG_SAMPLE)                             /* (its loop page's knobs mark the loop) */
+        h = hash_u(h, (uint32_t)p[TP_X1] | (uint32_t)p[TP_X2] << 8 | (uint32_t)ui.page << 16);
     if (eg == EG_SLICE) {                            /* the slice playing and where (a column of the picture) */
         int sl;
         int32_t pos;
@@ -3511,8 +3529,11 @@ static void draw_knit_x(void)
 /* the Sub page: the engine's second page of knobs (TP_X1..X4), knit's layers or rayon's fall */
 static void draw_sub(void)
 {
-    if (proj.trk[sel_trk()].par[TP_ENGINE] == EG_RAYON)
+    int eg = proj.trk[sel_trk()].par[TP_ENGINE];
+    if (eg == EG_RAYON)
         draw_rayon_fall();
+    else if (eg == EG_SAMPLE)
+        draw_engine();                           /* (the sample's loop page: the waveform, its loop marked) */
     else
         draw_knit_x();
 }

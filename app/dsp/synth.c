@@ -176,6 +176,11 @@ typedef struct {
 /* the sample engine's decoded windows (dsp/sample.h), a voice each: beside the struct, in RAM (the pool is
  * the scarcer); each is touched only by its own voice's render, on whichever core renders it */
 static smp_cache_t smp_vc[NVOICE];
+/* the sample engine's loop crossfades: a few caches for a voice's second read position while it crosses its loop
+ * point (a voice finding none free jumps, as before): the voice holding each, NVOICE free */
+#define SMP_NXF 4
+static smp_cache_t smp_xc[SMP_NXF];
+static uint8_t smp_xo[SMP_NXF] = {NVOICE, NVOICE, NVOICE, NVOICE};
 
 #define NTP_LOCK TP_DRUM0             /* the synth's locks: the kit's own parameters never reach a voice */
 typedef struct {
@@ -342,6 +347,9 @@ static void eng_init(voice_t *v)
     for (i = 0; i < 16; i++)
         v->o[i] = 0.0f;
     smp_cache_reset(&smp_vc[v->vi % NVOICE]);
+    for (i = 0; i < SMP_NXF; i++)                /* (a crossfade it held: free) */
+        if (smp_xo[i] == v->vi)
+            smp_xo[i] = NVOICE;
     if (v->engine == EG_BELLOWS)
         for (i = 0; i < 6; i++)
             v->o[i * 2] = 1.0f;                  /* the rotating phasors start at 1 + 0i */
@@ -796,6 +804,15 @@ static void smp_prep(voice_t *v)
         ls = (float)sm->ls;
         le = (float)sm->le;
     }
+    if (c->ex[8] > 0.0f || c->ex[9] > 0.0f) {    /* the loop page: its start in the region, its length (0: as above) */
+        ls = fm_floorf(s0 + (s1 - s0 - 32.0f) * c->ex[8] * (1.0f / 127.0f));
+        if (c->ex[9] > 0.0f)
+            le = fm_minf(ls + fm_maxf(fm_floorf((s1 - ls) * c->ex[9] * (1.0f / 127.0f)), 32.0f), s1);
+        else if (!(sm->le > sm->ls && (float)sm->ls >= ls && (float)sm->le <= s1))
+            le = s1;
+        if (le < ls + 32.0f)
+            le = fm_minf(ls + 32.0f, s1);
+    }
     /* the rate: the note over the root, times the sample's rate over ours (at most 3 octaves above its own) */
     c->ex[0] = fm_minf(c->freq / (440.0f * fm_exp2f(((float)sm->root - 69.0f) * (1.0f / 12.0f))) *
                        ((float)sm->rate / SY_SR), 8.0f);
@@ -806,6 +823,36 @@ static void smp_prep(voice_t *v)
 }
 #define SMP_FADE 64.0f                           /* a one-shot's fade at its region's end: samples of it (~3 ms) */
 #define SMP_SWITCH 64.0f                         /* a mono retrigger's fade of the sound playing (1.5 ms; slice's SL_SWITCH) */
+#define SMP_XF_S 0.008f                          /* a loop's crossfade: seconds of the sample (at most a quarter of the loop) */
+/* the loop's crossfade (forward loop mode): from xf source samples before the loop's end, the end fades out while the
+ * loop's start fades in (read at the same distance into it, a second cache: smp_xc), then the voice goes on from there.
+ * o[7] the cache + 1 while crossing (0 none), o[8] / o[9] the start's read position and fraction. Returns the
+ * frames written into out (up to m), the crossing done when it reaches the loop's end */
+static int smp_xfade(voice_t *v, const smp_t *sm, int32_t *pos, float *fr, float inc, int32_t ls, int32_t le,
+                     int32_t xf, float *out, int m)
+{
+    float tb[SUB * 4], p0 = (float)*pos + *fr;
+    int32_t pb = (int32_t)v->o[8];
+    float fb = v->o[9];
+    int k, j, n = m > SUB * 4 ? SUB * 4 : m;
+    smp_cache_t *xc = &smp_xc[(int)v->o[7] - 1];
+    k = smp_play(&smp_vc[v->vi % NVOICE], sm, pos, fr, inc, 1, ls, le, out, n);
+    smp_play(xc, sm, &pb, &fb, inc, 1, ls, le, tb, k);
+    for (j = 0; j < k; j++) {                    /* (equal power: the two halves of a loop are not alike) */
+        float t = fm_clampf((p0 + (float)j * inc - (float)(le - xf)) / (float)xf, 0.0f, 1.0f);
+        out[j] = out[j] * fm_sin_turns(0.25f - t * 0.25f) + tb[j] * fm_sin_turns(t * 0.25f);
+    }
+    if (k < n || *pos >= le) {                   /* the end reached: on from the start's side, the cache free */
+        *pos = pb;
+        *fr = fb;
+        smp_xo[(int)v->o[7] - 1] = NVOICE;
+        v->o[7] = 0.0f;
+    } else {
+        v->o[8] = (float)pb;
+        v->o[9] = fb;
+    }
+    return k;
+}
 static void smp_run(voice_t *v, float *xl, float *xr, int m)
 {
     const cfg_t *c = &v->c;
@@ -816,7 +863,12 @@ static void smp_run(voice_t *v, float *xl, float *xr, int m)
     float fr = v->o[1];
     int32_t pos = (int32_t)v->o[0], dir = v->o[2] < 0.0f ? -1 : 1;
     int i = 0, done = !sm || inc <= 0.0f || v->o[3] > 0.5f, turns = 0;
+    int32_t xf = sm && le - ls >= 64 ? (int32_t)fm_minf((float)sm->rate * SMP_XF_S, (float)(le - ls) * 0.25f) : 0;
     (void)xr;
+    if (!done && v->o[5] > 0.5f && v->o[7] > 0.5f) {   /* (a retrigger during a crossing: the crossing let go) */
+        smp_xo[(int)v->o[7] - 1] = NVOICE;
+        v->o[7] = 0.0f;
+    }
     if (!done && v->o[5] > 0.5f) {               /* a mono retrigger: the sound playing fades out over SMP_SWITCH
                                                   * samples, then the note starts (smp_retrigger) */
         float sw = v->o[6];
@@ -847,9 +899,15 @@ static void smp_run(voice_t *v, float *xl, float *xr, int m)
     }
     while (!done && i < m && v->o[5] < 0.5f) {
         int32_t lo = s0, hi = s1;
+        if (mode == SM_LOOP && v->o[7] > 0.5f) {      /* crossing the loop point */
+            i += smp_xfade(v, sm, &pos, &fr, inc, ls, le, xf, xl + i, m - i);
+            continue;
+        }
         if (mode == SM_LOOP || mode == SM_PINGPONG) {   /* into the loop, then round (or across) it */
             hi = le;
             lo = dir < 0 || pos >= ls ? ls : s0;
+            if (mode == SM_LOOP && xf > 0 && pos < le - xf)
+                hi = le - xf;                    /* (up to the crossfade's start: smp_xfade from there) */
         }
         {
             int i0 = i;
@@ -868,7 +926,19 @@ static void smp_run(voice_t *v, float *xl, float *xr, int m)
             break;
         if (mode == SM_ONESHOT || mode == SM_REVERSE || le - ls < 2 || ++turns > 4)
             done = 1;                            /* (a loop shorter than the step: once round is enough) */
-        else if (mode == SM_LOOP)
+        else if (mode == SM_LOOP && xf > 0 && pos >= le - xf && pos < le) {   /* the crossfade's start: a cache for it */
+            int x;
+            for (x = 0; x < SMP_NXF && smp_xo[x] != NVOICE; x++)
+                ;
+            if (x < SMP_NXF) {
+                smp_xo[x] = (uint8_t)v->vi;
+                smp_cache_reset(&smp_xc[x]);
+                v->o[7] = (float)(x + 1);
+                v->o[8] = (float)(ls + (pos - (le - xf)));
+                v->o[9] = fr;
+            } else
+                xf = 0;                          /* (none free: this turn jumps, as before) */
+        } else if (mode == SM_LOOP)
             pos = ls + (pos - le) % (le - ls);
         else if (dir > 0) {                      /* pingpong: back from the loop's end */
             pos = 2 * (le - 1) - pos - (fr > 0.0f);
@@ -2258,6 +2328,12 @@ static void voice_chunk(synth_t *s, voice_t *v)
             c->ex[9] = fv;
             c->ex[10] = kv;
         }
+        if (v->engine == EG_SAMPLE) {          /* its loop page (smp_prep) */
+            float a = (float)P(s, trk, TP_X1), b = (float)P(s, trk, TP_X2);
+            moved |= a != c->ex[8] || b != c->ex[9];
+            c->ex[8] = a;
+            c->ex[9] = b;
+        }
         if (v->engine == EG_KNIT) {            /* its second page (knit_prep) */
             for (i = 0; i < 4; i++) {
                 float xv = (float)P(s, trk, TP_X1 + i);
@@ -2809,6 +2885,10 @@ static const tp_info_t NONE_P = {"-", 0, 0, 0, PK_NUM, 0};
 /* knit's second page: osc 2's interval (+-24 semitones about 64) and level, the sub, the noise (knit_prep) */
 static const tp_info_t KNIT_X_P[4] = {{"osc 2", 40, 88, 64, PK_BIPST, 0}, {"level", 0, 127, 0, PK_PCT, 0},
                                     {"sub", 0, 127, 0, PK_PCT, 0}, {"noise", 0, 127, 0, PK_PCT, 0}};
+/* the sample engine's second page (its loop modes only): where the loop starts in the region that plays, and how much
+ * of the rest it loops (0 auto: the sample's own loop, else to the region's end) (smp_prep) */
+static const tp_info_t SAMPLE_X_P[4] = {{"loop start", 0, 127, 0, PK_PCT, 0}, {"loop len", 0, 127, 0, PK_PCT, 0},
+                                        {"-", 0, 0, 0, PK_NUM, 0}, {"-", 0, 0, 0, PK_NUM, 0}};
 /* orbit's second page: the index's fall (0 held; 20 ms .. 4 s), its floor, keyscale (rayon_prep) */
 static const tp_info_t RAYON_X_P[4] = {{"fall", 0, 127, 0, PK_NUM, 0}, {"floor", 0, 127, 0, PK_PCT, 0},
                                        {"keyscale", 0, 127, 0, PK_PCT, 0}, {"-", 0, 0, 0, PK_NUM, 0}};
@@ -2912,7 +2992,7 @@ const tp_info_t *tp_info(int p, int engine)
     }
     if (p >= TP_X1 && p <= TP_X4)                /* the engine's second page: knit's, rayon's, else none */
         return engine == EG_RAYON ? &RAYON_X_P[p - TP_X1]
-             : engine == EG_KNIT ? &KNIT_X_P[p - TP_X1] : &NONE_P;
+             : engine == EG_KNIT ? &KNIT_X_P[p - TP_X1] : engine == EG_SAMPLE ? &SAMPLE_X_P[p - TP_X1] : &NONE_P;
     if (engine == EG_DRUMLINE) {
         if (p >= TP_A && p <= TP_R)
             return &DRUMENV[p - TP_A];
@@ -3025,6 +3105,10 @@ static void hz_text(float hz, char *num, char *unit)
 static void tp_text_i(const tp_info_t *i, int p, int v, int engine, char *num, char *unit)
 {
     unit[0] = 0;
+    if (p == TP_X2 && engine == EG_SAMPLE && v == 0) {   /* (the loop's length: the sample's own, or the rest) */
+        put_s(num, "auto");
+        return;
+    }
     if (p == TP_CHAN && v == 0) {
         put_s(num, "off");
         return;
