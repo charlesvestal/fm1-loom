@@ -43,10 +43,10 @@ Reviewed from the simulator's `speakdump` (every page's list, as the screen read
 - **Players**: the players' knobs, the weave's (WITH, PATTERN, RULE, PLAYS), KEEP AS PATTERN.
 - **FX**: per page, as now (Character: its four; Sends: its four; FX I / II: the knobs, EFFECT, HIGH-PASS, LOW-PASS,
   TO FX II on FX I; Throws: LATCH).
-- **GLO**: Mix (the selected track's: FX I, FX II, pan, **T2 level**); EQ (low, mid, high); color (color, **color
+- **GLO**: Mix (the selected track's: FX I, FX II, pan, **T2 level**); Mix 2 (C9: **T2 low cut**, **T2 high cut**); EQ (low, mid, high); color (color, **color
   amount**, tone, mix); out (drums, melodic, comp, pump, PUMP BY, RELEASE, ACCENT, **MASTER LEVEL**); LFO (SHAPE, RATE,
   **LFO AMOUNT**, DEST); Setup (LIGHTS, CLOCK, NOTES, THEME, USB AUDIO, LOOP THROWS, AUTOSAVE, CC OUT from C3);
-  Debug (CORES, debug builds); ALL NOTES OFF. 33 rows of LIST_ROWS 36.
+  Debug (CORES, debug builds); ALL NOTES OFF. 35 rows: LIST_ROWS 36 -> 40 (+128 B RAM).
 - **HOME**: as now (Arrange's and Song's knobs, the projects, the song, the scenes, ALL NOTES OFF), INSERT SLOT.
 - **Steps / Bar, conductor, throws, weave**: as now.
 

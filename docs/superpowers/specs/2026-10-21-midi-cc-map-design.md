@@ -32,6 +32,7 @@ A CC's 0..127 is scaled onto the parameter's range (`tp_info_par` lo..hi; switch
 | 10 | pan (`TP_PAN`) | pan |
 | 91 / 93 | send I / II (`TP_SEND1` / `TP_SEND2`) | every sound's send I / II moved by the same offset (below) |
 | 9 | mute, >= 64 muted | mute |
+| 14 / 15 | the mixer's low cut / high cut (C9: `TP_LOCUT` / `TP_HICUT`) | same |
 | 74 | cutoff (`TP_CUT`) | the bus's hi cut (`TP_KTRK`) |
 | 71 | resonance (`TP_RES`) | the bus's low cut (`TP_CUT`) |
 | 73 | attack (`TP_A`) | kit attack (`TP_D`) |
