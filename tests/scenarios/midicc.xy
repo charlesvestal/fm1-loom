@@ -163,3 +163,36 @@ expect_out USB 92 3C 64
 midi BB 07 50
 wait 40
 expect par3.48 80
+
+# mutes as the Mix page's: T3 by CC 9, the kit's sound 2 by CC 17
+projnew
+midi B2 09 7F
+wait 20
+expect mute 4
+midi B2 09 7F
+wait 20
+expect mute 4
+midi B2 09 00
+wait 20
+expect mute 0
+midi B0 11 7F
+wait 20
+expect kmute1 2
+midi B0 11 00
+wait 20
+expect kmute1 0
+# a kit sound's pan and level (sound 2: par 52 + 20 + 6 = 78, + 7 = 79)
+midi B0 51 00
+midi B0 67 5A
+wait 20
+expect par1.78 0
+expect par1.79 90
+# a kit's send I by an offset: sound 1's (par 70) and sound 2's (par 90) keep their gap
+param 1 70 10
+param 1 90 40
+midi B0 5B 4A
+wait 20
+midi B0 5B 54
+wait 20
+expect par1.70 30
+expect par1.90 60

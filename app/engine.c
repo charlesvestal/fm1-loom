@@ -672,7 +672,7 @@ static void perf_tick(uint32_t n)
 volatile uint8_t eng_midi_trk;                      /* channels 12-16's track (the main loop's inst_trk(), set once a
                                                     * frame before cc_in_drain): the keys' instrument, not trk_sel */
 static int midi_track(int ch)                      /* the track a channel plays: 1-8 theirs, 12-16 the one playing
-                                                    * (else T1); FX and the master none (-1) */
+                                                    * (T1 until the first UI frame); FX and the master none (-1) */
 {
     if (ch < NTRK)
         return ch;
@@ -695,7 +695,7 @@ static void midi_in(uint32_t pkt)
         ty = 0x80;
     if (ty == 0x90 || ty == 0x80) {
         int t = midi_track(ch);
-        if (ch == CH_MASTER) {                     /* the master's channel: notes pick scenes (midicc.c) */
+        if (ch == CH_MASTER) {                      /* the master's channel: notes pick scenes (midicc.c) */
             if (ty == 0x90)
                 ccq_put(pkt);
         } else if (t >= 0)

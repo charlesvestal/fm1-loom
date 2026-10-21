@@ -48,13 +48,50 @@ static void cc_master(int m, int v)
     engine_master(m, proj.master[m]);
     mark_dirty();
 }
+static uint8_t cc_ksend[NTRK][2] = {[0 ... NTRK - 1] = {64, 64}};   /* a kit's last CC 91 / 93 (the offsets' base) */
+static void cc_mute(int t, int on)            /* as the Mix page's tap: the mute now, in the scene playing */
+{
+    if ((int)(seq.mute >> t & 1u) != on)
+        set_mute(t, on);
+}
+static void cc_kmute(int t, int snd, int on)  /* a kit's sound, as Arrange's (the first four kits) */
+{
+    int k = kit_slot(t);
+    if (k >= 0 && (int)(seq.kmute[k] >> snd & 1u) != on)
+        kit_sound_mute(t, snd);
+}
+static void cc_kit_send(int t, int which, int v)   /* every sound's send moved by the CC's change */
+{
+    int d = v - cc_ksend[t][which];
+    cc_ksend[t][which] = (uint8_t)v;
+    for (int k = 0; k < DL_NSOUND; k++) {
+        int p = TP_DRUM(k, DP_SEND1 + which);
+        set_tp(t, p, proj.trk[t].par[p] + d);    /* (set_tp clamps to the send's range) */
+    }
+}
 static void cc_track(int t, int cc, int v)
 {
     int kit = is_drum(t);
+    if (kit && cc >= CC_KMUTE && cc < CC_KMUTE + DL_NSOUND) {
+        cc_kmute(t, cc - CC_KMUTE, v >= 64);
+        return;
+    }
+    if (kit && cc >= CC_KPAN && cc < CC_KPAN + DL_NSOUND) {
+        cc_par(t, TP_DRUM(cc - CC_KPAN, DP_PAN), v);
+        return;
+    }
+    if (kit && cc >= CC_KLEVEL && cc < CC_KLEVEL + DL_NSOUND) {
+        cc_par(t, TP_DRUM(cc - CC_KLEVEL, DP_VOLUME), v);
+        return;
+    }
     for (uint32_t i = 0; i < sizeof CC_TRK / sizeof CC_TRK[0]; i++)
         if (CC_TRK[i].cc == cc) {
             int p = kit ? CC_TRK[i].kit : CC_TRK[i].syn;
-            if (p < TP_DRUM0)
+            if (p == CC_MUTE)
+                cc_mute(t, v >= 64);
+            else if (p == CC_KSEND1 || p == CC_KSEND2)
+                cc_kit_send(t, p == CC_KSEND2, v);
+            else if (p < TP_DRUM0)
                 cc_par(t, p, v);
             return;
         }
