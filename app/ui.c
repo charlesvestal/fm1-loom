@@ -1268,6 +1268,11 @@ static void key_down(int k)
     }
     if (home_held())                             /* (HOME shifts the knobs and buttons, not the keys) */
         return;
+    if (p == P_GLFO && w >= 0 && w < NDRUM + 1) {   /* the shared LFO on a kit: white keys 1-11 its sound, 12 every one */
+        set_tp(AUX_BRAIN, TP_P1, w == NDRUM ? 0 : w + 1);
+        say("KIT SOUND", w == NDRUM ? "all" : DL_SOUND_NAME[w]);
+        return;
+    }
     if (p == P_GLFO && b >= 0 && b < NTRK) {     /* the shared LFO: black keys 1-8 the tracks it moves */
         int q = b < 4 ? TP_LX : TP_LX2, bit = 1 << (b & 3);
         uint8_t v = proj.trk[AUX_BRAIN].par[q];
@@ -3073,10 +3078,12 @@ static void leds(void)
             if (is_drum(trk))
                 k |= 1u << BLACK_K[ui.dsound % 11];
             k |= ui.keys;
-        } else if (ui.page == P_GLFO) {          /* the shared LFO: the tracks it moves */
+        } else if (ui.page == P_GLFO) {          /* the shared LFO: the tracks it moves, the kit sound (12: all) */
+            int ks = proj.trk[AUX_BRAIN].par[TP_P1];
             for (i = 0; i < NTRK; i++)
                 if (glfo_route() >> i & 1u)
                     k |= 1u << BLACK_K[i];
+            k |= 1u << WHITE_K[ks >= 1 && ks <= NDRUM ? ks - 1 : NDRUM];
             k |= ui.keys;
         } else if (ui.page == P_ARRANGE && kit_mute_hold() >= 0) {   /* a kit's black key held: its sounds playing */
             int ks = kit_slot(ui.knote[kit_mute_hold()] & 0x7F);

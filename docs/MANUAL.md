@@ -906,7 +906,8 @@ sweep can open the filters of a few tracks together, or breathe across a 16-bar 
 sixteenth, in time with the tempo, or 0.02 to 10 Hz free), **KNOB 3** how much (either way), **KNOB 4** what it
 moves: cutoff, resonance, pitch (up to 12 semitones), pan, volume, the FX I or FX II send, or the character's
 amount. Black keys 1 to 8 pick the tracks it moves (lit). It starts again from its beginning when PLAY starts, so
-a long sweep lines up with the bars. (The melodic tracks; a kit is not moved by it.)
+a long sweep lines up with the bars. On a kit it moves every sound, or one: white keys 1 to 11 pick it (a hat's
+pitch, the snare's send), white key 12 every sound again; the character's amount is the kit's whole.
 
 **Master color** gives the whole mix a colour after the EQ: **color** picks it, **amount**, **tone** and **mix**
 shape it. **tape** is worn tape: a slow wow and a quick flutter on the pitch (more with the amount), a soft

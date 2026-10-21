@@ -136,7 +136,8 @@ enum { LT_OFF, LT_WAVE, LT_WOBBLE, LT_DRIFT, LT_PUMP, NLT };
  * conductor track's (AUX_BRAIN's) own LFO slots, unused by it: TP_LTYPE the shape (0 off, 1 + GS_*), TP_LSPEED the
  * rate (0..GL_SYNC_N-1 synced 16 bars .. 1/16, then free 0.02 .. 10 Hz), TP_LAMT the amount (64 = 0, -100..100 % of
  * the destination's range), TP_LDEST the destination (GD_*), TP_LX / TP_LX2 the tracks it moves (T1-T4, T5-T8: a bit
- * each). It restarts when the transport starts. */
+ * each), TP_P1 a kit's sound it moves (0 every one, 1..11 that key: engine.c glfo_kits). It restarts when the
+ * transport starts. */
 enum { GS_SINE, GS_TRI, GS_UP, GS_DOWN, GS_SQUARE, GS_RANDOM, NGS };
 enum { GD_CUT, GD_RES, GD_PITCH, GD_PAN, GD_VOL, GD_SEND1, GD_SEND2, GD_CHAR, NGD };
 #define GL_SYNC_N 9

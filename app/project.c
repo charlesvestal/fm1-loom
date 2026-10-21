@@ -102,7 +102,7 @@ static void set_name(trk_t *t, const char *s)
 }
 
 /* the shared LFO's knobs (synth.h: the conductor's LFO slots) at their start: off, 1 bar, no amount, the cutoff,
- * no track */
+ * no track, on a kit every sound */
 static void glfo_defaults(uint8_t *p)
 {
     p[TP_LTYPE] = 0;
@@ -110,6 +110,7 @@ static void glfo_defaults(uint8_t *p)
     p[TP_LAMT] = 64;
     p[TP_LDEST] = GD_CUT;
     p[TP_LX] = p[TP_LX2] = 0;
+    p[TP_P1] = 0;                                         /* (on a kit: every sound) */
 }
 static void aux_defaults(void)
 {

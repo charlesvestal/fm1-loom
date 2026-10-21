@@ -487,13 +487,14 @@ static void s_note_off(void *x, int trk, uint32_t tag)
         synth_note_off(SY, trk, tag);
     PROF_ADD(PR_NOTE, pn);
 }
+static int glfo_kit_semis(int trk, int sound);
 static void s_drum(void *x, int trk, int sound, int vel, int pitch_semi, int short_gate, int long_tail)
 {
     (void)x;
     PROF_T(pn);
     if (trk < 0 || trk >= NTRK || !eng_drum[trk] || sound < 0 || sound >= NDRUM)
         return;
-    drumline_hit(DL(trk), sound, vel, pitch_semi, short_gate, long_tail || perf_tail[trk]);
+    drumline_hit(DL(trk), sound, vel, pitch_semi + glfo_kit_semis(trk, sound), short_gate, long_tail || perf_tail[trk]);
 #ifdef PLAT_HOST
     host_drum_hits++;                                  /* (the host's load model: a hit's own cost) */
 #endif
@@ -1059,6 +1060,57 @@ static void render_sub(uint32_t n, uint32_t at)
 static float vol_s;                                      /* MASTER's gain as it glides (the render only) */
 _Static_assert(SY_GLFO_TRK == AUX_BRAIN, "the shared LFO's knobs are the conductor's");
 float engine_glfo_now(void) { return synth_glfo_now(SY); }
+/* the shared LFO on the kits (synth.h GD_*; the synth moves the melodic tracks itself): once a block, over the engine's
+ * own copy of the kit's knobs (epar, what drumline reads: at a hit, or each chunk for the filter), each value
+ * modulated kept beside its base (the knob's, or a lock's: a write by anyone else since is the new base) and put
+ * back when the LFO lets go of it. The conductor's TP_P1 picks the sound: 0 every key, 1..11 that key. Pitch is
+ * not here: s_drum adds it to the hit's tuning */
+static struct { int16_t p; uint8_t base, last; } gk[NTRK][NDRUM + 1];   /* (the kit's character: slot NDRUM) */
+static void glfo_kits(void)
+{
+    const uint8_t *g = epar[AUX_BRAIN];
+    static const uint8_t DPD[NGD] = {DP_CUT, DP_RES, 0xFF, DP_PAN, DP_VOLUME, DP_SEND1, DP_SEND2, 0xFF};
+    int route = (g[TP_LX] & 15) | (g[TP_LX2] & 15) << 4, dest = g[TP_LDEST] % NGD, snd = g[TP_P1];
+    int on = g[TP_LTYPE] != 0 && g[TP_LTYPE] <= NGS;
+    float off = synth_glfo_now(SY) * fm_clampf(((float)g[TP_LAMT] - 64.0f) * (127.0f / 63.0f), -127.0f, 127.0f);
+    for (int t = 0; t < NTRK; t++)
+        for (int k = 0; k <= NDRUM; k++) {
+            int want = -1;
+            if (on && eng_drum[t] && (route >> t & 1)) {
+                if (k == NDRUM)
+                    want = dest == GD_CHAR ? TP_CAMT : -1;
+                else if (DPD[dest] != 0xFF && (!snd || snd == k + 1))
+                    want = TP_DRUM(k, DPD[dest]);
+            }
+            if (gk[t][k].p && gk[t][k].p - 1 != want) {    /* let go (or another destination): the base back */
+                int q = gk[t][k].p - 1;
+                if (epar[t][q] == gk[t][k].last)
+                    epar[t][q] = gk[t][k].base;
+                gk[t][k].p = 0;
+            }
+            if (want < 0)
+                continue;
+            if (!gk[t][k].p || epar[t][want] != gk[t][k].last) {   /* (fresh, or written since: its new base) */
+                gk[t][k].p = (int16_t)(want + 1);
+                gk[t][k].base = epar[t][want];
+            }
+            {
+                int v = (int)((float)gk[t][k].base + off + (off >= 0.0f ? 0.5f : -0.5f));
+                epar[t][want] = gk[t][k].last = (uint8_t)(v < 0 ? 0 : v > 127 ? 127 : v);
+            }
+        }
+}
+static int glfo_kit_semis(int trk, int sound)            /* the shared LFO on a kit's pitch: semitones for a hit */
+{
+    const uint8_t *g = epar[AUX_BRAIN];
+    int route = (g[TP_LX] & 15) | (g[TP_LX2] & 15) << 4, snd = g[TP_P1];
+    float off;
+    if (!g[TP_LTYPE] || g[TP_LTYPE] > NGS || g[TP_LDEST] % NGD != GD_PITCH || !(route >> trk & 1) ||
+        (snd && snd != sound + 1))
+        return 0;
+    off = synth_glfo_now(SY) * fm_clampf(((float)g[TP_LAMT] - 64.0f) * (127.0f / 63.0f), -127.0f, 127.0f);
+    return (int)(off * (12.0f / 127.0f) + (off >= 0.0f ? 0.5f : -0.5f));   /* (+-12 semitones at 100 %) */
+}
 void engine_render(int32_t *out_lr, uint32_t n, uint32_t gain_q12)
 {
     uint32_t done = 0, i;
@@ -1069,6 +1121,7 @@ void engine_render(int32_t *out_lr, uint32_t n, uint32_t gain_q12)
     if (seq.playing && !was_playing)                     /* the transport started: the shared LFO from its start */
         synth_glfo_restart(SY);
     was_playing = seq.playing;
+    glfo_kits();
     if (n > 256u)
         n = 256u;
     eng_prof_frames += n;

@@ -337,3 +337,24 @@ tap SEL
 key w0 up
 wait 40
 expect lane 2 1 res 0
+# the shared LFO on a kit: a square a bar on T1's hat (white key 3) volume, from PLAY; off, the hat's own value back
+projnew
+tap GLO
+turn SELECT 4
+expect page LFO
+turn K1 5
+turn K3 63
+turn K4 4
+tapkey b0
+tapkey w2
+tap PLAY
+wait 400
+expect epar1.99 >80
+expect epar1.59 76
+wait 1000
+expect epar1.99 <70
+expect epar1.59 76
+tap PLAY
+turn K1 -6
+wait 40
+expect epar1.99 76

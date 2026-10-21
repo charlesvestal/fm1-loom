@@ -181,7 +181,13 @@ int app_expect(const char *what, int *got)
         *got = seq.scene + 1;
     else if (!strcmp(what, "mute"))
         *got = seq.mute;
-    else if (!strcmp(what, "sendnotes"))            /* Setup's NOTES: MIDI notes out */
+    else if (!strncmp(what, "epar", 4) && strchr(what, '.')) {   /* eparT.P: the engine's own value of a parameter
+                                                     * (with the locks and the shared LFO on a kit) */
+        int t = atoi(what + 4) - 1, p = param_of(strchr(what, '.') + 1);
+        if (t < 0 || t >= NALLTRK || p < 0 || p >= NTP)
+            return 0;
+        *got = epar[t][p];
+    } else if (!strcmp(what, "sendnotes"))            /* Setup's NOTES: MIDI notes out */
         *got = seq.send_notes;
     else if (!strcmp(what, "pat2"))                 /* track 2's pattern in the scene playing, from 1 */
         *got = pats.scene[seq.scene % NSCENE].pat[1] + 1;

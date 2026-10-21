@@ -1584,7 +1584,7 @@ static void page_footer(char *t)
         s_cat(t, "SEL pump by, level|KEYS play");
         break;
     case P_GLFO:
-        s_cat(t, "BLACK the tracks it moves|WHITE play");
+        s_cat(t, "BLACK the tracks it moves|WHITE a kit's sound, 12 all");
         break;
     case P_MASTER: case P_MASTER2: case P_SETUP: case P_STATUS:
         s_cat(t, "KEYS play");
@@ -4147,6 +4147,7 @@ static void draw_glfo(void)
     int sh = g[TP_LTYPE] % (NGS + 1), now = (int)(engine_glfo_now() * 24.0f), route = (int)glfo_route();
     uint32_t h = hash_u(hash_u(2166136261u, 0x6F0u), (uint32_t)sh | (uint32_t)route << 4 | (uint32_t)g[TP_LDEST] << 12 |
                                            (uint32_t)(now + 32) << 16 | (uint32_t)g[TP_LAMT] << 24);
+    h = hash_u(h, g[TP_P1]);
     int32_t x0 = 16, w = 208, cy = 40;
     pen_t pn = {0};
     char t[24];
@@ -4172,6 +4173,12 @@ static void draw_glfo(void)
         cv_round(x0 + w + 4, cy - now - 3, 6, 6, 3, K_TEXT);   /* (where it is now, at the right) */
         s_cat(s_cat(t, "moves "), GLFO_DEST[g[TP_LDEST] % NGD]);
         cv_text(16, 72, &FONT_XS, t, K_DIM);
+        {                                         /* (on a kit: the sound it moves) */
+            int ks = g[TP_P1];
+            char kt[24];
+            s_cat(s_cat(kt, "kits: "), ks >= 1 && ks <= NDRUM ? DL_SOUND_NAME[ks - 1] : "every sound");
+            text_r(224, 72, &FONT_XS, kt, K_DIM);
+        }
     }
     for (int i = 0; i < NTRK; i++) {             /* the tracks it moves: black keys 1-8 */
         int32_t x = 16 + i * 26, on = route >> i & 1;
