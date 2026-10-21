@@ -196,3 +196,81 @@ midi B0 5B 54
 wait 20
 expect par1.70 30
 expect par1.90 60
+
+# a kit's send I clamps at the send's top (127, DP_SEND1's range): coming back down loses what the clamp ate
+midi B0 5B 40
+wait 20
+param 1 70 120
+param 1 90 40
+midi B0 5B 54
+wait 20
+expect par1.70 127
+expect par1.90 60
+midi B0 5B 40
+wait 20
+expect par1.70 107
+expect par1.90 40
+
+# CC 9 on a kit track (T1): its mute, as the Mix page's
+midi B0 09 7F
+wait 20
+expect mute 1
+midi B0 09 00
+wait 20
+expect mute 0
+
+# CC OUT: on in a new project; a knob turned by hand sends its CC; a CC in sends nothing
+projnew
+turn ALGO 1
+expect trk 2
+tap GLO
+expect page Mix
+ccreset
+turn K4 -1
+wait 20
+expect ccst 177
+expect ccd1 7
+ccreset
+midi B1 07 40
+wait 20
+expect par2.48 64
+expect ccouts 0
+# MIDI OUT off on T2: its knob sends nothing
+param 2 51 0
+ccreset
+turn K4 1
+wait 20
+expect ccouts 0
+param 2 51 1
+# the master's pump amount (Master out: GLO's fourth page, KNOB 4; MS_LEVEL itself is the SEL list's LEVEL row,
+# not a knob there) on channel 11
+turn SELECT 3
+expect page Master_out
+ccreset
+turn K4 1
+wait 20
+expect ccst 186
+expect ccd1 27
+# the SEL list's LEVEL row (A_LEVEL), turned by hand: its CC too
+ccreset
+tap SEL
+turn SELECT 40
+turn SELECT -5
+expect ccouts 0
+ccreset
+turn ALGO 1
+wait 20
+expect ccst 186
+expect ccd1 7
+tap SEL
+# CC OUT off (GLO's SEL list: the row before ALL NOTES OFF, the last): nothing sent
+tap SEL
+turn SELECT 40
+turn SELECT -1
+turn ALGO -1
+tap SEL
+expect page Master_out
+ccreset
+turn K4 1
+wait 20
+expect ccouts 0

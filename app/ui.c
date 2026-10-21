@@ -157,6 +157,9 @@ static void undo_sounds(int first, int n);
 static void undo_master(void);
 static void undo_arr(void);
 static void cc_in_drain(void);                    /* midicc.c: MIDI in's CCs, Program Changes, scene notes */
+static void cc_out_param(int trk, int p);         /* midicc.c: a parameter changed (sent when by hand, CC OUT on) */
+static void cc_out_master(int m);
+static uint8_t cc_hand;                           /* (midicc.c's: knob() and list_change() running) */
 static void sound_reset(uint8_t *par, int engine)   /* the engine's defaults; MIDI OUT stays (routing, not sound) */
 {
     int out = par[TP_CHAN];
@@ -221,6 +224,7 @@ static void set_tp(int trk, int p, int v)
         apply_aux(trk);
     if (p == TP_BRAIN)
         apply_brain();
+    cc_out_param(trk, p);
     mark_dirty();
 }
 static void set_tempo_x10(int x10)
@@ -1849,6 +1853,7 @@ static void master_knob(int k, int32_t e)
     undo_master();
     proj.master[m] = (uint8_t)clampi(proj.master[m] + e, 0, master_max(m));
     engine_master(m, proj.master[m]);
+    cc_out_master(m);
     mark_dirty();
 }
 static void setup_knob(int k, int32_t e)
@@ -1927,7 +1932,7 @@ static void knob_clear(int k)
     mark_dirty();
     say(n ? "CLEARED" : "NOTHING TO CLEAR", tp_info_par(p, proj.trk[trk].par)->name);
 }
-static void knob(int k, int32_t e)
+static void knob_do(int k, int32_t e)
 {
     int trk = sel_trk(), p;
     e = accel(EN_K1 + k, e);
@@ -2011,6 +2016,12 @@ static void knob(int k, int32_t e)
     set_tp(trk, p, proj.trk[trk].par[p] + (int)e);
     if (seq.rec && playing() && !is_aux(trk))
         seq_rec_knob(&seq, trk, p, proj.trk[trk].par[p]);
+}
+static void knob(int k, int32_t e)               /* a knob turned by hand: what it changes goes out as its CC */
+{
+    cc_hand = 1;
+    knob_do(k, e);
+    cc_hand = 0;
 }
 static void presets(int32_t e)
 {
@@ -2147,7 +2158,7 @@ static int list_follow_trk(void)
         return nm[1] - '1';
     return sel_trk();
 }
-static void list_change(int32_t e)
+static void list_change_do(int32_t e)
 {
     int d = e > 0 ? 1 : -1;
     list_build();
@@ -2245,16 +2256,27 @@ static void list_change(int32_t e)
                 undo_master();
                 proj.master[m] = (uint8_t)v;
                 engine_master(m, v);
+                cc_out_master(m);
                 mark_dirty();
             }
             break;
         }
+        case A_CC_OUT:
+            proj.rsv[2] = (uint8_t)(d > 0 ? proj.rsv[2] & ~CC_OUT_OFF : proj.rsv[2] | CC_OUT_OFF);
+            mark_dirty();
+            break;
         default: break;
         }
         break;
     default:
         break;
     }
+}
+static void list_change(int32_t e)               /* a SEL list row changed by hand: its CC (if any) goes out too */
+{
+    cc_hand = 1;
+    list_change_do(e);
+    cc_hand = 0;
 }
 static void act_clear_notes(void)
 {
@@ -2828,7 +2850,7 @@ static void action_run(int a)
         break;
     case A_FOLLOW: case A_USB_AUDIO: case A_COUNT_IN: case A_THEME: case A_PLAYMODE: case A_FTYPE: case A_FX_HP: case A_FX_LP:
     case A_FX_SEND: case A_PUMP_BY: case A_PUMP_REL: case A_PUMP_ACC: case A_LEVEL: case A_SCENE_AT: case A_AUTOSAVE:
-    case A_MIDI_OUT: case A_LOOP_FREE: return;                      /* (ALGORITHM sets them; SEL leaves the list) */
+    case A_MIDI_OUT: case A_LOOP_FREE: case A_CC_OUT: return;       /* (ALGORITHM sets them; SEL leaves the list) */
     case A_REMOVE_NOTE: act_remove_note(lst.sel); break;
     case A_INSERT_SLOT:
         if (sg->len >= NSONG) {

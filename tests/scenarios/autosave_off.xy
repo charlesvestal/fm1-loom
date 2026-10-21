@@ -3,7 +3,7 @@ wait 300
 tap GLO
 tap SEL
 turn SELECT 30
-turn SELECT -1
+turn SELECT -2            /* AUTOSAVE: two up from the last row now CC OUT comes before ALL NOTES OFF */
 wait 50
 turn ALGO -1
 wait 100

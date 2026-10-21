@@ -248,6 +248,14 @@ int app_expect(const char *what, int *got)
             return 0;
         *got = proj.master[k];
     }
+    else if (!strcmp(what, "ccouts"))               /* CCs / Program Changes sent (midicc.c) since "ccreset" */
+        *got = (int)cc_out_n;
+    else if (!strcmp(what, "ccst"))                 /* the last one's status, first and second data byte */
+        *got = (int)(cc_out_last >> 16);
+    else if (!strcmp(what, "ccd1"))
+        *got = (int)(cc_out_last >> 8 & 0xFFu);
+    else if (!strcmp(what, "ccd2"))
+        *got = (int)(cc_out_last & 0xFFu);
     else if (!strncmp(what, "par", 3) && strchr(what, '.')) {   /* parT.P: parameter P of track T */
         int t = atoi(what + 3) - 1, p = param_of(strchr(what, '.') + 1);
         if (t < 0 || t >= NALLTRK || p < 0 || p >= NTP)
@@ -1190,6 +1198,8 @@ int app_host_cmd(const char *cmd, const char *a, const char *b, const char *c, c
         set_tempo_x10((int)(atof(a) * 10.0 + 0.5));     /* the project's tempo (saved with it), as SELECT turns it */
     else if (!strcmp(cmd, "projnew"))              /* as Setup's NEW PROJECT */
         do_new_proj();
+    else if (!strcmp(cmd, "ccreset"))              /* the CCs-out count from 0 (expect ccouts) */
+        cc_out_n = 0;
     else if (!strcmp(cmd, "upgrade9")) {           /* upgrade9 SLOT: a format-9 project (before the kit's keys had their
                                                     * own sends) in slot 1..3 made format 10 and saved there: each key's
                                                     * values in their new places, the kit's track sends on every key,
