@@ -612,7 +612,7 @@ an octave up twice as fast. Its knobs:
 | mode | one-shot (once, then the note ends), loop (round and round; a sample with its own loop loops that), reverse (once, backwards), ping-pong (forth and back) |
 
 The picture shows the sample's waveform, the part that plays bright, a dot where it starts and the loop's ends
-marked. In loop and ping-pong modes **SELECT** has one more page, Loop: **loop start** (where the loop begins in the
+marked. In loop and ping-pong modes **SELECT** has one more page, Loop, right after Engine: **loop start** (where the loop begins in the
 part that plays) and **loop len** (how much of the rest it loops; "auto" at 0: the sample's own loop, or to the end).
 A loop is crossfaded at its point (8 ms), so it loops without a click wherever it is set. Then the track's envelopes, filter, character and LFO shape it like any engine. Its eighteen presets:
 piano (looped, a little tape), dusty keys (darker, the tape wobbling), piano stab (short and bright), rev piano (the

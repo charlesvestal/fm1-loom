@@ -579,6 +579,11 @@ static int grp_page(int g, int i)
 {
     if (PAGE_BTN[g].btn == B_EDIT && sel_trk() == AUX_BRAIN)   /* Engine, Play (routing), Sub (Follow) */
         return i == 2 ? P_SUB : P_ENGINE + i;
+    if (PAGE_BTN[g].btn == B_EDIT && sel_trk() < NTRK && proj.trk[sel_trk()].par[TP_ENGINE] == EG_SAMPLE &&
+        x_page(sel_trk())) {                         /* a looping sample: its Loop page second, after Engine */
+        static const uint8_t SMPP[4] = {P_ENGINE, P_SUB, P_PLAY, P_PLAY2};
+        return SMPP[i & 3];
+    }
     if (PAGE_BTN[g].btn == B_ARP) {
         static const uint8_t ARPP[4] = {P_PLAYERS, P_PLAYERS2, P_PLAYERS3, P_WEAVE};
         static const uint8_t OTHER[3] = {P_PLAYERS, P_PLAYERS2, P_WEAVE};
