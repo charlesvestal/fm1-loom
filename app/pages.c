@@ -3120,10 +3120,22 @@ static void pic_clock(int trk)                       /* (the clock eases out: it
     pic_f = (uint32_t)ft;
     last = ui.frame;
 }
+/* a track's parameters as they sound now: its own, a lock's or a motion's value over each (engine_live): what the
+ * pages' pictures draw, so a recorded motion moves them as it plays back (one buffer: one track at a time) */
+static const uint8_t *par_now(int trk)
+{
+    static uint8_t now[NTP];
+    const uint8_t *par = proj.trk[trk].par;
+    for (int i = 0; i < NTP; i++) {
+        int lv = engine_live(trk, i);
+        now[i] = lv >= 0 ? (uint8_t)lv : par[i];
+    }
+    return now;
+}
 static void draw_engine(void)
 {
     int trk = sel_trk(), eg = proj.trk[trk].par[TP_ENGINE] % NENGINE;
-    const uint8_t *p = proj.trk[trk].par;
+    const uint8_t *p = par_now(trk);
     uint32_t h;
     pic_clock(trk);
     h = hash_u(hash_u(2166136261u, 0xE0u), (uint32_t)trk | (uint32_t)eg << 4 | (uint32_t)ui.dsound << 8 |
@@ -3338,7 +3350,7 @@ static void draw_fxtrack(int trk)                    /* AUX_FX1 / AUX_FX2: the e
 static void draw_play(void)
 {
     int trk = sel_trk();
-    const uint8_t *p = proj.trk[trk].par;
+    const uint8_t *p = par_now(trk);
     uint32_t h = hash_u(hash_u(2166136261u, 0x9Au), (uint32_t)trk | (uint32_t)p[TP_VMODE] << 4 | (uint32_t)eng_voices << 24);
     char t[40];
     if (!begin_main(h))
@@ -3377,7 +3389,7 @@ static void draw_play2(void)
 static void draw_rayon_fall(void)
 {
     int trk = sel_trk();
-    const uint8_t *p = proj.trk[trk].par;
+    const uint8_t *p = par_now(trk);
     int fl = p[TP_X1], fo = p[TP_X2], ks = p[TP_X3];
     uint32_t h = hash_u(hash_u(2166136261u, 0x0Fu), (uint32_t)trk | (uint32_t)fl << 4 | (uint32_t)fo << 12 |
                                                     (uint32_t)ks << 20);
@@ -3403,7 +3415,7 @@ static void draw_rayon_fall(void)
 static void draw_knit_x(void)
 {
     int trk = sel_trk();
-    const uint8_t *p = proj.trk[trk].par;
+    const uint8_t *p = par_now(trk);
     int st = clampi((int)p[TP_X1] - 64, -24, 24);
     uint32_t h = hash_u(hash_u(2166136261u, 0xA4u), (uint32_t)trk | (uint32_t)p[TP_X1] << 4 | (uint32_t)p[TP_X2] << 12 |
                                                     (uint32_t)p[TP_X3] << 20);
@@ -3452,7 +3464,7 @@ static void draw_sub(void)
 static void draw_key_env(void)
 {
     int trk = sel_trk(), key = ui.dsound % DL_NSOUND;
-    const uint8_t *p = proj.trk[trk].par + TP_DRUM(key, 0);
+    const uint8_t *p = par_now(trk) + TP_DRUM(key, 0);
     uint32_t h = hash_u(hash_u(2166136261u, 0xE8u), (uint32_t)trk | (uint32_t)key << 4 | (uint32_t)p[DP_ATTACK] << 8 |
                                           (uint32_t)p[DP_HOLD] << 16 | (uint32_t)p[DP_DECAY] << 24);
     float x0 = 16.0f, w = 208.0f, hh = 84.0f, base = 16.0f + hh, x = x0, px[48], py[48];
@@ -3522,7 +3534,7 @@ static float filt_y(float db, int32_t y0, int32_t hh)
 static void draw_key_filter(void)
 {
     int trk = sel_trk(), key = ui.dsound % DL_NSOUND;
-    const uint8_t *p = proj.trk[trk].par + TP_DRUM(key, 0);
+    const uint8_t *p = par_now(trk) + TP_DRUM(key, 0);
     int ft = p[DP_FTYPE] % NDF;
     uint32_t h = hash_u(hash_u(2166136261u, 0xF2u), (uint32_t)trk | (uint32_t)key << 4 | (uint32_t)ft << 8 |
                                           (uint32_t)p[DP_CUT] << 12 | (uint32_t)p[DP_RES] << 20);
@@ -3575,7 +3587,7 @@ static void draw_key_filter(void)
 static void draw_env(int filter)
 {
     int trk = sel_trk(), b = filter ? TP_FA : TP_A, drum = is_drum(trk) && filter;
-    const uint8_t *p = proj.trk[trk].par;
+    const uint8_t *p = par_now(trk);
     uint32_t h = hash_u(hash_u(2166136261u, 0xE7u), (uint32_t)trk | (uint32_t)filter << 4 | (uint32_t)p[b] << 8 |
                                           (uint32_t)p[b + 1] << 16 | (uint32_t)p[b + 2] << 24);
     float x0 = 16.0f, y0 = 16.0f, w = 208.0f, hh = 84.0f, base = y0 + hh, x = x0, a, d, r, s;
@@ -3642,7 +3654,7 @@ static void draw_env(int filter)
 static void draw_filter(void)
 {
     int trk = sel_trk();
-    const uint8_t *p = proj.trk[trk].par;
+    const uint8_t *p = par_now(trk);
     int ft = p[TP_FTYPE] % NFT, cut = p[TP_CUT], res = p[TP_RES], dyn = ft == FT_DYNAMIC;
     uint32_t h = hash_u(hash_u(2166136261u, 0xF1u), (uint32_t)trk | (uint32_t)ft << 4 | (uint32_t)cut << 8 | (uint32_t)res << 16 |
                                           (uint32_t)p[TP_KTRK] << 24);
@@ -3701,7 +3713,7 @@ static void draw_character(void)
                                            "fewer bits, a lower rate", "a ring modulator", "a tilt EQ",
                                            "worn tape: warmth and wow", "an old sampler's grain"};
     int trk = inst_trk(), drum = is_drum(trk);
-    const uint8_t *p = proj.trk[trk].par;
+    const uint8_t *p = par_now(trk);
     int ct = p[TP_CTYPE] % NCT;
     uint32_t h = hash_u(hash_u(2166136261u, 0xC4u), (uint32_t)trk | (uint32_t)ct << 4 | (uint32_t)p[TP_CAMT] << 8 |
                                           (uint32_t)p[TP_CTONE] << 16 | (uint32_t)p[TP_CMIX] << 24);
@@ -3751,7 +3763,7 @@ static void draw_sends(void)                         /* the instrument's two sen
                                                       * the effects on them */
 {
     int trk = inst_trk(), key = ui.dsound % DL_NSOUND, drum = is_drum(trk);
-    const uint8_t *p = proj.trk[trk].par, *sv = drum ? p + TP_DRUM(key, DP_SEND1) : p + TP_SEND1;
+    const uint8_t *p = par_now(trk), *sv = drum ? p + TP_DRUM(key, DP_SEND1) : p + TP_SEND1;
     uint32_t h = hash_u(hash_u(2166136261u, 0x5Eu), (uint32_t)trk | (uint32_t)sv[0] << 4 | (uint32_t)sv[1] << 12 |
                                           (uint32_t)p[TP_LEVEL] << 28);
     char t[32];
@@ -3786,7 +3798,7 @@ static float lfo_shape_v(int shape, float ph)
 static void draw_lfo(void)
 {
     int trk = sel_trk();
-    const uint8_t *p = proj.trk[trk].par;
+    const uint8_t *p = par_now(trk);
     int lt = p[TP_LTYPE] % NLT, sh = p[TP_LX2];
     uint32_t h = hash_u(hash_u(2166136261u, 0x1Fu), (uint32_t)trk | (uint32_t)lt << 4 | (uint32_t)p[TP_LAMT] << 8 |
                                           (uint32_t)sh << 16 | (lt ? ui.frame / 2 : 0u) << 24);
@@ -3929,6 +3941,11 @@ static int32_t mix_y(float db)                   /* a level in dB: its height in
     return (int32_t)((db - MIX_DB_LO) * (float)MIX_H / (MIX_DB_HI - MIX_DB_LO) + 0.5f);
 }
 static float lin_db(float g) { return g > 1e-6f ? fm_log2f(g) * 6.0206f : -120.0f; }
+static int lev_now(int t)                             /* a track's level now (a lock's, a motion's) */
+{
+    int lv = engine_live(t, TP_LEVEL);
+    return lv >= 0 ? lv : proj.trk[t].par[TP_LEVEL];
+}
 static void draw_mix(void)
 {
     static float m_db[NALLTRK], m_hold[NALLTRK];
@@ -3953,7 +3970,7 @@ static void draw_mix(void)
             m_hold[t] -= fall;
         }
         h = hash_u(h, (uint32_t)mix_y(m_db[t]) | (uint32_t)mix_y(m_hold[t]) << 8 |
-                      (uint32_t)proj.trk[t].par[TP_LEVEL] << 16);
+                      (uint32_t)lev_now(t) << 16);
     }
     if (!begin_main(h))
         return;
@@ -3976,7 +3993,7 @@ static void draw_mix(void)
         if (!sound)
             continue;
         int32_t lv = mix_y(m_db[t]), pk = mix_y(m_hold[t]);
-        int v = proj.trk[t].par[TP_LEVEL];
+        int v = lev_now(t);
         int32_t fy = v ? mix_y(lin_db(tp_level_gain(v))) : 0;
         cv_round(x, MIX_TOP, 14, MIX_H, 3, K_PANEL);
         for (int i = 0; i < 3; i++)              /* 0, -12, -24 dB */
