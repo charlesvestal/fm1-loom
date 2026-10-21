@@ -308,6 +308,17 @@ expect ccouts 0
 # scenes: Program Change and notes 36-67 on channel 11, as Arrange's white keys; SCENES OUT starts off
 projnew
 # scene 1 (a new project)
+
+# a hand pick sends nothing with SCENES OUT off (the default): proves cc_out_scene checks the switch itself, not
+# just the quiet flag (a MIDI pick would be quiet regardless, so that alone wouldn't prove it)
+ccreset
+tap HOME
+expect page Arrange
+tapkey w1
+wait 40
+expect scene 2                 # scene 2 (hand-picked)
+expect ccouts 0                # SCENES OUT off: nothing sent
+
 ccreset
 midi CA 02
 wait 40
@@ -319,11 +330,13 @@ expect ccouts 0                # SCENES OUT off: nothing sent either way
 
 # turn SCENES OUT on (GLO's SEL list, the row after CC OUT; tap HOME closes the list, tap SEL would not)
 tap GLO
+expect page Mix
 tap SEL
 turn SELECT 40
 turn SELECT -1
 turn ALGO 1
 tap HOME
+expect page Mix
 
 # playing: cued for the next bar (SCENES SWITCH next bar); its landing stays quiet (came in over MIDI, SCENES OUT on)
 ccreset
@@ -344,32 +357,52 @@ expect page Arrange
 tapkey w0
 wait 40
 expect scene 1                 # scene 1
+expect ccouts 1                # (ccreset doesn't clear the last packet: prove one really went out)
 expect ccst 202
 expect ccd1 0
+
+# the two switches are independent: CC OUT off, SCENES OUT still on, a hand pick still sends its Program Change
+tap GLO
+expect page Mix
+tap SEL
+turn SELECT 40
+turn SELECT -2
+turn ALGO -1
+tap HOME
+expect page Mix
+ccreset
+tap HOME
+expect page Arrange
+tapkey w1
+wait 40
+expect scene 2                 # scene 2
+expect ccouts 1                # CC OUT off doesn't touch SCENES OUT's own send
+expect ccst 202
+expect ccd1 1
 
 # ignore rules (SCENES OUT on): none of these touch the scene playing or send anything
 ccreset
 midi CA 20                     # Program Change 32: out of range
 wait 40
-expect scene 1                 # scene 1 (unchanged)
+expect scene 2                 # scene 2 (unchanged)
 expect ccouts 0
 ccreset
 midi 9A 44 64                  # note 68: out of range
 wait 40
-expect scene 1                 # scene 1 (unchanged)
+expect scene 2                 # scene 2 (unchanged)
 expect ccouts 0
 ccreset
 midi 9A 23 64                  # note 35: below the range
 wait 40
-expect scene 1                 # scene 1 (unchanged)
+expect scene 2                 # scene 2 (unchanged)
 expect ccouts 0
 ccreset
 midi 9A 25 00                  # note 37, velocity 0: a note off
 wait 40
-expect scene 1                 # scene 1 (unchanged)
+expect scene 2                 # scene 2 (unchanged)
 expect ccouts 0
 ccreset
 midi C9 02                     # Program Change on channel 10, not the master's 11
 wait 40
-expect scene 1                 # scene 1 (unchanged)
+expect scene 2                 # scene 2 (unchanged)
 expect ccouts 0
