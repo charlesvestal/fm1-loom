@@ -1,7 +1,8 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* LOOM-8's MIDI CC map: a CC on channel 1-8 (a track), 9 / 10 (FX I / II) or 11 (the master) sets a parameter as its
  * knob would, scaled onto the parameter's range; a track's CC is also recorded into its own lane with REC on and
- * playing. Part of app.c's unity build, after ui.c: is_aux, is_drum, inst_trk, set_tp. */
+ * playing. The other way: a mapped value changed by hand (a knob, a SEL list row) goes out as its CC, with CC OUT on.
+ * Part of app.c's unity build, after ui.c: is_aux, is_drum, inst_trk, set_tp. */
 
 #define CC_NONE 0xFFu                         /* (the map's "nothing here") */
 #define CC_MUTE 0xFEu                         /* the track's mute, not a parameter */
@@ -130,7 +131,7 @@ static void cc_in_drain(void)                 /* the main loop: what MIDI in bro
 }
 
 /* ---- out: a mapped value changed by hand (a knob, a SEL list row), with CC OUT on ---- */
-static uint32_t cc_out_last, cc_out_n;        /* (the host's expect ccout, ccouts) */
+static uint32_t cc_out_last, cc_out_n;        /* (the host's expect ccouts, ccst, ccd1, ccd2) */
 static int cc_from(int x, int lo, int hi) { return hi > lo ? ((x - lo) * 127 + (hi - lo) / 2) / (hi - lo) : 0; }
 static void cc_send(int st, int d1, int d2)  /* a channel message out over USB (st: 0xB0 / 0xC0 | channel) */
 {
@@ -154,6 +155,9 @@ static int cc_of(int t, int p)                /* the CC a track's parameter has,
         int k = (p - TP_DRUM0) / DP_N, q = (p - TP_DRUM0) % DP_N;
         return q == DP_PAN ? CC_KPAN + k : q == DP_VOLUME ? CC_KLEVEL + k : -1;
     }
+    if (p >= TP_DRUM0)
+        return -1;                       /* a kit key's on a synth: none (the map's 0xFC..0xFF marks sit past
+                                          * TP_DRUM0 too, at real kit-key indices: never a synth's own parameter) */
     for (uint32_t i = 0; i < sizeof CC_TRK / sizeof CC_TRK[0]; i++)
         if ((is_drum(t) ? CC_TRK[i].kit : CC_TRK[i].syn) == p)
             return CC_TRK[i].cc;

@@ -1847,12 +1847,15 @@ static void glfo_knob(int k, int32_t e)          /* the shared LFO's knobs (synt
 }
 static void master_knob(int k, int32_t e)
 {
-    int m = mst_base(ui.page) + k;
+    int m = mst_base(ui.page) + k, v;
     if (m == MS_RSV3)
         return;                                  /* (EQ: three knobs) */
+    v = clampi(proj.master[m] + e, 0, master_max(m));
+    if (v == proj.master[m])
+        return;                                  /* (a knob past its end: no undo step, no CC) */
     undo_master();
-    proj.master[m] = (uint8_t)clampi(proj.master[m] + e, 0, master_max(m));
-    engine_master(m, proj.master[m]);
+    proj.master[m] = (uint8_t)v;
+    engine_master(m, v);
     cc_out_master(m);
     mark_dirty();
 }
@@ -2019,9 +2022,10 @@ static void knob_do(int k, int32_t e)
 }
 static void knob(int k, int32_t e)               /* a knob turned by hand: what it changes goes out as its CC */
 {
+    uint8_t was = cc_hand;
     cc_hand = 1;
     knob_do(k, e);
-    cc_hand = 0;
+    cc_hand = was;
 }
 static void presets(int32_t e)
 {
@@ -2274,9 +2278,10 @@ static void list_change_do(int32_t e)
 }
 static void list_change(int32_t e)               /* a SEL list row changed by hand: its CC (if any) goes out too */
 {
+    uint8_t was = cc_hand;
     cc_hand = 1;
-    list_change_do(e);
-    cc_hand = 0;
+    list_change_do(e);                            /* (calls knob() for LK_KNOB rows: its own wrapper leaves cc_hand be) */
+    cc_hand = was;
 }
 static void act_clear_notes(void)
 {

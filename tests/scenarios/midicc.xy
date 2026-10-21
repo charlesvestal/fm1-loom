@@ -262,15 +262,45 @@ turn ALGO 1
 wait 20
 expect ccst 186
 expect ccd1 7
-tap SEL
+# tap HOME closes the list (SEL on a PICK row doesn't: list_sel's A_LEVEL is a no-op)
+tap HOME
+expect page Master_out
 # CC OUT off (GLO's SEL list: the row before ALL NOTES OFF, the last): nothing sent
 tap SEL
 turn SELECT 40
 turn SELECT -1
 turn ALGO -1
-tap SEL
+tap HOME
 expect page Master_out
 ccreset
 turn K4 1
+wait 20
+expect ccouts 0
+
+# the exact value and channel: T2's level at 100, turned down by 1
+projnew
+turn ALGO 1
+tap GLO
+param 2 48 100
+out
+turn K4 -1
+wait 20
+expect par2.48 99
+expect_out USB B1 07 63
+
+# scaling on a non-0..127 range (CTYPE 0..2: 0->1 = 64, 1->2 = 127), and a knob past its end: no re-send
+projnew
+tap GLO
+turn SELECT 2
+expect page Master_color
+out
+turn K1 1
+wait 20
+expect_out USB BA 14 40
+turn K1 1
+wait 20
+expect_out USB BA 14 7F
+ccreset
+turn K1 1
 wait 20
 expect ccouts 0
