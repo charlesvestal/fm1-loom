@@ -213,7 +213,7 @@ enum { A_CLEAR_NOTES, A_CLEAR_LOCKS, A_CLEAR_BOTH, A_COPY_PAT, A_PASTE_PAT, A_RO
        A_PLAY_SONG, A_LOAD_PROJ, A_NEW_PROJ, A_USB_AUDIO, A_CLEAR_SCENE, A_PANIC, A_EFFECT, A_REMOVE_NOTE,
        A_COUNT_IN, A_PLAYMODE, A_FTYPE, A_FX_HP, A_FX_LP, A_FX_SEND, A_WEAVE, A_THEME, A_PUMP_BY, A_PUMP_REL,
        A_PUMP_ACC, A_LEVEL, A_SCENE_AT, A_SAVE_TO, A_AUTOSAVE, A_RANDOM_SOUNDS, A_MIDI_CH, A_LOOP_FREE, A_COPY_BAR, A_COPY_STEP, A_PASTE_BAR,
-       A_PASTE_STEP, A_PASTE_LOCKS, A_DOUBLE, NACTIONS };
+       A_PASTE_STEP, A_PASTE_LOCKS, A_DOUBLE, A_CLEAR_STEP_LOCKS, NACTIONS };
 static const char *const ACTION_NAME[NACTIONS] = {
     "CLEAR NOTES", "CLEAR LOCKS", "CLEAR NOTES AND LOCKS", "COPY PATTERN", "PASTE PATTERN", "ROTATE FORWARD",
     "ROTATE BACK", "DUPLICATE BAR", "ENGINE", "PRESET", "SCRAMBLE", "SAVE AS PRESET", "RESET SOUND", "FOLLOWS CONDUCTOR",
@@ -221,7 +221,7 @@ static const char *const ACTION_NAME[NACTIONS] = {
     "ALL NOTES OFF", "EFFECT", "REMOVE", "COUNT-IN", "PLAY MODE", "FILTER TYPE", "HIGH-PASS", "LOW-PASS",
     "TO FX II", "KEEP AS PATTERN", "THEME", "PUMP BY", "RELEASE", "ACCENT", "LEVEL", "SCENES SWITCH", "SAVE TO", "AUTOSAVE",
     "RANDOMIZE PRESETS", "MIDI CHANNEL", "LOOP THROWS", "COPY BAR", "COPY STEP", "PASTE BAR", "PASTE STEP",
-    "PASTE LOCKS ONLY", "DOUBLE PATTERN"};
+    "PASTE LOCKS ONLY", "DOUBLE PATTERN", "CLEAR LOCKS"};
 /* the weave's ways (pattern.h WV_*): what this pattern keeps of itself */
 static const char *const WEAVE_NAME[NWV] = {"bars", "steps", "rhythm", "pitch"};
 #define LIST_ROWS 36                  /* (GLO's: its seven pages' knobs and its actions) */
@@ -1551,7 +1551,7 @@ static void page_footer(char *t)
         else if (!is_seqt(trk))
             s_cat(t, "ALGO track: no steps here");
         else if (ui.lockpg)
-            s_cat(t, "KNOBS lock|SELECT page|SAVE clear");
+            s_cat(t, "KNOBS lock|SELECT page|SEL held + KNOB clear");
         else if (ui.trickpg)
             s_cat(t, "KNOB 1 3 trick|KNOB 2 4 value");
         else if (ui.held && is_drum(trk))
@@ -1861,7 +1861,7 @@ static const struct { uint8_t btn; uint32_t pages; const char *title, *l1, *l2; 
     {B_SEQ, PG_ANY, "Steps", "The bar's 16 steps on the white keys. Hold SEQ and play the notes,",
      "then press steps to write them. A step held + ARP: its tricks."},
     {B_EDIT, PG_STEPS, "Lock", "With a step held, EDIT, ENV, FX or LFO show their knobs.",
-     "Turn one to lock it on the step. SELECT: pages. SAVE clears."},
+     "Turn one to lock it. SELECT: pages. SEL held + knob: clear."},
     {B_EDIT, PG_ANY, "Engine", "The engine's four knobs. PRESETS: its next sound.",
      "Held: the keys play, ALGORITHM picks the engine. SELECT: pages."},
     {B_ENV, PG_ANY, "Envelope", "The amp's envelope, the filter, its envelope.",
@@ -1873,7 +1873,7 @@ static const struct { uint8_t btn; uint32_t pages; const char *title, *l1, *l2; 
      "Strum: a key strums its chord; keys held together set it."},
     {B_ARP, PG_STEPS, "Tricks", "With a step held, ARP: KNOB 1 and 3 pick its two tricks,",
      "KNOB 2 and 4 their values. Let go of the step when done."},
-    {B_GLO, PG_ANY, "Mix", "Sends, pan, level. Black keys: tap mutes, hold solos (several held: together).",
+    {B_GLO, PG_ANY, "Mix", "Sends, pan, level. Black: tap mutes, hold solos (more: more).",
      "SELECT: Master EQ, out, Setup. HOME's SEL: projects."},
     {B_HOME, PG_ANY, "Arrange", "Each track's pattern in the scene. White: scenes, black: mutes.",
      "SEL: projects, scene timing. + REC undoes, + PLAY redoes."},
@@ -1984,13 +1984,15 @@ static void list_midi_ch(int trk)                  /* the track's notes out over
         s_cat(ch_t, "off");
     list_add(ACTION_NAME[A_MIDI_CH], ch_t, LK_PICK, A_MIDI_CH);
 }
-static void list_clip_step(void)                   /* a held step's list, after its notes: copy it, paste a step */
+static void list_clip_step(void)                   /* a held step's list, after its notes: copy it, paste a step, its
+                                                    * locks cleared */
 {
     list_add(ACTION_NAME[A_COPY_STEP], 0, LK_ACTION, A_COPY_STEP);
     if (clip_ok && clip_kind == CK_STEP) {
         list_add(ACTION_NAME[A_PASTE_STEP], 0, LK_ACTION, A_PASTE_STEP);
         list_add(ACTION_NAME[A_PASTE_LOCKS], 0, LK_ACTION, A_PASTE_LOCKS);
     }
+    list_add(ACTION_NAME[A_CLEAR_STEP_LOCKS], 0, LK_ACTION, A_CLEAR_STEP_LOCKS);
 }
 static void list_build(void)
 {

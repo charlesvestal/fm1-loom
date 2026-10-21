@@ -128,7 +128,8 @@ press…" means keep **HOME** down while you press the next thing.
 | add a trick | Hold the step and press **ARP**. **KNOB 1** picks the first trick (pulse, hold, multiply, velocity, ramp up, ramp down, random, glide, bend, tonality, jump, skip lock, skip trick, skip trigger) and **KNOB 2** its value; **KNOB 3** and **KNOB 4** the second. Turn a trick back to "-" to take it off. |
 | set a skip's pattern | Turn its value on past "random": the same cycles come again "not on the last pass", then "only the first". |
 | give a step a chance | Hold the step and turn **KNOB 3**. Past 99 % come the A:B cycles. |
-| lock a knob on a step | Hold the step and press **EDIT**, **ENV**, **FX** or **LFO**. Turn a knob. **SAVE** clears the step's locks. |
+| lock a knob on a step | Hold the step and press **EDIT**, **ENV**, **FX** or **LFO**. Turn a knob. Hold **SEL** and turn it to clear it; the step's **SEL** list has CLEAR LOCKS. |
+| clear a knob's automation | Hold **SEL** and turn the knob: its motion and locks in the pattern go (with steps held, only theirs). |
 | see the next bar | Press **OCT+** on Steps. (With **SEQ** held, **OCT** is the keys' octave and **PRESETS** the track's sound, to try the notes before they are written.) |
 | play one bar of a long pattern, or jump about in it | **SEQ**, **SELECT** to the Bar page, hold **SEQ** and press black key 1 to 4: a bar to jump to; two held loop them; one tapped twice loops that bar. |
 | set the track scale | On Steps, turn **KNOB 3**. Or on the Bar page of a synth track, press a black key: 1, 2, 3, 4, 5, 6, 8, 16 sixteenths a step, or black key 9 for half a sixteenth. |
@@ -318,8 +319,9 @@ Hold a step and press **EDIT**, **ENV**, **FX** or **LFO**. The knob strip becom
 for the held step (turn **SELECT** for its other pages: **ENV** has the envelope, the filter and the filter's
 envelope; **FX** the character and the sends), showing "–" where the step has no lock and the locked values in red. Turn a knob to lock
 a value on the step. Let go of the step to go back. A lock lasts until the next step that plays without one,
-which plays the knob's own value again. Hold a step and press **SAVE** to clear its locks (a drum step's pitch
-stays). While recording, a knob you turn writes locks on the steps as they play. The Bar page's SHAPE knob turns
+which plays the knob's own value again. Hold **SEL** and turn a knob to clear that knob's locks on the steps held
+(with no step held, its motion and locks in the whole pattern); the held step's **SEL** list has CLEAR LOCKS for all
+of its locks (a drum step's pitch stays). While recording, a knob you turn writes locks on the steps as they play. The Bar page's SHAPE knob turns
 a track's locks into a line: each holds until the next lock and moves toward it.
 
 <img src="img/screen-lock.png" width="240" alt="Step 1 held with ENV&#x27;s filter page: the cutoff locked at 481 Hz in red; the other knobs show a dash, unlocked" title="A lock">

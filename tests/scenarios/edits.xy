@@ -301,3 +301,39 @@ wait 40
 expect kmute1 4
 expect kmute2 1
 expect mute 0
+# SEL held + a knob: that knob's automation cleared (the pattern's; with a step held, the step's); the held step's
+# SEL list: CLEAR LOCKS
+projnew
+step 2 1 1 60 100
+step 2 1 2 62 100
+lock 2 1 1 cut 30
+lock 2 1 2 cut 40
+lock 2 1 1 res 50
+turn ALGO 1
+tap SEQ
+key w0 down
+tap ENV
+turn SELECT 1
+press SEL
+turn K1 1
+release SEL
+key w0 up
+wait 40
+expect lane 2 1 cut 1
+expect lane 2 1 res 1
+tap ENV
+turn SELECT 1
+press SEL
+turn K1 1
+release SEL
+wait 40
+expect lane 2 1 cut 0
+expect lane 2 1 res 1
+tap SEQ
+key w0 down
+tap SEL
+turn SELECT 30
+tap SEL
+key w0 up
+wait 40
+expect lane 2 1 res 0

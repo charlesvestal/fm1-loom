@@ -1890,11 +1890,46 @@ static void aux_knob(int trk, int k, int32_t e)
         hi = 1;
     set_tp(trk, p, clampi(par[p] + e, 0, hi));
 }
+/* SEL held, a knob turned: that knob's automation (its motion and locks) cleared, from the pattern, or from the steps
+ * held (the lock editor's knob) */
+static void knob_clear(int k)
+{
+    int trk = sel_trk(), pt, p, ln, n = 0;
+    if (!is_seqt(trk))
+        return;
+    pt = cur_pat(trk);
+    p = ui.held && ui.lockpg ? tp_page_param(ui.lockpg - 1, k, trk) : tp_page_param(ui.page, k, trk);
+    if (p < 0)
+        return;
+    ln = lane_find(pats.lane, trk, pt, p);
+    if (ln < 0) {
+        say_no("NO AUTOMATION", tp_info_par(p, proj.trk[trk].par)->name);
+        return;
+    }
+    undo_keep();
+    if (ui.held) {
+        for (int i = 0; i < 16; i++)
+            if (ui.held >> i & 1u) {
+                n += pats.lane[ln].val[step_shown(i)] != LOCK_NONE;
+                pats.lane[ln].val[step_shown(i)] = LOCK_NONE;
+            }
+        ui.held_used = 1;
+    } else {
+        lane_clear(pats.lane, ln);
+        n = 1;
+    }
+    mark_dirty();
+    say(n ? "CLEARED" : "NOTHING TO CLEAR", tp_info_par(p, proj.trk[trk].par)->name);
+}
 static void knob(int k, int32_t e)
 {
     int trk = sel_trk(), p;
     e = accel(EN_K1 + k, e);
     touch(k);
+    if ((ui.btn >> B_SEL & 1u) && !lst.open && !ui.ask) {   /* SEL held: the knob's automation cleared */
+        knob_clear(k);
+        return;
+    }
     if (rec_settings()) {
         rec_knob(k, e);
         return;
@@ -2741,6 +2776,7 @@ static void action_run(int a)
         say("COPIED", a == A_COPY_PAT ? "pattern" : a == A_COPY_BAR ? "bar" : "step");
         break;
     case A_PASTE_PAT: act_paste_pat(); break;
+    case A_CLEAR_STEP_LOCKS: step_clear_locks_held(); break;
     case A_PASTE_BAR: case A_PASTE_STEP: case A_PASTE_LOCKS: act_paste(a == A_PASTE_LOCKS); break;
     case A_WEAVE: act_keep_weave(); break;
     case A_ROT_FWD: act_rotate(1); say("ROTATED", "forward"); break;
@@ -2895,11 +2931,7 @@ static void input(void)
                 ui.btn_used |= m | 1u << B_HOME;
                 continue;
             }
-            if (i == B_SAVE && ui.held && steps_page(ui.page)) {
-                step_clear_locks_held();
-                ui.btn_used |= m;
-                continue;
-            }
+
             if (ui.held && steps_page(ui.page) && i == B_ARP && is_seqt(sel_trk())) {   /* the held steps' tricks */
                 ui.trickpg = 1;
                 ui.lockpg = 0;
