@@ -13,5 +13,5 @@ mkdir -p build/gen build/host
 [ -f build/gen/samples.h ] || "$PY" tools/gen_samples.py build/gen/samples.h >/dev/null
 "$PY" tools/gen_presets.py build/gen/presets.h
 $CC -O2 -ffp-contract=off -std=c99 -Wall -Wextra -Wdouble-promotion -Werror -DPLAT_HOST -Iapp/dsp -Ibase/include -Ibuild/gen \
-    -o build/host/braids_test tests/host/braids_test.c app/dsp/synth.c app/dsp/drumline.c app/dsp/sample.c
+    -o build/host/braids_test tests/host/braids_test.c app/dsp/synth.c app/dsp/drumline.c app/dsp/sample.c -lm
 build/host/braids_test

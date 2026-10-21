@@ -31,8 +31,8 @@ run() {
 # through samples.c); the bank tool's own tests (layout over the windows, rates, bounds)
 "$PY" tools/gen_samples.py build/gen/samples.h build/gen/wav >/dev/null
 run sample-bank sh -c "'$PY' tools/loom_samples.py build build/gen/user_bank.bin 'piano two=build/gen/wav/piano.wav:60%16k' \
-    vowel=build/gen/wav/ah.wav:57 && '$PY' tools/loom_samples.py syx build/gen/user_bank.syx \
-    'piano two=build/gen/wav/piano.wav:60%16k' vowel=build/gen/wav/ah.wav:57"
+    'sweep two=build/gen/wav/sweep.wav:57' && '$PY' tools/loom_samples.py syx build/gen/user_bank.syx \
+    'piano two=build/gen/wav/piano.wav:60%16k' 'sweep two=build/gen/wav/sweep.wav:57'"
 run bank-tool "$PY" tests/host/bank_test.py
 # the units' own tests, written beside them (their WAVs in build/host/)
 for t in synth braids drumline fx seq; do

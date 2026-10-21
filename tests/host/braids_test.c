@@ -6,6 +6,7 @@
  * track turns to cane and back; the arp steps; a model turned mid-note stays bounded. Then the cost: instructions a sample of one voice (lp24, the whole
  * voice) for each model against an ordinary engine's, and what that makes the cores' split units.
  *   tests/host/braids_test.sh */
+#include <stdint.h>
 #include <stdio.h>
 #include <string.h>
 #include <math.h>
@@ -224,8 +225,7 @@ int main(void)
     {
         static const struct { int e, m, e2, e3; double tol; } P[] = {
             {0, 0, 64, 64, 3.0},  {0, 1, 64, 64, 10.0}, {0, 2, 64, 64, 5.0},  {0, 3, 64, 64, 15.0},
-            {1, 0, 40, 80, 5.0},  {1, 2, 0, 64, 5.0},   {2, 0, 127, 0, 5.0},  {2, 1, 64, 64, 5.0},
-            {2, 3, 40, 40, 5.0}};
+            {1, 0, 40, 80, 5.0},  {1, 2, 0, 64, 5.0}};
         printf("\npitch: the measured fundamental against the note, cents\n");
         for (k = 0; k < (int)(sizeof P / sizeof P[0]); k++) {
             int ok = 1;

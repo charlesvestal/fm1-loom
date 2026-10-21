@@ -1267,6 +1267,7 @@ static void bench_char(void)
 #ifdef __APPLE__
         printf("  %-10s %6.1f / %6.1f   %+6.1f\n", CT_N[ty], m, (double)worst / (double)(N * NVOICE), m - off);
 #else
+        (void)off;                                   /* (the instruction counts are macOS's: here a clock) */
         printf("  %-10s %6.3f us / sample / voice (clock)\n", CT_N[ty], m / (double)CLOCKS_PER_SEC * 1e6);
 #endif
     }
@@ -1875,7 +1876,7 @@ int main(void)
         check("a wave LFO on the pitch changes the sound", differ(fp1, fp2) && finite);
     }
     {   /* regular vs free: a square on the volume, +100 %, from a half-level knob */
-        float reg, fre;
+        float reg = 0.0f, fre = 0.0f;
         int pass;
         for (pass = 0; pass < 2; pass++) {
             float a, c;
