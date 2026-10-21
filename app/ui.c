@@ -2113,6 +2113,8 @@ static void list_open(void)
         ui.pick_fx = proj.trk[sel_trk()].par[TP_ENGINE] % NFXPICK;
     if (fx_page(ui.page))
         ui.pick_fx = proj.trk[ui.page == P_FX1 ? AUX_FX1 : AUX_FX2].par[TP_ENGINE] % NFXPICK;
+    if ((ui.page == P_ARRANGE || ui.page == P_SONG) && proj_slot < NPROJ)   /* LOAD and SAVE TO start on the slot open */
+        ui.pick_slot = ui.pick_save = proj_slot;
     list_build();
     if (!lst.n) {
         lst.open = 0;

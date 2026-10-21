@@ -358,3 +358,11 @@ tap PLAY
 turn K1 -6
 wait 40
 expect epar1.99 76
+# HOME's list: LOAD PROJECT and SAVE TO start on the slot open, marked "(open)"
+projsave 3 three
+tap SEQ
+tap HOME
+tap SEL
+wait 40
+shot load_open.png
+tap HOME

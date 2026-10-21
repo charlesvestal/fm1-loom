@@ -8,6 +8,7 @@ expect note 3 1 9 57
 tap HOME
 tap SEL
 wait 40
+turn ALGO -1
 tap SEL
 wait 400
 expect ask 0

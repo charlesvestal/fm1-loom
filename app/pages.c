@@ -1969,10 +1969,13 @@ static void list_add(const char *name, const char *val, int kind, int id)
     lst.row[lst.n].id = (uint8_t)id;
     lst.n++;
 }
-static void proj_slot_text(int slot, char *t)     /* "Proj 2", "Proj 3 (empty)": a project is its slot (no names) */
+static void proj_slot_text(int slot, char *t)     /* "Proj 2", "Proj 3 (open)", "Proj 1 (empty)": a project is its slot
+                                                   * (no names) */
 {
     char *e = num_s((uint32_t)slot + 1u, s_cat(t, "Proj "));
-    if (!project_exists(slot))
+    if (slot == proj_slot)
+        s_cat(e, " (open)");
+    else if (!project_exists(slot))
         s_cat(e, " (empty)");
 }
 static void list_midi_ch(int trk)                  /* the track's notes out over USB (Setup's NOTES on) and in */
