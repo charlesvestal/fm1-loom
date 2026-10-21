@@ -105,10 +105,29 @@ static void cc_track(int t, int cc, int v)
             return;
         }
 }
+static uint8_t cc_scene_quiet = 0xFF;         /* a scene asked for over MIDI: its change is not sent back out */
+static void cc_scene(int n)                   /* as a white key on Arrange: made if unused, cued by SCENES SWITCH */
+{
+    if (n < 0 || n >= NSCENE)
+        return;
+    if (n != cur_scene())
+        cc_scene_quiet = (uint8_t)n;
+    scene_go(n, proj.rsv[2] & SCENES_AT_END ? SCENE_END : SCENE_BAR);
+}
 static void cc_in(uint32_t pkt)
 {
     int st = (int)(pkt >> 8 & 0xFFu), ch = st & 15, ty = st & 0xF0, d1 = (int)(pkt >> 16 & 0x7Fu),
         v = (int)(pkt >> 24 & 0x7Fu);
+    if (ty == 0xC0) {                         /* Program Change: on the master's channel, the scene */
+        if (ch == CH_MASTER)
+            cc_scene(d1);
+        return;
+    }
+    if (ty == 0x90) {                         /* the master's channel's notes 36-67: scenes 1-32 */
+        if (ch == CH_MASTER && v && d1 >= 36)
+            cc_scene(d1 - 36);
+        return;
+    }
     if (ty != 0xB0)
         return;
     if (ch == CH_MASTER) {
@@ -180,4 +199,12 @@ static void cc_out_master(int m)              /* master_knob, the master's list 
     for (uint32_t i = 0; i < sizeof CC_MST / sizeof CC_MST[0]; i++)
         if (CC_MST[i].m == m)
             cc_send(0xB0 | CH_MASTER, CC_MST[i].cc, cc_from(proj.master[m], 0, master_max(m)));
+}
+static void cc_out_scene(int n)               /* ui_frame: the scene playing changed */
+{
+    if (cc_scene_quiet == n) {
+        cc_scene_quiet = 0xFF;
+        return;
+    }
+    cc_send(0xC0 | CH_MASTER, n, 0);
 }

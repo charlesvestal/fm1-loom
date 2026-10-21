@@ -304,3 +304,31 @@ ccreset
 turn K1 1
 wait 20
 expect ccouts 0
+
+# scenes: Program Change and notes 36-67 on channel 11, as Arrange's white keys
+projnew
+ccreset
+midi CA 02
+wait 40
+expect scene 3
+midi 9A 25 64
+wait 40
+expect scene 2
+expect ccouts 0
+# playing: cued for the next bar (SCENES SWITCH next bar)
+tap PLAY
+wait 100
+midi CA 04
+wait 20
+expect scene 2
+wait 2200
+expect scene 5
+tap PLAY
+# a scene picked on the FM-1 goes out as its Program Change (scene 1: CA 00; 0xCA = 202)
+tap HOME
+expect page Arrange
+tapkey w0
+wait 40
+expect scene 1
+expect ccst 202
+expect ccd1 0

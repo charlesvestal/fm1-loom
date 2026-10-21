@@ -159,6 +159,7 @@ static void undo_arr(void);
 static void cc_in_drain(void);                    /* midicc.c: MIDI in's CCs, Program Changes, scene notes */
 static void cc_out_param(int trk, int p);         /* midicc.c: a parameter changed (sent when by hand, CC OUT on) */
 static void cc_out_master(int m);
+static void cc_out_scene(int n);                  /* midicc.c: the scene playing changed */
 static uint8_t cc_hand;                           /* (midicc.c's: knob() and list_change() running) */
 static void sound_reset(uint8_t *par, int engine)   /* the engine's defaults; MIDI OUT stays (routing, not sound) */
 {
@@ -3773,6 +3774,8 @@ void ui_frame(void)
             rec_off();
     }
     if (cur_scene() != ui.scene_seen) {
+        if (ui.scene_seen != 0xFF)               /* not boot's first catch-up: no Program Change for that */
+            cc_out_scene(cur_scene());            /* (MIDI: its Program Change, midicc.c) */
         ui.scene_seen = (uint8_t)cur_scene();
         ui.scene_pg = (uint8_t)(cur_scene() / 16);   /* (the keys follow the scene playing to its page) */
         proj.trk[AUX_BRAIN].par[TP_E2] = pats.scene[cur_scene()].brain_key % 12u;
