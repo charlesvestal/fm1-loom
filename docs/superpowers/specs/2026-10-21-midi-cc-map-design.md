@@ -13,7 +13,8 @@ into automation.
 | 11 | the master, and the scenes (Program Change, notes 36-67) |
 | 12-16 | the selected instrument track (`inst_trk()`) |
 
-Notes, pitch bend and CCs all follow this table (notes on 9 and 10 are ignored; on 11 they pick scenes) (`engine.c midi_track` becomes a fixed lookup). A track's notes go
+Notes, pitch bend and CCs all follow this table (notes on 9 and 10 are ignored; on 11 they pick scenes) (`engine.c
+midi_track` becomes a fixed lookup). A track's notes go
 out on its own channel; a kit's GM notes too.
 
 The per-track MIDI CHANNEL row (`TP_CHAN`) becomes **MIDI OUT: on / off**. The byte keeps its place: 0 off, any
@@ -96,7 +97,8 @@ and old projects alike start with it on; no format change.
 - Out, with **SCENES OUT** on (its own row in GLO's list, after CC OUT; **off by default**, the user's call: a
   Program Change another device follows can switch its sounds, more intrusive than a CC; stored as an on bit,
   `proj.rsv[2]` bit 32, `SCENES_OUT`, so old projects have it off too): when the scene playing changes (ui.c's frame
-  sees `cur_scene()` change), Program Change 0..31 on channel 11. Not for a change that came in over MIDI (the scene asked for is remembered and skipped once):
+  sees `cur_scene()` change), Program Change 0..31 on channel 11. Not for a change that came in over MIDI (the scene
+  asked for is remembered and skipped once):
   no loop with a DAW that echoes.
 
 ## Cost
@@ -112,11 +114,13 @@ Flash: the table (~60 entries, 3 bytes each) and the code, ~1 KB. RAM: the ring 
 - Recording: REC on, playing, a CC on track 3 while track 1 is selected writes track 3's lane.
 - Scenes: Program Change 2 and note 37 on channel 11 cue scene 3 / scene 2 by SCENES SWITCH; with SCENES OUT on a
   scene changed on the FM-1 sends its Program Change (off: nothing); one asked for over MIDI does not echo.
-- Out: CC OUT on (a new project's default), a knob turned sends the CC; an incoming CC, a lock or automation sends nothing; MIDI OUT off on
+- Out: CC OUT on (a new project's default), a knob turned sends the CC; an incoming CC, a lock or automation sends
+  nothing; MIDI OUT off on
   a track sends nothing for it.
 - Old projects: a track with `TP_CHAN` 5 reads as MIDI OUT on and sends on its own channel.
 
 ## Docs
 
-The manual: the channel table and the map (both tables), scenes over MIDI, CC OUT in GLO's list, MIDI OUT in the SEL list. words.tsv for
+The manual: the channel table and the map (both tables), scenes over MIDI, CC OUT in GLO's list, MIDI OUT in the SEL
+list. words.tsv for
 the new row names; the release notes (MIDI section).
