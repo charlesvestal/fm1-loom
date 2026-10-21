@@ -2014,14 +2014,14 @@ static void t_kit11(void)            /* a kit step holds all eleven sounds, and 
                                                    * the step's 100; the scene's kit mutes: the hat silent */
         int ln = lane_alloc(P.lane, 0, 0, (int)(LANE_VEL0 + 1u));
         P.lane[ln].val[0] = 50;
-        S.kmute = 1u << 2;
+        S.kmute[0] = 1u << 2;
         nev = 0;
         start();
         run(10);
         CHECK(count(E_DRUM, 0) == NDRUM - 2 && nth(E_DRUM, 0, 0)->a == 0 && nth(E_DRUM, 0, 0)->b == 100);
         CHECK(nth(E_DRUM, 0, 1)->a == 1 && nth(E_DRUM, 0, 1)->b == 50 && nth(E_DRUM, 0, 2)->a == 3);
         stop();
-        S.kmute = 0;
+        S.kmute[0] = 0;
     }
     printf("ok %s\n", cur);
 }

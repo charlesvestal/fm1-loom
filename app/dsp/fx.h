@@ -84,7 +84,7 @@ int fx_awake(const fxslot_t *f);                            /* the slot works th
  *            20 kHz), mixed
  * PUMP (X0X's master PUMP): every hit of its source lowers the whole mix by up to 24 dB (rising in 12 ms) and
  * lets it swell back over the release; it is keyed by the sequencer, not by audio, so a muted track drives it
- * too. pump by: PB_KICK any kick of a kit (its first key, or a key on the kick model), PB_T1.. any note of
+ * too. pump by: PB_KICK any kick of a kit (its first key, or a key on the kick model), PB_T1.. (a kit: its kicks) any note of
  * track 1..8, PB_METRO the metronome's click. release 0..127: 10 .. 1500 ms (60 = 107 ms, X0X's); accent
  * 0 / 1: a hit pumps by its velocity (0.5 .. 1 of the depth) or always fully. */
 enum { MS_EQ_LO, MS_EQ_MID, MS_EQ_HI, MS_RSV3, MS_CTYPE, MS_CAMT, MS_CTONE, MS_CMIX,

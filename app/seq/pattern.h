@@ -17,6 +17,7 @@ enum { AUX_BRAIN = NTRK, AUX_PUNCH, AUX_FX1, AUX_FX2, AUX_WEAVE, NALLTRK };   /*
 #define NSTEP 64                      /* 4 bars of 16 */
 #define NBAR 4
 #define SN 4                          /* notes a step may hold */
+#define NKITM 4                       /* kit tracks a scene keeps sound mutes for (the first four kits) */
 #define NSCENE 32                     /* two pages of the 16 white keys (OCT on Arrange and Song) */
 #define NSONG 64                      /* scene slots in the song */
 #define SONG_BARS 64                  /* the most bars a song slot plays */
@@ -136,8 +137,18 @@ typedef struct {
     uint16_t mute;                    /* bit t = track t muted (NSEQT bits) */
     uint8_t brain_key, brain_scale, brain_deg;   /* the brain's state in this scene */
     uint8_t weave;                    /* the WEAVE track's pattern */
-    uint16_t kmute;                   /* the kit sounds muted, on every kit track (bit k: sound k + 1) */
-} scene_t;                            /* 20 bytes */
+    uint16_t kmute[NKITM];            /* each kit track's sounds muted (bit k: sound k + 1): the first kit track (by
+                                       * track number) in kmute[0], the next in [1] ... (kit_slot) */
+} scene_t;                            /* 26 bytes */
+/* format 11's scene (one mute mask for every kit), read by project.c's migration */
+typedef struct {
+    uint8_t pat[NSEQT];
+    uint8_t used;
+    uint16_t mute;
+    uint8_t brain_key, brain_scale, brain_deg;
+    uint8_t weave;
+    uint16_t kmute;
+} scene11_t;                          /* 20 bytes */
 /* format 10's scene (0.5-beta's: 16 of them, no kit mutes), read by project.c's migration */
 typedef struct {
     uint8_t pat[NSEQT];

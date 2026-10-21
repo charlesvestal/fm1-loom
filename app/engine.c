@@ -443,13 +443,15 @@ static void apply_all(int trk)                             /* ISR: C_ALL (a load
 }
 
 /* ------------------------------------------------------- sequencer sink --- */
-/* the master's PUMP keys: a kit's hit (a kick: its first key, or a key on the kick model) and any note of a
- * track; the master takes the one it follows (fx.h PB_*). Also from a muted track's steps (s_ghost) */
+/* the master's PUMP keys: a kit's kick (its first key, or a key on the kick model) keys "kick" and its own track's
+ * (T1.., a kit's: its kicks, not its hats), any note of a melodic track that track's; the master takes the one it
+ * follows (fx.h PB_*). Also from a muted track's steps (s_ghost) */
 static void pump_drum(int trk, int sound, int vel)
 {
-    if (sound == 0 || epar[trk][TP_DRUM(sound, DP_MODEL)] == DM_KICK)
+    if (sound == 0 || epar[trk][TP_DRUM(sound, DP_MODEL)] == DM_KICK) {
         master_key(MST, PB_KICK, vel, 1);
-    master_key(MST, PB_T1 + trk, vel, 1);
+        master_key(MST, PB_T1 + trk, vel, 1);
+    }
 }
 #ifdef PLAT_HOST
 static uint32_t host_drum_hits, host_note_ons;

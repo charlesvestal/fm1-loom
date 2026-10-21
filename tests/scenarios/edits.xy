@@ -281,3 +281,23 @@ turn ALGO 1
 wait 40
 expect par1.51 2
 tap HOME
+# two kits: T1's hat muted in the scene, T2's kit (the second) keeps its own
+projnew
+param 2 0 8
+wait 40
+tap SEQ
+tap HOME
+expect page Arrange
+key b0 down
+tapkey w2
+key b0 up
+wait 40
+expect kmute1 4
+expect kmute2 0
+key b1 down
+tapkey w0
+key b1 up
+wait 40
+expect kmute1 4
+expect kmute2 1
+expect mute 0

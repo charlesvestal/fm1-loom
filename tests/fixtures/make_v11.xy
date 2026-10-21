@@ -1,0 +1,21 @@
+# a format 11 project (32 scenes, one kit mute mask a scene): saved by that build, for the migration's test
+# (tests/scenarios/migrate.xy). Run by a format 11 build (3679242): its loom_host tests/fixtures/make_v11.xy OUT
+wait 300
+bpm 101
+wait 50
+hits 1 1 1 x...x...x...x...
+hits 1 1 3 ..x...x...x...x.
+notes 2 1 1 1 100 C4
+scenedef 2 1 1
+scenedef 20 1 1
+scenemute 20 .x
+song 1:1 20:2 2:1
+scene 20
+wait 40
+tap HOME
+key b0 down
+tapkey w2
+key b0 up
+wait 40
+projsave 1 v11_test
+storesave tests/fixtures/store_v11.bin

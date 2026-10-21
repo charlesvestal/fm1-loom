@@ -243,11 +243,17 @@ static int kit_mute_hold(void)
             return i;
     return -1;
 }
-static void kit_sound_mute(int snd)              /* a kit sound muted or back in the scene playing (every kit track) */
+static void kit_sound_mute(int trk, int snd)     /* kit track trk's sound muted or back in the scene playing */
 {
-    uint16_t m = (uint16_t)(seq.kmute ^ (1u << snd));
-    seq.kmute = m;
-    pats.scene[cur_scene()].kmute = m;
+    int k = kit_slot(trk);
+    uint16_t m;
+    if (k < 0) {
+        say_no("NO SOUND MUTES", "the first four kits only");
+        return;
+    }
+    m = (uint16_t)(seq.kmute[k] ^ (1u << snd));
+    seq.kmute[k] = m;
+    pats.scene[cur_scene()].kmute[k] = m;
     mark_dirty();
     say(m >> snd & 1u ? "MUTED" : "UNMUTED", DL_SOUND_NAME[snd]);
 }
@@ -1291,7 +1297,7 @@ static void key_down(int k)
                 if (p == P_ARRANGE && kh >= 0) {   /* a kit's black key held: white keys 1-11 its sounds' mutes */
                     ui.knote[kh] |= 0x80;            /* (its release then leaves the track as it is) */
                     if (w < NDRUM)
-                        kit_sound_mute(w);
+                        kit_sound_mute(ui.knote[kh] & 0x7F, w);
                     return;
                 }
             }
@@ -3016,8 +3022,9 @@ static void leds(void)
                 k |= 1u << BLACK_K[ui.dsound % 11];
             k |= ui.keys;
         } else if (ui.page == P_ARRANGE && kit_mute_hold() >= 0) {   /* a kit's black key held: its sounds playing */
+            int ks = kit_slot(ui.knote[kit_mute_hold()] & 0x7F);
             for (i = 0; i < NDRUM; i++)
-                if (!(seq.kmute >> i & 1u))
+                if (ks < 0 || !(seq.kmute[ks] >> i & 1u))
                     k |= 1u << WHITE_K[i];
             k |= 1u << kit_mute_hold();
         } else if (ui.page == P_ARRANGE) {       /* the page of scenes on the white keys (scene_pg) */

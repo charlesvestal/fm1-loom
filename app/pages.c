@@ -499,6 +499,15 @@ static int rec_settings(void)
 {
     return (ui.btn >> B_REC & 1u) && !home_held() && (!playing() || steps_page(ui.page));
 }
+static int kit_slot(int t)                           /* a kit track's place among the kits (scene_t kmute), -1 none */
+{
+    int k = 0;
+    if (!is_drum(t))
+        return -1;
+    for (int i = 0; i < t; i++)
+        k += is_drum(i);
+    return k < NKITM ? k : -1;
+}
 static int pl_type(int t) { return is_aux(t) || is_drum(t) ? PL_OFF : proj.trk[t].par[TP_PLAYER] % NPL; }   /* (a kit has no player) */
 #define CTYPE_NAME(par) (tp_info_par(TP_CTYPE, par)->names[(par)[TP_CTYPE] % NCT])   /* the character's type */
 static int inst_trk(void) { return is_aux(sel_trk()) ? ui.last_inst % NTRK : sel_trk(); }   /* the keys' instrument */
@@ -2187,7 +2196,9 @@ static void draw_arrange(void)
     uint32_t h = hash_u(hash_u(2166136261u, 0xA0u), (uint32_t)sc | (uint32_t)cue << 8 | (uint32_t)playing() << 16 |
                                           (uint32_t)sel_trk() << 20 | (uint32_t)seq.cue_end << 24 |
                                           (uint32_t)ui.scene_pg << 25);
-    h = hash_u(h, (uint32_t)(left + 1) | (uint32_t)seq.kmute << 16);
+    h = hash_u(h, (uint32_t)(left + 1));
+    for (int k = 0; k < NKITM; k++)
+        h = hash_u(h, seq.kmute[k]);
     a_last = now;
     for (int t = 0; t < NTRK; t++) {             /* each track's meter: what it plays now (Mix's fall; the header's
                                                   * range, -45 to -9 dB: activity more than level) */
@@ -2237,9 +2248,9 @@ static void draw_arrange(void)
         }
         if (muted)
             cv_text(144, y - 3, &FONT_XS, "mute", K_DIM);
-        else if (tr < NTRK && is_drum(tr) && seq.kmute) {   /* the scene's kit sounds muted: how many */
+        else if (tr < NTRK && kit_slot(tr) >= 0 && seq.kmute[kit_slot(tr)]) {   /* its sounds the scene mutes: how many */
             char ko[12];
-            s_cat(num_s((uint32_t)__builtin_popcount(seq.kmute), ko), " off");
+            s_cat(num_s((uint32_t)__builtin_popcount(seq.kmute[kit_slot(tr)]), ko), " off");
             cv_text(144, y - 3, &FONT_XS, ko, K_DIM);
         }
     }

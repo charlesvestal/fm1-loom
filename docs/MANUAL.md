@@ -786,7 +786,7 @@ instead: the tracks can have different lengths and drift apart, so T1's pattern 
 becomes a copy of the scene playing. Hold a white key for a second to clear that scene. The black keys
 mute: 1 to 8 the tracks, 9 and 10 the conductor and the throws. A kit track's black key mutes it when you let go;
 hold it instead and press white keys 1 to 11 to mute that kit's sounds one by one (lit: playing), in this scene
-(every kit track's sound alike; the row says how many are off). A muted sound still drives the pump; its key
+(each kit its own, for the first four kit tracks; the row says how many are off). A muted sound still drives the pump; its key
 still plays when you press it. Hold **HOME** and turn **PRESETS** to change scenes
 from any page.
 
@@ -911,7 +911,8 @@ comp at 0, and even when the kick is muted, so a silent kick can drive it: write
 the mix breathes to a beat nobody hears. At 0 (a new project's) it is off. Its **SEL** list:
 
 - **pump by**: what drives it. **kick** is any kick of a kit (black key 1, or any key with the kick model);
-  **T1** to **T8** is any note on that track (a bass, a chord, a muted ghost track); **metronome** is the
+  **T1** to **T8** is that track: a kit's kicks (so one kit's kick, not another's, drives it), or any note of a
+  melodic track (a bass, a chord, a muted ghost track); **metronome** is the
   click, on every beat while it sounds.
 - **release**: how fast the mix swells back, 10 ms to 1.5 s (107 ms to start with). Longer releases breathe
   across the beat; short ones only nick the kick's tail.

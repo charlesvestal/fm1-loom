@@ -56,3 +56,15 @@ projsave 1
 reboot
 wait 400
 expect kmute 4
+# a format 11 project (32 scenes, one kit mute mask; tests/fixtures/make_v11.xy): scene 20's hat muted on every kit,
+# as it was; each kit's own from here
+storeload tests/fixtures/store_v11.bin
+reboot
+wait 400
+expect tempo 101
+expect note 2 1 1 60
+expect used 524291
+expect scene 20
+expect mute 2
+expect kmute1 4
+expect kmute2 4

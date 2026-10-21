@@ -66,3 +66,24 @@ tap PLAY
 wait 520
 expect pump 0
 tap PLAY
+# pump by T1 (a kit): its kicks, not its hats
+projnew
+tap SEQ
+hits 1 1 3 x.x.x.x.x.x.x.x.
+mst pump 127
+mst pumpby 1
+mst accent 0
+tap PLAY
+wait 40
+expect playing 1
+wait 480
+expect pump 0
+tap PLAY
+wait 1500
+hits 1 1 1 x...x...x...x...
+tap PLAY
+wait 40
+expect playing 1
+wait 480
+expect pump >30
+tap PLAY

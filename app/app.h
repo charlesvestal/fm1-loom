@@ -118,8 +118,9 @@ void loom_lights(uint32_t buttons, uint32_t keys, int glow, uint32_t dim_keys, i
 #define DEBUG_BUILD (APP_VERSION[0] == 'D' && APP_VERSION[1] == 'E' && APP_VERSION[2] == 'V' && \
                      (!APP_VERSION[3] || APP_VERSION[3] == 'T'))   /* DEV, or the load test's DEVTEST */
 #define PROJ_MAGIC 0x384D4F4Cu          /* "LOM8" (was "XXY1": XY-1's projects start fresh) */
-#define PROJ_FORMAT 11u                 /* (10, 0.5-beta's, loads too: project.c migrate10; older ones do not load)
-                                         * 11: 32 scenes, a scene's kit sound mutes (scene_t kmute);
+#define PROJ_FORMAT 12u                 /* (10, 0.5-beta's, and 11 load too: project.c migrate_old; older ones do not)
+                                         * 12: a scene's kit sound mutes per kit track (scene_t kmute[NKITM]);
+                                         * 11: 32 scenes, a scene's kit sound mutes (one mask);
                                          * 10: a kit key's own sends (DP_SEND1/2, the kit's track sends gone), a
                                          *     parameter's index past a byte (a lane's 16 bits, LANE_TUNE moved);
                                          * 9: the sound's octave (TP_OCT) moved TP_PLAYER on;

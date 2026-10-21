@@ -35,14 +35,17 @@ uint8_t proj_slot;
 #define RAW_LEN sizeof(patterns_t)
 /* format 10 (0.5-beta): the same store but 16 scenes of scene10_t, the song after them */
 #define RAW_LEN10 (sizeof(patterns_t) - sizeof pats.scene + NSCENE10 * sizeof(scene10_t))
-typedef char scene10_size[(sizeof(scene10_t) == 18 && sizeof(scene_t) == 20) ? 1 : -1];
-typedef char song10_apart[(NSCENE10 * sizeof(scene10_t) + sizeof(song_t) <= NSCENE * sizeof(scene_t)) ? 1 : -1];   /* (the
+/* format 11: 32 scenes of scene11_t (one kit mute mask for every kit) */
+#define RAW_LEN11 (sizeof(patterns_t) - sizeof pats.scene + NSCENE * sizeof(scene11_t))
+typedef char scene_sizes[(sizeof(scene10_t) == 18 && sizeof(scene11_t) == 20 && sizeof(scene_t) == 26) ? 1 : -1];
+typedef char songs_apart[(NSCENE10 * sizeof(scene10_t) + sizeof(song_t) <= NSCENE * sizeof(scene_t) &&
+                          NSCENE * sizeof(scene11_t) + sizeof(song_t) <= NSCENE * sizeof(scene_t)) ? 1 : -1];   /* (an
                                                    * old song's bytes end before the new song's start) */
-static uint8_t load_format;                       /* the format of the project being loaded (10: migrated) */
+static uint8_t load_format;                       /* the format of the project being loaded (10, 11: migrated) */
 static uint8_t migrated = 0xFF;                   /* the slot loaded from an older format and not saved since (0xFF
                                                    * none): its next touch saves it whole, never its settings alone
                                                    * beside the old format's patterns */
-#define FORMAT_OK(f) ((f) == PROJ_FORMAT || (f) == 10u)   /* the formats a slot loads (10: migrate10) */
+#define FORMAT_OK(f) ((f) == PROJ_FORMAT || (f) == 10u || (f) == 11u)   /* the formats a slot loads (migrate_old) */
 typedef char raw_fits[(RAW_LEN < 0x100000u) ? 1 : -1];   /* (lz.c packs up to 16 MB; the header's length is a u32) */
 typedef char settings_fit[(sizeof(settings_t) <= PLAT_STORE_MAX) ? 1 : -1];
 typedef char presets_fit[(sizeof user_presets + 4u <= PLAT_STORE_MAX) ? 1 : -1];
@@ -486,16 +489,18 @@ static int st_get(void *ctx)
     return io_buf[s->pos++];
 }
 
-/* format 10's store, unpacked at the start of pats, made this format's: its 16 scenes spread to their new size (the
- * rest of the 32 unused, no kit sound muted), the song moved after them */
-static void migrate10(void)
+/* an older format's store (10: 16 scenes of scene10_t; 11: 32 of scene11_t), unpacked at the start of pats, made
+ * this format's: its scenes spread to their new size (format 10's other 16 unused; its kits' sounds unmuted;
+ * format 11's one mask for every kit, each kit's), the song moved after them */
+static void migrate_old(int fmt)
 {
-    uint8_t *raw = (uint8_t *)&pats, *sc = (uint8_t *)pats.scene;
-    const uint32_t old_song = (uint32_t)((uint8_t *)pats.scene - raw) + NSCENE10 * sizeof(scene10_t);
-    memcpy(&pats.song, raw + old_song, sizeof pats.song);   /* (apart: song10_apart) */
-    for (int i = NSCENE10 - 1; i >= 0; i--) {         /* (from the last: each moves up, over none not yet read) */
-        scene10_t o;
-        memcpy(&o, sc + (uint32_t)i * sizeof o, sizeof o);
+    uint8_t *sc = (uint8_t *)pats.scene;
+    const uint32_t osz = fmt == 10 ? sizeof(scene10_t) : sizeof(scene11_t), on = fmt == 10 ? NSCENE10 : NSCENE;
+    memcpy(&pats.song, sc + on * osz, sizeof pats.song);   /* (apart: songs_apart) */
+    for (int i = (int)on - 1; i >= 0; i--) {             /* (from the last: each moves up, over none not yet read) */
+        scene11_t o;
+        memset(&o, 0, sizeof o);
+        memcpy(&o, sc + (uint32_t)i * osz, osz);          /* (format 10's: the same fields, no kmute) */
         memset(&pats.scene[i], 0, sizeof pats.scene[i]);
         memcpy(pats.scene[i].pat, o.pat, NSEQT);
         pats.scene[i].used = o.used;
@@ -504,8 +509,11 @@ static void migrate10(void)
         pats.scene[i].brain_scale = o.brain_scale;
         pats.scene[i].brain_deg = o.brain_deg;
         pats.scene[i].weave = o.weave;
+        for (int k = 0; k < NKITM; k++)
+            pats.scene[i].kmute[k] = o.kmute;
     }
-    memset(&pats.scene[NSCENE10], 0, sizeof pats.scene - NSCENE10 * sizeof pats.scene[0]);
+    if (on < NSCENE)
+        memset(&pats.scene[on], 0, (NSCENE - on) * sizeof pats.scene[0]);
 }
 
 /* 0 = loaded; -1 = not there or not good (pats then holds garbage). An older format's (load_format) as it was
@@ -516,16 +524,16 @@ static int load_stream(int n, uint32_t prev)
     uint32_t crc = get32(io_buf + 8), plen = get32(io_buf + 12), len = get32(io_buf + 4);
     st_in_t s = {0, n, STREAM_HDR, plen, prev};
     lz_src_t src = {st_get, &s};
-    if (n < (int)STREAM_HDR || (len != RAW_LEN && len != RAW_LEN10) || plen > STREAM_CAP)
+    if (n < (int)STREAM_HDR || (len != RAW_LEN && len != RAW_LEN10 && len != RAW_LEN11) || plen > STREAM_CAP)
         return -1;                                /* (its own length says its format: settings saved alone, as
                                                    * this format's, before a power cut beside format 10's patterns) */
     stored_known[stream_obj[0]] = !(prev & 1u);
     stored_hash[stream_obj[0]] = hash_of(io_buf, (uint32_t)n);
     if (lz_decompress(&src, raw, len) || crc32_of(raw, len) != crc)
         return -1;
-    if (len == RAW_LEN10) {
-        migrate10();
-        load_format = 10u;
+    if (len != RAW_LEN) {
+        load_format = len == RAW_LEN10 ? 10u : 11u;
+        migrate_old(load_format);
     }
     packed_len = plen;
     return 0;

@@ -575,11 +575,24 @@ static void emit_note(seq_t *s, int t, int note, int vel, int glide_ms, uint32_t
 
 /* a drum hit semi semitones from its key's pitch (a step's note), through the drum punch-in FX (pitch, short, long); len_q8 > 0 schedules its drum_off (the gated and
  * loop play modes end with it; a hit of the same sound under the same tag moves the off), 0 = the key holds it */
+/* a kit track's place among the kits (its scene mutes: kmute[kit_slot]), -1 past NKITM */
+static int kit_slot(const seq_t *s, int t)
+{
+    int k = 0;
+    for (int i = 0; i < t; i++)
+        k += is_drum(s, i);
+    return k < NKITM ? k : -1;
+}
+static int kit_muted(const seq_t *s, int t, int sound)
+{
+    int k = kit_slot(s, t);
+    return k >= 0 && (s->kmute[k] >> sound & 1u);
+}
 static void emit_drum(seq_t *s, int t, int sound, int vel, int semi, uint32_t tag, uint32_t len_q8, const seq_sink_t *o)
 {
     if (sound < 0 || sound >= NDRUM)
         return;
-    if (tag != TAG_KEY && (s->kmute >> sound & 1u)) {   /* a kit sound the scene mutes: the pump hears it, nothing sounds */
+    if (tag != TAG_KEY && kit_muted(s, t, sound)) {   /* a kit sound the scene mutes: the pump hears it, nothing sounds */
         if (o->ghost)
             o->ghost(o->ctx, t, sound, vel);
         return;
@@ -1045,7 +1058,8 @@ static void scene_read(seq_t *s, int k, uint8_t *next)
     for (t = 0; t < NSEQT; t++)
         next[t] = sc->pat[t] < NPATT ? sc->pat[t] : 0;
     s->mute = sc->mute;
-    s->kmute = sc->kmute;
+    for (t = 0; t < NKITM; t++)
+        s->kmute[t] = sc->kmute[t];
     s->brain_key = (uint8_t)(sc->brain_key % 12);
     s->brain_scale = sc->brain_scale < NBS ? sc->brain_scale : BS_MAJOR;
     s->brain_deg = sc->brain_deg;
@@ -2735,7 +2749,8 @@ void seq_init(seq_t *s, patterns_t *P, uint8_t (*par)[NTP_ALL])
     for (i = 0; i < NLANE; i++)
         s->lrt[i].applied = LOCK_NONE;
     s->mute = P->scene[0].mute;
-    s->kmute = P->scene[0].kmute;
+    for (int k = 0; k < NKITM; k++)
+        s->kmute[k] = P->scene[0].kmute[k];
     s->brain_scale = BS_MAJOR;
     s->wv_ppat = (uint8_t)(P->scene[0].weave % NPATT);
     s->six_to_next = NEVER;
