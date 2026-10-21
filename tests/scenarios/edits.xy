@@ -271,3 +271,13 @@ wait 40
 expect note 2 1 1 53
 expect note 2 1 2 65
 expect pat2 1
+# a kit track's MIDI CHANNEL: on its Engine page's list too (the last row)
+projnew
+expect trk 1
+tap EDIT
+tap SEL
+turn SELECT 30
+turn ALGO 1
+wait 40
+expect par1.51 2
+tap HOME

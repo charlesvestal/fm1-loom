@@ -1922,6 +1922,15 @@ static void proj_slot_text(int slot, char *t)     /* "Proj 2", "Proj 3 (empty)":
     if (!project_exists(slot))
         s_cat(e, " (empty)");
 }
+static void list_midi_ch(int trk)                  /* the track's notes out over USB (Setup's NOTES on) and in */
+{
+    static char ch_t[4];
+    if (proj.trk[trk].par[TP_CHAN])
+        num_s(proj.trk[trk].par[TP_CHAN], ch_t);
+    else
+        s_cat(ch_t, "off");
+    list_add(ACTION_NAME[A_MIDI_CH], ch_t, LK_PICK, A_MIDI_CH);
+}
 static void list_clip_step(void)                   /* a held step's list, after its notes: copy it, paste a step */
 {
     list_add(ACTION_NAME[A_COPY_STEP], 0, LK_ACTION, A_COPY_STEP);
@@ -2042,6 +2051,7 @@ static void list_build(void)
         num_s((uint32_t)ui.pick_slot % NUSER_PRESETS + 1u, s_cat(slot_t, "U"));
         list_add(ACTION_NAME[A_SAVE_PRESET], slot_t, LK_PICK, A_SAVE_PRESET);
         list_add(ACTION_NAME[A_ENGINE], EG_NAME[ui.pick_engine % NENGINE], LK_PICK, A_ENGINE);
+        list_midi_ch(trk);
     } else if (keep >= P_ENGINE && keep <= P_PLAYERS3 && keep != P_THROWS) {
         if (trk == AUX_BRAIN) {
             for (int t = 0; t < NTRK; t++) {
@@ -2060,14 +2070,7 @@ static void list_build(void)
             list_add(ACTION_NAME[A_INIT], 0, LK_ACTION, A_INIT);
             s_cat(fol_t, FOLLOW_NAME[proj.trk[trk].par[TP_BRAIN] % 3]);
             list_add(ACTION_NAME[A_FOLLOW], fol_t, LK_PICK, A_FOLLOW);
-            {                                        /* the track's notes out over USB (Setup's NOTES on) and in */
-                static char ch_t[4];
-                if (proj.trk[trk].par[TP_CHAN])
-                    num_s(proj.trk[trk].par[TP_CHAN], ch_t);
-                else
-                    s_cat(ch_t, "off");
-                list_add(ACTION_NAME[A_MIDI_CH], ch_t, LK_PICK, A_MIDI_CH);
-            }
+            list_midi_ch(trk);
         }
     } else if (keep >= P_MIX) {                     /* GLO's one list: the pump's settings, the level, USB audio */
         static char by[8], rel[12], lev[8];
