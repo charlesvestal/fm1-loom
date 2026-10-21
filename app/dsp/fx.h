@@ -103,7 +103,7 @@ void master_set(master_t *m, int p, int v);                 /* 0..127 (EQ 64 = f
 int master_max(int p);                                      /* a value's top: 127, NPB - 1 or 1 */
 float master_pump_ms(int v);                                /* the pump's release, ms */
 /* a hit on pump source src (PB_*), velocity 1..127: the pump drops if it follows src (the audio interrupt) */
-void master_key(master_t *m, int src, int vel);
+void master_key(master_t *m, int src, int vel, int kit);   /* kit: a kit's hit (only the melodic group ducks) */
 /* perc and mel: the two groups (stereo, in place), summed with the fx returns (added into mel) */
 void master_process(master_t *m, float *perc_l, float *perc_r, float *mel_l, float *mel_r, float *out_l, float *out_r,
                     uint32_t n);

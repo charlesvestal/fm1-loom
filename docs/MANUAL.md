@@ -104,7 +104,7 @@ knob on it; press **ARP** on T2 and turn **KNOB 1** to arp; press **GLO**, turn 
 - **Weave**: a track's pattern crossed with another, live: bars or steps in turn, or one's rhythm with the other's pitch.
   Set up on the track's ARP, played on the WEAVE track.
 - **Groove**: a timing and velocity feel. The project picks the type, each track sets how much.
-- **Pump**: the whole mix ducking on each kick and swelling back (Master out). A track's pump LFO does the same
+- **Pump**: the mix (all but the drums) ducking on each kick and swelling back (Master out). A track's pump LFO does the same
   to one track.
 
 ### How do I…
@@ -903,8 +903,10 @@ sampler's grain: the mix held at a lower rate and fewer bits (amount: 26 kHz and
 bits), then its filter (tone). **off** (a new project's) leaves the mix as it is. The same two are on each
 synth track's Character page, for one sound.
 
-**Pump** (Master out's fourth knob) lowers the whole mix each time the kick plays, by up to 24 dB, and lets it
-swell back up: the big-beat breathing of house and French touch. Accented kicks pump harder. It works even with
+**Pump** (Master out's fourth knob) lowers the mix each time the kick plays, by up to 24 dB, and lets it
+swell back up: the big-beat breathing of house and French touch. Driven by a kit (its kick, or a kit track), it
+lowers the melodic tracks and leaves the drums alone, so the kick that drives it keeps its punch; driven by a
+melodic track or the metronome, it lowers everything. Accented kicks pump harder. It works even with
 comp at 0, and even when the kick is muted, so a silent kick can drive it: write a kick on a track, mute it, and
 the mix breathes to a beat nobody hears. At 0 (a new project's) it is off. Its **SEL** list:
 

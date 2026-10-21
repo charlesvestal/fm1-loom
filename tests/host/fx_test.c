@@ -213,7 +213,7 @@ static void pump_trace(float *g, int nb, int k0, int k1, int src, int vel)
     for (b = 0; b < nb; b++) {
         float lo = 1e9f;
         if (b == k0 || b == k1)
-            master_key(ms, src, vel);
+            master_key(ms, src, vel, src == PB_KICK);
         for (i = 0; i < BLK; i++)
             dc[i] = 0.1f;
         master_process(ms, z, z, dc, dc, ol, orr, BLK);
@@ -632,7 +632,7 @@ int main(void)
                 for (b = 0; b < 200; b++) {
                     if (c && b % 20 == 3)
                         for (int s2 = 0; s2 < NPB; s2++)
-                            master_key(ms, s2, 127);
+                            master_key(ms, s2, 127, s2 == PB_KICK);
                     for (i = 0; i < BLK; i++) {
                         pl[i] = 0.3f * noise(); pr[i] = 0.3f * noise(); mll[i] = 0.3f * noise(); mlr[i] = 0.3f * noise();
                     }
@@ -703,6 +703,31 @@ int main(void)
             snprintf(name, sizeof name, "  pump by T3: others %.2f dB, T3 %.1f dB (12.1)", (double)d, (double)d2);
             check(name, d > -0.01f && d2 < -11.5f && d2 > -12.5f);
             check("  the duck shown (master_pump_db)", master_pump_db(ms) > 1.0f);
+            {   /* a kit's hit keys it: the drums (the kick itself) not ducked, the melodic group ducked; a melodic
+                 * track's note: the drums ducked too */
+                static float zz[BLK], dd[BLK], o1[BLK], o2[BLK];
+                float lo_k = 1e9f, lo_m = 1e9f;
+                for (int pass = 0; pass < 2; pass++) {
+                    MS_INIT();
+                    master_set(ms, MS_PUMP, 127);
+                    master_set(ms, MS_PUMP_ACC, 0);
+                    if (pass)
+                        master_set(ms, MS_PUMP_BY, PB_T1 + 1);
+                    for (b = 0; b < 60; b++) {
+                        if (b == 20)
+                            master_key(ms, pass ? PB_T1 + 1 : PB_KICK, 127, !pass);
+                        for (i = 0; i < BLK; i++)
+                            zz[i] = 0.0f, dd[i] = 0.1f;
+                        master_process(ms, dd, dd, zz, zz, o1, o2, BLK);
+                        for (i = 0; i < BLK; i++)
+                            if (b > 20)
+                                *(pass ? &lo_m : &lo_k) = fm_minf(pass ? lo_m : lo_k, o1[i]);
+                    }
+                }
+                snprintf(name, sizeof name, "  a kit's hit leaves the drums whole (%.2f), a melodic note ducks them (%.3f)",
+                         (double)lo_k, (double)lo_m);
+                check(name, lo_k > 0.099f && lo_m < 0.02f);
+            }
             /* with the compressor: the pump adds to its reduction */
             MS_INIT();
             master_set(ms, MS_COMP, 60);
@@ -839,7 +864,7 @@ int main(void)
         i0 = instr_now();
         for (b = 0; b < 20; b++) {
             if (!(b & 3))
-                master_key(ms, PB_KICK, 127);
+                master_key(ms, PB_KICK, 127, 1);
             master_process(ms, p1, p2, m1, m2, a, c, 256);
         }
         di = instr_now() - i0;

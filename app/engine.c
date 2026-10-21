@@ -448,8 +448,8 @@ static void apply_all(int trk)                             /* ISR: C_ALL (a load
 static void pump_drum(int trk, int sound, int vel)
 {
     if (sound == 0 || epar[trk][TP_DRUM(sound, DP_MODEL)] == DM_KICK)
-        master_key(MST, PB_KICK, vel);
-    master_key(MST, PB_T1 + trk, vel);
+        master_key(MST, PB_KICK, vel, 1);
+    master_key(MST, PB_T1 + trk, vel, 1);
 }
 #ifdef PLAT_HOST
 static uint32_t host_drum_hits, host_note_ons;
@@ -464,7 +464,7 @@ static void s_note_on(void *x, int trk, int note, int vel, int glide_ms, uint32_
 #ifdef PLAT_HOST
     host_note_ons++;                                   /* (the host's load model: a note's set-up) */
 #endif
-    master_key(MST, PB_T1 + trk, vel);
+    master_key(MST, PB_T1 + trk, vel, 0);
     PROF_ADD(PR_NOTE, pn);
 }
 static void s_ghost(void *x, int trk, int sound, int vel)   /* a muted track's step: it keys the pump, silently */
@@ -475,7 +475,7 @@ static void s_ghost(void *x, int trk, int sound, int vel)   /* a muted track's s
     if (eng_drum[trk] && sound >= 0 && sound < NDRUM)
         pump_drum(trk, sound, vel);
     else if (!eng_drum[trk])
-        master_key(MST, PB_T1 + trk, vel);
+        master_key(MST, PB_T1 + trk, vel, 0);
 }
 static void s_note_off(void *x, int trk, uint32_t tag)
 {
@@ -592,7 +592,7 @@ static void s_metro(void *x, int accent)
     metro_ph = 0.0f;
     metro_inc = (accent ? 1760.0f : 1320.0f) / 44100.0f;
     synth_duck_trigger(SY, DUCK_METRO);
-    master_key(MST, PB_METRO, accent ? 127 : 100);
+    master_key(MST, PB_METRO, accent ? 127 : 100, 0);
 }
 /* named members: the sequencer may grow its sink at the end without this changing */
 static const seq_sink_t SINK = {

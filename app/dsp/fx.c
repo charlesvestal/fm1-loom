@@ -916,6 +916,8 @@ struct master {
     /* PUMP (X0X's): its depth (dB), its envelope (dB) and the target it rises to; the rise and the release
      * as coefficients of MST_CR samples (it moves where the gain is computed) */
     float pump_db, pump, pump_tgt, a_up, a_down, pump_view;
+    float pg, pg_step;                /* its gain on the groups, ramped as a linear gain over MST_CR samples */
+    uint8_t pcr, duck_mel;            /* (the countdown); duck_mel: a kit's hit keyed it, the melodic group ducks alone */
 #define MST_CR 4
     /* limiter (X0X's) */
 #define MST_LA 64
@@ -1008,7 +1010,7 @@ static void comp_coefs(master_t *m)
     m->a_down = coef_ms(master_pump_ms(m->pot[MS_PUMP_REL]) / (float)MST_CR);
     if (!m->pot[MS_PUMP])
         m->pump = m->pump_tgt = 0.0f;
-    m->comp_on = ri != 0 || m->pot[MS_PUMP] != 0;   /* (the pump needs the stage, the compressor or not) */
+    m->comp_on = ri != 0;                        /* (the pump is on the groups: process's first loop) */
     if (m->comp_on && !was) {
         m->g_lin = m->makeup;
         m->g_step = 0.0f;
@@ -1123,6 +1125,7 @@ void master_init(master_t *m)
     for (i = 0; i < NMS; i++)
         m->pot[i] = DEF[i];
     m->gain = 1.0f;
+    m->pg = 1.0f;                                /* (the pump's gain: none ducked) */
     m->gp = m->gp_c = m->gm = m->gm_c = MST_HEADROOM;
     m->glev = m->lev_c = 1.0f;
     eq_coefs(m);
@@ -1154,7 +1157,7 @@ void master_set(master_t *m, int p, int v)
 float master_gr_db(const master_t *m) { return m->gr_view; }
 float master_pump_db(const master_t *m) { return m->pump_view; }
 
-void master_key(master_t *m, int src, int vel)
+void master_key(master_t *m, int src, int vel, int kit)
 {
     float t;
     if (!m->pot[MS_PUMP] || src != m->pot[MS_PUMP_BY])
@@ -1163,6 +1166,7 @@ void master_key(master_t *m, int src, int vel)
                             : m->pump_db;                   /* an accented hit pumps deeper (X0X: 0.5 .. 1) */
     if (t > m->pump_tgt)
         m->pump_tgt = t;
+    m->duck_mel = (uint8_t)(kit != 0);           /* a kick (a kit's hit) ducks the rest, never itself */
 }
 
 static inline float gr_of(const master_t *m, float lv)       /* the static curve, soft knee (dB) */
@@ -1224,14 +1228,40 @@ void master_process(master_t *m, float *perc_l, float *perc_r, float *mel_l, flo
     const int eq_on = m->eq_on, comp_on = m->comp_on;
     /* the groups into the bus, then the EQ a band at a time, in place in mel. (Every state is a local in its loop: a
      * load from RAM costs this core more than a multiply.) */
-    {
-        const float tgp = m->gp, tgm = m->gm;
+    {   /* (with the PUMP, X0X's, on the groups as they meet: a kit's hit ducks the melodic group alone, so the kick
+         * that keys it is never ducked; a melodic track's note or the click, both) */
+        const float tgp = m->gp, tgm = m->gm, a_up = m->a_up, a_down = m->a_down;
+        float pump = m->pump, pump_tgt = m->pump_tgt, pg = m->pg, pg_step = m->pg_step;
+        int pcr = m->pcr;
+        const int mel_only = m->duck_mel;
         for (i = 0; i < n; i++) {
+            float pp, ml = mel_l[i], mr = mel_r[i];   /* (both read first: a caller may pass one buffer for both) */
             gp = glide1(gp, tgp);
             gm = glide1(gm, tgm);
-            mel_l[i] = perc_l[i] * gp + mel_l[i] * gm;
-            mel_r[i] = perc_r[i] * gp + mel_r[i] * gm;
+            if (pcr == 0) {
+                if (pump_tgt > pump) {            /* rise to the hit's depth ... */
+                    pump = a_up * pump + (1.0f - a_up) * pump_tgt;
+                    if (pump_tgt - pump < 0.05f)
+                        pump_tgt = 0.0f;          /* ... then let go: the release swells back */
+                } else {
+                    pump = fm_flush(a_down * pump);
+                }
+                if (pump > pmax)
+                    pmax = pump;
+                pg_step = (fm_db2lin(-pump) - pg) * (1.0f / MST_CR);
+                pcr = MST_CR;
+            }
+            pcr--;
+            pg += pg_step;
+            pp = mel_only ? gp : gp * pg;
+            mel_l[i] = perc_l[i] * pp + ml * gm * pg;
+            mel_r[i] = perc_r[i] * pp + mr * gm * pg;
         }
+        m->pump = pump;
+        m->pump_tgt = pump_tgt;
+        m->pg = pg;
+        m->pg_step = pg_step;
+        m->pcr = (uint8_t)pcr;
     }
     if (eq_on && STAGE(1)) {
         int b;
@@ -1244,8 +1274,8 @@ void master_process(master_t *m, float *perc_l, float *perc_r, float *mel_l, flo
         color_block(m, mel_l, mel_r, n);
     {
         const float glev = m->glev, a_det = m->a_det, a_att = m->a_att, a_rel = m->a_rel, slope = m->slope;
-        const float a_up = m->a_up, a_down = m->a_down, makeup = m->makeup;
-        float ms = m->ms, want = m->want, gr = m->gr, pump = m->pump, pump_tgt = m->pump_tgt;
+        const float makeup = m->makeup;
+        float ms = m->ms, want = m->want, gr = m->gr;
         float g_lin = m->g_lin, g_step = m->g_step, env = m->env, inv_env = m->inv_env, gain = m->gain;
         float *la = m->la, *la_r = m->la_r;
         int32_t la_pos = m->la_pos, hold = m->hold;
@@ -1266,17 +1296,7 @@ void master_process(master_t *m, float *perc_l, float *perc_r, float *mel_l, flo
                 if (gr > grmax)
                     grmax = gr;
                 if (cr == 0) {
-                    if (pump_tgt > pump) {            /* PUMP (X0X's): rise to the hit's depth ... */
-                        pump = a_up * pump + (1.0f - a_up) * pump_tgt;
-                        if (pump_tgt - pump < 0.05f)
-                            pump_tgt = 0.0f;          /* ... then let go: the release swells back */
-                    } else {
-                        pump = fm_flush(a_down * pump);
-                    }
-                    if (pump > pmax)
-                        pmax = pump;
-                    /* (the pump at 0: + 0.0f, the compressor's gain exactly as before) */
-                    g_step = (makeup * fm_db2lin(-(gr + pump)) - g_lin) * (1.0f / MST_CR);
+                    g_step = (makeup * fm_db2lin(-gr) - g_lin) * (1.0f / MST_CR);
                     cr = MST_CR;
                 }
                 cr--;
@@ -1321,8 +1341,6 @@ void master_process(master_t *m, float *perc_l, float *perc_r, float *mel_l, flo
         m->ms = ms;
         m->want = want;
         m->gr = gr;
-        m->pump = pump;
-        m->pump_tgt = pump_tgt;
         m->g_lin = g_lin;
         m->g_step = g_step;
         m->env = env;
