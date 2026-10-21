@@ -92,7 +92,7 @@ knob on it; press **ARP** on T2 and turn **KNOB 1** to arp; press **GLO**, turn 
 - **Trick**: something a step does as it plays, such as pulse, hold, multiply or jump. There are fourteen; hold
   a step and press ARP to give it two.
 - **Lock**: a knob value a step sets as it plays.
-- **Scene** (S1 to S16): which pattern each track plays, plus the mutes and the conductor's key.
+- **Scene** (S1 to S32): which pattern each track plays, plus the mutes (a kit's sounds too) and the conductor's key.
 - **Song**: a chain of scenes, each played for a number of bars.
 - **Engine**: the way a track makes its sound. Six synths (knit, rayon, jacquard, bellows, cane and voile), two
   for samples (sample and slice) and the kit, a drum synth.
@@ -122,6 +122,8 @@ press…" means keep **HOME** down while you press the next thing.
 | see a step | On Steps, hold its white key. The knobs show its velocity, length, chance and pitch. |
 | make a note longer | Hold its step and press a later white key. A bar under the cells shows how far a note reaches. |
 | nudge a step | Hold its step and press **OCT−** or **OCT+**. |
+| copy and paste | On Steps, **SEL**: COPY PATTERN or COPY BAR, then PASTE PATTERN or PASTE BAR where it goes (PASTE LOCKS ONLY for the locks alone). A step: hold it, **SEL**, COPY STEP; hold another, **SEL**, PASTE STEP. |
+| make a pattern twice as long | On Steps, **SEL** and DOUBLE PATTERN: it plays itself twice, to vary the second half. |
 | change a step's note | Hold its step and turn **KNOB 4** (a drum step too: its hits play higher or lower). |
 | put a second sound on a drum step | Hold the step and press the sound's black key. |
 | take one note off a step | Hold the step, press **SEL**, pick the note and press **SEL**. |
@@ -153,11 +155,13 @@ press…" means keep **HOME** down while you press the next thing.
 | undo | Hold **HOME** and press **REC**. Hold **HOME** and press **PLAY** to redo. |
 | set the tempo | Press **HOME** and turn **KNOB 1**. Hold **HOME** and turn it for tenths. On any page, hold **HOME** and turn **SELECT**. |
 | use a throw | Press **FX** and turn **SELECT** to Throws. Hold a key: the lower octave works on the drums, the upper octave on the melodic tracks. Hold **REC** while it plays to record them into the THROW track. |
-| make a new scene | Press **HOME** and press an empty white key. It becomes a copy of the scene playing. |
+| make a new scene | Press **HOME** and press an empty white key. It becomes a copy of the scene playing. **OCT+** puts scenes 17 to 32 on the white keys. |
 | switch scenes while playing | On Arrange, press the scene's white key: it starts at the next bar. Press it again to switch at once. To wait for the end of T1's pattern instead, set **SEL**'s SCENES SWITCH to "pattern end". |
 | mute a track | On Arrange or Mix, press its black key. On Mix, hold it to solo the track while you hold. |
+| mute one drum sound in a scene | On Arrange, hold the kit track's black key and press white keys 1 to 11. |
 | make the whole mix pump with the kick | Press **GLO**, turn **SELECT** to Master out and turn **KNOB 4** (pump). **SEL** picks what drives it and how fast it swells back. |
-| solo a track | On Mix, hold its black key. Let go, and the mutes come back. |
+| solo a track | On Mix, hold its black key (several held: they solo together). Let go, and the mutes come back. |
+| sweep a few tracks together | Press **GLO**, turn **SELECT** to LFO: the shared LFO. Black keys pick the tracks, **KNOB 4** what it moves. |
 | play a progression | Turn **ALGORITHM** to COND (the conductor). Press **EDIT** and play a chord: it moves the tracks that follow. Press **SEQ** and press a step: the chord goes on it. Set the scale to 4 on the Bar page so a step is a beat. |
 | let a track lead the chords | On COND, press **EDIT** and turn **SELECT** to Follow. Press the track's black key: its lowest note sets the chord for the others (a chord part or a bass line). The same key again: off. |
 | get new sounds for the band | Press **HOME**, press **SEL** and pick RANDOMIZE PRESETS: T2 to T8 each get a random preset of their part. **SEL** says yes. |
@@ -173,15 +177,15 @@ press…" means keep **HOME** down while you press the next thing.
 | **REC** | Held while playing: records while held. Stopped: a tap arms step record. Held while playing on a sound page, the knobs you turn are recorded; held while stopped (or on Steps), the knobs are the record settings (click, count-in, quantise, mode). |
 | **SEL** | Opens a list of this page's settings and actions. With a step held, its notes. When LOOM-8 asks a question, **SEL** means yes. |
 | **HOME** | Opens Arrange. On Arrange, it opens the Song page. Held, it is the shift key for buttons and knobs: undo and redo, the fine tempo, the scenes on **PRESETS**. When LOOM-8 asks a question, **HOME** means no. |
-| **SEQ** | Opens Steps. Its page 2 is Bar. Hold it on Steps and the keys play the track and set what a step writes. |
-| **EDIT** | Opens Engine. Its page 2 is Play, page 3 Play 2 (the octave); knit and rayon have a page 4, Sub, the engine's second set of knobs. On a drum track, page 2 is the key's model, random, pan and volume, page 3 its sends. The conductor's pages are its key, the routing and Follow. |
+| **SEQ** | Opens Steps. Its page 2 is Bar. Hold it on Steps and the keys play the track and set what a step writes (**OCT** their octave, **PRESETS** the track's sound). Hold it on Bar and black keys 1 to 4 jump to a bar or loop bars. |
+| **EDIT** | Opens Engine. Its page 2 is Play, page 3 Play 2 (the octave); knit and rayon have a page 4, Sub, the engine's second set of knobs; a sample track in a loop mode has its Loop page second. On a drum track, page 2 is the key's model, random, pan and volume, page 3 its sends. The conductor's pages are its key, the routing and Follow. |
 | **ENV** | Opens Envelope (a drum track: lag, attack, random, length), then Filter, then the filter's envelope. |
 | **FX** | Opens Character, the track's own effect. Then Sends, the track's sends to FX I and FX II. Then FX I and FX II, the two effects. |
 | **LFO** | Opens LFO. Its page 2 has the type's fourth and fifth knobs. |
 | **ARP** | Opens Players. With the arp, page 2 is its second set of knobs and page 3 is hold. |
-| **GLO** | Opens Mix. Turn **SELECT** for Master EQ, Master color, Master out and Setup. |
-| **SAVE** | Saves. Hold it and press a white key to save to a slot, or to keep a sound. With a step held, clears its locks. |
-| **OCT−** / **OCT+** | Move the keys an octave. On Steps, show the bar before or after; with a step held, nudge it. In step record, move the cursor. |
+| **GLO** | Opens Mix. Turn **SELECT** for Master EQ, Master color, Master out, LFO (the shared LFO) and Setup. |
+| **SAVE** | Saves. Hold it and press a white key to save to a slot, or to keep a sound. |
+| **OCT−** / **OCT+** | Move the keys an octave. On Steps, show the bar before or after (with **SEQ** held, the keys' octave); with a step held, nudge it. In step record, move the cursor. On Arrange and Song, scenes 1 to 16 or 17 to 32 on the white keys. |
 | **SELECT** | Turns to a button's next page. In a list, it moves up and down. |
 | **ALGORITHM** | Picks the track. In a list, it changes the row's value. |
 | **PRESETS** | Steps to the next item of whatever the page shows: a preset, a drum key, an effect, a pattern, a drum sound, a scene. |
@@ -252,7 +256,9 @@ effect you played. The four squares at the right are the bars.
 
 - **Hold SEQ and play keys** to choose what a step writes: the keys play the track, and the ones you hold
   together become the remembered notes (a chord). On a drum track, the key you play becomes the sound shown.
-  Let go of **SEQ** and nothing else changes.
+  While **SEQ** is down, **OCT−** and **OCT+** move the keys' octave and, on a synth track, **PRESETS** steps
+  through the track's sounds, to try the notes before they are written. Let go of **SEQ** and nothing else
+  changes.
 - **Tap a white key** to put the remembered notes on that step, or to clear the step.
 - **Hold a white key** to see the step (held longer than a tap, it stays as it is). **KNOB 1** is its velocity
   (on a drum track, the velocity of the sound shown: each sound of a step has its own; the black keys pick the
@@ -420,12 +426,14 @@ variations; a drum pattern's rhythm with a melody's notes makes a riff.
 
 <img src="img/screen-step-record.png" width="240" alt="REC tapped on Steps: the red cursor waits on the step after the last note" title="Step record armed">
 
-Hold **HOME** and press **REC** to undo the last change to the pattern. Hold **HOME** and press **PLAY** to
-redo it. One stage, the selected track's pattern; locks stay as they are.
+Hold **HOME** and press **REC** to undo the last change. Hold **HOME** and press **PLAY** to redo it. One
+stage, whatever changed last: a pattern with its locks (CLEAR LOCKS too), a track's sound (or T2 to T8 after
+RANDOMIZE PRESETS), the master, or the song, scenes and weaves.
 
 ## Sounds
 
-Press **EDIT**. The Engine page shows the track's engine, a picture of it that moves with the knobs, and its
+Press **EDIT**. The Engine page shows the track's engine, a picture of it that moves with the knobs (and with
+their motion and locks as it plays), and its
 four knobs with their values from 00 to 99. Turn **PRESETS** for the engine's next
 sound: its factory presets, then the user presets saved from it. The message says what the sound is
 for and where you are, as in "PAD 3/11". The roles are bass, lead, keys, pluck, bell, stab, brass, strings, pad,
@@ -1007,7 +1015,10 @@ conductor. RANDOMIZE PRESETS on **HOME**'s **SEL** list picks another band for T
 patterns, the kit and the mix stay. A project saves every knob as you left it, not the preset it came from.
 
 **Projects have no names.** A project is its slot: LOAD PROJECT and SAVE TO show Proj 1, Proj 2 and Proj 3
-(and which are empty).
+(and which are empty, and which is open).
+
+**Older projects.** Projects saved by 0.5-beta to 0.5.4-beta load and are converted: their scenes into the
+thirty-two, MIDI notes on, T1 to T8 on channels 1 to 8. Projects saved by this version do not open in older ones.
 
 **Backup.** To keep the three projects and the user presets on a computer, and put them back later, open
 <https://charlesvestal.github.io/fm1-loom/backup/> in Chrome or Edge with the FM-1 connected by USB (or run
@@ -1022,17 +1033,18 @@ On a sound page, hold **SAVE** and press white key 1 to 16 to keep the track's s
 
 | Button | Page | KNOB 1 | KNOB 2 | KNOB 3 | KNOB 4 | Keys |
 | --- | --- | --- | --- | --- | --- | --- |
-| HOME | Arrange | tempo | groove | amount | the track's pattern | white: scenes, black: mutes; SEL: load, save to, new project, randomize presets, the song, when scenes switch |
-| HOME, SELECT | Song | slot | scene | bars | at end | white: add a scene |
+| HOME | Arrange | tempo | groove | amount | the track's pattern | white: scenes (OCT: 17 to 32), black: mutes (a kit's held: white 1-11 its sounds); SEL: load, save to, new project, randomize presets, the song, when scenes switch |
+| HOME, SELECT | Song | slot | scene | bars | at end | white: add a scene (OCT: 17 to 32) |
 | SEQ | Steps | pattern | length | scale | groove | white: steps, black: sound (drums); SEQ held: a keyboard |
 | SEQ, a step held | Steps | velocity | length | chance | pitch | white: length, black: sounds |
 | SEQ, a step held + ARP | Steps | trick 1 | its value | trick 2 | its value | |
-| SEQ, SELECT | Bar | quant | note | groove | shape | black: scale |
+| SEQ, SELECT | Bar | quant | note | groove | shape | black: scale; SEQ held, black 1-4: jump or loop bars |
 | EDIT | Engine | the engine's four | | | | play |
 | EDIT, SELECT | Play | mode | porta | bend | volume | play |
 | EDIT, SELECT twice | Play 2 | octave | | | | play |
 | EDIT, SELECT 3 times (knit) | Sub | osc 2 | level | sub | noise | play |
 | EDIT, SELECT 3 times (rayon) | Sub | fall | floor | keyscale | | play |
+| EDIT, SELECT (sample, loop modes) | Loop | loop start | loop len | | | play |
 | EDIT, drum track | Engine, Key, Sends | the key's knobs; model, random, pan, volume; its fx I, fx II | | | | black: the key |
 | ENV | Envelope | attack | decay | sustain | release | play |
 | ENV, SELECT | Filter | cutoff | reso | env | keytrack | play; PRESETS: the type |
@@ -1050,12 +1062,12 @@ On a sound page, hold **SAVE** and press white key 1 to 16 to keep the track's s
 | ARP | Players | player | its first | its second | its third | play, through the player |
 | ARP, SELECT | Players 2, Hold | the arp's length, style, glide, stereo; hold | | | | play |
 | ARP, SELECT (last) | Weave | with | pattern | rule | plays | black: the track woven in, white: its pattern; SEL: KEEP AS PATTERN |
-| GLO | Mix | FX I | FX II | pan | level | black: a tap mutes, held: solo |
+| GLO | Mix | FX I | FX II | pan | level | black: a tap mutes, held: solo (several together) |
 | GLO, SELECT | Master EQ | low | mid | high | | |
 | GLO, SELECT | Master color | color | amount | tone | mix | |
 | GLO, SELECT | Master out | drums | melodic | comp | pump | SEL: pump by, release, accent, level |
-| GLO, SELECT | LFO | shape | rate | amount | destination | black: the tracks it moves |
-| GLO, SELECT | Setup | lights | clock | notes | theme | SEL: USB audio |
+| GLO, SELECT | LFO | shape | rate | amount | dest | black: the tracks it moves; white 1-11: a kit's sound, 12 all |
+| GLO, SELECT | Setup | lights | clock | notes | theme | SEL: USB audio, loop throws, autosave, CC out, scenes out |
 
 The aux tracks' **EDIT** pages: COND has key, scale and link, page 2 the routing (black keys toggle a track) and
 page 3 Follow (**KNOB 1**, or a black key: the track the chords come from); THROW has latch; WEAVE has latch; FX I
