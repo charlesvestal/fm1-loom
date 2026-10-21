@@ -399,6 +399,8 @@ static void fire_off(seq_t *s, int t, seq_off_t *e, const seq_sink_t *o)
     case OFF_DRUM:
         if (o->drum_off)
             o->drum_off(o->ctx, t, (int)e->note - 1);
+        if (e->note >= 1 && e->note <= NDRUM && s->send_notes && s->par[t][TP_CHAN])   /* its MIDI note ends with it */
+            midi(o, (uint8_t)(0x80 | ((s->par[t][TP_CHAN] - 1) & 15)), GM_DRUM[e->note - 1], 0);
         break;
     default:
         if (o->note_off)
@@ -570,9 +572,10 @@ static void emit_drum(seq_t *s, int t, int sound, int vel, int semi, uint32_t ta
         return;
     if (o->drum)
         o->drum(o->ctx, t, sound, vel, semi + (fx_on(s, t, PX_OCTAVE) ? 12 : 0), fx_on(s, t, PX_CHOP), fx_on(s, t, PX_RING));
-    if (s->send_notes && s->par[t][TP_CHAN]) {
+    if (s->send_notes && s->par[t][TP_CHAN]) {   /* the MIDI note: off with the hit's (fire_off), or with its key */
         midi_on(s, t, GM_DRUM[sound], vel, o);
-        midi_off(s, t, GM_DRUM[sound], o);
+        if (!len_q8 && tag != TAG_KEY)
+            midi_off(s, t, GM_DRUM[sound], o);
     }
     if (len_q8)
         add_off(s, t, tag | (uint32_t)sound, OFF_DRUM, sound + 1, len_q8, o);
@@ -2205,6 +2208,7 @@ static void key_in(seq_t *s, int t, int note, int on, int vel, int raw, const se
             pl->drums_down &= (uint16_t)~(1u << (note - 1));
             if (o->drum_off)
                 o->drum_off(o->ctx, t, note - 1);
+            midi_off(s, t, GM_DRUM[note - 1], o);
         }
         return;
     }
@@ -2371,6 +2375,8 @@ static uint32_t grid_index(const seq_t *s, int t, int next)
  * its passes count on from the grid's (the loop counted its own) */
 static void loop_release(seq_t *s, int t)
 {
+    if (s->loop_free)                 /* (Setup's LOOP THROWS "drift": it goes on from where the loop left it) */
+        return;
     seq_trk_t *tr = &s->t[t];
     uint32_t len = (uint32_t)loop_len(tpat(s, t)), kn, pass, at;
     if (!tr->started || tr->to_next == NEVER)

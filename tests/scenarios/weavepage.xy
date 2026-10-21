@@ -9,7 +9,7 @@ notes 2 1 5 1 100 G4
 notes 2 1 7 1 100 B4
 turn ALGO 1
 tap ARP
-turn SELECT 2
+turn SELECT 1
 wait 50
 expect page Weave
 shot wv_empty.png

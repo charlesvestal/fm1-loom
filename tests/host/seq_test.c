@@ -1684,6 +1684,24 @@ static void t_loop_release(void)
                     }
                 }
             }
+    {                                             /* LOOP THROWS "drift": it goes on from where the loop left it */
+        int apart = 0;
+        reset();
+        S.loop_free = 1;
+        for (i = 0; i < 2; i++)
+            P.pat[i][0].len = 16;
+        start();
+        run_to(5u * L16 + 10u);
+        seq_punch_key(&S, PX_MEL + PX_STUTTER, 1, 0);
+        run(5u * L16 + L16 / 2u);
+        seq_punch_key(&S, PX_MEL + PX_STUTTER, 0, 0);
+        run(2u * L16 + 100u);
+        for (r = 0; r < 12; r++) {
+            run(L16 / 3u + 7u);
+            apart |= last_step(0) != last_step(1);
+        }
+        CHECK(apart);
+    }
     printf("ok %s\n", cur);
 }
 
@@ -2273,6 +2291,24 @@ static void t_midi_out(void)
                                                                                 * 1/24 of a quarter (by a block) */
     stop();
     CHECK(ev[nev - 1].kind == E_MIDI && ev[nev - 1].a == 0xFC);
+    {                                             /* a kit's hit: its GM note, the off at its step's end (not at once) */
+        uint32_t on_t = 0, off_t = 0;
+        reset();
+        S.send_notes = 1;
+        par[0][TP_ENGINE] = EG_DRUMLINE;
+        par[0][TP_CHAN] = 10;
+        note(0, 0, 1, 100);                       /* the kick */
+        start();
+        run(L16 + 10u);
+        for (i = 0; i < nev; i++)
+            if (ev[i].kind == E_MIDI && ev[i].b == 36) {
+                if (ev[i].a == 0x99 && !on_t)
+                    on_t = ev[i].t + 1u;
+                if (ev[i].a == 0x89 && !off_t)
+                    off_t = ev[i].t + 1u;
+            }
+        CHECK(on_t && off_t && off_t > on_t + L16 / 4u);
+    }
     printf("ok %s\n", cur);
 }
 

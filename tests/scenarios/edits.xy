@@ -133,3 +133,9 @@ turn ALGO 3
 wait 40
 expect par2.51 5
 tap HOME
+# MIDI CC 7 in: the level of the track on that channel (T3 on 3, a new project's)
+projnew
+midi B2 07 40
+wait 40
+expect par3.48 64
+expect dirty 1

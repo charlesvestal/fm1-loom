@@ -632,7 +632,8 @@ SY_INLINE void knit_hp(float *x, float *lo, float *bp, float f, int m)
 /* knit: the everyday subtractive voice. wave: saw (0) .. square (the middle) .. a 10 % pulse (saw_pulse:
  * the LFO on it is PWM); voices 1..7: a unison of that wave, detuned by the JP-8000's offsets (KNIT_COEF) as detune opens, each pair across the field as width opens, all at one power (1 / sqrt n); at one voice
  * detune is a drift instead, the pitch wandering slowly (up to +-12 cents, a fresh target every ~0.4 s). Its second
- * page (TP_X1..X4, KNIT_X_P): osc 2, one more of the wave at an interval (+-24 semitones about 64) and its level (0 off);
+ * page (TP_X1..X4, KNIT_X_P): osc 2, one more of the wave at an interval (+-24 semitones about 64) and its level (0 off),
+ * detune also tuning it up to 20 cents above the interval (two oscillators beating, at any number of voices);
  * sub, a sine an octave down; noise. A unison's beating is kept out of the bass by brocade's keytracked high-pass.
  * o[0..6] the voices' phases (random at the start), o[7] osc 2's, o[8] the sub's, o[10] the drift (cents) and o[11]
  * its target, o[12..15] the high-pass (low and band, L then R). ex[0] the increment, ex[1] the detune's, ex[2] the
@@ -640,6 +641,7 @@ SY_INLINE void knit_hp(float *x, float *lo, float *bp, float f, int m)
  * a voice's gain, ex[13] osc 2's increment, ex[14] its gain, ex[15] the sub's increment, ex[16] its gain, ex[17]
  * the noise's, ex[18..21] the second page's knobs (voice_chunk), ex[22] the drift's factor (knit_chunk). */
 #define KNIT_MAX 7
+#define KNIT_OSC2_DETUNE (20.0f / 1200.0f)      /* detune at full: osc 2 that many octaves (20 cents) above its interval */
 static void knit_prep(voice_t *v)
 {
     cfg_t *c = &v->c;
@@ -662,7 +664,7 @@ static void knit_prep(voice_t *v)
     }
     c->ex[11] = fm_minf(2.07345f * f, 0.9f);    /* the high-pass at a third of the note (brocade's) */
     c->ex[12] = fm_rsqrtf((float)n);
-    c->ex[13] = fm_minf(f * fm_exp2f((c->ex[18] - 64.0f) * (1.0f / 12.0f)), 0.45f);
+    c->ex[13] = fm_minf(f * fm_exp2f((c->ex[18] - 64.0f) * (1.0f / 12.0f) + c->e[1] * KNIT_OSC2_DETUNE), 0.45f);
     c->ex[14] = c->ex[19] * (1.0f / 127.0f);
     c->ex[15] = f * 0.5f;
     c->ex[16] = c->ex[20] * (1.0f / 127.0f);

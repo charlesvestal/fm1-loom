@@ -69,6 +69,8 @@ void engine_scene(int scene, int when);                  /* a scene: now (seq_se
 
 /* state for the screen (written by the interrupt) */
 extern volatile uint8_t eng_step[NSEQT];                 /* playheads */
+extern volatile uint8_t eng_cc_level[NTRK];              /* MIDI CC 7 in, per track: the level to set (0xFF none; the
+                                                          * main loop sets it, as the knob would) */
 extern volatile uint16_t eng_peak[NALLTRK];              /* meters after the faders, Q14 (to +6 dB): the loudest
                                                           * since the UI took it (and set it to 0) */
 extern volatile uint8_t eng_drum_hit[NDRUM];             /* the selected drum track's last hits (255 = full) */

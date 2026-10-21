@@ -674,6 +674,7 @@ void project_apply(void)
     engine_groove(proj.groove);
     seq.send_clock = proj.send_clock;
     seq.send_notes = proj.send_notes;
+    seq.loop_free = (uint8_t)((proj.rsv[2] & 8u) != 0);   /* (pages.c LOOP_FREE: a loop throw let go drifts) */
     seq.metronome = proj.metronome;
     engine_scene(proj.scene < NSCENE ? proj.scene : 0, 0);
     engine_metronome(proj.metronome);

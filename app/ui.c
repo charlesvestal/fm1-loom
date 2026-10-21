@@ -1572,7 +1572,7 @@ static void button_up(int b)
             say(d > 0 ? "REST" : "BACK", t);
             break;
         }
-        if (steps_page(ui.page)) {
+        if (steps_page(ui.page) || (ui.page == P_WEAVE && wv_from(sel_trk()))) {   /* (Weave: the bar its rows show) */
             ui.bar = (uint8_t)clampi(ui.bar + d, 0, NBAR - 1);
             num_s((uint32_t)ui.bar + 1u, t);
             say("BAR", t);
@@ -2053,6 +2053,11 @@ static void list_change(int32_t e)
             break;
         case A_SCENE_AT:
             proj.rsv[2] = (uint8_t)(d > 0 ? proj.rsv[2] | SCENES_AT_END : proj.rsv[2] & ~SCENES_AT_END);
+            mark_dirty();
+            break;
+        case A_LOOP_FREE:
+            proj.rsv[2] = (uint8_t)(d > 0 ? proj.rsv[2] | LOOP_FREE : proj.rsv[2] & ~LOOP_FREE);
+            seq.loop_free = (uint8_t)((proj.rsv[2] & LOOP_FREE) != 0);
             mark_dirty();
             break;
         case A_COUNT_IN:
@@ -2587,7 +2592,7 @@ static void action_run(int a)
         break;
     case A_FOLLOW: case A_USB_AUDIO: case A_COUNT_IN: case A_THEME: case A_PLAYMODE: case A_FTYPE: case A_FX_HP: case A_FX_LP:
     case A_FX_SEND: case A_PUMP_BY: case A_PUMP_REL: case A_PUMP_ACC: case A_LEVEL: case A_SCENE_AT: case A_AUTOSAVE:
-    case A_MIDI_CH: return;                      /* (ALGORITHM sets them; SEL leaves the list) */
+    case A_MIDI_CH: case A_LOOP_FREE: return;                      /* (ALGORITHM sets them; SEL leaves the list) */
     case A_REMOVE_NOTE: act_remove_note(lst.sel); break;
     case A_INSERT_SLOT:
         if (sg->len >= NSONG) {
@@ -3498,6 +3503,12 @@ void ui_frame(void)
         if (ui.bar * 16 >= tpat(sel_trk())->len)
             ui.bar = 0;
     }
+    for (int t = 0; t < NTRK; t++)               /* MIDI CC 7 in: a track's level, as its knob */
+        if (eng_cc_level[t] != 0xFF) {
+            int v = eng_cc_level[t];
+            eng_cc_level[t] = 0xFF;
+            set_tp(t, TP_LEVEL, v);
+        }
     if (seq.crop_dirty) {                        /* a queued loop reached its bar line */
         seq.crop_dirty = 0;
         mark_dirty();

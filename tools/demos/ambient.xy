@@ -136,7 +136,7 @@ notes 6 1 33 15 90 G1
 notes 6 1 49 15 90 A1
 
 # ---- the weaves, set up (each track's ARP, Weave page): T5 with T5's P2 by notes, T1 with T1's P2 by steps
-weaveset 5 5 2 notes
+weaveset 5 5 2 pitch
 weaveset 1 1 2 steps
 # the WEAVE track, as recorded: P1 empty; P2 the bells woven the four bars, the pulse the last two; P3 the bells,
 # the outro's first two bars

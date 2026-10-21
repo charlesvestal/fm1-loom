@@ -99,6 +99,7 @@ static uint8_t fx_type[2];                        /* each slot's effect, as set 
 static uint32_t metro_left;                       /* the metronome's click: samples left, phase, rate */
 static float metro_ph, metro_inc;
 static int16_t bend_c[NTRK];                      /* the bend component's cents, per track */
+volatile uint8_t eng_cc_level[NTRK] = {[0 ... NTRK - 1] = 0xFF};
 static uint8_t perf_tail[NTRK], perf_mute[NTRK];  /* the drum tracks' punch state (the synth's perf_t is the synth's) */
 static int8_t perf_pan[NTRK];
 static int8_t perf_pan_base[NTRK];                /* the sequencer's pan offset (the arp's stereo), under the LFO */
@@ -666,6 +667,8 @@ static void midi_in(uint32_t pkt)
         ty = 0x80;
     if (ty == 0x90 || ty == 0x80)
         seq_key(&seq, midi_track(ch), d1, ty == 0x90, d2);
+    else if (ty == 0xB0 && d1 == 7)                /* CC 7, volume: the track's level */
+        eng_cc_level[midi_track(ch)] = d2;
     else if (ty == 0xE0) {                         /* pitch bend: +-2 semitones onto the track's bend */
         int t = midi_track(ch);
         bend_c[t] = (int16_t)((((int)d2 << 7 | d1) - 8192) * 200 / 8192);

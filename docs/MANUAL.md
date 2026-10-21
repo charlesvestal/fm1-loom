@@ -5,10 +5,12 @@ with nine engines (six synths, a sample player, a break slicer and a drum kit), 
 players, twelve throws (momentary effects) per octave, a conductor that moves the song through a progression,
 two send effects (the reverb with the PlayStation's own reverbs among its modes), a mixer and a master section,
 sixteen scenes and a song. Weave two patterns into a
-third, bar by bar, step by step, or one's rhythm with the other's notes.
+third, bar by bar, step by step, or one's rhythm with the other's pitch.
 
 The loop LOOM-8 is made for: write a short pattern, add a few tricks, weave it with another, let the conductor
 play a progression, season it with throws while it plays, then put the scenes in order.
+
+To see it played first, watch the [LOOM-8 video](https://www.youtube.com/watch?v=d84QXnfulRE).
 
 - [Quick start](#quick-start)
 - [Cheat sheet](#cheat-sheet)
@@ -99,7 +101,7 @@ knob on it; press **ARP** on T2 and turn **KNOB 1** to arp; press **GLO**, turn 
 - **Conductor**: the aux track that moves the other tracks through a key and scale, from its own chords or from
   a track's notes.
 - **Throw**: a momentary effect on the drums or the melodic tracks, from a key on FX's Throws page.
-- **Weave**: a track's pattern crossed with another, live: bars or steps in turn, or one's rhythm with the other's notes.
+- **Weave**: a track's pattern crossed with another, live: bars or steps in turn, or one's rhythm with the other's pitch.
   Set up on the track's ARP, played on the WEAVE track.
 - **Groove**: a timing and velocity feel. The project picks the type, each track sets how much.
 - **Pump**: the whole mix ducking on each kick and swelling back (Master out). A track's pump LFO does the same
@@ -350,16 +352,16 @@ for the WEAVE track, to bring in by hand.
 **Set it up.** On a track, press **ARP** and turn **SELECT** to its last page, Weave. Press a black key for the
 track to weave in (1 to 8 the tracks, 9 COND, 10 THROW; the same key again: none) and a white key, 1 to 8, for
 its pattern. **KNOB 1** (WITH: the track), **KNOB 2** (PATTERN: its pattern) and **KNOB 3** (RULE) say the same.
-The page says it in words ("T2 weaves with T1", "by rhythm: T2 P1's rhythm, T1 P1's notes") and draws the first
-bar three ways: the track's own steps, the other pattern's, and what plays, each step in the colour of the
-pattern it comes from. Its last line says whether it plays (on), or which WEAVE track key brings it in. The rules:
+The page says it in words ("T2 weaves with T1", "by rhythm: T2 P1's rhythm, T1 P1's pitch") and draws a bar
+three ways: the track's own steps, the other pattern's, and what plays, each step in the colour of the
+pattern it comes from. A pattern longer than a bar: **OCT+** and **OCT−** go through its bars ("bar 2 of 4"). Its last line says whether it plays (on), or which WEAVE track key brings it in. The rules:
 
 | Rule | What the track plays |
 | --- | --- |
 | bars | its bars and the other pattern's in turn: its bar, the other's bar ... |
 | steps | its steps and the other's in turn |
-| rhythm | its rhythm, playing the other pattern's notes in their order, round and round |
-| notes | the other pattern's rhythm, playing this track's notes |
+| rhythm | its rhythm, playing the other pattern's pitches in their order, round and round |
+| pitch | the other pattern's rhythm, playing this track's pitches |
 
 Each pattern loops by its own length, and the turns count from the start, so a one-bar pattern woven by bars
 plays its own bar, then the other's. A track can weave with any track: a drum track's sounds become notes on a
@@ -383,7 +385,7 @@ and a later white key for its end. **KNOB 1** picks its pattern (each scene keep
 edit like any other. A pattern woven with a copy of itself, shifted (copy, ROTATE FORWARD, weave it by steps), makes
 variations; a drum pattern's rhythm with a melody's notes makes a riff.
 
-<img src="img/screen-weave.png" width="240" alt="ARP's Weave page on T2: T2 weaves with T1, by rhythm: T2 P1's rhythm, T1 P1's notes; rows for T2 P1's steps, T1 P1's, and what plays; on, it plays woven" title="A weave set up"> <img src="img/screen-woven.png" width="240" alt="The WEAVE track's page: ten boxes, T1 to T8, COND and THROW; T2's lit while its key is held, its weave T1 P1, rhythm" title="Weaving">
+<img src="img/screen-weave.png" width="240" alt="ARP's Weave page on T2: T2 weaves with T1, by rhythm: T2 P1's rhythm, T1 P1's pitch; rows for T2 P1's steps, T1 P1's, and what plays; on, it plays woven" title="A weave set up"> <img src="img/screen-woven.png" width="240" alt="The WEAVE track's page: ten boxes, T1 to T8, COND and THROW; T2's lit while its key is held, its weave T1 P1, rhythm" title="Weaving">
 
 ## Recording
 
@@ -451,7 +453,9 @@ square to a narrow pulse (an LFO on it is PWM). **voices** stacks one to seven o
 field. With one voice, **detune** is a slow drift of the pitch instead.
 
 The Sub page: **osc 2** is one more of the wave, 24 semitones either way of the note, and **level** its level
-(0 is off); **sub** is a sine an octave down; **noise** adds noise.
+(0 is off); **sub** is a sine an octave down; **noise** adds noise. **detune** tunes osc 2 too, up to 20 cents
+above its interval, at any number of voices: osc 2 at 0 semitones with a little detune is the classic two
+oscillators beating.
 
 A wide unison costs more than an ordinary voice. So knit plays at most six voices, five with seven in its unison;
 a new note past that takes its oldest.
@@ -762,7 +766,8 @@ what it was holding.
 
 ## Arrange, scenes and the song
 
-Press **HOME**. Each row is a track with its pattern and a playhead; muted tracks are dimmed. The scene's
+Press **HOME**. Each row is a track with its pattern and a playhead, and at its left a small meter of what it plays;
+muted tracks are dimmed. The scene's
 number is at the right, with the next one when a scene is cued, the beats until it starts and its key
 blinking. The 16 white keys are the 16 scenes. Stopped, a press switches at once. Playing, the scene
 starts at the next bar line; press its key again to switch at once, or press the scene playing to take
@@ -827,6 +832,10 @@ Turn **ALGORITHM** past T8. Each aux track has its own page under **EDIT** and i
 | black 4 | chop: short notes |
 | black 5 | ring: long notes |
 
+  Let a loop throw (stutter, repeat, echo) go and the track comes back in time, at the step it would be at had it
+  never looped. **GLO**'s **SEL** list, LOOP THROWS "drift", leaves it where the loop left it instead: out of step
+  with the others, until a scene or the transport sets it straight.
+
   From any track, **FX**'s last page, Throws, has the same keys and the latch.
 
 - **FX I** and **FX II**: a send effect each: chorus, delay, lofi, phaser or reverb, with its
@@ -868,7 +877,8 @@ clock, sending MIDI notes (over USB: each track on its own channel, T1 on 1 to T
 **SEL** list on its sound pages has MIDI CHANNEL, off or 1 to 16, which also picks the track for notes coming in on
 that channel) and the theme (tape deck or blueprint); the page also says where the tempo comes from
 (LOOM-8, or a MIDI clock coming in), the USB audio level, the autosave and the version, and **GLO**'s **SEL** list
-sets the USB audio level and AUTOSAVE. The projects are on **HOME**'s **SEL** list; the count-in is on **REC**'s knobs.
+sets the USB audio level, LOOP THROWS and AUTOSAVE. The header shows the scene playing ("S3") before the tempo, on
+every page. The projects are on **HOME**'s **SEL** list; the count-in is on **REC**'s knobs.
 
 **Master color** gives the whole mix a colour after the EQ: **color** picks it, **amount**, **tone** and **mix**
 shape it. **tape** is worn tape: a slow wow and a quick flutter on the pitch (more with the amount), a soft
