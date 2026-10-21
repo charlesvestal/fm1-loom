@@ -753,9 +753,11 @@ Press **ARP**. **KNOB 1** picks the player: off, arp, strum or hold.
 - **arp** plays the held notes one after another: speed (1/4 to 1/64, with triplets), pattern (up, down, up
   down 1, up down 2, as played, random) and range on page 1; page 2 has the note length, a style, glide and
   stereo; page 3 is hold.
-- **strum** plays a chord from one key, moved so it starts on that key: a major triad at first. Hold keys
-  together, up to eight, and they become the chord (they sound as you hold them); from then on one key plays
-  that chord from there. Roll strums it, up to one note per step.
+- **strum** plays a chord from one key, built on that key in the conductor's key and scale: a triad at first,
+  so the white keys in C major give C, Dm, Em, F, G, Am and Bdim (the harmonic field). Hold keys together, up to
+  eight, and they become the chord (they sound as you hold them); from then on one key plays that chord moved
+  along the scale (a C7 gives Dm7 on D, G7 on G: a note outside the scale keeps its place). A key outside the
+  scale plays the chord as you held it, moved there as it is. Roll strums it, up to one note per step.
 - **hold** keeps the notes you play until the next.
 
 The arp and the strum play the track's steps too. A step's notes are arpeggiated for as long as the step lasts

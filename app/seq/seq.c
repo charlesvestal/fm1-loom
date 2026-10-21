@@ -1768,19 +1768,39 @@ static void arp_fire(seq_t *s, int t, const seq_sink_t *o)
 
 /* the maestro: the chord moved so its lowest note is the key, in musical order (or reversed, or alternating,
  * or a random direction per strum), rolled: roll 63 = a note per sequencer step of the track, 0 = at once */
+/* the remembered chord on KEY: its lowest note moved to the key and the rest by as many of the conductor's scale steps
+ * (the harmonic field: a C triad gives C Dm Em F G Am Bdim on the C major keys; a note of it outside the scale keeps
+ * its offset, so a learned C7 gives each degree's chord with a flat seventh); a key outside the scale, or the
+ * chromatic scale: the chord as learned, moved in parallel. Returns the notes written to out (n) */
+static int chord_at(const seq_t *s, const uint8_t *ch, int n, int key, uint8_t *out)
+{
+    int sc = s->brain_scale < NBS ? s->brain_scale : BS_MAJOR, k = s->brain_key % 12, lo = 128, i;
+    uint16_t mask = scale_mask(sc);
+    for (i = 0; i < n; i++)
+        if (ch[i] < lo)
+            lo = ch[i];
+    if (sc != BS_CHROMATIC && in_scale(key, k, mask) && in_scale(lo, k, mask)) {
+        int steps = note_to_deg(key, k, mask) - note_to_deg(lo, k, mask);
+        for (i = 0; i < n; i++) {
+            int d = note_to_deg(ch[i], k, mask);
+            out[i] = (uint8_t)clamp_note(deg_to_note(d + steps, k, mask) + ch[i] - deg_to_note(d, k, mask));
+        }
+    } else
+        for (i = 0; i < n; i++)
+            out[i] = (uint8_t)clamp_note(ch[i] - lo + key);
+    return n;
+}
 static void maestro_play(seq_t *s, int t, int key, int vel, const seq_sink_t *o)
 {
     player_t *pl = &s->player[t];
-    int n = pl->nchord, i, j, lo = 128, pat = s->par[t][TP_P2], roll = s->par[t][TP_P1], down;
-    uint8_t list[SN * 2];
+    int n = pl->nchord, i, j, pat = s->par[t][TP_P2], roll = s->par[t][TP_P1], down;
+    uint8_t list[SN * 2], at[SN * 2];
     sounding_off(s, t, o);
     if (!n)
         return;
-    for (i = 0; i < n; i++)
-        if (pl->chord[i] < lo)
-            lo = pl->chord[i];
-    for (i = 0; i < n; i++) {         /* the chord moved so its lowest note is the key, sorted up */
-        uint8_t v = (uint8_t)clamp_note(pl->chord[i] - lo + key);
+    chord_at(s, pl->chord, n, key, at);
+    for (i = 0; i < n; i++) {         /* the chord on the key (chord_at), sorted up */
+        uint8_t v = at[i];
         for (j = i; j > 0 && list[j - 1] > v; j--)
             list[j] = list[j - 1];
         list[j] = v;
@@ -1885,15 +1905,11 @@ static void step_strum(seq_t *s, int t, const uint8_t *nt, int n, int vel, uint3
                        const seq_sink_t *o)
 {
     player_t *pl = &s->player[t];
-    int i, j, m = 0, lo = 128, pat = s->par[t][TP_P2], roll = s->par[t][TP_P1], down;
+    int i, j, m = 0, pat = s->par[t][TP_P2], roll = s->par[t][TP_P1], down;
     uint8_t list[SN * 2];
-    if (n == 1 && pl->nchord) {
-        for (i = 0; i < pl->nchord; i++)
-            if (pl->chord[i] < lo)
-                lo = pl->chord[i];
-        for (i = 0; i < pl->nchord; i++)
-            list[m++] = (uint8_t)clamp_note(pl->chord[i] - lo + nt[0]);
-    } else
+    if (n == 1 && pl->nchord)                     /* a step's one note: the chord on it (chord_at) */
+        m = chord_at(s, pl->chord, pl->nchord, nt[0], list);
+    else
         for (i = 0; i < n && m < SN * 2; i++)
             list[m++] = nt[i];
     for (i = 1; i < m; i++) {         /* sorted up */

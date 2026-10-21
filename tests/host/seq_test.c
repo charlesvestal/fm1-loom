@@ -1343,9 +1343,9 @@ static void t_maestro(void)
     cur = "maestro";
     reset();
     par[0][TP_PLAYER] = PL_STRUM;
-    seq_key(&S, 0, 62, 1, 90);            /* a fresh strum: a major triad from the key */
+    seq_key(&S, 0, 62, 1, 90);            /* a fresh strum: its triad (C E G) on the key, in the scale: D minor */
     run(10);
-    CHECK(count(E_ON, 0) == 3 && on_n(1)->a == 66 && on_n(2)->a == 69);
+    CHECK(count(E_ON, 0) == 3 && on_n(1)->a == 65 && on_n(2)->a == 69);
     seq_key(&S, 0, 62, 0, 0);
     run(10);
     nev = 0;
@@ -1369,10 +1369,33 @@ static void t_maestro(void)
     seq_maestro_record(&S, 0, chord, 3);
     seq_key(&S, 0, 62, 1, 90);
     run(10);
-    CHECK(count(E_ON, 0) == 3 && on_n(0)->a == 62 && on_n(1)->a == 66 && on_n(2)->a == 69 && on_n(0)->b == 90);
+    CHECK(count(E_ON, 0) == 3 && on_n(0)->a == 62 && on_n(1)->a == 65 && on_n(2)->a == 69 && on_n(0)->b == 90);
     seq_key(&S, 0, 62, 0, 0);
     run(10);
     CHECK(count(E_OFF, 0) == 3);
+    {                                             /* the harmonic field of C major from C E G: F major, B diminished;
+                                                   * a key outside the scale, the chord in parallel (C#: C# F G#) */
+        static const struct { int key, n1, n2; } HF[3] = {{65, 69, 72}, {71, 74, 77}, {61, 65, 68}};
+        for (int k = 0; k < 3; k++) {
+            nev = 0;
+            seq_key(&S, 0, HF[k].key, 1, 90);
+            run(10);
+            CHECK(count(E_ON, 0) == 3 && on_n(0)->a == HF[k].key && on_n(1)->a == HF[k].n1 && on_n(2)->a == HF[k].n2);
+            seq_key(&S, 0, HF[k].key, 0, 0);
+            run(10);
+        }
+        nev = 0;                                  /* a learned C7 (C E G Bb): G gives G7 (G B D F), the Bb's flat kept */
+        {
+            static const uint8_t C7[4] = {60, 64, 67, 70};
+            seq_maestro_record(&S, 0, C7, 4);
+        }
+        seq_key(&S, 0, 67, 1, 90);
+        run(10);
+        CHECK(count(E_ON, 0) == 4 && on_n(1)->a == 71 && on_n(2)->a == 74 && on_n(3)->a == 77);
+        seq_key(&S, 0, 67, 0, 0);
+        run(10);
+        seq_maestro_record(&S, 0, chord, 3);
+    }
     /* roll 63: a note per sequencer step of the track (a sixteenth at scale 1), 21 = a third of that */
     nev = 0;
     par[0][TP_P1] = 63;
@@ -1518,8 +1541,8 @@ static void t_step_players(void)      /* the arp and the strum play the steps' n
     CHECK(near(b->t - a->t, L16 / 3u, 4) && near(c->t - b->t, L16 / 3u, 4));
     CHECK(off_of(a) && off_of(c) && near(off_of(a)->t, 2 * L16 + 2, 6) && near(off_of(c)->t, 2 * L16 + 2, 6));
     nev = 0;
-    run(3 * L16);
-    CHECK(count(E_ON, 0) == 3 && on_n(0)->a == 62 && on_n(1)->a == 66 && on_n(2)->a == 69);
+    run(3 * L16);                                 /* (step 5's D: the chord on it, in the scale: D minor) */
+    CHECK(count(E_ON, 0) == 3 && on_n(0)->a == 62 && on_n(1)->a == 65 && on_n(2)->a == 69);
     printf("ok %s\n", cur);
 }
 
