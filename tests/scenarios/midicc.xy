@@ -6,14 +6,16 @@ expect par3.51 1
 expect par2.51 1
 turn ALGO 1
 expect trk 2
+out
 midi 92 3C 64
 wait 20
 expect midi_out 1
-expect midiout_last 0x923C64
+expect_out USB 92 3C 64
+out
 midi 82 3C 00
 wait 20
 expect midi_out 2
-expect midiout_last 0x823C00
+expect_out USB 82 3C 00
 
 # a track holding a channel number (as before C3) loads with MIDI OUT on
 projnew
@@ -26,14 +28,16 @@ expect par3.51 1
 # channels 9, 10 and 11: no notes
 turn ALGO 1
 expect trk 2
+out
 midi 9B 3E 64
 wait 20
-expect midiout_last 0x913E64
+expect_out USB 91 3E 64
+out
 midi 8B 3E 00
 wait 20
-expect midiout_last 0x813E00
-wait 300
+expect_out USB 81 3E 00
 # the synth's release tail: T2's voice needs this long to die down after the note off, before "voices" reads 0
+wait 300
 midi 98 3C 64
 midi 99 3C 64
 midi 9A 3C 64
@@ -47,3 +51,84 @@ wait 20
 midi 82 40 00
 wait 20
 expect midi_out 4
+
+# the map in: a synth (T2 on channel 2)
+projnew
+midi B1 07 40
+midi B1 0A 00
+midi B1 5B 7F
+midi B1 5D 20
+midi B1 4A 10
+midi B1 47 7F
+midi B1 49 05
+midi B1 48 06
+midi B1 4B 07
+midi B1 05 08
+midi B1 01 00
+wait 40
+expect par2.48 64
+expect par2.49 0
+expect par2.22 127
+expect par2.23 32
+expect par2.17 16
+expect par2.18 127
+expect par2.9 5
+expect par2.12 6
+expect par2.10 7
+expect par2.6 8
+expect par2.26 0
+# a kit (T1 on channel 1): the bus's cuts, the kit's attack and length; 75 does nothing there
+midi B0 4A 11
+midi B0 47 12
+midi B0 49 13
+midi B0 48 14
+midi B0 4B 15
+wait 40
+expect par1.20 17
+expect par1.17 18
+expect par1.10 19
+expect par1.12 20
+expect par1.9 0
+# FX I on 9, FX II on 10
+midi B8 07 21
+midi B8 10 22
+midi B8 13 23
+midi B8 4A 24
+midi B8 4B 25
+midi B8 5D 26
+midi B9 11 27
+midi B9 5D 28
+wait 40
+expect par11.48 33
+expect par11.1 34
+expect par11.4 35
+expect par11.17 36
+expect par11.19 37
+expect par11.23 38
+expect par12.2 39
+# the master on 11: level, EQ, a switch scaled (color type 0..2), release
+midi BA 07 29
+midi BA 10 2A
+midi BA 14 7F
+midi BA 1C 2B
+wait 40
+expect mst.level 41
+expect mst.lo 42
+expect mst.color 2
+expect mst.release 43
+midi BA 14 40
+wait 40
+expect mst.color 1
+# recorded: REC held while playing, a CC on channel 3 writes T3's lane (T2 selected)
+turn ALGO 1
+tap PLAY
+wait 300
+press REC
+wait 20
+midi B2 07 10
+wait 200
+midi B2 07 70
+wait 200
+release REC
+tap PLAY
+expect lane 3 1 48 1

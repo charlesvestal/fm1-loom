@@ -156,6 +156,7 @@ static void undo_sound(int trk);
 static void undo_sounds(int first, int n);
 static void undo_master(void);
 static void undo_arr(void);
+static void cc_in_drain(void);                    /* midicc.c: MIDI in's CCs, Program Changes, scene notes */
 static void sound_reset(uint8_t *par, int engine)   /* the engine's defaults; MIDI OUT stays (routing, not sound) */
 {
     int out = par[TP_CHAN];
@@ -3752,12 +3753,7 @@ void ui_frame(void)
         if (ui.bar * 16 >= tpat(sel_trk())->len)
             ui.bar = 0;
     }
-    for (int t = 0; t < NTRK; t++)               /* MIDI CC 7 in: a track's level, as its knob */
-        if (eng_cc_level[t] != 0xFF) {
-            int v = eng_cc_level[t];
-            eng_cc_level[t] = 0xFF;
-            set_tp(t, TP_LEVEL, v);
-        }
+    cc_in_drain();                               /* MIDI in: the CC map, the scenes (midicc.c) */
     if (seq.crop_dirty) {                        /* a queued loop reached its bar line */
         seq.crop_dirty = 0;
         mark_dirty();

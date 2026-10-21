@@ -99,7 +99,28 @@ static uint8_t fx_type[2];                        /* each slot's effect, as set 
 static uint32_t metro_left;                       /* the metronome's click: samples left, phase, rate */
 static float metro_ph, metro_inc;
 static int16_t bend_c[NTRK];                      /* the bend component's cents, per track */
-volatile uint8_t eng_cc_level[NTRK] = {[0 ... NTRK - 1] = 0xFF};
+/* MIDI for the main loop (midicc.c): every CC, Program Change and the master channel's note-ons, raw USB-MIDI
+ * packets; the interrupt writes, the main loop reads (engine_cc_take); full, a message is dropped */
+#define CCQ 16u
+static volatile uint32_t ccq[CCQ];
+static volatile uint8_t ccq_w, ccq_r;
+static void ccq_put(uint32_t pkt)
+{
+    uint8_t w = ccq_w;
+    if ((uint8_t)(w - ccq_r) >= CCQ)
+        return;
+    ccq[w % CCQ] = pkt;
+    ccq_w = (uint8_t)(w + 1u);
+}
+int engine_cc_take(uint32_t *pkt)
+{
+    uint8_t r = ccq_r;
+    if (r == ccq_w)
+        return 0;
+    *pkt = ccq[r % CCQ];
+    ccq_r = (uint8_t)(r + 1u);
+    return 1;
+}
 static uint8_t perf_tail[NTRK], perf_mute[NTRK];  /* the drum tracks' punch state (the synth's perf_t is the synth's) */
 static int8_t perf_pan[NTRK];
 static int8_t perf_pan_base[NTRK];                /* the sequencer's pan offset (the arp's stereo), under the LFO */
@@ -671,13 +692,14 @@ static void midi_in(uint32_t pkt)
         ty = 0x80;
     if (ty == 0x90 || ty == 0x80) {
         int t = midi_track(ch);
-        if (t >= 0)
+        if (ch == CH_MASTER) {                     /* the master's channel: notes pick scenes (midicc.c) */
+            if (ty == 0x90)
+                ccq_put(pkt);
+        } else if (t >= 0)
             seq_key(&seq, t, d1, ty == 0x90, d2);
-    } else if (ty == 0xB0 && d1 == 7) {            /* CC 7, volume: the track's level (the CC map replaces it) */
-        int t = midi_track(ch);
-        if (t >= 0)
-            eng_cc_level[t] = d2;
-    } else if (ty == 0xE0) {                       /* pitch bend: +-2 semitones onto the track's bend */
+    } else if (ty == 0xB0 || ty == 0xC0)            /* CCs and Program Change: the main loop's (midicc.c) */
+        ccq_put(pkt);
+    else if (ty == 0xE0) {                       /* pitch bend: +-2 semitones onto the track's bend */
         int t = midi_track(ch);
         if (t >= 0)
             bend_c[t] = (int16_t)((((int)d2 << 7 | d1) - 8192) * 200 / 8192);

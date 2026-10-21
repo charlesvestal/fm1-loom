@@ -9,6 +9,7 @@
 #include "project.c"
 #include "pages.c"
 #include "ui.c"
+#include "midicc.c"
 #include "samples.c"
 #ifndef PLAT_HOST
 #include "plat_loom.c"

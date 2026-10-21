@@ -74,8 +74,8 @@ enum { CH_FX1 = NTRK, CH_FX2, CH_MASTER };
 /* state for the screen (written by the interrupt) */
 extern volatile uint8_t eng_step[NSEQT];                 /* playheads */
 float engine_glfo_now(void);                             /* the shared LFO's value now, -1..1 (GLO's LFO page) */
-extern volatile uint8_t eng_cc_level[NTRK];              /* MIDI CC 7 in, per track: the level to set (0xFF none; the
-                                                          * main loop sets it, as the knob would) */
+int engine_cc_take(uint32_t *pkt);                       /* the main loop: the next CC / Program Change / master-channel
+                                                          * note-on from MIDI in (a USB-MIDI packet), 0 none */
 extern volatile uint16_t eng_peak[NALLTRK];              /* meters after the faders, Q14 (to +6 dB): the loudest
                                                           * since the UI took it (and set it to 0) */
 extern volatile uint8_t eng_drum_hit[NDRUM];             /* the selected drum track's last hits (255 = full) */
