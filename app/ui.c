@@ -1668,6 +1668,8 @@ static void holds(void)
 }
 
 /* -------------------------------------------------------------- knobs --- */
+static int cued_pat(int trk);
+static void pattern_pick(int trk, int p);
 static void arrange_knob(int k, int32_t e)
 {
     int trk = sel_trk();
@@ -1681,11 +1683,8 @@ static void arrange_knob(int k, int32_t e)
         undo_keep();
         tpat(trk)->groove = (int8_t)clampi(tpat(trk)->groove + e, -99, 99);
         mark_dirty();
-    } else {
-        proj.metronome = (uint8_t)clampi(proj.metronome + e, 0, 2);
-        engine_metronome(proj.metronome);
-        mark_dirty();
-    }
+    } else if (is_seqt(trk))                     /* the selected track's pattern in this scene (ALGORITHM picks the track) */
+        pattern_pick(trk, cued_pat(trk) + (e > 0 ? 1 : -1));
 }
 static void song_knob(int k, int32_t e)
 {

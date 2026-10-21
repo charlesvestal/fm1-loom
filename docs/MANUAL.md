@@ -73,7 +73,7 @@ to 16 from the left, black keys 1 to 11.
    P2 for a new pattern. Press white key 1 and 2 in turn: while it plays, each waits for the next bar
    (press it again to switch at once).
 
-   <img src="img/screen-arrange.png" width="240" alt="Arrange: each track&#x27;s pattern with its playhead, scene 2 playing; knobs tempo, groove, amount, click" title="Arrange">
+   <img src="img/screen-arrange.png" width="240" alt="Arrange: each track&#x27;s pattern with its playhead, scene 2 playing; knobs tempo, groove, amount, the track's pattern" title="Arrange">
 8. **Save.** Press **SAVE**.
 
 From here: hold a step to see its velocity, length, chance and pitch; hold a step and press **EDIT** to lock a
@@ -793,7 +793,9 @@ from any page.
 
 **KNOB 1** is the tempo (hold **HOME** for tenths), **KNOB 2** the groove type (swing, lilt, weave,
 stretch, drunk, jitter, accent, lazy, push pull, sway, swell), **KNOB 3** the
-selected track's groove amount from −99 to 99, and **KNOB 4** the click: off, while recording, or on.
+selected track's groove amount from −99 to 99, and **KNOB 4** the selected track's pattern in this scene ("T2 PAT";
+**ALGORITHM** picks the track; playing, it comes at the track's next bar line): a scene's patterns, track by
+track, without leaving Arrange. The click is on **REC**'s knobs.
 
 Turn **SELECT** for the Song page. Press a white key to add that scene after the slot picked (**OCT+**: scenes 17
 to 32); the knobs move
@@ -948,7 +950,7 @@ On a sound page, hold **SAVE** and press white key 1 to 16 to keep the track's s
 
 | Button | Page | KNOB 1 | KNOB 2 | KNOB 3 | KNOB 4 | Keys |
 | --- | --- | --- | --- | --- | --- | --- |
-| HOME | Arrange | tempo | groove | amount | click | white: scenes, black: mutes; SEL: load, save to, new project, randomize presets, the song, when scenes switch |
+| HOME | Arrange | tempo | groove | amount | the track's pattern | white: scenes, black: mutes; SEL: load, save to, new project, randomize presets, the song, when scenes switch |
 | HOME, SELECT | Song | slot | scene | bars | at end | white: add a scene |
 | SEQ | Steps | pattern | length | scale | groove | white: steps, black: sound (drums); SEQ held: a keyboard |
 | SEQ, a step held | Steps | velocity | length | chance | pitch | white: length, black: sounds |

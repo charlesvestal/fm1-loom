@@ -222,3 +222,16 @@ tap OCT-
 tapkey w0
 wait 40
 expect scene 1
+# Arrange's KNOB 4: the selected track's pattern in this scene
+projnew
+tap SEQ
+tap HOME
+turn ALGO 1
+expect trk 2
+turn K4 2
+wait 40
+shot arrange_pat.png
+expect pat2 3
+tap SEQ
+expect page Steps
+tap HOME

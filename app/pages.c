@@ -1102,9 +1102,19 @@ static void page_knobs(knob_t *k)
         tempo_text(t);
         kv(&k[0], "TEMPO", t, (int)proj.tempo_x10 / 10 - 40, 180);
         kname(&k[1], "GROOVE", GR_NAME, proj.groove, NGROOVE);
-        if (is_seqt(trk))
+        if (is_seqt(trk)) {
+            static char pn[12];                      /* the track's pattern in this scene ("T2 PAT"; cued: "1>2") */
+            char c[8], *ce;
             kn(&k[2], "AMOUNT", tp->groove, 0);
-        kname(&k[3], "CLICK", METRO_NAME, proj.metronome, 3);
+            s_cat(s_cat(pn, TRACK_NAME[trk]), " PAT");
+            if (playing() && seq.pcue[trk] < NPATT && seq.pcue[trk] != cur_pat(trk)) {
+                ce = num_s((uint32_t)cur_pat(trk) + 1u, c);
+                *ce++ = '>';
+                num_s((uint32_t)seq.pcue[trk] + 1u, ce);
+                kv(&k[3], pn, c, seq.pcue[trk] + 1, NPATT);
+            } else
+                kn(&k[3], pn, cur_pat(trk) + 1, NPATT);
+        }
         break;
     case P_SONG: {
         const song_t *sg = &pats.song;
@@ -2263,14 +2273,14 @@ static void draw_song(void)
         int32_t six = (int32_t)(reps - (left > reps ? reps : left)) * 16 + (int32_t)(seq.bar16 & 15u);
         fill = six * 48 / (reps * 16);
     }
-    h = hash_u(h, (uint32_t)fill);
+    h = hash_u(h, (uint32_t)fill | (uint32_t)ui.scene_pg << 16);
     for (int i = top; i < top + 16 && i < sg->len; i++)
         h = hash_u(h, sg->slot[i].scene | (uint32_t)sg->slot[i].rep << 8);
     if (!begin_main(h))
         return;
     if (!sg->len) {
         text_c(120, 40, &FONT_B, "No scenes in the song yet", K_TEXT);
-        text_c(120, 62, &FONT_S, "White keys add scenes 1 to 16", K_DIM);
+        text_c(120, 62, &FONT_S, ui.scene_pg ? "White keys add scenes 17 to 32" : "White keys add scenes 1 to 16", K_DIM);
         cv_blit(0, MAIN_Y);
         return;
     }
