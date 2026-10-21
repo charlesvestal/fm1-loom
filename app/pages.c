@@ -176,6 +176,7 @@ static struct {
     uint8_t name_slot;
     uint8_t playing;
     uint8_t scene_seen;
+    uint8_t scene_pg;                                /* Arrange, Song: the white keys are scenes 1-16 (0) or 17-32 (1) */
     uint32_t sig[6];
 } ui;
 
@@ -1473,11 +1474,11 @@ static void page_footer(char *t)
     }
     switch (ui.page) {
     case P_ARRANGE:
-        s_cat(t, proj.rsv[2] & SCENES_AT_END ? "WHITE scene at the pattern's end|BLACK mute"
-                                             : "WHITE scene at the bar, again: now|BLACK mute");
+        s_cat(t, proj.rsv[2] & SCENES_AT_END ? "WHITE scene at the pattern's end|BLACK mute|OCT 1-16, 17-32"
+                                             : "WHITE scene at the bar, again: now|BLACK mute|OCT 1-16, 17-32");
         break;
     case P_SONG:
-        s_cat(t, "WHITE add scene|PLAY song");
+        s_cat(t, "WHITE add scene|PLAY song|OCT 1-16, 17-32");
         break;
     case P_STEPS: case P_BAR:
         if (trk == AUX_WEAVE && ui.page == P_STEPS)
@@ -2166,7 +2167,8 @@ static void draw_arrange(void)
     int sc = cur_scene(), cue = seq.cue, left = seq_cue_left(&seq), mh[NTRK];
     uint32_t now = plat_ms(), dt = now - a_last;
     uint32_t h = hash_u(hash_u(2166136261u, 0xA0u), (uint32_t)sc | (uint32_t)cue << 8 | (uint32_t)playing() << 16 |
-                                          (uint32_t)sel_trk() << 20 | (uint32_t)seq.cue_end << 24);
+                                          (uint32_t)sel_trk() << 20 | (uint32_t)seq.cue_end << 24 |
+                                          (uint32_t)ui.scene_pg << 25);
     h = hash_u(h, (uint32_t)(left + 1));
     a_last = now;
     for (int t = 0; t < NTRK; t++) {             /* each track's meter: what it plays now (Mix's fall; the header's
@@ -2233,12 +2235,13 @@ static void draw_arrange(void)
             cv_rect(180, 87, 48 * (left + 1) / (span > 0 ? span : 16), 2, K_NOW);
         }
     }
-    for (int i = 0; i < NSCENE; i++) {
-        int32_t x = 176 + (i % 8) * 7, y = 92 + (i / 8) * 9;
-        cv_round(x, y, 5, 6, 1, pats.scene[i].used ? (i == sc ? K_NOW : K_DIM) : K_LINE);
+    for (int i = 0; i < NSCENE; i++) {               /* the 32 scenes, the white keys' page marked at its left */
+        int32_t x = 176 + (i % 8) * 7, y = 92 + (i / 8) * 7;
+        cv_round(x, y, 5, 5, 1, pats.scene[i].used ? (i == sc ? K_NOW : K_DIM) : K_LINE);
         if (i == cue && cue != sc)
-            cv_frame(x, y, 5, 6, 1, K_TEXT, K_BG);
+            cv_frame(x, y, 5, 5, 1, K_TEXT, K_BG);
     }
+    cv_rect(172, 92 + ui.scene_pg * 14, 2, 12, K_DIM);
     cv_blit(0, MAIN_Y);
 }
 

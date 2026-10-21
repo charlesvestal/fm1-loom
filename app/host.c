@@ -923,7 +923,7 @@ static int song_cmd(const char *cmd)
         for (int i = 1; i < n && pats.song.len < NSONG; i++) {
             int sc = atoi(w[i]) - 1, r = strchr(w[i], ':') ? atoi(strchr(w[i], ':') + 1) : 1;
             if (sc < 0 || sc >= NSCENE || r < 1 || r > SONG_BARS)
-                host_die("a song slot is S:R (scene 1..16, 1..64 bars)", w[i]);
+                host_die("a song slot is S:R (scene 1..32, 1..64 bars)", w[i]);
             pats.song.slot[pats.song.len].scene = (uint8_t)sc;
             pats.song.slot[pats.song.len++].rep = (uint8_t)r;
         }

@@ -1228,7 +1228,7 @@ static void key_down(int k)
                 undo_arr();
                 for (int i = sg->len; i > at; i--)
                     sg->slot[i] = sg->slot[i - 1];
-                sg->slot[at].scene = (uint8_t)w;
+                sg->slot[at].scene = (uint8_t)(ui.scene_pg * 16 + w);
                 sg->slot[at].rep = at ? sg->slot[at - 1].rep : SONG_REP_DEF;   /* the slot before's bars (the first: 4) */
                 sg->len++;
                 song_edited(at, 1);
@@ -1236,12 +1236,12 @@ static void key_down(int k)
                 mark_dirty();
                 {
                     char t[16];
-                    num_s((uint32_t)w + 1u, s_cat(t, "S"));
+                    num_s((uint32_t)sg->slot[at].scene + 1u, s_cat(t, "S"));
                     say("INSERTED", t);
                 }
                 return;
             }
-            scene_key(k, w, proj.rsv[2] & SCENES_AT_END ? SCENE_END : SCENE_BAR);
+            scene_key(k, ui.scene_pg * 16 + w, proj.rsv[2] & SCENES_AT_END ? SCENE_END : SCENE_BAR);
         } else if (b >= 0 && b < NSEQT) {
             ui.kmode[k] = KM_MUTE;
             set_mute(b, !(seq.mute >> b & 1u));
@@ -1570,6 +1570,11 @@ static void button_up(int b)
             step_rec_move(d);
             num_s((uint32_t)ui.cursor + 1u, t);
             say(d > 0 ? "REST" : "BACK", t);
+            break;
+        }
+        if ((ui.page == P_ARRANGE || ui.page == P_SONG) && !home_held()) {   /* the white keys' scenes: 1-16, 17-32 */
+            ui.scene_pg = (uint8_t)(d > 0);
+            say("SCENES", ui.scene_pg ? "17 to 32" : "1 to 16");
             break;
         }
         if (steps_page(ui.page) || (ui.page == P_WEAVE && wv_from(sel_trk()))) {   /* (Weave: the bar its rows show) */
@@ -2940,13 +2945,16 @@ static void leds(void)
             if (is_drum(trk))
                 k |= 1u << BLACK_K[ui.dsound % 11];
             k |= ui.keys;
-        } else if (ui.page == P_ARRANGE) {
-            for (i = 0; i < NSCENE; i++)
-                if (pats.scene[i].used)
+        } else if (ui.page == P_ARRANGE) {       /* the page of scenes on the white keys (scene_pg) */
+            int f = ui.scene_pg * 16;
+            for (i = 0; i < 16; i++)
+                if (pats.scene[f + i].used)
                     dim |= 1u << WHITE_K[i];
-            k |= 1u << WHITE_K[cur_scene()];
-            if (playing() && seq.cue < NSCENE && seq.cue != cur_scene() && (seq.step_tick & 3u) < 2u)
-                k |= 1u << WHITE_K[seq.cue];             /* the scene cued blinks on the beat */
+            if (cur_scene() / 16 == ui.scene_pg)
+                k |= 1u << WHITE_K[cur_scene() % 16];
+            if (playing() && seq.cue < NSCENE && seq.cue / 16 == ui.scene_pg && seq.cue != cur_scene() &&
+                (seq.step_tick & 3u) < 2u)
+                k |= 1u << WHITE_K[seq.cue % 16];        /* the scene cued blinks on the beat */
             for (i = 0; i < NSEQT; i++)
                 if (seq.mute >> i & 1u)
                     dim |= 1u << BLACK_K[i];
@@ -3589,6 +3597,7 @@ void ui_frame(void)
     }
     if (cur_scene() != ui.scene_seen) {
         ui.scene_seen = (uint8_t)cur_scene();
+        ui.scene_pg = (uint8_t)(cur_scene() / 16);   /* (the keys follow the scene playing to its page) */
         proj.trk[AUX_BRAIN].par[TP_E2] = pats.scene[cur_scene()].brain_key % 12u;
         proj.trk[AUX_BRAIN].par[TP_E3] = pats.scene[cur_scene()].brain_scale % NBS;
         if (ui.bar * 16 >= tpat(sel_trk())->len)

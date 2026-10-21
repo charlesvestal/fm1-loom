@@ -17,7 +17,7 @@ enum { AUX_BRAIN = NTRK, AUX_PUNCH, AUX_FX1, AUX_FX2, AUX_WEAVE, NALLTRK };   /*
 #define NSTEP 64                      /* 4 bars of 16 */
 #define NBAR 4
 #define SN 4                          /* notes a step may hold */
-#define NSCENE 16
+#define NSCENE 32                     /* two pages of the 16 white keys (OCT on Arrange and Song) */
 #define NSONG 64                      /* scene slots in the song */
 #define SONG_BARS 64                  /* the most bars a song slot plays */
 #define NLANE 96                      /* parameter lock lanes (the whole project) */

@@ -4,7 +4,7 @@ LOOM-8 turns the M-VAVE FM-1 into a pocket groovebox: eight threads of sound on 
 with nine engines (six synths, a sample player, a break slicer and a drum kit), a 64-step sequencer with fourteen step tricks and parameter locks,
 players, twelve throws (momentary effects) per octave, a conductor that moves the song through a progression,
 two send effects (the reverb with the PlayStation's own reverbs among its modes), a mixer and a master section,
-sixteen scenes and a song. Weave two patterns into a
+thirty-two scenes and a song. Weave two patterns into a
 third, bar by bar, step by step, or one's rhythm with the other's pitch.
 
 The loop LOOM-8 is made for: write a short pattern, add a few tricks, weave it with another, let the conductor
@@ -775,7 +775,9 @@ what it was holding.
 Press **HOME**. Each row is a track with its pattern and a playhead, and at its left a small meter of what it plays;
 muted tracks are dimmed. The scene's
 number is at the right, with the next one when a scene is cued, the beats until it starts and its key
-blinking. The 16 white keys are the 16 scenes. Stopped, a press switches at once. Playing, the scene
+blinking. The 16 white keys are scenes 1 to 16; **OCT+** puts 17 to 32 on them (**OCT−** back; the dots at the
+right show all 32, a mark beside the rows the keys have now, and the keys follow the scene playing). Stopped, a
+press switches at once. Playing, the scene
 starts at the next bar line; press its key again to switch at once, or press the scene playing to take
 the cue back. **SEL**'s SCENES SWITCH set to "pattern end" makes a key wait for the end of T1's pattern
 instead: the tracks can have different lengths and drift apart, so T1's pattern is the scene's length (on a
@@ -790,7 +792,8 @@ from any page.
 stretch, drunk, jitter, accent, lazy, push pull, sway, swell), **KNOB 3** the
 selected track's groove amount from −99 to 99, and **KNOB 4** the click: off, while recording, or on.
 
-Turn **SELECT** for the Song page. Press a white key to add that scene after the slot picked; the knobs move
+Turn **SELECT** for the Song page. Press a white key to add that scene after the slot picked (**OCT+**: scenes 17
+to 32); the knobs move
 to the new slot, which plays as many bars as the one before it (the first: four). **KNOB 1** picks the slot,
 **KNOB 2** changes its scene, **KNOB 3** how many bars it plays (1 to 64; a bar is 16 sixteenths, whatever the
 patterns' lengths, so a 64-step pattern takes four), and **KNOB 4** whether the song loops or stops at the end.

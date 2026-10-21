@@ -209,3 +209,16 @@ tap SEL
 wait 40
 expect note 2 1 17 60
 expect lane 2 1 e1 2
+# 32 scenes: OCT+ on Arrange puts 17-32 on the white keys; a key there makes scene 18; the header says it
+projnew
+tap HOME
+expect page Arrange
+tap OCT+
+tapkey w1
+wait 40
+expect scene 18
+shot scenes32.png
+tap OCT-
+tapkey w0
+wait 40
+expect scene 1
