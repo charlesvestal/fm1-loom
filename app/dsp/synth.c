@@ -386,7 +386,7 @@ static void wt_prep(voice_t *v)
 static void wt_run(voice_t *v, float *xl, float *xr, int m)
 {
     const cfg_t *c = &v->c;
-    const int16_t *ta = WT[(int)c->ex[1]][(int)c->ex[2]], *tb = ta + WT_N;
+    const int8_t *ta = WT[(int)c->ex[1]][(int)c->ex[2]], *tb = ta + WT_N;
     float p = v->o[0], mp = v->o[1], d = c->ex[0], md = c->ex[5], fb = c->ex[3], w = c->ex[4];
     float ka = 0.5f / w, kb = 0.5f / (1.0f - w), depth = c->ex[6];
     int i;
@@ -406,7 +406,7 @@ static void wt_run(voice_t *v, float *xl, float *xr, int m)
         k &= WT_N - 1;
         a = (float)ta[k] + ((float)ta[(k + 1) & (WT_N - 1)] - (float)ta[k]) * fa;
         b = (float)tb[k] + ((float)tb[(k + 1) & (WT_N - 1)] - (float)tb[k]) * fa;
-        xl[i] = (a + (b - a) * fb) * (1.0f / 32768.0f);
+        xl[i] = (a + (b - a) * fb) * (1.0f / 128.0f);
     }
     v->o[0] = p;
     v->o[1] = mp;
