@@ -93,8 +93,10 @@ and old projects alike start with it on; no format change.
   pads start) pick scenes 1..32 too, for pad controllers without Program Change (note off ignored). Either goes the
   white key's way (ui.c `scene_go`): an unused scene is made from the one playing; stopped, at once; playing, cued by
   SCENES SWITCH (next bar / pattern end). Other programs and notes on 11 are ignored.
-- Out, with CC OUT on: when the scene playing changes (ui.c's frame sees `cur_scene()` change), Program Change
-  0..31 on channel 11. Not for a change that came in over MIDI (the scene asked for is remembered and skipped once):
+- Out, with **SCENES OUT** on (its own row in GLO's list, after CC OUT; **off by default**, the user's call: a
+  Program Change another device follows can switch its sounds, more intrusive than a CC; stored as an on bit,
+  `proj.rsv[2]` bit 32, `SCENES_OUT`, so old projects have it off too): when the scene playing changes (ui.c's frame
+  sees `cur_scene()` change), Program Change 0..31 on channel 11. Not for a change that came in over MIDI (the scene asked for is remembered and skipped once):
   no loop with a DAW that echoes.
 
 ## Cost
@@ -108,8 +110,8 @@ Flash: the table (~60 entries, 3 bytes each) and the code, ~1 KB. RAM: the ring 
   a kit track, FX I / II and the master; scaling of a switch; channels 12-16 reach the selected track; a mute CC
   matches the Mix page's (the scene too); the kit send offset holds the balance.
 - Recording: REC on, playing, a CC on track 3 while track 1 is selected writes track 3's lane.
-- Scenes: Program Change 2 and note 37 on channel 11 cue scene 3 / scene 2 by SCENES SWITCH; a scene changed on
-  the FM-1 sends its Program Change; one asked for over MIDI does not echo.
+- Scenes: Program Change 2 and note 37 on channel 11 cue scene 3 / scene 2 by SCENES SWITCH; with SCENES OUT on a
+  scene changed on the FM-1 sends its Program Change (off: nothing); one asked for over MIDI does not echo.
 - Out: CC OUT on (a new project's default), a knob turned sends the CC; an incoming CC, a lock or automation sends nothing; MIDI OUT off on
   a track sends nothing for it.
 - Old projects: a track with `TP_CHAN` 5 reads as MIDI OUT on and sends on its own channel.
