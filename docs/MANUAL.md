@@ -943,9 +943,11 @@ out of the kick's way while the rest plays on.
 Over USB each track has its own channel: T1 to T8 on channels 1 to 8, FX I on 9, FX II on 10, and the master and
 the scenes on 11; notes on 12 to 16 play the instrument track selected (notes on 9 and 10 do nothing). A track's
 **SEL** list on its sound pages has MIDI OUT (on in a new project; an old project's channel number reads as on):
-its notes go out on its own channel, with Setup's NOTES on.
+its notes go out on its own channel, with Setup's NOTES on. Notes that come in play the track (and record) but
+aren't sent back out, nor the arp or strum they start, so a DAW that sends them back doesn't loop; the keys you
+play on LOOM-8 and the sequencer's notes go out.
 
-A CC moves the matching knob or switch, scaled to its range:
+A CC moves the matching knob or switch, scaled to its range (on 12 to 16: the instrument track selected's):
 
 | CC | Synth track | Kit track |
 | --- | --- | --- |
@@ -974,15 +976,16 @@ A CC moves the matching knob or switch, scaled to its range:
 | 74 / 75 | low-pass / high-pass | - |
 | 93 | feed into FX II (channel 9 only) | - |
 
-A mute (CC 9, or 16 to 26 on a kit) does what the Mix page's mute does, saved into the scene playing. With **REC**
-held while the sequencer plays, a CC on a track's parameter records into that track's own automation.
+A mute (CC 9, or 16 to 26 on a kit) does what the Mix page's mute does, saved into the scene playing; a kit's sound
+mutes work on the first four kit tracks, as on Arrange. While recording (**REC** held as it plays, or kept on with
+**REC** and **PLAY**), a CC on a track's parameter records into that track's own automation.
 
 Scenes: Program Change 0 to 31 on channel 11, or notes 36 to 67 (C1 up) there, pick scenes 1 to 32 the way
 Arrange's white keys do (SCENES SWITCH decides when).
 
 CC OUT, in **GLO**'s **SEL** list (on in a new project): a mapped knob or **SEL** row turned by hand sends its CC
 on its channel, when the track's MIDI OUT is on (FX and the master: always); what comes in, a lock, automation
-and a preset are never sent back.
+and a preset are never sent back, nor a kit's 91 / 93 (each sound's own send is a parameter of its own, unmapped).
 
 SCENES OUT, after CC OUT in **GLO**'s **SEL** list (off in a new project): a scene changed on LOOM-8, or by
 loading a project, sends its Program Change on channel 11; one that came in over MIDI isn't sent back.

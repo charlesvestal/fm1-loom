@@ -1,8 +1,10 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* LOOM-8's MIDI CC map: a CC on channel 1-8 (a track), 9 / 10 (FX I / II) or 11 (the master) sets a parameter as its
- * knob would, scaled onto the parameter's range; a track's CC is also recorded into its own lane with REC on and
- * playing. The other way: a mapped value changed by hand (a knob, a SEL list row) goes out as its CC, with CC OUT on.
- * Part of app.c's unity build, after ui.c: is_aux, is_drum, inst_trk, set_tp. */
+/* LOOM-8's MIDI CC map: a CC on channel 1-8 (a track), 12-16 (the instrument track selected, inst_trk), 9 / 10
+ * (FX I / II) or 11 (the master) sets a parameter as its knob would, scaled onto the parameter's range; a track's CC
+ * is also recorded into its own lane while recording. Channel 11's Program Change and notes 36-67 pick scenes 1-32.
+ * The other way: a mapped value changed by hand (a knob, a SEL list row) goes out as its CC, with CC OUT on; a scene
+ * change as its Program Change, with SCENES OUT on. The packets come from engine.c's ring (raw, from the interrupt),
+ * looked up here in the main loop. Part of app.c's unity build, after ui.c: is_aux, is_drum, inst_trk, set_tp. */
 
 #define CC_NONE 0xFFu                         /* (the map's "nothing here") */
 #define CC_MUTE 0xFEu                         /* the track's mute, not a parameter */

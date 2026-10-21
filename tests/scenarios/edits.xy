@@ -137,7 +137,7 @@ turn ALGO 1
 wait 40
 expect par2.51 1
 tap HOME
-# MIDI CC 7 in: the level of the track on that channel (T3 on 3, a new project's)
+# MIDI CC 7 in: the level of the track on that channel (T3 on 3: the channels are fixed)
 projnew
 midi B2 07 40
 wait 40

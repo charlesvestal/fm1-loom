@@ -17,6 +17,11 @@ Notes, pitch bend and CCs all follow this table (notes on 9 and 10 are ignored; 
 midi_track` becomes a fixed lookup). A track's notes go
 out on its own channel; a kit's GM notes too.
 
+Notes that come **in** play (and record) as the FM-1's own keys would, but are **not sent back out** (the user's
+call: with fixed channels a DAW monitoring the FM-1 would loop), nor what a player makes of them (the arp while keys
+from MIDI hold it, the strum, hold): `seq_key_midi`. The FM-1's own keys and the sequencer's notes still go out. A
+note's off follows its on: sent if its on was, whatever MIDI OUT says by then, so a receiver never hangs.
+
 The per-track MIDI CHANNEL row (`TP_CHAN`) becomes **MIDI OUT: on / off**. The byte keeps its place: 0 off, any
 other value on (new tracks 1). Old projects need no migration and no format bump: 1..16 all read as on. The SEL list
 row, the words file and the manual change with it.
@@ -70,11 +75,12 @@ The effect's choice (`TP_ENGINE`) stays on the FM-1.
 
 ## In
 
-`midi_in` runs in the audio interrupt. It looks the CC up in the map (a const table: channel kind, CC, parameter or
-action) and puts (track, parameter or action, value) into a ring of 16 four-byte entries (64 B RAM), replacing
-`eng_cc_level`. A full ring drops the CC. The main loop drains the ring where it drains `eng_cc_level` now
-(ui.c), applying each through `set_tp`, `master_set`'s path (`proj.master` + `engine_master`), `set_mute` or
-`kit_sound_mute`, as the knob or key would (undo, dirty, the screen).
+`midi_in` runs in the audio interrupt. It puts each CC, Program Change and channel 11 note on, raw, into a ring of 64
+four-byte packets (256 B RAM; ~17 ms of a busy controller's CCs between two UI frames), replacing `eng_cc_level`. A
+full ring drops the packet. The main loop drains the ring once a frame (`cc_in_drain`, midicc.c) and looks each up in
+the map there (const tables: channel kind, CC, parameter or action), applying it through `set_tp`, `master_set`'s
+path (`proj.master` + `engine_master`), `set_mute` or `kit_sound_mute`, as the knob or key would (undo, dirty, the
+screen). No lookup in the interrupt.
 
 Recording: with REC on and the sequencer playing, a CC on a track parameter records into **its own track's**
 automation (`seq_rec_knob(&seq, trk, p, v)`), whichever track is selected. Mutes and the master are not recorded
@@ -103,8 +109,9 @@ and old projects alike start with it on; no format change.
 
 ## Cost
 
-Flash: the table (~60 entries, 3 bytes each) and the code, ~1 KB. RAM: the ring 64 B + kits' last sends 16 B, less
-`eng_cc_level` 8 B. No pool, no audio CPU beyond the lookup.
+Flash: the table (~60 entries, 3 bytes each) and the code, ~1 KB. RAM: the ring 256 B + kits' last sends 16 B, less
+`eng_cc_level` 8 B; the notes sent, for their offs, 16 B a track (128 B). No pool, no audio CPU beyond the ring's
+put.
 
 ## Tests
 
