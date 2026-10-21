@@ -67,16 +67,42 @@ static uint16_t trk_tint(int t) { return ink_mix(trk_ink(t), theme->tint); }
  * track: Engine, Play, Play 2 (the octave), then Sub where the engine has a second page of knobs (TP_X1..X4: knit's
  * oscillator 2, level, sub, noise; rayon's fall); a kit or an FX track Engine and Play; the conductor Engine, Play (routing), Sub (Follow) */
 enum { P_ARRANGE, P_SONG, P_STEPS, P_BAR, P_ENGINE, P_PLAY, P_PLAY2, P_SUB, P_ENV, P_FILTER, P_ENV2, P_KITF, P_CHARACTER, P_SENDS,
-       P_FX1, P_FX2, P_THROWS, P_LFO, P_LFO2, P_PLAYERS, P_PLAYERS2, P_PLAYERS3, P_WEAVE, P_MIX, P_MASTER, P_MASTER2, P_MASTER3, P_SETUP,
+       P_FX1, P_FX2, P_THROWS, P_LFO, P_LFO2, P_PLAYERS, P_PLAYERS2, P_PLAYERS3, P_WEAVE, P_MIX, P_MASTER, P_MASTER2, P_MASTER3, P_GLFO, P_SETUP,
        P_STATUS, NPAGES };
 static const char *const PAGE_NAME[NPAGES] = {"Arrange", "Song", "Steps", "Bar", "Engine", "Play", "Play 2", "Sub", "Envelope",
                                               "Filter", "Filter env", "Kit filter", "Character", "Sends", "FX I",
                                               "FX II", "Throws", "LFO", "LFO 2", "Players", "Players 2", "Hold", "Weave", "Mix",
-                                              "Master EQ", "Master color", "Master out", "Setup", "Debug"};
+                                              "Master EQ", "Master color", "Master out", "LFO", "Setup", "Debug"};
+static char *s_cat(char *b, const char *s);
+static char *num_s(uint32_t v, char *b);
+static const char *const GLFO_SHAPE[NGS + 1] = {"off", "sine", "triangle", "saw up", "saw down", "square", "random"};
+static const char *const GLFO_DEST[NGD] = {"cutoff", "reso", "pitch", "pan", "volume", "FX I", "FX II", "character"};
+static void glfo_rate_text(int v, char *t)       /* synth.c glfo_hz: 16 bars .. 1/16 synced, then 0.02 .. 10 Hz */
+{
+    static const char *const SYNC[GL_SYNC_N] = {"16 bars", "8 bars", "4 bars", "2 bars", "1 bar", "1/2", "1/4", "1/8",
+                                               "1/16"};
+    if (v < GL_SYNC_N) {
+        s_cat(t, SYNC[v]);
+        return;
+    }
+    {
+        uint32_t c = (uint32_t)(0.02f * fm_exp2f((float)(v - GL_SYNC_N) * (8.96578428f / 118.0f)) * 100.0f + 0.5f);
+        char *e = num_s(c / 100u, t);
+        *e++ = '.';
+        *e++ = (char)('0' + c / 10u % 10u);
+        *e++ = (char)('0' + c % 10u);
+        s_cat(e, " Hz");
+    }
+}
+static uint32_t glfo_route(void)                 /* the tracks it moves: bit t */
+{
+    const uint8_t *g = proj.trk[AUX_BRAIN].par;
+    return (uint32_t)(g[TP_LX] & 15u) | (uint32_t)(g[TP_LX2] & 15u) << 4;
+}
 static int mst_base(int p) { return p == P_MASTER ? MS_EQ_LO : p == P_MASTER2 ? MS_CTYPE : MS_PERC; }   /* its first knob */
 static const struct { uint8_t btn, first, n; } PAGE_BTN[] = {
     {B_HOME, P_ARRANGE, 2}, {B_SEQ, P_STEPS, 2}, {B_EDIT, P_ENGINE, 4}, {B_ENV, P_ENV, 4}, {B_FX, P_CHARACTER, 5},
-    {B_LFO, P_LFO, 2}, {B_ARP, P_PLAYERS, 4}, {B_GLO, P_MIX, 6}};
+    {B_LFO, P_LFO, 2}, {B_ARP, P_PLAYERS, 4}, {B_GLO, P_MIX, 7}};
 #define NPAGE_BTN (sizeof PAGE_BTN / sizeof PAGE_BTN[0])
 static int page_group(int p)
 {
@@ -198,7 +224,7 @@ static const char *const ACTION_NAME[NACTIONS] = {
     "PASTE LOCKS ONLY", "DOUBLE PATTERN"};
 /* the weave's ways (pattern.h WV_*): what this pattern keeps of itself */
 static const char *const WEAVE_NAME[NWV] = {"bars", "steps", "rhythm", "pitch"};
-#define LIST_ROWS 28
+#define LIST_ROWS 36                  /* (GLO's: its seven pages' knobs and its actions) */
 #define LIST_SHOWN 10
 static struct {
     uint8_t open, n, sel, top;
@@ -535,7 +561,7 @@ static int group_n(int g)
     if (b == B_ENV)
         return is_drum(trk) ? 4 : 3;                 /* a kit: the key's envelope, filter; the kit's envelope, filter */
     if (b == B_GLO)
-        return DEBUG_BUILD ? 6 : 5;                  /* Debug last, in a debug build only */
+        return DEBUG_BUILD ? 7 : 6;                  /* Debug last, in a debug build only */
     return PAGE_BTN[g].n;
 }
 /* a button's i-th page now (ARP's depend on the player: the arp has Hold before Weave; the conductor and the
@@ -1267,6 +1293,16 @@ static void page_knobs(knob_t *k)
                 kn(&k[i], MS_NAME[m], proj.master[m], 127);
         }
         break;
+    case P_GLFO: {                                   /* the shared LFO (synth.h GS_*, GD_*): the conductor's slots */
+        const uint8_t *g = proj.trk[AUX_BRAIN].par;
+        static char rt[12];
+        glfo_rate_text(g[TP_LSPEED], rt);
+        kname(&k[0], "SHAPE", GLFO_SHAPE, g[TP_LTYPE] % (NGS + 1), NGS + 1);
+        kv(&k[1], "RATE", rt, g[TP_LSPEED], 127);
+        kn(&k[2], "AMOUNT", (int)g[TP_LAMT] - 64, 0);
+        kname(&k[3], "DEST", GLFO_DEST, g[TP_LDEST] % NGD, NGD);
+        break;
+    }
     case P_SETUP:
         kname(&k[0], "LIGHTS", LIGHTS_NAME, proj.lights, 3);
         kname(&k[1], "CLOCK", ONOFF, proj.send_clock != 0, 2);
@@ -1415,7 +1451,7 @@ static void page_tag(char *t)
             s_cat(s_cat(e, ">"), fx_pick_name(pick));
         break;
     }
-    case P_MASTER: case P_MASTER2: case P_MASTER3: case P_SETUP: case P_STATUS:
+    case P_MASTER: case P_MASTER2: case P_MASTER3: case P_GLFO: case P_SETUP: case P_STATUS:
         s_cat(t, "all tracks");
         break;
     default:
@@ -1546,6 +1582,9 @@ static void page_footer(char *t)
         break;
     case P_MASTER3:
         s_cat(t, "SEL pump by, level|KEYS play");
+        break;
+    case P_GLFO:
+        s_cat(t, "BLACK the tracks it moves|WHITE play");
         break;
     case P_MASTER: case P_MASTER2: case P_SETUP: case P_STATUS:
         s_cat(t, "KEYS play");
@@ -4091,6 +4130,46 @@ static void setup_row(int32_t y, const char *name, const char *val)
     cv_text(12, y, &FONT_S, name, K_DIM);
     text_r(228, y, &FONT_S, val, K_TEXT);
 }
+/* the shared LFO: its shape across a cycle, a dot where it is now; the tracks it moves, lit */
+static void draw_glfo(void)
+{
+    const uint8_t *g = proj.trk[AUX_BRAIN].par;
+    int sh = g[TP_LTYPE] % (NGS + 1), now = (int)(engine_glfo_now() * 24.0f), route = (int)glfo_route();
+    uint32_t h = hash_u(hash_u(2166136261u, 0x6F0u), (uint32_t)sh | (uint32_t)route << 4 | (uint32_t)g[TP_LDEST] << 12 |
+                                           (uint32_t)(now + 32) << 16 | (uint32_t)g[TP_LAMT] << 24);
+    int32_t x0 = 16, w = 208, cy = 40;
+    pen_t pn = {0};
+    char t[24];
+    if (!begin_main(h))
+        return;
+    if (!sh) {
+        text_c(120, 24, &FONT_B, "the shared LFO is off", K_TEXT);
+        text_c(120, 50, &FONT_S, "KNOB 1: a shape to turn it on", K_DIM);
+    } else {
+        cv_rect(x0, cy, w, 1, K_LINE);
+        for (int i = 0; i <= 52; i++) {           /* (the random shape: a few steps, as it holds a value a cycle) */
+            float ph = (float)i / 52.0f, v;
+            switch (sh - 1) {
+            case GS_TRI: v = ph < 0.5f ? 4.0f * ph - 1.0f : 3.0f - 4.0f * ph; break;
+            case GS_UP: v = 2.0f * ph - 1.0f; break;
+            case GS_DOWN: v = 1.0f - 2.0f * ph; break;
+            case GS_SQUARE: v = ph < 0.5f ? 1.0f : -1.0f; break;
+            case GS_RANDOM: v = (float)((i / 13 * 5 + 3) % 7 - 3) / 3.0f; break;
+            default: v = fm_sin_turns(ph); break;
+            }
+            pen_to(&pn, (float)x0 + ph * (float)w, (float)cy - v * 24.0f, K_NOW);
+        }
+        cv_round(x0 + w + 4, cy - now - 3, 6, 6, 3, K_TEXT);   /* (where it is now, at the right) */
+        s_cat(s_cat(t, "moves "), GLFO_DEST[g[TP_LDEST] % NGD]);
+        cv_text(16, 72, &FONT_XS, t, K_DIM);
+    }
+    for (int i = 0; i < NTRK; i++) {             /* the tracks it moves: black keys 1-8 */
+        int32_t x = 16 + i * 26, on = route >> i & 1;
+        cv_round(x, 90, 22, 16, 4, on ? trk_ink(i) : K_PANEL);
+        text_c(x + 11, 92, &FONT_XS, TRACK_NAME[i], on ? K_BG : K_DIM);
+    }
+    cv_blit(0, MAIN_Y);
+}
 static void draw_setup(void)
 {
     char t[24];
@@ -4351,6 +4430,7 @@ static void draw_page(void)
     case P_WEAVE: draw_weave(); break;
     case P_MASTER: case P_MASTER3: draw_master(); break;
     case P_MASTER2: draw_master_color(); break;
+    case P_GLFO: draw_glfo(); break;
     case P_SETUP: draw_setup(); break;
     default: draw_status(); break;
     }

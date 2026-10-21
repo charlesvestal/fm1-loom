@@ -132,6 +132,15 @@ enum { CT_OFF, CT_DRIVE, CT_FOLD, CT_CRUSH, CT_RING, CT_TILT, CT_TAPE, CT_SAMPLE
  * The envelope knob: 64 = none; below, the LFO fades in from the note over up to 3 s (0 = 3 s, 63 = at once);
  * above, it fades out over up to 3 s (65 = 3 s, 127 = 50 ms). */
 enum { LT_OFF, LT_WAVE, LT_WOBBLE, LT_DRIFT, LT_PUMP, NLT };
+/* the shared LFO (GLO's LFO page): one for the project, moving the tracks it is routed to. Its knobs live in the
+ * conductor track's (AUX_BRAIN's) own LFO slots, unused by it: TP_LTYPE the shape (0 off, 1 + GS_*), TP_LSPEED the
+ * rate (0..GL_SYNC_N-1 synced 16 bars .. 1/16, then free 0.02 .. 10 Hz), TP_LAMT the amount (64 = 0, -100..100 % of
+ * the destination's range), TP_LDEST the destination (GD_*), TP_LX / TP_LX2 the tracks it moves (T1-T4, T5-T8: a bit
+ * each). It restarts when the transport starts. */
+enum { GS_SINE, GS_TRI, GS_UP, GS_DOWN, GS_SQUARE, GS_RANDOM, NGS };
+enum { GD_CUT, GD_RES, GD_PITCH, GD_PAN, GD_VOL, GD_SEND1, GD_SEND2, GD_CHAR, NGD };
+#define GL_SYNC_N 9
+#define SY_GLFO_TRK NTRK                         /* the track holding its knobs: the conductor (pattern.h AUX_BRAIN) */
 enum { LD_SYNTH, LD_ENV, LD_FILTER, LD_AMP, LD_FREE = 4, NLD = 8 };   /* TP_LDEST: module (LD_AMP: "voice"), + LD_FREE = free-running */
 #define LS_SYNC_N 8                                /* TP_LSPEED values below this are synced divisions */
 enum { PL_OFF, PL_ARP, PL_STRUM, PL_HOLD, NPL };
@@ -218,9 +227,11 @@ typedef struct {
 } perf_t;
 
 typedef struct synth synth_t;         /* opaque: dsp/synth.c */
+void synth_glfo_restart(synth_t *s);              /* the shared LFO from its start (the transport started) */
+float synth_glfo_now(const synth_t *s);            /* its value now, -1..1 (the page's picture) */
 #define SYNTH_BYTES 12288             /* room for the struct (checked at compile time in synth.c) */
 
-void synth_init(synth_t *s, uint8_t (*par)[NTP]);   /* par: the tracks' parameter arrays (NTRK of them) */
+void synth_init(synth_t *s, uint8_t (*par)[NTP]);   /* par: the tracks' parameter arrays, NTRK + 1 of them (the conductor's, SY_GLFO_TRK: the shared LFO) */
 void synth_tempo(synth_t *s, float bpm);
 /* notes: tag identifies a note for its off (the sequencer uses the step, the keys the key) */
 void synth_note_on(synth_t *s, int trk, int note, int vel, int glide_ms, uint32_t tag);

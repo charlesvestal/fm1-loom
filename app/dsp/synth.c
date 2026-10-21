@@ -209,6 +209,10 @@ struct synth {
                                        * voices started since (find_voice); 0: not known (the host) */
     trk_t t[NTRK];
     voice_t v[NVOICE];
+    float goff[NCK];                  /* the shared LFO's offset at each chunk of the block (knob units, +-127) */
+    float g_ph, g_sh, g_now;          /* its phase, its random value, its value at the block's end (-1..1) */
+    uint32_t g_rng;                   /* (its random steps' generator)*/
+    volatile uint8_t g_reset;         /* restart at the next prepare (the transport started) */
 };
 uint32_t synth_load_steals;           /* new notes that took a sounding voice to stay inside LOAD_ADMIT (synth.h) */
 _Static_assert(sizeof(struct synth) <= SYNTH_BYTES, "synth_t outgrew SYNTH_BYTES");
@@ -1665,6 +1669,59 @@ static inline float lfo_wave_trem(int shape, float ph)    /* sine, saw, exponent
 /* the track-level values of every chunk boundary inside the next n frames: the LFO (wave, drift:
  * an offset on its destination; wobble: a gain and a vibrato; pump: a gain), one slot each. The
  * voices read the slots in order as they cross the boundaries. Also the meters. */
+/* the shared LFO's rate in Hz: synced to the beat (16 bars .. 1/16), else free */
+static float glfo_hz(int v, float bpm)
+{
+    static const float BEATS[GL_SYNC_N] = {64.0f, 32.0f, 16.0f, 8.0f, 4.0f, 2.0f, 1.0f, 0.5f, 0.25f};
+    if (v < GL_SYNC_N)
+        return bpm * (1.0f / 60.0f) / BEATS[v];
+    return 0.02f * fm_exp2f((float)(v - GL_SYNC_N) * (8.96578428f / 118.0f));   /* 0.02 .. 10 Hz */
+}
+static float glfo_shape(int sh, float ph, float rnd)
+{
+    switch (sh) {
+    case GS_TRI: return ph < 0.5f ? 4.0f * ph - 1.0f : 3.0f - 4.0f * ph;
+    case GS_UP: return 2.0f * ph - 1.0f;
+    case GS_DOWN: return 1.0f - 2.0f * ph;
+    case GS_SQUARE: return ph < 0.5f ? 1.0f : -1.0f;
+    case GS_RANDOM: return rnd;
+    default: return fm_sin_turns(ph);
+    }
+}
+void synth_glfo_restart(synth_t *s) { s->g_reset = 1; }
+float synth_glfo_now(const synth_t *s) { return s->g_now; }
+/* the shared LFO over the block's chunks (synth.h GS_*, GD_*): its offset per chunk, which voice_chunk adds to the
+ * routed tracks' destination */
+static void glfo_prepare(synth_t *s)
+{
+    const uint8_t *g = s->par[SY_GLFO_TRK];
+    int type = g[TP_LTYPE], k;
+    float dph, amt;
+    if (s->g_reset) {
+        s->g_reset = 0;
+        s->g_ph = 0.0f;
+    }
+    if (!type || type > NGS) {
+        for (k = 0; k < NCK; k++)
+            s->goff[k] = 0.0f;
+        s->g_now = 0.0f;
+        return;
+    }
+    dph = glfo_hz(g[TP_LSPEED], s->bpm) * CHUNK_S;
+    amt = fm_clampf(((float)g[TP_LAMT] - 64.0f) * (127.0f / 63.0f), -127.0f, 127.0f);
+    for (k = 0; k < s->nck; k++) {
+        float ph = s->g_ph + dph;
+        if (ph >= 1.0f) {
+            ph -= 1.0f;
+            if (!s->g_rng)
+                s->g_rng = 0x9E3779B9u;
+            s->g_sh = 2.0f * (float)(xs(&s->g_rng) >> 8) * (1.0f / 16777216.0f) - 1.0f;   /* a fresh step a cycle */
+        }
+        s->g_ph = ph;
+        s->g_now = glfo_shape(type - 1, ph, s->g_sh);
+        s->goff[k] = s->g_now * amt;
+    }
+}
 void synth_prepare(synth_t *s, uint32_t n)
 {
     float tpk[NTRK];
@@ -1673,6 +1730,7 @@ void synth_prepare(synth_t *s, uint32_t n)
     for (; off < n && nck < NCK; off += SY_CHUNK)
         nck++;
     s->nck = (uint8_t)(nck ? nck : 1);
+    glfo_prepare(s);
     for (i = 0; i < NTRK; i++)
         tpk[i] = 0.0f;
     for (k = 0; k < NVOICE; k++) {               /* each track's loudest voice, the voices' peaks cleared: one pass */
@@ -1857,7 +1915,7 @@ static void char_coefs(int type, float a, float t, float freq, float *x)
         break;
     }
 }
-static void char_prep(synth_t *s, voice_t *v, int dest, float off)
+static void char_prep(synth_t *s, voice_t *v, int dest, float off, float gch)   /* (gch: the shared LFO on the amount) */
 {
     cfg_t *c = &v->c;
     int trk = v->trk, type = P(s, trk, TP_CTYPE), mix = P(s, trk, TP_CMIX), i;
@@ -1872,7 +1930,7 @@ static void char_prep(synth_t *s, voice_t *v, int dest, float off)
         return;
     c->cx[7] = fm_minf((float)mix, 127.0f) * (1.0f / 127.0f);
     {   /* (the coefficients cost exps: made again only when what they come from moved) */
-        float a = fm_minf(pf(s, trk, TP_CAMT, dest, off), 127.0f) * (1.0f / 127.0f);
+        float a = fm_clampf(pf(s, trk, TP_CAMT, dest, off) + gch, 0.0f, 127.0f) * (1.0f / 127.0f);
         float t = fm_minf((float)P(s, trk, TP_CTONE), 127.0f) * (1.0f / 127.0f), f = type == CT_RING ? c->freq : 0.0f;
         if (type != c->cin_type || a != c->cin[0] || t != c->cin[1] || f != c->cin[2]) {
             char_coefs(type, a, t, c->freq, c->cx);
@@ -2096,6 +2154,10 @@ static void voice_chunk(synth_t *s, voice_t *v)
     cfg_t *c = &v->c;
     int trk = v->trk, k = v->ck < s->nck ? v->ck : s->nck - 1, dest = t->ldest, i;
     float lenv = 1.0f, off, lg, vol, lev, pan, vg, res;
+    const uint8_t *gp = s->par[SY_GLFO_TRK];
+    const int groute = (gp[TP_LX] & 15) | (gp[TP_LX2] & 15) << 4;
+    const float g = groute >> trk & 1 ? s->goff[k] : 0.0f;   /* the shared LFO on this track (synth.h GD_*) */
+    const int gd = g != 0.0f ? gp[TP_LDEST] % NGD : -1;
     v->ck = (uint8_t)(v->ck + 1);
     v->nchunk = (uint8_t)(v->nchunk + 1);
     if (!v_sounding(v))
@@ -2132,12 +2194,12 @@ static void voice_chunk(synth_t *s, voice_t *v)
     }
     /* the filter: 50 Hz .. 20 kHz over the knob, the performance offset, keytrack, velocity */
     {   /* the cutoff and the resonance glide too (~10 ms), as the engine knobs */
-        float co = (pf(s, trk, TP_CUT, dest, off) + (float)t->perf.cut) * (8.64385619f / 127.0f)
+        float co = (pf(s, trk, TP_CUT, dest, off) + (float)t->perf.cut + (gd == GD_CUT ? g : 0.0f)) * (8.64385619f / 127.0f)
                    + pf(s, trk, TP_KTRK, dest, off) * (1.0f / 127.0f) * (v->pitch - 60.0f) * (1.0f / 12.0f);
         c->cut_oct = v->fresh ? co : glide_to(c->cut_oct, co);
     }
     c->fenv_oct = (pf(s, trk, TP_FENV, dest, off) - 64.0f) * (6.0f / 64.0f) * (0.5f + 0.5f * v->vel);
-    res = pf(s, trk, TP_RES, dest, off) * (1.0f / 127.0f);
+    res = fm_clampf((pf(s, trk, TP_RES, dest, off) + (gd == GD_RES ? g : 0.0f)) * (1.0f / 127.0f), 0.0f, 1.0f);
     if (!v->fresh)
         res = glide_to(c->kres * 0.25f, res);
     c->kq = 2.0f * fm_exp2f(-res * 4.3f);        /* Q 0.5 .. 10 */
@@ -2154,7 +2216,10 @@ static void voice_chunk(synth_t *s, voice_t *v)
     vol = pf(s, trk, TP_VOLUME, dest, off) * (1.0f / 127.0f);
     lev = tp_level_gain(P(s, trk, TP_LEVEL)) * (100.0f / 127.0f);
     vg = (0.25f + 0.75f * v->vel * v->vel) * vol * vol * lev * lg * (1.0f - 0.6f * res);
-    pan = fm_clampf((pf(s, trk, TP_PAN, dest, off) - 64.0f + (float)t->perf.pan) * (1.0f / 64.0f), -1.0f, 1.0f);
+    if (gd == GD_VOL)                            /* (a tremolo: down to silence, up to +6 dB) */
+        vg *= fm_clampf(1.0f + g * (1.0f / 127.0f), 0.0f, 2.0f);
+    pan = fm_clampf((pf(s, trk, TP_PAN, dest, off) - 64.0f + (float)t->perf.pan + (gd == GD_PAN ? g : 0.0f)) *
+                    (1.0f / 64.0f), -1.0f, 1.0f);
     if (pan != v->pan_in || v->fresh) {          /* the pan's cos / sin: only when it moved */
         v->pan_in = pan;
         v->pan_l = pan == 0.0f ? 0.70710678f : fm_cosf((pan + 1.0f) * 0.78539816f);   /* centre: exactly equal */
@@ -2162,13 +2227,15 @@ static void voice_chunk(synth_t *s, voice_t *v)
     }
     c->gl = v->pan_l * vg;
     c->gr = v->pan_r * vg;
-    c->g1 = fm_minf((float)(P(s, trk, TP_SEND1) + t->perf.send1), 127.0f) * (1.0f / 127.0f);
-    c->g2 = fm_minf((float)(P(s, trk, TP_SEND2) + t->perf.send2), 127.0f) * (1.0f / 127.0f);
+    c->g1 = fm_clampf((float)(P(s, trk, TP_SEND1) + t->perf.send1) + (gd == GD_SEND1 ? g : 0.0f), 0.0f, 127.0f) * (1.0f / 127.0f);
+    c->g2 = fm_clampf((float)(P(s, trk, TP_SEND2) + t->perf.send2) + (gd == GD_SEND2 ? g : 0.0f), 0.0f, 127.0f) * (1.0f / 127.0f);
     /* pitch: the glide, bend, performance pitch, vibrato, an LFO on the pitch (+-12 semitones at 100 %) */
     v->pitch_cur += (v->pitch - v->pitch_cur) * v->glide_k;
     c->pitch_off = (float)t->bend_c + t->pb_base + t->pb_step * (float)(k + 1) + t->lpitch[k] * lenv;
     if (dest == LD_PITCH)
         c->pitch_off += off * (1200.0f / 127.0f);
+    if (gd == GD_PITCH)                          /* (+-12 semitones at 100 %) */
+        c->pitch_off += g * (1200.0f / 127.0f);
     {   /* the sound's octave (Play 2) */
         int oc = P(s, trk, TP_OCT);
         c->pitch_off += (float)((oc > 4 ? 4 : oc) - 2) * 1200.0f;
@@ -2208,7 +2275,7 @@ static void voice_chunk(synth_t *s, voice_t *v)
         }
     }
     eng_chunk(v);
-    char_prep(s, v, dest, off);
+    char_prep(s, v, dest, off, gd == GD_CHAR ? g : 0.0f);
 }
 
 /* the steal's turn: the old note has faded; start the pending one here, mid-chunk */

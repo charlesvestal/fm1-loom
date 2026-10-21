@@ -36,7 +36,7 @@ static void check(const char *what, int ok)
 
 #define N 256
 #define SR 44100
-static uint8_t par[NTRK][NTP];
+static uint8_t par[NTRK + 1][NTP];          /* (+ the conductor's row: the shared LFO, off) */
 static _Alignas(16) uint8_t mem[SYNTH_BYTES];
 static synth_t *S = (synth_t *)mem;
 static float L[N], R[N], S1[N], S2[N];

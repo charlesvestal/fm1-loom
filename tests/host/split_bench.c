@@ -29,7 +29,7 @@ static uint64_t instr_now(void) { return 0; }
 #endif
 
 #define N 128
-static uint8_t par[NTRK][NTP];
+static uint8_t par[NTRK + 1][NTP];          /* (+ the conductor's row: the shared LFO, off) */
 static _Alignas(16) uint8_t smem[SYNTH_BYTES];
 static synth_t *S = (synth_t *)smem;
 static uint8_t dbuf[DRUMLINE_BYTES] __attribute__((aligned(8)));

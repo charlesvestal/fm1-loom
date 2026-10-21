@@ -38,7 +38,7 @@ static uint64_t ns_now(void)
 
 #define NB 256
 #define NV 4
-static uint8_t par[NTRK][NTP];
+static uint8_t par[NTRK + 1][NTP];          /* (+ the conductor's row: the shared LFO, off) */
 static _Alignas(16) uint8_t smem[SYNTH_BYTES];
 static synth_t *S = (synth_t *)smem;
 static float L[NB], R[NB], S1[NB], S2[NB];

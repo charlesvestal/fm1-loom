@@ -896,6 +896,14 @@ that channel) and the theme (tape deck or blueprint); the page also says where t
 sets the USB audio level, LOOP THROWS and AUTOSAVE. The header shows the scene playing ("S3") before the tempo, on
 every page. The projects are on **HOME**'s **SEL** list; the count-in is on **REC**'s knobs.
 
+**LFO** (after Master out) is the shared LFO: one for the project, moving the tracks you give it, so a single
+sweep can open the filters of a few tracks together, or breathe across a 16-bar section of a one-bar loop.
+**KNOB 1** its shape (off, sine, triangle, saw up, saw down, square, random), **KNOB 2** its rate (16 bars to a
+sixteenth, in time with the tempo, or 0.02 to 10 Hz free), **KNOB 3** how much (either way), **KNOB 4** what it
+moves: cutoff, resonance, pitch (up to 12 semitones), pan, volume, the FX I or FX II send, or the character's
+amount. Black keys 1 to 8 pick the tracks it moves (lit). It starts again from its beginning when PLAY starts, so
+a long sweep lines up with the bars. (The melodic tracks; a kit is not moved by it.)
+
 **Master color** gives the whole mix a colour after the EQ: **color** picks it, **amount**, **tone** and **mix**
 shape it. **tape** is worn tape: a slow wow and a quick flutter on the pitch (more with the amount), a soft
 saturation and a gentle roll-off of the top (tone: where it starts, 1.5 to 18 kHz). **sampler** is an old
@@ -987,6 +995,7 @@ On a sound page, hold **SAVE** and press white key 1 to 16 to keep the track's s
 | GLO, SELECT | Master EQ | low | mid | high | | |
 | GLO, SELECT | Master color | color | amount | tone | mix | |
 | GLO, SELECT | Master out | drums | melodic | comp | pump | SEL: pump by, release, accent, level |
+| GLO, SELECT | LFO | shape | rate | amount | destination | black: the tracks it moves |
 | GLO, SELECT | Setup | lights | clock | notes | theme | SEL: USB audio |
 
 The aux tracks' **EDIT** pages: COND has key, scale and link, page 2 the routing (black keys toggle a track) and

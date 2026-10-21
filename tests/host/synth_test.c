@@ -38,7 +38,7 @@ static void check(const char *what, int ok)
 }
 
 #define N 256
-static uint8_t par[NTRK][NTP];
+static uint8_t par[NTRK + 1][NTP];          /* (+ the conductor's row: the shared LFO, off) */
 static _Alignas(16) uint8_t mem[SYNTH_BYTES];
 static synth_t *S = (synth_t *)mem;
 static float L[N], R[N], S1[N], S2[N];
@@ -2188,6 +2188,43 @@ int main(void)
         check("ranges and frame splits combined, one prepare", same);
     }
 
+    {   /* the shared LFO (GLO's LFO page, the conductor's row): a 4 Hz square on T1's volume swings its level;
+         * T2, not routed, stays as it is */
+        float lo[2] = {1e9f, 1e9f}, hi[2] = {0.0f, 0.0f};
+        char what[128];
+        int finite = 1;
+        for (int pass = 0; pass < 2; pass++) {
+            reset();
+            par[NTRK][TP_LTYPE] = 1 + GS_SQUARE;
+            par[NTRK][TP_LSPEED] = 96;               /* (free: ~3.4 Hz) */
+            par[NTRK][TP_LAMT] = 127;
+            par[NTRK][TP_LDEST] = GD_VOL;
+            par[NTRK][TP_LX] = 1;                    /* T1 only */
+            par[pass][TP_A] = 0;                     /* (held flat: only the LFO moves it) */
+            par[pass][TP_S] = 127;
+            par[pass][TP_LTYPE] = LT_OFF;
+            synth_note_on(S, pass, 60, 100, 0, 1);
+            for (int b = 0, acc = 0; b < 600; b++) {
+                static float e2;                         /* (eight blocks' energy: longer than C4's cycle) */
+                block(32, &finite);
+                e2 += last_rms * last_rms;
+                if (++acc == 8) {
+                    float r = sqrtf(e2 / 8.0f);
+                    if (b > 100) {
+                        lo[pass] = r < lo[pass] ? r : lo[pass];
+                        hi[pass] = r > hi[pass] ? r : hi[pass];
+                    }
+                    e2 = 0.0f;
+                    acc = 0;
+                }
+            }
+            synth_note_off(S, pass, 1);
+        }
+        memset(par[NTRK], 0, NTP);
+        sprintf(what, "the shared LFO: T1 routed swings %.3f .. %.3f, T2 not %.3f .. %.3f", (double)lo[0], (double)hi[0],
+                (double)lo[1], (double)hi[1]);
+        check(what, finite && lo[0] < hi[0] * 0.3f && lo[1] > hi[1] * 0.7f);   /* (T2: knit's own drift) */
+    }
     char_tests();
     kit_char_tests();
     sample_tests();

@@ -9,7 +9,7 @@ turn ALGO -1
 wait 100
 shot aoff_list.png
 tap HOME
-turn SELECT 3
+turn SELECT 4
 wait 100
 shot aoff_setup.png
 expect dirty 0
@@ -20,6 +20,6 @@ expect dirty 1
 reboot
 wait 400
 tap GLO
-turn SELECT 3
+turn SELECT 4
 wait 100
 shot aoff_after_reboot.png

@@ -1267,6 +1267,13 @@ static void key_down(int k)
     }
     if (home_held())                             /* (HOME shifts the knobs and buttons, not the keys) */
         return;
+    if (p == P_GLFO && b >= 0 && b < NTRK) {     /* the shared LFO: black keys 1-8 the tracks it moves */
+        int q = b < 4 ? TP_LX : TP_LX2, bit = 1 << (b & 3);
+        uint8_t v = proj.trk[AUX_BRAIN].par[q];
+        set_tp(AUX_BRAIN, q, (v & 15) ^ bit);
+        say(proj.trk[AUX_BRAIN].par[q] & bit ? "MOVES" : "LEAVES", TRACK_NAME[b]);
+        return;
+    }
     if (p == P_ARRANGE || p == P_SONG) {
         if (w >= 0) {
             if (p == P_SONG) {
@@ -1816,6 +1823,16 @@ static void bar_knob(int k, int32_t e)
         tp->shape = (uint8_t)clampi(tp->shape + e, 0, 100);
     mark_dirty();
 }
+static void glfo_knob(int k, int32_t e)          /* the shared LFO's knobs (synth.h: the conductor's LFO slots) */
+{
+    static const uint8_t P[4] = {TP_LTYPE, TP_LSPEED, TP_LAMT, TP_LDEST};
+    static const uint8_t HI[4] = {NGS, 127, 127, NGD - 1};
+    const uint8_t *g = proj.trk[AUX_BRAIN].par;
+    int d = k == 1 || k == 2 ? (int)e : (e > 0 ? 1 : -1);   /* (e: knob() accelerated it) */
+    if (k < 0 || k > 3)
+        return;
+    set_tp(AUX_BRAIN, P[k], clampi(g[P[k]] + d, 0, HI[k]));
+}
 static void master_knob(int k, int32_t e)
 {
     int m = mst_base(ui.page) + k;
@@ -1913,6 +1930,7 @@ static void knob(int k, int32_t e)
     case P_MASTER: case P_MASTER2: case P_MASTER3: master_knob(k, e); return;
     case P_SETUP: setup_knob(k, e); return;
     case P_STATUS: debug_knob(k, e); return;
+    case P_GLFO: glfo_knob(k, e); return;
     default: break;
     }
     if (fx_page(ui.page)) {                      /* an effect's knobs: the effect track's own */
@@ -3020,6 +3038,11 @@ static void leds(void)
             }
             if (is_drum(trk))
                 k |= 1u << BLACK_K[ui.dsound % 11];
+            k |= ui.keys;
+        } else if (ui.page == P_GLFO) {          /* the shared LFO: the tracks it moves */
+            for (i = 0; i < NTRK; i++)
+                if (glfo_route() >> i & 1u)
+                    k |= 1u << BLACK_K[i];
             k |= ui.keys;
         } else if (ui.page == P_ARRANGE && kit_mute_hold() >= 0) {   /* a kit's black key held: its sounds playing */
             int ks = kit_slot(ui.knote[kit_mute_hold()] & 0x7F);

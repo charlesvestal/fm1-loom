@@ -1057,12 +1057,18 @@ static void render_sub(uint32_t n, uint32_t at)
 
 #define VOL_SLEW 0.0045f                                 /* MASTER's glide: ~5 ms to most of a turn (1 - e^-1 in 220 samples) */
 static float vol_s;                                      /* MASTER's gain as it glides (the render only) */
+_Static_assert(SY_GLFO_TRK == AUX_BRAIN, "the shared LFO's knobs are the conductor's");
+float engine_glfo_now(void) { return synth_glfo_now(SY); }
 void engine_render(int32_t *out_lr, uint32_t n, uint32_t gain_q12)
 {
     uint32_t done = 0, i;
     float vol = (float)gain_q12 * (1.0f / 4096.0f);
     int p;
+    static uint8_t was_playing;
     PROF_T(pa);
+    if (seq.playing && !was_playing)                     /* the transport started: the shared LFO from its start */
+        synth_glfo_restart(SY);
+    was_playing = seq.playing;
     if (n > 256u)
         n = 256u;
     eng_prof_frames += n;

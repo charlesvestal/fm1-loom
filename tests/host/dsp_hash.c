@@ -41,7 +41,7 @@ static float noise(void)
 }
 
 /* ---- the synth ---- */
-static uint8_t par[NTRK][NTP];
+static uint8_t par[NTRK + 1][NTP];          /* (+ the conductor's row: the shared LFO, off) */
 static _Alignas(16) uint8_t smem[SYNTH_BYTES];
 static synth_t *S = (synth_t *)smem;
 static float L[N], R[N], S1[N], S2[N];

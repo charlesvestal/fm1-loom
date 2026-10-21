@@ -125,6 +125,10 @@ turn SELECT 1
 wait 40
 shot master3.png
 turn SELECT 1
+expect page LFO
+wait 40
+shot glfo.png
+turn SELECT 1
 expect page Setup
 wait 40
 shot setup.png

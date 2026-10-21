@@ -45,7 +45,7 @@ static uint8_t load_format;                       /* the format of the project b
 static uint8_t migrated = 0xFF;                   /* the slot loaded from an older format and not saved since (0xFF
                                                    * none): its next touch saves it whole, never its settings alone
                                                    * beside the old format's patterns */
-#define FORMAT_OK(f) ((f) == PROJ_FORMAT || (f) == 10u || (f) == 11u)   /* the formats a slot loads (migrate_old) */
+#define FORMAT_OK(f) ((f) >= 10u && (f) <= PROJ_FORMAT)   /* the formats a slot loads (migrate_old, before 13 glfo_defaults) */
 typedef char raw_fits[(RAW_LEN < 0x100000u) ? 1 : -1];   /* (lz.c packs up to 16 MB; the header's length is a u32) */
 typedef char settings_fit[(sizeof(settings_t) <= PLAT_STORE_MAX) ? 1 : -1];
 typedef char presets_fit[(sizeof user_presets + 4u <= PLAT_STORE_MAX) ? 1 : -1];
@@ -101,6 +101,16 @@ static void set_name(trk_t *t, const char *s)
     t->name[i] = 0;
 }
 
+/* the shared LFO's knobs (synth.h: the conductor's LFO slots) at their start: off, 1 bar, no amount, the cutoff,
+ * no track */
+static void glfo_defaults(uint8_t *p)
+{
+    p[TP_LTYPE] = 0;
+    p[TP_LSPEED] = 4;
+    p[TP_LAMT] = 64;
+    p[TP_LDEST] = GD_CUT;
+    p[TP_LX] = p[TP_LX2] = 0;
+}
 static void aux_defaults(void)
 {
     int t, k;
@@ -115,6 +125,7 @@ static void aux_defaults(void)
         p[TP_CHAN] = 0;
         p[TP_BRAIN] = 0;
     }
+    glfo_defaults(proj.trk[AUX_BRAIN].par);
     set_name(&proj.trk[AUX_BRAIN], "conductor");
     set_name(&proj.trk[AUX_PUNCH], "throws");
     set_name(&proj.trk[AUX_FX1], "delay");
@@ -566,6 +577,9 @@ int project_load(int slot)
             ((uint8_t *)&proj)[i] = io_buf[i];
         load_format = (uint8_t)proj.format;
         proj.format = PROJ_FORMAT;                    /* (an older one migrated: saved as this format next) */
+        if (load_format < 13u)                        /* (before 13 the conductor's LFO slots held a knit's defaults:
+                                                       * the shared LFO from its start) */
+            glfo_defaults(proj.trk[AUX_BRAIN].par);
         if (load_format == 10u) {                     /* 0.5-beta had no way to set a track's MIDI channel: they are
                                                        * all off there. As a new project's: notes out, T1-T8 on 1-8 */
             proj.send_notes = 1;

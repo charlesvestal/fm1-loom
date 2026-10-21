@@ -16,7 +16,7 @@
 static uint8_t par[NTP];
 static _Alignas(16) uint8_t dmem[DRUMLINE_BYTES];
 static drumline_t *dl = (drumline_t *)dmem;
-static uint8_t spar[NTRK][NTP];
+static uint8_t spar[NTRK + 1][NTP];         /* (+ the conductor's row: the shared LFO, off) */
 static _Alignas(16) uint8_t smem[SYNTH_BYTES];
 static synth_t *sy = (synth_t *)smem;
 static FILE *idx;
