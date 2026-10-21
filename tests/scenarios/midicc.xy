@@ -6,13 +6,23 @@ expect par3.51 1
 expect par2.51 1
 turn ALGO 1
 expect trk 2
+# a note in plays T3 but is not sent back out (a DAW monitoring the FM-1 would hear itself): the count holds
 out
 midi 92 3C 64
+wait 20
+expect voices 1
+expect midi_out 0
+midi 82 3C 00
+wait 20
+expect midi_out 0
+# the FM-1's own key on T3 still goes out, on T3's channel
+out
+play 3 60 on
 wait 20
 expect midi_out 1
 expect_out USB 92 3C 64
 out
-midi 82 3C 00
+play 3 60 off
 wait 20
 expect midi_out 2
 expect_out USB 82 3C 00
@@ -24,33 +34,34 @@ projsave 1
 reboot
 expect par3.51 1
 
-# channel 12: the track selected (T2 after ALGO 1: its note goes out on its own channel 2, "91 3E");
-# channels 9, 10 and 11: no notes
+# channel 12: the track selected (T2 after ALGO 1), played and not sent back out either; channels 9, 10 and 11:
+# no notes (0x50, note 80: outside the master's scene notes 36-67, so it picks no scene either)
 turn ALGO 1
 expect trk 2
-out
+wait 300
 midi 9B 3E 64
 wait 20
-expect_out USB 91 3E 64
-out
+expect voices 1
+expect midi_out 2
 midi 8B 3E 00
 wait 20
-expect_out USB 81 3E 00
+expect midi_out 2
 # the synth's release tail: T2's voice needs this long to die down after the note off, before "voices" reads 0
 wait 300
-midi 98 3C 64
-midi 99 3C 64
-midi 9A 3C 64
+expect voices 0
+midi 98 50 64
+midi 99 50 64
+midi 9A 50 64
 wait 20
 expect voices 0
-# MIDI OUT off on T3: no note out (the count stays)
+expect scene 1
+# MIDI OUT off on T3: the FM-1's own key sends nothing (the count stays)
 param 3 51 0
-expect midi_out 4
-midi 92 40 64
+play 3 64 on
 wait 20
-midi 82 40 00
+play 3 64 off
 wait 20
-expect midi_out 4
+expect midi_out 2
 
 # the map in: a synth (T2 on channel 2)
 projnew
@@ -156,10 +167,10 @@ spin ALGO 6
 expect trk 9
 # eng_midi_trk follows inst_trk() once a frame (ui_frame)
 wait 20
-out
 midi 9B 3C 64
 wait 20
-expect_out USB 92 3C 64
+expect voices 1
+midi 8B 3C 00
 midi BB 07 50
 wait 40
 expect par3.48 80

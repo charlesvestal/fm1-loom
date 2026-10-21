@@ -387,6 +387,38 @@ static int groove_vel(seq_t *s, int t, int p, int vel)
     return vel < 1 ? 1 : vel > 127 ? 127 : vel;
 }
 
+/* ------------------------------------------------------------ MIDI notes --- */
+/* a note on out on the track's channel, with MIDI OUT on (NOTES and the track's), unless a key from MIDI in (or its
+ * player) is playing it: s->quiet */
+static void midi_on(seq_t *s, int t, int note, int vel, const seq_sink_t *o)
+{
+    if (t >= NTRK || !s->send_notes || !s->par[t][TP_CHAN] || s->quiet)
+        return;
+    for (int i = 0; i < SEQ_PENDING; i++) {      /* the same note still on (its off pending): off first, so a receiver
+                                                  * hears two notes, not one ended early by the old note's off */
+        seq_off_t *e = &s->t[t].off[i];
+        if (e->used && e->kind == OFF_NOTE && e->note == note) {
+            midi(o, (uint8_t)(0x80 | (t & 15)), (uint8_t)note, 0);
+            e->note = 0;                         /* (its off still ends the voice; no MIDI off from it) */
+        }
+    }
+    s->player[t].sent[note >> 5 & 3] |= 1u << (note & 31);
+    midi(o, (uint8_t)(0x90 | (t & 15)), (uint8_t)note, (uint8_t)vel);
+}
+
+/* its off: if its on went out (whatever MIDI OUT says now: a receiver never keeps a note hanging) */
+static void midi_off(seq_t *s, int t, int note, const seq_sink_t *o)
+{
+    uint32_t *w, b = 1u << (note & 31);
+    if (t >= NTRK)
+        return;
+    w = &s->player[t].sent[note >> 5 & 3];
+    if (*w & b) {
+        *w &= ~b;
+        midi(o, (uint8_t)(0x80 | (t & 15)), (uint8_t)note, 0);
+    }
+}
+
 /* --------------------------------------------------------- note offs --- */
 static void fire_off(seq_t *s, int t, seq_off_t *e, const seq_sink_t *o)
 {
@@ -399,14 +431,14 @@ static void fire_off(seq_t *s, int t, seq_off_t *e, const seq_sink_t *o)
     case OFF_DRUM:
         if (o->drum_off)
             o->drum_off(o->ctx, t, (int)e->note - 1);
-        if (e->note >= 1 && e->note <= NDRUM && s->send_notes && s->par[t][TP_CHAN])   /* its MIDI note ends with it */
-            midi(o, (uint8_t)(0x80 | (t & 15)), GM_DRUM[e->note - 1], 0);
+        if (e->note >= 1 && e->note <= NDRUM)   /* its MIDI note ends with it (midi_off: if it went out) */
+            midi_off(s, t, GM_DRUM[e->note - 1], o);
         break;
     default:
         if (o->note_off)
             o->note_off(o->ctx, t, e->tag);
-        if (e->note && s->send_notes && s->par[t][TP_CHAN])
-            midi(o, (uint8_t)(0x80 | (t & 15)), e->note, 0);
+        if (e->note)
+            midi_off(s, t, e->note, o);
         break;
     }
 }
@@ -542,27 +574,6 @@ static int tonal(seq_t *s, int t, int note, int tv)
 }
 
 /* ------------------------------------------------------------- emitting --- */
-static void midi_on(seq_t *s, int t, int note, int vel, const seq_sink_t *o)
-{
-    if (!s->send_notes || !s->par[t][TP_CHAN])
-        return;
-    for (int i = 0; i < SEQ_PENDING; i++) {      /* the same note still on (its off pending): off first, so a receiver
-                                                  * hears two notes, not one ended early by the old note's off */
-        seq_off_t *e = &s->t[t].off[i];
-        if (e->used && e->kind == OFF_NOTE && e->note == note) {
-            midi(o, (uint8_t)(0x80 | (t & 15)), (uint8_t)note, 0);
-            e->note = 0;                         /* (its off still ends the voice; no MIDI off from it) */
-        }
-    }
-    midi(o, (uint8_t)(0x90 | (t & 15)), (uint8_t)note, (uint8_t)vel);
-}
-
-static void midi_off(seq_t *s, int t, int note, const seq_sink_t *o)
-{
-    if (s->send_notes && s->par[t][TP_CHAN])
-        midi(o, (uint8_t)(0x80 | (t & 15)), (uint8_t)note, 0);
-}
-
 /* a note of a synth track with a scheduled off */
 static void emit_note(seq_t *s, int t, int note, int vel, int glide_ms, uint32_t tag, uint32_t len_q8,
                       const seq_sink_t *o)
@@ -599,11 +610,9 @@ static void emit_drum(seq_t *s, int t, int sound, int vel, int semi, uint32_t ta
     }
     if (o->drum)
         o->drum(o->ctx, t, sound, vel, semi + (fx_on(s, t, PX_OCTAVE) ? 12 : 0), fx_on(s, t, PX_CHOP), fx_on(s, t, PX_RING));
-    if (s->send_notes && s->par[t][TP_CHAN]) {   /* the MIDI note: off with the hit's (fire_off), or with its key */
-        midi_on(s, t, GM_DRUM[sound], vel, o);
-        if (!len_q8 && tag != TAG_KEY)
-            midi_off(s, t, GM_DRUM[sound], o);
-    }
+    midi_on(s, t, GM_DRUM[sound], vel, o);   /* the MIDI note: off with the hit's (fire_off), or with its key */
+    if (!len_q8 && tag != TAG_KEY)
+        midi_off(s, t, GM_DRUM[sound], o);
     if (len_q8)
         add_off(s, t, tag | (uint32_t)sound, OFF_DRUM, sound + 1, len_q8, o);
 }
@@ -2389,7 +2398,7 @@ static void punch_in(seq_t *s, int fx, int on, int tgt)
 }
 
 /* the main loop's keys, played here */
-enum { KQ_KEY, KQ_ALLOFF, KQ_BRAIN, KQ_PUNCH };
+enum { KQ_KEY, KQ_ALLOFF, KQ_BRAIN, KQ_PUNCH, KQ_MIDI };
 static void key_queue(seq_t *s, int kind, int trk, int note, int on, int vel)
 {
     uint8_t w = s->kq_w, n = (uint8_t)((w + 1) & 31);
@@ -2408,7 +2417,13 @@ static void keys_play(seq_t *s, const seq_sink_t *o)
             vel = (int)(e & 127);
         s->kq_r = (uint8_t)((s->kq_r + 1) & 31);
         switch (kind) {
-        case KQ_KEY: key_in(s, trk, note, on, vel ? vel : 1, 0, o); break;
+        case KQ_KEY: case KQ_MIDI:    /* (a key from MIDI in: quiet, and its player too till the FM-1's own key) */
+            if (on && trk < NTRK)
+                s->player[trk].quiet = kind == KQ_MIDI;
+            s->quiet = kind == KQ_MIDI;
+            key_in(s, trk, note, on, vel ? vel : 1, 0, o);
+            s->quiet = 0;
+            break;
         case KQ_ALLOFF: if (trk < NTRK) keys_all_off(s, trk, o); break;
         case KQ_BRAIN: brain_key_in(s, note, on, o); break;
         case KQ_PUNCH: punch_in(s, note, on, trk == 15 ? -1 : trk); break;
@@ -2946,11 +2961,15 @@ void seq_advance(seq_t *s, uint32_t k, const seq_sink_t *o)
                 fired = 1;
             }
             if (pl->arp_to_next < SEQ_DUE) {
+                s->quiet = pl->quiet && pl->nheld;   /* keys from MIDI in: the arp's notes stay in (a step's go out) */
                 arp_fire(s, t, o);
+                s->quiet = 0;
                 fired = 1;
             }
             if (pl->roll_to_next < SEQ_DUE) {
+                s->quiet = pl->quiet;        /* (the maestro's roll: always a key's) */
                 roll_fire(s, t, o);
+                s->quiet = 0;
                 fired = 1;
             }
             if (pl->sroll_to_next < SEQ_DUE) {
@@ -3029,6 +3048,7 @@ void seq_cue_pattern(seq_t *s, int trk, int pat)
 }
 
 void seq_key(seq_t *s, int trk, int note, int on, int vel) { key_queue(s, KQ_KEY, trk, note, on, vel); }
+void seq_key_midi(seq_t *s, int trk, int note, int on, int vel) { key_queue(s, KQ_MIDI, trk, note, on, vel); }
 void seq_key_all_off(seq_t *s, int trk) { key_queue(s, KQ_ALLOFF, trk, 0, 0, 0); }
 void seq_brain_key(seq_t *s, int note, int on) { key_queue(s, KQ_BRAIN, AUX_BRAIN, note, on, 0); }
 

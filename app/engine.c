@@ -698,8 +698,8 @@ static void midi_in(uint32_t pkt)
         if (ch == CH_MASTER) {                      /* the master's channel: notes pick scenes (midicc.c) */
             if (ty == 0x90)
                 ccq_put(pkt);
-        } else if (t >= 0)
-            seq_key(&seq, t, d1, ty == 0x90, d2);
+        } else if (t >= 0)                          /* played and recorded, not sent back out (seq_key_midi) */
+            seq_key_midi(&seq, t, d1, ty == 0x90, d2);
     } else if (ty == 0xB0 || ty == 0xC0) {          /* CCs and Program Change: the main loop's (midicc.c) */
         ccq_put(pkt);
     } else if (ty == 0xE0) {                        /* pitch bend: +-2 semitones onto the track's bend */

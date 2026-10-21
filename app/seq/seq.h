@@ -203,6 +203,9 @@ typedef struct {                      /* a player (per track; the arp's clock ru
     uint8_t sroll_i, sroll_vel;
     uint32_t sroll_to_next, sroll_left;   /* Q8: to the next note; to the chord's end (each note's off) */
     uint32_t sroll_tag;               /* TAG_STEP | the step's: a note's tag adds its index */
+    uint32_t sent[4];                 /* the MIDI notes on out on the track's channel (bit note): their offs follow
+                                       * them, MIDI OUT turned off meanwhile or not */
+    uint8_t quiet;                    /* the last key came in over MIDI: what the player plays from it is not sent */
 } player_t;
 
 typedef struct {
@@ -255,6 +258,7 @@ typedef struct {
     volatile uint8_t req_scene;       /* seq_set_scene: apply now, 0xFF none */
     volatile uint32_t kq[32];         /* the keys from the main loop, played in the interrupt */
     volatile uint8_t kq_w, kq_r;
+    uint8_t quiet;                    /* (interrupt) a key from MIDI in, or its player, is playing: no MIDI notes on */
     uint32_t six_to_next;             /* samples to the next sixteenth, Q8 */
     uint32_t bar_six;                 /* sixteenths since the bar count started */
     uint32_t bar_len;                 /* the bar in sixteenths (track 1's span, at least 16) */
@@ -303,6 +307,9 @@ int seq_bar_step(const seq_t *s);                   /* 0..15: the sixteenth of t
 
 /* the keys (main loop): through the track's player and the brain, to the engine; tag = the key */
 void seq_key(seq_t *s, int trk, int note, int on, int vel);
+/* a key that came in over MIDI: played and recorded as seq_key's, but nothing of it goes back out (its notes, and
+ * what a player makes of it: a DAW monitoring the FM-1 would loop) */
+void seq_key_midi(seq_t *s, int trk, int note, int on, int vel);
 void seq_key_all_off(seq_t *s, int trk);
 void seq_maestro_record(seq_t *s, int trk, const uint8_t *notes, int n);   /* the maestro's chord (up to 8) */
 /* a key on the BRAIN track: the lowest key held is the chord's root, its pitch class against the key's tonic
