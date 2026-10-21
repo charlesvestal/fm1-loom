@@ -1,0 +1,108 @@
+# edits the testers reported (docs/feedback-2026-10-21.md): clearing the scene playing (it hands over to the nearest
+# other scene, or the only one starts again plain); song slots inserted and deleted while the song plays (the slot
+# playing keeps playing); CLEAR LOCKS (undone; a kit's tunes stay) and PASTE (with the locks; never across kinds)
+wait 300
+bpm 120
+# the scene playing cleared: scene 2 goes, scene 1 plays
+scenedef 2 2
+tap HOME
+expect page Arrange
+tapkey w1
+wait 40
+expect scene 2
+expect used 3
+key w1 down
+wait 1100
+expect ask 1
+key w1 up
+tap SEL
+wait 40
+expect used 1
+expect scene 1
+# the only scene cleared: it stays, plain
+scenedef 1 3
+scenemute 1 x
+key w0 down
+wait 1100
+key w0 up
+tap SEL
+wait 40
+expect used 1
+expect scene 1
+expect mute 0
+# the song: S1 S2 S3, a bar each; slot 2 playing, a slot added before it (after slot 1): slot 2 now third, and plays on
+scenedef 2 2
+scenedef 3 3
+song 1:1 2:1 3:1
+turn SELECT 1
+expect page Song
+turn K1 -5
+tap PLAY
+bars 1.25
+expect songpos 2
+expect scene 2
+tapkey w2
+wait 40
+expect songpos 3
+expect scene 2
+bars 1
+expect songpos 4
+expect scene 3
+# slot 4 playing (S3), slot 4 deleted: the slot in its place next (none: back to slot 1)
+turn K1 -5
+turn K1 3
+tap SEL
+turn SELECT 6
+shot song_del.png
+tap SEL
+wait 40
+bars 1
+expect songpos 1
+expect scene 1
+# the song is S1 S3 S2: slot 1 playing, deleted: S3 (now slot 1) next, then S2
+turn K1 -5
+tap SEL
+turn SELECT 6
+tap SEL
+wait 40
+expect scene 1
+bars 1
+expect songpos 1
+expect scene 3
+bars 1
+expect songpos 2
+expect scene 2
+tap PLAY
+# CLEAR LOCKS undone; PASTE brings the locks; a synth's pattern is not pasted on a kit
+tap HOME
+step 2 1 1 60 100
+lock 2 1 1 e1 30
+turn ALGO 1
+expect trk 2
+tap SEQ
+tap SEL
+turn SELECT 1
+tap SEL
+expect lane 2 1 e1 0
+press HOME
+tap REC
+release HOME
+expect lane 2 1 e1 1
+tap SEL
+turn SELECT 3
+tap SEL
+turn K1 1
+wait 40
+tap SEL
+turn SELECT 4
+shot paste_list.png
+tap SEL
+expect note 2 2 1 60
+expect lane 2 2 e1 1
+turn ALGO -1
+expect trk 1
+tap SEL
+turn SELECT 4
+tap SEL
+wait 40
+expect note 1 1 1 0

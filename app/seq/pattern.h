@@ -174,7 +174,7 @@ int lane_count(const lane_t *L);
 int step_has_lock(const lane_t *L, int trk, int pat, int step);
 void step_clear_locks(lane_t *L, int trk, int pat, int step);
 int step_tune(const lane_t *L, int trk, int pat, int step);       /* a drum step's note: semitones, 0 = none */
-void pattern_clear_locks(lane_t *L, int trk, int pat);
+void pattern_clear_locks(lane_t *L, int trk, int pat);   /* (not the kit tune lane: that is notes) */
 void cond_ab(int k, int *a, int *b);  /* COND_AB + k -> A:B */
 /* a weave: pattern a (the track's) crossed with b (WITH). weave_step: the step the weave plays at pos, the track's
  * steps since it started (each pattern loops by its own length): WV_BARS the bars in turn (a's, b's, ...), WV_STEPS

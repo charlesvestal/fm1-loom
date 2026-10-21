@@ -128,7 +128,7 @@ void pattern_clear_locks(lane_t *L, int trk, int pat)
 {
     int k;
     for (k = 0; k < NLANE; k++)
-        if (L[k].used && L[k].trk == trk && L[k].pat == pat)
+        if (L[k].used && L[k].trk == trk && L[k].pat == pat && L[k].param != LANE_TUNE)
             L[k].used = 0;
 }
 

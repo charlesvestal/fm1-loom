@@ -973,6 +973,18 @@ static void punch_key(int k, int on)
     }
     engine_punch(fx, on, target);
 }
+/* a song slot inserted at (added) or deleted from AT while the song plays: the slot playing keeps playing (a deleted
+ * one: the slot now in its place comes at the bar line, for all its bars; bar_end stays put while song_rep > 1) */
+static void song_edited(int at, int added)
+{
+    const song_t *sg = &pats.song;
+    if (!seq.song_on || !playing())
+        return;
+    if (added ? at <= seq.song_pos : at < seq.song_pos)
+        seq.song_pos = (uint8_t)(seq.song_pos + (added ? 1 : -1));
+    else if (!added && at == seq.song_pos && at < sg->len)
+        seq.song_rep = (uint8_t)((sg->slot[at].rep ? sg->slot[at].rep : 1) + 1);
+}
 /* a scene: stopped, at once; playing, cued (SCENE_BAR / SCENE_END; the scene playing while another waits:
  * the cue is off) */
 static void scene_go(int n, int when)
@@ -1212,6 +1224,7 @@ static void key_down(int k)
                 sg->slot[at].scene = (uint8_t)w;
                 sg->slot[at].rep = at ? sg->slot[at - 1].rep : SONG_REP_DEF;   /* the slot before's bars (the first: 4) */
                 sg->len++;
+                song_edited(at, 1);
                 ui.name_slot = (uint8_t)at;              /* the knobs on the slot just added: its bars next */
                 mark_dirty();
                 {
@@ -2095,12 +2108,47 @@ static void act_clear_notes(void)
         memset(&tp->st[i], 0, sizeof tp->st[i]);
         tp->st[i].vel = 100;
     }
+    lane_clear(pats.lane, lane_find(pats.lane, sel_trk(), cur_pat(sel_trk()), LANE_TUNE));   /* (a kit's steps' notes) */
     mark_dirty();
 }
 static void act_clear_locks(void)
 {
+    undo_keep();
     pattern_clear_locks(pats.lane, sel_trk(), cur_pat(sel_trk()));
     mark_dirty();
+}
+/* a track's kind for PASTE: the synth tracks share one, a kit, each aux track its own (each reads a step's notes its way) */
+static int pat_kind(int trk) { return is_drum(trk) ? NSEQT : trk < NTRK ? 0 : trk; }
+/* PASTE: the pattern copied, its steps and its lanes (locks, motion, a kit's tunes) over this one's */
+static void act_paste_pat(void)
+{
+    int trk = sel_trk(), pt = cur_pat(trk), full = 0;
+    if (clip_trk == trk && clip_pat == pt) {
+        say("PASTED", "pattern");
+        return;
+    }
+    if (pat_kind(clip_trk) != pat_kind(trk)) {
+        say_no("CAN'T PASTE", is_drum(clip_trk) ? "a kit's pattern" : is_drum(trk) ? "on a kit" : "on this track");
+        return;
+    }
+    undo_keep();
+    pats.pat[trk][pt] = pats.pat[clip_trk][clip_pat];
+    for (int k = 0; k < NLANE; k++)
+        if (pats.lane[k].used && pats.lane[k].trk == trk && pats.lane[k].pat == pt)
+            lane_clear(pats.lane, k);
+    for (int k = 0; k < NLANE; k++)
+        if (pats.lane[k].used && pats.lane[k].trk == clip_trk && pats.lane[k].pat == clip_pat) {
+            int d = lane_alloc(pats.lane, trk, pt, pats.lane[k].param);
+            if (d >= 0)
+                memcpy(pats.lane[d].val, pats.lane[k].val, NSTEP);
+            else
+                full = 1;
+        }
+    mark_dirty();
+    if (full)
+        say_no("PASTED, LOCKS FULL", "some locks left out");
+    else
+        say("PASTED", "pattern");
 }
 static void act_rotate(int d)
 {
@@ -2298,16 +2346,30 @@ static void do_clear_song(void)
     mark_dirty();
     say("CLEARED", "song");
 }
+/* clear a scene; the one playing hands over to the nearest other scene (below first) at once, or, the only one,
+ * starts again plain: pattern 1 on every track, nothing muted */
 static void act_clear_scene(void)
 {
-    int n = ui.ask_arg % NSCENE;
+    int n = ui.ask_arg % NSCENE, to = -1;
     char t[16];
-    if (n == cur_scene()) {
-        say_no("SCENE IN USE", "pick another first");
-        return;
-    }
     undo_arr();
-    pats.scene[n].used = 0;
+    if (n == cur_scene()) {
+        for (int d = 1; d < NSCENE && to < 0; d++)
+            if (n - d >= 0 && pats.scene[n - d].used)
+                to = n - d;
+            else if (n + d < NSCENE && pats.scene[n + d].used)
+                to = n + d;
+        if (to < 0) {
+            memset(pats.scene[n].pat, 0, sizeof pats.scene[n].pat);   /* (the brain's key stays) */
+            pats.scene[n].mute = 0;
+            pats.scene[n].weave = 0;
+            to = n;
+        } else
+            pats.scene[n].used = 0;
+        engine_scene(to, SCENE_NOW);
+        proj.scene = (uint8_t)to;
+    } else
+        pats.scene[n].used = 0;
     mark_dirty();
     num_s((uint32_t)n + 1u, s_cat(t, "S"));
     say("CLEARED", t);
@@ -2317,7 +2379,7 @@ static void act_clear_scene_ask(void)
     char q[32];
     ui.ask_arg = (uint8_t)cur_scene();
     num_s((uint32_t)cur_scene() + 1u, s_cat(q, "CLEAR SCENE "));
-    s_cat(q + s_len(q), "? (it is playing)");
+    s_cat(q + s_len(q), "?");
     ask(q, act_clear_scene);
 }
 static int save_project(int slot)
@@ -2467,8 +2529,13 @@ static void action_run(int a)
         break;
     case A_CLEAR_LOCKS: act_clear_locks(); say("CLEARED", "locks"); break;
     case A_CLEAR_BOTH: act_clear_notes(); act_clear_locks(); say("CLEARED", "notes and locks"); break;
-    case A_COPY_PAT: clip = *tpat(sel_trk()); clip_ok = 1; say("COPIED", "pattern"); break;
-    case A_PASTE_PAT: undo_keep(); *tpat(sel_trk()) = clip; mark_dirty(); say("PASTED", "pattern"); break;
+    case A_COPY_PAT:
+        clip_trk = (uint8_t)sel_trk();
+        clip_pat = (uint8_t)cur_pat(sel_trk());
+        clip_ok = 1;
+        say("COPIED", "pattern");
+        break;
+    case A_PASTE_PAT: act_paste_pat(); break;
     case A_WEAVE: act_keep_weave(); break;
     case A_ROT_FWD: act_rotate(1); say("ROTATED", "forward"); break;
     case A_ROT_BACK: act_rotate(-1); say("ROTATED", "back"); break;
@@ -2522,6 +2589,7 @@ static void action_run(int a)
         sg->slot[cur].scene = (uint8_t)cur_scene();
         sg->slot[cur].rep = cur ? sg->slot[cur - 1].rep : SONG_REP_DEF;
         sg->len++;
+        song_edited(cur, 1);
         ui.name_slot = (uint8_t)cur;
         mark_dirty();
         say("INSERTED", "this scene");
@@ -2535,6 +2603,7 @@ static void action_run(int a)
         for (int i = cur; i + 1 < sg->len; i++)
             sg->slot[i] = sg->slot[i + 1];
         sg->len--;
+        song_edited(cur, 0);
         mark_dirty();
         say("DELETED", "slot");
         break;

@@ -215,8 +215,7 @@ static struct {
         struct { song_t song; scene_t scene[NSCENE]; wvpat_t weave[NPATT]; } a;
     } u;
 } undo PLAT_POOL;
-static tpat_t clip PLAT_POOL;
-static uint8_t clip_ok;
+static uint8_t clip_ok, clip_trk, clip_pat;   /* COPY PATTERN: which, read at PASTE (no copy kept: the pool is short) */
 
 /* ---------------------------------------------------------- helpers --- */
 static char *num_s(uint32_t v, char *b)
