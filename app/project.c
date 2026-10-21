@@ -230,7 +230,8 @@ void project_defaults(void)
         tr->par[TP_ENGINE] = ORDER[t];                    /* (a preset carries its engine; the kit keeps its own) */
         tr->par[TP_BRAIN] = t ? 1 : 0;                    /* the melodic tracks follow the brain from the start
                                                            * (the notebook: "several tracks are routed by default") */
-        tr->par[TP_CHAN] = 1;                             /* MIDI OUT on: track N's notes on channel N (with Setup's NOTES) */
+        tr->par[TP_CHAN] = 1;                             /* MIDI OUT on: track N's notes on channel N
+                                                           * (with Setup's NOTES) */
     }
     aux_defaults();
     /* the master: the EQ flat, the color off (tape when on: amount 40, tone 64, all wet), the groups at unity, a touch
@@ -582,7 +583,7 @@ int project_load(int slot)
                                                        * the shared LFO from its start) */
             glfo_defaults(proj.trk[AUX_BRAIN].par);
         if (load_format == 10u) {                     /* 0.5-beta had no way to set a track's MIDI channel: they are
-                                                       * all off there. As a new project's: notes out, T1-T8 on 1-8 */
+                                                       * all off there. As a new project's: notes out, MIDI OUT on */
             proj.send_notes = 1;
             for (int t = 0; t < NTRK; t++)
                 if (!proj.trk[t].par[TP_CHAN])

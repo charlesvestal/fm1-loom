@@ -673,7 +673,7 @@ static void midi_in(uint32_t pkt)
         int t = midi_track(ch);
         if (t >= 0)
             seq_key(&seq, t, d1, ty == 0x90, d2);
-    } else if (ty == 0xB0 && d1 == 7) {            /* CC 7, volume: the track's level (Task 2 replaces it) */
+    } else if (ty == 0xB0 && d1 == 7) {            /* CC 7, volume: the track's level (the CC map replaces it) */
         int t = midi_track(ch);
         if (t >= 0)
             eng_cc_level[t] = d2;

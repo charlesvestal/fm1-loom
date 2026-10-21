@@ -158,9 +158,9 @@ static void undo_master(void);
 static void undo_arr(void);
 static void sound_reset(uint8_t *par, int engine)   /* the engine's defaults; MIDI OUT stays (routing, not sound) */
 {
-    int ch = par[TP_CHAN];
+    int out = par[TP_CHAN];
     sound_default(par, engine);
-    par[TP_CHAN] = (uint8_t)ch;
+    par[TP_CHAN] = (uint8_t)out;
 }
 static void set_tp(int trk, int p, int v)
 {
@@ -2227,7 +2227,7 @@ static void list_change(int32_t e)
             set_tp(ft, q, proj.trk[ft].par[q] + (int)accel(EN_ALGO, e));
             break;
         }
-        case A_MIDI_CH:
+        case A_MIDI_OUT:
             set_tp(sel_trk(), TP_CHAN, d > 0);
             break;
         case A_FOLLOW: {
@@ -2827,7 +2827,7 @@ static void action_run(int a)
         break;
     case A_FOLLOW: case A_USB_AUDIO: case A_COUNT_IN: case A_THEME: case A_PLAYMODE: case A_FTYPE: case A_FX_HP: case A_FX_LP:
     case A_FX_SEND: case A_PUMP_BY: case A_PUMP_REL: case A_PUMP_ACC: case A_LEVEL: case A_SCENE_AT: case A_AUTOSAVE:
-    case A_MIDI_CH: case A_LOOP_FREE: return;                      /* (ALGORITHM sets them; SEL leaves the list) */
+    case A_MIDI_OUT: case A_LOOP_FREE: return;                      /* (ALGORITHM sets them; SEL leaves the list) */
     case A_REMOVE_NOTE: act_remove_note(lst.sel); break;
     case A_INSERT_SLOT:
         if (sg->len >= NSONG) {

@@ -2312,15 +2312,15 @@ static void t_midi_out(void)
     reset();
     S.send_clock = 1;
     S.send_notes = 1;
-    par[0][TP_CHAN] = 1;              /* MIDI OUT on; the note goes out on the track's own channel (0 for T1) */
-    note(0, 0, 60, 100);
+    par[2][TP_CHAN] = 1;              /* MIDI OUT on; the note goes out on the track's own channel (2 for T3) */
+    note(2, 0, 60, 100);
     start();
     run_blocks(4 * L16 + 1);          /* (the clock waits for a stretch's end: at most a block late, never early) */
     for (i = 0; i < nev; i++)
         if (ev[i].kind == E_MIDI) {
             clocks += ev[i].a == 0xF8;
             starts += ev[i].a == 0xFA;
-            ons += ev[i].a == 0x90 && ev[i].b == 60;
+            ons += ev[i].a == 0x92 && ev[i].b == 60;
         }
     CHECK(clocks >= 24 && clocks <= 25 && starts == 1 && ons == 1);
     CHECK(nth(E_MIDI, -1, 3)->t >= 918 && nth(E_MIDI, -1, 3)->t < 918 + 256);   /* start, note on, clock, clock at
@@ -2331,16 +2331,16 @@ static void t_midi_out(void)
         uint32_t on_t = 0, off_t = 0;
         reset();
         S.send_notes = 1;
-        par[0][TP_ENGINE] = EG_DRUMLINE;
-        par[0][TP_CHAN] = 1;                      /* MIDI OUT on */
-        note(0, 0, 1, 100);                       /* the kick */
+        par[3][TP_ENGINE] = EG_DRUMLINE;
+        par[3][TP_CHAN] = 1;                      /* MIDI OUT on; the note goes out on T4's own channel (3) */
+        note(3, 0, 1, 100);                       /* the kick */
         start();
         run(L16 + 10u);
         for (i = 0; i < nev; i++)
             if (ev[i].kind == E_MIDI && ev[i].b == 36) {
-                if (ev[i].a == 0x90 && !on_t)
+                if (ev[i].a == 0x93 && !on_t)
                     on_t = ev[i].t + 1u;
-                if (ev[i].a == 0x80 && !off_t)
+                if (ev[i].a == 0x83 && !off_t)
                     off_t = ev[i].t + 1u;
             }
         CHECK(on_t && off_t && off_t > on_t + L16 / 4u);
@@ -2364,6 +2364,18 @@ static void t_midi_out(void)
                 last = on ? 1 : 2;
             }
         CHECK(!twice && offs >= 2);
+    }
+    {                                             /* MIDI OUT off (TP_CHAN 0): no note out at all */
+        int any = 0;
+        reset();
+        S.send_notes = 1;
+        par[0][TP_CHAN] = 0;
+        note(0, 0, 60, 100);
+        start();
+        run(2u * L16);
+        for (i = 0; i < nev; i++)
+            any |= ev[i].kind == E_MIDI && (ev[i].a & 0xF0) == 0x90;
+        CHECK(!any);
     }
     printf("ok %s\n", cur);
 }

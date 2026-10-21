@@ -212,7 +212,7 @@ enum { A_CLEAR_NOTES, A_CLEAR_LOCKS, A_CLEAR_BOTH, A_COPY_PAT, A_PASTE_PAT, A_RO
        A_ENGINE, A_PRESET, A_SCRAMBLE, A_SAVE_PRESET, A_INIT, A_FOLLOW, A_INSERT_SLOT, A_DELETE_SLOT, A_CLEAR_SONG,
        A_PLAY_SONG, A_LOAD_PROJ, A_NEW_PROJ, A_USB_AUDIO, A_CLEAR_SCENE, A_PANIC, A_EFFECT, A_REMOVE_NOTE,
        A_COUNT_IN, A_PLAYMODE, A_FTYPE, A_FX_HP, A_FX_LP, A_FX_SEND, A_WEAVE, A_THEME, A_PUMP_BY, A_PUMP_REL,
-       A_PUMP_ACC, A_LEVEL, A_SCENE_AT, A_SAVE_TO, A_AUTOSAVE, A_RANDOM_SOUNDS, A_MIDI_CH, A_LOOP_FREE, A_COPY_BAR, A_COPY_STEP, A_PASTE_BAR,
+       A_PUMP_ACC, A_LEVEL, A_SCENE_AT, A_SAVE_TO, A_AUTOSAVE, A_RANDOM_SOUNDS, A_MIDI_OUT, A_LOOP_FREE, A_COPY_BAR, A_COPY_STEP, A_PASTE_BAR,
        A_PASTE_STEP, A_PASTE_LOCKS, A_DOUBLE, A_CLEAR_STEP_LOCKS, NACTIONS };
 static const char *const ACTION_NAME[NACTIONS] = {
     "CLEAR NOTES", "CLEAR LOCKS", "CLEAR NOTES AND LOCKS", "COPY PATTERN", "PASTE PATTERN", "ROTATE FORWARD",
@@ -1986,9 +1986,9 @@ static void proj_slot_text(int slot, char *t)     /* "Proj 2", "Proj 3 (open)", 
     else if (!project_exists(slot))
         s_cat(e, " (empty)");
 }
-static void list_midi_ch(int trk)                  /* the track's notes out over USB, on its own channel (Setup's NOTES on) */
+static void list_midi_out(int trk)                 /* the track's notes out, on its own channel (with Setup's NOTES) */
 {
-    list_add(ACTION_NAME[A_MIDI_CH], proj.trk[trk].par[TP_CHAN] ? "on" : "off", LK_PICK, A_MIDI_CH);
+    list_add(ACTION_NAME[A_MIDI_OUT], proj.trk[trk].par[TP_CHAN] ? "on" : "off", LK_PICK, A_MIDI_OUT);
 }
 static void list_clip_step(void)                   /* a held step's list, after its notes: copy it, paste a step, its
                                                     * locks cleared */
@@ -2112,7 +2112,7 @@ static void list_build(void)
         num_s((uint32_t)ui.pick_slot % NUSER_PRESETS + 1u, s_cat(slot_t, "U"));
         list_add(ACTION_NAME[A_SAVE_PRESET], slot_t, LK_PICK, A_SAVE_PRESET);
         list_add(ACTION_NAME[A_ENGINE], EG_NAME[ui.pick_engine % NENGINE], LK_PICK, A_ENGINE);
-        list_midi_ch(trk);
+        list_midi_out(trk);
     } else if (keep >= P_ENGINE && keep <= P_PLAYERS3 && keep != P_THROWS) {
         if (trk == AUX_BRAIN) {
             for (int t = 0; t < NTRK; t++) {
@@ -2131,7 +2131,7 @@ static void list_build(void)
             list_add(ACTION_NAME[A_INIT], 0, LK_ACTION, A_INIT);
             s_cat(fol_t, FOLLOW_NAME[proj.trk[trk].par[TP_BRAIN] % 3]);
             list_add(ACTION_NAME[A_FOLLOW], fol_t, LK_PICK, A_FOLLOW);
-            list_midi_ch(trk);
+            list_midi_out(trk);
         }
     } else if (keep >= P_MIX) {                     /* GLO's one list: the pump's settings, the level, USB audio */
         static char by[8], rel[12], lev[8];

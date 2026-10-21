@@ -1,13 +1,19 @@
 # C3 (docs/superpowers/specs/2026-10-21-midi-cc-map-design.md): fixed channels, the CC map in and out, scenes by MIDI
 wait 300
-# fixed channels: channel 3 is T3 whichever track is selected; MIDI OUT on by default
+# fixed channels: channel 3 is T3 whichever track is selected (T2 here); MIDI OUT on by default
 projnew
 expect par3.51 1
 expect par2.51 1
+turn ALGO 1
+expect trk 2
 midi 92 3C 64
 wait 20
+expect midi_out 1
+expect midiout_last 0x923C64
 midi 82 3C 00
 wait 20
+expect midi_out 2
+expect midiout_last 0x823C00
 
 # a track holding a channel number (as before C3) loads with MIDI OUT on
 projnew
@@ -16,20 +22,28 @@ projsave 1
 reboot
 expect par3.51 1
 
-# channel 12: the track selected (T2 after ALGO 1: its note goes out on channel 2, "91 3E" in the log);
-# channels 9 and 10: no notes
+# channel 12: the track selected (T2 after ALGO 1: its note goes out on its own channel 2, "91 3E");
+# channels 9, 10 and 11: no notes
 turn ALGO 1
 expect trk 2
 midi 9B 3E 64
 wait 20
+expect midiout_last 0x913E64
 midi 8B 3E 00
+wait 20
+expect midiout_last 0x813E00
 wait 300
+# the synth's release tail: T2's voice needs this long to die down after the note off, before "voices" reads 0
 midi 98 3C 64
 midi 99 3C 64
+midi 9A 3C 64
 wait 20
 expect voices 0
-# MIDI OUT off on T3: no note out (the out log's count stays)
+# MIDI OUT off on T3: no note out (the count stays)
 param 3 51 0
+expect midi_out 4
 midi 92 40 64
 wait 20
 midi 82 40 00
+wait 20
+expect midi_out 4

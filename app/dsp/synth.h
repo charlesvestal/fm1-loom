@@ -79,7 +79,7 @@ enum {
     TP_AP1, TP_AP2, TP_AP3, TP_AP4,                 /* the arp's second page: length, style, glide, stereo */
     TP_LEVEL, TP_PAN,                               /* Mix */
     TP_BRAIN,                                       /* follows the brain: 0 no, 1 diatonic, 2 transpose only */
-    TP_CHAN,                                        /* MIDI channel 0 = off, 1..16 */
+    TP_CHAN,                                        /* MIDI OUT: 0 off, 1 on (notes on the track's own channel, engine.h CH_*) */
     TP_DRUM0,                                       /* the drum kit: NDRUM keys * DP_N */
     NTP = TP_DRUM0 + 11 * DP_N
 };
