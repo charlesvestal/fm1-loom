@@ -123,7 +123,7 @@ static const uint8_t WHITE_K[16] = {0, 2, 4, 6, 7, 9, 11, 12, 14, 16, 18, 19, 21
 static const uint8_t BLACK_K[11] = {1, 3, 5, 8, 10, 13, 15, 17, 20, 22, 25};
 #define KEY_BASE 53                                  /* F3 at octave 0 */
 enum { KM_NONE, KM_PLAY, KM_STEP, KM_SCENE, KM_MUTE, KM_PUNCH, KM_BRAIN, KM_SOUND,
-       KM_TRACK, KM_SAVE, KM_LENGTH, KM_SOLO, KM_SCALE, KM_ROUTE, KM_STEPSOUND, KM_IDLE, KM_WEAVE };   /* KM_IDLE: does nothing */   /* what a held key does */
+       KM_TRACK, KM_SAVE, KM_LENGTH, KM_SOLO, KM_SCALE, KM_ROUTE, KM_STEPSOUND, KM_IDLE, KM_WEAVE, KM_BARK };   /* KM_IDLE: does nothing */   /* what a held key does */
 
 /* the input's and the screen's state */
 static struct {
@@ -491,7 +491,7 @@ static int home_held(void) { return ui.btn >> B_HOME & 1u; }
  * the page's own, recorded as they turn (a punch-in of motion, as the keys punch in notes) */
 static int rec_settings(void)
 {
-    return (ui.btn >> B_REC & 1u) && !home_held() && (!playing() || ui.page == P_STEPS || ui.page == P_BAR);
+    return (ui.btn >> B_REC & 1u) && !home_held() && (!playing() || steps_page(ui.page));
 }
 static int pl_type(int t) { return is_aux(t) || is_drum(t) ? PL_OFF : proj.trk[t].par[TP_PLAYER] % NPL; }   /* (a kit has no player) */
 #define CTYPE_NAME(par) (tp_info_par(TP_CTYPE, par)->names[(par)[TP_CTYPE] % NCT])   /* the character's type */
@@ -1475,12 +1475,14 @@ static void page_footer(char *t)
             s_cat(t, "KEYS write|OCT+ rest|OCT- back|REC done");
         else if (seq.rec || seq.rec_wait)
             s_cat(t, "KEYS record|REC off");
+        else if (ui.btn >> B_SEQ & 1u && ui.page == P_BAR)
+            s_cat(t, "BLACK 1-4 jump to a bar|two: loop|twice: loop one");
         else if (ui.btn >> B_SEQ & 1u)
             s_cat(t, is_drum(trk) ? "KEYS pick a sound" : "KEYS the notes a step writes");
         else if (is_drum(trk))
-            s_cat(t, "WHITE steps|BLACK sound|SEQ held: pick a sound");
+            s_cat(t, ui.page == P_BAR ? "WHITE steps|BLACK sound|SEQ held: bars" : "WHITE steps|BLACK sound|SEQ held: pick a sound");
         else
-            s_cat(t, ui.page == P_BAR ? "WHITE steps|BLACK scale|SEQ held: notes" : "WHITE steps|SEQ held: play notes");
+            s_cat(t, ui.page == P_BAR ? "WHITE steps|BLACK scale|SEQ held: bars" : "WHITE steps|SEQ held: play notes");
         break;
     case P_MIX:
         s_cat(t, "BLACK mute|hold: solo|WHITE play");
@@ -1558,8 +1560,8 @@ static void enc_line(char *t)
         e = s_cat(e, *t ? "|ALGO track" : "ALGO track");
     {
         const char *a = p == P_ARRANGE ? "scene" : p == P_SONG ? "slot"
-                        : (p == P_STEPS || p == P_BAR) && is_drum(trk) ? "sound"
-                        : (p == P_STEPS || p == P_BAR) && is_seqt(trk) ? "pattern"
+                        : steps_page(p) && is_drum(trk) ? "sound"
+                        : steps_page(p) && is_seqt(trk) ? "pattern"
                         : (p == P_ENGINE || p == P_PLAY || p == P_ENV) && is_drum(trk) ? "key"
                         : p == P_ENGINE && is_fx(trk) ? "effect"
                         : p == P_MIX ? "track" : 0;   /* (Engine, Filter, the FX pages: the footer says it) */
@@ -1764,6 +1766,8 @@ static void draw_footer(void)
 #define PG_SOUND (PG(P_ENGINE) | PG(P_PLAY) | PG(P_PLAY2) | PG(P_SUB) | PG(P_ENV) | PG(P_ENV2) | PG(P_KITF) | PG(P_FILTER) | \
                   PG(P_CHARACTER) | PG(P_LFO) | PG(P_LFO2))
 static const struct { uint8_t btn; uint32_t pages; const char *title, *l1, *l2; } CARD[] = {
+    {B_SEQ, PG(P_BAR), "Bars", "Hold SEQ, black keys 1-4: jump to a bar at the next bar line.",
+     "Two held: loop them. One twice: loop it."},
     {B_SEQ, PG_ANY, "Steps", "The bar's 16 steps on the white keys. Hold SEQ and play the notes,",
      "then press steps to write them. A step held + ARP: its tricks."},
     {B_EDIT, PG_STEPS, "Lock", "With a step held, EDIT, ENV, FX or LFO show their knobs.",
@@ -1926,7 +1930,7 @@ static void list_build(void)
     ui.page = (uint8_t)keep;
     if (keep == P_STEPS && trk == AUX_WEAVE) {     /* WEAVE: its pattern cleared */
         list_add(ACTION_NAME[A_CLEAR_NOTES], 0, LK_ACTION, A_CLEAR_NOTES);
-    } else if (keep == P_STEPS || keep == P_BAR) {
+    } else if (steps_page(keep)) {
         if (is_seqt(trk)) {
             list_add(ACTION_NAME[A_CLEAR_NOTES], 0, LK_ACTION, A_CLEAR_NOTES);
             list_add(ACTION_NAME[A_CLEAR_LOCKS], 0, LK_ACTION, A_CLEAR_LOCKS);
@@ -2118,7 +2122,7 @@ static void draw_arrange(void)
     char t[16];
     for (int tr = 0; tr < NSEQT; tr++)
         h = hash_u(h, (uint32_t)seq.ppat[tr] | (uint32_t)eng_step[tr] << 8 | (uint32_t)(seq.mute >> tr & 1u) << 16 |
-                          (uint32_t)tpat(tr)->len << 20);
+                          (uint32_t)tpat(tr)->len << 20 | (uint32_t)tpat(tr)->lstart << 24 | (uint32_t)tpat(tr)->lend << 16);
     for (int i = 0; i < NSCENE; i++)
         h = hash_u(h, pats.scene[i].used);
     if (!begin_main(h))
@@ -2136,10 +2140,22 @@ static void draw_arrange(void)
         num_s((uint32_t)pt + 1u, s_cat(t, "P"));
         text_c(37, y - 3, &FONT_XS, t, muted ? K_FAINT : trk_ink(tr));
         cv_rect(52, y + 3, 88, 2, K_PANEL2);         /* (88 px: "mute" fits before the rule at 168) */
-        if (len > 0 && len <= NSTEP)
-            cv_rect(52, y + 3, 88 * len / NSTEP, 2, muted ? K_LINE : trk_tint(tr));
-        if (playing() && !muted && len > 0)
-            cv_round(52 + 86 * (pos % len) / (len > 1 ? len - 1 : 1), y + 1, 3, 6, 1, trk_ink(tr));
+        int lf, le, bw = 88 * len / NSTEP;
+        pat_loop(tpat(tr), &lf, &le);
+        if (len > 0 && len <= NSTEP) {
+            if (lf == 0 && le == len)
+                cv_rect(52, y + 3, bw, 2, muted ? K_LINE : trk_tint(tr));
+            else {                                   /* a cropped loop: bright inside, the rest of the pattern dim */
+                cv_rect(52, y + 3, bw, 2, K_LINE);
+                cv_rect(52 + bw * lf / len, y + 2, bw * le / len - bw * lf / len, 4, muted ? K_FAINT : trk_tint(tr));
+            }
+        }
+        if (playing() && !muted && len > 0) {
+            if (lf == 0 && le == len)
+                cv_round(52 + 86 * (pos % len) / (len > 1 ? len - 1 : 1), y + 1, 3, 6, 1, trk_ink(tr));
+            else                                     /* (inside the loop, repeating) */
+                cv_round(52 + (bw - 3) * (pos % len) / (len > 1 ? len - 1 : 1), y + 1, 3, 6, 1, trk_ink(tr));
+        }
         if (muted)
             cv_text(144, y - 3, &FONT_XS, "mute", K_DIM);
     }
@@ -2560,6 +2576,8 @@ static void draw_bar(void)
     char t[48], *e;
     h = hash_u(h, (uint32_t)(tp->groove + 100) | (uint32_t)proj.groove << 8 | (uint32_t)tp->quant << 16 |
                       (uint32_t)ui.bar << 24 | (uint32_t)is_drum(trk) << 28);
+    h = hash_u(h, (uint32_t)tp->lstart | (uint32_t)tp->lend << 8 | (uint32_t)seq.t[trk].bq_go << 16 | (uint32_t)seq.t[trk].bq_f << 24);
+    h = hash_u(h, seq.t[trk].bq_e);
     if (!begin_main(h))
         return;
     if (!is_seqt(trk)) {
@@ -2567,26 +2585,36 @@ static void draw_bar(void)
         cv_blit(0, MAIN_Y);
         return;
     }
-    num_s((uint32_t)tp->len, s_cat(t, "Length "));
-    e = s_cat(t + s_len(t), " steps, a step is ");
-    e = s_cat(e, TS_NAME[tp->scale % NTS]);
-    s_cat(e, tp->scale == TS_1 ? " sixteenth" : " sixteenths");
+    static const char *const STEP_FRAC[NTS] = {"1/32", "1/16", "1/8", "3/16", "1/4", "5/16", "3/8", "1/2", "1 Bar"};
+    e = num_s((uint32_t)tp->len, s_cat(t, "Length: "));
+    e = s_cat(e, tp->len == 1 ? " step" : " steps");
+    e = s_cat(e, "   Step: ");
+    s_cat(e, STEP_FRAC[tp->scale % NTS]);
     cv_text(12, 6, &FONT_S, t, K_TEXT);
     {
-        int nb = (tp->len + 15) / 16, ph = eng_step[trk];
+        int nb = (tp->len + 15) / 16, ph = eng_step[trk], lf, le, go = seq.t[trk].bq_go, pf = seq.t[trk].bq_f, pe = seq.t[trk].bq_e;
+        pat_loop(tp, &lf, &le);
         for (int b = 0; b < NBAR; b++) {
             int32_t x = 12 + b * 56, w = 50;
-            int steps = tp->len - b * 16;
+            int steps = tp->len - b * 16, in = b < nb && b * 16 < le && b * 16 + 16 > lf;
             steps = steps > 16 ? 16 : steps < 0 ? 0 : steps;
+            int out = b < nb && (lf > 0 || le < tp->len) && !in;   /* (a cropped loop: the bars outside it sit back) */
+            if (in && (lf > 0 || le < tp->len))              /* the loop: a bar under its bars */
+                cv_rect(x, 79, w, 3, K_NOW);
+            if (go != 0xFF && (pf > 0 || pe > 0)) {          /* a loop waiting for the bar line: its bars outlined */
+                if (b * 16 < (pe ? pe : tp->len) && b * 16 + 16 > pf && b < nb)
+                    cv_frame(x, 78, w, 5, 2, K_TEXT, K_BG);
+            } else if (go != 0xFF && go / 16 == b)           /* a jump waiting for the bar line */
+                cv_frame(x + w / 2 - 4, 78, 8, 5, 2, K_TEXT, K_BG);
             if (b == ui.bar)                         /* the bar the white keys write (OCT- OCT+ pick it) */
                 cv_round(x - 2, 32, w + 4, 44, 7, K_TEXT);
-            cv_round(x, 34, w, 40, 5, b < nb ? K_PANEL2 : K_PANEL);
+            cv_round(x, 34, w, 40, 5, b < nb && !out ? K_PANEL2 : K_PANEL);
             if (steps < 16 && steps > 0)
                 cv_round(x + w * steps / 16, 34, w - w * steps / 16, 40, 5, K_PANEL);
             if (playing() && ph / 16 == b)
-                cv_round(x + 2 + 46 * (ph % 16) / 16, 36, 4, 36, 2, K_NOW);
+                cv_round(x + 2 + 46 * (ph % 16) / 16, 64, 4, 8, 2, K_NOW);   /* (below the number) */
             num_s((uint32_t)b + 1u, t);
-            text_c(x + w / 2, 46, &FONT_B, t, b < nb ? K_TEXT : K_FAINT);
+            text_c(x + w / 2, 46, &FONT_B, t, b < nb && !out ? K_TEXT : b < nb ? K_DIM : K_FAINT);
         }
     }
     e = s_cat(s_cat(t, "Groove "), GR_NAME[proj.groove % NGROOVE]);

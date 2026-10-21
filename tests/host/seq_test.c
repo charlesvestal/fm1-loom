@@ -577,6 +577,56 @@ static void t_bend(void)
     printf("ok %s\n", cur);
 }
 
+/* a pattern's saved loop: it starts at the loop's first step and wraps at its end, the rest of the pattern kept */
+static void t_loop(void)
+{
+    int i;
+    cur = "loop";
+    reset();
+    P.pat[0][0].len = 64;
+    for (i = 0; i < 64; i++)
+        note(0, i, 30 + i, 100);
+    P.pat[0][0].lstart = 48;                         /* bar 4 */
+    P.pat[0][0].lend = 0;
+    start();
+    run(20 * L16);
+    CHECK(on_n(0)->a == 30 + 48 && on_n(1)->a == 30 + 49);
+    CHECK(on_n(15)->a == 30 + 63 && on_n(16)->a == 30 + 48);
+    P.pat[0][0].lstart = 8;                          /* steps 9 to 12 */
+    P.pat[0][0].lend = 12;
+    stop();
+    nev = 0;
+    start();
+    run(10 * L16);
+    CHECK(on_n(0)->a == 30 + 8 && on_n(3)->a == 30 + 11 && on_n(4)->a == 30 + 8 && on_n(9)->a == 30 + 9);
+    /* a bar jump queued while playing: at the next bar line (every 16 steps) it jumps and sets the loop */
+    reset();
+    P.pat[0][0].len = 64;
+    for (i = 0; i < 64; i++)
+        note(0, i, 30 + i, 100);
+    start();
+    run(2 * L16);
+    seq_bar_go(&S, 0, 48, 48, 0);
+    run(16 * L16);
+    CHECK(on_n(14)->a == 30 + 14 && on_n(15)->a == 30 + 15 && on_n(16)->a == 30 + 48);
+    CHECK(P.pat[0][0].lstart == 48 && S.crop_dirty);
+    /* one bar key: jump to that bar at the bar line and play on through the pattern, the loop cleared */
+    reset();
+    P.pat[0][0].len = 64;
+    for (i = 0; i < 64; i++)
+        note(0, i, 30 + i, 100);
+    P.pat[0][0].lstart = 16;
+    P.pat[0][0].lend = 32;
+    start();
+    run(2 * L16);
+    seq_bar_go(&S, 0, 48, 0, 0);
+    run(36 * L16);
+    CHECK(on_n(14)->a == 30 + 30 && on_n(15)->a == 30 + 31 && on_n(16)->a == 30 + 48 && on_n(31)->a == 30 + 63);
+    CHECK(on_n(32)->a == 30 && on_n(33)->a == 30 + 1);
+    CHECK(P.pat[0][0].lstart == 0 && P.pat[0][0].lend == 0);
+    printf("ok %s\n", cur);
+}
+
 static void t_jump(void)
 {
     int i;
@@ -2533,6 +2583,7 @@ int main(void)
     t_portamento();
     t_bend();
     t_jump();
+    t_loop();
     t_jump_chance();
     t_skip();
     t_components();

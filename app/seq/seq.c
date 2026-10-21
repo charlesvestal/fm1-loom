@@ -228,6 +228,30 @@ static void midi(const seq_sink_t *o, uint8_t st, uint8_t d1, uint8_t d2)
 
 static tpat_t *tpat(const seq_t *s, int t) { return &s->P->pat[t][s->ppat[t] < NPATT ? s->ppat[t] : 0]; }
 static int pat_len(const tpat_t *p) { return p->len < 1 ? 1 : p->len > NSTEP ? NSTEP : p->len; }
+/* the pattern's loop (a crop of it: pat_loop): its steps, and the one after p (wrapping at the loop's end) */
+static int loop_len(const tpat_t *p)
+{
+    int f, e;
+    pat_loop(p, &f, &e);
+    return e - f;
+}
+static int loop_after(const tpat_t *p, int pos, int *wrapped)
+{
+    int f, e, n = pos + 1;
+    pat_loop(p, &f, &e);
+    if (n >= e || n < f) {
+        n = f;
+        if (wrapped)
+            *wrapped = 1;
+    }
+    return n;
+}
+static int loop_from(const tpat_t *p)
+{
+    int f, e;
+    pat_loop(p, &f, &e);
+    return f;
+}
 static int step_kind(const seq_t *s, int t) { return t == AUX_PUNCH ? WK_FX : t < NTRK && s->par[t][TP_ENGINE] == EG_DRUMLINE ? WK_KIT : WK_MEL; }
 /* the step the track plays at p: its own, or (weaving) its pattern crossed with the one it weaves with */
 static const step_t *weave_at(seq_t *s, int t, const tpat_t *tp, int p)
@@ -239,7 +263,7 @@ static const step_t *weave_at(seq_t *s, int t, const tpat_t *tp, int p)
         return &tp->st[p];
     tr->wv_on = 1;
     weave_step(tp, step_kind(s, t), &s->P->pat[f][wp], step_kind(s, f), s->wv_rule[t] % NWV,
-               (uint32_t)tr->pass * (uint32_t)pat_len(tp) + (uint32_t)p, &tr->wv_st);
+               (uint32_t)tr->pass * (uint32_t)loop_len(tp) + (uint32_t)(p > loop_from(tp) ? p - loop_from(tp) : 0), &tr->wv_st);
     return &tr->wv_st;
 }
 static int is_drum(const seq_t *s, int t) { return t < NTRK && s->par[t][TP_ENGINE] == EG_DRUMLINE; }
@@ -1055,7 +1079,7 @@ static uint32_t bar_end(seq_t *s, int start, const seq_sink_t *o)
 static void bar_len_update(seq_t *s)
 {
     const tpat_t *p = tpat(s, 0);
-    uint32_t span = (uint32_t)pat_len(p) * (uint32_t)ts_halves(p) / 2u;
+    uint32_t span = (uint32_t)loop_len(p) * (uint32_t)ts_halves(p) / 2u;
     s->bar_len = span < 16u ? 16u : span;
 }
 
@@ -1094,7 +1118,7 @@ static void resync(seq_t *s, int t)
 {
     seq_trk_t *tr = &s->t[t];
     const tpat_t *tp = tpat(s, t);
-    uint32_t h = (uint32_t)ts_halves(tp), len = (uint32_t)pat_len(tp), d = h << 8, e, g, rem, k;
+    uint32_t h = (uint32_t)ts_halves(tp), len = (uint32_t)loop_len(tp), d = h << 8, e, g, rem, k;
     if (!tr->started || !tr->grid_h || (tr->grid_h == h && tr->grid_len == len))
         return;
     tr->grid_h = (uint8_t)h;
@@ -1108,7 +1132,7 @@ static void resync(seq_t *s, int t)
     tr->stall = 0;
     tr->loop_on = 0;
     tr->off_q8 = 0;
-    tr->jump_to = (uint8_t)(k % len);
+    tr->jump_to = (uint8_t)(loop_from(tp) + k % len);
     {   /* timed from the next sixteenth, whose time is exact (a track's step 1 is always on a sixteenth) */
         uint32_t target = tr->origin_h8 + k * d, b6 = s->step_tick << 9, half = six_q8(s) >> 1;
         if (target >= b6)
@@ -1132,6 +1156,7 @@ static void track_reset(seq_t *s, int t)
     tr->stall = 0;
     tr->ratchet = tr->ratchets = 0;
     tr->jump_to = 0xFF;
+    tr->bq_go = 0xFF;
     tr->loop_on = 0;
     tr->ramp_deg = 0;
     skip_clear(tr);
@@ -1163,11 +1188,30 @@ static void restart(seq_t *s, uint32_t tracks)   /* tracks whose pattern switche
 /* the next step: a jump, the punch loop's span, or the next one; wrapped = a new pass begins (the
  * pattern's end, the loop going back to its start, or a jump back or stay: a jump loop counts its passes, so
  * the conditions, skips and ramps keep moving inside it) */
-static int next_pos(seq_t *s, int t, int *wrapped)
+static int next_pos(seq_t *s, int t, int *wrapped, int commit)
 {
     seq_trk_t *tr = &s->t[t];
     int len = pat_len(tpat(s, t)), p = tr->pos, n;
     *wrapped = 0;
+    if (tr->bq_go != 0xFF) {                          /* a bar jump or loop waits for the bar line (every 16 steps, the loop's or the pattern's end) */
+        int f, e;
+        pat_loop(tpat(s, t), &f, &e);
+        if ((p + 1) % 16 == 0 || p + 1 >= e) {
+            tpat_t *tp = tpat(s, t);
+            n = tr->bq_go % len;
+            *wrapped = n <= p;
+            if (!commit)
+                return n;
+            if (tp->lstart != tr->bq_f || tp->lend != tr->bq_e)
+                s->crop_dirty = 1;
+            tp->lstart = tr->bq_f;
+            tp->lend = tr->bq_e;
+            tr->grid_len = (uint8_t)loop_len(tp);
+            tr->bq_go = 0xFF;
+            tr->jump_to = 0xFF;
+            return n;
+        }
+    }
     if (tr->jump_to != 0xFF) {
         n = tr->jump_to % len;
         tr->jump_to = 0xFF;
@@ -1183,36 +1227,31 @@ static int next_pos(seq_t *s, int t, int *wrapped)
         }
         return n;
     }
-    n = p + 1;
-    if (n >= len) {
-        n = 0;
-        *wrapped = 1;
-    }
-    return n;
+    return loop_after(tpat(s, t), p, wrapped);
 }
 
 static void jump_set(seq_t *s, int t, int cv, int p)
 {
     seq_trk_t *tr = &s->t[t];
-    int len = pat_len(tpat(s, t)), n, beats = (len + 3) / 4;
+    int len = loop_len(tpat(s, t)), from = loop_from(tpat(s, t)), n, beats = (len + 3) / 4;
     if (cv == SC_RANDOM_VAL) {                                /* any beat of the pattern, or one of the five moves */
         int r = (int)(rng_next(&tr->rng) % (uint32_t)(beats + 5));
         cv = r < beats ? (r < 4 ? r : r + 6) : r - beats + 4;
     }
     switch (cv) {
-    case 0: case 1: case 2: case 3: n = cv * 4; break;
+    case 0: case 1: case 2: case 3: n = from + cv * 4; break;
     case 4: n = p + 2; break;                                 /* one forward: skip the next */
     case 5: n = p - 1; break;                                 /* one back */
     case 6: n = (rng_next(&tr->rng) & 1u) ? p + 2 : p - 1; break;
     case 7: n = p; break;                                     /* stay */
     case 8: {                                                 /* align: where the bar says the track would be */
         int h = ts_halves(tpat(s, t));
-        n = (int)(((s->bar_six + 1u) * 2u) / (uint32_t)h);
+        n = from + (int)(((s->bar_six + 1u) * 2u) / (uint32_t)h);
         break;
     }
-    default: n = (cv - 6) * 4; break;                         /* 10..21: to 17, 21 .. 61 */
+    default: n = from + (cv - 6) * 4; break;                         /* 10..21: to 17, 21 .. 61 */
     }
-    tr->jump_to = (uint8_t)(((n % len) + len) % len);
+    tr->jump_to = (uint8_t)(from + (((n - from) % len) + len) % len);
 }
 
 /* a kit's pulse repeat: the sounds of the trick's step at its velocity (its tricks ran on it, not on these) */
@@ -1242,10 +1281,10 @@ static void fire_step(seq_t *s, int t, const seq_sink_t *o)
     int32_t off, noff;
     if (!tr->started) {
         tr->started = 1;
-        p = 0;
+        p = loop_from(tpat(s, t));
         tr->stall = 0;
     } else {
-        p = next_pos(s, t, &wrapped);
+        p = next_pos(s, t, &wrapped, 1);
         if (wrapped) {
             tr->pass++;
             if (tr->loop_on && fx_on(s, t, PX_ECHO))
@@ -1285,7 +1324,7 @@ static void fire_step(seq_t *s, int t, const seq_sink_t *o)
         skip_clear(tr);
     tr->pos = (uint8_t)p;
     tr->grid_h = (uint8_t)ts_halves(tp);
-    tr->grid_len = (uint8_t)pat_len(tp);
+    tr->grid_len = (uint8_t)loop_len(tp);
     tr->age = 0;
     L = seq_step_q8(s, t);
     tr->step_q8 = L;
@@ -1366,7 +1405,7 @@ static void fire_step(seq_t *s, int t, const seq_sink_t *o)
     off = tr->off_q8;
     {
         uint8_t save_j = tr->jump_to;
-        np = next_pos(s, t, &dummy);  /* a peek: undo what it may have changed */
+        np = next_pos(s, t, &dummy, 0);  /* a peek: undo what it may have changed */
         tr->jump_to = save_j;
     }
     noff = step_off(s, t, np, L);
@@ -1969,14 +2008,14 @@ static void rec_key_on(seq_t *s, int t, int note, int vel)
     tpat_t *tp = tpat(s, t);
     seq_trk_t *tr = &s->t[t];
     uint32_t L = tr->step_q8 ? tr->step_q8 : seq_step_q8(s, t);
-    int len = pat_len(tp), p = tr->pos, i, q = tp->quant > 100 ? 100 : tp->quant;
+    int p = tr->pos, i, q = tp->quant > 100 ? 100 : tp->quant;
     int32_t age = (int32_t)(tr->age > L ? L : tr->age), ticks;
     int early = 0;
     step_t *st;
     if (!tr->started)
         return;
     if ((uint32_t)age > L / 2u) {     /* nearer the next step */
-        p = (p + 1) % len;
+        p = loop_after(tp, p, 0);
         age -= (int32_t)L;
         early = 1;
     }
@@ -2333,15 +2372,16 @@ static uint32_t grid_index(const seq_t *s, int t, int next)
 static void loop_release(seq_t *s, int t)
 {
     seq_trk_t *tr = &s->t[t];
-    uint32_t len = (uint32_t)pat_len(tpat(s, t)), kn, pass;
+    uint32_t len = (uint32_t)loop_len(tpat(s, t)), kn, pass, at;
     if (!tr->started || tr->to_next == NEVER)
         return;
     kn = grid_index(s, t, 1);
+    at = (uint32_t)loop_from(tpat(s, t)) + kn % len;
     pass = (uint32_t)tr->loop_pass + kn / len - tr->loop_grid_pass;
-    if (kn % len <= tr->pos && pass)              /* (the step after wraps: the pass counts on its own) */
+    if (at <= tr->pos && pass)                    /* (the step after wraps: the pass counts on its own) */
         pass--;
     tr->pass = (uint16_t)pass;
-    tr->jump_to = (uint8_t)(kn % len);
+    tr->jump_to = (uint8_t)at;
 }
 
 /* the punch state: the engine's masks, and the loops and fills starting or ending on each track */
@@ -2376,7 +2416,7 @@ static void punch_update(seq_t *s, const seq_sink_t *o)
                 tr->loop_from = tr->started ? tr->pos : 0;
                 tr->echo_gain = 256;
                 tr->loop_pass = tr->pass;
-                tr->loop_grid_pass = (uint16_t)(grid_index(s, t, 0) / (uint32_t)pat_len(tpat(s, t)));
+                tr->loop_grid_pass = (uint16_t)(grid_index(s, t, 0) / (uint32_t)loop_len(tpat(s, t)));
             }
             steps = six * 2 / ts_halves(tpat(s, t));
             tr->loop_span = (uint8_t)(steps < 1 ? 1 : steps);
@@ -2626,6 +2666,7 @@ void seq_init(seq_t *s, patterns_t *P, uint8_t (*par)[NTP_ALL])
         tr->to_next = NEVER;
         tr->sub_to_next = NEVER;
         tr->jump_to = 0xFF;
+        tr->bq_go = 0xFF;
         s->ppat[t] = P->scene[0].pat[t] < NPATT ? P->scene[0].pat[t] : 0;
         s->pcue[t] = 0xFF;
         s->wv_rec_at[t] = 0xFF;
@@ -2965,7 +3006,7 @@ int seq_rec_pos(const seq_t *s, int trk)
     if (!s->playing || !tr->started)
         return 0;
     L = tr->step_q8 ? tr->step_q8 : seq_step_q8(s, trk);
-    return tr->age > L / 2u ? (tr->pos + 1) % pat_len(tp) : tr->pos;
+    return tr->age > L / 2u ? loop_after(tp, tr->pos, 0) : tr->pos;
 }
 
 void seq_rec_knob(seq_t *s, int trk, int param, int val)
@@ -3029,4 +3070,19 @@ int seq_step_add_notes(seq_t *s, int trk, int step, const uint8_t *notes, int n,
     for (i = 0; i < SN; i++)
         k += st->note[i] != 0;
     return k;
+}
+
+void seq_bar_go(seq_t *s, int trk, int go, int from, int to)
+{
+    seq_trk_t *tr = &s->t[trk];
+    tpat_t *tp = tpat(s, trk);
+    if (!tr->started || tr->to_next == NEVER) {       /* stopped: the loop now */
+        tr->bq_go = 0xFF;
+        tp->lstart = (uint8_t)from;
+        tp->lend = (uint8_t)to;
+        return;
+    }
+    tr->bq_f = (uint8_t)from;
+    tr->bq_e = (uint8_t)to;
+    tr->bq_go = (uint8_t)go;
 }

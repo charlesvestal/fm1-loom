@@ -631,6 +631,13 @@ static void step_say(int s, int on)
         sp_said = 1;
     }
 }
+static void step_fresh_if_empty(step_t *st)      /* a step with no notes left forgets its length, nudge and comps */
+{
+    if (step_empty(st)) {
+        memset(st, 0, sizeof *st);
+        st->vel = 100;
+    }
+}
 static void step_toggle(int i)
 {
     int trk = sel_trk(), s = step_shown(i);
@@ -639,7 +646,10 @@ static void step_toggle(int i)
         return;
     undo_keep();
     if (is_drum(trk)) {
+        if (step_empty(st))                      /* (a step added back starts fresh: no length or comps of the one removed) */
+            memset(st, 0, sizeof *st);
         kit_toggle(st, ui.dsound + 1);
+        step_fresh_if_empty(st);
         step_say(s, kit_has(st, ui.dsound + 1));
     } else if (step_empty(st)) {
         uint8_t one = 0;
@@ -1117,6 +1127,52 @@ static void keyboard_down(int k)
             step_rec_key(note);
     }
 }
+/* the Bar page, SEQ held: black keys 1-4 are the bars. One jumps there at the next bar line (and plays on through the
+ * pattern), two held loop that range, one tapped twice loops that bar; all queued for the bar line while playing */
+#define BAR_TAP_MS 350
+static uint8_t barkeys_dn;
+static void bar_key(int k, int b)
+{
+    tpat_t *tp = tpat(sel_trk());
+    int len = tp->len < 1 ? 1 : tp->len > NSTEP ? NSTEP : tp->len, others = barkeys_dn & ~(1 << b), lo = b, hi = b, go, from, to;
+    static int8_t tap_b = -1;
+    static uint32_t tap_t;
+    uint32_t now = plat_ms();
+    char t[16], *e;
+    ui.kmode[k] = KM_BARK;
+    if (b * 16 >= len)
+        return;
+    barkeys_dn |= (uint8_t)(1 << b);
+    ui.bar = (uint8_t)b;
+    for (int i = 0; i < NBAR; i++)
+        if (others >> i & 1 && i * 16 < len) {
+            lo = i < lo ? i : lo;
+            hi = i > hi ? i : hi;
+        }
+    undo_keep();
+    if (lo != hi || (tap_b == b && now - tap_t < BAR_TAP_MS)) {
+        from = lo * 16;
+        to = (hi + 1) * 16 < len ? (hi + 1) * 16 : len;
+        go = from;
+        tap_b = -1;
+        if (from == 0 && to == len)
+            to = 0;
+        e = num_s((uint32_t)lo + 1u, t);
+        if (hi != lo)
+            e = num_s((uint32_t)hi + 1u, s_cat(e, "-"));
+        say(hi != lo ? "LOOP BARS" : "LOOP BAR", t);
+    } else {
+        from = to = 0;
+        go = b * 16;
+        tap_b = (int8_t)b;
+        tap_t = now;
+        num_s((uint32_t)b + 1u, t);
+        say("JUMP TO BAR", t);
+    }
+    seq_bar_go(&seq, sel_trk(), go, from, to);
+    if (!playing())
+        mark_dirty();
+}
 static void ask_end(int yes);
 static void act_clear_scene(void);
 static void weave_set(int t, int from, int pat, int rule);   /* (below: the weave) */
@@ -1171,6 +1227,11 @@ static void key_down(int k)
             set_mute(b, !(seq.mute >> b & 1u));
             say(seq.mute >> b & 1u ? "MUTED" : "UNMUTED", TRACK_NAME[b]);
         }
+        return;
+    }
+    if (p == P_BAR && b >= 0 && b < NBAR && is_seqt(trk) && (ui.btn >> B_SEQ & 1u) && !ui.held && !ui.rec_armed &&
+        !seq.rec && !seq.rec_wait) {             /* Bar, SEQ held: black keys 1-4 jump to a bar, or loop it (bar_key) */
+        bar_key(k, b);
         return;
     }
     if (p == P_BAR && b >= 0 && is_seqt(trk) && !is_drum(trk) && !(ui.btn >> B_SEQ & 1u) && !ui.rec_armed &&
@@ -1324,6 +1385,12 @@ static void key_up(int k)
     int trk = sel_trk(), m = ui.kmode[k];
     ui.kmode[k] = KM_NONE;
     switch (m) {
+    case KM_BARK: {
+        int b = ordinal(BLACK_K, 11, k);
+        if (b >= 0)
+            barkeys_dn &= (uint8_t)~(1 << b);
+        break;
+    }
     case KM_PLAY:
         engine_key(is_aux(trk) ? inst_trk() : trk, ui.knote[k], 0, 0);
         chord_del(ui.knote[k]);
@@ -1485,7 +1552,7 @@ static void button_up(int b)
             say(d > 0 ? "REST" : "BACK", t);
             break;
         }
-        if (ui.page == P_STEPS || ui.page == P_BAR) {
+        if (steps_page(ui.page)) {
             ui.bar = (uint8_t)clampi(ui.bar + d, 0, NBAR - 1);
             num_s((uint32_t)ui.bar + 1u, t);
             say("BAR", t);
@@ -2366,6 +2433,7 @@ static void act_remove_note(int row)             /* a step held: the row's note 
             return;
         undo_keep();
         kit_toggle(st, snd);
+        step_fresh_if_empty(st);
         ui.held_used = 1;
         mark_dirty();
         say("REMOVED", DL_SOUND_NAME[snd - 1]);
@@ -2375,6 +2443,7 @@ static void act_remove_note(int row)             /* a step held: the row's note 
         return;
     undo_keep();
     step_toggle_note(st, st->note[row]);
+    step_fresh_if_empty(st);
     ui.held_used = 1;
     mark_dirty();
     say("REMOVED", 0);
@@ -2682,7 +2751,7 @@ static void leds(void)
         if (ui.page >= PAGE_BTN[i].first && ui.page < PAGE_BTN[i].first + PAGE_BTN[i].n)
             b |= 1u << PAGE_BTN[i].btn;
     if (proj.lights) {
-        if ((ui.page == P_STEPS || ui.page == P_BAR) && is_seqt(trk)) {
+        if (steps_page(ui.page) && is_seqt(trk)) {
             const tpat_t *tp = tpat(trk);
             int ph = eng_step[trk];
             for (i = 0; i < 16; i++) {
@@ -2707,7 +2776,7 @@ static void leds(void)
                     dim |= 1u << BLACK_K[i];
         } else
             k |= ui.keys;
-        if (sel_trk() == AUX_WEAVE && ui.page != P_STEPS && ui.page != P_BAR)   /* the tracks weaving: their keys */
+        if (sel_trk() == AUX_WEAVE && !steps_page(ui.page))   /* the tracks weaving: their keys */
             for (i = 0; i < NSEQT; i++)
                 if ((seq.wv_live | seq.wv_rec) >> i & 1u)
                     k |= 1u << WHITE_K[i];
@@ -2906,7 +2975,7 @@ static void sp_state(void)
 static void sp_main(void)
 {
     int trk = sel_trk();
-    if ((ui.page == P_STEPS || ui.page == P_BAR) && is_seqt(trk)) {
+    if (steps_page(ui.page) && is_seqt(trk)) {
         const tpat_t *tp = tpat(trk);
         int n = 0;
         sp_cat("steps on: ");
@@ -3348,6 +3417,10 @@ void ui_frame(void)
         proj.trk[AUX_BRAIN].par[TP_E3] = pats.scene[cur_scene()].brain_scale % NBS;
         if (ui.bar * 16 >= tpat(sel_trk())->len)
             ui.bar = 0;
+    }
+    if (seq.crop_dirty) {                        /* a queued loop reached its bar line */
+        seq.crop_dirty = 0;
+        mark_dirty();
     }
     seq.rec_target = (uint8_t)(sel_trk() == AUX_BRAIN ? AUX_BRAIN : inst_trk());   /* where live recording writes */
     seq.rec_replace = (uint8_t)(proj.rsv[2] & 1u);

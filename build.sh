@@ -15,7 +15,7 @@ PY="${PYTHON:-python3}"
 if [ "${1:-}" = "--demo" ]; then             # a demo build: screen mirroring for the viewer (base/web/mirror,
     shift                                    # base/tools/fm1_mirror.py), spending the pool's spare; never a release
     case " $* " in *" --release "*) echo "build.sh: --demo is never a release"; exit 1;; esac
-    export FM1B_MIRROR=1 FM1B_POOL_SPARE=0
+    export FM1B_MIRROR=1 FM1B_POOL_SPARE=0 FM1B_BACKUP=0  # (no backup and restore: its buffer is 3.8 KB of the pool, which the mirror needs; USB audio stays, to record a demo)
     "$PY" base/tools/build.py app "$@"
     case " $* " in *" --host "*|*" --web "*) exit 0;; esac
     mkdir -p build/mirror                    # the viewer, fm1-base's, with LOOM-8's name (Chrome or Edge: Web MIDI)

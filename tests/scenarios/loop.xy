@@ -1,0 +1,46 @@
+# the Bar page, SEQ held: black keys 1-4 are the bars. One jumps (and un-loops), two held loop that range, one tapped
+# twice loops that bar; stopped it is at once, playing at the next bar line
+wait 300
+expect trk 1
+tap SEQ
+turn K2 48
+wait 1200
+turn SELECT 1
+expect page Bar
+expect loop 1 1 64
+press SEQ
+tapkey b3
+expect loop 1 1 64
+wait 500
+tapkey b3
+wait 60
+tapkey b3
+expect loop 1 49 64
+key b1 down
+wait 60
+key b2 down
+wait 60
+key b1 up
+key b2 up
+expect loop 1 17 48
+tapkey b3
+wait 500
+tapkey b3
+wait 60
+tapkey b3
+expect loop 1 49 64
+wait 300
+shot loop_bar.png
+release SEQ
+tap PLAY
+wait 40
+expect step 1 48
+press SEQ
+tapkey b0
+wait 300
+shot loop_bar_pending.png
+expect loop 1 49 64
+wait 2600
+expect loop 1 1 64
+release SEQ
+tap PLAY

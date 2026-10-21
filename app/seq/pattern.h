@@ -99,8 +99,16 @@ typedef struct {
     uint8_t quant;                    /* live record quantise 0..100 */
     uint8_t nlen;                     /* note length 0..100 % of a step (50 = half a step, the default) */
     uint8_t shape;                    /* lock smoothing 0..100 */
-    uint8_t rsv[2];
+    uint8_t lstart;                   /* the loop: the first step it plays, 0-based (0 = the first) */
+    uint8_t lend;                     /* and where it ends: the last step + 1 (0 = the pattern's end) */
 } tpat_t;                             /* 776 bytes */
+/* the loop the pattern plays, cropped to its length: steps from .. to - 1 (a pattern never plays outside it) */
+static inline void pat_loop(const tpat_t *p, int *from, int *to)
+{
+    int len = p->len < 1 ? 1 : p->len > NSTEP ? NSTEP : p->len, f = p->lstart < len ? p->lstart : len - 1, e = p->lend;
+    *from = f;
+    *to = e > f && e < len ? e : len;
+}
 
 /* a parameter lock lane: a value for each step of one track pattern, LOCK_NONE = the knob's own */
 #define LOCK_NONE 0xFFu

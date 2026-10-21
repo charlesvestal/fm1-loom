@@ -276,6 +276,27 @@ static int expect_more(const char *what, const char *a, const char *b, const cha
         printf("  comp %s step %s: %d/%d and %d/%d\n", a, b, tp->st[s].comp, tp->st[s].cval, tp->st[s].comp2,
                tp->st[s].cval2);
         host_fails += expect_val(what, tp->st[s].comp, c);
+    } else if (!strcmp(what, "slen")) {             /* expect slen T S VALUE: step S's length code on the playing pattern (0 = the pattern's) */
+        tpat_t *tp = pat_of(atoi(a), 0);
+        int s = atoi(b) - 1;
+        if (!tp || s < 0 || s >= NSTEP) {
+            printf("FAIL expect slen: no track %s step %s\n", a, b);
+            host_fails++;
+            return 1;
+        }
+        host_fails += expect_val(what, tp->st[s].len, c);
+    } else if (!strcmp(what, "loop")) {             /* expect loop T FROM TO: the loop of track T's playing pattern (1-based steps) */
+        tpat_t *tp = pat_of(atoi(a), 0);
+        int f, e;
+        if (!tp) {
+            printf("FAIL expect loop: no track %s\n", a);
+            host_fails++;
+            return 1;
+        }
+        pat_loop(tp, &f, &e);
+        printf("  loop %s: steps %d to %d\n", a, f + 1, e);
+        host_fails += expect_val("loop from", f + 1, b);
+        host_fails += expect_val("loop to", e, c);
     } else if (!strcmp(what, "cval")) {             /* expect cval T S VALUE: step S's first component's value */
         tpat_t *tp = pat_of(atoi(a), 0);
         int s = atoi(b) - 1;

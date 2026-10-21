@@ -143,6 +143,7 @@ typedef struct {                      /* one track's runtime (interrupt only) */
     uint8_t stall_vel;                /* a kit: the hit's velocity, for the pulse's repeats */
     uint16_t stall_mask;              /* a kit: the sounds covered (the trick's step's; the others play on) */
     uint8_t jump_to;                  /* the jump component's next step, 0xFF none */
+    volatile uint8_t bq_go, bq_f, bq_e;   /* a bar jump / loop queued for the next bar line: go to step bq_go (0xFF none), the loop bq_f .. bq_e (0 = all) */
     uint8_t nlast;                    /* notes in last_note[] */
     uint8_t last_step;                /* the step last_note[] came from */
     uint8_t last_vel, last_glide;     /* for retriggers (ratchets) */
@@ -246,6 +247,7 @@ typedef struct {
     uint32_t step_tick;               /* sixteenths since start (the metronome, the arp grid) */
     uint8_t metro_beat;
     /* added runtime */
+    volatile uint8_t crop_dirty;      /* a queued loop was applied to a pattern: the main loop marks the project unsaved */
     volatile uint8_t pcue[NSEQT];     /* a pattern cued per track, 0xFF none */
     volatile uint8_t req_scene;       /* seq_set_scene: apply now, 0xFF none */
     volatile uint32_t kq[32];         /* the keys from the main loop, played in the interrupt */
@@ -290,6 +292,7 @@ void seq_cue_scene(seq_t *s, int scene, int at_end);   /* at the next bar line, 
                                                           * pattern (now, if stopped) */
 int seq_cue_left(const seq_t *s);              /* sixteenths before the cued scene's (0: the next), -1 none */
 void seq_set_scene(seq_t *s, int scene);       /* now: the scene's patterns, mutes, brain */
+void seq_bar_go(seq_t *s, int trk, int go, int from, int to);   /* jump to step GO and play the loop FROM .. TO (to 0 = all), at the next bar line (at once while stopped) */
 void seq_cue_pattern(seq_t *s, int trk, int pat);   /* one track's pattern at its wrap */
 float seq_tempo(const seq_t *s);
 uint32_t seq_step_q8(const seq_t *s, int trk);     /* a step of track trk in samples Q8 (its scale, no groove) */

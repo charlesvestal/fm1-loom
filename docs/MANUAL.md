@@ -128,6 +128,7 @@ press…" means keep **HOME** down while you press the next thing.
 | give a step a chance | Hold the step and turn **KNOB 3**. Past 99 % come the A:B cycles. |
 | lock a knob on a step | Hold the step and press **EDIT**, **ENV**, **FX** or **LFO**. Turn a knob. **SAVE** clears the step's locks. |
 | see the next bar | Press **OCT+** on Steps. |
+| play one bar of a long pattern, or jump about in it | **SEQ**, **SELECT** to the Bar page, hold **SEQ** and press black key 1 to 4: a bar to jump to; two held loop them; one tapped twice loops that bar. |
 | set the track scale | On Steps, turn **KNOB 3**. Or on the Bar page of a synth track, press a black key: 1, 2, 3, 4, 5, 6, 8, 16 sixteenths a step, or black key 9 for half a sixteenth. |
 | change the pattern | On Steps, turn **KNOB 1**. Playing, it comes at the next bar line: the knob reads NEXT 1>2 and the tag line "next P2" until it does. |
 | weave two patterns | On the track, **ARP**, its last page Weave: a black key for the track woven in, a white key for its pattern, **KNOB 3** the rule. It plays woven from then on; to bring it in by hand instead, **KNOB 4** to "on WEAVE", then on the WEAVE track (**ALGORITHM**) hold that track's white key. |
@@ -332,6 +333,13 @@ and **OCT+** move it. On a synth track the black keys set the track scale: 1, 2,
 sixteenths a step on black keys 1 to 8, half a sixteenth on black key 9. Press **SEL** on either page for the
 actions: clear notes, clear locks, clear both, copy and paste the pattern, rotate it a step forward or back,
 duplicate the bar into the next.
+
+On the Bar page, hold **SEQ** and press black keys 1 to 4: they are the pattern's bars. One key jumps to that bar at
+the next bar line and plays on from there (a loop you had is let go). Two held loop that range of bars; one tapped
+twice loops that bar. The loop is saved with the pattern (it is per track and per pattern): only the loop plays, so a
+bar you are editing comes round at once. A bar under the boxes marks the loop, a small bracket the jump waiting for
+its bar line, and Arrange draws the loop bright inside the pattern's line with the playhead repeating in it. Stopped,
+the keys set the loop at once. (SEQ held on the other pages still picks the notes a step writes.)
 
 ### Weave
 

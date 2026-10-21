@@ -1,0 +1,15 @@
+# a step removed and added back is a plain step again: it keeps nothing of the length it had
+wait 300
+expect trk 1
+tapkey w0
+expect slen 1 1 0
+key w0 down
+wait 60
+tapkey w3
+key w0 up
+expect slen 1 1 16
+tapkey w0
+expect note 1 1 1 0
+tapkey w0
+expect note 1 1 1 1
+expect slen 1 1 0
