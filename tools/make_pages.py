@@ -10,7 +10,7 @@
   install/index.html            the web installer (fm1-base's web/installer.html, with fm1pkg.js, fm1ota.js and
                                 the package's metadata inlined; Chrome or Edge, Web MIDI)
   backup/index.html             backup and restore in the browser (fm1-base's web/backup/index.html: the projects and
-                                the user presets)
+                                the user presets; the samples, app/web/backup/extras.js, in a section of the file)
   samples/index.html            the user sample bank in the browser (app/web/samples/: add, replace, rename, reorder,
                                 remove; loom_samples.js inlined)
   firmware/loom-VERSION.fwsc    the package the installer writes; also the download
@@ -151,7 +151,7 @@ uninstalls the way every fm1-base firmware does, and the installer can put M-VAV
   <a href="manual/"><strong>Read the manual</strong><span>A ten-minute quick start, every page and gesture, with screenshots.</span></a>
   <a href="install/"><strong>Install</strong><span>From Chrome or Edge, with the FM-1 connected by USB. Nothing to install on the computer.</span></a>
   <a href="samples/"><strong>Samples</strong><span>Put your own samples on the FM-1: add, replace, rename, reorder and remove up to 32.</span></a>
-  <a href="backup/"><strong>Backup</strong><span>Save your projects and presets to a file, and load them back later.</span></a>
+  <a href="backup/"><strong>Backup</strong><span>Save your projects, presets and samples to a file, and load them back later.</span></a>
   <a href="firmware/__PKG__"><strong>Download __PKG__</strong><span>For the command-line installer: <code>python3 base/tools/fm1_install.py __PKG__</code></span></a>
   <a href="__REPO__"><strong>Source</strong><span>GitHub, GPL-3.0. Built on fm1-base and felucca-bsp, from Felucca by Leo Kuroshita (Hügelton Instruments).</span></a>
 </nav>
@@ -205,7 +205,19 @@ def main(pkg, version, out):
                      ("LICENSE", conf.get("licence", "GPL-3.0-only")), ("CREDITS", " " + credits if credits else "")):
         page = page.replace("{{" + key + "}}", val)
     (out / "install" / "index.html").write_text(page.replace("/*LIB*/", lib).replace("/*META*/", meta), encoding="utf-8")
-    tools = base_site.tool_pages(SRC / "app", conf, {"NAME": "LOOM-8"})
+    # the backup page's own section: the sample bank (app/web/backup/extras.js on the samples page's code)
+    extras = ("const EXTRAS = (() => {\n" +
+              strip_module((SRC / "app" / "web" / "samples" / "loom_samples.js").read_text(encoding="utf-8")) + "\n" +
+              (SRC / "app" / "web" / "backup" / "extras.js").read_text(encoding="utf-8") + "})();")
+    note = ("\n  <li>The samples go in the file too. A restore sends them after LOOM-8 has said yes on its screen, which "
+            "takes about 20 seconds more. An older backup has no samples, so a restore from it leaves the samples as they "
+            "are.</li>")
+    terminal = ("You can also do it from a terminal, in LOOM-8's repository: <code>python3 base/tools/fm1_backup.py</code> "
+                "for the projects and presets (the same files: it leaves their samples alone), and "
+                "<code>python3 tools/loom_samples.py backup</code> / <code>restore</code> for the samples (its restore "
+                "takes this page's files too).")
+    tools = base_site.tool_pages(SRC / "app", conf, {"NAME": "LOOM-8", "EXTRAS_JS": extras, "EXTRA": note,
+                                                     "TERMINAL": terminal})
     (out / "backup" / "index.html").write_text(tools["backup/index.html"], encoding="utf-8")
     # the samples page, its bank code (app/web/samples/loom_samples.js) inlined
     spage = (SRC / "app" / "web" / "samples" / "index.html").read_text(encoding="utf-8")

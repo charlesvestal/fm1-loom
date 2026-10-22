@@ -11,6 +11,11 @@
                                                 (the host simulator loads it: "samples OUT.bin")
   loom_samples.py syx [--rate R] OUT.syx SPEC ...     no device: the SysEx frames "load" would send (and "info"),
                                                 into OUT.syx (the host simulator plays them through: "upload OUT.syx")
+  loom_samples.py backup OUT.bin                the bank as it is, read back from the FM-1, into OUT.bin
+  loom_samples.py restore IN.bin                put a backup (or a "build" image, or the web backup page's .loom8
+                                                file: its samples) back: the bank replaced
+  loom_samples.py extract DUMP.bin OUT.bin      no device: the bank out of a full flash dump (1 MB: fm1t.py dump,
+                                                fm1_rescue.py), into OUT.bin for "restore"
 
   SPEC: [NAME=]file.wav[:ROOT][@BARS][%RATE]
 
@@ -37,8 +42,10 @@ Protocol (app/samples.c): F0 7D 46 4C cmd ... F7; BEGIN 11, WRITE 12, HDR 16, EN
 CRC before it commits), ERASE 14, INFO 15. Needs mido and a backend (pip install mido python-rtmidi) for the
 device commands.
 """
+import struct
 import sys
 import time
+import zlib
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -261,6 +268,107 @@ def info(link):
             return n, size, used, out
 
 
+def unpack7(a):
+    """pack7 undone"""
+    out = []
+    i = 0
+    while i < len(a):
+        m = a[i]
+        i += 1
+        for j in range(7):
+            if i >= len(a):
+                break
+            out.append(a[i] | ((m >> j) & 1) << 7)
+            i += 1
+    return bytes(out)
+
+
+def checked(img, what):
+    """a bank image (backup, extract, build) cut to its used length; ValueError if it is not one or is damaged.
+    A bank with no samples is a header alone, with a count of 0"""
+    if len(img) < sio.BANK_HDR:
+        raise ValueError(f"{what}: not a LOOM-8 sample bank (too short)")
+    magic, ver, n, _, dlen, crc, _ = struct.unpack_from("<IHBBIII", img)
+    if magic != sio.BANK_MAGIC or ver != sio.BANK_VER:
+        raise ValueError(f"{what}: not a LOOM-8 sample bank (version {sio.BANK_VER})")
+    if n > sio.BANK_N or dlen > sio.BANK_MAX_DATA or len(img) < sio.BANK_HDR + dlen:
+        raise ValueError(f"{what}: cut short or damaged")
+    if zlib.crc32(img[sio.BANK_HDR:sio.BANK_HDR + dlen]) & 0xFFFFFFFF != crc:
+        raise ValueError(f"{what}: damaged (the data's CRC does not match)")
+    return bytes(img[:sio.BANK_HDR + dlen])
+
+
+def bank_in(data, what):
+    """a bank image, or the samples section of a .loom8 file (the web backup page's: fm1_backup.py split) -> the
+    bank's image, checked"""
+    if data[:4] != struct.pack("<I", sio.BANK_MAGIC) and len(data) > 16:
+        sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "base" / "tools"))
+        import fm1_backup
+        try:
+            _, sections = fm1_backup.split(data)
+        except fm1_backup.BackupError as e:
+            raise ValueError(f"{what}: {e}")
+        found = [body for tag, body in sections if tag == "LSMP"]
+        if not found:
+            raise ValueError(f"{what}: no samples in it (a backup made before the backup page kept them?)")
+        return checked(found[0], f"{what}'s samples")
+    return checked(data, what)
+
+
+def empty_bank():
+    return struct.pack("<IHBBIII", sio.BANK_MAGIC, sio.BANK_VER, 0, 0, 0, 0, sio.BANK_SIZE).ljust(sio.BANK_HDR, b"\0")
+
+
+def names_of(img):
+    return [img[sio.ENT0 + k * sio.ENT:sio.ENT0 + k * sio.ENT + sio.NAME_LEN].split(b"\0")[0].decode(errors="replace")
+            for k in range(img[6])]
+
+
+def read_bank(link, off, n):
+    """n bytes of the bank from virtual offset off (SMP_READ, 224 a request)"""
+    out = bytearray()
+    while len(out) < n:
+        at, want = off + len(out), min(224, n - len(out))
+        for tries in range(4):
+            try:
+                r = link.req(17, [0, at & 0x7F, (at >> 7) & 0x7F, (at >> 14) & 0x7F, want & 0x7F, want >> 7])
+                break
+            except TimeoutError:
+                if tries == 3:
+                    raise
+        if r[4]:
+            sys.exit("the FM-1 is writing its samples" if r[4] == 4 else f"read at {at:#x} failed ({RC.get(r[4], r[4])})")
+        b = unpack7(r[5:])
+        if len(b) < want:
+            sys.exit(f"read at {at:#x}: short reply")
+        out += b[:want]
+        if n > 4096 and (len(out) == n or 100 * len(out) // n != 100 * (len(out) - want) // n):
+            print(f"\r  {len(out) / 1024:6.1f} / {n / 1024:.1f} KB  {100 * len(out) // n:3d} %", end="", flush=True)
+    if n > 4096:
+        print()
+    return bytes(out)
+
+
+def backup(link):
+    """the bank's image, read back (a header alone if it holds no samples)"""
+    n = info(link)[0]
+    if not n:
+        return empty_bank()
+    hdr = read_bank(link, 0, sio.BANK_HDR)
+    dlen = struct.unpack_from("<I", hdr, 8)[0]
+    return checked(hdr + read_bank(link, sio.BANK_HDR, dlen), "the FM-1's bank")
+
+
+def extract(dump):
+    """the bank's image out of a full flash dump (its windows end to end)"""
+    if len(dump) < 0x100000:
+        raise ValueError(f"a full 1 MB flash dump, not {len(dump)} bytes")
+    v = b"".join(dump[o:o + n] for o, n in sio.REGIONS)
+    if struct.unpack_from("<I", v)[0] != sio.BANK_MAGIC:
+        return empty_bank()                         # (an erased bank: no samples)
+    return checked(v, "the dump's bank")
+
+
 def args_of(argv):
     """[--rate R] rest -> (rate or None, rest)"""
     rate = None
@@ -274,7 +382,8 @@ def args_of(argv):
 
 
 def main():
-    if len(sys.argv) < 2 or sys.argv[1] not in ("info", "load", "erase", "build", "syx"):
+    if len(sys.argv) < 2 or sys.argv[1] not in ("info", "load", "erase", "build", "syx", "backup", "restore",
+                                                 "extract"):
         sys.exit(__doc__)
     cmd = sys.argv[1]
     try:
@@ -290,6 +399,25 @@ def main():
                 Path(rest[0]).write_bytes(b"".join(bytes([0xF0] + HDR + [c] + a + [0xF7]) for c, a, _, _ in fr))
             print(f"{rest[0]}: {img[6]} samples, {sio.bank_used(img)} of {sio.BANK_MAX_DATA} B")
             return
+        if cmd == "extract":
+            if len(rest) != 2:
+                sys.exit(__doc__)
+            img = extract(Path(rest[0]).read_bytes())
+            Path(rest[1]).write_bytes(img)
+            print(f"{rest[1]}: {img[6]} samples, {sio.bank_used(img) / 1024:.1f} KB" +
+                  "".join(f"\n  user {k + 1:2}: {nm}" for k, nm in enumerate(names_of(img))))
+            return
+        if cmd == "restore":
+            if len(rest) != 1:
+                sys.exit(__doc__)
+            img = bank_in(Path(rest[0]).read_bytes(), rest[0])
+            link = Link()
+            if not img[6]:
+                r = link.req(14, [0], 60)
+                print("an empty bank: erase", "ok" if r[1] == 0 else f"FAILED ({RC.get(r[1], r[1])})")
+                sys.exit(1 if r[1] else 0)
+            print(f"{rest[0]}: {img[6]} samples, {sio.bank_used(img) / 1024:.1f} KB")
+            sys.exit(0 if upload(link, img) else 1)
         if cmd == "load":
             if not rest:
                 sys.exit(__doc__)
@@ -298,6 +426,14 @@ def main():
     except (OSError, ValueError) as e:
         sys.exit(f"cannot build the bank: {e}")
     link = Link()
+    if cmd == "backup":
+        if len(rest) != 1:
+            sys.exit(__doc__)
+        img = backup(link)
+        Path(rest[0]).write_bytes(img)
+        print(f"{rest[0]}: {img[6]} samples, {sio.bank_used(img) / 1024:.1f} KB" +
+              "".join(f"\n  user {k + 1:2}: {nm}" for k, nm in enumerate(names_of(img))))
+        return
     if cmd == "erase":
         r = link.req(14, [0], 60)
         print("erase:", "ok" if r[1] == 0 else f"FAILED ({RC.get(r[1], r[1])})")

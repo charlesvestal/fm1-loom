@@ -40,6 +40,8 @@ for t in synth braids drumline fx seq; do
 done
 if command -v node >/dev/null 2>&1; then           # the samples page's bank against loom_samples.py's
     run samples-web node tests/host/samples_web.mjs "$PY"
+    # the backup page's sample section (app/web/backup/extras.js) against a simulated FM-1 and the command line
+    run backup-web node tests/host/backup_web.mjs "$PY"
 else
     echo "  skip samples-web (no node)"
 fi
