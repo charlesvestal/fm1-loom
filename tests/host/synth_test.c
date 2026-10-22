@@ -1496,13 +1496,13 @@ int main(void)
     tp_text(TP_CUT, 59, 0, num, unit);
     check("cutoff 59 shows about 800Hz", !strcmp(unit, "Hz") && atoi(num) > 780 && atoi(num) < 840);
     {
-        static const char *const FN[6] = {"lp24", "ladder", "lp12", "hp12", "dynamic", "bp12"};
+        static const char *const FN[6] = {"lp24", "ladder", "lp12", "hp12", "bp12", "off"};
         int ok = NFT == 6;
         for (k = 0; k < NFT && k < 6; k++) {
             tp_text(TP_FTYPE, k, 0, num, unit);
             ok &= !strcmp(num, FN[k]);
         }
-        check("filter types: lp24 ladder lp12 hp12 dynamic bp12", ok);
+        check("filter types: lp24 ladder lp12 hp12 bp12 off", ok);
     }
     tp_text(TP_BEND, 0, 0, num, unit);
     check("bend 0 is off", !strcmp(num, "off"));
@@ -1624,12 +1624,12 @@ int main(void)
                 block(N, &finite);
             lv[ft] = block(N, &finite);
         }
-        printf("    saw at cutoff 20: lp24 %.1f ladder %.1f lp12 %.1f hp12 %.1f dynamic %.1f bp12 %.1f dBFS\n",
-               (double)db(lv[0]), (double)db(lv[1]), (double)db(lv[2]), (double)db(lv[3]), (double)db(lv[4]),
-               (double)db(lv[5]));
+        printf("    saw at cutoff 20: lp24 %.1f ladder %.1f lp12 %.1f hp12 %.1f bp12 %.1f off %.1f dBFS\n",
+               (double)db(lv[FT_LP24]), (double)db(lv[FT_LADDER]), (double)db(lv[FT_LP12]), (double)db(lv[FT_HP12]),
+               (double)db(lv[FT_BP12]), (double)db(lv[FT_DYNAMIC]));
         check("lp24 is darker than lp12", lv[FT_LP24] < lv[FT_LP12] * 0.8f);
         check("ladder is darker than lp12", lv[FT_LADDER] < lv[FT_LP12] * 0.9f);
-        check("dynamic on a synth track is a bypass (louder than any low-pass)", lv[FT_DYNAMIC] > lv[FT_LP12] * 1.5f);
+        check("off on a synth track is a bypass (louder than any low-pass)", lv[FT_DYNAMIC] > lv[FT_LP12] * 1.5f);
         check("hp12 at a low cutoff keeps most of the saw", lv[FT_HP12] > lv[FT_LP12] * 1.5f);
         check("bp12 passes less than the bypass", lv[FT_BP12] > 0.0f && lv[FT_BP12] < lv[FT_DYNAMIC] * 0.7f);
         check("every filter type stays finite", finite);

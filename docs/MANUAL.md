@@ -127,6 +127,7 @@ press…" means keep **HOME** down while you press the next thing.
 | change a step's note | Hold its step and turn **KNOB 4** (a drum step too: its hits play higher or lower). |
 | put a second sound on a drum step | Hold the step and press the sound's black key. |
 | take one note off a step | Hold the step, press **SEL**, pick the note and press **SEL**. |
+| change a step's chord | Hold the step and tap **SEQ**, then play the chord (you can let go of the step). Tap **SEQ** again when done. |
 | add a trick | Hold the step and press **ARP**. **KNOB 1** picks the first trick (pulse, hold, multiply, velocity, ramp up, ramp down, random, glide, bend, tonality, jump, skip lock, skip trick, skip trigger) and **KNOB 2** its value; **KNOB 3** and **KNOB 4** the second. Turn a trick back to "-" to take it off. |
 | set a skip's pattern | Turn its value on past "random": the same cycles come again "not on the last pass", then "only the first". |
 | give a step a chance | Hold the step and turn **KNOB 3**. Past 99 % come the A:B cycles. |
@@ -213,8 +214,9 @@ From top to bottom, the screen has five parts.
   knob you just turned shows in the text colour.
 - **The two bottom lines** say what the encoders and the keys do here.
 
-The screen comes in two themes (Setup's THEME knob): **tape deck**, warm brown-black with cream text, and
-**blueprint**, deep blue with white lines. In both, every instrument track has its own colour; in tape deck
+The screen comes in three themes (Setup's THEME knob): **tape deck**, warm brown-black with cream text,
+**blueprint**, deep blue with white lines, and **b/w**, black with white text and red. In each, every instrument
+track has its own colour; in tape deck
 T1 mustard, T2 rust, T3 olive, T4 teal, T5 blue, T6 plum, T7 tan, T8 sage. A track's steps with notes are
 its colour, dimmed; what sounds now is its colour, bright: the step playing, the scene playing, a meter. On
 Arrange and Mix every track keeps its colour, so you can tell them apart at a glance. Cream (or white)
@@ -241,8 +243,9 @@ instrument track you picked last, so you hear the effect.
 **PLAY** is green while playing and red while recording. **REC** lights while recording or armed. **SAVE**
 lights when there is something to save. The page's button is lit. On Steps, the steps with notes glow and the
 step playing is bright. On Arrange,
-the scenes in use glow and the one playing is bright. The muted tracks' black keys glow. With Setup's LIGHTS
-on, the other buttons glow too.
+the scenes in use glow and the one playing is bright. On Arrange and Mix, a track's black key is lit while it
+plays, bright for the selected track, and dark while it is muted. With Setup's LIGHTS on, the other buttons glow
+too.
 
 ## Steps
 
@@ -275,6 +278,10 @@ effect you played. The four squares at the right are the bars.
   also has COPY STEP; hold another step (or several) and its list has PASTE STEP (the notes and locks) and PASTE
   LOCKS ONLY (the locks onto the notes already there).
 - **Hold a step and press ARP** for its tricks (below).
+- **Hold a step and tap SEQ** to play its chord in (a melodic track). The screen shows the keys with the step's
+  notes lit; the keys you play together become its notes, replacing what it held (its length, tricks and locks
+  stay). You can let go of the step: it stays in this mode until you tap **SEQ** again. **OCT−** and **OCT+** move
+  the keys' octave meanwhile.
 
 ### Tricks
 
@@ -718,8 +725,7 @@ comes an octave or two down), which moves the notes it plays, the steps too. On 
 <img src="img/screen-envelope.png" width="240" alt="ENV: the amp envelope&#x27;s attack, decay, sustain and release, drawn" title="The Envelope page"> <img src="img/screen-filter.png" width="240" alt="ENV&#x27;s Filter page: an lp24 filter at 481 Hz, its curve drawn; PRESETS turns the type" title="The Filter page"> <img src="img/screen-lfo.png" width="240" alt="LFO: a wave LFO at 1/4 moving the filter cutoff, its shape drawn" title="The LFO page">
 
 **ENV** has the amp envelope, then the filter: cutoff in Hz, resonance, envelope amount and key tracking,
-with **PRESETS** turning the type (lp24, ladder, lp12, hp12, dynamic, bp12; on a synth track dynamic is no
-filter); then the filter's envelope.
+with **PRESETS** turning the type (lp24, ladder, lp12, hp12, bp12, off); then the filter's envelope.
 **FX** has the track's character (below), then its sends to FX I and FX II, its pan and its level, then the two
 effects. **LFO** has the
 type and its first three knobs; page 2 its fourth and fifth. A new type starts from its own defaults:
@@ -902,7 +908,7 @@ the solo, the last one brings the mutes back as they were). The knobs are the se
 level (a drum track's sends are its keys': **FX**, Sends). Turn **SELECT** for Master EQ (low, mid and high; 64 is flat), Master color (below) and
 Master out (the drums' level, the melodic tracks' level, the compressor and the pump; its **SEL** list has
 what the pump follows, its release and accent, and the output level). Setup's knobs are the lights, sending MIDI
-clock, sending MIDI notes (on in a new project) and the theme (tape deck or blueprint); the page also says where
+clock, sending MIDI notes (on in a new project) and the theme (tape deck, blueprint or b/w); the page also says where
 the tempo comes from (LOOM-8, or a MIDI clock coming in), the USB audio level, the autosave and the version, and
 **GLO**'s **SEL** list sets the USB audio level, LOOP THROWS, AUTOSAVE, CC OUT and SCENES OUT. The header shows
 the scene playing ("S3") before the tempo, on every page. The projects are on **HOME**'s **SEL** list; the

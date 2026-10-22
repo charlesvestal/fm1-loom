@@ -55,7 +55,7 @@ expect par1.21 0
 wait 40
 shot kit_filter_off.png
 turn PRESET 1
-expect par1.21 4
+expect par1.21 5
 turn SELECT 1
 expect page Envelope
 # a beat with the shaped snare, recorded

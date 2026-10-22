@@ -1,5 +1,8 @@
 # C9: the mixer's low and high cut (2026-10-21)
 
+(2026-10-22: format 14 was taken by the filter-type reorder in the 0.6.1 release, before this was built; bumped
+to 15 here so the two don't collide.)
+
 From the testers' feedback (docs/feedback-2026-10-21.md, C9): per-track EQ / low and high cut, and per drum sound.
 Agreed with the user: a low cut and a high cut on each of the eight tracks, **the mixer's own** (new parameters,
 shown nowhere else; they don't stand in for the kit bus's cuts or the FX's HP / LP). No per-key cuts (a key keeps
@@ -32,13 +35,13 @@ GLO gets **Mix 2** after Mix: the selected track's low cut (knob 1) and high cut
 track without cuts (FX, conductor, throws, weave) the page's knobs are empty. GLO's list (C15) adds the two rows
 after Mix's (**T2 low cut**, **T2 high cut**, named with the track as Mix's level is).
 
-## Storage: format 14
+## Storage: format 15
 
 - `TP_LOCUT`, `TP_HICUT` at the **end** of `par[]`, after the drum block: `NTP = TP_DRUM0 + 11 * DP_N + 2`. No
   parameter's index moves: locks and lanes (`lane_t.param`), LFO destinations and the MIDI map keep theirs.
-- Format 13 (and 10 .. 12, through `migrate_old`) load with both cuts off: each track's par is two bytes shorter in
+- Format 14 (and 10 .. 13, through `migrate_old`) load with both cuts off: each track's par is two bytes shorter in
   the old stream; the stream's length decides, as now; saved whole at the first touch.
-- New fixture `tests/fixtures/store_v13.bin` (made on a format-13 build with the host's storesave, as v10 / v11),
+- New fixture `tests/fixtures/store_v14.bin` (made on a format-14 build with the host's storesave, as v10 / v11),
   checked in tests/scenarios/migrate.xy.
 - The filters' state outside the pool (.bss in synth.c / engine.c): 16 voices x 32 B (two filters, two states, two
   channels) + 3 kit units (`NDL`) x 32 B = ~0.6 KB of RAM (4.4 KB free now, ~3.8 KB after). The pool is untouched.
@@ -54,7 +57,7 @@ after Mix's (**T2 low cut**, **T2 high cut**, named with the track as Mix's leve
 
 - Host (tests/host, synth_test / drumline-side): a cut's response (-3 dB within a few percent of its frequency, 12
   dB/oct beyond), a track with both cuts off renders bit-for-bit as before (the dsp hash), a kit's cuts on its pair.
-- Migration: store_v13.bin loads, its tracks' cuts off, everything else as before (as the v10 / v11 checks).
+- Migration: store_v14.bin loads, its tracks' cuts off, everything else as before (as the v10 / v11 checks).
 - A lock and recorded automation on a cut play back (a scenario).
 - On the FM-1 (`tools/perf_read.py`): a heavy project (`tools/demos/device_load.py`) with cuts on all eight
   tracks against none, the peaks at chord changes included; the guard (92 % a block) not reached.

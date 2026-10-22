@@ -49,7 +49,8 @@ static uint8_t migrated = 0xFF;                   /* the slot loaded from an old
 typedef char raw_fits[(RAW_LEN < 0x100000u) ? 1 : -1];   /* (lz.c packs up to 16 MB; the header's length is a u32) */
 typedef char settings_fit[(sizeof(settings_t) <= PLAT_STORE_MAX) ? 1 : -1];
 typedef char presets_fit[(sizeof user_presets + 4u <= PLAT_STORE_MAX) ? 1 : -1];
-#define PRESETS_FORMAT 6u                /* 6: the octave (TP_OCT); 5: the engine's second page (TP_X1..X4); 4: no tape send (TP_SENDT);
+#define PRESETS_FORMAT 7u                /* 7: the filter type off (FT_DYNAMIC) moved past bp12 (TP_FTYPE 4/5 swap, below);
+                                          * 6: the octave (TP_OCT); 5: the engine's second page (TP_X1..X4); 4: no tape send (TP_SENDT);
                                           * 3: the character stage; 2: engine 0 is weft */
 
 static uint32_t packed_len;             /* the last save's (or load's) packed stream, bytes */
@@ -582,6 +583,12 @@ int project_load(int slot)
         if (load_format < 13u)                        /* (before 13 the conductor's LFO slots held a knit's defaults:
                                                        * the shared LFO from its start) */
             glfo_defaults(proj.trk[AUX_BRAIN].par);
+        if (load_format < 14u)                        /* (before 14, off (FT_DYNAMIC) sat at 4 and bp12 at 5: swap) */
+            for (int t = 0; t < NTRK; t++) {
+                uint8_t ft = proj.trk[t].par[TP_FTYPE];
+                if (ft == 4u || ft == 5u)
+                    proj.trk[t].par[TP_FTYPE] = (uint8_t)(9u - ft);
+            }
         if (load_format == 10u) {                     /* 0.5-beta had no way to set a track's MIDI channel: they are
                                                        * all off there. As a new project's: notes out, MIDI OUT on */
             proj.send_notes = 1;
@@ -720,13 +727,19 @@ int project_exists(int slot)
 int presets_load(void)
 {
     int n = plat_store_load(OBJ_PRESETS, io_buf, sizeof io_buf), k;
-    uint32_t i;
+    uint32_t i, fmt = get32(io_buf);
     for (k = 0; k < NUSER_PRESETS; k++)
         user_presets[k].name[0] = 0;
-    if (n != (int)(sizeof user_presets + 4u) || get32(io_buf) != PRESETS_FORMAT)
+    if (n != (int)(sizeof user_presets + 4u) || (fmt != PRESETS_FORMAT && fmt != 6u))
         return -1;
     for (i = 0; i < sizeof user_presets; i++)
         ((uint8_t *)user_presets)[i] = io_buf[4u + i];
+    if (fmt < PRESETS_FORMAT)                    /* (before 7, off (FT_DYNAMIC) sat at 4 and bp12 at 5: swap) */
+        for (k = 0; k < NUSER_PRESETS; k++) {
+            uint8_t ft = user_presets[k].par[TP_FTYPE];
+            if (ft == 4u || ft == 5u)
+                user_presets[k].par[TP_FTYPE] = (uint8_t)(9u - ft);
+        }
     for (k = 0; k < NUSER_PRESETS; k++) {
         user_presets[k].name[NAME_LEN - 1] = 0;
         if (user_presets[k].engine >= NENGINE)
