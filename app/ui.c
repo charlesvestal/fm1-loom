@@ -597,7 +597,45 @@ static void play_press(void)
             ui.rec_latched = 1;
         }
     }
+    if (ui.page == P_SONG && ui.song_view && ui.auto_arm && !ui.rec_armed && !ui.rec_latched) {
+        seq.auto_arm = 1;                        /* the armed automation pass counts in too: the picked slot is
+                                                  * already the one PLAY starts, and the first knob move after the
+                                                  * count-in's last bar line records it from that slot's step 1 */
+        if (proj.rsv[0] % 3u) {
+            seq.count_in = (uint8_t)(proj.rsv[0] % 3u);
+            say("COUNT-IN", "then recording");
+        }
+    }
     engine_transport(3);                         /* from a stop, always from the top: every track's step 1 */
+}
+/* a slot's curve belongs to ITS OWN macro (sau.slot_map): emptying one (the black key's delete, a macro
+ * unmapped or re-mapped) drops its tag and empties its curve; the song's recorded flag follows the tags that
+ * are left. The tag goes before the bytes: the interrupt reads it first and stops applying that slot there */
+static void sau_wipe_slot(int sl)
+{
+    int st, any = 0;
+    if (sl < 0 || sl >= NSONG)
+        return;
+    pats.sau.slot_map[sl] = NAUTO;
+    for (st = 0; st < AUTO_STEPS; st++)
+        pats.sau.val[sl][st] = AUTO_NONE;
+    for (st = 0; st < NSONG; st++)
+        any += pats.sau.slot_map[st] < NAUTO;
+    pats.sau.rec = (uint8_t)(any ? 1u : 0u);
+}
+/* a macro that goes (unmapped, or re-mapped to another parameter): only the slots whose curve is its own
+ * empty - a recording made with another macro never touches them */
+static void sau_unmap(int k)
+{
+    if (pats.sau.active == (uint8_t)k) {            /* the pass writing it ends: nothing may sample a dead mapping */
+        seq.auto_rec = 0;
+        seq.auto_arm = 0;
+        pats.sau.active = NAUTO;
+        seq.auto_release = 1;                       /* the parameter it held returns to its knob and its locks */
+    }
+    for (int sl = 0; sl < NSONG; sl++)
+        if (pats.sau.slot_map[sl] == (uint8_t)k)
+            sau_wipe_slot(sl);
 }
 #define REC_TAP_MS 400u                          /* REC held longer (to see its knobs): not a tap */
 static void rec_tap(void)                        /* REC released, unused, while stopped */
@@ -606,6 +644,16 @@ static void rec_tap(void)                        /* REC released, unused, while 
         return;
     if (playing())
         return;
+    if (ui.page == P_SONG && ui.song_view) {     /* the automation page: one click arms the lane - PLAY and the knob
+                                                  * moves record, nothing held; another click lets the arm go */
+        ui.auto_arm = (uint8_t)!ui.auto_arm;
+        seq.auto_arm = ui.auto_arm;              /* the mirror: do_start keeps a set count-in through a PLAY that
+                                                  * starts an armed automation pass, the way REC held does */
+        if (!ui.auto_arm)
+            seq.auto_rec = 0;                    /* a pass that was running ends here */
+        say(ui.auto_arm ? "AUTOMATION ARMED" : "RECORD OFF", ui.auto_arm ? "press PLAY" : 0);
+        return;
+    }
     ui.rec_armed = (uint8_t)!ui.rec_armed;
     if (ui.rec_armed) {
         step_rec_start();
@@ -617,6 +665,16 @@ static void rec_down(void)                       /* REC pressed while playing: m
 {
     if (!playing())
         return;
+    if (ui.page == P_SONG && ui.song_view && !ui.rec_latched) {   /* the automation page: a click arms it, another
+                                                                   * ends the pass - no hold anywhere */
+        ui.btn_used |= 1u << B_REC;
+        ui.auto_arm = (uint8_t)!ui.auto_arm;
+        seq.auto_arm = ui.auto_arm;
+        seq.auto_rec = 0;                        /* the pass ends here; the curve it wrote keeps playing back */
+        mark_dirty();
+        say(ui.auto_arm ? "AUTOMATION ARMED" : "RECORD OFF", ui.auto_arm ? "move the knob" : 0);
+        return;
+    }
     if (ui.rec_latched) {                        /* latched: a press turns it off */
         rec_off();
         say("RECORD OFF", 0);
@@ -632,6 +690,11 @@ static void rec_up(void)
     if (ui.rec_held && !ui.rec_latched)
         rec_end();
     ui.rec_held = 0;
+    if (seq.auto_rec) {                        /* the song's curve recorded on this REC: releasing stops the lane,
+                                                * the song keeps playing and the curve it wrote takes over */
+        seq.auto_rec = 0;
+        mark_dirty();
+    }
 }
 /* REC held: the knobs are the record settings (turning one means the release does nothing else) */
 static void rec_knob(int k, int32_t e)
@@ -1250,6 +1313,7 @@ static void bar_key(int k, int b)
         mark_dirty();
 }
 static void ask_end(int yes);
+static void auto_map_take(int j, int trk, int p);
 static void act_clear_scene(void);
 static void act_save_slot(int slot);
 static void weave_set(int t, int from, int pat, int rule);   /* (below: the weave) */
@@ -1261,6 +1325,17 @@ static void key_down(int k)
     if (ui.ask) {
         if (ui.ask_yes == act_clear_scene && w >= 0)   /* CLEAR SCENE?: a scene's key (that one again too) is no */
             ask_end(0);
+        return;
+    }
+    if (ui.map_pick) {                             /* the slot screen: a white key places the mapping on that
+                                                    * macro, any key lets the screen go */
+        if (w >= 0 && w < NAUTO) {
+            char s[16];
+            auto_map_take(w, ui.map_trk, (int)ui.map_param);
+            num_s((uint32_t)w + 1u, s_cat(s, "macro "));
+            say("AUTOMATION", s);
+        }
+        ui.map_pick = 0;
         return;
     }
     if (ui.btn >> B_SAVE & 1u) {
@@ -1284,6 +1359,36 @@ static void key_down(int k)
         uint8_t v = proj.trk[AUX_BRAIN].par[q];
         set_tp(AUX_BRAIN, q, (v & 15) ^ bit);
         say(proj.trk[AUX_BRAIN].par[q] & bit ? "MOVES" : "LEAVES", TRACK_NAME[b]);
+        return;
+    }
+    if (p == P_SONG && ui.song_view && b == 10) {    /* the automation page, the last black key (lit): that slot's
+                                                      * recording goes - the picked one, or the playing one when
+                                                      * the song runs; its curve empties, the parameter back to its
+                                                      * knob every sixteenth of the slot */
+        const song_t *sg = &pats.song;
+        int sl = seq.song_on && playing() && seq.song_pos < sg->len ? (int)seq.song_pos
+                                                                    : (ui.name_slot < sg->len ? (int)ui.name_slot : -1);
+        int had = 0, i;
+        char s[16];
+        if (sl < 0 || pats.sau.slot_map[sl] >= NAUTO) {   /* the slot plays its knobs and locks: no curve to clear */
+            say_no("NO AUTOMATION", "nothing to clear");
+            return;
+        }
+        undo_keep();
+        for (i = 0; i < AUTO_STEPS; i++)
+            had += pats.sau.val[sl][i] != AUTO_NONE;
+        if (sl == (int)seq.song_pos && playing())
+            seq.auto_release = 1;                  /* the curve just applied by the playing slot lets go now */
+        if (pats.sau.active == pats.sau.slot_map[sl] && seq.auto_rec)
+            seq.auto_rec = 0;                      /* a pass writing this slot's macro stops with the curve */
+        sau_wipe_slot(sl);
+        num_s((uint32_t)sl + 1u, s_cat(s, "slot "));
+        if (!had) {
+            say_no("NO AUTOMATION", s);
+            return;
+        }
+        mark_dirty();
+        say("CLEARED", s);
         return;
     }
     if (p == P_ARRANGE || p == P_SONG) {
@@ -1613,6 +1718,11 @@ static void button_down(int b)
 }
 static void button_up(int b)
 {
+    if (ui.map_pick && b != B_EDIT) {              /* any button but EDIT lets the slot screen go (HOME only that) */
+        ui.map_pick = 0;
+        if (b == B_HOME)
+            return;
+    }
     if (lst.open && b == PAGE_BTN[page_group(ui.page)].btn && b != B_HOME) {
         ui.ask = 0;
         lst.open = 0;
@@ -1692,7 +1802,7 @@ static void holds(void)
 {
     uint32_t now = plat_ms();
     for (int b = 0; b < NB; b++)
-        if (ui.btn == 1u << b && !ui.keys && b != B_HOME && !(ui.btn_used >> b & 1u) &&
+        if (ui.btn == 1u << b && !ui.keys && b != B_HOME && !(ui.btn_used >> b & 1u) && !ui.map_pick &&
             now - ui.btn_t[b] >= CARD_MS) {
             ui.card = (uint8_t)(b + 1);
             ui.btn_used |= 1u << b;
@@ -1761,8 +1871,12 @@ static void song_knob(int k, int32_t e)
     undo_arr();
     if (k == 1)
         sg->slot[cur].scene = (uint8_t)clampi(sg->slot[cur].scene + e, 0, NSCENE - 1);
-    else
+    else {
         sg->slot[cur].rep = (uint8_t)clampi(sg->slot[cur].rep + e, 1, SONG_BARS);
+        if (seq.song_on && playing() && cur == seq.song_pos)   /* the playing slot: its automation window follows
+                                                                * its bars right away */
+            seq.song_win = (uint8_t)(sg->slot[cur].rep * 16);
+    }
     mark_dirty();
 }
 static int cued_pat(int trk)                     /* the pattern cued to come next, or the one playing */
@@ -1909,7 +2023,23 @@ static void aux_knob(int trk, int k, int32_t e)
  * held (the lock editor's knob) */
 static void knob_clear(int k)
 {
-    int trk = sel_trk(), pt, p, ln, n = 0;
+    int trk = page_trk(ui.page), pt, p, ln, n = 0;   /* the page's own track, as the mapping gesture takes it: the FX
+                                                     * pages' effect, Sends and Character the instrument's */
+    if (ui.page == P_SONG && ui.song_view && k < NAUTO) {   /* the macro's mapping goes; the slots whose curve is its
+                                                             * own go with it - slots recorded with another macro do
+                                                             * not; used first, so the interrupt stops applying */
+        auto_map_t *m = &pats.sau.map[k];
+        if (!m->used) {
+            say_no("NO AUTOMATION", "unmapped");
+            return;
+        }
+        m->used = 0;
+        sau_unmap(k);
+        mark_dirty();
+        say("CLEARED", m->trk < NALLTRK && m->param < NTP_ALL
+                       ? tp_info_par(m->param, proj.trk[m->trk].par)->name : "AUTOMATION");
+        return;
+    }
     if (!is_seqt(trk))
         return;
     pt = cur_pat(trk);
@@ -1936,6 +2066,21 @@ static void knob_clear(int k)
     mark_dirty();
     say(n ? "CLEARED" : "NOTHING TO CLEAR", tp_info_par(p, proj.trk[trk].par)->name);
 }
+/* a macro takes a parameter (the slot screen's white key): re-mapping the one that owns slots' curves leaves
+ * those curves behind - they recorded another parameter's motion */
+static void auto_map_take(int j, int trk, int p)
+{
+    auto_map_t *m = &pats.sau.map[j];
+    if (m->used && m->trk == (uint8_t)trk && m->param == (uint16_t)p)
+        return;                                      /* already its own: nothing to move, nothing to wipe */
+    m->used = 0;                           /* the interrupt never reads a mapping mid-move: slots tagged with j
+                                            * stop applying before anything else changes */
+    sau_unmap(j);                          /* and only the slots tagged with j lose their curve */
+    m->param = (uint16_t)p;
+    m->trk = (uint8_t)trk;
+    m->used = 1;                           /* the map is whole: used set last */
+    mark_dirty();
+}
 static void knob_do(int k, int32_t e)
 {
     int trk = sel_trk(), p;
@@ -1947,6 +2092,22 @@ static void knob_do(int k, int32_t e)
     }
     if (rec_settings()) {
         rec_knob(k, e);
+        return;
+    }
+    if ((ui.btn >> B_EDIT & 1u) && k < NAUTO && !lst.open && !ui.map_pick && !ui.ask) {   /* EDIT held: this knob's
+                                                               * parameter opens the slot screen - white keys 1 to 4
+                                                               * place it on one of the song's four macros (ALGO on
+                                                               * the Song page shows them; hold REC + that knob
+                                                               * records one). The page's own track has the knobs:
+                                                               * the FX pages theirs, Sends and Character the
+                                                               * instrument's, everywhere else the selected one. */
+        int t = page_trk(ui.page);
+        p = tp_page_param(ui.page, k, t);
+        if (p >= 0) {
+            ui.map_pick = 1;                       /* the mapping waits on the screen's white key */
+            ui.map_trk = (uint8_t)t;
+            ui.map_param = (uint16_t)p;
+        }
         return;
     }
     if (ui.lockpg) {
@@ -1976,7 +2137,34 @@ static void knob_do(int k, int32_t e)
         }
         return;
     case P_ARRANGE: arrange_knob(k, e); return;
-    case P_SONG: song_knob(k, e); return;
+    case P_SONG:
+        if (ui.song_view) {                        /* the automation page: its knob is the mapped parameter, live (the
+                                                    * recording sixteenths sample the move into the playing slot's
+                                                    * curve, and on into the next slots'; a turn never stamps
+                                                    * a curve itself) */
+            auto_map_t *m = k < NAUTO ? &pats.sau.map[k] : 0;
+            if (m && m->used && m->trk < NALLTRK && m->param < NTP_ALL) {
+                if ((ui.auto_arm || (ui.btn >> B_REC & 1u)) && playing() && seq.song_on &&   /* armed (REC clicked) -
+                                                                             * or REC held: this knob records its macro
+                                                                             * - a different one starts a fresh pass,
+                                                                             * the same one overdubs; REC again stops.
+                                                                             * The sequencer retags only the slots the
+                                                                             * pass actually writes: every other slot
+                                                                             * keeps the recording it holds */
+                    !(seq.auto_rec && pats.sau.active == (uint8_t)k)) {
+                    seq.auto_release = 1;                            /* what another macro's curve held returns to
+                                                                      * its knob and its pattern locks */
+                    pats.sau.active = (uint8_t)k;                    /* the lane this pass writes */
+                    seq.auto_rec = 1;
+                    mark_dirty();
+                    say("RECORDING", tp_info_par(m->param, proj.trk[m->trk].par)->name);
+                }
+                set_tp(m->trk, m->param, proj.trk[m->trk].par[m->param] + (int)e);
+            }
+            return;
+        }
+        song_knob(k, e);
+        return;
     case P_STEPS: steps_knob(k, e); return;
     case P_BAR: bar_knob(k, e); return;
     case P_MASTER: case P_MASTER2: case P_MASTER3: master_knob(k, e); return;
@@ -3069,6 +3257,15 @@ static void input(void)
             ui.pick_engine = (uint8_t)clampi(proj.trk[sel_trk()].par[TP_ENGINE] + (e > 0 ? 1 : -1), 0, NENGINE - 1);
             if (ui.pick_engine != proj.trk[sel_trk()].par[TP_ENGINE])
                 action_run(A_ENGINE);
+        } else if (ui.page == P_SONG) {            /* the Song page's two pages: the slots (SLOT, SCENE, BARS, AT END
+                                                    * on its knobs), then the automation (ALGO flips back and forth;
+                                                    * a click still picks the track: the mapping's track) */
+            ui.song_view = (uint8_t)(ui.song_view ? 0u : 1u);
+            if (!ui.song_view) {                 /* back to the slots page: the arm goes, a pass running with it */
+                ui.auto_arm = 0;
+                seq.auto_arm = 0;
+                seq.auto_rec = 0;
+            }
         } else
             track_step((int)e);
     }
@@ -3101,7 +3298,26 @@ static void leds(void)
         if (ui.page >= PAGE_BTN[i].first && ui.page < PAGE_BTN[i].first + PAGE_BTN[i].n)
             b |= 1u << PAGE_BTN[i].btn;
     if (proj.lights) {
-        if (steps_page(ui.page) && is_seqt(trk)) {
+        if (ui.map_pick) {                         /* the slot screen: white keys 1 to 4 - a macro that already
+                                                    * holds a mapping lights bright, a free one stays dim */
+            for (i = 0; i < NAUTO; i++) {
+                uint32_t bit = 1u << WHITE_K[i];
+                if (pats.sau.map[i].used)
+                    k |= bit;
+                else
+                    dim |= bit;
+            }
+            k |= ui.keys;
+        } else if (ui.page == P_SONG && ui.song_view) {   /* the automation page: its last black key deletes that
+                                                          * slot's recording - lit so the key can be found; REC glows
+                                                          * while armed, bright while the lane records */
+            k |= 1u << BLACK_K[10];
+            if (seq.auto_rec)
+                b |= 1u << B_REC;
+            else if (ui.auto_arm)
+                dim |= 1u << B_REC;
+            k |= ui.keys;
+        } else if (steps_page(ui.page) && is_seqt(trk)) {
             const tpat_t *tp = tpat(trk);
             int ph = eng_step[trk];
             for (i = 0; i < 16; i++) {

@@ -20,7 +20,7 @@ enum { AUX_BRAIN = NTRK, AUX_PUNCH, AUX_FX1, AUX_FX2, AUX_WEAVE, NALLTRK };   /*
 #define NKITM 4                       /* kit tracks a scene keeps sound mutes for (the first four kits) */
 #define NSCENE 32                     /* two pages of the 16 white keys (OCT on Arrange and Song) */
 #define NSONG 64                      /* scene slots in the song */
-#define SONG_BARS 64                  /* the most bars a song slot plays */
+#define SONG_BARS 4                   /* the most bars a song slot plays (and its automation window: bars x 16) */
 #define NLANE 96                      /* parameter lock lanes (the whole project) */
 #define NDRUM 11                      /* drumline keys: the black keys (a model instance each) */
 #define PPS 24                        /* ticks a step (a sixteenth at scale 1): nudge and lengths count in these */
@@ -182,6 +182,37 @@ typedef struct {
     song_slot_t slot[NSONG];
 } song_t;
 
+/* song automation: four global (track, parameter) macros (EDIT + a knob on the engine's page), ONE of which
+ * is the song's recorded lane at a time. Its curve is stored PER SLOT: every slot records its own window of
+ * rep bars x 16 sixteenths (4 bars = 64 steps max, the slot's bars window the lane), so two slots with the
+ * same scene can hold different automation. And each slot's curve is TAGGED with the macro it was recorded
+ * with (slot_map): recordings never cross - a pass in slot 3 with another macro cannot clear slot 1 and 2's
+ * curve, it gives up only the curve of the slot it is writing into (retagged at its first sample). The
+ * sequencer samples the live value every sixteenth while the lane records, and applies each playing slot's
+ * curve through ITS OWN macro, every sixteenth, through the lock sink; a slot without a curve, or a song
+ * that moves from one macro's slot into another's, gives the held parameter back to its knob and its
+ * pattern's locks. Past the slot's bars its last recorded step holds. A step never sampled is AUTO_NONE:
+ * nothing applies, the knob or the pattern's own lock keeps the parameter. Re-arming the same lane in a slot
+ * overwrites only what it touches again; re-arming another macro in a slot wipes that slot's old curve only.
+ * The gesture: on the Song page's automation page, one REC click arms (no hold) - PLAY (the count-in counts
+ * first when it is set), and the first move of a mapped knob records it from the slot playing; REC again
+ * ends the pass. */
+#define NAUTO 4
+#define AUTO_STEPS 64                 /* one slot's window: 4 bars x 16 sixteenths (its bars may be fewer) */
+#define AUTO_NONE 0xFFu               /* a step with no recorded value */
+typedef struct {
+    uint8_t trk;                      /* the track it was mapped on (sel_trk()) */
+    uint8_t used;                     /* 1 = the mapping is set */
+    uint16_t param;                   /* the parameter (synth.h TP_*) */
+} auto_map_t;                         /* 4 bytes */
+typedef struct {
+    auto_map_t map[NAUTO];            /* the four mappings */
+    uint8_t val[NSONG][AUTO_STEPS];   /* each slot's curve: its window is the slot's bars x 16 */
+    uint8_t active;                   /* the macro a recording pass writes: the lane the automation page shows */
+    uint8_t rec;                      /* 1 = some slot holds a curve: the song owns its parameters */
+    uint8_t slot_map[NSONG];          /* each slot's own curve's macro; NAUTO = that slot is empty */
+} song_auto_t;                        /* 4178 bytes */
+
 /* the whole pattern store: the project's (in the pool) */
 typedef struct {
     tpat_t pat[NSEQT][NPATT];
@@ -189,6 +220,7 @@ typedef struct {
     lane_t lane[NLANE];
     scene_t scene[NSCENE];
     song_t song;
+    song_auto_t sau;                  /* at the tail: a format-13 stream maps the bytes before it identically */
 } patterns_t;
 
 void pattern_init(tpat_t *p);         /* empty, 16 steps, scale 1, no groove, note length half a step */
@@ -203,6 +235,8 @@ void step_clear_locks(lane_t *L, int trk, int pat, int step);
 int step_tune(const lane_t *L, int trk, int pat, int step);       /* a drum step's note: semitones, 0 = none */
 int step_vel(const lane_t *L, int trk, int pat, int step, int sound);   /* a kit step's sound's own velocity, 0 = none */
 void pattern_clear_locks(lane_t *L, int trk, int pat);   /* (not the kit tune lane: that is notes) */
+/* song automation */
+void song_auto_init(song_auto_t *A);                     /* no mappings, no passes: val all AUTO_NONE */
 void cond_ab(int k, int *a, int *b);  /* COND_AB + k -> A:B */
 /* a weave: pattern a (the track's) crossed with b (WITH). weave_step: the step the weave plays at pos, the track's
  * steps since it started (each pattern loops by its own length): WV_BARS the bars in turn (a's, b's, ...), WV_STEPS

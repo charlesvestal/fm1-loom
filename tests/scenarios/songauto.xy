@@ -1,0 +1,142 @@
+# song automation: EDIT held + a knob opens the slot screen - the parameter waits there until a white key
+# places it on one of the song's four macros (a taken slot lights bright, a free one dim; the FX pages map
+# their own effect's knobs); ALGO turns on the Song page cycle the slots' knobs
+# and the four lane views; hold REC + turn the mapped knob while the song plays records it sixteenth by
+# sixteenth, releasing REC stops the lane; a second pass overwrites the positions it touches; the song loop
+# restarts the timeline; the save carries the lanes; SEL held + a knob clears one
+# (a turn's third word is the detent's gap in ms: their comments never trail on the same lines)
+wait 300
+# a sixteenth is 125 ms at this tempo: the bars commands below count the steps
+bpm 120
+turn ALGO 1
+expect trk 2
+param 2 e1 20
+tap EDIT
+expect page Engine
+# K1's parameter (e1) waits on the slot screen: white key 1 puts it on macro 1 - the screen lights a free
+# slot dim, a taken one bright (leds: white ".+..." the first key dim, nothing placed yet)
+press EDIT
+turn K1 1
+wait 60
+leds
+release EDIT
+expect par2.e1 20
+wait 60
+tapkey w0
+wait 60
+# the mapping took the parameter, it did not touch its value
+expect automap 1 2.e1 1
+# the FX I page: EDIT + its K1 maps the effect's own knob (track 9) to macro 2, the second white key
+tap FX
+turn SELECT 2
+expect page FX_I
+press EDIT
+turn K1 1
+wait 60
+leds
+release EDIT
+tapkey w1
+wait 60
+expect automap 2 9.e1 1
+# a five-bar song loop: the automation's window outlives it, so the timeline wraps
+song 1:1 1:1 2:1 3:1 1:1
+songloop 1
+tap HOME
+expect page Arrange
+turn SELECT 1
+expect page Song
+wait 60
+# lane 1's curve under the slots
+turn ALGO 1
+wait 60
+# the first pass: hold REC + the knob arms the lane, spinning it while held writes the curve
+tap PLAY
+expect playing 1
+press REC
+# the lane rests while it is being recorded: the knob has it
+expect autoliv 1 -1
+spin K1 6
+bars 0.5
+spin K1 6
+bars 0.5
+release REC
+wait 60
+tap PLAY
+expect playing 0
+wait 60
+# every sixteenth of the pass is on the curve
+expect auto 1 12
+# the first spin's plateau, and the second's
+expect autoval 1 1 3 26
+expect autoval 1 1 11 32
+# the stop cut the pass short: nothing past the recording
+expect autoval 1 1 60 -1
+# the stop gave the parameter back to the knob
+expect autoliv 1 -1
+# the lane's knob moved the parameter itself, live, and stayed there
+expect par2.e1 32
+# a second pass from the top: the positions it touches overwrite, the ones it does not keep the old curve
+tap PLAY
+expect playing 1
+press REC
+spin K1 -12
+bars 0.75
+release REC
+wait 60
+tap PLAY
+expect playing 0
+wait 60
+# sixteenth 3 now holds this pass's value, not the old 26
+expect autoval 1 1 3 20
+# and sixteenth 14 keeps the first pass's 32: this pass never touched it
+expect autoval 1 1 14 32
+# the same positions: nothing new past either pass's end
+expect auto 1 12
+# and again the stop left the knob holding it
+expect autoliv 1 -1
+# plain playback: the curve drives the parameter, and a loop wrap restarts the timeline from sixteenth 1
+tap PLAY
+expect playing 1
+bars 0.25
+# the lane's second sixteenths, applied
+expect autoliv 1 20
+bars 5.5
+expect autopos <32
+expect playing 1
+tap PLAY
+expect playing 0
+wait 60
+# the stop gave it back to the knob
+expect autoliv 1 -1
+expect par2.e1 20
+# and the save carries it all
+projsave 1
+reboot
+wait 400
+expect automap 1 2.e1 1
+expect automap 2 9.e1 1
+expect auto 1 12
+expect autoval 1 1 3 20
+expect autoval 1 1 14 32
+# SEL held + a slot's knob: its mapping and its curve go, the parameter back to its knob for good
+# Arrange, then the Song page again
+tap HOME
+turn SELECT 1
+expect page Song
+wait 60
+# lane 1's view: its knob is the one SEL clears
+turn ALGO 1
+wait 60
+press SEL
+turn K1 1
+release SEL
+wait 60
+expect auto 1 0
+expect automap 1 2.e1 0
+expect par2.e1 20
+# macro 2's FX mapping goes the same way - unmapped, the effect's knob is never touched
+press SEL
+turn K2 1
+release SEL
+wait 60
+expect automap 2 9.e1 0

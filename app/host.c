@@ -22,7 +22,8 @@
  *                                upload would leave it (empty at boot)
  *   upload FILE                  an upload's SysEx frames (tools/loom_samples.py syx), each through samples.c as from
  *                                USB; a frame not answered, or answered with an error, fails the run
- *   expect WHAT VALUE            besides fm1-base's: playing, scene, mute (the tracks' bits), songpos, used (the scenes' bits), voices, drumhits (the kit's hits),
+ *   expect WHAT VALUE            besides fm1-base's: playing, scene, mute (the tracks' bits), songpos, autopos (the
+ *                                song automation's sixteenth, from 1), used (the scenes' bits), voices, drumhits (the kit's hits),
  *                                guard, cores, dirty, ask, mem (the last save's
  *                                share of a project slot, %), model_avg /
  *                                model_peak (the last meter's, %), tempo, trk, user / userbytes / rateN (the user bank's
@@ -30,7 +31,11 @@
  *                                PX_* bits), parT.P (P a number or a name: par2.x1, par1.d3.decay), mst.NAME (a
  *                                master value, the mst command's names), pump (the
  *                                pump's duck now, tenths of a dB); and with more words: step T VALUE, page NAME, comp T S VALUE (prints
- *                                both components; checks the first), note T PAT S VALUE
+ *                                both components; checks the first), note T PAT S VALUE, lane T PAT PARAM N (the steps a lock
+ *                                holds), auto K N (song automation: the sixteenths lane K's curve holds, K from 1),
+ *                                autoval K N VALUE (that curve's sixteenth N; VALUE -1 a step it does not hold),
+ *                                autoliv K VALUE (what lane K holds on its parameter now; -1 the knob has it),
+ *                                automap K T.P VALUE (lane K mapped to track T's parameter P: 1 it is, 0 it is not)
  * The demos' stems and taps (tools/demos/render.sh --stems), from the environment:
  *   LOOM_SOLO=1,3,fx1,fx2        only these tracks (dry and their sends) and FX returns sound
  *   LOOM_MST=raw|eq|comp         the master's output taken after that stage (raw: the groups summed, the level;
@@ -201,6 +206,9 @@ int app_expect(const char *what, int *got)
         *got = seq.kmute[(what[5] ? atoi(what + 5) - 1 : 0) & (NKITM - 1)];
     else if (!strcmp(what, "songpos"))              /* the song slot playing, from 1 */
         *got = seq.song_pos + 1;
+    else if (!strcmp(what, "autopos"))              /* the song automation's sixteenth now sampled or applied, from 1
+                                                     * (0: no song running) */
+        *got = seq.song_on && seq.playing && seq.song_six < AUTO_STEPS ? (int)seq.song_six + 1 : 0;
     else if (!strcmp(what, "used"))                 /* the scenes that exist: bit s-1 for scene s */
         for (int i = *got = 0; i < NSCENE; i++)
             *got |= pats.scene[i].used << i;
@@ -367,6 +375,74 @@ static int expect_more(const char *what, const char *a, const char *b, const cha
             host_fails++;
         } else
             printf("  ok lane %s %s %s: %d steps\n", t, pt, pn, got);
+    } else if (!strcmp(what, "auto")) {            /* expect auto K N: the sixteenths macro K (from 1) holds across
+                                                     * the song's slots' curves (N 0: none - another macro owns them
+                                                     * or nothing is recorded, N > 0: at least N) */
+        char kn[16] = {0}, nv[16] = {0};
+        int k, got = 0;
+        sscanf(plat_host_line, "%*s %*s %15s %15s", kn, nv);
+        k = atoi(kn) - 1;
+        if (k < 0 || k >= NAUTO) {
+            printf("FAIL expect auto: no macro %s\n", kn);
+            host_fails++;
+            return 1;
+        }
+        if (pats.sau.active == (uint8_t)k)
+            for (int sl = 0; sl < NSONG; sl++)
+                for (int i = 0; i < AUTO_STEPS; i++)
+                    got += pats.sau.val[sl][i] != AUTO_NONE;
+        if ((atoi(nv) == 0) != (got == 0) || (atoi(nv) > 0 && got < atoi(nv))) {
+            printf("FAIL expect auto %s >= %s, got %d\n", kn, nv, got);
+            host_fails++;
+        } else
+            printf("  ok auto %s: %d steps\n", kn, got);
+    } else if (!strcmp(what, "autoval")) {         /* expect autoval K S N VALUE: slot S's curve at sixteenth N (both
+                                                     * from 1), read as macro K's: VALUE -1 a step it does not hold,
+                                                     * also when macro K is not the recorded one */
+        char kn[16] = {0}, sn[16] = {0}, nn[16] = {0}, vv[16] = {0};
+        sscanf(plat_host_line, "%*s %*s %15s %15s %15s %15s", kn, sn, nn, vv);
+        int k = atoi(kn) - 1, sl = atoi(sn) - 1, n = atoi(nn) - 1, v = atoi(vv), got;
+        if (k < 0 || k >= NAUTO || sl < 0 || sl >= NSONG || n < 0 || n >= AUTO_STEPS) {
+            printf("FAIL expect autoval: no macro/slot/sixteenth %s %s %s\n", kn, sn, nn);
+            host_fails++;
+            return 1;
+        }
+        got = pats.sau.active == (uint8_t)k ? pats.sau.val[sl][n] : AUTO_NONE;
+        if (v < 0)
+            v = AUTO_NONE;
+        if (got != v) {
+            printf("FAIL expect autoval %s %s %s == %d, got %d\n", kn, sn, nn, v, got);
+            host_fails++;
+        } else
+            printf("  ok autoval %s %s %s == %d\n", kn, sn, nn, got);
+    } else if (!strcmp(what, "autoliv")) {         /* expect autoliv K VALUE: the value macro K holds on its parameter
+                                                     * right now, engine_live; VALUE -1: nothing does, the knob has it */
+        char kn[16] = {0}, vv[16] = {0};
+        int k = 0, got = -1;
+        const auto_map_t *m;
+        sscanf(plat_host_line, "%*s %*s %15s %15s", kn, vv);
+        k = atoi(kn) - 1;
+        m = k >= 0 && k < NAUTO ? &pats.sau.map[k] : 0;
+        if (m && m->used && m->trk < NALLTRK && m->param < NTP_ALL)
+            got = engine_live(m->trk, m->param);
+        if (got != atoi(vv)) {
+            printf("FAIL expect autoliv %s == %s, got %d\n", kn, vv, got);
+            host_fails++;
+        } else
+            printf("  ok autoliv %s == %d\n", kn, got);
+    } else if (!strcmp(what, "automap")) {         /* expect automap K T.P VALUE: lane K is mapped to track T's
+                                                     * parameter P (VALUE 1 it is, 0 it is not: unmapped or another) */
+        char kn[16] = {0}, tpv[32] = {0}, vv[16] = {0};
+        sscanf(plat_host_line, "%*s %*s %15s %31s %15s", kn, tpv, vv);
+        int k = atoi(kn) - 1, t = atoi(tpv) - 1;
+        int p = strchr(tpv, '.') ? param_of(strchr(tpv, '.') + 1) : -1;
+        const auto_map_t *m = k >= 0 && k < NAUTO ? &pats.sau.map[k] : 0;
+        int got = m && m->used && m->trk == t && m->param == p ? 1 : 0;
+        if (got != atoi(vv)) {
+            printf("FAIL expect automap %s %s == %s, got %d\n", kn, tpv, vv, got);
+            host_fails++;
+        } else
+            printf("  ok automap %s %s\n", kn, tpv);
     } else if (!strcmp(what, "weave")) {           /* expect weave PAT S MASK LEN: the WEAVE track's step */
         char pt[16] = {0}, st[16] = {0}, m[16] = {0}, l[16] = {0};
         const wv_step_t *w;
@@ -1194,9 +1270,14 @@ int app_host_cmd(const char *cmd, const char *a, const char *b, const char *c, c
     } else if (!strcmp(cmd, "brainkey")) {          /* brainkey NOTE on|off */
         engine_brain_key(atoi(a), !strcmp(b, "on"));
         run_ms(1);
-    } else if (!strcmp(cmd, "bpm"))
+    } else if (!strcmp(cmd, "bpm")) {
         set_tempo_x10((int)(atof(a) * 10.0 + 0.5));     /* the project's tempo (saved with it), as SELECT turns it */
-    else if (!strcmp(cmd, "projnew"))              /* as Setup's NEW PROJECT */
+        run_ms(6);                                      /* a whole render block (256 frames, 5.8 ms): the tempo is a
+                                                         * command queue put (engine_tempo) that drain() applies in
+                                                         * engine_render, so that seq.bpm carries it into a projsave
+                                                         * right after (project_save saves the sequencer's live tempo);
+                                                         * the device's own loop always renders in between */
+    } else if (!strcmp(cmd, "projnew"))              /* as Setup's NEW PROJECT */
         do_new_proj();
     else if (!strcmp(cmd, "ccreset"))              /* the CCs-out count from 0 (expect ccouts) */
         cc_out_n = 0;

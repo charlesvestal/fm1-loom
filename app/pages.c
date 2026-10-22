@@ -206,6 +206,13 @@ static struct {
     uint8_t playing;
     uint8_t scene_seen;
     uint8_t scene_pg;                                /* Arrange, Song: the white keys are scenes 1-16 (0) or 17-32 (1) */
+    uint8_t song_view;                               /* Song page, ALGO flips the two: 0 the slots (SLOT, SCENE, BARS,
+                                                      * AT END), 1 the automation page (the recorded lane, its curves) */
+    uint8_t auto_arm;                                /* Song automation page: REC clicked - the lane records while the
+                                                      * song plays, no hold (click again: off) */
+    uint8_t map_pick;                                /* EDIT + a knob: the slot screen is up, which macro takes the parameter */
+    uint8_t map_trk;
+    uint16_t map_param;                              /* the mapping it holds pending (the screen's white keys place it) */
     uint32_t sig[6];
 } ui;
 
@@ -778,7 +785,8 @@ static void draw_header(void)
     uint32_t h = hash_u(2166136261u, ui.page | (uint32_t)msg << 8 | (uint32_t)ui.dirty << 9 | (uint32_t)rec << 11 |
                                          (uint32_t)ext << 12 | (uint32_t)ask << 14 | (uint32_t)proj.tempo_x10 << 16);
     h = hash_u(h, (uint32_t)cnt | (uint32_t)playing() << 8 | (uint32_t)is_drum(sel_trk()) << 9 |
-                      (uint32_t)page_trk(ui.page) << 10 | (uint32_t)trk_ink(page_trk(ui.page)) << 16);
+                      (uint32_t)page_trk(ui.page) << 10 | (uint32_t)trk_ink(page_trk(ui.page)) << 16 |
+                      (uint32_t)ui.song_view << 24);
     h = hash_u(h, (uint32_t)cur_scene());
     if (msg)
         h = hash_u(h, ui.msg_until ^ (uint32_t)ui.msg_no << 31);
@@ -803,19 +811,27 @@ static void draw_header(void)
     } else if (cnt && playing()) {
         int32_t x = cv_text(8, 4, &FONT_B, "Count-in", K_TEXT);
         num_s((uint32_t)cnt, t);
-        cv_text(x + 8, 4, &FONT_B, t, K_REC);
+        x = cv_text(x + 8, 4, &FONT_B, t, K_REC);
+        if (ui.page == P_SONG && ui.song_view)     /* the automation marker stays put through the count-in */
+            cv_text(x + 8, 4, &FONT_S, "Auto", K_NOW);
         cv_round(222, 8, 9, 9, 4, K_REC);
     } else if (msg) {
         int no = ui.msg_no;
-        int32_t x;
+        int32_t x, ax = 232;
+        int mark = ui.page == P_SONG && ui.song_view;   /* the marker keeps its right-edge place above the message:
+                                                         * the song page has no meter well to crowd against */
+        if (mark)
+            ax -= text_w(&FONT_S, "Auto") + 6;
         alert_box(no ? AL_NO : ui.msg_kind);
         x = cv_text(AL_X, 4, &FONT_B, ui.msg[0], K_TEXT);
         {   /* the second part smaller when it does not fit (cut only past the smallest) */
-            int32_t room = 232 - (x + 8);
+            int32_t room = ax - (x + 8);
             const felucca_font_t *f = text_w(&FONT_B, ui.msg[1]) <= room ? &FONT_B
                                     : text_w(&FONT_S, ui.msg[1]) <= room ? &FONT_S : &FONT_XS;
             text_fit(x + 8, f == &FONT_XS ? 6 : 4, f, ui.msg[1], room, K_DIM);
         }
+        if (mark)
+            cv_text(ax, 4, &FONT_S, "Auto", K_NOW);
     } else {
         int32_t r = 232, x = 8;
         const char *bn = BTN_LABEL[PAGE_BTN[page_group(ui.page)].btn];
@@ -838,6 +854,8 @@ static void draw_header(void)
         cv_text(x + 3, cap_y(4, 17, &FONT_XS) - 1, &FONT_XS, bn, K_DIM);
         x += w + 6;
         x = cv_text(x, 4, &FONT_B, pn, K_TEXT);   /* (pn: page_name_of) */
+        if (ui.page == P_SONG && ui.song_view)   /* the automation page: marked next to the Song name */
+            x = cv_text(x + 8, 4, &FONT_S, "Auto", K_NOW);
         if (ext)
             s_cat(t, "ext");
         else
@@ -1171,6 +1189,44 @@ static void page_knobs(knob_t *k)
     case P_SONG: {
         const song_t *sg = &pats.song;
         int cur = ui.name_slot < sg->len ? ui.name_slot : sg->len;
+        if (ui.song_view) {                      /* the automation macros: each knob's mapped parameter, the value as it
+                                                 * sounds now (a turn edits it; REC held + the knob records the motion) */
+            for (int i = 0; i < NAUTO; i++) {
+                const auto_map_t *m = &pats.sau.map[i];
+                const tp_info_t *in;
+                int v;
+                if (!m->used || m->trk >= NALLTRK || m->param >= NTP_ALL) {
+                    kv(&k[i], "-", "-", 0, 0);
+                    continue;
+                }
+                in = tp_info_par(m->param, proj.trk[m->trk].par);
+                if (!in->name || !in->name[0] || s_eq(in->name, "-")) {
+                    kv(&k[i], "-", "-", 0, 0);
+                    continue;
+                }
+                v = engine_live(m->trk, m->param);
+                if (v < 0)
+                    v = proj.trk[m->trk].par[m->param];
+                ktp_val(&k[i], m->trk, m->param, v);
+            }
+            {   /* the recorded dot: the slot the song is in (stopped: the picked one) holds a curve recorded with
+                 * THIS macro - a red dot on its bar; deleting that slot's recording deletes the dot with it, and
+                 * a pass armed with another macro leaves the dot of what the slot already holds alone */
+                const song_t *sg = &pats.song;
+                int sl = seq.song_on && playing() && seq.song_pos < sg->len ? (int)seq.song_pos
+                            : (ui.name_slot < sg->len ? (int)ui.name_slot : -1);
+                for (int i = 0; i < NAUTO; i++) {
+                    if (sl < 0 || pats.sau.slot_map[sl] != (uint8_t)i || k[i].max <= 0)
+                        continue;
+                    for (int j = 0; j < AUTO_STEPS; j++)
+                        if (pats.sau.val[sl][j] != AUTO_NONE) {
+                            k[i].live = k[i].num < 0 ? 0 : k[i].num > k[i].max ? k[i].max : k[i].num;
+                            break;
+                        }
+                }
+            }
+            break;
+        }
         kn(&k[0], "SLOT", cur + 1, NSONG);
         if (cur < sg->len) {
             kn(&k[1], "SCENE", sg->slot[cur].scene + 1, NSCENE);
@@ -1429,7 +1485,9 @@ static void page_tag(char *t)
             num_s((uint32_t)seq.cue + 1u, s_cat(e, ">next S"));
         break;
     case P_SONG:
-        num_s((uint32_t)pats.song.len, s_cat(t, "song>slots "));
+        if (!ui.song_view)                       /* the slots page's tag; the automation page shows nothing above
+                                                  * the knobs */
+            num_s((uint32_t)pats.song.len, s_cat(t, "song>slots "));
         break;
     case P_STEPS: case P_BAR:
         track_crumb(t);
@@ -1522,6 +1580,10 @@ static void page_footer(char *t)
         s_cat(t, playing() ? "KNOBS record settings|KEYS record" : "KNOBS record settings|PLAY record");
         return;
     }
+    if (ui.map_pick) {
+        s_cat(t, "WHITE 1-4 the macro|any other key: back");
+        return;
+    }
     if ((ui.btn >> B_REC & 1u) && !home_held()) {   /* (playing, a sound page: the knobs record) */
         s_cat(t, "KNOBS record motion|KEYS record notes");
         return;
@@ -1555,7 +1617,17 @@ static void page_footer(char *t)
                                              : "WHITE scene at the bar, again: now|BLACK mute|OCT 1-16, 17-32");
         break;
     case P_SONG:
-        s_cat(t, "WHITE add scene|PLAY song|OCT 1-16, 17-32");
+        if (ui.song_view) {                        /* the automation page: REC clicks the arm, PLAY and the knob
+                                                   * record - nothing held; BLACK 11 deletes the picked slot's
+                                                   * recording, SEL + a knob clears that macro */
+            if (seq.auto_rec)
+                s_cat(t, "recording the knob|BLACK 11 deletes the slot|SEL + KNOB clears");
+            else if (ui.auto_arm)
+                s_cat(t, "PLAY + the knob records|BLACK 11 deletes the slot|REC: disarm");
+            else
+                s_cat(t, "REC arms, PLAY records|BLACK 11 deletes the slot|ALGO back");
+        } else
+            s_cat(t, "WHITE add scene|PLAY song|ALGO automation|OCT 1-16, 17-32");
         break;
     case P_STEPS: case P_BAR:
         if (trk == AUX_WEAVE && ui.page == P_STEPS)
@@ -1874,6 +1946,8 @@ static const struct { uint8_t btn; uint32_t pages; const char *title, *l1, *l2; 
      "then press steps to write them. A step held + ARP: its tricks."},
     {B_EDIT, PG_STEPS, "Lock", "With a step held, EDIT, ENV, FX or LFO show their knobs.",
      "Turn one to lock it. SELECT: pages. SEL held + knob: clear."},
+    {B_EDIT, PG(P_SONG), "Automation", "EDIT + a knob maps a parameter: the keys pick the macro.",
+     "REC arms, PLAY records. SEL + knob clears."},
     {B_EDIT, PG_ANY, "Engine", "The engine's four knobs. PRESETS: its next sound.",
      "Held: the keys play, ALGORITHM picks the engine. SELECT: pages."},
     {B_ENV, PG_ANY, "Envelope", "The amp's envelope, the filter, its envelope.",
@@ -2345,6 +2419,80 @@ static void draw_arrange(void)
     cv_blit(0, MAIN_Y);
 }
 
+/* a slot cell's automation lane (draw_song, the automation page): that slot's own curve over its window - its
+ * bars x 16 sixteenths - across the cell's foot, 44 px by 7, drawn through the macro THAT slot's curve was
+ * recorded with (slot_map): a pass armed with another macro leaves the other slots' lanes as they are. The
+ * playing slot carries the playhead, and while it records the lane and the cell frame go the recording color. */
+static void draw_slot_auto(int x, int y, int i, const song_t *sg)
+{
+    const song_auto_t *A = &pats.sau;
+    int k = (int)A->slot_map[i];                         /* the macro this slot's own curve belongs to */
+    const auto_map_t *m = k < NAUTO ? &A->map[k] : 0;
+    int hi, win, base = y + 20, on, rec;
+    if (!(k < NAUTO && m->used && m->trk < NALLTRK && m->param < NTP_ALL))
+        return;
+    {
+        const tp_info_t *in = tp_info_par(m->param, proj.trk[m->trk].par);
+        hi = in->hi > 0 ? in->hi : 127;
+    }
+    win = (sg->slot[i].rep ? sg->slot[i].rep : 1) * 16;
+    if (win > AUTO_STEPS)
+        win = AUTO_STEPS;
+    on = seq.song_on && playing() && i == (int)seq.song_pos;
+    rec = on && seq.auto_rec;                            /* (the playing slot's tag is the pass's macro by its first sample) */
+    cv_rect(x + 4, base, 44, 1, rec ? K_SEL : K_FAINT);   /* the lane's floor: bright while it records */
+    for (int px = 0; px < 44; px++) {
+        int s_i = px * win / 44, v = A->val[i][s_i], hgt;
+        if (v == AUTO_NONE)
+            continue;
+        if (v > hi)
+            v = hi;
+        hgt = v * 7 / hi;
+        if (hgt < 1)
+            hgt = 1;
+        cv_rect(x + 4 + px, base - hgt, 1, hgt, rec ? K_SEL : K_TINT);
+    }
+    if (on) {                                        /* the playhead: this slot's sixteenth - while the lane
+                                                     * records, a bright line down the cell's whole height */
+        int six = (int)seq.song_six, px = six * 44 / win;
+        if (px > 43)
+            px = 43;
+        cv_rect(x + 4 + px, rec ? y + 1 : base - 9, 1, rec ? 20 : 10, rec ? K_SEL : K_TEXT);
+    }
+}
+
+/* the slot screen (EDIT + a knob on a sound page): the parameter waits to be placed - white keys 1 to 4 pick the
+ * macro that takes it; a slot that already holds a mapping is lit bright, a free one dim (leds), its box framed */
+static void draw_map_pick(void)
+{
+    int trk = ui.map_trk, i;
+    const tp_info_t *in = trk < NALLTRK && ui.map_param < NTP_ALL ? tp_info_par(ui.map_param, proj.trk[trk].par) : 0;
+    uint32_t h = hash_u(hash_u(2166136261u, 0x51u), (uint32_t)ui.map_param | (uint32_t)trk << 16);
+    for (i = 0; i < NAUTO; i++)
+        h = hash_u(h, (uint32_t)pats.sau.map[i].used << 10 | (uint32_t)pats.sau.map[i].param);
+    if (!begin_main(h))
+        return;
+    text_c(120, 4, &FONT_B, "Which macro?", K_TEXT);
+    {   /* the parameter it is placing: "T2 > wave" */
+        char w[40];
+        num_s((uint32_t)trk + 1u, s_cat(w, "T"));
+        if (in && in->name && in->name[0])
+            s_cat(s_cat(w, " > "), in->name);
+        text_c(120, 28, &FONT_S, w, K_DIM);
+    }
+    for (i = 0; i < NAUTO; i++) {
+        int x = 16 + i * 53, used = pats.sau.map[i].used;
+        char s[8];
+        cv_round(x, 52, 48, 40, 7, used ? K_SEL : K_LINE);
+        cv_round(x + 2, 54, 44, 36, 6, K_PANEL);
+        num_s((uint32_t)i + 1u, s);
+        text_c(x + 24, 58, &FONT_B, s, K_TEXT);
+        text_c(x + 24, 78, &FONT_XS, used ? "taken" : "free", used ? K_TEXT : K_DIM);
+    }
+    text_c(120, 100, &FONT_XS, "White keys 1 to 4 put it there", K_DIM);
+    cv_blit(0, MAIN_Y);
+}
+
 static void draw_song(void)
 {
     const song_t *sg = &pats.song;
@@ -2358,9 +2506,21 @@ static void draw_song(void)
         int32_t six = (int32_t)(reps - (left > reps ? reps : left)) * 16 + (int32_t)(seq.bar16 & 15u);
         fill = six * 48 / (reps * 16);
     }
-    h = hash_u(h, (uint32_t)fill | (uint32_t)ui.scene_pg << 16);
-    for (int i = top; i < top + 16 && i < sg->len; i++)
-        h = hash_u(h, sg->slot[i].scene | (uint32_t)sg->slot[i].rep << 8);
+    h = hash_u(h, (uint32_t)fill | (uint32_t)ui.scene_pg << 16 | (uint32_t)ui.song_view << 20);
+    for (int i = top; i < top + 16 && i < sg->len; i++)   /* each shown slot's own curve's macro: its lane follows it */
+        h = hash_u(h, sg->slot[i].scene | (uint32_t)sg->slot[i].rep << 8 | (uint32_t)pats.sau.slot_map[i] << 16);
+    if (ui.song_view) {                          /* the automation page redraws with the recorded macro's mapping,
+                                                  * the playing slot and its sixteenth, what that step holds now
+                                                  * (that is what recording writes) and the recording itself */
+        int win = seq.song_win ? (int)seq.song_win : AUTO_STEPS;
+        int six = seq.song_six < (uint32_t)win ? (int)seq.song_six : win - 1;
+        int slot = seq.song_pos < NSONG ? (int)seq.song_pos : 0;
+        if (six >= AUTO_STEPS)                   /* (a stale window: never read a step past the curve) */
+            six = AUTO_STEPS - 1;
+        h = hash_u(h, (uint32_t)six << 8 | (uint32_t)slot << 14 |
+                       (uint32_t)pats.sau.active << 20 | (uint32_t)pats.sau.rec << 23 |
+                       (uint32_t)seq.auto_rec << 24 | (uint32_t)pats.sau.val[slot][six] << 25);
+    }
     if (!begin_main(h))
         return;
     if (!sg->len) {
@@ -2377,10 +2537,11 @@ static void draw_song(void)
             text_c(x + 26, y + 3, &FONT_XS, sg->loop ? "loop" : "end", K_DIM);
             continue;
         }
-        cv_round(x, y, 52, 22, 5, on || i == cur ? (i == cur ? K_SEL : K_NOW) : K_PANEL);
+        int rec_this = on && ui.song_view && seq.auto_rec && pats.sau.active < NAUTO;
+        cv_round(x, y, 52, 22, 5, rec_this ? K_SEL : on || i == cur ? (i == cur ? K_SEL : K_NOW) : K_PANEL);
         if (on || i == cur)                          /* (the frame: the playing one's ink, the picked one's) */
             cv_round(x + 2, y + 2, 48, 18, 4, K_PANEL);
-        if (on) {                                    /* playing: a bar along its foot fills as it plays, to the step */
+        if (on && !ui.song_view) {                   /* view 0: a bar along its foot fills as it plays, to the step */
             cv_rect(x + 6, y + 17, 40, 3, K_PANEL2);
             if (fill > 0)
                 cv_rect(x + 6, y + 17, fill * 40 / 48, 3, K_NOW);
@@ -2389,11 +2550,12 @@ static void draw_song(void)
         cv_text(x + 6, y + 3, &FONT_B, t, K_TEXT);
         num_s((uint32_t)sg->slot[i].rep, t);         /* its bars (the BARS knob names them) */
         text_r(x + 47, y + 4, &FONT_XS, t, on ? K_TEXT : K_DIM);
+        if (ui.song_view)                            /* the slot's own automation lane, in its cell */
+            draw_slot_auto(x, y, i, sg);
     }
-    if (sg->len >= 16) {
-        num_s((uint32_t)sg->len, s_cat(num_s((uint32_t)top + 1u, s_cat(t, "slots ")), " to "));
-        text_r(232, 112, &FONT_XS, t, K_DIM);
-    }
+    if (ui.song_view && pats.sau.active < NAUTO && seq.auto_rec)   /* the recording line: across the page above
+                                                     * the slots, while the lane records */
+        cv_rect(4, 3, 232, 1, K_SEL);
     cv_blit(0, MAIN_Y);
 }
 
@@ -4424,8 +4586,19 @@ static void draw_weave_play(void)
 static void draw_page(void)
 {
     int trk = sel_trk();
+    if (ui.page != P_SONG && ui.song_view) {
+        ui.song_view = 0;                        /* leaving the Song page: the slots knobs come back, the automation
+                                                 * arm goes off with the page */
+        ui.auto_arm = 0;
+        seq.auto_arm = 0;
+        seq.auto_rec = 0;
+    }
     if (ui.card) {
         draw_card();
+        return;
+    }
+    if (ui.map_pick) {
+        draw_map_pick();
         return;
     }
     if (lst.open) {
