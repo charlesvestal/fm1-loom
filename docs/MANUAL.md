@@ -1026,12 +1026,15 @@ patterns, the kit and the mix stay. A project saves every knob as you left it, n
 **Older projects.** Projects saved by 0.5-beta to 0.5.4-beta load and are converted: their scenes into the
 thirty-two, MIDI notes on, T1 to T8 on channels 1 to 8. Projects saved by this version do not open in older ones.
 
-**Backup.** To keep the three projects and the user presets on a computer, and put them back later, open
-<https://charlesvestal.github.io/fm1-loom/backup/> in Chrome or Edge with the FM-1 connected by USB (or run
-`python3 base/tools/fm1_backup.py backup FILE --magic LM8B` from the firmware's folder; `restore FILE` puts it back). A backup holds them as saved: save first what you
-want in it. Putting one back replaces all three projects and the presets; LOOM-8 asks first, on its screen
-(**SEL** yes, **HOME** no), and only while stopped. Your own samples are not in a backup: keep their WAV files,
-and load them again on the Samples page.
+**Backup.** To keep the three projects, the user presets and your samples on a computer, and put them back later,
+open <https://charlesvestal.github.io/fm1-loom/backup/> in Chrome or Edge with the FM-1 connected by USB. A backup
+holds the projects as saved: save first what you want in it. Putting one back replaces all three projects and the
+presets; LOOM-8 asks first, on its screen (**SEL** yes, **HOME** no), and only while stopped. Once you said yes, the
+page sends the samples too (about 20 seconds; the sound stops while they are written). A backup made before the
+page kept samples leaves the samples as they are. From a terminal, in the firmware's folder:
+`python3 base/tools/fm1_backup.py backup FILE --magic LM8B` and `restore FILE` for the projects and presets, and
+`python3 tools/loom_samples.py backup FILE` and `restore FILE` for the samples (its `restore` also takes the backup
+page's file).
 
 On a sound page, hold **SAVE** and press white key 1 to 16 to keep the track's sound as that user preset.
 

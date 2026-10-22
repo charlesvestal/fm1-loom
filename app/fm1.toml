@@ -6,9 +6,9 @@ usb_product = "LOOM-8 FM-1"
 ble = false                    # no radio: LOOM-8 needs the RAM (and stays GPL-3.0)
 usb_audio_in = true            # the master output recordable over USB (Setup's USB AUDIO: follows the knob, or full)
 usb_audio_out = false
-backup = true                  # the projects and the user presets backed up and restored over USB (base/tools/fm1_backup.py)
+backup = true                  # projects and presets over USB (base/tools/fm1_backup.py); the page adds the samples (app/web/backup/extras.js)
 backup_ext = "loom8"           # the backup page's files: NAME.loom8
-backup_holds = "the three projects and the user presets"
+backup_holds = "the three projects, the user presets and the samples"
 words = "words.tsv"
 # the second core: LOOM-8's own (X0X's, GPL: cpu1/), its entry assembled here; the register check leaves cpu1/
 asm = ["cpu1/loom_cpu1.S"]
