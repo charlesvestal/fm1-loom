@@ -93,7 +93,9 @@ enum { VM_POLY, VM_MONO, VM_LEGATO };
  * lp12 (one resonant stage, gentle 12 dB), hp12 (its high-pass), dynamic (drum tracks: low cut, compression,
  * drive, hi cut on the Filter page's four knobs instead of cutoff / res / env / keytrack; on a synth voice a
  * bypass), bp12 (the lp12 stage's band-pass, its peak at unity) */
-enum { FT_LP24, FT_LADDER, FT_LP12, FT_HP12, FT_DYNAMIC, FT_BP12, NFT };
+enum { FT_LP24, FT_LADDER, FT_LP12, FT_HP12, FT_BP12, FT_DYNAMIC, NFT };   /* (format 14 moved FT_DYNAMIC
+                                                                           * last, past bp12: project.c migrates
+                                                                           * an older project's TP_FTYPE) */
 /* the character stage, per voice after the filter and before the amp and the sends (no memory beyond a few
  * filter states: cheap); a kit's on the kit's summed pair after its bus filter (char_bus: the keys' sends are
  * taken before it, as before the bus filter). amount / tone per type:

@@ -1,0 +1,58 @@
+# chord mode on Steps (a melodic track): hold a step and tap SEQ, and the keys write that step's chord - its notes
+# only (its length stays) - on past the step's own release; OCT moves the keys' octave; the step written is the
+# one held, in the bar and pattern it was held in (another pattern picked meanwhile is not written); SEQ again
+# ends it, and so does leaving Steps (SELECT to Bar)
+wait 300
+turn ALGO 1
+expect trk 2
+notes 2 1 1 4 100 60
+expect slen 2 1 16
+key w0 down
+wait 30
+tap SEQ
+wait 30
+key w0 up
+wait 30
+key 9 down
+wait 30
+key 11 down
+wait 30
+key 9 up
+key 11 up
+wait 30
+expect note 2 1 1 62
+expect slen 2 1 16
+tap OCT+
+wait 30
+tapkey 9
+wait 30
+expect note 2 1 1 74
+spin K1 1
+wait 30
+tapkey 14
+wait 30
+expect note 2 1 1 79
+expect note 2 2 1 0
+spin K1 -1
+wait 30
+tap SEQ
+wait 30
+tapkey 11
+wait 30
+expect note 2 1 1 79
+# leaving Steps ends it: back on Steps a key is a step again, not the chord
+key w0 down
+wait 30
+tap SEQ
+wait 30
+key w0 up
+wait 30
+turn SELECT 1
+wait 60
+expect page Bar
+turn SELECT -1
+wait 60
+expect page Steps
+tapkey 11
+wait 30
+expect note 2 1 1 79

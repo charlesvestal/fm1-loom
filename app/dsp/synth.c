@@ -71,7 +71,10 @@ static const uint8_t EG_DEF[NENGINE][4] = {{0, 20, 1, 0},  {40, 25, 0, 0}, {0, 4
                                            {0, 64, 64, 0}, {2, 0, 64, 0},  {5, 0, 127, SM_ONESHOT}, {SMP_BREAK, 1, 64, 127},
                                            {0, 0, 0, 0}};
 static const char *const VMODE_N[3] = {"poly", "mono", "legato"};
-static const char *const FTYPE_N[NFT] = {"lp24", "ladder", "lp12", "hp12", "dynamic", "bp12"};
+static const char *const FTYPE_N[NFT] = {"lp24", "ladder", "lp12", "hp12", "bp12", "off"};   /* FT_DYNAMIC: no
+                                                                          * filter on a synth track; the kit's
+                                                                          * bus filter (on/off of its own) on a
+                                                                          * drum track, never shown by this name */
 static const char *const LTYPE_N[NLT] = {"off", "wave", "wobble", "drift", "pump"};
 static const char *const VSHAPE_N[4] = {"square", "sine", "ramp", "saw"};
 static const char *const TSHAPE_N[5] = {"sine", "saw", "expo", "square", "blip"};

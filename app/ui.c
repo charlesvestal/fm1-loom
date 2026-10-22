@@ -986,6 +986,42 @@ static void step_rec_key_up(void)
     if (ui.srec_down && !--ui.srec_down)
         step_rec_move(1);
 }
+/* chord mode (a step held, SEQ tapped to turn it on): the keys write the chord onto chord_held's steps instead
+ * of playing or picking a step (a drum track already toggles its sounds with the held step's black keys: this
+ * is melodic tracks only) - on, even past the step's own release, until SEQ turns it off. A fresh group of keys
+ * (none of this chord's still down) replaces the notes the steps held (not their length, tricks, nudge or
+ * locks: this edits an existing step, unlike step record's brand-new one); held together, they all land on it */
+static void step_chord_key(int v)
+{
+    int trk = sel_trk();
+    if (!is_seqt(trk) || is_drum(trk) || v <= 0 || v > 127)
+        return;
+    undo_pat(trk, ui.chord_pat % NPATT, UNDO_RUN_MS);
+    for (int i = 0; i < 16; i++)
+        if (ui.chord_held >> i & 1u) {
+            step_t *st = chord_step(trk, i);
+            int has = 0, k;
+            if (!ui.chord_down)
+                memset(st->note, 0, sizeof st->note);
+            if (!st->vel)
+                st->vel = 100;
+            for (k = 0; k < SN; k++)
+                has |= st->note[k] == v;
+            for (k = 0; !has && k < SN; k++)
+                if (!st->note[k]) {
+                    st->note[k] = (uint8_t)v;
+                    break;
+                }
+        }
+    ui.chord_down++;
+    ui.held_used = 1;
+    mark_dirty();
+}
+static void step_chord_key_up(void)
+{
+    if (ui.chord_down)
+        ui.chord_down--;
+}
 
 /* ------------------------------------------------------------- keys --- */
 static void chord_add(int note)
@@ -1089,6 +1125,7 @@ static void track_select(int t)
     ui.held = 0;
     ui.trickpg = 0;
     ui.lockpg = 0;
+    ui.chordmode = 0;
     proj.trk_sel = (uint8_t)t;
     if (!is_aux(t))
         ui.last_inst = (uint8_t)t;
@@ -1382,6 +1419,14 @@ static void key_down(int k)
     if (steps_page(p)) {                         /* Steps and Bar */
         if (!is_seqt(trk))
             return;
+        if (p == P_STEPS && ui.chordmode && !is_drum(trk)) {   /* chord mode: a key writes the chord */
+            int note = key_note(k);
+            ui.kmode[k] = KM_STEPCHORD;
+            ui.knote[k] = (uint8_t)note;
+            engine_key(trk, note, 1, 127);
+            step_chord_key(note);
+            return;
+        }
         if ((ui.btn >> B_SEQ & 1u) || ui.rec_armed || seq.rec || seq.rec_wait) {   /* a keyboard: SEQ held, recording */
             keyboard_down(k);
             return;
@@ -1507,6 +1552,10 @@ static void key_up(int k)
         if (ui.rec_armed && !playing())
             step_rec_key_up();
         break;
+    case KM_STEPCHORD:
+        engine_key(trk, ui.knote[k], 0, 0);
+        step_chord_key_up();
+        break;
     case KM_STEP: {
         int w = ordinal(WHITE_K, 16, k);
         if (w < 0)
@@ -1531,7 +1580,7 @@ static void key_up(int k)
         if (!ui.held_used && plat_ms() - ui.key_t[k] < STEP_TAP_MS)
             step_toggle(w);                      /* a tap; a longer hold only looked at the step */
         ui.held &= (uint16_t)~(1u << w);
-        if (!ui.held)
+        if (!ui.held)                            /* (chord mode stays on past the step's own release) */
             ui.lockpg = ui.trickpg = 0;
         else
             for (int i = 0; i < 16; i++)
@@ -1597,6 +1646,7 @@ static void page_button(int b)
             ui.held = 0;
             ui.trickpg = 0;
             ui.lockpg = 0;
+            ui.chordmode = 0;
             return;
         }
 }
@@ -1653,6 +1703,14 @@ static void button_up(int b)
     case B_OCTDN: case B_OCTUP: {
         int d = b == B_OCTUP ? 1 : -1;
         char t[8];
+        if (ui.chordmode && ui.page == P_STEPS) {   /* chord mode: the keyboard's octave, not the step's nudge or bar */
+            ui.oct = (int8_t)clampi(ui.oct + d, -4, 4);
+            t[0] = ui.oct < 0 ? '-' : '+';
+            t[1] = (char)('0' + (ui.oct < 0 ? -ui.oct : ui.oct));
+            t[2] = 0;
+            say("OCTAVE", t);
+            break;
+        }
         if (ui.held && steps_page(ui.page) && is_seqt(sel_trk())) {   /* a step held: its nudge */
             step_nudge(d);
             break;
@@ -2710,6 +2768,7 @@ static void after_load(void)
     ui.held = 0;
     ui.trickpg = 0;
     ui.lockpg = 0;
+    ui.chordmode = 0;
     ui.bar = 0;
 }
 static void do_load_proj(void)
@@ -2997,6 +3056,22 @@ static void input(void)
                 ui.btn_used |= m;
                 continue;
             }
+            if (ui.page == P_STEPS && i == B_SEQ && is_seqt(sel_trk()) && !is_drum(sel_trk()) &&
+                (ui.held || ui.chordmode)) {   /* a tap toggles chord mode; on, it writes past the step's own
+                                               * release too, until a tap turns it off again */
+                if (!ui.chordmode) {
+                    ui.chord_held = ui.held;
+                    ui.chord_bar = ui.bar;
+                    ui.chord_pat = (uint8_t)cur_pat(sel_trk());
+                }
+                ui.chordmode = (uint8_t)!ui.chordmode;
+                ui.chord_down = 0;
+                say("CHORD", ui.chordmode ? "on" : "off");
+                ui.held_used = 1;
+                ui.touched = -1;
+                ui.btn_used |= m;
+                continue;
+            }
             if (i == B_REC && playing() && !ui.ask) {
                 rec_down();
                 continue;
@@ -3137,9 +3212,23 @@ static void leds(void)
             if (playing() && seq.cue < NSCENE && seq.cue / 16 == ui.scene_pg && seq.cue != cur_scene() &&
                 (seq.step_tick & 3u) < 2u)
                 k |= 1u << WHITE_K[seq.cue % 16];        /* the scene cued blinks on the beat */
-            for (i = 0; i < NSEQT; i++)
-                if (seq.mute >> i & 1u)
-                    dim |= 1u << BLACK_K[i];
+            for (i = 0; i < NSEQT; i++)              /* a track's black key: off muted, full the selected, mid the rest */
+                if (!(seq.mute >> i & 1u)) {
+                    if ((int)i == trk)
+                        k |= 1u << BLACK_K[i];
+                    else
+                        mid |= 1u << BLACK_K[i];
+                }
+        } else if (ui.page == P_MIX) {           /* Mix's black keys: T1-T8, then FX I and FX II (they have no mute) */
+            static const uint8_t MT[10] = {0, 1, 2, 3, 4, 5, 6, 7, AUX_FX1, AUX_FX2};
+            for (i = 0; i < 10; i++)
+                if (MT[i] >= NSEQT || !(seq.mute >> MT[i] & 1u)) {
+                    if (MT[i] == trk)
+                        k |= 1u << BLACK_K[i];
+                    else
+                        mid |= 1u << BLACK_K[i];
+                }
+            k |= ui.keys;                         /* (white keys: play, same as every other page) */
         } else
             k |= ui.keys;
         if (sel_trk() == AUX_WEAVE && !steps_page(ui.page))   /* the tracks weaving: their keys */
@@ -3773,6 +3862,9 @@ static void autosave(void)
 void ui_frame(void)
 {
     input();
+    if (ui.chordmode && (ui.page != P_STEPS || !is_seqt(sel_trk()) || is_drum(sel_trk())))
+        ui.chordmode = 0;                        /* (chord mode lives on a melodic track's Steps page only: any way off
+                                                  * it, SELECT to Bar, an engine turned kit, ends it) */
     if (playing() != ui.playing) {
         ui.playing = (uint8_t)playing();
         if (!ui.playing)

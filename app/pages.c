@@ -27,6 +27,10 @@ static const theme_t THEMES[] = {
      RGB(170, 195, 235), RGB(240, 246, 255), RGB(130, 160, 215), RGB(255, 110, 90), RGB(255, 255, 255),
      {RGB(255, 150, 190), RGB(120, 240, 230), RGB(255, 200, 80), RGB(180, 240, 120), RGB(255, 170, 110),
       RGB(210, 180, 255), RGB(240, 120, 120), RGB(200, 230, 200)}, 7, 11},
+    {"b/w", RGB(0, 0, 0), RGB(30, 30, 34), RGB(58, 58, 64), RGB(60, 60, 66), RGB(96, 96, 102),
+     RGB(150, 150, 156), RGB(235, 235, 238), RGB(130, 130, 138), RGB(232, 44, 38), RGB(215, 215, 220),
+     {RGB(255, 92, 170), RGB(40, 204, 192), RGB(244, 200, 60), RGB(104, 152, 255), RGB(255, 136, 64),
+      RGB(110, 216, 110), RGB(178, 136, 255), RGB(214, 176, 136)}, 6, 9},
 };
 #define NTHEMES (sizeof THEMES / sizeof THEMES[0])
 static const theme_t *theme = &THEMES[0];
@@ -153,7 +157,8 @@ static const uint8_t WHITE_K[16] = {0, 2, 4, 6, 7, 9, 11, 12, 14, 16, 18, 19, 21
 static const uint8_t BLACK_K[11] = {1, 3, 5, 8, 10, 13, 15, 17, 20, 22, 25};
 #define KEY_BASE 53                                  /* F3 at octave 0 */
 enum { KM_NONE, KM_PLAY, KM_STEP, KM_SCENE, KM_MUTE, KM_PUNCH, KM_BRAIN, KM_SOUND,
-       KM_TRACK, KM_SAVE, KM_LENGTH, KM_SOLO, KM_SCALE, KM_ROUTE, KM_STEPSOUND, KM_IDLE, KM_WEAVE, KM_BARK };   /* KM_IDLE: does nothing */   /* what a held key does */
+       KM_TRACK, KM_SAVE, KM_LENGTH, KM_SOLO, KM_SCALE, KM_ROUTE, KM_STEPSOUND, KM_IDLE, KM_WEAVE, KM_BARK,
+       KM_STEPCHORD };   /* KM_IDLE: does nothing */   /* what a held key does */
 
 /* the input's and the screen's state */
 static struct {
@@ -185,6 +190,15 @@ static struct {
     uint8_t held_first;                              /* the first held step (the one edited) */
     uint8_t held_used;                               /* a held step was edited: its release toggles nothing */
     uint8_t trickpg;                                 /* a step held + ARP: its tricks on the knobs */
+    uint8_t chordmode;                               /* a step held, SEQ tapped: the keys write its chord, and stay
+                                                      * doing so even if the step is let go (chord_held is who they
+                                                      * write to). SEQ tapped again turns it off */
+    uint16_t chord_held;                             /* chord mode: the steps it writes to (ui.held's snapshot when
+                                                      * it turned on), in chord_bar of pattern chord_pat: a scene
+                                                      * change while it is on moves neither */
+    uint8_t chord_bar, chord_pat;
+    uint8_t chord_down;                              /* chord mode: the chord's keys still down (0: the next key
+                                                      * starts a fresh chord, replacing the held steps' notes) */
     uint16_t wv_held, wv_latched;                    /* the WEAVE track's keys: the tracks woven now (seq.wv_live) */
     uint16_t wv_last;                                /* the tracks last woven by a key: what a tapped WEAVE step takes */
     uint8_t wv_step;                                 /* WEAVE's Steps: the step held (0xFF none) */
@@ -524,6 +538,10 @@ static tpat_t *tpat(int t) { return &pats.pat[is_seqt(t) ? t : 0][cur_pat(t)]; }
 static int playing(void) { return seq.playing; }
 static int recording(void) { return seq.rec || seq.rec_wait || ui.rec_armed; }
 static int step_shown(int i) { return ui.bar * 16 + i; }
+static step_t *chord_step(int t, int i)              /* chord mode's held cell i: in the bar and pattern it began in */
+{
+    return &pats.pat[is_seqt(t) ? t : 0][ui.chord_pat % NPATT].st[(ui.chord_bar * 16 + i) % NSTEP];
+}
 static int home_held(void) { return ui.btn >> B_HOME & 1u; }
 /* REC held: its knobs are the record settings while stopped and on Steps and Bar; on a sound page while playing,
  * the page's own, recorded as they turn (a punch-in of motion, as the keys punch in notes) */
@@ -1536,7 +1554,7 @@ static void page_footer(char *t)
                : k == LK_PICK ? "ALGO pick|SEL do it|HOME back" : "SELECT move|ALGO set|HOME back");
         return;
     }
-    if (!ui.any_btn && ui.page == P_STEPS) {
+    if (!ui.any_btn && ui.page == P_STEPS && !ui.held && !ui.chordmode) {
         s_cat(t, "WHITE steps|PLAY play|hold a button: help");
         return;
     }
@@ -1566,10 +1584,12 @@ static void page_footer(char *t)
             s_cat(t, "KNOBS lock|SELECT page|SEL held + KNOB clear");
         else if (ui.trickpg)
             s_cat(t, "KNOB 1 3 trick|KNOB 2 4 value");
+        else if (ui.chordmode && ui.page == P_STEPS)
+            s_cat(t, "KEYS the chord|SEQ exit");
         else if (ui.held && is_drum(trk))
             s_cat(t, "BLACK sounds|ARP tricks|EDIT ENV FX LFO lock");
         else if (ui.held)
-            s_cat(t, "WHITE length|ARP tricks|EDIT ENV FX LFO lock");
+            s_cat(t, "WHITE length|ARP tricks|EDIT ENV FX LFO lock|SEQ notes");
         else if (ui.rec_armed)
             s_cat(t, "KEYS write|OCT+ rest|OCT- back|REC done");
         else if (seq.rec || seq.rec_wait)
@@ -3234,8 +3254,10 @@ static void draw_engine(void)
             h = hash_u(h, (uint32_t)(sl + 1) | (uint32_t)((float)pos * 200.0f / (float)sm->n) << 8);
     }
     if (eg == EG_DRUMLINE)
-        for (int k = 0; k < DL_NSOUND; k++)
+        for (int k = 0; k < DL_NSOUND; k++) {
+            eng_drum_hit[k] = (uint8_t)(eng_drum_hit[k] > 10 ? eng_drum_hit[k] - 10 : 0);   /* the flash eases out */
             h = hash_u(h, p[TP_DRUM(k, DP_MODEL)] | (uint32_t)eng_drum_hit[k] << 8);
+        }
     h = hash_s(h, proj.trk[trk].name);
     if (!begin_main(h))
         return;
@@ -4012,6 +4034,73 @@ static void draw_players(void)
     }
     cv_blit(0, MAIN_Y);
 }
+/* chord mode (a step held, SEQ tapped), on Steps: the keys are a keyboard (Players') writing the held step's chord
+ * instead of playing it. Shown in red (K_REC), as every lock is: the step's own notes lit in the track's ink, a key
+ * still down bright, so the chord being built is always legible, not "in limbo" */
+static void draw_step_chord(void)
+{
+    int trk = sel_trk(), first = 0;
+    const step_t *st;
+    uint32_t h;
+    int s;
+    for (int i = 0; i < 16; i++)
+        if (ui.chord_held >> i & 1u) {
+            first = i;
+            break;
+        }
+    s = ui.chord_bar * 16 + first;
+    st = chord_step(trk, first);
+    h = hash_u(hash_u(2166136261u, 0xC2u), (uint32_t)trk | (uint32_t)s << 5 | (uint32_t)ui.oct << 13);
+    char t[48], *e;
+    int any = 0;
+    for (int i = 0; i < SN; i++)
+        h = hash_u(h, st->note[i]);
+    for (int i = 0; i < NKEYS; i++)
+        h = hash_u(h, ui.kmode[i] == KM_STEPCHORD ? (uint32_t)ui.knote[i] + 1u : 0u);
+    if (!begin_main(h))
+        return;
+    num_s((uint32_t)s + 1u, s_cat(t, "STEP "));
+    cv_text(12, 4, &FONT_B, t, K_REC);
+    cv_text(12 + text_w(&FONT_B, t) + 8, 4, &FONT_XS, "[SEQ] exit", K_DIM);
+    e = s_cat(t, "chord: ");
+    for (int i = 0; i < SN; i++)
+        if (st->note[i]) {
+            if (any)
+                e = s_cat(e, " ");
+            e = note_name(st->note[i], e);
+            any = 1;
+        }
+    if (!any)
+        e = s_cat(e, "-");
+    text_fit(12, 24, &FONT_S, t, 216, K_TEXT);
+    {
+        int base = KEY_BASE + ui.oct * 12, wi = 0;
+        int32_t wx[27], y0 = 48, wh = 44, bh = 27, ww = 13;
+        uint16_t ink = trk_ink(trk);
+        for (int k = 0; k < 27; k++)
+            wx[k] = BLACK_KEY(base + k) ? 6 + wi * ww + 2 - 4 : 6 + (wi++) * ww + 2;
+        for (int pass = 0; pass < 2; pass++)
+            for (int k = 0; k < 27; k++) {
+                int n = base + k, blk = BLACK_KEY(n), on = 0, down = 0;
+                if (blk != pass)
+                    continue;
+                for (int i = 0; i < SN; i++)
+                    on |= st->note[i] == n;
+                for (int i = 0; i < NKEYS; i++)
+                    down |= ui.kmode[i] == KM_STEPCHORD && ui.knote[i] == n;
+                {
+                    uint16_t c = down ? K_TEXT : on ? ink : blk ? K_BG : K_PANEL2;
+                    if (blk) {
+                        cv_round(wx[k], y0, 9, bh, 2, c);
+                        if (!on && !down)
+                            cv_frame(wx[k], y0, 9, bh, 2, K_LINE, c);
+                    } else
+                        cv_round(wx[k], y0, ww - 1, wh, 2, c);
+                }
+            }
+    }
+    cv_blit(0, MAIN_Y);
+}
 /* the Mix page: a strip a track, its meter (after the fader, eng_peak) and its fader on one scale in dB, +6 at the
  * top, -48 at the foot, a line at 0 dB. The meter falls 24 dB a second; its peak holds a second, then falls too.
  * The conductor and the throws make no sound: their name alone */
@@ -4435,7 +4524,12 @@ static void draw_page(void)
     switch (ui.page) {
     case P_ARRANGE: draw_arrange(); break;
     case P_SONG: draw_song(); break;
-    case P_STEPS: draw_steps(); break;
+    case P_STEPS:
+        if (ui.chordmode && is_seqt(trk) && !is_drum(trk))
+            draw_step_chord();
+        else
+            draw_steps();
+        break;
     case P_BAR: draw_bar(); break;
     case P_CHARACTER: draw_character(); break;
     case P_SENDS: draw_sends(); break;
