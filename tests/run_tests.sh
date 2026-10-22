@@ -30,6 +30,8 @@ run() {
 # upload it: its image (tests/scenarios/samples.xy and slice.xy load it) and its SysEx frames (upload.xy plays them
 # through samples.c); the bank tool's own tests (layout over the windows, rates, bounds)
 "$PY" tools/gen_samples.py build/gen/samples.h build/gen/wav >/dev/null
+# the break pack (the four breaks, out of the image since 0.7): the DSP tests' user bank (tests/host/breaks.h)
+"$PY" tools/loom_samples.py build build/gen/breaks.bin breaks >/dev/null
 run sample-bank sh -c "'$PY' tools/loom_samples.py build build/gen/user_bank.bin 'piano two=build/gen/wav/piano.wav:60%16k' \
     'sweep two=build/gen/wav/sweep.wav:57' && '$PY' tools/loom_samples.py syx build/gen/user_bank.syx \
     'piano two=build/gen/wav/piano.wav:60%16k' 'sweep two=build/gen/wav/sweep.wav:57'"

@@ -87,6 +87,10 @@
     <span class="small">or drop files here. Drop one on a sample to replace it.</span>
   </div>
   <div class="bar">
+    <button class="quiet" id="breaks">Add the breaks</button>
+    <span class="small" id="breaksnote">classic, heat, choke and ecstasy: the slice engine's four breaks (92 KB).</span>
+  </div>
+  <div class="bar">
     <label class="q" title="The rate new samples are stored at: higher is brighter and takes more room">Quality
       <select id="rate">
         <option value="auto">Auto: the best that fits</option>
@@ -106,6 +110,11 @@
   <progress id="progress" max="100" value="0" hidden aria-label="Progress"></progress>
   <input type="file" id="files" multiple accept="audio/*,.wav,.aif,.aiff,.mp3,.flac,.m4a,.ogg" aria-label="Samples to add" tabindex="-1">
 
+  <h2 style="font: 700 1.3rem 'Barlow Semi Condensed', sans-serif; margin: 2rem 0 .5rem">The breaks</h2>
+  <p class="small">Since LOOM-8 0.7 its four breaks are no longer built into the firmware, to make room for new sounds.
+    "Add the breaks" puts them in your bank, then "Send to the FM-1". The slice engine's presets and your projects find
+    them there by name, whatever their place in the list. Without them, those presets are silent and the screen says
+    "install the breaks". The breaks are free loops posted by u/FCTRYBEATS, with permission to use them in any project.</p>
   <h2 style="font: 700 1.3rem 'Barlow Semi Condensed', sans-serif; margin: 2rem 0 .5rem">How samples play</h2>
   <p class="small"><b>Root</b> is the note that plays a sample at its own pitch on a synth track (a note in the file's
     name sets it: "piano_C4.wav"). <b>Loop</b> says the file is a loop of that many bars, for the slice engine: it then
@@ -236,6 +245,9 @@ function render(focus = null) {
   $("discard").hidden = !ch && !(readOk && plan && plan.err);
   $("discard").disabled = busy;
   $("add").disabled = busy || !readOk || items.length >= BANK_N;
+  $("breaks").disabled = busy || !readOk || !breaksMissing().length;
+  $("breaksnote").textContent = readOk && !breaksMissing().length ? "The breaks are in the bank." :
+    "classic, heat, choke and ecstasy: the slice engine's four breaks (92 KB).";
   $("rate").disabled = busy;
   $("connect").disabled = busy;
   if (focus) {                                       // the focused control went with its row: the same one there
@@ -296,6 +308,28 @@ async function addFiles(list, at = -1) {
   if (bad.length) fail(`Couldn't read ${bad.join(", ")}. Use WAV, AIFF, MP3 or FLAC files.`);
   else if (list.length > take.length) fail(`The FM-1 holds ${BANK_N} samples: ${list.length - take.length} not added.`);
   else say(at >= 0 ? `user ${at + 1} replaced.` : got.length === 1 ? "1 sample added." : `${got.length} samples added.`);
+  render();
+}
+
+// ---- the break pack: in the firmware until 0.7, found in the bank by name (dsp/sample.c); the files next to this page
+// (tools/make_pages.py copies app/samples/), stored as the factory bank kept them (tools/gen_samples.py RECORDINGS)
+const BREAKS = [["classic", 1], ["heat", 1], ["choke", 2], ["ecstasy", 1]];
+function breaksMissing() { return BREAKS.filter(([nm]) => !items.some((it) => it.name === nm)); }
+async function addBreaks() {
+  if (busy || !readOk) return;
+  const want = breaksMissing();
+  if (!want.length) { say("The breaks are already in the bank."); return; }
+  if (items.length + want.length > BANK_N) { fail(`The FM-1 holds ${BANK_N} samples: remove ${items.length + want.length - BANK_N} first.`); return; }
+  say("Fetching the breaks…");
+  try {
+    for (const [name, bars] of want) {
+      const r = await fetch(`breaks/${name}.wav`);
+      if (!r.ok) throw new Error(name);
+      const { rate, x } = readWav(new Uint8Array(await r.arrayBuffer()));
+      items.push({ name, x, sr: rate, loop: null, root: 53, rootSet: true, bars, rate: 16000, file: `${name}.wav`, isNew: true });
+    }
+  } catch (e) { fail(`Couldn't fetch the breaks (${e.message}). Check the connection and try again.`); render(); return; }
+  say(`${want.length === 4 ? "The four breaks" : want.map(([n]) => n).join(", ")} added: send them to the FM-1.`);
   render();
 }
 
@@ -430,6 +464,7 @@ $("send").onclick = () => run(async () => {
   say(`Done: ${items.length} sample${items.length === 1 ? "" : "s"} on the FM-1, user 1 to user ${items.length}.`);
 });
 
+$("breaks").onclick = addBreaks;
 $("add").onclick = () => { replaceAt = -1; $("files").multiple = true; $("files").click(); };
 $("files").onchange = (ev) => { addFiles([...ev.target.files], replaceAt); ev.target.value = ""; replaceAt = -1; };
 $("rate").onchange = () => render();

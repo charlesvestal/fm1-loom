@@ -204,6 +204,15 @@ def main(pkg, version, out):
     for key, val in (("NAME", "LOOM-8"), ("REPO", REPO), ("REPO_SHORT", REPO.replace("https://", "")),
                      ("LICENSE", conf.get("licence", "GPL-3.0-only")), ("CREDITS", " " + credits if credits else "")):
         page = page.replace("{{" + key + "}}", val)
+    # since 0.7 the breaks are a pack for the user bank: say so where the firmware is installed
+    warn = '<p data-t="warn">'
+    if page.count(warn) != 1:
+        raise SystemExit(f"base/web/installer.html must contain {warn} once")
+    page = page.replace(warn, '<p class="note"><b>The breaks have moved.</b> From 0.7, the four breaks (classic, heat, '
+                        'choke and ecstasy) are no longer built into the firmware. After installing, add them from '
+                        '<a href="../samples/">the samples page</a> with "Add the breaks". They then work as before, '
+                        'in the slice presets and in your projects.</p>\n  ' + warn)
+    page = page.replace("</style>", "  .note { border-left: 4px solid var(--accent); padding: 4px 0 4px 12px; }\n</style>", 1)
     (out / "install" / "index.html").write_text(page.replace("/*LIB*/", lib).replace("/*META*/", meta), encoding="utf-8")
     # the backup page's own section: the sample bank (app/web/backup/extras.js on the samples page's code)
     extras = ("const EXTRAS = (() => {\n" +
@@ -226,6 +235,11 @@ def main(pkg, version, out):
     slib = strip_module((SRC / "app" / "web" / "samples" / "loom_samples.js").read_text(encoding="utf-8"))
     (out / "samples").mkdir()
     (out / "samples" / "index.html").write_text(spage.replace("/*LIB*/", slib), encoding="utf-8")
+    # the break pack (out of the firmware since 0.7): the samples page's "Add the breaks" fetches these
+    import gen_samples
+    (out / "samples" / "breaks").mkdir()
+    for brk, f, _, _ in gen_samples.RECORDINGS:
+        shutil.copy(gen_samples.SAMPLE_DIR / f, out / "samples" / "breaks" / f"{brk}.wav")
     shutil.copytree(SRC / "docs" / "img", out / "img")
     threads = "".join(f'<span style="background:{c}"></span>' for c in TRACKS)
     (out / "index.html").write_text(LANDING.replace("__VERSION__", html.escape(version)).replace("__PKG__", name)

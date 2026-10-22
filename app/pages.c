@@ -3054,6 +3054,11 @@ static void smp_columns(int idx, const smp_t *sm, int w)
         smp_col_hi[x] = (int8_t)(hi * 127.0f);
     }
 }
+/* what an empty sample's picture says: a moved factory sample (a break, since 0.7) is installed from the samples page */
+static const char *smp_missing(int idx)
+{
+    return idx < smp_factory() ? "install the breaks: samples page" : "empty: the samples page fills it";
+}
 static void pic_sample(int32_t x0, int32_t y0, int32_t w, int32_t h, const uint8_t *p)
 {
     int idx = p[TP_E1] < smp_slots() ? p[TP_E1] : smp_slots() - 1, mode = p[TP_E4] % NSM;
@@ -3063,7 +3068,7 @@ static void pic_sample(int32_t x0, int32_t y0, int32_t w, int32_t h, const uint8
     static const char *const MODE_ARROW[NSM] = {"once", "loop", "backwards", "forth and back"};
     if (!sm) {
         text_c(x0 + w / 2, cy - 16, &FONT_S, smp_name(idx), K_DIM);
-        text_c(x0 + w / 2, cy + 4, &FONT_XS, "empty: tools/loom_samples.py fills it", K_DIM);
+        text_c(x0 + w / 2, cy + 4, &FONT_XS, smp_missing(idx), K_DIM);
         return;
     }
     e = s_cat(t, sm->name);
@@ -3132,7 +3137,7 @@ static void pic_slice(int32_t x0, int32_t y0, int32_t w, int32_t h, const uint8_
         w = 200;
     if (!sm) {
         text_c(x0 + w / 2, cy - 16, &FONT_S, smp_name(idx), K_DIM);
-        text_c(x0 + w / 2, cy + 4, &FONT_XS, "empty: tools/loom_samples.py fills it", K_DIM);
+        text_c(x0 + w / 2, cy + 4, &FONT_XS, smp_missing(idx), K_DIM);
         return;
     }
     e = s_cat(t, sm->name);

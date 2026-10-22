@@ -12,6 +12,7 @@
 #include "drumline.h"
 #include "fx.h"
 #include "fastmath.h"
+#include "breaks.h"                           /* the break pack as the user bank */
 
 #define N 256
 static uint64_t h;
@@ -237,6 +238,7 @@ static void master_cases(void)
 
 int main(void)
 {
+    breaks_attach();                             /* the breaks installed, as a player has them */
     synth_cases();
     drum_cases();
     fx_cases();
