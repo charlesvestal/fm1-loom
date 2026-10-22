@@ -217,6 +217,17 @@ typedef struct {
     volatile uint8_t cue_end;         /* it waits for track 1's pattern to end, not the next bar line */
     volatile uint8_t song_on;         /* the song decides the scenes */
     volatile uint8_t song_pos, song_rep;
+    volatile uint32_t song_start_tick;/* the transport's step_tick where the playing slot's automation window began */
+    volatile uint8_t song_win;        /* the playing slot's window: its bars x 16 sixteenths, AUTO_STEPS max */
+    volatile uint8_t auto_release;    /* release every applied song lane at the next sixteenth (the song restarted) */
+    uint32_t song_six;                /* the slot's sixteenth, 0..song_win - 1 (the Song page's playhead) */
+    uint8_t auto_last;                /* the value the song's recorded lane sent last, AUTO_NONE = not applied */
+    uint8_t auto_trk;                 /* the parameter it holds: remembered, so a release finds it even when the
+                                       * UI has re-armed another macro's lane in between */
+    uint16_t auto_param;
+    volatile uint8_t auto_rec;        /* the UI: the song's lane is recording now (hold REC + its knob started it) */
+    volatile uint8_t auto_arm;        /* the UI: the automation page is armed (a REC click), no knob moved yet - it
+                                       * keeps a set count-in through do_start, the way REC held does */
     volatile uint8_t ppat[NSEQT];     /* each track's pattern (the scene's, or cued per track) */
     volatile uint16_t mute;           /* bit t */
     volatile uint8_t ext, send_clock, send_notes;
@@ -297,6 +308,10 @@ void seq_continue(seq_t *s);
 void seq_ext_clock(seq_t *s);                  /* one 24-ppqn tick */
 void seq_cue_scene(seq_t *s, int scene, int at_end);   /* at the next bar line, or at the end of track 1's
                                                           * pattern (now, if stopped) */
+void seq_song_reset(seq_t *s);        /* the song's automation timeline starts now: the UI sets song_on and calls
+                                       * it (the lanes release, and the curve runs from sixteenth 0) */
+/* engine.c: a parameter's value as a lock holds it now, -1 none (the song automation samples it) */
+int engine_live(int trk, int param);
 int seq_cue_left(const seq_t *s);              /* sixteenths before the cued scene's (0: the next), -1 none */
 void seq_set_scene(seq_t *s, int scene);       /* now: the scene's patterns, mutes, brain */
 void seq_bar_go(seq_t *s, int trk, int go, int from, int to);   /* jump to step GO and play the loop FROM .. TO (to 0 = all), at the next bar line (at once while stopped) */

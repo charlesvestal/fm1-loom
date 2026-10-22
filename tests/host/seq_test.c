@@ -53,6 +53,9 @@ static void s_metro(void *x, int acc) { (void)x; log_ev(E_METRO, -1, acc, 0, 0, 
 static void s_pan(void *x, int trk, int pan) { (void)x; log_ev(E_PAN, trk, pan, 0, 0, 0); }
 static void s_drum_off(void *x, int trk, int sound) { (void)x; log_ev(E_DOFF, trk, sound, 0, 0, 0); }
 static void s_ghost(void *x, int trk, int sound, int vel) { (void)x; log_ev(E_GHOST, trk, sound, vel, 0, 0); }
+/* dsp/engine.c is not linked here: nothing holds a parameter, so the knob has it — seq.c's automation sampling
+ * falls back to the knob's own value, which is exactly how the standalone sequencer is tested */
+int engine_live(int trk, int param) { (void)trk; (void)param; return -1; }
 static const seq_sink_t sink = {s_on, s_off, s_drum, s_lock, s_bend, s_punch, s_midi, s_step,
                                 s_scene, s_metro, s_pan, s_drum_off, s_ghost, 0};
 
@@ -1075,6 +1078,112 @@ static void t_song_bars(void)
     CHECK(near(on_n(1)->t, 32 * L16 + 16, 1) && near(on_n(2)->t, 48 * L16 + 24, 1));
     CHECK(count(E_ON, 1) == 3 && nth(E_ON, 1, 2)->a == 42 && near(nth(E_ON, 1, 2)->t, 32 * L16 + 16, 1));
     /* (track 2, the same pattern in both scenes, runs on through the slots: its bar 3 in slot 2) */
+    printf("ok %s\n", cur);
+}
+
+/* song automation: recording samples the knob's own every sixteenth while the lane rests (sends nothing);
+ * plain playback applies the curve, once per change; a stop gives the parameter back; an overdub re-samples
+ * the knob, overwriting only the positions it touches; past the lane's end the last step holds */
+static void t_song_auto(void)
+{
+    int i, mark;
+    cur = "song-auto";
+    reset();
+    P.song.len = 1;
+    P.song.loop = 1;
+    P.song.slot[0].scene = 0;
+    P.song.slot[0].rep = 17;        /* seventeen bars: no loop wrap lands inside the passes below */
+    P.sau.map[0].trk = 0;
+    P.sau.map[0].param = 8;
+    P.sau.map[0].used = 1;          /* the capture's order: track, parameter, used last */
+    P.sau.active = 0;               /* the UI armed macro 1: it owns the song's one curve */
+    par[0][8] = 20;
+    S.song_on = 1;
+    S.auto_rec = 1;                 /* REC held + knob 1 on the Song page */
+    start();                        /* the first sixteenth samples at once */
+    run(8 * L16 + 4);               /* steps 1 to 8 (a sixteenth is 5512.5 samples: the run reaches each tick) */
+    CHECK(P.sau.rec == 1 && P.sau.val[0] == 20 && P.sau.val[7] == 20);
+    par[0][8] = 32;
+    run(9 * L16 + 5);               /* steps 9 to 17: the top of the sweep */
+    CHECK(P.sau.val[8] == 20 && P.sau.val[9] == 32 && P.sau.val[17] == 32 && P.sau.val[18] == AUTO_NONE);
+    CHECK(count(E_LOCK, 0) == 0);   /* the curve rests while it is being recorded: it sends nothing */
+    stop();
+    CHECK(count(E_LOCK, 0) == 0);   /* it never held the parameter: nothing to give back */
+    /* the song playing on its own: the curve drives the parameter, once per change */
+    S.auto_rec = 0;
+    start();
+    run(10 * L16 + 5);              /* step 1 applies at once, the curve's 32 sends at step 9 */
+    CHECK(count(E_LOCK, 0) == 2 && nth(E_LOCK, 0, 0)->b == 20 && nth(E_LOCK, 0, 1)->b == 32 &&
+          near(nth(E_LOCK, 0, 1)->t, 9 * L16 + 4, 1));
+    /* the live overdub: re-arming the same macro gives the parameter back to the knob on the next sixteenth
+     * and samples the knob's own from there - the old curve does not fight it, and keeps its untouched steps */
+    par[0][8] = 45;
+    S.auto_rec = 1;
+    run(4 * L16 + 2);               /* steps 11 to 14 */
+    CHECK(count(E_LOCK, 0) == 3 && nth(E_LOCK, 0, 2)->b == LOCK_NONE &&
+          near(nth(E_LOCK, 0, 2)->t, 11 * L16 + 6, 1));
+    CHECK(P.sau.val[9] == 32 && P.sau.val[11] == 45 && P.sau.val[14] == 45);
+    stop();
+    CHECK(count(E_LOCK, 0) == 3);   /* the sampling gave it back at the overdub's first sixteenth: nothing to release */
+    /* the merged curve plays back: where the overdub touched, this pass; everywhere else, the old one */
+    par[0][8] = 20;
+    S.auto_rec = 0;
+    mark = count(E_LOCK, 0);
+    start();
+    run(12 * L16 + 6);              /* step 9 still holds 32, step 11 holds the new 45 */
+    CHECK(count(E_LOCK, 0) - mark == 3 && nth(E_LOCK, 0, mark)->b == 20 && nth(E_LOCK, 0, mark + 1)->b == 32 &&
+          nth(E_LOCK, 0, mark + 2)->b == 45 && near(nth(E_LOCK, 0, mark + 1)->t, 9 * L16 + 4, 1));
+    stop();
+    CHECK(count(E_LOCK, 0) - mark == 4 && nth(E_LOCK, 0, mark + 3)->b == LOCK_NONE);
+    /* the song's loop wrap restarts the timeline: it gives back what it held, then applies the curve again
+     * from its step 1; a stairway written by hand makes every send distinct */
+    for (i = 0; i < 256; i++)
+        P.sau.val[i] = (uint8_t)i;
+    P.sau.rec = 1;
+    P.song.slot[0].rep = 1;         /* back to its one bar: the wrap comes round at step 17 */
+    mark = count(E_LOCK, 0);
+    start();                        /* from the top: the curve's steps 0, 1, 2 ... */
+    run(15 * L16 + 8);              /* one send each sixteenth: every step's own value */
+    CHECK(count(E_LOCK, 0) - mark == 16 && nth(E_LOCK, 0, mark)->b == 0 && nth(E_LOCK, 0, mark + 15)->b == 15 &&
+          near(nth(E_LOCK, 0, mark + 1)->t, L16 / 2, 1));
+    run(2 * L16 + 1);               /* the wrap fires at step 16's time, the curve from its step 1 again */
+    CHECK(count(E_LOCK, 0) - mark == 19 && nth(E_LOCK, 0, mark + 16)->b == LOCK_NONE &&
+          near(nth(E_LOCK, 0, mark + 16)->t, 16 * L16, 1) &&
+          nth(E_LOCK, 0, mark + 17)->b == 0 && nth(E_LOCK, 0, mark + 18)->b == 1);
+    stop();                         /* and the stop gives back the step the wrap applied */
+    CHECK(count(E_LOCK, 0) - mark == 20 && nth(E_LOCK, 0, mark + 19)->b == LOCK_NONE);
+    /* switching the recorded macro leaves the other's curve behind: it starts empty */
+    P.sau.map[1].trk = 0;
+    P.sau.map[1].param = 9;
+    P.sau.map[1].used = 1;
+    P.sau.rec = 0;
+    P.sau.active = 1;               /* the UI's switch: val wiped first */
+    for (i = 0; i < AUTO_STEPS; i++)
+        P.sau.val[i] = AUTO_NONE;
+    par[0][9] = 11;
+    S.auto_rec = 1;
+    start();
+    run(L16 * 2 + 1);
+    CHECK(P.sau.val[0] == 11 && P.sau.val[1] == 11 && P.sau.val[5] == AUTO_NONE && P.sau.rec == 1);
+    stop();
+    S.auto_rec = 0;
+    /* a song longer than the curve: past its end the last step holds (a 33-bar song, the curve's 32) */
+    for (i = 0; i < AUTO_STEPS - 1; i++)
+        P.sau.val[i] = 20;
+    P.sau.val[AUTO_STEPS - 1] = 24;
+    P.sau.active = 0;
+    P.sau.rec = 1;
+    P.song.loop = 0;
+    P.song.slot[0].rep = 33;
+    mark = count(E_LOCK, 0);
+    start();
+    run(511 * L16 + 256);           /* the change at the curve's last step */
+    CHECK(count(E_LOCK, 0) - mark == 2 && nth(E_LOCK, 0, mark)->b == 20 && nth(E_LOCK, 0, mark + 1)->b == 24 &&
+          near(nth(E_LOCK, 0, mark + 1)->t, 511 * L16 + 256, 1));
+    run(3 * L16 + 2);               /* and past the end: the last step holds, no resend */
+    CHECK(count(E_LOCK, 0) - mark == 2 && nth(E_LOCK, 0, mark + 2) == 0);
+    stop();
+    CHECK(count(E_LOCK, 0) - mark == 3 && nth(E_LOCK, 0, mark + 2)->b == LOCK_NONE);
     printf("ok %s\n", cur);
 }
 
@@ -2854,6 +2963,7 @@ int main(void)
     t_ghost();
     t_song();
     t_song_bars();
+    t_song_auto();
     t_brain();
     t_arp();
     t_maestro();

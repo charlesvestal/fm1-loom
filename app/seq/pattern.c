@@ -44,6 +44,20 @@ void patterns_init(patterns_t *P)
     P->scene[0].used = 1;             /* scene 1: pattern 1 on every track (pat[] is already 0) */
     P->song.len = 0;
     P->song.loop = 1;
+    song_auto_init(&P->sau);
+}
+
+/* the song automation block: every step unrecorded, no mappings, no recorded lane, every slot empty */
+void song_auto_init(song_auto_t *A)
+{
+    int sl, i;
+    zero(A, sizeof *A);
+    A->active = NAUTO;
+    for (sl = 0; sl < NSONG; sl++) {
+        A->slot_map[sl] = NAUTO;
+        for (i = 0; i < AUTO_STEPS; i++)
+            A->val[sl][i] = AUTO_NONE;
+    }
 }
 
 /* ----------------------------------------------------------------- lanes --- */

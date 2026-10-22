@@ -69,3 +69,35 @@ expect scene 20
 expect mute 2
 expect kmute1 4
 expect kmute2 4
+# a format 13 project (the shared LFO; tests/fixtures/make_v13.xy): its notes, one lock, its song and its tempo
+# as they were; the song automation's tail comes in empty, and the whole thing re-saves as this format
+storeload tests/fixtures/store_v13.bin
+reboot
+wait 400
+expect tempo 103
+expect note 2 1 1 60
+expect note 2 2 3 67
+expect lane 2 1 e1 1
+expect used 7
+expect auto 1 0
+expect auto 2 0
+expect auto 3 0
+expect auto 4 0
+tap HOME
+turn SELECT 1
+expect page Song
+tap PLAY
+bars 1
+expect scene 1
+bars 1
+expect scene 3
+bars 1
+expect scene 2
+tap PLAY
+projsave 1
+reboot
+wait 400
+expect tempo 103
+expect note 2 2 3 67
+expect used 7
+expect auto 1 0

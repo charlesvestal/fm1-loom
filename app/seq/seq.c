@@ -902,6 +902,8 @@ static int ramp_degree(seq_t *s, int t, int cv, int kind)
 }
 
 /* ------------------------------------------------------------ the locks --- */
+static int song_plays(const seq_t *s);   /* forward: the song's scenes decide (defined below, the bar section) */
+
 static void lock_put(seq_t *s, int t, const lane_t *l, lane_rt_t *r, int v, const seq_sink_t *o)
 {
     (void)s;
@@ -924,6 +926,36 @@ static void lane_forget(seq_t *s, lane_rt_t *r, const seq_sink_t *o)
     }
 }
 
+/* song automation: the macro a slot's own curve was recorded with owns that slot's (track, parameter) while
+ * that slot plays: the pattern's own lock lane of that parameter neither sends its value nor gives the knob
+ * back. A recording pass owns the parameter it is writing too, in the slot it is writing it through. */
+static int sau_owning(const seq_t *s, int trk, int param)
+{
+    const song_auto_t *A = &s->P->sau;
+    int slot = s->song_pos < NSONG ? s->song_pos : 0;
+    uint8_t own = A->slot_map[slot];
+    const auto_map_t *m = own < NAUTO ? &A->map[own] : 0;
+    if (s->auto_rec && A->active < NAUTO) {
+        const auto_map_t *r = &A->map[A->active];
+        if (r->used && r->trk == trk && r->param == param)
+            return 1;
+    }
+    return m && m->used && m->trk == trk && m->param == param;
+}
+
+/* the song lane's value still applied goes back to the knob (stop, and a restart of the song's timeline).
+ * It releases the parameter auto_last was sent for (auto_trk/auto_param, remembered at the send): the UI
+ * may have re-armed another macro's lane in between, and that mapping is not the one holding the sound. */
+static void sau_release(seq_t *s, const seq_sink_t *o)
+{
+    if (s->auto_last != AUTO_NONE) {
+        if (o->lock)
+            o->lock(o->ctx, s->auto_trk, s->auto_param, LOCK_NONE);
+        s->auto_last = AUTO_NONE;
+    }
+    s->auto_release = 0;
+}
+
 static void apply_locks(seq_t *s, int t, int p, uint32_t L, const seq_sink_t *o)
 {
     const tpat_t *tp = tpat(s, t);
@@ -942,6 +974,11 @@ static void apply_locks(seq_t *s, int t, int p, uint32_t L, const seq_sink_t *o)
         }
         if (lane_is_note(l->param))
             continue;                 /* (a drum step's note and its sounds' velocities: fire_notes reads them) */
+        if (song_plays(s) && sau_owning(s, l->trk, l->param)) {
+            r->ramp = 0;
+            r->applied = LOCK_NONE;   /* the song has the parameter: the lane rests, and sends again when it is back */
+            continue;
+        }
         if (l->pat != s->ppat[t]) {   /* another pattern's lane: the knob has it */
             lock_put(s, t, l, r, LOCK_NONE, o);
             r->ramp = 0;
@@ -1105,6 +1142,7 @@ static uint32_t bar_end(seq_t *s, int start, const seq_sink_t *o)
         int k = s->song_pos < sg->len ? s->song_pos : 0;   /* (a start: the slot song_pos names, the UI's pick) */
         if (start) {
             s->song_rep = sg->slot[k].rep ? sg->slot[k].rep : 1;
+            s->song_win = (uint8_t)(s->song_rep * 16);
         } else if (s->song_rep > 1) {
             s->song_rep--;
         } else {
@@ -1113,10 +1151,17 @@ static uint32_t bar_end(seq_t *s, int start, const seq_sink_t *o)
                 if (!sg->loop) {
                     s->req_stop = 1;
                     k = s->song_pos;
-                } else
-                    k = 0;
+                } else {
+                    k = 0;                                      /* the song came round: the lanes release (a second
+                                                                 * recording pass overwrites from step 0) */
+                    s->auto_release = 1;
+                }
             }
             s->song_rep = sg->slot[k].rep ? sg->slot[k].rep : 1;
+            s->song_win = (uint8_t)(s->song_rep * 16);
+            s->song_start_tick = s->step_tick;                  /* this bar begins the next slot (or the song came
+                                                                 * round): its automation window begins here, from
+                                                                 * the value the parameter holds at that point */
         }
         s->song_pos = (uint8_t)k;
         scene_now = sg->slot[k].scene < NSCENE ? sg->slot[k].scene : 0;
@@ -2547,6 +2592,9 @@ static void do_start(seq_t *s, int from_top, const seq_sink_t *o)
         s->step_tick = 0;
         origins_zero(s);
     }
+    s->song_start_tick = s->step_tick;      /* the song automation timeline begins here (0 from the top) */
+    s->auto_release = 0;
+    s->auto_last = AUTO_NONE;
     bar_len_update(s);
     for (t = 0; t < NSEQT; t++)
         ext_arm(s, t);
@@ -2556,7 +2604,8 @@ static void do_start(seq_t *s, int from_top, const seq_sink_t *o)
     s->clk_to_next = 0;
     s->playing = 1;
     s->countin_six = 0;
-    if (!s->rec) {
+    if (!s->rec && !s->auto_arm) {    /* an armed automation pass keeps a set count-in the way REC held does:
+                                       * the recording starts from the picked slot once the bars have counted */
         s->count_in = 0;
         s->rec_wait = 0;
     }
@@ -2600,6 +2649,7 @@ static void do_stop(seq_t *s, const seq_sink_t *o)
     s->punch_seq = 0;
     punch_update(s, o);
     locks_release(s, o);
+    sau_release(s, o);                      /* song automation too: every applied lane back to the knob */
     s->six_to_next = NEVER;
     if (!s->ext && s->send_clock)
         midi(o, 0xFC, 0, 0);
@@ -2699,6 +2749,64 @@ static void six_tick(seq_t *s, const seq_sink_t *o)
         o->metro(o->ctx, s->bar16 == 0);
     fire_fills(s, o);
     weave_tick(s);
+    {   /* song automation: this sixteenth's sample (recording: the knob's own, the curve resting) or apply
+         * (the song playing, one recorded macro). The curve is per slot: the timeline restarts at every slot,
+         * so a recording that runs on into the next slot samples that slot from its step 0 and the value the
+         * parameter holds there. The slot's window is its bars x 16; past it the last step holds (samples and
+         * plays land on the window's last step). */
+        uint32_t st = s->song_start_tick, six = s->step_tick >= st ? s->step_tick - st : 0;
+        uint32_t win = s->song_win ? (uint32_t)s->song_win : (uint32_t)AUTO_STEPS;
+        uint32_t i = six < win ? six : win - 1;
+        int slot = s->song_pos < NSONG ? s->song_pos : 0;
+        song_auto_t *A = &s->P->sau;
+        uint8_t own = A->slot_map[slot];                        /* this slot's curve's macro: a pass recorded in
+                                                                 * another slot cannot touch it */
+        const auto_map_t *m = own < NAUTO ? &A->map[own] : 0;
+        const auto_map_t *w = A->active < NAUTO ? &A->map[A->active] : 0;
+        int map_ok = m && m->used && m->trk < NALLTRK && m->param < NTP_ALL;
+        int write_ok = w && w->used && w->trk < NALLTRK && w->param < NTP_ALL;
+        int writing = s->auto_rec && s->playing && !s->count_in && !s->rec_wait;
+        s->song_six = i;
+        if (s->auto_release)
+            sau_release(s, o);
+        if (song_plays(s) && writing && write_ok) {
+            int j;
+            if (s->auto_last != AUTO_NONE) {                    /* an overdub plays from the knob: what the curve held
+                                                                 * goes back to it, so this is the move being made
+                                                                 * (the remembered parameter: the UI may have
+                                                                 * re-armed another macro since the send) */
+                if (o->lock)
+                    o->lock(o->ctx, s->auto_trk, s->auto_param, LOCK_NONE);
+                s->auto_last = AUTO_NONE;
+            }
+            if (own != A->active) {                             /* the pass enters a slot that holds another macro's
+                                                                 * curve: this slot's old curve goes with the retag,
+                                                                 * and only this slot's - every slot the pass does not
+                                                                 * enter keeps the recording it holds */
+                for (j = 0; j < AUTO_STEPS; j++)
+                    A->val[slot][j] = AUTO_NONE;
+                A->slot_map[slot] = A->active;
+            }
+            j = engine_live(w->trk, w->param);                  /* what the player hears now (another lock holds it) */
+            if (j < 0)
+                j = s->par[w->trk][w->param];                   /* else the knob's own */
+            A->val[slot][i] = (uint8_t)j;
+            A->rec = 1;                                         /* some slot holds a curve: the song owns its parameters */
+        } else if (map_ok && song_plays(s)) {                   /* the curve rests while a pass is writing: its own old
+                                                                 * value would fight the knob it is overdubbing */
+            int v = A->val[slot][i];
+            if (s->auto_last != AUTO_NONE && (m->trk != s->auto_trk || m->param != s->auto_param))
+                sau_release(s, o);                              /* the song moved from one macro's slot into another's:
+                                                                 * that parameter goes back to its knob and its locks */
+            if (v != AUTO_NONE && v != s->auto_last) {          /* send on change (lock_put's idiom) */
+                if (o->lock)
+                    o->lock(o->ctx, m->trk, m->param, v);
+                s->auto_last = (uint8_t)v;
+                s->auto_trk = m->trk;
+                s->auto_param = m->param;
+            }
+        }
+    }
     s->bar_six++;
     s->step_tick++;
     s->six_to_next = s->ext ? NEVER : carry + six_q8(s);
@@ -2753,6 +2861,12 @@ void seq_init(seq_t *s, patterns_t *P, uint8_t (*par)[NTP_ALL])
     s->send_clock = 1;
     s->cue = 0xFF;
     s->req_scene = 0xFF;
+    s->auto_release = 0;
+    s->auto_last = AUTO_NONE;
+    s->auto_trk = 0;
+    s->auto_param = 0;
+    s->auto_rec = 0;
+    s->auto_arm = 0;
     s->rng = 0x2545F491u;
     for (i = 0; i < NPUNCH_FX; i++)
         s->punch_tgt[i] = 0xFF;
@@ -3034,6 +3148,18 @@ void seq_cue_scene(seq_t *s, int scene, int at_end)
         s->cue = scene == s->scene ? 0xFF : (uint8_t)scene;   /* the scene playing: no cue */
     } else
         s->req_scene = (uint8_t)scene;
+}
+
+/* the song automation timeline starts now (the UI turned song_on): the lanes release, and the playing
+ * slot's curve runs from its sixteenth 0. The main loop writes only flags and aligned words; the
+ * interrupt does the rest. */
+void seq_song_reset(seq_t *s)
+{
+    const song_t *sg = &s->P->song;
+    int rp = s->song_pos < NSONG ? sg->slot[s->song_pos].rep : 1;
+    s->song_start_tick = s->step_tick;
+    s->song_win = (uint8_t)((rp ? rp : 1) * 16);
+    s->auto_release = 1;
 }
 
 int seq_cue_left(const seq_t *s)

@@ -33,10 +33,19 @@ uint8_t proj_slot;
 #define STREAM_HDR 16u                  /* in the first object: format, raw length, raw CRC, packed length */
 #define STREAM_CAP ((uint32_t)NSTREAM * (PLAT_STORE_MAX - 4u) - (STREAM_HDR - 4u))
 #define RAW_LEN sizeof(patterns_t)
-/* format 10 (0.5-beta): the same store but 16 scenes of scene10_t, the song after them */
-#define RAW_LEN10 (sizeof(patterns_t) - sizeof pats.scene + NSCENE10 * sizeof(scene10_t))
+/* format 10 (0.5-beta): the same store without the automation tail, 16 scenes of scene10_t, the song after them */
+#define RAW_LEN10 (sizeof(patterns_t) - sizeof pats.sau - sizeof pats.scene + NSCENE10 * sizeof(scene10_t))
 /* format 11: 32 scenes of scene11_t (one kit mute mask for every kit) */
-#define RAW_LEN11 (sizeof(patterns_t) - sizeof pats.scene + NSCENE * sizeof(scene11_t))
+#define RAW_LEN11 (sizeof(patterns_t) - sizeof pats.sau - sizeof pats.scene + NSCENE * sizeof(scene11_t))
+/* formats 12 and 13: this store without the song automation block at its tail (pattern.h song_auto_t: the
+ * scenes were already scene_t at 12, so every byte before the tail decodes the same) */
+#define RAW_LEN13 (sizeof(patterns_t) - sizeof pats.sau)
+/* format 14: the same store, its automation tail without the per-slot tags (song_auto_t was 4116 bytes: the
+ * maps, the curve, active, rec and two spare). The tail decodes identically to byte 4108 (rec's end); the two
+ * spare bytes land over the first tags - load_stream retags the slots, so the spares are never read */
+#define SAU14_LEN (16u + NSONG * AUTO_STEPS + 4u)     /* format 14's song_auto_t, bytes */
+typedef char sau14_sizes[(sizeof pats.sau == SAU14_LEN - 2u + NSONG ? 1 : -1)];
+#define RAW_LEN14 (sizeof(patterns_t) - sizeof pats.sau + SAU14_LEN)
 typedef char scene_sizes[(sizeof(scene10_t) == 18 && sizeof(scene11_t) == 20 && sizeof(scene_t) == 26) ? 1 : -1];
 typedef char songs_apart[(NSCENE10 * sizeof(scene10_t) + sizeof(song_t) <= NSCENE * sizeof(scene_t) &&
                           NSCENE * sizeof(scene11_t) + sizeof(song_t) <= NSCENE * sizeof(scene_t)) ? 1 : -1];   /* (an
@@ -350,6 +359,50 @@ static void patterns_clamp(void)
         if (pats.song.slot[k].rep > SONG_BARS)
             pats.song.slot[k].rep = SONG_BARS;
     }
+    for (k = 0; k < NAUTO; k++) {                   /* the song automation: an out-of-range mapping would index the
+                                                     * voices (the lanes' own rules) */
+        auto_map_t *m = &pats.sau.map[k];
+        if (!(m->used && m->trk < NALLTRK && m->param < NTP_ALL))
+            m->used = 0;
+    }
+    if (pats.sau.rec > 1)
+        pats.sau.rec = 0;
+    if (pats.sau.active >= NAUTO || !pats.sau.map[pats.sau.active].used)
+        pats.sau.active = NAUTO;                    /* the lane a pass would write: only a real mapping */
+    {   /* a slot's curve belongs to the macro its tag names: a tag that points nowhere, or at a mapping that
+         * is not there, empties the slot; every curve is clamped to its slot's window and its own parameter's
+         * top; rec follows the tags that hold something */
+        int any = 0;
+        for (int sl = 0; sl < NSONG; sl++) {
+            uint8_t own = pats.sau.slot_map[sl];
+            const auto_map_t *m = own < NAUTO ? &pats.sau.map[own] : 0;
+            const tp_info_t *i = m && m->used ? tp_info_par(m->param, proj.trk[m->trk].par) : 0;
+            int win = pats.song.slot[sl].rep * 16;  /* steps past the slot's bars would never play: with the
+                                                     * bars now cut to four, old projects' longer curves end here */
+            int had = 0, st;
+            if (win > AUTO_STEPS)
+                win = AUTO_STEPS;
+            if (!m || !m->used) {                   /* nobody's curve (or from before the tags existed): the slot
+                                                     * starts empty */
+                pats.sau.slot_map[sl] = NAUTO;
+                for (st = 0; st < AUTO_STEPS; st++)
+                    pats.sau.val[sl][st] = AUTO_NONE;
+                continue;
+            }
+            for (st = 0; st < AUTO_STEPS; st++) {
+                if (st >= win)
+                    pats.sau.val[sl][st] = AUTO_NONE;   /* a value past the window would hold past the slot's bars */
+                else if (pats.sau.val[sl][st] != AUTO_NONE && i && pats.sau.val[sl][st] > i->hi)
+                    pats.sau.val[sl][st] = i->hi;       /* past the parameter's top it would reach voices unclamped */
+                had += pats.sau.val[sl][st] != AUTO_NONE;
+            }
+            if (!had)
+                pats.sau.slot_map[sl] = NAUTO;      /* an empty curve is no recording */
+            else
+                any = 1;
+        }
+        pats.sau.rec = (uint8_t)(any ? 1u : 0u);
+    }
 }
 
 /* ---- objects -------------------------------------------------------------------------------- */
@@ -537,7 +590,9 @@ static int load_stream(int n, uint32_t prev)
     uint32_t crc = get32(io_buf + 8), plen = get32(io_buf + 12), len = get32(io_buf + 4);
     st_in_t s = {0, n, STREAM_HDR, plen, prev};
     lz_src_t src = {st_get, &s};
-    if (n < (int)STREAM_HDR || (len != RAW_LEN && len != RAW_LEN10 && len != RAW_LEN11) || plen > STREAM_CAP)
+    if (n < (int)STREAM_HDR || (len != RAW_LEN && len != RAW_LEN10 && len != RAW_LEN11 && len != RAW_LEN13
+                                && len != RAW_LEN14)
+        || plen > STREAM_CAP)
         return -1;                                /* (its own length says its format: settings saved alone, as
                                                    * this format's, before a power cut beside format 10's patterns) */
     stored_known[stream_obj[0]] = !(prev & 1u);
@@ -545,8 +600,23 @@ static int load_stream(int n, uint32_t prev)
     if (lz_decompress(&src, raw, len) || crc32_of(raw, len) != crc)
         return -1;
     if (len != RAW_LEN) {
-        load_format = len == RAW_LEN10 ? 10u : 11u;
-        migrate_old(load_format);
+        if (len == RAW_LEN13)
+            song_auto_init(&pats.sau);            /* (12 or 13: the same bytes before the automation tail, which
+                                                   * starts empty; the settings' own format word still says which) */
+        else if (len == RAW_LEN14) {              /* format 14's one lane, per slot: every slot that holds a value is
+                                                   * tagged with the macro that recorded them - the whole lane moves
+                                                   * into the new model, nothing else changes */
+            uint8_t act = pats.sau.active < NAUTO ? pats.sau.active : NAUTO;
+            for (int sl = 0; sl < NSONG; sl++) {
+                int st, has = 0;
+                for (st = 0; st < AUTO_STEPS; st++)
+                    has += pats.sau.val[sl][st] != AUTO_NONE;
+                pats.sau.slot_map[sl] = (pats.sau.rec && act < NAUTO && has) ? act : NAUTO;
+            }
+        } else {
+            load_format = len == RAW_LEN10 ? 10u : 11u;
+            migrate_old(load_format);
+        }
     }
     packed_len = plen;
     return 0;

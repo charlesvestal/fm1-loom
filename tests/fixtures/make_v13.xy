@@ -1,0 +1,13 @@
+# a format 13 project (this store without song automation: pattern.h had no song_auto_t): saved by that
+# build, for the migration's test (tests/scenarios/migrate.xy). Made by building this tree with PROJ_FORMAT 13
+# and save_stream's RAW_LEN without the automation tail, running its loom_host tests/fixtures/make_v13.xy OUT
+wait 300
+bpm 103
+notes 2 1 1 1 100 C4
+notes 2 2 3 1 100 G4
+lock 2 1 5 e1 90
+scenedef 2 1 2
+scenedef 3 1 3
+song 1:1 3:1 2:1
+projsave 1 v13_test
+storesave tests/fixtures/store_v13.bin

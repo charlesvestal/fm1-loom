@@ -118,7 +118,12 @@ void loom_lights(uint32_t buttons, uint32_t keys, int glow, uint32_t dim_keys, i
 #define DEBUG_BUILD (APP_VERSION[0] == 'D' && APP_VERSION[1] == 'E' && APP_VERSION[2] == 'V' && \
                      (!APP_VERSION[3] || APP_VERSION[3] == 'T'))   /* DEV, or the load test's DEVTEST */
 #define PROJ_MAGIC 0x384D4F4Cu          /* "LOM8" (was "XXY1": XY-1's projects start fresh) */
-#define PROJ_FORMAT 13u                 /* (10, 0.5-beta's, to 12 load too: project.c migrate_old; older ones do not)
+#define PROJ_FORMAT 15u                 /* (10, 0.5-beta's, to 14 load too: project.c migrate_old and the lengths;
+                                         *     older ones do not)
+                                         * 15: each slot's automation curve is tagged with the macro it was recorded
+                                         *     with (song_auto_t slot_map[NSONG]) - a 14 store's lane is retagged whole;
+                                         * 14: song automation (pattern.h song_auto_t, four mapped parameters recorded
+                                         *     over 16 bars: an older store's tail initializes empty);
                                          * 13: the shared LFO (the conductor's LFO slots: glfo_defaults on an older one);
                                          * 12: a scene's kit sound mutes per kit track (scene_t kmute[NKITM]);
                                          * 11: 32 scenes, a scene's kit sound mutes (one mask);

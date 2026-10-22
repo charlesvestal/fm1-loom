@@ -23,4 +23,11 @@ if [ "${1:-}" = "--demo" ]; then             # a demo build: screen mirroring fo
     echo "mirror   $(pwd)/build/mirror/index.html"
     exit 0
 fi
+# fm1-base insists on 8192 B of spare pool; LOOM-8 spends about 4.1 KB of it on song automation (pattern.h
+# song_auto_t: the curve is val[NSONG 64][AUTO_STEPS 64] - 4096 B - the maps' few bytes on top). Safe: this
+# app has no radio (ble = false: the BLE shim is the one thing that takes task stacks from the pool
+# headroom), and every big buffer - the patterns, the undo, the canvas, the audio ring, the backup buffer -
+# is a counted .pool object. The floor keeps its real meaning: a build fails the moment the free SRAM
+# drops under 4096 B.
+export FM1B_POOL_SPARE="${FM1B_POOL_SPARE:-4096}"
 exec "$PY" base/tools/build.py app "$@"
