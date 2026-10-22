@@ -21,6 +21,9 @@ static volatile uint8_t user_n;
 static uint32_t user_bytes;
 static const uint8_t *user_reg[SMP_NREG];
 static char empty_name[SMP_NUSER][SMP_NAME];
+/* a moved factory sample (its row empty, n 0: the breaks since 0.7) -> the user sample of its name, -1 none; set by
+ * smp_user_scan before user_n, read beside it */
+static int8_t moved[SMP_NFACT];
 
 static void fact_init(void)
 {
@@ -40,6 +43,14 @@ static void fact_init(void)
         for (k = 0; k < SMP_NAME - 1 && SMP_FACT[i].name[k]; k++)
             s->name[k] = SMP_FACT[i].name[k];
         s->name[k] = 0;
+        moved[i] = -1;
+#ifdef PLAT_WEB
+        if (!s->n && i >= SMP_FACT_BREAK) {   /* the emulator: the breaks built in (samples.h SMP_WEB) */
+            s->adp = SMP_WEB_ADP + SMP_WEB[i - SMP_FACT_BREAK][0];
+            s->ck = SMP_WEB_CK + SMP_WEB[i - SMP_FACT_BREAK][1];
+            s->n = s->split = SMP_WEB[i - SMP_FACT_BREAK][2];
+        }
+#endif
     }
     for (i = 0; i < SMP_NUSER; i++) {           /* "user 1" .. "user 32" */
         char *e = empty_name[i];
@@ -63,8 +74,12 @@ const smp_t *smp_get(int i)
 {
     if (!fact_ready)
         fact_init();
-    if (i >= 0 && i < SMP_NFACT)
-        return &fact[i];
+    if (i >= 0 && i < SMP_NFACT) {
+        if (fact[i].n)
+            return &fact[i];
+        i = moved[i];                         /* moved to the user bank: there by its name, or nothing */
+        return i >= 0 && i < (int)user_n ? &user[i] : 0;
+    }
     i -= SMP_NFACT;
     if (i >= 0 && i < (int)user_n)
         return &user[i];
@@ -78,6 +93,8 @@ const char *smp_name(int i)
     const smp_t *s = smp_get(i);
     if (s)
         return s->name;
+    if (i >= 0 && i < SMP_NFACT)
+        return fact[i].name;                  /* a moved one not installed: still its name */
     i -= SMP_NFACT;
     return i >= 0 && i < SMP_NUSER ? empty_name[i] : "-";
 }
@@ -333,6 +350,18 @@ int smp_user_scan(void)
             s->name[0] = '?';
             s->name[1] = 0;
         }
+    }
+    for (i = 0; i < SMP_NFACT; i++) {         /* the moved factory samples: the first user sample of each one's name */
+        int8_t m = -1;
+        if (!fact[i].n)
+            for (uint32_t u = 0; u < cnt && m < 0; u++) {
+                int k = 0;
+                while (k < SMP_NAME && user[u].name[k] == fact[i].name[k] && fact[i].name[k])
+                    k++;
+                if (k < SMP_NAME && user[u].name[k] == fact[i].name[k])
+                    m = (int8_t)u;
+            }
+        moved[i] = m;
     }
     user_bytes = len;
     user_n = (uint8_t)cnt;

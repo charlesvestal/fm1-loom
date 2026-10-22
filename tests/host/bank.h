@@ -5,6 +5,7 @@
  *   bank_reset();  bank_add(...) / bank_add_at(...);  bank_seal();  bank_attach();  smp_user_scan()
  * A tiny IMA encoder (tools/sampleio.py's): the decoder's own state, so the two agree exactly. */
 #include <string.h>
+#include "breaks.h"                              /* the break pack: what a test is left with */
 
 static const int BK_IMA_S[89] = {7, 8, 9, 10, 11, 12, 13, 14, 16, 17, 19, 21, 23, 25, 28, 31, 34, 37, 41, 45, 50, 55, 60,
     66, 73, 80, 88, 97, 107, 118, 130, 143, 157, 173, 190, 209, 230, 253, 279, 307, 337, 371, 408, 449, 494, 544, 598,
@@ -88,8 +89,7 @@ static void bank_attach(void)                    /* the image into its three win
     memcpy(bank_w2, bank + smp_reg_v(2), SMP_REG2_SIZE);
     smp_user_attach(w);
 }
-static void bank_detach(void)
+static void bank_detach(void)                    /* back to the break pack (breaks.h) */
 {
-    smp_user_attach(0);
-    smp_user_scan();
+    breaks_attach();
 }

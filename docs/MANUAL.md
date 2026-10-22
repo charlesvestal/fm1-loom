@@ -143,6 +143,7 @@ press…" means keep **HOME** down while you press the next thing.
 | shape one drum | On a drum track, press **ENV** and press the drum's black key: its own attack, hold, decay and lag. Turn **SELECT** for its filter: **PRESETS** picks low-pass, high-pass or band-pass, the knobs cutoff, resonance, envelope and drive. |
 | play a sample | On a drum track, turn a key's model to sample. On a synth track, **SEL** and ENGINE: sample. The sample knob picks it. |
 | load my own samples | Open <https://charlesvestal.github.io/fm1-loom/samples/> in Chrome or Edge with the FM-1 connected by USB: add, replace, rename, reorder or remove them, then Send. They come after the factory samples, as user 1, user 2 ... |
+| get the breaks back (0.7 on) | On the samples page: Add the breaks, then Send. |
 | chop a break | On a synth track, **SEL** and ENGINE: slice. Each key plays a slice of the break, F3 the first; write them on the steps in any order. Load your own with `tools/loom_samples.py load "amen.wav@2"` (a loop of 2 bars). |
 | change the filter | Press **ENV** and turn **SELECT** to Filter. **PRESETS** turns the filter type. |
 | give a sound some character | Press **FX**: the Character page. **PRESETS** turns the type (drive, fold, crush, ring, tilt, tape, sampler); the knobs are its amount, tone and mix. |
@@ -615,6 +616,12 @@ LOOM-8 carries a bank of samples: sixteen of its own (a 909's kick, snare, hat a
 upright bass, strings, brass, flute and an orchestra hit; a vinyl loop; and four breaks for the slice engine:
 classic, heat, choke and ecstasy), then thirty-two of yours, user 1 to user 32. The sample model on a drum key and the sample engine
 on a synth track both play them, the knob naming each one.
+
+Since 0.7 the four breaks are no longer built into the firmware: they take room that new sounds need. Add them from
+[the samples page](https://charlesvestal.github.io/fm1-loom/samples/) with **Add the breaks**, then Send (or
+`tools/loom_samples.py load breaks`). They go into your bank (92 KB of its 214) and keep their own places on the
+sample knob: the slice presets and your projects find them by name. Until they are added, the breaks are silent
+and the picture says "install the breaks: samples page".
 
 The **sample** engine plays a sample at the pitch of the note: the sample's root note plays it at its own rate,
 an octave up twice as fast. Its knobs:

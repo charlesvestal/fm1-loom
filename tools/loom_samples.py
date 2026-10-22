@@ -17,7 +17,9 @@
   loom_samples.py extract DUMP.bin OUT.bin      no device: the bank out of a full flash dump (1 MB: fm1t.py dump,
                                                 fm1_rescue.py), into OUT.bin for "restore"
 
-  SPEC: [NAME=]file.wav[:ROOT][@BARS][%RATE]
+  SPEC: [NAME=]file.wav[:ROOT][@BARS][%RATE], or "breaks": the break pack (classic, heat, choke, ecstasy: the
+        slice engine's breaks, in the firmware until 0.7, which finds them in the bank by name), e.g.
+        loom_samples.py load breaks my_kick.wav
 
 Each file becomes one sample: mixed to mono, resampled to its rate (a windowed-sinc anti-alias filter first),
 pre-emphasised for the playback's linear interpolation (flat to 0.4 x its rate as it plays), its peak normalised, IMA
@@ -131,9 +133,18 @@ def length_at(p, rate):
     return int(len(p[1]) * rate / p[2])
 
 
+def expand(specs):
+    """a SPEC "breaks": the break pack (the four breaks, built into the firmware until 0.7: gen_samples.py RECORDINGS)"""
+    import gen_samples
+    out = []
+    for s in specs:
+        out += gen_samples.break_specs() if s == "breaks" else [s]
+    return out
+
+
 def build(specs, rate=None, quiet=False):
     """the bank's image; --rate R for every sample that did not choose (None: auto)"""
-    parsed = [parse(s) for s in specs]
+    parsed = [parse(s) for s in expand(specs)]
     if not 1 <= len(parsed) <= sio.BANK_N:
         raise ValueError(f"1..{sio.BANK_N} samples in the bank")
     tries = [rate] if rate else AUTO

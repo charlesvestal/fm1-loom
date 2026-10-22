@@ -399,7 +399,7 @@ static void sample_tests(void)
     }
     par[0][TP_E2] = 0;
     par[0][TP_E3] = 127;
-    par[0][TP_E1] = (uint8_t)smp_factory();       /* the first user slot: empty */
+    par[0][TP_E1] = (uint8_t)(smp_factory() + smp_user_count());   /* the first empty user slot (after the breaks) */
     stop = sample_run(60, 0.2f, &n);
     check("an empty user slot: silent, the voice ends at once", stop >= 0 && stop < 200 && rms_d(sbuf, n) == 0.0f);
     {   /* every factory sample in every mode, notes from 0 to 127, the region's corners: finite, bounded */
@@ -839,8 +839,16 @@ static void slice_tests(void)
             synth_note_off(S, 0, 2);
         }
     }
+    /* the breaks moved out of the image (0.7): without the pack their rows are silent but keep their names; with it,
+     * the user bank's samples of those names, a bar each (choke two) */
     smp_user_attach(0);
     smp_user_scan();
+    check("a break not installed: silent, still named", !smp_get(SMP_BREAK) && !strcmp(smp_name(SMP_BREAK), "classic") &&
+          !strcmp(smp_name(SMP_BREAK + 2), "choke"));
+    breaks_attach();
+    check("the break pack installed: the breaks found by name", smp_get(SMP_BREAK) && smp_get(SMP_BREAK)->bars == 1 &&
+          smp_get(SMP_BREAK + 2) && smp_get(SMP_BREAK + 2)->bars == 2 && smp_get(SMP_BREAK + 3)->n > 0 &&
+          smp_get(SMP_BREAK) == smp_get(smp_factory()));
     /* the tempo: the factory break states 1 bar */
     par[0][TP_E1] = SMP_BREAK;
     par[0][TP_E2] = 1;
@@ -1325,6 +1333,7 @@ static void kit_char_tests(void)
 
 int main(void)
 {
+    breaks_attach();                             /* the breaks installed, as a player has them */
     int e, k, t, finite = 1, b;
     float pk;
     char num[16], unit[8];

@@ -246,6 +246,7 @@ static float pitch_of(int sound, float t0, float t1, float target)
 
 int main(void)
 {
+    breaks_attach();                             /* the breaks installed, as a player has them */
     int s, i, k, m;
     hit_t h, h2;
     char name[96];
@@ -374,7 +375,7 @@ int main(void)
                 if (d2 < worst_lo || k == 0)
                     worst_lo = fm_minf(worst_lo, d2);
                 worst_hi = fm_maxf(worst_hi, d2);
-                if (m == DM_SAMPLE && k == 0 && e > smp_factory() - 1) {   /* an empty user slot: silence */
+                if (m == DM_SAMPLE && k == 0 && e >= smp_factory() + smp_user_count()) {   /* an empty user slot: silence */
                     if (nan_seen || h2.peak > 0.0f || h2.tend > 0.01f) {
                         printf("  sample: an empty slot plays %.1f dBFS, ends at %.3f s\n", (double)d2, (double)h2.tend);
                         ok = 0;
@@ -903,7 +904,7 @@ int main(void)
             check(name, e1 > e0 * 4.0f && !nan_seen);
             par[TP_DRUM(0, DP_K4)] = 0;
         }
-        par[TP_DRUM(0, DP_K1)] = (uint8_t)smp_factory();  /* the first user slot: empty here */
+        par[TP_DRUM(0, DP_K1)] = (uint8_t)(smp_factory() + smp_user_count());   /* the first empty user slot (after the breaks) */
         h = one_hit(0, 127, 0, 0, 0, 0);
         check("  an empty user slot is silent, the voice ends at once", h.peak == 0.0f && h.tend >= 0.0f && h.tend < 0.01f);
         {   /* a user sample at its own rate: 0.4 s of noise-free tone at 11025 and at 32000 Hz lasts 0.4 s */
