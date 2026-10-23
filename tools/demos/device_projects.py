@@ -4,8 +4,9 @@
 
   device_projects.py BREAKS_DIR [OUT_DIR]          (OUT_DIR default build/demos/device)
 
-Three groups of three songs, each a restore's worth (the backup holds the three project slots):
+Groups of three songs (K: house's main scene on the Machine, Sophie and Clang kits), each a restore's worth (the backup holds the three project slots):
   A: jungle garage hyperpop       B: house pop hiphop       C: stress (the worst case) ambient hiphop
+  K: house's main scene on the Machine, Sophie and Clang factory kits (the new kit models under load)
 For each group: one user sample bank with the three songs' samples (OUT_DIR/bank_A.bin, about 175 KB; B about
 135 KB: the 216 KB bank holds them), each song's sample slots moved to its place in it (song 2's u1 is u3 ...);
 then the host simulator runs each song's setup (tools/demos/<song>.xy up to "tap HOME", where its performance
@@ -37,6 +38,13 @@ GROUPS = {"A": ["jungle", "garage", "hyperpop"], "B": ["house", "pop", "hiphop"]
 VARIANTS = {"house_m": ("house", ["song 4:8"])}       # the main scene (chord changes every bar, the busiest) for 8 bars
 VARIANTS["house_pad"] = ("house_m", ["scenemute 4 xxx.xxxx"])   # the main scene's pad (T4) alone: knit's cost per
 NAMES_EXTRA = {"house_pad": "pad_alone"}                         # voice with little else in the cache
+# K: the main scene on three of the factory kits (tools/gen_kits.py: the new models under the busiest load)
+sys.path.insert(0, str(HERE.parent))
+import gen_kits as GK  # noqa: E402
+for _kit in ("Machine", "Sophie", "Clang"):
+    VARIANTS["house_" + _kit.lower()] = ("house_m", GK.xy(_kit).splitlines())
+    NAMES_EXTRA["house_" + _kit.lower()] = "main_" + _kit.lower()
+GROUPS["K"] = ["house_machine", "house_sophie", "house_clang"]
 
 def root(song):
     """the song a variant is made from (its samples)"""
