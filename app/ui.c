@@ -2725,7 +2725,8 @@ static void kit_model(uint8_t *par, int key, int m)   /* a key to another model,
     }
 }
 /* the factory kits, from the default kit (Loom): Loom Samples the factory bank's 909 kick, snare, hat and clap on
- * their keys (the closed hat cut short) */
+ * their keys (the closed hat cut short); the others tools/gen_kits.py's (kits.h GKIT: each key's model, knobs 1..8,
+ * volume, pan, play mode, the key's decay) */
 static void kit_factory(int k, uint8_t *img)
 {
     static const uint8_t SMP[5] = {0, 1, 2, 2, 3};   /* kick, snare, hat, open, clap: the bank's first four */
@@ -2738,16 +2739,29 @@ static void kit_factory(int k, uint8_t *img)
             if (key == 2)
                 par[TP_DRUM(key, DP_DECAY)] = 60;    /* (about 80 ms) */
         }
-    kit_pack(par, KIT_NAME[k], img);
+    if (k >= 2)
+        for (int key = 0; key < DL_NSOUND; key++) {
+            const uint8_t *g = GKIT[k - 2][key];
+            par[TP_DRUM(key, DP_MODEL)] = g[0];
+            for (int j = 0; j < 4; j++) {
+                par[TP_DRUM(key, DP_K1 + j)] = g[1 + j];
+                par[TP_DRUMX(key, j)] = g[5 + j];
+            }
+            par[TP_DRUM(key, DP_VOLUME)] = g[9];
+            par[TP_DRUM(key, DP_PAN)] = g[10];
+            par[TP_DRUM(key, DP_MODE)] = g[11];
+            par[TP_DRUM(key, DP_DECAY)] = g[12];
+        }
+    kit_pack(par, kit_name(k), img);
 }
-static void kit_apply(int trk, const uint8_t *img)
+static void kit_apply(int trk, const uint8_t *img, int dev)
 {
     uint8_t *par = proj.trk[trk].par;
     undo_sound(trk);
     memcpy(par, img + NAME_LEN, NTP_SOUND);
     par[TP_ENGINE] = EG_DRUMLINE;
     memcpy(par + TP_DRUM0, img + NAME_LEN + NTP_SOUND, KIT_KEYS);
-    keys_fix(par);                               /* (a user kit saved by a development build) */
+    keys_fix(par, dev);                          /* (dev: a user kit saved by a development build) */
     memcpy(proj.trk[trk].name, img, NAME_LEN);
     proj.trk[trk].name[NAME_LEN - 1] = 0;
     engine_set_all(trk);
@@ -2760,14 +2774,15 @@ static void act_kit(int k)
     int trk = sel_trk();
     if (!is_drum(trk))
         return;
+    int dev = 0;
     if (k < NFKITS)
         kit_factory(k, img);
-    else if (kit_load(k - NFKITS, img) != 0) {
+    else if ((dev = kit_load(k - NFKITS, img)) < 0) {
         kit_label(k, t);
         say_no("NO KIT", t);
         return;
     }
-    kit_apply(trk, img);
+    kit_apply(trk, img, dev);
     kit_label(k, t);
     say("KIT", t);
 }

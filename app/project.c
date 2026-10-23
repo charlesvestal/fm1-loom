@@ -66,7 +66,8 @@ typedef char preset_packed[(sizeof(user_preset_t) == NAME_LEN + 2u + NTP_SOUND) 
 #define PRESETS_KITS (4u + (uint32_t)sizeof user_presets)         /* 9: where the kits start */
 #define PRESETS_LEN (PRESETS_KITS + NUSER_KITS * KIT_LEN)
 typedef char presets_fit[(PRESETS_LEN <= PLAT_STORE_MAX && PRESETS_V7 == 836u) ? 1 : -1];
-#define PRESETS_FORMAT 9u                /* 9: knit's osc 2 fine (user_preset_t o2fine), the kits after; 8: the user kits;
+#define PRESETS_FORMAT 10u               /* 10: as 9, its kits' keys on the new models (11..20: keys_fix leaves them);
+                                          * 9: knit's osc 2 fine (user_preset_t o2fine), the kits after; 8: the user kits;
                                           * 7: the filter type off (FT_DYNAMIC) moved past bp12 (TP_FTYPE 4/5 swap, below);
                                           * 6: the octave (TP_OCT); 5: the engine's second page (TP_X1..X4); 4: no tape send (TP_SENDT);
                                           * 3: the character stage; 2: engine 0 is weft */
@@ -277,23 +278,24 @@ void project_defaults(void)
 
 /* the settings came whole (CRC): what the engine indexes with is checked, a knob out of its range
  * (a build whose ranges moved) is clamped, not a reason to lose the project */
-/* development builds had 21 more kit models (11..31, removed 2026-10-23): a key saved with one gets the built-in
- * model for its part, from its defaults (an open hat's long) */
-static void keys_fix(uint8_t *p)
+/* development builds had 21 more kit models (11..31, removed 2026-10-23): a key saved with one, in a project before format
+ * 17 or a kit before presets format 10 (dev: those numbers are now the x models, sophie and clang), gets the built-in model
+ * for its part, from its defaults (an open hat's long). Any other number past the models: a kick */
+static void keys_fix(uint8_t *p, int dev)
 {
     static const uint8_t PART[21] = {DM_KICK, DM_TOM, DM_CONGA, DM_FM, DM_SNARE, DM_CLAP, DM_KICK, DM_HIHAT,
                                      DM_HIHAT, DM_HIHAT, DM_CLAP, DM_SHAKER, DM_RESO, DM_KICK, DM_SNARE, DM_TOM,
                                      DM_CLAP, DM_CLAP, DM_FM, DM_HIHAT, DM_HIHAT};
     for (int key = 0; key < DL_NSOUND; key++) {
         int m = p[TP_DRUM(key, DP_MODEL)];
-        if (m < NDM)
+        if (m < (dev ? DM_SAMPLE + 1 : NDM))
             continue;
-        p[TP_DRUM(key, DP_MODEL)] = m - NDM < 21 ? PART[m - NDM] : DM_KICK;
+        p[TP_DRUM(key, DP_MODEL)] = dev && m - (DM_SAMPLE + 1) < 21 ? PART[m - (DM_SAMPLE + 1)] : DM_KICK;
         for (int k = 0; k < 4; k++) {
             p[TP_DRUM(key, DP_K1 + k)] = DM_DEFAULT[p[TP_DRUM(key, DP_MODEL)]][k];
             p[TP_DRUMX(key, k)] = 0;
         }
-        if (m == 19 || m == 20 || m == 31)            /* (the open hat and the cymbals) */
+        if (dev && (m == 19 || m == 20 || m == 31))   /* (the open hat and the cymbals) */
             p[TP_DRUM(key, DP_K2)] = 88;
     }
 }
@@ -316,7 +318,7 @@ static int settings_valid(settings_t *s)
         if (t >= AUX_FX1 && p[TP_ENGINE] >= NFXPICK)
             return 0;
         if (t < NTRK)
-            keys_fix(p);
+            keys_fix(p, s->format < 17u);
         if (t < NTRK)
             for (k = 0; k < NTP; k++) {
                 const tp_info_t *i = tp_info_par(k, p);   /* the ranges depend on the player and LFO type */
@@ -853,10 +855,10 @@ int presets_load(void)
         user_presets[k].name[0] = 0;
     for (k = 0; k < NUSER_KITS; k++)
         user_kit_name[k][0] = 0;
-    if (!(fmt == PRESETS_FORMAT && n == (int)PRESETS_LEN) && !(fmt == 8u && n == (int)PRESETS_V8) &&
+    if (!((fmt == PRESETS_FORMAT || fmt == 9u) && n == (int)PRESETS_LEN) && !(fmt == 8u && n == (int)PRESETS_V8) &&
         !((fmt == 6u || fmt == 7u) && n == (int)PRESETS_V7))
         return -1;
-    if (fmt == PRESETS_FORMAT)
+    if (fmt >= 9u)
         for (i = 0; i < sizeof user_presets; i++)
             ((uint8_t *)user_presets)[i] = io_buf[4u + i];
     else
@@ -902,7 +904,7 @@ static void presets_image(void)
     if (fmt == 8u && n == (int)PRESETS_V8)
         for (i = NUSER_KITS * KIT_LEN; i-- > 0;)     /* (up: copied from the end) */
             io_buf[PRESETS_KITS + i] = io_buf[PRESETS_V7 + i];
-    else if (fmt != PRESETS_FORMAT || n != (int)PRESETS_LEN)
+    else if ((fmt != PRESETS_FORMAT && fmt != 9u) || n != (int)PRESETS_LEN)
         for (i = PRESETS_KITS; i < PRESETS_LEN; i++)
             io_buf[i] = 0;
     put32(io_buf, PRESETS_FORMAT);
@@ -923,7 +925,7 @@ int kit_load(int slot, uint8_t *img)
     if (slot < 0 || slot >= NUSER_KITS || !user_kit_name[slot][0])
         return -1;
     n = plat_store_load(OBJ_PRESETS, io_buf, sizeof io_buf);
-    if (get32(io_buf) == PRESETS_FORMAT && n == (int)PRESETS_LEN)
+    if ((get32(io_buf) == PRESETS_FORMAT || get32(io_buf) == 9u) && n == (int)PRESETS_LEN)
         at = PRESETS_KITS;
     else if (get32(io_buf) == 8u && n == (int)PRESETS_V8)
         at = PRESETS_V7;
@@ -932,7 +934,7 @@ int kit_load(int slot, uint8_t *img)
     for (i = 0; i < KIT_LEN; i++)
         img[i] = io_buf[at + (uint32_t)slot * KIT_LEN + i];
     img[NAME_LEN - 1] = 0;
-    return img[NAME_LEN + TP_ENGINE] == EG_DRUMLINE ? 0 : -1;
+    return img[NAME_LEN + TP_ENGINE] != EG_DRUMLINE ? -1 : get32(io_buf) == PRESETS_FORMAT ? 0 : 1;
 }
 
 int kit_save(int slot, const uint8_t *img)

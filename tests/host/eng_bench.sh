@@ -11,5 +11,5 @@ mkdir -p build/gen build/host
 "$PY" tools/gen_presets.py build/gen/presets.h
 ${CC:-cc} -O2 -ffp-contract=off -std=gnu99 -Wall -Wextra -Wdouble-promotion -Werror -Wno-unused-function \
     -DPLAT_HOST -Iapp/dsp -Ibase/include -Ibuild/gen \
-    ${BENCH_FLAGS:-} -o build/host/eng_bench tests/host/eng_bench.c app/dsp/drumline.c app/dsp/sample.c
+    ${BENCH_FLAGS:-} -o build/host/eng_bench tests/host/eng_bench.c app/dsp/drumline.c app/dsp/digisophie.c app/dsp/sample.c
 build/host/eng_bench "$@"

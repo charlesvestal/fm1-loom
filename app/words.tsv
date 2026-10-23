@@ -107,6 +107,9 @@ lowcut	low cut
 hicut	high cut
 keytrk	key tracking
 fdbk	feedback
+res	resonance
+harm	harmonics
+mod decay	modulation decay
 PRESET #/#	preset # of #
 BASS #/#	bass # of #
 LEAD #/#	lead # of #

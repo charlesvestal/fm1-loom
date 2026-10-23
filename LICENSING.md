@@ -41,6 +41,9 @@ Where LOOM-8's own parts come from:
 | knit's unison in `app/dsp/synth.c` (the detune offsets and curve, the pans, the keytracked high-pass) | after [NuSaw](https://github.com/charlesvestal/nusaw-plugin) (the plugin's `dsp/nusaw_engine.cpp`, through its FM-1 port fm1-nusaw), Copyright (c) 2026 Charles Vestal | MIT (below) |
 | `app/dsp/braids.h` (the engines cane and voile: their models) | ported from [Mutable Instruments Braids](https://github.com/pichenettes/eurorack/tree/master/braids) (`digital_oscillator.cc`, `macro_oscillator.cc`, the tables of `resources/`), Copyright 2012 Emilie Gillet | MIT (below) |
 | `app/dsp/psxrev.h` (the reverb's PlayStation modes) | ported from [schwung-psxverb](https://github.com/charlesvestal/move-everything-psxverb), Copyright (c) 2025 Charles Vestal; the register sets and the resampling filter are psx-spx's documentation of the PlayStation's SPU | MIT (below) |
+| The x models in `app/dsp/drumline.c` (x kick, x snare, x hat, x clap, x tom, x rim, x fm, x noise: `x_start`, `x_render`) | ported from [MACHINEDRUM](https://github.com/Omodaka9375/machinedrum) (`src/drums.js`, `src/audio.js`), Copyright (c) 2026 Branislav Đalić | MIT (below) |
+| sophie in `app/dsp/drumline.c` (`sophie_start`, `sophie_render`) | ported from [Sophie](https://github.com/mestela/schwung-sophie) (`src/dsp/sophie.c`), Copyright (c) 2026 Matt Estela and the digisophie contributors, through SPH-16's port | MIT (below) |
+| `app/dsp/digisophie.c`, `digisophie.h`, `digisophie_sin.inc` (clang) | [digisophie](https://github.com/soejrd/digisophie) (`sophie.c`), Copyright (c) 2026 Matt Estela, unchanged | MIT (below) |
 | Everything else in `app/`, `tools/`, `tests/` | LOOM-8 | GPL-3.0-only |
 
 ## Third-party material
@@ -65,6 +68,32 @@ Where LOOM-8's own parts come from:
 
 ```
 Copyright (c) 2025 Charles Vestal
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```
+
+- The x models are ported from MACHINEDRUM, sophie from Sophie, and clang is digisophie, each under the MIT License:
+
+```
+Copyright (c) 2026 Branislav Đalić (MACHINEDRUM)
+Copyright (c) 2026 Matt Estela (Sophie; digisophie)
+Copyright (c) 2026 digisophie contributors (Sophie)
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal

@@ -20,7 +20,7 @@ mkdir -p "$OUT"
 rm -f "$OUT"/*.wav "$OUT"/*.xy "$OUT"/dry/*.wav
 mkdir -p build/host
 $CC -O2 -std=c99 -DPLAT_HOST -Iapp/dsp -Iapp -Ibase/include -Iapp/build/gen -o build/host/preset_scripts \
-    tools/preset_scripts.c app/dsp/synth.c app/dsp/drumline.c app/dsp/sample.c -lm
+    tools/preset_scripts.c app/dsp/synth.c app/dsp/drumline.c app/dsp/digisophie.c app/dsp/sample.c -lm
 names=$(build/host/preset_scripts "$OUT" $ROLES)
 for n in $names; do
     app/build/host/loom_host "$OUT/$n.xy" "$OUT" >/dev/null || { echo "render failed: $n"; exit 1; }
