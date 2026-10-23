@@ -218,6 +218,13 @@ def load_slot(slot, name):
     run("tap", "SEL", "wait", 700)
     answer_yes()                             # LOSE UNSAVED CHANGES?
     s = where()
+    for _ in range(12):                      # (a load takes a moment: the list stays up until it is done)
+        if " list." not in s and "?" not in s:
+            break
+        time.sleep(0.5)
+        s = where()
+    else:
+        raise SystemExit(f"device_load: the load did not finish: {s!r}")
     for _ in range(3):
         if s.startswith("Song,"):
             return s
