@@ -3133,6 +3133,13 @@ static const tp_info_t *dknob_of(int m, int k)   /* model m's knob k (0..7) */
     *i = k < 4 ? DRUMP[DP_K1 + k] : DRUMX_P;
     i->name = nm;
     i->def = k < 4 ? DM_DEFAULT[m][k] : DM_DEFAULT2[m][k - 4];
+    if ((m == DM_SOPHIE || m == DM_CLANG) && k == 4) {   /* their MODEL: a list */
+        i->kind = PK_NAMES;
+        i->hi = (uint8_t)(m == DM_SOPHIE ? 6 : 3);
+        i->names = m == DM_SOPHIE ? SPH_MODEL_N : CLANG_MODEL_N;
+    }
+    if ((m == DM_SOPHIE && k == 6) || (m == DM_CLANG && k == 5))   /* their SWEEP: about the middle */
+        i->kind = PK_BIP;
     if (m == DM_SAMPLE) {                        /* the sample model: sample, pitch (+-24 semitones), start, reverse */
         static const uint8_t KIND[4] = {PK_SAMPLE, PK_BIPST, PK_PCT, PK_SWITCH};
         i->kind = KIND[k];

@@ -554,7 +554,8 @@ Most of these models cost about as much as any voice or less; cane's bell, with 
 ### Kit
 
 A drum track has eleven keys on the black keys, each with a drum model: kick, snare, hat, clap, shaker,
-tambourine, string (a plucked string), conga, tom, fm or sample. The kit is tuned to C: kick G1, snare G3, low tom C3,
+tambourine, string (a plucked string), conga, tom, fm or sample; the x models (x kick, x snare, x hat, x clap, x tom,
+x rim, x fm, x noise); sophie; or clang. The kit is tuned to C: kick G1, snare G3, low tom C3,
 high tom G3, conga C4, string C3, fm C5. Press a black key, or turn **PRESETS**, to pick the key the
 knobs edit. The Engine page's four knobs are the model's own:
 
@@ -573,6 +574,25 @@ knobs edit. The Engine page's four knobs are the model's own:
 | tom | pitch, length, sweep, rate |
 | fm | pitch, length, mod, feedback |
 | sample | sample, pitch (24 semitones each way), start, reverse |
+| x kick | pitch, length, tone, sweep · click, harm, drive |
+| x snare | pitch, length, tone, snap · wire, body, drive |
+| x hat | pitch, length, tone, res · noise, metal, drive |
+| x clap | tone, length, drive |
+| x tom | pitch, length, tone, sweep · noise, fm, drive |
+| x rim | pitch, length, tone, sweep · noise, drive |
+| x fm | pitch, length, ratio, mod decay · click, index, drive |
+| x noise | tone, length, drive |
+| sophie | pitch, length, color, metal · model, feedback, sweep, crush |
+| clang | pitch, length, color, metal · model, sweep, feedback, fold |
+
+The knobs after the dot are on a second Engine page (turn **SELECT**). The **x models** are the eight drum engines of
+Omodaka9375's MACHINEDRUM, a drum machine in the browser: pitch is a note (60 is middle C), the hat's long lengths
+and high pitches make cymbals, x fm's mod decay is how soon its brightness falls. **sophie** is Matt Estela's
+Sophie, metallic FM percussion: its model picks the voice (fuse, stack, split, shard, pipe, boom, or its kick), color
+the inharmonic partials, metal how much FM, feedback the operator feeding itself, sweep a pitch drop (right) or rise
+(left), crush fewer bits. **clang** is digisophie, Sophie made for the Digitakt: two operators, coarser and cheaper,
+with a wavefolder (fold). The x models and clang cost up to twice a built-in model's voice, sophie up to three times;
+a kit of them still leaves the busiest demo well inside the FM-1.
 
 On every sound page of a drum track, a black key picks the key the knobs edit. Turn **SELECT** for the
 key's page: the model, random (a variation on every hit), pan and volume in dB; its **SEL** list has the play
@@ -580,11 +600,21 @@ mode: one-shot, gated, loop, or choke groups 1 to 3. A new model starts from its
 
 **Kits.** A kit track's **SEL** list on Engine has **KIT** and **SAVE KIT**. KIT loads a whole kit onto the track:
 its eleven keys with everything on them, the kit's envelope and filter, its LFO and character. The track's level,
-pan, player and MIDI OUT stay as they are. Two kits come with LOOM-8:
+pan, player and MIDI OUT stay as they are. Fourteen kits come with LOOM-8:
 
 - **Loom**: the kit a new project starts with.
 - **Loom Samples**: the 909 kick, snare, hat and clap from the sample bank on the first five keys (the closed hat
   cut short, the open hat whole), the rest as Loom.
+- **Machine**: the x models throughout.
+- **Sophie**: sophie's kick, snares, toms, crash and bell, with clang's closed hat, clap and noise.
+- **Clang**: clang on every key.
+- **House**, **Garage**, **Jungle**, **Electro**, **Lo-fi**: the three mixed for each style (Jungle's clap key is a
+  ghost snare, Electro's noise key a zap).
+- **909 Plus**, **Analog Plus**, **Deep Mix**, **Breaks Mix**: a standard core (the factory 909 samples, LOOM-8's own
+  kick, snare and hats) with the new models as color: rims, toms, cymbals, a cowbell, bells, a ghost snare.
+
+The new kits keep the default kit's layout: kick, snare, closed hat, open hat (the two in choke group 1), clap, low
+and high tom, percussion, noise, cymbal, bell.
 
 SAVE KIT keeps the track's kit in one of four user kits, K1 to K4, named after the track's sound (LOOM-8 asks
 before it replaces one). Then KIT loads them like the others, in any project. User kits are kept with the user

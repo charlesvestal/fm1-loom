@@ -118,7 +118,7 @@ void loom_lights(uint32_t buttons, uint32_t keys, int glow, uint32_t dim_keys, i
 #define DEBUG_BUILD (APP_VERSION[0] == 'D' && APP_VERSION[1] == 'E' && APP_VERSION[2] == 'V' && \
                      (!APP_VERSION[3] || APP_VERSION[3] == 'T'))   /* DEV, or the load test's DEVTEST */
 #define PROJ_MAGIC 0x384D4F4Cu          /* "LOM8" (was "XXY1": XY-1's projects start fresh) */
-#define PROJ_FORMAT 16u                 /* (10, 0.5-beta's, to 12 load too: project.c migrate_old; older ones do not)
+#define PROJ_FORMAT 17u                 /* (10, 0.5-beta's, to 12 load too: project.c migrate_old; older ones do not)
                                          * 16: knit's osc 2 fine (TP_O2FINE), the tracks' last parameter;
                                          * 15: a kit key's knobs 5..8 (TP_DRUMX: an eight-knob model's second page), after
                                          * the keys; the settings object's tracks packed (project.c settings_pack);
@@ -189,7 +189,8 @@ extern user_preset_t user_presets[NUSER_PRESETS];
 #define KIT_KEYS (TP_O2FINE - TP_DRUM0)          /* (the keys and their knobs 5..8: not knit's osc 2 fine after them) */
 #define KIT_LEN (NAME_LEN + NTP_SOUND + KIT_KEYS)
 extern char user_kit_name[NUSER_KITS][NAME_LEN];   /* "" = an empty slot */
-int kit_load(int slot, uint8_t *img);  /* img: KIT_LEN bytes; 0 = the slot holds a kit */
+int kit_load(int slot, uint8_t *img);  /* img: KIT_LEN bytes; 0 = the slot holds a kit, 1 = one saved before presets
+                                        * format 10 (its keys past the sample model: a development build's, keys_fix) */
 int kit_save(int slot, const uint8_t *img);   /* 0 = saved (the user presets with it, as they are) */
 extern uint8_t proj_slot;               /* the slot loaded */
 

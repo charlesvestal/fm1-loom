@@ -1,4 +1,5 @@
-# kits (a kit track's SELECT list on Engine): KIT loads a factory kit (Loom, Loom Samples) or a user kit (K1..K4);
+# kits (a kit track's SELECT list on Engine): KIT loads a factory kit (Loom, Loom Samples, tools/gen_kits.py's) or a user
+# kit (K1..K4, the list's last four: turned to from Loom backward, -4 .. -1);
 # SAVE KIT keeps the track's kit in a user slot (asking before replacing one), in flash with the user presets: a
 # restart keeps it, and loading a kit keeps the track's mix
 wait 300
@@ -36,7 +37,7 @@ wait 40
 expect par1.d1.model 0
 tap SEL
 turn SELECT 2
-turn ALGO 2
+turn ALGO -4
 tap SEL
 wait 40
 said K1
@@ -48,7 +49,7 @@ expect par1.d1.model 0
 tap EDIT
 tap SEL
 turn SELECT 2
-turn ALGO 2
+turn ALGO -4
 tap SEL
 wait 40
 expect par1.d1.model 10

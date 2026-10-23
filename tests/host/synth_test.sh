@@ -13,6 +13,6 @@ mkdir -p build/gen build/host
 "$PY" tools/gen_presets.py build/gen/presets.h
 [ -f build/gen/breaks.bin ] || "$PY" tools/loom_samples.py build build/gen/breaks.bin breaks >/dev/null
 $CC -O2 -ffp-contract=off -std=c99 -Wall -Wextra -Wdouble-promotion -Werror -DPLAT_HOST -Iapp/dsp -Ibase/include -Ibuild/gen \
-    -o build/host/synth_test tests/host/synth_test.c app/dsp/synth.c app/dsp/drumline.c \
+    -o build/host/synth_test tests/host/synth_test.c app/dsp/synth.c app/dsp/drumline.c app/dsp/digisophie.c \
     app/dsp/sample.c -lm
 build/host/synth_test

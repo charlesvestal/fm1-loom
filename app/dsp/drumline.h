@@ -35,8 +35,14 @@
  * its key of the default kit (the low tom's for the tom; the tambourine and the sample, not in the kit,
  * their own). */
 enum { DM_KICK, DM_SNARE, DM_HIHAT, DM_CLAP, DM_SHAKER, DM_TAMB, DM_RESO, DM_CONGA, DM_TOM, DM_FM, DM_SAMPLE,
+       /* the x models, after Omodaka9375's MACHINEDRUM (MIT, a Web Audio drum machine): its eight engines, seven
+        * knobs each (its PITCH, DECAY, TONE and SWEEP, then NOISE, FM and DRIVE on the second page); and clang,
+        * digisophie's Sophie core (MIT: dsp/digisophie.c), eight knobs; sophie, Sophie's own voice (Matt Estela,
+        * MIT; after SPH-16's port), its seven models on one knob */
+       DM_XKICK, DM_XSNARE, DM_XHAT, DM_XCLAP, DM_XTOM, DM_XRIM, DM_XFM, DM_XNOISE, DM_CLANG, DM_SOPHIE,
        NDM };                                        /* (saved by number: a new model goes last; development builds
                                                       * had 21 more, 11..31: project.c keys_fix) */
+#define DM_ISX(m) ((m) >= DM_XKICK && (m) <= DM_XNOISE)
 extern const char *const DM_NAME[NDM];
 extern const char *const DM_KNOB[NDM][4];
 extern const uint8_t DM_DEFAULT[NDM][4];
@@ -44,7 +50,9 @@ extern const uint8_t DM_DEFAULT[NDM][4];
  * four (all of them, now) has 0 there */
 extern const char *const DM_KNOB2[NDM][4];
 extern const uint8_t DM_DEFAULT2[NDM][4];
-extern const uint8_t DM_NKNOB[NDM];               /* each model's knobs (4; up to 8) */
+extern const uint8_t DM_NKNOB[NDM];
+extern const char *const SPH_MODEL_N[7];             /* sophie's MODEL (its knob 5): fuse .. boom, kick */
+extern const char *const CLANG_MODEL_N[4];           /* clang's: fuse boom pipe shard (digisophie's order) */               /* each model's knobs (4; up to 8) */
 static inline int dm_knobs(int m) { return m >= 0 && m < NDM ? DM_NKNOB[m] : 4; }
 /* play modes: one-shot, gated (while the key / step is held), loop, choke groups 1..3 (one-shots that cut
  * each other within the group) */
