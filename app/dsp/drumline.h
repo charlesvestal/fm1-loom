@@ -34,10 +34,18 @@
  * DM_HIHAT is the hat, DM_TAMB the tambourine, DM_RESO the string. DM_DEFAULT[m] = the model's knobs on
  * its key of the default kit (the low tom's for the tom; the tambourine and the sample, not in the kit,
  * their own). */
-enum { DM_KICK, DM_SNARE, DM_HIHAT, DM_CLAP, DM_SHAKER, DM_TAMB, DM_RESO, DM_CONGA, DM_TOM, DM_FM, DM_SAMPLE, NDM };
+enum { DM_KICK, DM_SNARE, DM_HIHAT, DM_CLAP, DM_SHAKER, DM_TAMB, DM_RESO, DM_CONGA, DM_TOM, DM_FM, DM_SAMPLE,
+       NDM };                                        /* (saved by number: a new model goes last; development builds
+                                                      * had 21 more, 11..31: project.c keys_fix) */
 extern const char *const DM_NAME[NDM];
 extern const char *const DM_KNOB[NDM][4];
 extern const uint8_t DM_DEFAULT[NDM][4];
+/* a model with eight knobs has its second four on the key's second Engine page (synth.h TP_DRUMX); a model with
+ * four (all of them, now) has 0 there */
+extern const char *const DM_KNOB2[NDM][4];
+extern const uint8_t DM_DEFAULT2[NDM][4];
+extern const uint8_t DM_NKNOB[NDM];               /* each model's knobs (4; up to 8) */
+static inline int dm_knobs(int m) { return m >= 0 && m < NDM ? DM_NKNOB[m] : 4; }
 /* play modes: one-shot, gated (while the key / step is held), loop, choke groups 1..3 (one-shots that cut
  * each other within the group) */
 enum { PM_ONESHOT, PM_GATED, PM_LOOP, PM_CHOKE1, PM_CHOKE2, PM_CHOKE3, NPM };
@@ -72,3 +80,7 @@ void drumline_render(drumline_t *d, float *l, float *r, float *s1, float *s2, ui
 int drumline_sounding(const drumline_t *d);
 int drumline_voices(const drumline_t *d);              /* the voices sounding (the engine's core split) */
 extern volatile uint8_t drumline_hitv[DL_NSOUND];      /* the last hit of each sound, 255 = full (UI lets it fall) */
+#ifdef PLAT_HOST
+extern uint32_t (*drumline_host_clock)(void);    /* the simulator's profiler: each key's time rendering [0] and starting */
+extern uint32_t drumline_host_cost[DL_NSOUND][2];   /* [1] its hits, in the clock's units (app/host.c LOOM_WORK) */
+#endif

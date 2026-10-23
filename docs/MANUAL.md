@@ -204,7 +204,8 @@ From top to bottom, the screen has five parts.
 
 <img src="img/screen-beat.png" width="240" alt="The Steps page stopped: the header with the page and tempo, the line of what a step press writes and the bars, the 16 cells, the tag line, the knob strip and the two hint lines" title="The Steps page">
 
-- **The header** shows the page's button and name, the tempo, a red dot while recording, and "unsaved". On a
+- **The header** shows the page's button and name, the tempo and the battery beside it (red when low; a bolt
+  while a computer powers the FM-1), a red dot while recording, and "unsaved". On a
   track's pages, the track's pill comes first, and before it a small meter: what that track is playing now, so
   you can tell its notes from the others'.
   Messages and questions cover it for a moment.
@@ -478,7 +479,8 @@ field. With one voice, **detune** is a slow drift of the pitch instead.
 The Sub page: **osc 2** is one more of the wave, 24 semitones either way of the note, and **level** its level
 (0 is off); **sub** is a sine an octave down; **noise** adds noise. **detune** tunes osc 2 too, up to 20 cents
 above its interval, at any number of voices: osc 2 at 0 semitones with a little detune is the classic two
-oscillators beating.
+oscillators beating. Hold **HOME** and turn **KNOB 1** to tune osc 2 finely, 50 cents either way ("osc 2 fine"):
+on its own, without the drift or spread that detune brings.
 
 A wide unison costs more than an ordinary voice. So knit plays at most six voices, five with seven in its unison;
 a new note past that takes its oldest.
@@ -575,6 +577,18 @@ knobs edit. The Engine page's four knobs are the model's own:
 On every sound page of a drum track, a black key picks the key the knobs edit. Turn **SELECT** for the
 key's page: the model, random (a variation on every hit), pan and volume in dB; its **SEL** list has the play
 mode: one-shot, gated, loop, or choke groups 1 to 3. A new model starts from its own knobs.
+
+**Kits.** A kit track's **SEL** list on Engine has **KIT** and **SAVE KIT**. KIT loads a whole kit onto the track:
+its eleven keys with everything on them, the kit's envelope and filter, its LFO and character. The track's level,
+pan, player and MIDI OUT stay as they are. Two kits come with LOOM-8:
+
+- **Loom**: the kit a new project starts with.
+- **Loom Samples**: the 909 kick, snare, hat and clap from the sample bank on the first five keys (the closed hat
+  cut short, the open hat whole), the rest as Loom.
+
+SAVE KIT keeps the track's kit in one of four user kits, K1 to K4, named after the track's sound (LOOM-8 asks
+before it replaces one). Then KIT loads them like the others, in any project. User kits are kept with the user
+presets, and a backup holds them too.
 
 **ENV** on a drum track has four pages. The first two are the shown key's own, after its model:
 
@@ -809,7 +823,8 @@ starts at the next bar line; press its key again to switch at once, or press the
 the cue back. **SEL**'s SCENES SWITCH set to "pattern end" makes a key wait for the end of T1's pattern
 instead: the tracks can have different lengths and drift apart, so T1's pattern is the scene's length (on a
 64-step T1, up to four bars). Turning **PRESETS** cues the next scene for the bar the same way. An empty scene
-becomes a copy of the scene playing. Hold a white key for a second to clear that scene. The black keys
+becomes a copy of the scene playing. Hold a white key for a second to clear that scene: the scene playing
+stays while LOOM-8 asks (holding an empty key does nothing). The black keys
 mute: 1 to 8 the tracks, 9 and 10 the conductor and the throws. A kit track's black key mutes it when you let go;
 hold it instead and press white keys 1 to 11 to mute that kit's sounds one by one (lit: playing), in this scene
 (each kit its own, for the first four kit tracks; the row says how many are off). A muted sound still drives the pump; its key
@@ -1033,7 +1048,7 @@ patterns, the kit and the mix stay. A project saves every knob as you left it, n
 **Older projects.** Projects saved by 0.5-beta to 0.5.4-beta load and are converted: their scenes into the
 thirty-two, MIDI notes on, T1 to T8 on channels 1 to 8. Projects saved by this version do not open in older ones.
 
-**Backup.** To keep the three projects, the user presets and your samples on a computer, and put them back later,
+**Backup.** To keep the three projects, the user presets and kits, and your samples on a computer, and put them back later,
 open <https://charlesvestal.github.io/fm1-loom/backup/> in Chrome or Edge with the FM-1 connected by USB. A backup
 holds the projects as saved: save first what you want in it. Putting one back replaces all three projects and the
 presets; LOOM-8 asks first, on its screen (**SEL** yes, **HOME** no), and only while stopped. Once you said yes, the

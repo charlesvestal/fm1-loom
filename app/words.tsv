@@ -9,6 +9,7 @@ T#	track #
 P#	pattern #
 S#	scene #
 U#	user preset #
+K#	user kit #
 CO	conductor
 COND	conductor
 TH	throws
@@ -63,6 +64,7 @@ ms	milliseconds
 Hz	hertz
 dB	decibels
 st	semitones
+ct	cents
 1/16T	sixteenth triplet
 1/8T	eighth triplet
 # in 1	# steps over one octave

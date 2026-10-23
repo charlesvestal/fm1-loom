@@ -1,0 +1,84 @@
+# kits (a kit track's SELECT list on Engine): KIT loads a factory kit (Loom, Loom Samples) or a user kit (K1..K4);
+# SAVE KIT keeps the track's kit in a user slot (asking before replacing one), in flash with the user presets: a
+# restart keeps it, and loading a kit keeps the track's mix
+wait 300
+listen
+expect trk 1
+tap EDIT
+expect page Engine
+param 1 level 90
+# Loom Samples: the bank's kick, snare, hat, clap
+tap SEL
+turn SELECT 2
+turn ALGO 1
+tap SEL
+wait 40
+said Loom Samples
+expect par1.d1.model 10
+expect par1.d1.k1 0
+expect par1.d5.k1 3
+expect par1.d6.model 8
+expect par1.level 90
+expect par1.engine 8
+# into K1 (empty: no question)
+tap SEL
+turn SELECT 3
+tap SEL
+wait 40
+said KIT SAVED
+expect ask 0
+# Loom, then K1 back
+tap SEL
+turn SELECT 2
+turn ALGO -1
+tap SEL
+wait 40
+expect par1.d1.model 0
+tap SEL
+turn SELECT 2
+turn ALGO 2
+tap SEL
+wait 40
+said K1
+expect par1.d1.model 10
+expect par1.d5.k1 3
+reboot
+wait 300
+expect par1.d1.model 0
+tap EDIT
+tap SEL
+turn SELECT 2
+turn ALGO 2
+tap SEL
+wait 40
+expect par1.d1.model 10
+# changed and saved over K1: asked first
+param 1 d1.model 0
+tap SEL
+turn SELECT 3
+tap SEL
+wait 40
+expect ask 1
+tap SEL
+wait 40
+expect ask 0
+said KIT SAVED
+tap SEL
+wait 40
+shot kits_list.png
+# the presets as an older version kept them (format 7, tests/fixtures/make_presets_v7.py: user preset U1, no kits)
+# put back: the kits empty, K1 saved beside U1 (backup out:v8.bkp holds both)
+tap HOME
+wait 40
+restore tests/fixtures/presets_v7.bkp
+expect restore_rc 0
+wait 300
+tap EDIT
+tap SEL
+turn SELECT 3
+wait 300
+said K1 (empty)
+tap SEL
+wait 40
+said KIT SAVED
+backup out:v8.bkp

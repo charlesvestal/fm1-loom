@@ -4,7 +4,7 @@
 #   tests/host/hw_bench.sh
 set -eu
 cd "$(dirname "$0")/../.."
-mkdir -p build/host
+mkdir -p build/host build/gen
 ${CC:-cc} -O2 -ffp-contract=off -std=gnu99 -Wall -Wextra -Wdouble-promotion -Werror -Wno-unused-function \
-    -DPLAT_HOST -Iapp/dsp -Ibase/include -o build/host/hw_bench tests/host/hw_bench.c
+    -DPLAT_HOST -Iapp/dsp -Ibase/include -Ibuild/gen -o build/host/hw_bench tests/host/hw_bench.c
 build/host/hw_bench

@@ -81,10 +81,20 @@ enum {
     TP_BRAIN,                                       /* follows the brain: 0 no, 1 diatonic, 2 transpose only */
     TP_CHAN,                                        /* MIDI OUT: 0 off, 1 on (on the track's own channel) */
     TP_DRUM0,                                       /* the drum kit: NDRUM keys * DP_N */
-    NTP = TP_DRUM0 + 11 * DP_N
+    TP_DRUMX0 = TP_DRUM0 + 11 * DP_N,               /* the keys' second page of model knobs (a model with eight:
+                                                     * drumline.h DM_KNOB2): NDRUM keys * DPX_N; after the
+                                                     * keys, so format 14's indices (locks, CCs) stay as they were */
+    TP_O2FINE = TP_DRUMX0 + 11 * 4,                 /* knit's osc 2, fine: cents about 64 (14..114 = -50..+50; the Sub
+                                                     * page's osc 2 knob with HOME held). Last, so format 15's indices
+                                                     * stay (format 16) */
+    NTP
 };
 _Static_assert(NTP <= 511, "a parameter's index: nine bits in the engine's queue (engine.c cq_put); a lane's is 16");
 #define TP_DRUM(s, k) (TP_DRUM0 + (s) * DP_N + (k))
+#define DPX_N 4                                      /* knobs 5..8 of a key's model */
+#define TP_DRUMX(s, j) (TP_DRUMX0 + (s) * DPX_N + (j))
+static inline int tp_is_dkey(int p) { return p >= TP_DRUM0 && p < TP_DRUMX0; }   /* a key's DP_* */
+static inline int tp_is_dknob2(int p) { return p >= TP_DRUMX0 && p < TP_O2FINE; }   /* a key's knob 5..8 */
 #define NTP_SOUND TP_PLAYER                          /* a preset keeps par[0..TP_PLAYER): the character, the engine's
                                                       * second page (TP_X1..X4) too */
 
@@ -162,7 +172,8 @@ enum { PK_NUM, PK_PCT, PK_BIP, PK_NAMES, PK_SEMI, PK_SWITCH, PK_MS, PK_HZ_SYNC, 
        PK_DMS,                                     /* a drum key's time: 0 = 0 ms, else as PK_MS */
        PK_DECAY,                                   /* the same, 127 = "off" */
        PK_LAGMS,                                   /* 0..127 = 0..60 ms */
-       PK_FADER };                                 /* a track's level: dB by tp_level_gain, 0 = "off" */
+       PK_FADER,                                   /* a track's level: dB by tp_level_gain, 0 = "off" */
+       PK_CENT };                                  /* cents about 64: "+12 ct" */
 typedef struct {
     const char *name;                 /* short, as on the knob row (<= 8 chars) */
     uint8_t lo, hi, def;
@@ -260,8 +271,9 @@ void synth_prepare(synth_t *s, uint32_t n);
 void synth_render(synth_t *s, int v0, int v1, float *l, float *r, float *s1, float *s2, uint32_t n);
 /* the same, saying which core renders (0 the first, 1 the second: the profiler's halves) */
 void synth_render_on(synth_t *s, int core, int v0, int v1, float *l, float *r, float *s1, float *s2, uint32_t n);
-void synth_order(const synth_t *s, int8_t *ord);   /* the NVOICE voices, grouped by engine on the FM-1 (the order the
-                                                      * cores take them in: engine.c render_sub); the simulator's in order */
+int synth_order(const synth_t *s, int8_t *ord);   /* the cores' queue (engine.c): the sounding voices by cost, how many
+                                                     * (the simulator: all NVOICE in order) */
+void synth_idle(synth_t *s, const int8_t *ord, int nord, uint32_t n);   /* the voices not in it moved n frames on */
 int synth_sounding(const synth_t *s, int v0, int v1);          /* a voice in the range is sounding */
 int synth_voices_used(const synth_t *s);
 /* the slice engine's newest playing voice on a track (the picture): its slice (0-based) and the position in

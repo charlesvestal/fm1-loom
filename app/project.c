@@ -26,6 +26,7 @@ settings_t proj;
 uint8_t proj_par[NALLTRK][NTP];
 patterns_t pats PLAT_POOL;
 user_preset_t user_presets[NUSER_PRESETS];
+char user_kit_name[NUSER_KITS][NAME_LEN];
 uint8_t proj_slot;
 
 #define PROJ_STREAM 2u                  /* the format word of the packed objects */
@@ -47,9 +48,26 @@ static uint8_t migrated = 0xFF;                   /* the slot loaded from an old
                                                    * beside the old format's patterns */
 #define FORMAT_OK(f) ((f) >= 10u && (f) <= PROJ_FORMAT)   /* the formats a slot loads (migrate_old, before 13 glfo_defaults) */
 typedef char raw_fits[(RAW_LEN < 0x100000u) ? 1 : -1];   /* (lz.c packs up to 16 MB; the header's length is a u32) */
-typedef char settings_fit[(sizeof(settings_t) <= PLAT_STORE_MAX) ? 1 : -1];
-typedef char presets_fit[(sizeof user_presets + 4u <= PLAT_STORE_MAX) ? 1 : -1];
-#define PRESETS_FORMAT 7u                /* 7: the filter type off (FT_DYNAMIC) moved past bp12 (TP_FTYPE 4/5 swap, below);
+/* the settings object (format 15 on): the settings before the tracks as they are (SET_HDR), the packed tracks' length,
+ * then the tracks packed (lz.c: a synth track's kit keys and an aux track's sound are mostly defaults). Formats 10..14
+ * stored them raw, each track's par[] TP_DRUMX0 long (the keys' knobs 5..8 came in 15): SET_OLD bytes in all */
+#define SET_HDR ((uint32_t)offsetof(settings_t, trk))
+#define NTP14 ((uint32_t)TP_DRUMX0)
+#define TRK14 (NTP14 + NAME_LEN + 4u)
+#define SET_OLD ((SET_HDR + NALLTRK * TRK14 + 3u) & ~3u)   /* (the struct padded to its 4-byte alignment) */
+#define NTP15 ((uint32_t)TP_O2FINE)                       /* format 15's par[]: up to the keys' knobs 5..8 */
+#define TRK15 (NTP15 + NAME_LEN + 4u)
+typedef char settings_head_fits[(SET_HDR + 4u + 64u <= PLAT_STORE_MAX && SET_OLD == 3804u) ? 1 : -1];   /* (format 14's size) */
+typedef char trk_layout[(offsetof(trk_t, name) == NTP && sizeof(trk_t) == NTP + NAME_LEN + 4u) ? 1 : -1];
+typedef char preset_packed[(sizeof(user_preset_t) == NAME_LEN + 2u + NTP_SOUND) ? 1 : -1];   /* (no padding) */
+#define PRESET_OLD (NAME_LEN + 1u + NTP_SOUND)                    /* formats 6..8: a user preset without its fine */
+#define PRESETS_V7 (4u + NUSER_PRESETS * PRESET_OLD)              /* 6, 7: the user presets alone */
+#define PRESETS_V8 (PRESETS_V7 + NUSER_KITS * KIT_LEN)            /* 8: the user kits after them */
+#define PRESETS_KITS (4u + (uint32_t)sizeof user_presets)         /* 9: where the kits start */
+#define PRESETS_LEN (PRESETS_KITS + NUSER_KITS * KIT_LEN)
+typedef char presets_fit[(PRESETS_LEN <= PLAT_STORE_MAX && PRESETS_V7 == 836u) ? 1 : -1];
+#define PRESETS_FORMAT 9u                /* 9: knit's osc 2 fine (user_preset_t o2fine), the kits after; 8: the user kits;
+                                          * 7: the filter type off (FT_DYNAMIC) moved past bp12 (TP_FTYPE 4/5 swap, below);
                                           * 6: the octave (TP_OCT); 5: the engine's second page (TP_X1..X4); 4: no tape send (TP_SENDT);
                                           * 3: the character stage; 2: engine 0 is weft */
 
@@ -65,6 +83,7 @@ static void apply_preset(trk_t *t, int k)
         return;
     for (i = 0; i < NTP_SOUND; i++)
         t->par[i] = PRESETS[k].par[i];
+    t->par[TP_O2FINE] = 64;
     for (i = 0; i < NAME_LEN - 1 && PRESETS[k].name[i]; i++)
         t->name[i] = PRESETS[k].name[i];
     t->name[i] = 0;
@@ -258,6 +277,27 @@ void project_defaults(void)
 
 /* the settings came whole (CRC): what the engine indexes with is checked, a knob out of its range
  * (a build whose ranges moved) is clamped, not a reason to lose the project */
+/* development builds had 21 more kit models (11..31, removed 2026-10-23): a key saved with one gets the built-in
+ * model for its part, from its defaults (an open hat's long) */
+static void keys_fix(uint8_t *p)
+{
+    static const uint8_t PART[21] = {DM_KICK, DM_TOM, DM_CONGA, DM_FM, DM_SNARE, DM_CLAP, DM_KICK, DM_HIHAT,
+                                     DM_HIHAT, DM_HIHAT, DM_CLAP, DM_SHAKER, DM_RESO, DM_KICK, DM_SNARE, DM_TOM,
+                                     DM_CLAP, DM_CLAP, DM_FM, DM_HIHAT, DM_HIHAT};
+    for (int key = 0; key < DL_NSOUND; key++) {
+        int m = p[TP_DRUM(key, DP_MODEL)];
+        if (m < NDM)
+            continue;
+        p[TP_DRUM(key, DP_MODEL)] = m - NDM < 21 ? PART[m - NDM] : DM_KICK;
+        for (int k = 0; k < 4; k++) {
+            p[TP_DRUM(key, DP_K1 + k)] = DM_DEFAULT[p[TP_DRUM(key, DP_MODEL)]][k];
+            p[TP_DRUMX(key, k)] = 0;
+        }
+        if (m == 19 || m == 20 || m == 31)            /* (the open hat and the cymbals) */
+            p[TP_DRUM(key, DP_K2)] = 88;
+    }
+}
+
 static int settings_valid(settings_t *s)
 {
     int t, k;
@@ -275,6 +315,8 @@ static int settings_valid(settings_t *s)
             return 0;
         if (t >= AUX_FX1 && p[TP_ENGINE] >= NFXPICK)
             return 0;
+        if (t < NTRK)
+            keys_fix(p);
         if (t < NTRK)
             for (k = 0; k < NTP; k++) {
                 const tp_info_t *i = tp_info_par(k, p);   /* the ranges depend on the player and LFO type */
@@ -553,6 +595,88 @@ static int load_stream(int n, uint32_t prev)
     return 0;
 }
 
+/* ---- the settings object ------------------------------------------------------------------- */
+
+typedef struct { uint32_t fill; } set_out_t;
+static int set_put(void *ctx, const uint8_t *p, uint32_t n)
+{
+    set_out_t *o = ctx;
+    if (n > PLAT_STORE_MAX - o->fill)
+        return -1;                                    /* (it would not fit: nothing written) */
+    while (n--)
+        io_buf[o->fill++] = *p++;
+    return 0;
+}
+/* proj into io_buf as the settings object: its size, or -1 (the tracks do not pack into one object: never seen;
+ * a project of eight kits with every knob of every key random packs into about two thirds of it) */
+static int settings_pack(void)
+{
+    set_out_t o = {SET_HDR + 4u};
+    lz_sink_t sink = {set_put, &o};
+    for (uint32_t i = 0; i < SET_HDR; i++)
+        io_buf[i] = ((const uint8_t *)&proj)[i];
+    if (lz_compress((const uint8_t *)proj.trk, (uint32_t)sizeof proj.trk, &sink))
+        return -1;
+    put32(io_buf + SET_HDR, o.fill - SET_HDR - 4u);
+    return (int)o.fill;
+}
+typedef struct { const uint8_t *p; uint32_t left; } set_in_t;
+static int set_get(void *ctx)
+{
+    set_in_t *s = ctx;
+    if (!s->left)
+        return -1;
+    s->left--;
+    return *s->p++;
+}
+/* the settings object in io_buf (n bytes) into proj: this format's packed, or format 10..14's raw (each key's knobs
+ * 5..8 then its model's defaults); 0 = done (proj then needs settings_valid), -1 = not one */
+static int settings_unpack(int n)
+{
+    uint32_t fmt, i;
+    if (n < (int)(SET_HDR + 4u) || get32(io_buf) != PROJ_MAGIC)
+        return -1;
+    fmt = get32(io_buf + 4);
+    if (fmt >= 15u && fmt <= PROJ_FORMAT) {
+        set_in_t in = {io_buf + SET_HDR + 4u, get32(io_buf + SET_HDR)};
+        lz_src_t src = {set_get, &in};
+        if (in.left > (uint32_t)n - SET_HDR - 4u)
+            return -1;
+        for (i = 0; i < SET_HDR; i++)
+            ((uint8_t *)&proj)[i] = io_buf[i];
+        if (fmt >= 16u)
+            return lz_decompress(&src, (uint8_t *)proj.trk, (uint32_t)sizeof proj.trk) ? -1 : 0;
+        if (lz_decompress(&src, (uint8_t *)proj.trk, NALLTRK * TRK15))   /* format 15: its tracks a byte shorter, */
+            return -1;
+        for (int t = NALLTRK - 1; t >= 0; t--) {  /* spread from the last (each moves up: copied from its end) */
+            const uint8_t *o = (const uint8_t *)proj.trk + (uint32_t)t * TRK15;
+            uint8_t *d = (uint8_t *)&proj.trk[t];
+            for (i = TRK15; i-- > NTP15;)       /* the name and rsv after the new parameter */
+                d[i + 1u] = o[i];
+            for (i = NTP15; i-- > 0;)
+                d[i] = o[i];
+            proj.trk[t].par[TP_O2FINE] = 64;
+        }
+        return 0;
+    }
+    if (n != (int)SET_OLD || !FORMAT_OK(fmt))
+        return -1;
+    for (i = 0; i < SET_HDR; i++)
+        ((uint8_t *)&proj)[i] = io_buf[i];
+    for (int t = 0; t < NALLTRK; t++) {
+        const uint8_t *o = io_buf + SET_HDR + (uint32_t)t * TRK14;
+        trk_t *tr = &proj.trk[t];
+        memcpy(tr->par, o, NTP14);
+        memcpy(tr->name, o + NTP14, NAME_LEN);
+        memcpy(tr->rsv, o + NTP14 + NAME_LEN, 4);
+        for (int k = 0; k < DL_NSOUND; k++)
+            for (int j = 0; j < DPX_N; j++)
+                tr->par[TP_DRUMX(k, j)] = DM_DEFAULT2[tr->par[TP_DRUM(k, DP_MODEL)] % NDM][j];
+        tr->par[TP_O2FINE] = 64;
+    }
+    return 0;
+}
+
 /* ---- load, save ----------------------------------------------------------------------------- */
 
 static void slot_objects(int slot)
@@ -574,10 +698,9 @@ int project_load(int slot)
     packed_len = 0;
     load_format = PROJ_FORMAT;
     n = plat_store_load(OBJ_PROJ(slot, 0), io_buf, sizeof io_buf);
-    if (n == (int)sizeof proj && settings_valid((settings_t *)(void *)io_buf)) {
-        uint32_t i;
-        for (i = 0; i < sizeof proj; i++)
-            ((uint8_t *)&proj)[i] = io_buf[i];
+    if (n > 0)
+        stored_hash[OBJ_PROJ(slot, 0)] = hash_of(io_buf, (uint32_t)n);
+    if (settings_unpack(n) == 0 && settings_valid(&proj)) {
         load_format = (uint8_t)proj.format;
         proj.format = PROJ_FORMAT;                    /* (an older one migrated: saved as this format next) */
         if (load_format < 13u)                        /* (before 13 the conductor's LFO slots held a knit's defaults:
@@ -600,8 +723,8 @@ int project_load(int slot)
             if (proj.trk[t].par[TP_CHAN])
                 proj.trk[t].par[TP_CHAN] = 1;
         stored_known[OBJ_PROJ(slot, 0)] = 1;
-        stored_hash[OBJ_PROJ(slot, 0)] = hash_of(io_buf, (uint32_t)n);
     } else {
+        project_defaults();                           /* (an unpack may have left part of it) */
         bad = 1;
         if (n >= 8 && get32(io_buf) == PROJ_MAGIC && !FORMAT_OK(get32(io_buf + 4)))
             proj_slot = NPROJ;            /* another format's project there: no slot, so nothing (autosave, SAVE)
@@ -659,12 +782,11 @@ int project_save(int slot)
  * migrated project's first touch does not: just loaded, they are not the sequencer's yet) */
 static int project_write(int slot)
 {
-    uint32_t i;
-    int rc;
+    int rc, n;
     count_next();
-    for (i = 0; i < sizeof proj; i++)
-        io_buf[i] = ((const uint8_t *)&proj)[i];
-    if ((rc = save_buf(OBJ_PROJ(slot, 0), sizeof proj)) != 0)
+    if ((n = settings_pack()) < 0)
+        return -1;
+    if ((rc = save_buf(OBJ_PROJ(slot, 0), (uint32_t)n)) != 0)
         return rc < 0 ? -1 : rc;
     rc = save_stream();
     if (rc == 0 && migrated == slot)
@@ -704,15 +826,14 @@ int project_last_slot(void)
 }
 int project_touch(int slot)                       /* (only the settings change: the patterns' objects stay) */
 {
-    uint32_t i;
+    int n;
     if (slot < 0 || slot >= NPROJ)
         return -1;
     if (migrated == slot)                         /* (an older format's patterns there: the whole project, now) */
         return project_write(slot) == 0 ? 0 : -1;
     count_next();
-    for (i = 0; i < sizeof proj; i++)
-        io_buf[i] = ((const uint8_t *)&proj)[i];
-    return save_buf(OBJ_PROJ(slot, 0), sizeof proj) < 0 ? -1 : 0;
+    n = settings_pack();
+    return n < 0 || save_buf(OBJ_PROJ(slot, 0), (uint32_t)n) < 0 ? -1 : 0;
 }
 
 int project_exists(int slot)
@@ -730,11 +851,24 @@ int presets_load(void)
     uint32_t i, fmt = get32(io_buf);
     for (k = 0; k < NUSER_PRESETS; k++)
         user_presets[k].name[0] = 0;
-    if (n != (int)(sizeof user_presets + 4u) || (fmt != PRESETS_FORMAT && fmt != 6u))
+    for (k = 0; k < NUSER_KITS; k++)
+        user_kit_name[k][0] = 0;
+    if (!(fmt == PRESETS_FORMAT && n == (int)PRESETS_LEN) && !(fmt == 8u && n == (int)PRESETS_V8) &&
+        !((fmt == 6u || fmt == 7u) && n == (int)PRESETS_V7))
         return -1;
-    for (i = 0; i < sizeof user_presets; i++)
-        ((uint8_t *)user_presets)[i] = io_buf[4u + i];
-    if (fmt < PRESETS_FORMAT)                    /* (before 7, off (FT_DYNAMIC) sat at 4 and bp12 at 5: swap) */
+    if (fmt == PRESETS_FORMAT)
+        for (i = 0; i < sizeof user_presets; i++)
+            ((uint8_t *)user_presets)[i] = io_buf[4u + i];
+    else
+        for (k = 0; k < NUSER_PRESETS; k++) {     /* (before 9: a preset without its fine) */
+            for (i = 0; i < PRESET_OLD; i++)
+                ((uint8_t *)&user_presets[k])[i] = io_buf[4u + (uint32_t)k * PRESET_OLD + i];
+            user_presets[k].o2fine = 64;
+        }
+    for (k = 0; k < NUSER_PRESETS; k++)
+        if (user_presets[k].o2fine < 14u || user_presets[k].o2fine > 114u)
+            user_presets[k].o2fine = 64;
+    if (fmt < 7u)                                /* (before 7, off (FT_DYNAMIC) sat at 4 and bp12 at 5: swap) */
         for (k = 0; k < NUSER_PRESETS; k++) {
             uint8_t ft = user_presets[k].par[TP_FTYPE];
             if (ft == 4u || ft == 5u)
@@ -745,18 +879,78 @@ int presets_load(void)
         if (user_presets[k].engine >= NENGINE)
             user_presets[k].name[0] = 0;
     }
+    if (fmt >= 8u)
+        for (k = 0; k < NUSER_KITS; k++) {
+            const uint8_t *img = io_buf + (fmt == 8u ? PRESETS_V7 : PRESETS_KITS) + (uint32_t)k * KIT_LEN;
+            for (i = 0; i < NAME_LEN; i++)
+                user_kit_name[k][i] = (char)img[i];
+            user_kit_name[k][NAME_LEN - 1] = 0;
+            if (img[NAME_LEN + TP_ENGINE] != EG_DRUMLINE)
+                user_kit_name[k][0] = 0;
+        }
     stored_known[OBJ_PRESETS] = 1;
     stored_hash[OBJ_PRESETS] = hash_of(io_buf, (uint32_t)n);
     return 0;
 }
 
-int presets_save(void)
+/* the presets object in io_buf as it will be saved: the user presets as they are in RAM, the kits as the flash
+ * holds them (moved up from format 8's place; none, from an older format) */
+static void presets_image(void)
 {
-    uint32_t i;
+    int n = plat_store_load(OBJ_PRESETS, io_buf, sizeof io_buf);
+    uint32_t i, fmt = get32(io_buf);
+    if (fmt == 8u && n == (int)PRESETS_V8)
+        for (i = NUSER_KITS * KIT_LEN; i-- > 0;)     /* (up: copied from the end) */
+            io_buf[PRESETS_KITS + i] = io_buf[PRESETS_V7 + i];
+    else if (fmt != PRESETS_FORMAT || n != (int)PRESETS_LEN)
+        for (i = PRESETS_KITS; i < PRESETS_LEN; i++)
+            io_buf[i] = 0;
     put32(io_buf, PRESETS_FORMAT);
     for (i = 0; i < sizeof user_presets; i++)
         io_buf[4u + i] = ((const uint8_t *)user_presets)[i];
-    return save_buf(OBJ_PRESETS, sizeof user_presets + 4u);
+}
+
+int presets_save(void)
+{
+    presets_image();
+    return save_buf(OBJ_PRESETS, PRESETS_LEN);
+}
+
+int kit_load(int slot, uint8_t *img)
+{
+    int n;
+    uint32_t i, at;
+    if (slot < 0 || slot >= NUSER_KITS || !user_kit_name[slot][0])
+        return -1;
+    n = plat_store_load(OBJ_PRESETS, io_buf, sizeof io_buf);
+    if (get32(io_buf) == PRESETS_FORMAT && n == (int)PRESETS_LEN)
+        at = PRESETS_KITS;
+    else if (get32(io_buf) == 8u && n == (int)PRESETS_V8)
+        at = PRESETS_V7;
+    else
+        return -1;
+    for (i = 0; i < KIT_LEN; i++)
+        img[i] = io_buf[at + (uint32_t)slot * KIT_LEN + i];
+    img[NAME_LEN - 1] = 0;
+    return img[NAME_LEN + TP_ENGINE] == EG_DRUMLINE ? 0 : -1;
+}
+
+int kit_save(int slot, const uint8_t *img)
+{
+    uint32_t i;
+    int rc;
+    if (slot < 0 || slot >= NUSER_KITS)
+        return -1;
+    presets_image();
+    for (i = 0; i < KIT_LEN; i++)
+        io_buf[PRESETS_KITS + (uint32_t)slot * KIT_LEN + i] = img[i];
+    rc = save_buf(OBJ_PRESETS, PRESETS_LEN);
+    if (rc == 0) {
+        for (i = 0; i < NAME_LEN; i++)
+            user_kit_name[slot][i] = (char)img[i];
+        user_kit_name[slot][NAME_LEN - 1] = 0;
+    }
+    return rc;
 }
 
 /* every value to the engine (boot, load): the tracks, the FX, the master, the transport */

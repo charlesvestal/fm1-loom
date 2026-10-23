@@ -88,7 +88,7 @@ shot kit_lock_steps.png
 tap EDIT
 tapkey b10
 turn SELECT 1
-spin K1 10
+turn K1 1
 expect par1.d11.model 10
 turn SELECT -1
 spin K1 5

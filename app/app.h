@@ -118,7 +118,10 @@ void loom_lights(uint32_t buttons, uint32_t keys, int glow, uint32_t dim_keys, i
 #define DEBUG_BUILD (APP_VERSION[0] == 'D' && APP_VERSION[1] == 'E' && APP_VERSION[2] == 'V' && \
                      (!APP_VERSION[3] || APP_VERSION[3] == 'T'))   /* DEV, or the load test's DEVTEST */
 #define PROJ_MAGIC 0x384D4F4Cu          /* "LOM8" (was "XXY1": XY-1's projects start fresh) */
-#define PROJ_FORMAT 14u                 /* (10, 0.5-beta's, to 12 load too: project.c migrate_old; older ones do not)
+#define PROJ_FORMAT 16u                 /* (10, 0.5-beta's, to 12 load too: project.c migrate_old; older ones do not)
+                                         * 16: knit's osc 2 fine (TP_O2FINE), the tracks' last parameter;
+                                         * 15: a kit key's knobs 5..8 (TP_DRUMX: an eight-knob model's second page), after
+                                         * the keys; the settings object's tracks packed (project.c settings_pack);
                                          * 14: the filter type off (FT_DYNAMIC) moved past bp12 (TP_FTYPE 4 and 5 swap);
                                          * 13: the shared LFO (the conductor's LFO slots: glfo_defaults on an older one);
                                          * 12: a scene's kit sound mutes per kit track (scene_t kmute[NKITM]);
@@ -169,6 +172,7 @@ typedef struct {
     char name[NAME_LEN];
     uint8_t engine;
     uint8_t par[NTP_SOUND];
+    uint8_t o2fine;                     /* knit's osc 2 fine (TP_O2FINE, past par[]: presets format 9) */
 } user_preset_t;
 
 extern settings_t proj;                 /* the project's settings (RAM) */
@@ -177,6 +181,16 @@ extern uint8_t proj_par[NALLTRK][NTP];  /* the tracks' par[] as one contiguous a
                                          * keep it in step with proj.trk[].par (the UI writes those) */
 extern patterns_t pats;                 /* its patterns, lanes, scenes, song (pool) */
 extern user_preset_t user_presets[NUSER_PRESETS];
+/* the user kits (a kit track's SELECT list: SAVE KIT, KIT): a kit is its name, the track's sound (par[0..NTP_SOUND):
+ * the kit's envelope, bus filter, sends, LFO, character, volume) and its keys (par[TP_DRUM0..TP_O2FINE)); not the mix, the
+ * players or MIDI OUT. They live in the presets object after the user presets (PRESETS_FORMAT 9), in flash only:
+ * RAM keeps their names */
+#define NUSER_KITS 4
+#define KIT_KEYS (TP_O2FINE - TP_DRUM0)          /* (the keys and their knobs 5..8: not knit's osc 2 fine after them) */
+#define KIT_LEN (NAME_LEN + NTP_SOUND + KIT_KEYS)
+extern char user_kit_name[NUSER_KITS][NAME_LEN];   /* "" = an empty slot */
+int kit_load(int slot, uint8_t *img);  /* img: KIT_LEN bytes; 0 = the slot holds a kit */
+int kit_save(int slot, const uint8_t *img);   /* 0 = saved (the user presets with it, as they are) */
 extern uint8_t proj_slot;               /* the slot loaded */
 
 void project_defaults(void);

@@ -47,7 +47,7 @@ COLD = {
     "dsp/bench.c": [],
     "dsp/synth.c": ["tp_text_i", "tp_text_par", "tp_info_par", "tp_text", "char_picture",
                     "synth_note_off", "synth_duck_trigger", "synth_all_off",
-                    "sound_default", "synth_init", "eknob_init"],
+                    "sound_default", "synth_init", "eknob_init", "voice_chunk", "voice_subblock", "synth_prepare"],
     "seq/pattern.c": [],
     "seq/seq.c": ["fire_notes", "key_in", "seq_init", "bar_end", "do_start", "emit_drum", "rec_key_off",
                   "rec_key_on", "restart", "track_reset", "seq_rec_pos", "deg_to_note", "seq_cue_pattern",
@@ -55,10 +55,14 @@ COLD = {
 }
 # the two FX slots' and the master's per-sample code, closed under calls (~18 KB; the 24 KB RAMTEXT region holds
 # .ram_text's ~3 KB and the second core's loop besides)
-RAM_DSP = ["fx_process", "fx_process_lag", "do_spu", "spu_interp", "do_lush", "master_process", "color_block"]
+# the master's per-sample code (in RAM since 2026-10-18; the effects joined it then and left it 2026-10-23: they run on the
+# second core at the block's start, beside the first core's sequencer, where its time hides; their 14 KB went to the
+# kit's voices below, the first core's)
+RAM_DSP = ["master_process", "color_block"]
 RAM_INLINE = ["fx_states", "zero16"]
 # and a synth note's start (a drum hit's, with every model's set-up inlined, came to ~15 KB: left out): the code a chord change runs once, cold in the XIP cache when
 # it does (on the FM-1, 2026-10-19: the blocks where notes start took twice the others). RAMTEXT is 32 KB for them
+# (and some of the kit's voices, until 2026-10-23)
 RAM_SETS = {"dsp/fx.c": (RAM_DSP, RAM_INLINE), "dsp/synth.c": (["synth_note_on"], [])}
 RAM_UNITS = list(RAM_SETS)
 RAM_SECTION = ".c1_text.dsp"

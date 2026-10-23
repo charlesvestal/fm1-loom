@@ -36,7 +36,7 @@ knob 1 d4.k1 104
 knob 1 d4.k4 40
 knob 1 d4.k2 64
 knob 1 d4.volume 64
-knob 1 ftype dynamic
+knob 1 ftype off
 knob 1 cut 8
 knob 1 res 66
 knob 1 fenv 24

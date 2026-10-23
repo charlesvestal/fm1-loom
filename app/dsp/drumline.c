@@ -55,6 +55,9 @@ const char *const DM_KNOB[NDM][4] = {
     [DM_TOM] = {"pitch", "length", "sweep", "rate"},     [DM_FM] = {"pitch", "length", "mod", "feedback"},
     [DM_SAMPLE] = {"sample", "pitch", "start", "reverse"},
 };
+const char *const DM_KNOB2[NDM][4] = {{0}};   /* (a model with eight knobs: its second four; none has now) */
+const uint8_t DM_NKNOB[] = {4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4};
+_Static_assert(sizeof DM_NKNOB == NDM, "a knob count for each model");
 /* the kit tuned to C (the pitch knobs, from start()'s mappings; measured by tests/host/drumline_test.c):
  *   kick   82: 16 Hz x 2^(82/127 x 2.5)       = 49.0 Hz  G1      length 42: -60 dB at about 0.17 s
  *   snare  79: 90 Hz x 2^(79/127 x 1.8)       = 195.6 Hz G3      wires 84 (was 64)
@@ -70,6 +73,8 @@ const uint8_t DM_DEFAULT[NDM][4] = {
     [DM_RESO] = {36, 70, 70, 100},  [DM_CONGA] = {109, 46, 64, 0},  [DM_TOM] = {70, 46, 38, 64},
     [DM_FM] = {103, 100, 46, 15},  [DM_SAMPLE] = {0, 64, 0, 0},
 };
+/* knobs 5..8 (a model with eight) */
+const uint8_t DM_DEFAULT2[NDM][4] = {{0}};
 const char *const PM_NAME[NPM] = {"one-shot", "gated", "loop", "choke 1", "choke 2", "choke 3"};
 const char *const DL_SOUND_NAME[DL_NSOUND] = {"kick", "snare", "hat", "open", "clap", "ltom", "htom", "conga",
                                               "shaker", "string", "fm"};
@@ -120,17 +125,23 @@ typedef struct {
     float att, attk;                  /* attack: the fade-in gain and its step a sample */
     float env, k;                     /* the amplitude envelope and its per-sample multiplier */
     float env2, k2;                   /* a second envelope: click, body, burst, attack, FM index */
-    float ph, inc, ph2, inc2;         /* oscillators, phase in turns [-0.5, 0.5) */
-    float pd, pdk, pda;               /* pitch drop: inc * (1 + pda * pd), pd decays by pdk */
-    float f1, f2, f3, f4;             /* filter states */
-    float c1, c2, c3;                 /* filter coefficients */
-    float a, b, g;                    /* two model amounts and the model's output gain */
+    float ph, inc;                    /* the oscillator, phase in turns [-0.5, 0.5) */
+    float g;                          /* the model's output gain */
     float gl, gr, gs1, gs2;           /* gains now: left, right, the two sends (set each chunk) */
     float dgl, dgr;                   /* left and right ramp toward the chunk's targets */
-    uint32_t mp[6], mi[6];            /* the hat's / tambourine's six square phases and increments */
-    int32_t len, w;                   /* the string: its length, write position (the sample: position, its start) */
-    float fr, lp, fb, damp, pk;       /* its fractional length, loop filter, feedback, damping, peak (the
-                                       * sample: the position's fraction) */
+    union {                           /* the model's own: the analytic models' and the sample's */
+        struct {
+            float ph2, inc2;          /* a second oscillator */
+            float pd, pdk, pda;       /* pitch drop: inc * (1 + pda * pd), pd decays by pdk */
+            float f1, f2, f3, f4;     /* filter states */
+            float c1, c2, c3;         /* filter coefficients */
+            float a, b;               /* two model amounts */
+            uint32_t mp[6], mi[6];    /* the hat's / tambourine's six square phases and increments */
+            int32_t len, w;           /* the string: its length, write position (the sample: position, its start) */
+            float fr, lp, fb, damp, pk;   /* its fractional length, loop filter, feedback, damping, peak (the
+                                           * sample: the position's fraction) */
+        };
+    };
     /* the key's own stage (DP_ATTACK..DP_FTYPE) */
     uint32_t et;                      /* samples since the hit began (after the lag) */
     float eatt, ehold, edec;          /* the attack's end, the hold's end (samples); the decay's log a sample (0: off) */
@@ -138,6 +149,7 @@ typedef struct {
     float fz1, fz2;                   /* the filter's states */
     uint8_t ftype, sidx, sci, rsv2;   /* the filter's type (DF_*); the sample model's sample, its cache + 1 */
 } dvoice_t;
+
 
 /* the dynamic filter: coefficients from drumline_filter, states per channel */
 typedef struct {
@@ -565,6 +577,15 @@ static void start(drumline_t *d, dvoice_t *v, int sound, int vel, int pitch_semi
         v->inc = hz / SR;
 }
 
+#ifdef PLAT_HOST
+uint32_t (*drumline_host_clock)(void);           /* (the simulator's profiler: each key's time, drumline.h) */
+uint32_t drumline_host_cost[DL_NSOUND][2];
+#define DHC_T(v) uint32_t v = drumline_host_clock ? drumline_host_clock() : 0
+#define DHC_ADD(k, j, v) do { if (drumline_host_clock) drumline_host_cost[k][j] += drumline_host_clock() - (v); } while (0)
+#else
+#define DHC_T(v)
+#define DHC_ADD(k, j, v)
+#endif
 void drumline_hit(drumline_t *d, int sound, int vel, int pitch_semi, int short_gate, int long_tail)
 {
     const uint8_t *p;
@@ -582,7 +603,11 @@ void drumline_hit(drumline_t *d, int sound, int vel, int pitch_semi, int short_g
             if (d->v[i].on && d->v[i].mode == mode && d->v[i].sound != sound)
                 fade_out(&d->v[i]);
     v = alloc(d, sound);
-    start(d, v, sound, vel, pitch_semi, (short_gate ? HF_SHORT : 0) | (long_tail ? HF_LONG : 0), 1);
+    {
+        DHC_T(t0);
+        start(d, v, sound, vel, pitch_semi, (short_gate ? HF_SHORT : 0) | (long_tail ? HF_LONG : 0), 1);
+        DHC_ADD(sound, 1, t0);
+    }
 }
 
 /* ---- one voice, m samples (<= SUB) of mono into t[] ---- */
@@ -1079,27 +1104,26 @@ static void dynf_run(dynf_t *f, float *l, float *r, int m)
     }
 }
 
+/* a voice at a time over the whole call, then the bus a sub-block at a time: on the FM-1 the models' code runs from
+ * the flash through a small cache, and a sub-block at a time every voice's code came in again for each one (a kit of
+ * five models taking turns forty times a block). Each sample's sum is the voices' in the same order as
+ * before, the bus sees the same sub-blocks in the same order: the same output. The buffers start at 0 (the bus
+ * filters l / r in place) */
 void drumline_render(drumline_t *d, float *l, float *r, float *s1, float *s2, uint32_t n)
 {
-    uint32_t c;
-    for (c = 0; c < n; c += CR) {
-        int m = (int)(n - c < CR ? n - c : CR), vi, o;
-        for (vi = 0; vi < NDVOICE; vi++)
-            if (d->v[vi].on)
-                control(d->par, &d->v[vi], m);
-        for (o = 0; o < m; o += SUB) {
-            float t[SUB], dl[SUB], dr[SUB];
-            int mm = m - o < SUB ? m - o : SUB, i, any = 0;
-            float *p1 = s1 + c + o, *p2 = s2 + c + o;
-            for (i = 0; i < mm; i++)
-                dl[i] = dr[i] = 0.0f;
-            for (vi = 0; vi < NDVOICE; vi++) {
-                dvoice_t *v = &d->v[vi];
+    uint32_t c, any = 0;
+    int vi;
+    for (vi = 0; vi < NDVOICE; vi++) {
+        dvoice_t *v = &d->v[vi];
+        for (c = 0; c < n && v->on; c += CR) {
+            int m = (int)(n - c < CR ? n - c : CR), o;
+            control(d->par, v, m);
+            for (o = 0; o < m && v->on; o += SUB) {
+                float t[SUB];
+                int mm = m - o < SUB ? m - o : SUB, i, from = 0;
+                float *pl = l + c + o, *pr = r + c + o, *p1 = s1 + c + o, *p2 = s2 + c + o;
                 float gl, gr, att, attk;
                 const float gs1 = v->gs1, gs2 = v->gs2, dgl = v->dgl, dgr = v->dgr;
-                int from = 0;
-                if (!v->on)
-                    continue;
                 if (v->wait > 0) {                    /* lag: the hit has not started yet */
                     if (v->wait >= mm) {
                         v->wait -= mm;
@@ -1110,10 +1134,14 @@ void drumline_render(drumline_t *d, float *l, float *r, float *s1, float *s2, ui
                     for (i = 0; i < from; i++)
                         t[i] = 0.0f;
                 }
-                any = 1;
-                render_voice(v, d->line[v->line],
-                             v->sci && d->sc_owner[v->sci - 1] == vi ? &d->sc[v->sci - 1] : 0, t + from, mm - from);
-                key_post(d->par + TP_DRUM(v->sound, 0), v, t + from, mm - from);
+                any |= 1u << ((c + (uint32_t)o) / SUB);
+                {
+                    DHC_T(t0);
+                    render_voice(v, d->line[v->line],
+                                 v->sci && d->sc_owner[v->sci - 1] == vi ? &d->sc[v->sci - 1] : 0, t + from, mm - from);
+                    key_post(d->par + TP_DRUM(v->sound, 0), v, t + from, mm - from);
+                    DHC_ADD(v->sound, 0, t0);
+                }
                 gl = v->gl;
                 gr = v->gr;
                 att = v->att;
@@ -1125,8 +1153,8 @@ void drumline_render(drumline_t *d, float *l, float *r, float *s1, float *s2, ui
                         att = 1.0f;
                     gl += dgl;
                     gr += dgr;
-                    dl[i] += x * gl;
-                    dr[i] += x * gr;
+                    pl[i] += x * gl;
+                    pr[i] += x * gr;
                     p1[i] += x * gs1;
                     p2[i] += x * gs2;
                 }
@@ -1140,14 +1168,15 @@ void drumline_render(drumline_t *d, float *l, float *r, float *s1, float *s2, ui
                         start(d, v, v->sound, v->hvel, v->hpitch, v->hflags, 0);
                 }
             }
-            if (d->f.on && (any || d->f.env > 1e-5f))
-                dynf_run(&d->f, dl, dr, mm);
-            for (i = 0; i < mm; i++) {
-                l[c + o + i] += dl[i];
-                r[c + o + i] += dr[i];
-            }
         }
     }
+    if (d->f.on)                                  /* the bus: the dynamic filter, a sub-block at a time where a voice
+                                                   * sounded or its envelope still rings */
+        for (c = 0; c < n; c += SUB) {
+            int mm = (int)(n - c < SUB ? n - c : SUB);
+            if ((any >> (c / SUB) & 1u) || d->f.env > 1e-5f)
+                dynf_run(&d->f, l + c, r + c, mm);
+        }
 }
 
 int drumline_sounding(const drumline_t *d)

@@ -16,6 +16,10 @@
 #else
 static uint32_t render_t0(void);
 static uint32_t render_pct(uint32_t t0, uint32_t n);
+#if defined(PLAT_HOST) && !defined(PLAT_WEB)
+static void work_begin(void);
+static int work_end(uint32_t n);
+#endif
 static int load_force = -1;             /* the script's "load N": the guard sees N %, -1 measured (host.c) */
 #endif
 
@@ -93,8 +97,19 @@ void app_init(void)
 void app_render(int32_t *lr, uint32_t n, uint32_t gain_q12)
 {
     uint32_t t0 = render_t0(), pct;
+#if defined(PLAT_HOST) && !defined(PLAT_WEB)
+    int wl;
+    work_begin();                                   /* (the simulator's count of the block's work: host.c) */
+#endif
     engine_render(lr, n, gain_q12);
+#if defined(PLAT_HOST) && !defined(PLAT_WEB)
+    wl = work_end(n);
+#endif
     pct = render_pct(t0, n);
+#if defined(PLAT_HOST) && !defined(PLAT_WEB)
+    if (wl >= 0)
+        pct = (uint32_t)wl;
+#endif
 #ifdef PLAT_HOST
 #ifdef PLAT_WEB
     pct = load_force >= 0 ? (uint32_t)load_force : 0u;   /* a browser's timing is not the FM-1's */

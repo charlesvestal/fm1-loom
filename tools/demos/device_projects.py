@@ -31,18 +31,36 @@ ROOT = HERE.parents[1]
 sys.path.insert(0, str(HERE))
 import make_banks as MB  # noqa: E402
 
-GROUPS = {"A": ["jungle", "garage", "hyperpop"], "B": ["house", "pop", "hiphop"], "C": ["stress", "ambient", "hiphop"]}
+GROUPS = {"A": ["jungle", "garage", "hyperpop"], "B": ["house", "pop", "hiphop"], "C": ["stress", "ambient", "hiphop"],
+          "M": ["house_m", "house_pad", "pop"]}       # (M: house's main scene alone, 8 bars: a quick check)
+# a song played otherwise: its setup, then these lines
+VARIANTS = {"house_m": ("house", ["song 4:8"])}       # the main scene (chord changes every bar, the busiest) for 8 bars
+VARIANTS["house_pad"] = ("house_m", ["scenemute 4 xxx.xxxx"])   # the main scene's pad (T4) alone: knit's cost per
+NAMES_EXTRA = {"house_pad": "pad_alone"}                         # voice with little else in the cache
+
+def root(song):
+    """the song a variant is made from (its samples)"""
+    while song in VARIANTS:
+        song = VARIANTS[song][0]
+    return song
 if os.environ.get("DEMO_GROUPS"):                    # e.g. DEMO_GROUPS="C:jungle,garage,house" (any three songs a group)
     GROUPS = {g: songs.split(",") for g, songs in (x.split(":") for x in os.environ["DEMO_GROUPS"].split())}
 ORDER = ["jungle", "garage", "hyperpop", "house", "pop", "hiphop", "stress", "ambient"]   # render.sh's: make_banks'
 #                                                  noise in the same order; stress and ambient: no samples of their own
+#                                                  (the variants take their song's: not here)
 NAMES = {"jungle": "jungle", "garage": "garage", "hyperpop": "hyperpop", "house": "deep_house", "pop": "pop",
-         "hiphop": "boom_bap", "stress": "stress", "ambient": "ambient"}
+         "hiphop": "boom_bap", "stress": "stress", "ambient": "ambient",
+         "house_m": "house_main"}
+NAMES.update(NAMES_EXTRA)
 SKIP = ("master ", "samples ")                       # the setup's lines the group sets once instead
 
 
 def split(song):
     """(setup lines, live lines) of tools/demos/<song>.xy: the setup ends at its "tap HOME" (the song page, PLAY)"""
+    if song in VARIANTS:
+        base, extra = VARIANTS[song]
+        setup, live = split(base)
+        return setup + extra, live
     lines = (HERE / f"{song}.xy").read_text().splitlines()
     k = next(i for i, ln in enumerate(lines) if ln.strip() == "tap HOME")
     return lines[:k], lines[k:]
@@ -148,24 +166,29 @@ def main():
     manifest = {"groups": {}}
     for g, songs in GROUPS.items():
         bank = out / f"bank_{g}.bin"
-        allspecs = [sp for s in songs for sp in specs[s]]
+        roots = list(dict.fromkeys(root(s) for s in songs))   # (a song and its variants share its samples)
+        allspecs = [sp for r in roots for sp in specs[r]]
+        if not allspecs:                             # (no samples of their own: the breaks pack, which a slice preset
+            allspecs = ["breaks"]                    # finds by name since the breaks left the firmware)
+        at = {}                                      # each root's first user sample's place in the group's bank
+        for r in roots:
+            at[r] = sum(len(specs[x]) for x in roots[:roots.index(r)])
         print(f"== group {g}: {', '.join(songs)}")
         r = subprocess.run([sys.executable, str(ROOT / "tools" / "loom_samples.py"), "build", str(bank)] + allspecs)
         if r.returncode:
             sys.exit(f"group {g}: the bank does not fit")
         script = [f"# group {g}: {' '.join(songs)} (made by tools/demos/device_projects.py)", "master 4096",
                   f"samples {bank}"]
-        off, rows = 0, []
+        rows = []
         for slot, s in enumerate(songs, 1):
             setup, live = split(s)
             setup = [ln for ln in setup if ln.strip() and not ln.lstrip().startswith("#") and not ln.startswith(SKIP)]
             if slot > 1:
                 script.append("projnew")
-            script += remap(setup, off)
+            script += remap(setup, at[root(s)])
             script += [f"projsave {slot} {NAMES[s]}", "wait 200"]
-            rows.append({"slot": slot, "song": s, "name": NAMES[s].replace("_", " "), "user_samples_from": off + 1,
+            rows.append({"slot": slot, "song": s, "name": NAMES[s].replace("_", " "), "user_samples_from": at[root(s)] + 1,
                          "model": model(s), "live": live_actions(live)})
-            off += len(specs[s])
         script.append(f"backup out:group_{g}.loom8")
         sp = out / f"group_{g}.xy"
         sp.write_text("\n".join(script) + "\n")

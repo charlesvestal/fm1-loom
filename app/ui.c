@@ -199,13 +199,15 @@ static void set_tp(int trk, int p, int v)
         return;
     }
     par[p] = (uint8_t)v;
-    if (is_drum(trk) && p >= TP_DRUM0 && (p - TP_DRUM0) % DP_N == DP_MODEL) {   /* another model on a key: its
+    if (is_drum(trk) && tp_is_dkey(p) && (p - TP_DRUM0) % DP_N == DP_MODEL) {   /* another model on a key: its
                                                                                 * own knobs from its defaults */
         int key = (p - TP_DRUM0) / DP_N;
         engine_set(trk, p, v);
         for (int k = 0; k < 4; k++) {
             par[TP_DRUM(key, DP_K1 + k)] = DM_DEFAULT[v % NDM][k];
             engine_set(trk, TP_DRUM(key, DP_K1 + k), par[TP_DRUM(key, DP_K1 + k)]);
+            par[TP_DRUMX(key, k)] = DM_DEFAULT2[v % NDM][k];   /* (knobs 5..8: a model's with eight; else 0) */
+            engine_set(trk, TP_DRUMX(key, k), par[TP_DRUMX(key, k)]);
         }
         mark_dirty();
         return;
@@ -280,6 +282,7 @@ static void load_preset(int trk, const preset_t *pr)
     uint8_t *par = proj.trk[trk].par;
     undo_sound(trk);
     memcpy(par, pr->par, NTP_SOUND);
+    par[TP_O2FINE] = 64;                         /* (the factory presets: no fine tune) */
     for (int i = 0; i < NAME_LEN; i++)
         proj.trk[trk].name[i] = pr->name[i] ? pr->name[i] : 0;
     engine_set_all(trk);
@@ -360,6 +363,7 @@ static int preset_apply(int trk, int i)
         undo_sound(trk);
         memcpy(proj.trk[trk].par, user_presets[u].par, NTP_SOUND);
         proj.trk[trk].par[TP_ENGINE] = user_presets[u].engine;
+        proj.trk[trk].par[TP_O2FINE] = user_presets[u].o2fine;
         memcpy(proj.trk[trk].name, user_presets[u].name, NAME_LEN);
         engine_set_all(trk);
         mark_dirty();
@@ -1107,6 +1111,8 @@ static void scene_key(int k, int w, int when)    /* a white key on Arrange; agai
     char t[8];
     ui.kmode[k] = KM_SCENE;
     ui.knote[k] = (uint8_t)w;
+    ui.scene_from = (uint8_t)cur_scene();        /* (a long hold asks to clear it: scene_hold) */
+    ui.scene_made = (uint8_t)!pats.scene[w].used;
     if (playing() && seq.cue == w && w != cur_scene())
         when = SCENE_NOW;
     else if (playing() && w != cur_scene()) {
@@ -1114,6 +1120,25 @@ static void scene_key(int k, int w, int when)    /* a white key on Arrange; agai
         sp_msg(t, when == SCENE_END ? "at the end" : "next bar", 0);
     }
     scene_go(w, when);
+}
+/* a scene's key held to clear it: what its press did is taken back first, so the scene playing stays while LOOM-8
+ * asks (a cue withdrawn; a scene the press made, a copy, empty again and the one before it back). 1: nothing to ask */
+static int scene_hold(int w)
+{
+    int from = ui.scene_from;
+    char t[8];
+    if (seq.cue == w)
+        engine_scene(cur_scene(), SCENE_BAR);    /* (the scene playing again: the cue is off) */
+    if (!ui.scene_made)
+        return 0;
+    if (cur_scene() == w && from < NSCENE && from != w) {
+        engine_scene(from, SCENE_NOW);           /* (a copy of it: nothing changes to the ear) */
+        proj.scene = (uint8_t)from;
+    }
+    pats.scene[w].used = 0;
+    num_s((uint32_t)w + 1u, s_cat(t, "S"));
+    say("EMPTY", t);
+    return 1;
 }
 static void track_select(int t)
 {
@@ -1765,6 +1790,8 @@ static void holds(void)
         if ((ui.keys >> k & 1u) && ui.kmode[k] == KM_SCENE && now - ui.key_t[k] >= KEY_LONG_MS) {
             char q[32];
             ui.kmode[k] = KM_NONE;
+            if (scene_hold(ui.knote[k]))
+                continue;
             ui.ask_arg = ui.knote[k];
             num_s((uint32_t)ui.ask_arg + 1u, s_cat(q, "CLEAR SCENE "));
             s_cat(q + s_len(q), "?");
@@ -1999,6 +2026,8 @@ static void knob_do(int k, int32_t e)
     int trk = sel_trk(), p;
     e = accel(EN_K1 + k, e);
     touch(k);
+    if (home_held())                             /* (HOME as shift: its release opens no page) */
+        ui.btn_used |= 1u << B_HOME;
     if ((ui.btn >> B_SEL & 1u) && !lst.open && !ui.ask) {   /* SEL held: the knob's automation cleared */
         knob_clear(k);
         return;
@@ -2252,6 +2281,8 @@ static void list_change_do(int32_t e)
         }
         case A_PRESET: ui.pick_preset = (uint16_t)((ui.pick_preset + d + NPRESETS) % (NPRESETS ? NPRESETS : 1)); break;
         case A_SAVE_PRESET: ui.pick_slot = (uint8_t)((ui.pick_slot + d + NUSER_PRESETS) % NUSER_PRESETS); break;
+        case A_KIT: ui.pick_kit = (uint8_t)((ui.pick_kit + d + NKITS) % NKITS); break;
+        case A_SAVE_KIT: ui.pick_kslot = (uint8_t)((ui.pick_kslot + d + NUSER_KITS) % NUSER_KITS); break;
         case A_LOAD_PROJ: ui.pick_slot = (uint8_t)((ui.pick_slot + d + NPROJ) % NPROJ); break;
         case A_SAVE_TO: ui.pick_save = (uint8_t)((ui.pick_save + d + NPROJ) % NPROJ); break;
         case A_USB_AUDIO:
@@ -2621,10 +2652,11 @@ static void act_scramble(void)                   /* a random sound: the engine s
     undo_sound(trk);
     if (is_drum(trk)) {
         int key = ui.dsound % DL_NSOUND;
-        for (int k = 0; k < 4; k++) {
-            const tp_info_t *in = tp_info_par(TP_DRUM(key, DP_K1 + k), par);
+        for (int k = 0; k < dm_knobs(par[TP_DRUM(key, DP_MODEL)] % NDM); k++) {   /* (a model with eight: all of them) */
+            int q = k < 4 ? TP_DRUM(key, DP_K1 + k) : TP_DRUMX(key, k - 4);
+            const tp_info_t *in = tp_info_par(q, par);
             r = r * 1664525u + 1013904223u;
-            par[TP_DRUM(key, DP_K1 + k)] = (uint8_t)(in->lo + (int)((r >> 8) % (uint32_t)(in->hi - in->lo + 1)));
+            par[q] = (uint8_t)(in->lo + (int)((r >> 8) % (uint32_t)(in->hi - in->lo + 1)));
         }
         engine_set_all(trk);
         mark_dirty();
@@ -2652,6 +2684,7 @@ static void save_user_preset(int slot)
         return;
     user_presets[slot].engine = proj.trk[trk].par[TP_ENGINE];
     memcpy(user_presets[slot].par, proj.trk[trk].par, NTP_SOUND);
+    user_presets[slot].o2fine = proj.trk[trk].par[TP_O2FINE];
     memcpy(user_presets[slot].name, proj.trk[trk].name, NAME_LEN);
     if (!user_presets[slot].name[0])
         s_cat(user_presets[slot].name, EG_NAME[proj.trk[trk].par[TP_ENGINE] % NENGINE]);
@@ -2673,6 +2706,103 @@ static void act_save_preset(int slot)
     } else
         do_save_preset();
 }
+/* the kits: a kit is a name, the track's sound (par[0..NTP_SOUND)) and its keys (par[TP_DRUM0..TP_O2FINE)): app.h KIT_LEN.
+ * Loading one keeps the track's mix, players and MIDI OUT */
+static void kit_pack(const uint8_t *par, const char *name, uint8_t *img)
+{
+    memset(img, 0, NAME_LEN);
+    for (int i = 0; i < NAME_LEN - 1 && name[i]; i++)
+        img[i] = (uint8_t)name[i];
+    memcpy(img + NAME_LEN, par, NTP_SOUND);
+    memcpy(img + NAME_LEN + NTP_SOUND, par + TP_DRUM0, KIT_KEYS);
+}
+static void kit_model(uint8_t *par, int key, int m)   /* a key to another model, its knobs from the model's defaults */
+{
+    par[TP_DRUM(key, DP_MODEL)] = (uint8_t)m;
+    for (int k = 0; k < 4; k++) {
+        par[TP_DRUM(key, DP_K1 + k)] = DM_DEFAULT[m][k];
+        par[TP_DRUMX(key, k)] = DM_DEFAULT2[m][k];
+    }
+}
+/* the factory kits, from the default kit (Loom): Loom Samples the factory bank's 909 kick, snare, hat and clap on
+ * their keys (the closed hat cut short) */
+static void kit_factory(int k, uint8_t *img)
+{
+    static const uint8_t SMP[5] = {0, 1, 2, 2, 3};   /* kick, snare, hat, open, clap: the bank's first four */
+    uint8_t par[NTP];
+    sound_default(par, EG_DRUMLINE);
+    if (k == 1)
+        for (int key = 0; key < 5; key++) {
+            kit_model(par, key, DM_SAMPLE);
+            par[TP_DRUM(key, DP_K1)] = SMP[key];
+            if (key == 2)
+                par[TP_DRUM(key, DP_DECAY)] = 60;    /* (about 80 ms) */
+        }
+    kit_pack(par, KIT_NAME[k], img);
+}
+static void kit_apply(int trk, const uint8_t *img)
+{
+    uint8_t *par = proj.trk[trk].par;
+    undo_sound(trk);
+    memcpy(par, img + NAME_LEN, NTP_SOUND);
+    par[TP_ENGINE] = EG_DRUMLINE;
+    memcpy(par + TP_DRUM0, img + NAME_LEN + NTP_SOUND, KIT_KEYS);
+    keys_fix(par);                               /* (a user kit saved by a development build) */
+    memcpy(proj.trk[trk].name, img, NAME_LEN);
+    proj.trk[trk].name[NAME_LEN - 1] = 0;
+    engine_set_all(trk);
+    mark_dirty();
+}
+static void act_kit(int k)
+{
+    uint8_t img[KIT_LEN];
+    char t[24];
+    int trk = sel_trk();
+    if (!is_drum(trk))
+        return;
+    if (k < NFKITS)
+        kit_factory(k, img);
+    else if (kit_load(k - NFKITS, img) != 0) {
+        kit_label(k, t);
+        say_no("NO KIT", t);
+        return;
+    }
+    kit_apply(trk, img);
+    kit_label(k, t);
+    say("KIT", t);
+}
+static void do_save_kit(void)
+{
+    uint8_t img[KIT_LEN];
+    char nm[NAME_LEN], t[24];
+    int trk = sel_trk(), slot = ui.ask_arg % NUSER_KITS;
+    memcpy(nm, proj.trk[trk].name, NAME_LEN);
+    nm[NAME_LEN - 1] = 0;
+    if (!nm[0])
+        num_s((uint32_t)slot + 1u, s_cat(nm, "kit "));
+    kit_pack(proj.trk[trk].par, nm, img);
+    if (kit_save(slot, img) != 0) {
+        say_no("NOT SAVED", "flash error");
+        return;
+    }
+    num_s((uint32_t)slot + 1u, s_cat(t, "K"));
+    say("KIT SAVED", t);
+}
+static void act_save_kit(int slot)
+{
+    if (!is_drum(sel_trk()))
+        return;
+    ui.ask_arg = (uint8_t)slot;
+    if (user_kit_name[slot][0]) {
+        char q[32];
+        num_s((uint32_t)slot + 1u, s_cat(q, "REPLACE KIT K"));
+        s_cat(q + s_len(q), "?");
+        ask(q, do_save_kit);
+    } else {
+        lst.open = 0;
+        do_save_kit();
+    }
+}
 static void do_clear_song(void)
 {
     undo_arr();
@@ -2688,7 +2818,11 @@ static void act_clear_scene(void)
     int n = ui.ask_arg % NSCENE, to = -1;
     char t[16];
     undo_arr();
+    if (seq.cue == n)
+        engine_scene(cur_scene(), SCENE_BAR);    /* (cued: the cue is off) */
     if (n == cur_scene()) {
+        if (ui.scene_from < NSCENE && ui.scene_from != n && pats.scene[ui.scene_from].used)
+            to = ui.scene_from;                  /* (its key pressed and held: back to the scene before it) */
         for (int d = 1; d < NSCENE && to < 0; d++)
             if (n - d >= 0 && pats.scene[n - d].used)
                 to = n - d;
@@ -2713,6 +2847,7 @@ static void act_clear_scene_ask(void)
 {
     char q[32];
     ui.ask_arg = (uint8_t)cur_scene();
+    ui.scene_from = 0xFF;
     num_s((uint32_t)cur_scene() + 1u, s_cat(q, "CLEAR SCENE "));
     s_cat(q + s_len(q), "?");
     ask(q, act_clear_scene);
@@ -2909,6 +3044,8 @@ static void action_run(int a)
         break;
     case A_SCRAMBLE: act_scramble(); say("SCRAMBLED", 0); break;
     case A_SAVE_PRESET: act_save_preset(ui.pick_slot % NUSER_PRESETS); return;
+    case A_KIT: act_kit(ui.pick_kit % NKITS); break;
+    case A_SAVE_KIT: act_save_kit(ui.pick_kslot % NUSER_KITS); return;
     case A_INIT:
         undo_sound(sel_trk());
         sound_reset(proj.trk[sel_trk()].par, proj.trk[sel_trk()].par[TP_ENGINE]);
@@ -3668,15 +3805,16 @@ static void speak(void)
     }
     if (ui.ask || ui.card)
         return;
-    if (home_held()) {
-        int tempo = (int)(proj.tempo_x10 / 10u);
+    if (home_held()) {                           /* the tempo, else a knob HOME shifts (knit's osc 2 fine) */
+        int tempo = (int)(proj.tempo_x10 / 10u), knobs = sp_knobs_changed(input);
         if (tempo != sp.tempo) {
             sp.tempo = (int16_t)tempo;
             sp_n = 0;
             sp_cat("Tempo ");
             sp_int(tempo);
             ann_later(sp_buf, ANN_NOW, 120u, now);
-        }
+        } else if (knobs)
+            ann_later(sp_buf, ANN_NOW, 120u, now);
         return;
     }
     sp.tempo = (int16_t)(proj.tempo_x10 / 10u);
@@ -3715,9 +3853,8 @@ static void speak_dump(void)
         {"NEW PROJECT", "unsaved"}, {"RANDOMIZED", "T2 to T8"}, {"SCENE IN USE", "pick another first"}, {"ALL NOTES OFF", 0},
         {"STOP FIRST", "to change slots"}, {"THREE SLOTS", "white keys 1 to 3"}, {"ENGINE", "jacquard"}, {"LIST", "nothing here"},
         {"DELETED", "slot"}, {"REMOVED", 0}, {"NO EFFECT YET", "play a key on EDIT"}, {"NO SEGMENT YET", "play a key on EDIT"},
-        {"snare", "on the step"}, {"snare", "off the step"}, {"T2", "follows"}, {"T2", "on its own"},
-        {"UPDATE MODE IN", "3.."}, {"UPDATE MODE", "CANCELLED"}};
-    static const char *const ASK[] = {"CLEAR SCENE 3?", "REPLACE USER PRESET 2?", "REPLACE PROJECT 2?",
+        {"snare", "on the step"}, {"snare", "off the step"}, {"T2", "follows"}, {"T2", "on its own"}};
+    static const char *const ASK[] = {"CLEAR SCENE 3?", "REPLACE USER PRESET 2?", "REPLACE PROJECT 2?", "REPLACE KIT K2?",
                                       "LOSE UNSAVED CHANGES?", "NEW PROJECT?", "CLEAR THE SONG?",
                                       "NEW SOUNDS ON T2 TO T8?"};
     uint8_t keep_page = ui.page, keep_trk = proj.trk_sel, keep_lst = lst.open, keep_card = ui.card;
@@ -3832,6 +3969,7 @@ void ui_init(void)
     for (int t = 0; t < NSEQT; t++)
         weave_apply(t);
     ui.scene_seen = 0xFF;
+    ui.scene_from = 0xFF;
     ui.last_inst = (uint8_t)(is_aux(sel_trk()) ? 0 : sel_trk());
     apply_brain();
     engine_tempo(proj.tempo_x10);

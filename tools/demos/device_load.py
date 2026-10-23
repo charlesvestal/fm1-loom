@@ -127,23 +127,25 @@ def release_all():
     time.sleep(0.2)
 
 
-GLO = ["Mix", "Master EQ", "Master color", "Master out", "Setup", "Debug"]   # (Debug: a debug build's, as the DEVTEST one)
+GLO = ["Mix", "Master EQ", "Master color", "Master out", "LFO", "Setup", "Debug"]   # (Debug: a debug build's, as the DEVTEST one)
 
 
 def glo(page):
     s = where()
     for _ in range(4):
-        if " of 6." in s and " list." not in s and "?" not in s:
+        if s.split(",")[0] in GLO and " list." not in s and "?" not in s:   # (on one of GLO's pages)
             break
         run("tap", "HOME" if (" list." in s or "?" in s) else "GLO", "wait", 400)
         s = where()
     for _ in range(8):
         if s.startswith(page + ","):
             return s
-        m = re.search(r"page (\d) of 6", s)
+        m = re.search(r"page (\d) of \d", s)
         cur = int(m.group(1)) if m else 1
         run("turn", "SELECT", 1 if cur < GLO.index(page) + 1 else -1, "wait", 300)
         s = where()
+    if s.startswith(page + ","):                      # (the last turn's page)
+        return s
     raise SystemExit(f"device_load: no GLO page {page}: {s!r}")
 
 
@@ -187,25 +189,32 @@ def new_project():
 
 
 def load_slot(slot, name):
-    """HOME's SEL: LOAD PROJECT slot; then (on Arrange) SELECT: the Song page"""
+    """HOME's SEL list: SELECT to its LOAD PROJECT item, ALGO to "Proj <slot>", SEL; then (on Arrange) SELECT: the Song
+    page. (Projects have no names since format 10: a project is its slot, "Proj 2"; name is the song's, for the log)"""
     arrange()
-    run("tap", "SEL", "wait", 400)
-    for _ in range(8):
+    s = ""
+    for _ in range(4):                       # (a tap can be missed: the list did not open)
+        run("tap", "SEL", "wait", 500)
         s = where()
-        m = re.search(r"LOAD PROJECT (\d)", s)
-        for _ in range(3):                   # (a tap can be missed: the list did not open)
-            if m:
-                break
-            run("tap", "SEL", "wait", 500)
-            s = where()
-            m = re.search(r"LOAD PROJECT (\d)", s)
-        if not m:
-            raise SystemExit(f"device_load: no LOAD PROJECT in HOME's list: {s!r}")
-        if int(m.group(1)) == slot:
+        if " list." in s:
+            break
+    else:
+        raise SystemExit(f"device_load: HOME's list did not open: {s!r}")
+    for _ in range(24):                      # to the LOAD PROJECT item
+        if "LOAD PROJECT" in s:
+            break
+        run("turn", "SELECT", 1, "wait", 200)
+        s = where()
+    else:
+        raise SystemExit(f"device_load: no LOAD PROJECT in HOME's list: {s!r}")
+    for _ in range(8):                       # its slot
+        m = re.search(r"LOAD PROJECT (?:Proj )?(\d)", s)
+        if m and int(m.group(1)) == slot:
             break
         run("turn", "ALGO", 1, "wait", 250)
-    if name.lower() not in s.lower():
-        raise SystemExit(f"device_load: slot {slot} is not {name!r}: {s!r}")
+        s = where()
+    else:
+        raise SystemExit(f"device_load: LOAD PROJECT never showed slot {slot}: {s!r}")
     run("tap", "SEL", "wait", 700)
     answer_yes()                             # LOSE UNSAVED CHANGES?
     s = where()
