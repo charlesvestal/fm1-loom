@@ -206,8 +206,9 @@ typedef struct {
             float sr1, sr2, sr3;      /* the modulators' ratios */
             float scol, smet, sfbk, ssk;  /* color, metal, feedback (0..1), the sweep in octaves */
             float sbase, sdi;         /* the note's increment; the carrier's step a sample toward the next */
+            float slast;              /* the last sample made (the half rate: the output between two is their mean) */
             int16_t scc, scd;         /* the crusher's count, its hold */
-            uint8_t smodel, skick, sctl;
+            uint8_t smodel, skick, sctl, stog;   /* stog: 1 = the next output sample is the last made, as it is */
         };
         struct {                      /* clang: digisophie's voice and its controls */
             struct ds_voice ds;
@@ -597,7 +598,9 @@ static void x_start(dvoice_t *v, int model, float pitch, float decay, float tone
  * filter types other than the low-pass (the key's filter does them), METAL DECAY, Smooth feedback, the steal's fade.
  * Its fixed low-pass stays: CUTOFF 100 still closes at about 6.7 kHz (f 0.95, q 1), part of its sound. DRIVE is the
  * factory pads' middle, 58 (the key's own DRIVE adds to it). Phases in turns; drumline's sine (sin_t, -60 dB
- * harmonics) for Sophie's (1e-4); the sweep's pitch exact every 16 samples, ramped between. */
+ * harmonics) for Sophie's (1e-4); the sweep's pitch exact every 16 samples, ramped between. Made at half the rate
+ * (22.05 kHz, as digisophie: the busiest demo on Sophie's kit ran over on the FM-1 at the full rate, 102 %), the low-pass
+ * after it at the full rate: about 160 instructions a sample, Sophie's envelopes as they were, its top octave gone. */
 enum { SPH_FUSE, SPH_STACK, SPH_SPLIT, SPH_SHARD, SPH_PIPE, SPH_BOOM, SPH_KICK, NSPH };
 #define SPH_CTL 16
 #define SPH_IT (1.0f / FM_TWO_PI)        /* radians to turns */
@@ -650,93 +653,106 @@ static void sophie_render(dvoice_t *v, float *t, int m, float *envp)
     const int model = v->smodel, kick = v->skick, shaped = model >= SPH_PIPE;
     const int need_m2 = kick || model <= SPH_SPLIT, need_m3 = !kick && (model == SPH_STACK || model == SPH_SPLIT);
     const float color = v->scol, metal = v->smet, fbk = v->sfbk, sk = v->ssk, r1 = v->sr1, r2 = v->sr2, r3 = v->sr3;
-    const float base = v->sbase, k = v->k, pm = v->spm, mm = v->smm, g = v->g * 0.24f;
-    float pm16 = pm * pm;
+    /* the voice is made at half the rate (22.05 kHz): each step two samples' worth (the envelopes' multipliers
+     * squared, the phases two increments), the output between two steps their mean (digisophie's way); the
+     * low-pass and the gain at the full rate, after */
+    const float base = v->sbase, k = v->k * v->k, pm = v->spm * v->spm, mm = v->smm * v->smm, g = v->g * 0.24f;
+    float pm16 = v->spm * v->spm;
     const float fbgain = fbk * (2.0f + metal * 10.0f) * SPH_IT, m2gain = metal * 2.5f * SPH_IT, m2sq = metal * metal * SPH_IT;
     const float crl = v->scl, crs = v->scs;
     float env = *envp, pe = v->spe, me = v->sme, att = v->sat, fz = v->sfz, nz = v->snz, fl = v->sfl, fb = v->sfb;
-    float c = v->ph, inc = v->inc, di = v->sdi, m1p = v->sm1, m2p = v->sm2, m3p = v->sm3, ch = v->sch;
-    int i, ctl = v->sctl, cc = v->scc, cd = v->scd;
+    float c = v->ph, inc = v->inc, di = v->sdi, m1p = v->sm1, m2p = v->sm2, m3p = v->sm3, ch = v->sch, y = v->slast;
+    int i, ctl = v->sctl, cc = v->scc, cd = v->scd > 1 ? (v->scd + 1) / 2 : 1, tog = v->stog;
     uint32_t rng = v->rng;
     pm16 *= pm16;
     pm16 *= pm16;
-    pm16 *= pm16;                                     /* (pm^16) */
+    pm16 *= pm16;                                     /* (pm^16: 16 samples on) */
     for (i = 0; i < m; i++) {
-        float bright, m1, m2 = 0.0f, m3 = 0.0f, idx, out;
-        if (ctl == 0) {                               /* the sweep: the pitch 16 samples on, ramped to */
-            float target = sk != 0.0f ? base * fm_clampf(fm_exp2f(sk * pe * pm16), 18.0f / (base * SR), 18000.0f / (base * SR)) : base;
-            di = (target - inc) * (1.0f / SPH_CTL);
-            ctl = SPH_CTL;
-        }
-        ctl--;
-        env *= k;
-        pe *= pm;
-        me *= mm;
-        att += (1.0f - att) * 0.085f;
-        bright = shaped ? me : pe;
-        inc += di;
-        c += inc;
-        if (c >= 1.0f) c -= fm_floorf(c);
-        m1p += inc * r1;
-        if (m1p >= 1.0f) m1p -= fm_floorf(m1p);
-        m1 = sin_t_any(m1p + fz * fbgain);
-        if (need_m2) {
-            m2p += inc * r2;
-            if (m2p >= 1.0f) m2p -= fm_floorf(m2p);
-            m2 = sin_t_any(m2p + m1 * m2gain);
-        }
-        if (need_m3) {
-            m3p += inc * r3;
-            if (m3p >= 1.0f) m3p -= fm_floorf(m3p);
-            m3 = sin_t_any(m3p);
-        }
-        idx = m2sq * (2.0f + 24.0f * (0.25f + bright * 0.75f));   /* the FM depth, turns */
-        if (kick) {                                   /* a sine body, folded a little, a quiet FM texture */
-            float body = sin_t_any(c), folded = sin_t_any(body * (1.0f + color * 2.2f) * SPH_IT);
-            float tex = sin_t_any(c + m2 * (0.18f + fbk * 1.35f) * SPH_IT);
-            nz += (noise(&rng) - nz) * 0.32f;
-            out = body * (0.86f - color * 0.08f) + folded * (0.14f + color * 0.08f) + tex * metal * 0.18f + nz * pe * (0.012f + metal * 0.035f);
-        } else
-            switch (model) {
-            default:                                  /* FUSE: two modulators in series */
-                out = sin_t_any(c + idx * (m2 * 0.72f + m1 * 0.28f));
-                break;
-            case SPH_STACK:
-                out = (sin_t_any(c + idx * 0.62f * m1) + 0.55f * sin_t_any(c * 0.501f + idx * 0.35f * m2) +
-                       0.32f * sin_t_any(c * 1.997f + idx * 0.22f * m3)) * 0.56f;
-                break;
-            case SPH_SPLIT:
-                out = 0.62f * sin_t_any(c + idx * m1) + 0.38f * sin_t_any(c * 1.003f - idx * 0.71f * m2) + 0.18f * m3;
-                break;
-            case SPH_PIPE: {                          /* an FM carrier and an inharmonic ring */
-                float body = sin_t_any(c + idx * m1), rm = 0.3125f + metal * 0.5f + bright * 0.125f;
-                out = (body * (1.0f - rm) + body * m1 * rm) * 1.25f;
-                break;
+        float o;
+        if (tog) {                                    /* the second sample of the step: the step's own */
+            o = y;
+            tog = 0;
+        } else {
+            float bright, m1, m2 = 0.0f, m3 = 0.0f, idx, out, inc2;
+            if (ctl == 0) {                           /* the sweep: the pitch 16 samples (8 steps) on, ramped to */
+                float target = sk != 0.0f ? base * fm_clampf(fm_exp2f(sk * pe * pm16), 18.0f / (base * SR), 18000.0f / (base * SR)) : base;
+                di = (target - inc) * (1.0f / (SPH_CTL / 2));
+                ctl = SPH_CTL / 2;
             }
-            case SPH_BOOM: {                          /* a clean fundamental, a metallic skin */
-                float em = 0.0625f + metal * bright * 0.5f;
-                out = sin_t_any(c) * (1.0f - em) + sin_t_any(c + idx * m1) * em;
-                break;
+            ctl--;
+            env *= k;
+            pe *= pm;
+            me *= mm;
+            att += (1.0f - att) * 0.163775f;          /* (Sophie's 0.085 a sample, two of them) */
+            bright = shaped ? me : pe;
+            inc += di;
+            inc2 = inc + inc;
+            c += inc2;
+            if (c >= 1.0f) c -= fm_floorf(c);
+            m1p += inc2 * r1;
+            if (m1p >= 1.0f) m1p -= fm_floorf(m1p);
+            m1 = sin_t_any(m1p + fz * fbgain);
+            if (need_m2) {
+                m2p += inc2 * r2;
+                if (m2p >= 1.0f) m2p -= fm_floorf(m2p);
+                m2 = sin_t_any(m2p + m1 * m2gain);
             }
-            case SPH_SHARD:                           /* a 12-bit wavetable (32 steps) and noise */
-                nz += (noise(&rng) - nz) * (0.02f + color * 0.35f);
-                out = sin_t_any(fm_floorf(c * 32.0f) * (1.0f / 32.0f) + idx * 0.55f * m1) * (0.85f - metal * 0.25f) +
-                      nz * metal * 0.42f * (shaped ? bright : 1.0f);
-                break;
+            if (need_m3) {
+                m3p += inc2 * r3;
+                if (m3p >= 1.0f) m3p -= fm_floorf(m3p);
+                m3 = sin_t_any(m3p);
             }
-        fz = sph_clip(out * 1.4f);                    /* the feedback (Raw) */
-        out *= env * att;
-        if (crl > 0.0f) {                             /* sample and hold, then fewer bits */
-            if (cc <= 0) {
-                ch = out;
-                cc = cd;
+            idx = m2sq * (2.0f + 24.0f * (0.25f + bright * 0.75f));   /* the FM depth, turns */
+            if (kick) {                               /* a sine body, folded a little, a quiet FM texture */
+                float body = sin_t_any(c), folded = sin_t_any(body * (1.0f + color * 2.2f) * SPH_IT);
+                float tex = sin_t_any(c + m2 * (0.18f + fbk * 1.35f) * SPH_IT);
+                nz += (noise(&rng) - nz) * 0.32f;
+                out = body * (0.86f - color * 0.08f) + folded * (0.14f + color * 0.08f) + tex * metal * 0.18f + nz * pe * (0.012f + metal * 0.035f);
+            } else
+                switch (model) {
+                default:                              /* FUSE: two modulators in series */
+                    out = sin_t_any(c + idx * (m2 * 0.72f + m1 * 0.28f));
+                    break;
+                case SPH_STACK:
+                    out = (sin_t_any(c + idx * 0.62f * m1) + 0.55f * sin_t_any(c * 0.501f + idx * 0.35f * m2) +
+                           0.32f * sin_t_any(c * 1.997f + idx * 0.22f * m3)) * 0.56f;
+                    break;
+                case SPH_SPLIT:
+                    out = 0.62f * sin_t_any(c + idx * m1) + 0.38f * sin_t_any(c * 1.003f - idx * 0.71f * m2) + 0.18f * m3;
+                    break;
+                case SPH_PIPE: {                      /* an FM carrier and an inharmonic ring */
+                    float body = sin_t_any(c + idx * m1), rm = 0.3125f + metal * 0.5f + bright * 0.125f;
+                    out = (body * (1.0f - rm) + body * m1 * rm) * 1.25f;
+                    break;
+                }
+                case SPH_BOOM: {                      /* a clean fundamental, a metallic skin */
+                    float em = 0.0625f + metal * bright * 0.5f;
+                    out = sin_t_any(c) * (1.0f - em) + sin_t_any(c + idx * m1) * em;
+                    break;
+                }
+                case SPH_SHARD:                       /* a 12-bit wavetable (32 steps) and noise */
+                    nz += (noise(&rng) - nz) * (0.02f + color * 0.35f);
+                    out = sin_t_any(fm_floorf(c * 32.0f) * (1.0f / 32.0f) + idx * 0.55f * m1) * (0.85f - metal * 0.25f) +
+                          nz * metal * 0.42f * (shaped ? bright : 1.0f);
+                    break;
+                }
+            fz = sph_clip(out * 1.4f);                /* the feedback (Raw) */
+            out *= env * att;
+            if (crl > 0.0f) {                         /* sample and hold (its count in steps), then fewer bits */
+                if (cc <= 0) {
+                    ch = out;
+                    cc = cd;
+                }
+                cc--;
+                out = fm_floorf(ch * crl + 0.5f) * crs;
             }
-            cc--;
-            out = fm_floorf(ch * crl + 0.5f) * crs;
+            out = sph_clip(out * SPH_DG) * SPH_DN;
+            o = (y + out) * 0.5f;                     /* between the last step and this one */
+            y = out;
+            tog = 1;
         }
-        out = sph_clip(out * SPH_DG) * SPH_DN;
-        fl += 0.95f * fb;                             /* the low-pass, last (CUTOFF 100) */
-        fb += 0.95f * (out - fl - fb);
+        fl += 0.95f * fb;                             /* the low-pass, last (CUTOFF 100), at the full rate */
+        fb += 0.95f * (o - fl - fb);
         t[i] = fl * g;
     }
     v->ph = c;
@@ -753,12 +769,13 @@ static void sophie_render(dvoice_t *v, float *t, int m, float *envp)
     v->sfl = fm_flush(fl);
     v->sfb = fm_flush(fb);
     v->sch = ch;
+    v->slast = y;
     v->scc = (int16_t)cc;
     v->sctl = (uint8_t)ctl;
+    v->stog = (uint8_t)tog;
     v->rng = rng;
     *envp = env;
 }
-
 /* clang: digisophie's core, its controls from the knobs (pitch the note; model, sweep, feedback, fold on the
  * second page) */
 static void clang_start(dvoice_t *v, float note, const float *kn, const uint8_t *k2, int vel)
