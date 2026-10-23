@@ -46,7 +46,7 @@ knob 1 d11.k2 30
 knob 1 d11.k3 110
 knob 1 d11.k4 60
 knob 1 d11.volume 70
-knob 1 ftype dynamic
+knob 1 ftype off
 knob 1 cut 10
 knob 1 res 80
 knob 1 fenv 76

@@ -52,6 +52,244 @@ uint32_t plat_cpu_peak_pct(void)
     cpu_peak = 0;
     return p;
 }
+/* the work of each block in executed instructions (LOOM_WORK=1: macOS's count, proc_pid_rusage, less the count's
+ * own cost), in the FM-1's timer ticks at LOOM_WORK_K ticks an instruction (default 0.226: the house demos' mean
+ * loads on the FM-1, 2026-10-22). The second core's job runs inline here and its queue hands it every
+ * item, so the two cores are modelled as sharing the block evenly: the load is half the work. The profiler (eng_prof)
+ * counts in the same ticks with LOOM_WORK=2 (each timer's read is a system call whose cost varies: the blocks' totals
+ * then vary by ~10 %; with 1 the timers read nothing), and the overload guard and the note-start check see this load (LOOM_LOAD still wins). "work" prints and resets: the mean, the worst and how many blocks went over 92 and 100 %;
+ * LOOM_WORK_LOG=FILE every block: s, load %, core 1's job %, voices, the sixteenth (step_tick), then the stages % (seq synth0 synth1 drum fx mst
+ * mix prep note out step comp locks notes fire fxj), then each voice's % and synth_vinfo (VOICE%:INFO), then | and each kit key's rendering and
+ * hits % (R/H) */
+#if defined(__APPLE__) && !defined(PLAT_WEB)
+#include <libproc.h>
+#include <unistd.h>
+#include <sys/resource.h>
+static uint64_t host_instr_raw(void)
+{
+    struct rusage_info_v4 r;
+    return proc_pid_rusage(getpid(), RUSAGE_INFO_V4, (rusage_info_t *)&r) ? 0 : r.ri_instructions;
+}
+#else
+static uint64_t host_instr_raw(void) { return 0; }
+#endif
+static int work_on = -1, work_fine;
+static double work_k = 0.226;
+static uint64_t work_c2, work_ov, work_calls, work_t0, work_c20;
+static uint32_t work_blocks, work_over, work_over92, work_prof0[ENG_PROF_N];
+static double work_sum, work_worst, work_worst_s, work_s;
+static FILE *work_log;
+static uint64_t work_skip;                                /* the simulator's own work inside the render (its MIDI log) */
+static uint64_t host_instr(void)                          /* instructions so far, the counting's own left out */
+{
+    return host_instr_raw() - work_ov * ++work_calls - work_skip;
+}
+static int work_enabled(void);
+static void host_midi_out(uint32_t pkt)                   /* MIDI out from the render: the FM-1 queues it, the simulator
+                                                           * also writes it to its log, which is not the FM-1's work */
+{
+    if (work_enabled()) {
+        uint64_t a = host_instr_raw();
+        plat_midi_out(pkt);
+        work_skip += host_instr_raw() - a;
+    } else {
+        plat_midi_out(pkt);
+    }
+}
+static int work_enabled(void)
+{
+    if (work_on < 0) {
+        const char *e = getenv("LOOM_WORK"), *k = getenv("LOOM_WORK_K"), *lg = getenv("LOOM_WORK_LOG");
+        work_on = e && *e && *e != '0';
+        work_fine = work_on && atoi(e) >= 2;          /* 2: the stages and the voices timed too (noisier) */
+        if (k && atof(k) > 0.0)
+            work_k = atof(k);
+        if (work_on) {
+            uint64_t a = host_instr_raw(), m = ~0ull;
+            for (int i = 0; i < 64; i++) {             /* the least a count costs */
+                uint64_t b = host_instr_raw();
+                if (b - a < m)
+                    m = b - a;
+                a = b;
+            }
+            work_ov = m;
+            drumline_host_clock = work_fine ? plat_cycles : 0;
+            if (lg && *lg)
+                work_log = fopen(lg, "w");
+        }
+    }
+    return work_on;
+}
+static void work_begin(void)
+{
+    if (!work_enabled())
+        return;
+    work_c20 = work_c2;
+    work_t0 = host_instr();
+}
+static int work_end(uint32_t n)                   /* the block's modelled load, %, the guard's input (-1: not counting) */
+{
+    static const uint8_t ST[] = {PR_SEQ, PR_SYNTH0, PR_SYNTH1, PR_DRUM, PR_FX, PR_MST, PR_MIX, PR_PREP, PR_NOTE, PR_OUT,
+                                 PR_STEP, PR_COMP, PR_LOCKS, PR_NOTES, PR_FIRE, PR_FXJ};
+    double bud, w, c1;
+    uint64_t tot;
+    if (!work_enabled() || !n)
+        return -1;
+    tot = host_instr() - work_t0;
+    bud = (double)n * 544.2 / work_k;                     /* the block's budget, instructions */
+    w = 50.0 * (double)tot / bud;
+    c1 = 100.0 * (double)(work_c2 - work_c20) / bud;
+    work_blocks++;
+    work_sum += w;
+    work_over += w > 100.0;
+    work_over92 += w > 92.0;
+    if (w > work_worst) {
+        work_worst = w;
+        work_worst_s = work_s;
+    }
+    if (work_log) {
+        fprintf(work_log, "%.4f %.1f %.1f %d %u", work_s, w, c1, synth_voices_used(SY), (unsigned)seq.step_tick);
+        for (unsigned i = 0; i < sizeof ST; i++)
+            fprintf(work_log, " %.1f", 100.0 * (double)(eng_prof[ST[i]] - work_prof0[ST[i]]) / ((double)n * 544.2));
+        for (unsigned i = 0; i < NVOICE; i++)              /* each voice: its % and engine | flags (synth.c synth_vinfo) */
+            fprintf(work_log, " %.1f:%u", 100.0 * (double)synth_vblk[i] / ((double)n * 544.2), synth_vinfo[i]);
+        fputs(" |", work_log);                            /* each kit key (every kit): rendering %, its hits % */
+        for (unsigned i = 0; i < DL_NSOUND; i++)
+            fprintf(work_log, " %.1f/%.1f", 100.0 * (double)drumline_host_cost[i][0] / ((double)n * 544.2),
+                    100.0 * (double)drumline_host_cost[i][1] / ((double)n * 544.2));
+        fputc('\n', work_log);
+    }
+    for (unsigned i = 0; i < ENG_PROF_N; i++)
+        work_prof0[i] = eng_prof[i];
+    memset(drumline_host_cost, 0, sizeof drumline_host_cost);
+    work_s += (double)n / 44100.0;
+    return (int)(w + 0.5);
+}
+static void work_print(void)
+{
+    if (!work_enabled())
+        return;
+    printf("work: %u blocks, mean %.1f %%, worst %.1f %% at %.2f s, over 92 %%: %u, over 100 %%: %u (k %.3f ticks an "
+           "instruction)\n", work_blocks, work_blocks ? work_sum / work_blocks : 0.0, work_worst, work_worst_s,
+           work_over92, work_over, work_k);
+    work_blocks = work_over = work_over92 = 0;
+    work_sum = work_worst = work_s = 0.0;
+}
+/* seqbench: a copy of the sequencer as it plays now, run on through BARS bars with every note going nowhere (no
+ * engine, no MIDI, no log), its instructions counted per call: each sixteenth's cost (the calls that fired it),
+ * averaged over the bars, in the FM-1's ticks (LOOM_WORK_K) and as a share of a 256-sample block. FILE: each call
+ * (its sixteenth, its instructions). The sequencer only reads the patterns while it plays (no recording here) */
+static void sb_note_on(void *x, int t, int n, int v, int g, uint32_t tag) { (void)x; (void)t; (void)n; (void)v; (void)g; (void)tag; }
+static void sb_note_off(void *x, int t, uint32_t tag) { (void)x; (void)t; (void)tag; }
+static void sb_drum(void *x, int t, int s, int v, int p, int a, int b) { (void)x; (void)t; (void)s; (void)v; (void)p; (void)a; (void)b; }
+static void sb_lock(void *x, int t, int p, int v) { (void)x; (void)t; (void)p; (void)v; }
+static void sb_bend(void *x, int t, int c) { (void)x; (void)t; (void)c; }
+static void sb_punch(void *x, uint32_t a, uint32_t b) { (void)x; (void)a; (void)b; }
+static void sb_midi(void *x, uint8_t a, uint8_t b, uint8_t c) { (void)x; (void)a; (void)b; (void)c; }
+static void sb_step(void *x, int t, int s) { (void)x; (void)t; (void)s; }
+static void sb_scene(void *x, int s) { (void)x; (void)s; }
+static void sb_metro(void *x, int a) { (void)x; (void)a; }
+static void sb_pan(void *x, int t, int p) { (void)x; (void)t; (void)p; }
+static void sb_drum_off(void *x, int t, int s) { (void)x; (void)t; (void)s; }
+static void sb_ghost(void *x, int t, int s, int v) { (void)x; (void)t; (void)s; (void)v; }
+static void seq_bench(int bars, const char *file)
+{
+    static const seq_sink_t NUL = {.note_on = sb_note_on, .note_off = sb_note_off, .drum = sb_drum, .lock = sb_lock,
+                                   .bend = sb_bend, .punch = sb_punch, .midi = sb_midi, .step = sb_step,
+                                   .scene = sb_scene, .metro = sb_metro, .pan = sb_pan, .drum_off = sb_drum_off,
+                                   .ghost = sb_ghost, .ctx = 0};
+    static seq_t c;
+    double per[16] = {0}, tot = 0.0, worst = 0.0;
+    uint32_t start, calls = 0, ws = 0, i;
+    uint64_t ov;
+    FILE *f = file ? fopen(file, "w") : 0;
+    if (!work_enabled()) {
+        printf("seqbench: LOOM_WORK=1 needed\n");
+        return;
+    }
+    if (!seq.playing) {
+        printf("seqbench: the sequencer is not playing\n");
+        return;
+    }
+    {   /* the count's own cost */
+        uint64_t a = host_instr_raw(), m = ~0ull;
+        for (i = 0; i < 64; i++) {
+            uint64_t b = host_instr_raw();
+            if (b - a < m)
+                m = b - a;
+            a = b;
+        }
+        ov = m;
+    }
+    c = seq;
+    start = c.step_tick;
+    while (c.playing && c.step_tick - start < (uint32_t)bars * 16u) {
+        uint32_t k = seq_until_event(&c, 256u), st;
+        uint64_t a, b;
+        double d;
+        if (!k)
+            k = 1;
+        if (k > 256u)
+            k = 256u;
+        a = host_instr_raw();
+        seq_advance(&c, k, &NUL);
+        b = host_instr_raw();
+        d = (double)(b - a > ov ? b - a - ov : 0);
+        st = c.step_tick % 16u;
+        per[st] += d;
+        tot += d;
+        calls++;
+        if (d > worst) {
+            worst = d;
+            ws = st;
+        }
+        if (f)
+            fprintf(f, "%u %.0f\n", c.step_tick, d);
+    }
+    if (f)
+        fclose(f);
+    printf("seqbench: %d bars, %u calls, %.0f instructions a bar (%.2f %% of a core); the dearest call %.0f "
+           "(sixteenth %u: %.1f %% of a 256-sample block)\n", bars, calls, tot / bars,
+           100.0 * tot / bars * work_k / (16.0 * seq_step_q8(&c, 0) / 256.0 * 544.2), worst, ws + 1,
+           100.0 * worst * work_k / (256.0 * 544.2));
+    printf("seqbench: each sixteenth, %% of a 256-sample block on the FM-1 (a bar's average):");
+    for (i = 0; i < 16; i++)
+        printf(" %u:%.1f", i + 1, 100.0 * per[i] / bars * work_k / (256.0 * 544.2));
+    printf("\n");
+}
+/* seqfire: the call that fires sixteenth SIX (1..16) of the next bar, taken from a copy of the sequencer and replayed N
+ * times from the state before it (for a profiler: nothing but that firing runs); its instructions printed */
+static void seq_fire(int reps, int six)
+{
+    static const seq_sink_t NUL = {.note_on = sb_note_on, .note_off = sb_note_off, .drum = sb_drum, .lock = sb_lock,
+                                   .bend = sb_bend, .punch = sb_punch, .midi = sb_midi, .step = sb_step,
+                                   .scene = sb_scene, .metro = sb_metro, .pan = sb_pan, .drum_off = sb_drum_off,
+                                   .ghost = sb_ghost, .ctx = 0};
+    static seq_t c, c0;
+    uint32_t k = 0, guard = 0;
+    uint64_t a, b;
+    int i;
+    c = seq;
+    while (guard++ < 200000u) {               /* to the call that crosses into the sixteenth */
+        k = seq_until_event(&c, 256u);
+        if (!k)
+            k = 1;
+        if (k > 256u)
+            k = 256u;
+        c0 = c;
+        seq_advance(&c, k, &NUL);
+        if (c.step_tick != c0.step_tick && (int)(c.step_tick % 16u) == six - 1)
+            break;
+    }
+    a = host_instr_raw();
+    for (i = 0; i < reps; i++) {
+        c = c0;
+        seq_advance(&c, k, &NUL);
+    }
+    b = host_instr_raw();
+    printf("seqfire: sixteenth %d, %d replays, %.0f instructions a call (with the state copy, %u B)\n", six, reps,
+           (double)(b - a) / reps, (unsigned)sizeof c);
+}
 static double host_ns(void)
 {
     struct timespec t;
@@ -66,7 +304,12 @@ static uint32_t render_pct(uint32_t t0, uint32_t n)   /* the block's share of it
         cpu_peak = pct;
     return pct;
 }
-uint32_t plat_cycles(void) { return render_t0(); }   /* the profiler's clock: nanoseconds / 10 here */
+uint32_t plat_cycles(void)   /* the profiler's clock: nanoseconds / 10 here (LOOM_WORK: the FM-1's ticks, modelled) */
+{
+    if (work_enabled())                              /* (LOOM_WORK=1: the blocks alone; their timers read nothing) */
+        return work_fine ? (uint32_t)((double)host_instr() * work_k) : 0u;
+    return render_t0();
+}   /* the profiler's clock: nanoseconds / 10 here */
 
 /* the store's copy before the current one (storage.c keeps two on the FM-1): kept here beside fm1-base's store */
 static uint8_t store_prev[OBJ_NOBJ][PLAT_STORE_MAX];
@@ -100,9 +343,13 @@ int plat_cpu2_set(int on) { cpu2_on = on; return 0; }
 int plat_cpu2_on(void) { return cpu2_on; }
 int plat_cpu2_run(void (*fn)(uint32_t), uint32_t arg)
 {
+    uint64_t a;
     if (!cpu2_on)
         return 0;
+    a = work_enabled() ? host_instr() : 0;
     fn(arg);
+    if (work_on > 0)
+        work_c2 += host_instr() - a;
     return 1;
 }
 int plat_cpu2_wait(void) { return 0; }
@@ -226,6 +473,8 @@ int app_expect(const char *what, int *got)
         *got = (int)(seq_tempo(&seq) + 0.5f);
     else if (!strcmp(what, "trk"))
         *got = proj.trk_sel + 1;
+    else if (!strncmp(what, "name", 4) && what[4])  /* nameT: track T's name, its first letter's code */
+        *got = (uint8_t)proj.trk[(atoi(what + 4) - 1 + NALLTRK) % NALLTRK].name[0];
     else if (!strcmp(what, "user"))                 /* the user bank: its samples, its data's bytes, user N's rate */
         *got = smp_user_count();
     else if (!strcmp(what, "userbytes"))
@@ -462,13 +711,15 @@ static int param_of(const char *s)                 /* a TP_* name, dK.NAME (drum
         int key = atoi(s + 1);
         const char *dot = strchr(s, '.');
         if (dot && key >= 1 && key <= NDRUM)
-            for (k = 0; k < DP_N; k++)
-                if (ieq(dot + 1, DPN[k]))
-                    return TP_DRUM(key - 1, k);
+            for (k = 0; k < DP_N + DPX_N; k++)       /* (k5..k8: the key's knobs 5..8, TP_DRUMX) */
+                if (k < DP_N ? ieq(dot + 1, DPN[k]) : (dot[1] == 'k' && dot[2] == (char)('5' + k - DP_N) && !dot[3]))
+                    return k < DP_N ? TP_DRUM(key - 1, k) : TP_DRUMX(key - 1, k - DP_N);
     }
     for (k = 0; k < TP_DRUM0; k++)
         if (ieq(s, TPN[k]))
             return k;
+    if (ieq(s, "fine"))                             /* knit's osc 2 fine (TP_O2FINE, after the kit's) */
+        return TP_O2FINE;
     host_die("no parameter", s);
     return 0;
 }
@@ -738,6 +989,20 @@ static int song_cmd(const char *cmd)
         } else
             set_tp(t, k, value_of(t, k, w[3]));
         run_ms(1);
+    } else if (!strcmp(cmd, "usersave")) {          /* usersave T SLOT: track T's sound as user preset SLOT (1..16) */
+        t = atoi(w[1]) - 1;
+        k = n > 2 ? atoi(w[2]) - 1 : -1;
+        if (t < 0 || t >= NTRK || k < 0 || k >= NUSER_PRESETS)
+            host_die("usersave T SLOT", "");
+        proj.trk_sel = (uint8_t)t;
+        save_user_preset(k);
+        run_ms(1);
+    } else if (!strcmp(cmd, "preset") && n > 2 && (w[2][0] == 'U' || w[2][0] == 'u') && isnum(w[2] + 1)) {
+        t = atoi(w[1]) - 1;                         /* preset T Uk: user preset k (1..16) */
+        k = atoi(w[2] + 1) - 1;
+        if (t < 0 || t >= NTRK || k < 0 || k >= NUSER_PRESETS || !preset_apply(t, NPRESETS + k))
+            host_die("no user preset", w[2]);
+        run_ms(1);
     } else if (!strcmp(cmd, "preset")) {            /* preset T NAME [ENGINE] (NAME: _ for spaces) */
         int pick = -1;
         t = atoi(w[1]) - 1;
@@ -1000,6 +1265,12 @@ static int song_cmd(const char *cmd)
                 run_ms(1);
         }
     }
+    else if (!strcmp(cmd, "work"))                     /* work: the blocks' work since the last (LOOM_WORK=1) */
+        work_print();
+    else if (!strcmp(cmd, "seqbench"))                 /* seqbench BARS [FILE]: the sequencer alone (LOOM_WORK=1) */
+        seq_bench(n > 1 ? atoi(w[1]) : 64, n > 2 ? w[2] : 0);
+    else if (!strcmp(cmd, "seqfire"))                  /* seqfire N [SIXTEENTH]: one firing call, replayed N times */
+        seq_fire(n > 1 ? atoi(w[1]) : 1000, n > 2 ? atoi(w[2]) : 1);
     else if (!strcmp(cmd, "stats")) {
         if (n > 1 && !strcmp(w[1], "reset")) {     /* (quietly) */
             st_ms = st_syn = st_drum = st_hi_ms = 0;

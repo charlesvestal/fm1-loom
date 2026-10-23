@@ -1,0 +1,47 @@
+# a scene's key held to clear it: what its press did is taken back first, so clearing another scene needs no race
+# against the bar line (a tester, 2026-10-23: "playing scene 3, hold scene 4 and SEL before it changes")
+wait 300
+bpm 120
+scenedef 2 2
+tap HOME
+expect page Arrange
+expect used 3
+# an empty key held: its copy undone, nothing asked, scene 1 stays
+key w2 down
+wait 1100
+expect ask 0
+expect used 3
+expect scene 1
+key w2 up
+# stopped: scene 2's key held asks; yes: scene 2 gone, back to scene 1 (the scene before the press)
+key w1 down
+wait 1100
+expect ask 1
+key w1 up
+tap SEL
+wait 40
+expect used 1
+expect scene 1
+# playing scene 1, scene 2's key held: its cue withdrawn while LOOM-8 asks (the bar line passes); yes: scene 2 gone
+scenedef 2 2
+tap PLAY
+wait 300
+key w1 down
+wait 1100
+expect ask 1
+key w1 up
+wait 2500
+expect scene 1
+tap SEL
+wait 40
+expect used 1
+expect scene 1
+# playing, an empty key held: nothing asked, nothing made, nothing cued
+key w3 down
+wait 1100
+expect ask 0
+key w3 up
+wait 2500
+expect scene 1
+expect used 1
+tap PLAY

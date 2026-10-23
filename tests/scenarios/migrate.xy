@@ -69,3 +69,18 @@ expect scene 20
 expect mute 2
 expect kmute1 4
 expect kmute2 4
+# a format 15 project (the tracks packed; tests/fixtures/make_v15.xy): each track's values and name where they were,
+# knit's osc 2 fine at 0 on every track
+storeload tests/fixtures/store_v15.bin
+reboot
+wait 400
+expect tempo 103
+expect par2.x1 71
+expect par2.x2 100
+expect par8.x1 52
+expect par1.e2 33
+expect name2 114
+expect name8 97
+expect par1.fine 64
+expect par2.fine 64
+expect par8.fine 64

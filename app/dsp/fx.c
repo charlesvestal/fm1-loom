@@ -670,29 +670,42 @@ static void do_spu(fxslot_t *f, const float *x, float *ol, float *orr, int m, in
     if (!any && s->quiet >= FX_RV_LEN * 2)    /* silent in, an empty area: nothing to read */
         return;
     spu_derive(s, f->mode, f->pc[0], f->pc[1], f->pc[3]);
+    {   /* (the ring positions, the phase and the tick's outputs in locals: written back after the loop) */
+    uint32_t ip = s->ip, up_w = s->up_w, phase = s->phase;
+    float o00 = s->out[0][0], o01 = s->out[0][1], o10 = s->out[1][0], o11 = s->out[1][1];
     for (i = 0; i < m; i++) {
         float yl, yr;
-        s->in[s->ip] = s->in[s->ip + 64u] = x[i];
-        s->ip = (uint8_t)((s->ip + 1u) & 63u);
-        if (s->phase) {                       /* the second of a pair: a tick */
+        s->in[ip] = s->in[ip + 64u] = x[i];
+        ip = (ip + 1u) & 63u;
+        if (phase) {                          /* the second of a pair: a tick */
             float lo, ro;
-            int wr = spu_tick(s, w, -spu_decimate(s), &lo, &ro);   /* vLIN = 8000h: -1 */
+            int wr;
+            s->ip = (uint8_t)ip;              /* (spu_decimate reads it) */
+            wr = spu_tick(s, w, -spu_decimate(s), &lo, &ro);   /* vLIN = 8000h: -1 */
             s->quiet = (wr == 0 && !any) ? s->quiet + 2 : 0;
-            s->up[0][s->up_w] = s->up[0][s->up_w + 32u] = lo;
-            s->up[1][s->up_w] = s->up[1][s->up_w + 32u] = ro;
-            s->up_w = (uint8_t)((s->up_w + 1u) & 31u);
-            spu_interp(s->up[0], s->up_w, &s->out[0][0], &s->out[0][1]);
-            spu_interp(s->up[1], s->up_w, &s->out[1][0], &s->out[1][1]);
+            s->up[0][up_w] = s->up[0][up_w + 32u] = lo;
+            s->up[1][up_w] = s->up[1][up_w + 32u] = ro;
+            up_w = (up_w + 1u) & 31u;
+            spu_interp(s->up[0], up_w, &o00, &o01);
+            spu_interp(s->up[1], up_w, &o10, &o11);
+            yl = o01 * g;                     /* the output volume: -1 again, and the level */
+            yr = o11 * g;
+        } else {
+            yl = o00 * g;
+            yr = o10 * g;
         }
-        yl = s->out[0][s->phase] * g;           /* the output volume: -1 again, and the level */
-        yr = s->out[1][s->phase] * g;
-        s->phase ^= 1u;
+        phase ^= 1u;
         tl += tlk * (yl - tl);
         tr += tlk * (yr - tr);
         th += thk * (tl - th);
         thr += thk * (tr - thr);
         ol[i] += tl - th;
         orr[i] += tr - thr;
+    }
+    s->ip = (uint8_t)ip;
+    s->up_w = (uint8_t)up_w;
+    s->phase = (uint8_t)phase;
+    s->out[0][0] = o00; s->out[0][1] = o01; s->out[1][0] = o10; s->out[1][1] = o11;
     }
     s->tl = fm_flush(tl);
     s->th = fm_flush(th);
@@ -909,7 +922,7 @@ struct master {
     /* EQ */
     biq_t eq[3];
     biqs_t eqs[2][3];
-    uint8_t eq_on, comp_on;
+    uint8_t eq_on, comp_on;                   /* eq_on: bit b, band b moved off flat (a flat band is not run) */
     /* compressor (X0X's master.c) */
     float thr_db, slope, knee, a_att, a_rel, makeup, gr, ms, a_det, want, g_lin, g_step, gr_view;
     uint8_t cr;
@@ -918,7 +931,7 @@ struct master {
     float pump_db, pump, pump_tgt, a_up, a_down, pump_view;
     float pg, pg_step;                /* its gain on the groups, ramped as a linear gain over MST_CR samples */
     uint8_t pcr, duck_mel;            /* (the countdown); duck_mel: a kit's hit keyed it, the melodic group ducks alone */
-#define MST_CR 4
+#define MST_CR 8                              /* (the gain computed every 8 samples, ramped between: 5.5 kHz) */
     /* limiter (X0X's) */
 #define MST_LA 64
     float env, gain, inv_env;
@@ -986,7 +999,17 @@ static void eq_coefs(master_t *m)
     biq_shelf(&m->eq[0], 120.0f, lo, 0);
     biq_peak(&m->eq[1], 1000.0f, mid, 0.8f);
     biq_shelf(&m->eq[2], 6000.0f, hi, 1);
-    m->eq_on = m->pot[MS_EQ_LO] != 64 || m->pot[MS_EQ_MID] != 64 || m->pot[MS_EQ_HI] != 64;
+    {   /* the bands moved off flat (a flat one is 0 dB: it would only round); one turned on starts from rest */
+        uint8_t on = (uint8_t)((m->pot[MS_EQ_LO] != 64) | (m->pot[MS_EQ_MID] != 64) << 1 | (m->pot[MS_EQ_HI] != 64) << 2);
+        int b;
+        for (b = 0; b < 3; b++)
+            if ((on & ~m->eq_on) >> b & 1u) {
+                static const biqs_t rest;
+                m->eqs[0][b] = rest;
+                m->eqs[1][b] = rest;
+            }
+        m->eq_on = on;
+    }
 }
 
 /* X0X's one-knob COMP: the threshold falls (-4 .. -32 dB), the ratio climbs (1.5:1 .. 6:1), the
@@ -1265,10 +1288,11 @@ void master_process(master_t *m, float *perc_l, float *perc_r, float *mel_l, flo
     }
     if (eq_on && STAGE(1)) {
         int b;
-        for (b = 0; b < 3; b++) {
-            biq_block(&m->eq[b], &m->eqs[0][b], mel_l, n);
-            biq_block(&m->eq[b], &m->eqs[1][b], mel_r, n);
-        }
+        for (b = 0; b < 3; b++)
+            if (eq_on >> b & 1) {
+                biq_block(&m->eq[b], &m->eqs[0][b], mel_l, n);
+                biq_block(&m->eq[b], &m->eqs[1][b], mel_r, n);
+            }
     }
     if (m->col != MC_OFF && STAGE(2))
         color_block(m, mel_l, mel_r, n);

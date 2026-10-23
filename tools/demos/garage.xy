@@ -39,7 +39,7 @@ knob 1 d4.volume 62
 knob 1 d9.k1 70
 knob 1 d9.volume 62
 knob 1 d8.volume 70
-knob 1 ftype dynamic
+knob 1 ftype off
 knob 1 cut 10
 knob 1 res 46
 knob 1 fenv 24

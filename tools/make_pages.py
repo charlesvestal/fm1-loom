@@ -14,11 +14,13 @@
   samples/index.html            the user sample bank in the browser (app/web/samples/: add, replace, rename, reorder,
                                 remove; loom_samples.js inlined)
   firmware/loom-VERSION.fwsc    the package the installer writes; also the download
+  firmware/m-bootloader-X.Y.fwsc  m-bootloader (MIT, fm1-base's web/m-bootloader), offered after the firmware
 
   tools/make_pages.py app/build/loom-0.1.fwsc 0.1 OUT_DIR
 
 The package must be a release build (./build.sh --release X.Y): its identity, FM-1_10XXYYZZ, is what
 the installer checks the download against and what the FM-1 reports after the install."""
+import hashlib
 import html
 import json
 import re
@@ -191,10 +193,18 @@ def main(pkg, version, out):
     for d in ("install", "firmware", "backup"):
         (out / d).mkdir(parents=True)
     shutil.copy(pkg, out / "firmware" / name)
+    # m-bootloader (MIT), which the installer offers after the firmware, with its licence (as fm1-base's sites)
+    boot = SRC / "base" / "web" / "m-bootloader" / f"fm1-uboot-{base_site.MBOOT_VERSION}.fwsc"
+    boot_name = f"m-bootloader-{base_site.MBOOT_VERSION}.fwsc"
+    shutil.copy(boot, out / "firmware" / boot_name)
+    shutil.copy(SRC / "base" / "web" / "m-bootloader" / "LICENSE", out / "firmware" / "m-bootloader-LICENSE.txt")
     page = (SRC / "base" / "web" / "installer.html").read_text(encoding="utf-8")
     lib = strip_module((SRC / "base" / "web" / "fm1pkg.js").read_text(encoding="utf-8")) + "\n" + \
         strip_module((SRC / "base" / "web" / "fm1ota.js").read_text(encoding="utf-8"))
-    meta = json.dumps({"version": version, "product": product, "pkg": "../firmware/" + name})
+    meta = json.dumps({"version": version, "product": product, "pkg": "../firmware/" + name,
+                       "backup": True,                              # (the site's backup page: the installer links it)
+                       "boot": {"pkg": "../firmware/" + boot_name, "version": base_site.MBOOT_VERSION,
+                                "sha256": hashlib.sha256(boot.read_bytes()).hexdigest()}})
     for mark in ("/*LIB*/", "/*META*/"):
         if page.count(mark) != 1:
             raise SystemExit(f"base/web/installer.html must contain {mark} once")

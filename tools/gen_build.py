@@ -3,7 +3,8 @@
 """This build's sources as a number (LOOM_BUILD, app/plat_loom.c): a hash of the app's and fm1-base's sources, so a
 new build is told apart from the one that ran before it (the second core's bar, kept across an update in .noinit,
 is the old build's: a new build starts with two cores again). The same sources give the same number (and image).
-XY_BENCH=1 in the environment: a build with the hardware profiler (app/dsp/bench.c, tools/hw_bench.py), its own number.
+XY_BENCH=1 in the environment: a build with the hardware profiler (app/dsp/bench.c, tools/hw_bench.py), its own number;
+XY_BENCH=3: only the code kernels (copies of one function: the flash cache's size).
   tools/gen_build.py OUT.h      (run by the build: app/fm1.toml gen)"""
 import hashlib
 import os
@@ -16,7 +17,7 @@ EXT = {".c", ".h", ".S", ".ld", ".toml", ".tsv"}
 
 
 def main(out):
-    bench = int(os.environ.get("XY_BENCH", "0") == "1")
+    bench = {"1": 1, "3": 3}.get(os.environ.get("XY_BENCH", "0"), 0)   # 3: the code kernels only (the flash cache)
     h = hashlib.sha256(b"bench" if bench else b"")
     for d in DIRS:
         for f in sorted((ROOT / d).rglob("*")):

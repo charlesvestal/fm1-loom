@@ -1,0 +1,16 @@
+# user presets in format 7 (before knit's osc 2 fine): user preset 1, a knit with osc 2 at +11 st, saved by that
+# build through EDIT's SEL list, for the migration's test (tests/scenarios/osc2fine.xy). Run by a format 15 / presets
+# format 7 build (33e5b6f): its loom_host tests/fixtures/make_presets_v7.xy OUT
+wait 300
+spin ALGO 2
+knob 3 engine knit
+knob 3 x1 75
+knob 3 x2 90
+tap EDIT
+tap SEL
+wait 40
+spin SELECT 80
+spin SELECT -3
+tap SEL
+wait 100
+storesave tests/fixtures/store_presets_v7.bin

@@ -1,0 +1,14 @@
+# a format 15 project (the tracks packed, TP_DRUMX after the kit keys; no osc 2 fine yet): saved by that build, for
+# the migration's test (tests/scenarios/migrate.xy). Run by a format 15 build (33e5b6f): its loom_host
+# tests/fixtures/make_v15.xy OUT
+wait 300
+bpm 103
+preset 2 reese
+param 2 34 71
+param 2 35 100
+preset 8 acid
+param 8 34 52
+param 1 2 33
+wait 40
+projsave 1 v15_test
+storesave tests/fixtures/store_v15.bin

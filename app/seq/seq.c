@@ -449,18 +449,18 @@ static void add_off(seq_t *s, int t, uint32_t tag, int kind, int note, uint32_t 
 {
     seq_trk_t *tr = &s->t[t];
     seq_off_t *e = 0, *soon = 0;
-    int i;
-    for (i = 0; i < SEQ_PENDING; i++) {
-        seq_off_t *c = &tr->off[i];
-        if (c->used && c->tag == tag && c->kind == kind) {   /* the same note again: its off moves */
+    uint32_t m;
+    for (m = tr->off_mask; m; m &= m - 1u) {   /* the pending ones (off_mask: their used flags) */
+        seq_off_t *c = &tr->off[__builtin_ctz(m)];
+        if (c->tag == tag && c->kind == kind) {   /* the same note again: its off moves */
             e = c;
             break;
         }
-        if (!c->used && !e)
-            e = c;
-        if (c->used && (!soon || c->off_at < soon->off_at))
+        if (!soon || c->off_at < soon->off_at)
             soon = c;
     }
+    if (!e && (~(uint32_t)tr->off_mask & ((1u << SEQ_PENDING) - 1u)))   /* else the first free one */
+        e = &tr->off[__builtin_ctz(~(uint32_t)tr->off_mask)];
     if (!e) {                         /* full: the soonest goes now */
         fire_off(s, t, soon, o);
         e = soon;
@@ -475,10 +475,9 @@ static void add_off(seq_t *s, int t, uint32_t tag, int kind, int note, uint32_t 
 
 static void cancel_offs(seq_t *s, int t, const seq_sink_t *o)   /* everything pending goes off now */
 {
-    int i;
-    for (i = 0; i < SEQ_PENDING && s->t[t].off_mask; i++)
-        if (s->t[t].off[i].used)
-            fire_off(s, t, &s->t[t].off[i], o);
+    uint32_t m;
+    while ((m = s->t[t].off_mask) != 0u)      /* (lowest first, as they were scanned) */
+        fire_off(s, t, &s->t[t].off[__builtin_ctz(m)], o);
 }
 
 /* ----------------------------------------------------------- the brain --- */
@@ -686,6 +685,38 @@ static void step_arp(seq_t *s, int t, const uint8_t *nt, int n, int vel, uint32_
 static void step_strum(seq_t *s, int t, const uint8_t *nt, int n, int vel, uint32_t len_q8, uint32_t tag,
                        const seq_sink_t *o);
 /* the step's notes (synth) or hits (drums), with the components in tr->act; ratchet = the hit's index */
+/* each track's lanes (bit k: lane k used, on that track), made once a seq_advance call (lane_masks_make) instead of
+ * every firing track scanning all NLANE (8 tracks firing at once were ~800 lanes looked at, the sequencer's dearest
+ * part at a busy step); the lanes change only between calls (the main loop's edits) */
+#define LANE_W ((NLANE + 31) / 32)
+static uint32_t lane_mask[NSEQT][LANE_W];
+static uint8_t lane_masks_ok, lane_in_call;
+static void lane_masks_make(const seq_t *s)
+{
+    lane_masks_ok = lane_in_call;             /* (kept to the call's end; outside a call made at every use) */
+    int k, t;
+    for (t = 0; t < NSEQT; t++)
+        for (k = 0; k < LANE_W; k++)
+            lane_mask[t][k] = 0;
+    for (k = 0; k < NLANE; k++) {
+        const lane_t *l = &s->P->lane[k];
+        if (l->used && l->trk < NSEQT)
+            lane_mask[l->trk][k >> 5] |= 1u << (k & 31);
+    }
+}
+/* the next lane of track t from k on (-1 none) */
+static inline int lane_next(int t, int k)
+{
+    while (k < NLANE) {
+        uint32_t m = lane_mask[t][k >> 5] >> (k & 31);
+        if (m) {
+            k += __builtin_ctz(m);
+            return k < NLANE ? k : -1;
+        }
+        k = (k | 31) + 1;
+    }
+    return -1;
+}
 static void fire_notes(seq_t *s, int t, const step_t *st, int p, uint32_t L, int ratchet, const seq_sink_t *o)
 {
     seq_trk_t *tr = &s->t[t];
@@ -716,7 +747,9 @@ static void fire_notes(seq_t *s, int t, const step_t *st, int p, uint32_t L, int
         int base = st->vel ? st->vel : 100;
         for (i = 0; i < NDRUM; i++)
             vl[i] = -1;
-        for (i = 0; i < NLANE; i++) {
+        if (!lane_masks_ok)
+            lane_masks_make(s);
+        for (i = lane_next(t, 0); i >= 0; i = lane_next(t, i + 1)) {   /* (the track's lanes: lane_mask) */
             const lane_t *l = &s->P->lane[i];
             if (l->used && l->trk == t && l->pat == s->ppat[t] && l->param >= LANE_VEL0 && l->param < LANE_VEL0 + NDRUM)
                 vl[l->param - LANE_VEL0] = (int8_t)i;
@@ -928,7 +961,9 @@ static void apply_locks(seq_t *s, int t, int p, uint32_t L, const seq_sink_t *o)
 {
     const tpat_t *tp = tpat(s, t);
     int k, len = pat_len(tp), nramp = 0;
-    for (k = 0; k < NLANE; k++) {
+    if (!lane_masks_ok)
+        lane_masks_make(s);
+    for (k = lane_next(t, 0); k >= 0; k = lane_next(t, k + 1)) {   /* (the track's lanes: lane_mask) */
         const lane_t *l = &s->P->lane[k];
         lane_rt_t *r = &s->lrt[k];
         int v, q, d;
@@ -974,10 +1009,10 @@ static void apply_locks(seq_t *s, int t, int p, uint32_t L, const seq_sink_t *o)
     }
 }
 
-static void locks_tick(seq_t *s, uint32_t k, const seq_sink_t *o)
+static int locks_tick(seq_t *s, uint32_t k, const seq_sink_t *o)   /* -> a lane ramps still (chunk_cap) */
 {
-    int i;
-    for (i = 0; i < NLANE; i++) {
+    int i, cap = 0;
+    for (i = 0; i < NLANE; i++, cap |= s->lrt[i - 1].ramp) {
         lane_rt_t *r = &s->lrt[i];
         const lane_t *l;
         if (!r->ramp && r->applied == LOCK_NONE)
@@ -999,6 +1034,7 @@ static void locks_tick(seq_t *s, uint32_t k, const seq_sink_t *o)
             lock_put(s, l->trk, l, r, v, o);
         }
     }
+    return cap;
 }
 
 static void locks_release(seq_t *s, const seq_sink_t *o)
@@ -2793,7 +2829,7 @@ void seq_init(seq_t *s, patterns_t *P, uint8_t (*par)[NTP_ALL])
 uint32_t seq_until_event(seq_t *s, uint32_t n)
 {
     uint32_t m = n, mo = NEVER, e;    /* the next event; the next off (an off may wait for an event just after it) */
-    int t, i;
+    int t;
     if (s->kq_r != s->kq_w || s->req_start || s->req_cont || s->req_stop || s->req_scene != 0xFF)
         return 1;                     /* keys or requests wait: play them now */
     for (t = 0; t < NTRK; t++) {      /* the players run with the transport stopped too */
@@ -2811,8 +2847,9 @@ uint32_t seq_until_event(seq_t *s, uint32_t n)
     }
     for (t = 0; t < NSEQT; t++) {
         const seq_trk_t *tr = &s->t[t];
-        for (i = 0; i < SEQ_PENDING && tr->off_mask; i++)
-            if (tr->off[i].used && (e = tr->off[i].off_at >> 8) < mo)
+        uint32_t pend;
+        for (pend = tr->off_mask; pend; pend &= pend - 1u)   /* (the pending ones: off_mask) */
+            if ((e = tr->off[__builtin_ctz(pend)].off_at >> 8) < mo)
                 mo = e;
     }
     if (s->playing) {
@@ -2843,6 +2880,8 @@ void seq_advance(seq_t *s, uint32_t k, const seq_sink_t *o)
 {
     uint32_t dq = k << 8;
     int t, i, i2, guard, cap = 0;
+    uint32_t m;
+    lane_in_call = 1;                         /* (each track's lanes made at their first use in this call: lane_mask) */
     s->ext_since += k;
     if (s->ext_pending)
         s->ext = 1;
@@ -2912,9 +2951,8 @@ void seq_advance(seq_t *s, uint32_t k, const seq_sink_t *o)
         dec(&tr->to_next, dq);
         dec(&tr->sub_to_next, dq);
         tr->age += dq;
-        for (i = 0; i < SEQ_PENDING && tr->off_mask; i++)
-            if (tr->off[i].used)
-                dec(&tr->off[i].off_at, dq);
+        for (m = tr->off_mask; m; m &= m - 1u)   /* (the pending ones: off_mask) */
+            dec(&tr->off[__builtin_ctz(m)].off_at, dq);
     }
     for (t = 0; t < NTRK; t++) {
         dec(&s->player[t].arp_to_next, dq);
@@ -2947,11 +2985,15 @@ void seq_advance(seq_t *s, uint32_t k, const seq_sink_t *o)
             int src = brain_src(s), k = i2 - (NSEQT - NTRK);
             t = k < 0 ? NTRK + i2 : src < 0 ? k : k == 0 ? src : k <= src ? k - 1 : k;
             tr = &s->t[t];
-            for (i = 0; i < SEQ_PENDING && tr->off_mask; i++)   /* note-offs before a new step at the same time */
-                if (tr->off[i].used && tr->off[i].off_at < SEQ_DUE) {
+            for (m = tr->off_mask; m; ) {      /* note-offs before a new step at the same time (the pending ones,
+                                                * lowest first; the mask read again past each: as the scan was) */
+                i = __builtin_ctz(m);
+                if (tr->off[i].off_at < SEQ_DUE) {
                     fire_off(s, t, &tr->off[i], o);
                     fired = 1;
                 }
+                m = tr->off_mask & ~((2u << i) - 1u);
+            }
             if (!s->playing)
                 continue;
             if (tr->to_next < SEQ_DUE) {
@@ -3005,9 +3047,8 @@ void seq_advance(seq_t *s, uint32_t k, const seq_sink_t *o)
     /* the smooth things: bends (each stretch: the synth glides them across its chunks) and lock ramps (each chunk) */
     for (t = 0; t < NSEQT; t++)
         bend_tick(s, t, k, o);
-    locks_tick(s, k, o);
-    for (i = 0; i < NLANE; i++)
-        cap |= s->lrt[i].ramp;
+    cap |= locks_tick(s, k, o);
+    lane_masks_ok = lane_in_call = 0;
     punch_update(s, o);
     s->chunk_cap = (uint8_t)cap;
     if (!s->playing && !s->ext)

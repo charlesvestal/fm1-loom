@@ -177,7 +177,7 @@ static int cc_of(int t, int p)                /* the CC a track's parameter has,
     }
     if (t >= NTRK)
         return -1;
-    if (is_drum(t) && p >= TP_DRUM0) {
+    if (is_drum(t) && tp_is_dkey(p)) {          /* (a key's knob 5..8: no CC) */
         int k = (p - TP_DRUM0) / DP_N, q = (p - TP_DRUM0) % DP_N;
         return q == DP_PAN ? CC_KPAN + k : q == DP_VOLUME ? CC_KLEVEL + k : -1;
     }

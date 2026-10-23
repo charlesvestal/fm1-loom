@@ -464,10 +464,18 @@ static float k_code_ram(void)
     return b_out[7];
 }
 
+
 /* --------------------------------------------------------------- the list --- */
+typedef struct { const char *name; float (*fn)(void); } kern_t;
+#if XY_BENCH == 3                     /* the code kernels alone: the flash cache's size and cost */
 static const uint8_t CODE_N[] = {1, 2, 4, 8, 12, 16, 24, 32, 48, 64};
 #define NCODE (int)(sizeof CODE_N / sizeof CODE_N[0])
-typedef struct { const char *name; float (*fn)(void); } kern_t;
+static const kern_t KERN[] = {{"copy", k_copy}, {"code ram", k_code_ram}};
+static const char *const CODE_NAME[NCODE] = {"code 1", "code 2", "code 4", "code 8", "code 12", "code 16",
+                                             "code 24", "code 32", "code 48", "code 64"};
+#else
+static const uint8_t CODE_N[] = {1, 2, 4, 8, 12, 16, 24, 32, 48, 64};
+#define NCODE (int)(sizeof CODE_N / sizeof CODE_N[0])
 static const kern_t KERN[] = {
     {"copy", k_copy}, {"saw", k_saw}, {"pulse", k_pulse}, {"saw x2", k_saw2}, {"sine", k_sine},
     {"noise", k_noise}, {"wt flash", k_wt_flash}, {"wt ram", k_wt_ram}, {"wt big", k_wt_big},
@@ -475,9 +483,10 @@ static const kern_t KERN[] = {
     {"tanh", k_tanh}, {"exp2", k_exp2}, {"out", k_out}, {"delay", k_delay}, {"chorus", k_chorus},
     {"allpass", k_allpass}, {"plate", k_plate}, {"plate half", k_plate_half}, {"voice", k_voice},
     {"code ram", k_code_ram}};
-#define NKERN (int)(sizeof KERN / sizeof KERN[0])
 static const char *const CODE_NAME[NCODE] = {"code 1", "code 2", "code 4", "code 8", "code 12", "code 16",
                                              "code 24", "code 32", "code 48", "code 64"};
+#endif
+#define NKERN (int)(sizeof KERN / sizeof KERN[0])
 
 int bench_count(void) { return NKERN + NCODE; }
 const char *bench_name(int k)
@@ -494,8 +503,10 @@ void bench_prep(int k, void *ram)
         b_in[i] = 0.5f * ((float)((i * 7) % 64) * (1.0f / 32.0f) - 1.0f);
         b_out[i] = 0.0f;
     }
+#if XY_BENCH == 1
     for (i = 0; i < SMALL_TAB; i++)
         tab_small_ram[i] = bench_tab_small[i];
+#endif
     for (i = 0; i < 24; i++)
         st[i] = 0.0f;
     st[0] = 0.8f;                                 /* a phase, or a gain */
@@ -540,6 +551,8 @@ float bench_run(int k)
 #define TS64(i) TS16(i), TS16(i + 16), TS16(i + 32), TS16(i + 48)
 #define TS256(i) TS64(i), TS64(i + 64), TS64(i + 128), TS64(i + 192)
 #define TS1K(i) TS256(i), TS256(i + 256), TS256(i + 512), TS256(i + 768)
+#if XY_BENCH == 1
 const float bench_tab_small[SMALL_TAB] = {TS256(0)};
 const float bench_tab_big[BIG_TAB] = {TS1K(0), TS1K(1024), TS1K(2048), TS1K(3072)};
+#endif
 #endif

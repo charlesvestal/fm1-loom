@@ -172,6 +172,8 @@ typedef struct {
     float env_in[8];                  /* the envelope knobs the coefficients were made from */
     float pan_in, pan_l, pan_r;       /* the pan the gains were made from, and those gains */
     float pitch_in, e_in[4];          /* the pitch and the knobs the frequency and increments were made from */
+    float kp_w;                       /* knit_prep's pitch-free parts were made from: the width and the voices */
+    int8_t kp_n;                      /* (0 or -1: none yet; knit_init) */
     float o[16];                      /* the engine's state */
     float cz[8];                      /* the character stage's: low-pass / hold L R, DC L R, phase, -, the
                                        * sampler's output filter L R (tape: cz[4..5] its wow's phases) */
@@ -371,17 +373,20 @@ static void eng_init(voice_t *v)
 /* a rising saw crossfading into a pulse that is low first and high after pw: the two in step, so the
  * morph keeps its level (a pulse high first would cancel the saw's fundamental halfway). The pulse's
  * second edge sits at p + 1 - pw in (0.5, 2): its wrap is a compare (the same bits as wrap1's floor) */
-SY_INLINE float saw_pulse(float p, float dt, float idt, float pw, float mix)
+/* saw .. pulse by mix (0..1, > 0 here) at width pw, PolyBLEP'd: a pulse is a saw less the saw a width on (q =
+ * p + 1 - pw, wrapped), plus 1 - 2 pw, so the blend is 2 p - 2 mix q + (2 mix (1 - pw) - 1), less the saw's residual
+ * at p, plus mix the residual at q. k: its constants (saw_pulse_k) */
+typedef struct { float a, m2, c, mix; } sawp_t;
+static inline sawp_t saw_pulse_k(float pw, float mix)
 {
-    float b0 = blep(p, dt, idt), saw = 2.0f * p - 1.0f - b0, pl, q;   /* the wrap's residual serves both */
-    if (mix <= 0.0f)
-        return saw;
-    q = p + 1.0f - pw;
+    sawp_t k = {1.0f - pw, 2.0f * mix, 2.0f * mix * (1.0f - pw) - 1.0f, mix};
+    return k;
+}
+SY_INLINE float saw_pulse(float p, float dt, float idt, sawp_t k)
+{
+    float q = p + k.a;
     q = q >= 1.0f ? q - 1.0f : q;
-    pl = (p < pw ? -1.0f : 1.0f) - b0 + blep(q, dt, idt);
-    if (mix >= 1.0f)
-        return pl;
-    return saw + (pl - saw) * mix;
+    return 2.0f * p - k.m2 * q + k.c - blep(p, dt, idt) + k.mix * blep(q, dt, idt);
 }
 /* wavetable: a frame crossfade (scan) through one of nine tables, bend bends the phase (symmetry), ripple
  * phase-modulates it by a second oscillator that climbs from a slow wobble to the note's own rate */
@@ -672,14 +677,22 @@ static void knit_prep(voice_t *v)
         c->ex[3] = 1.0f;
         c->ex[4] = 0.5f - (c->e[0] - 0.5f) * 0.8f;
     }
-    for (k = 1; k <= 3; k++) {                   /* pair k: its upper voice towards the right, its lower the left */
-        float a = (1.0f + (M ? (float)(k < M ? k : M) / (float)M * w : 0.0f)) * 0.78539816f;
-        c->ex[3 + 2 * k] = fm_cosf(a) * 1.41421356f;
-        c->ex[4 + 2 * k] = fm_sinf(a) * 1.41421356f;
+    const int kp_fresh = v->kp_n <= 0;           /* (no cache yet: knit_init, or a voice never prepared) */
+    if (kp_fresh || v->kp_n != n || v->kp_w != w) {   /* (the pairs' gains and a voice's: only when width or voices moved;
+                                                  * the tape's wow moves the pitch every chunk) */
+        for (k = 1; k <= 3; k++) {               /* pair k: its upper voice towards the right, its lower the left */
+            float a = (1.0f + (M ? (float)(k < M ? k : M) / (float)M * w : 0.0f)) * 0.78539816f;
+            c->ex[3 + 2 * k] = fm_cosf(a) * 1.41421356f;
+            c->ex[4 + 2 * k] = fm_sinf(a) * 1.41421356f;
+        }
+        c->ex[12] = fm_rsqrtf((float)n);
+        v->kp_n = (int8_t)n;
+        v->kp_w = w;
     }
     c->ex[11] = fm_minf(2.07345f * f, 0.9f);    /* the high-pass at a third of the note (brocade's) */
-    c->ex[12] = fm_rsqrtf((float)n);
-    c->ex[13] = fm_minf(f * fm_exp2f((c->ex[18] - 64.0f) * (1.0f / 12.0f) + c->e[1] * KNIT_OSC2_DETUNE), 0.45f);
+    if (c->ex[19] > 0.0f)                        /* osc 2's increment: only when it sounds (its level: ex[14]; a
+                                                  * level turned up moves a knob, so this runs again) */
+        c->ex[13] = fm_minf(f * fm_exp2f((c->ex[18] - 64.0f) * (1.0f / 12.0f) + c->e[1] * KNIT_OSC2_DETUNE), 0.45f);
     c->ex[14] = c->ex[19] * (1.0f / 127.0f);
     c->ex[15] = f * 0.5f;
     c->ex[16] = c->ex[20] * (1.0f / 127.0f);
@@ -701,19 +714,78 @@ static void knit_chunk(voice_t *v)                 /* the drift at one voice: to
     v->o[10] += (v->o[11] - v->o[10]) * 0.01f;
     c->ex[22] = fm_exp2f(v->o[10] * (1.0f / 1200.0f));
 }
-/* one oscillator of the wave added into the buffers at gains gl / gr */
-SY_INLINE void knit_osc(float *ph, float d, float id, float pw, float mix, float gl, float gr, float *xl, float *xr,
-                      int m, const int stereo)
+/* one oscillator into the buffers (set: first, or added), a run at a time: between its edges (the saw's wrap at 1,
+ * the pulse's where q = p + 1 - pw wraps) the wave is a plain ramp, and the PolyBLEP's residuals are 0 but on the
+ * samples beside an edge (blep: t < dt after it, t > 1 - dt before it). So a run whose samples are all clear of the
+ * edges goes without the edge tests and residuals (a pad's note at 110 Hz: 2 such samples in 400), and the samples
+ * near an edge take the full path. The same samples as knit_osc's: a residual of 0 changes nothing, and a run is
+ * found one sample short, so rounding never puts an edge's sample in it. */
+SY_INLINE void knit_osc_seg(float *ph, float d, float pw, float mix, float gl, float gr, float *xl, float *xr, int m,
+                          const int stereo, const int first)
 {
-    float p = *ph;
-    int i;
-    for (i = 0; i < m; i++) {
-        float x;
-        p = step1(p, d);
-        x = mix <= 0.0f ? 2.0f * p - 1.0f - blep(p, d, id) : saw_pulse(p, d, id, pw, mix);
-        xl[i] += x * gl;
-        if (stereo)
-            xr[i] += x * gr;
+    float p = *ph, id = 1.0f / d;
+    sawp_t k = saw_pulse_k(pw, mix);
+    const int pulse = mix > 0.0f;
+    int i = 0;
+    while (i < m) {
+        float pn = p + d;
+        if (pn >= d && pn <= 1.0f - d && !(pulse && pn > pw - d && pn < pw + d)) {   /* clear of the edges */
+            float lim = pulse && pn < pw ? pw - d : 1.0f - d, fr = (lim - p) * id;
+            int run = (fr > (float)(m - i + 1) ? m - i + 1 : (int)fr) - 1, j;
+            if (run >= 1) {
+                if (!pulse) {
+                    for (j = 0; j < run; j++, i++) {
+                        float x;
+                        p += d;
+                        x = 2.0f * p - 1.0f;
+                        if (first) {
+                            xl[i] = x * gl;
+                            if (stereo)
+                                xr[i] = x * gr;
+                        } else {
+                            xl[i] += x * gl;
+                            if (stereo)
+                                xr[i] += x * gr;
+                        }
+                    }
+                } else {
+                    const int hi = pn >= pw;             /* (q has wrapped: the run is all past the pulse's edge) */
+                    for (j = 0; j < run; j++, i++) {
+                        float x, q;
+                        p += d;
+                        q = p + k.a;
+                        if (hi)
+                            q = q - 1.0f;
+                        x = 2.0f * p - k.m2 * q + k.c;
+                        if (first) {
+                            xl[i] = x * gl;
+                            if (stereo)
+                                xr[i] = x * gr;
+                        } else {
+                            xl[i] += x * gl;
+                            if (stereo)
+                                xr[i] += x * gr;
+                        }
+                    }
+                }
+                continue;
+            }
+        }
+        {   /* beside an edge: the full path */
+            float x;
+            p = step1(p, d);
+            x = !pulse ? 2.0f * p - 1.0f - blep(p, d, id) : saw_pulse(p, d, id, k);
+            if (first) {
+                xl[i] = x * gl;
+                if (stereo)
+                    xr[i] = x * gr;
+            } else {
+                xl[i] += x * gl;
+                if (stereo)
+                    xr[i] += x * gr;
+            }
+            i++;
+        }
     }
     *ph = p;
 }
@@ -722,21 +794,22 @@ SY_INLINE void knit_loop(voice_t *v, float *xl, float *xr, int m, const int ster
     const cfg_t *c = &v->c;
     const int n = (int)c->ex[2];
     const float *co = KNIT_COEF[n / 2], mix = c->ex[3], pw = c->ex[4], g = c->ex[12], dr = c->ex[22];
+    float d[KNIT_MAX + 1], gg[2 * KNIT_MAX + 2];
     int i, k;
-    for (i = 0; i < m; i++) {
-        xl[i] = 0.0f;
-        if (stereo)
-            xr[i] = 0.0f;
-    }
     for (k = 0; k < n; k++) {                    /* the voices: the centre, then the pairs (upper right, lower left) */
-        float d = fm_clampf((c->ex[0] + co[k] * c->ex[1]) * dr, 1e-6f, 0.45f), gl = g, gr = g;
+        d[k] = fm_clampf((c->ex[0] + co[k] * c->ex[1]) * dr, 1e-6f, 0.45f);
+        gg[2 * k] = gg[2 * k + 1] = g;
         if (k && stereo) {
             const float *pn = &c->ex[3 + 2 * ((k + 1) >> 1)];
-            gl = g * pn[~k & 1];
-            gr = g * pn[k & 1];
+            gg[2 * k] = g * pn[~k & 1];
+            gg[2 * k + 1] = g * pn[k & 1];
         }
-        knit_osc(&v->o[k], d, 1.0f / d, pw, mix, gl, gr, xl, xr, m, stereo);
     }
+    for (k = 0; k < n; k++)                      /* the voices: the centre first (it sets the buffers), then the pairs */
+        if (k)
+            knit_osc_seg(&v->o[k], d[k], pw, mix, gg[2 * k], gg[2 * k + 1], xl, xr, m, stereo, 0);
+        else
+            knit_osc_seg(&v->o[0], d[0], pw, mix, gg[0], gg[1], xl, xr, m, stereo, 1);
     if (n > 1) {
         knit_hp(xl, &v->o[12], &v->o[13], c->ex[11], m);
         if (stereo)
@@ -744,7 +817,7 @@ SY_INLINE void knit_loop(voice_t *v, float *xl, float *xr, int m, const int ster
     }
     if (c->ex[14] > 0.0f) {                      /* osc 2: one more, in the middle */
         float d = fm_clampf(c->ex[13] * dr, 1e-6f, 0.45f);
-        knit_osc(&v->o[7], d, 1.0f / d, pw, mix, c->ex[14], c->ex[14], xl, xr, m, stereo);
+        knit_osc_seg(&v->o[7], d, pw, mix, c->ex[14], c->ex[14], xl, xr, m, stereo, 0);
     }
     if (c->ex[16] > 0.0f || c->ex[17] > 0.0f) {  /* the sub (a sine an octave down) and the noise */
         float p = v->o[8], d = c->ex[15] * dr, gs = c->ex[16], gn = c->ex[17];
@@ -772,6 +845,7 @@ static void knit_init(voice_t *v)                  /* the voices from random pha
     for (j = 0; j < KNIT_MAX; j++)
         v->o[j] = (float)(xs(&v->rng) >> 8) * (1.0f / 16777216.0f);
     v->c.ex[22] = 1.0f;                          /* (no drift yet: another engine's ex[22] is not a factor) */
+    v->kp_n = -1;                                /* (knit_prep's cache: another engine wrote over ex[]) */
 }
 
 /* cane, voile and gingham: Braids' models (dsp/braids.h, MIT) */
@@ -1233,14 +1307,27 @@ static int knit_voice(const synth_t *s, const voice_t *v)
         return 0;
     return (v->steal_phase == 1 ? P(s, v->trk, TP_ENGINE) : v->engine) == EG_KNIT;
 }
+/* and its saws: a voice costs about its unison's count (and one for osc 2), so past KNIT_SAWS in the pool a new note
+ * takes the quietest releasing knit voice (a chord change's tails under the new chord: house's pad, four saws a
+ * voice, played six voices with them, ~100 % of a core); held notes stay, the voice cap alone takes those */
+#define KNIT_SAWS 16
+static int knit_saws(const synth_t *s, int trk)
+{
+    int n = P(s, trk, TP_E3);
+    return (n < 1 ? 1 : n > KNIT_MAX ? KNIT_MAX : n) + (P(s, trk, TP_X2) > 0);
+}
 static int knit_find(const synth_t *s, int trk) /* the knit voice to take when the cap is reached; -1 */
 {
-    int i, n = 0, best = -1, own = 0;
+    int i, n = 0, saws = 0, best = -1, own = 0, over_cap;
     float quiet = 1e9f;
     uint32_t oldest = 0xFFFFFFFFu;
     for (i = 0; i < s->max_voices; i++)
-        n += knit_voice(s, &s->v[i]);
-    if (n < knit_cap(s, trk))
+        if (knit_voice(s, &s->v[i])) {
+            n++;
+            saws += knit_saws(s, s->v[i].trk);
+        }
+    over_cap = n >= knit_cap(s, trk);
+    if (!over_cap && saws + knit_saws(s, trk) <= KNIT_SAWS)
         return -1;
     for (i = 0; i < s->max_voices; i++) {        /* releasing first (the quietest), then the track's own oldest */
         const voice_t *v = &s->v[i];
@@ -1251,7 +1338,7 @@ static int knit_find(const synth_t *s, int trk) /* the knit voice to take when t
             best = i;
         }
     }
-    if (best >= 0)
+    if (best >= 0 || !over_cap)                  /* (past the saws alone, none releasing: a free voice after all) */
         return best;
     for (i = 0; i < s->max_voices; i++) {
         const voice_t *v = &s->v[i];
@@ -2340,6 +2427,8 @@ static void voice_chunk(synth_t *s, voice_t *v)
         if (v->engine == EG_KNIT) {            /* its second page (knit_prep) */
             for (i = 0; i < 4; i++) {
                 float xv = (float)P(s, trk, TP_X1 + i);
+                if (i == 0)                      /* (osc 2's fine, in cents: TP_O2FINE) */
+                    xv += (float)(P(s, trk, TP_O2FINE) - 64) * 0.01f;
                 moved |= xv != c->ex[18 + i];
                 c->ex[18 + i] = xv;
             }
@@ -2650,15 +2739,29 @@ static void out_stereo(voice_t *v, const float *xl, const float *xr, float *l, f
 /* m samples (inside a chunk) of one voice into the buffers */
 static void voice_samples(synth_t *s, voice_t *v, float *l, float *r, float *s1, float *s2, int m)
 {
-    float xl[SUB], xr[SUB];
-    int i = 0;
+    float bl[SY_CHUNK], br[SY_CHUNK], *xl = bl, *xr = br;
+    int i = 0, ahead = 0;
     while (i < m) {
         int k = SUB - (v->pos & (SUB - 1));
         if (k > m - i)
             k = m - i;
         if ((v->pos & (SUB - 1)) == 0 || v->fresh)
             voice_subblock(s, v, (v->pos & (SUB - 1)) == 0);
-        eng_run(v, xl, xr, k);
+        if (ahead) {                             /* (knit's oscillators made for the whole call already: below) */
+            xl = bl + i;
+            xr = br + i;
+        } else if (i == 0 && v->engine == EG_KNIT && v->steal_phase != 1 && m <= SY_CHUNK) {
+            /* knit's oscillators depend on the chunk's values alone (its pitch, detune, gains: voice_chunk), and m
+             * stays inside a chunk: all of them at once, each oscillator's set-up once instead of a sub-block's
+             * worth of times; the filter, the character and the outputs keep their sub-blocks below (a pending
+             * steal starts its note at a sub-block's start: then a sub-block at a time). The same samples */
+            eng_run(v, bl, br, m);
+            ahead = 1;
+        } else {
+            xl = bl;
+            xr = br;
+            eng_run(v, xl, xr, k);
+        }
 #define SL(ft, ch) sample_loop(v, xl, xr, l + i, r + i, s1 + i, s2 + i, k, ft, 0, ch)
         if (v->c.stereo) {                       /* the filter a channel at a time, the character, the outputs */
             flt_channel(v, xl, k, 0);
@@ -2698,20 +2801,66 @@ void synth_render(synth_t *s, int v0, int v1, float *l, float *r, float *s1, flo
     synth_render_on(s, v0 == 0 && v1 < NVOICE, v0, v1, l, r, s1, s2, n);   /* (the second core's: [0, k), k < 16) */
 }
 
-void synth_order(const synth_t *s, int8_t *ord)
+/* the queue's order (engine.c ws_take0 / ws_take1: the second core takes from the bottom, the first from the top):
+ * the sounding voices by measured cost, the dearest at the bottom and the cheapest at the top: the second core, free
+ * first, takes the dear ones; the first, which comes to the queue late (the sequencer, then the kits only it renders),
+ * takes cheap ones, so the last taken are small and neither is left with a whole knit voice (~17 % of a block) while
+ * the other waits; within a cost an engine's together (its code fetched once). The silent voices are not in it (each
+ * take is a sync between the cores): synth_idle moves them on. Returns how many are in it. The simulator keeps every
+ * voice in their order (its sums the same split or whole: synth_test) */
+int synth_order(const synth_t *s, int8_t *ord)
 {
     int vi, j;
-    for (vi = 0; vi < NVOICE; vi++) {
-        j = vi;
 #ifndef PLAT_HOST
-        while (j > 0 && s->v[ord[j - 1]].engine > s->v[vi].engine) {
+    int c[NVOICE], n = 0;
+    for (vi = 0; vi < NVOICE; vi++) {
+        int ck = synth_voice_cost(s, vi);
+        if (!ck)
+            continue;
+        for (j = n; j > 0 && (c[j - 1] < ck || (c[j - 1] == ck && s->v[ord[j - 1]].engine > s->v[vi].engine)); j--) {
             ord[j] = ord[j - 1];
-            j--;
+            c[j] = c[j - 1];
         }
-#endif
         ord[j] = (int8_t)vi;
+        c[j] = ck;
+        n++;
     }
+    return n;
+#else
+    for (vi = 0; vi < NVOICE; vi++)
+        ord[vi] = (int8_t)vi;
     (void)s;
+    (void)j;
+    return NVOICE;
+#endif
+}
+/* the voices left out of the queue (not among ord's first n): n frames on, as synth_render_on moves a silent one (its
+ * place in the chunk; at a chunk's start voice_chunk's counts, all it does for a silent voice) */
+void synth_idle(synth_t *s, const int8_t *ord, int nord, uint32_t n)
+{
+    uint32_t in = 0;
+    int k, vi;
+    for (k = 0; k < nord; k++)
+        in |= 1u << ord[k];
+    for (vi = 0; vi < NVOICE; vi++) {
+        voice_t *v = &s->v[vi];
+        uint32_t i = 0;
+        if (in >> vi & 1u)
+            continue;
+        while (i < n) {
+            uint32_t m = SY_CHUNK - v->pos;
+            if (m > n - i)
+                m = n - i;
+            if (v->pos == 0) {
+                v->ck = (uint8_t)(v->ck + 1);
+                v->nchunk = (uint8_t)(v->nchunk + 1);
+            }
+            v->pos = (uint16_t)(v->pos + m);
+            if (v->pos >= SY_CHUNK)
+                v->pos = 0;
+            i += m;
+        }
+    }
 }
 void synth_render_on(synth_t *s, int core, int v0, int v1, float *l, float *r, float *s1, float *s2, uint32_t n)
 {
@@ -2888,6 +3037,7 @@ static const tp_info_t NONE_P = {"-", 0, 0, 0, PK_NUM, 0};
 /* knit's second page: osc 2's interval (+-24 semitones about 64) and level, the sub, the noise (knit_prep) */
 static const tp_info_t KNIT_X_P[4] = {{"osc 2", 40, 88, 64, PK_BIPST, 0}, {"level", 0, 127, 0, PK_PCT, 0},
                                     {"sub", 0, 127, 0, PK_PCT, 0}, {"noise", 0, 127, 0, PK_PCT, 0}};
+static const tp_info_t O2FINE_P = {"osc 2 fine", 14, 114, 64, PK_CENT, 0};   /* (TP_O2FINE: +-50 cents) */
 /* the sample engine's second page (its loop modes only): where the loop starts in the region that plays, and how much
  * of the rest it loops (0 auto: the sample's own loop, else to the region's end) (smp_prep) */
 static const tp_info_t SAMPLE_X_P[4] = {{"loop start", 0, 127, 0, PK_PCT, 0}, {"loop len", 0, 127, 0, PK_PCT, 0},
@@ -2913,7 +3063,13 @@ static const tp_info_t LFO_PARAM_FLT = {"param", 0, 3, 0, PK_NAMES, FLTP_N};
 static const tp_info_t LFO_PARAM_AMP = {"param", 0, 3, 0, PK_NAMES, AMPP_N};
 static tp_info_t eknob[NENGINE][4];
 static tp_info_t lparam[NENGINE];                /* the LFO's parameter knob on the synth module: the engine's names */
-static tp_info_t dknob[NDM][4];                  /* a drum model's four knobs */
+/* a drum model's knobs (four, up to eight): made when asked, into a ring (16: no caller holds
+ * more at once; the UI's, the main loop's only). RAM is short: a table of every model's would take 48 bytes a model,
+ * 96 with eight knobs */
+static tp_info_t dk_ring[16];
+static uint8_t dk_at;
+static const tp_info_t *dknob_of(int m, int k);
+static const tp_info_t DRUMX_P = {"knob 5", 0, 127, 0, PK_NN, 0};   /* a key's knob 5..8, the model unknown */
 static uint8_t eknob_ready;
 
 static void eknob_init(void)
@@ -2964,24 +3120,26 @@ static void eknob_init(void)
         lparam[e] = LFO_PARAM_ENV;
         lparam[e].names = EG_KNOB[e];
     }
-    for (e = 0; e < NDM; e++)
-        for (k = 0; k < 4; k++) {
-            dknob[e][k] = DRUMP[DP_K1 + k];
-            dknob[e][k].name = DM_KNOB[e][k];
-            dknob[e][k].def = DM_DEFAULT[e][k];
-        }
-    {   /* the sample model: sample, pitch (+-24 semitones), start, reverse */
-        tp_info_t *d = dknob[DM_SAMPLE];
-        d[0].kind = PK_SAMPLE;
-        d[0].hi = (uint8_t)(smp_slots() - 1);
-        d[1].kind = PK_BIPST;
-        d[1].lo = 40;
-        d[1].hi = 88;
-        d[2].kind = PK_PCT;
-        d[3].kind = PK_SWITCH;
-        d[3].hi = 1;
-    }
     eknob_ready = 1;
+}
+
+static const tp_info_t *dknob_of(int m, int k)   /* model m's knob k (0..7) */
+{
+    const char *nm = k < 4 ? DM_KNOB[m][k] : DM_KNOB2[m][k - 4];
+    tp_info_t *i;
+    if (k >= dm_knobs(m) || !nm)                 /* (a model of three: no fourth; of seven: no eighth) */
+        return &NONE_P;
+    i = &dk_ring[dk_at++ & 15u];
+    *i = k < 4 ? DRUMP[DP_K1 + k] : DRUMX_P;
+    i->name = nm;
+    i->def = k < 4 ? DM_DEFAULT[m][k] : DM_DEFAULT2[m][k - 4];
+    if (m == DM_SAMPLE) {                        /* the sample model: sample, pitch (+-24 semitones), start, reverse */
+        static const uint8_t KIND[4] = {PK_SAMPLE, PK_BIPST, PK_PCT, PK_SWITCH};
+        i->kind = KIND[k];
+        i->lo = (uint8_t)(k == 1 ? 40 : 0);
+        i->hi = (uint8_t)(k == 0 ? smp_slots() - 1 : k == 1 ? 88 : k == 3 ? 1 : 127);
+    }
+    return i;
 }
 
 const tp_info_t *tp_info(int p, int engine)
@@ -3002,8 +3160,13 @@ const tp_info_t *tp_info(int p, int engine)
         if (p >= TP_CUT && p <= TP_KTRK)
             return &DRUMFLT[p - TP_CUT];
     }
-    if (p >= TP_DRUM0 && p < NTP)
+    if (tp_is_dkey(p))
         return &DRUMP[(p - TP_DRUM0) % DP_N];
+    if (tp_is_dknob2(p))
+        return &DRUMX_P;
+    if (p == TP_O2FINE)                          /* (its range on any engine, so a project's check keeps it; knit's
+                                                  * Sub page shows it) */
+        return &O2FINE_P;
     if (p >= 0 && p < (int)(sizeof FIXED / sizeof FIXED[0]))
         return &FIXED[p];
     return &NONE_P;
@@ -3021,11 +3184,15 @@ const tp_info_t *tp_info_par(int p, const uint8_t *par)
             return &STRUM_P[p - TP_P1];
         return &NONE_P;
     }
-    if (p >= TP_DRUM0 && p < NTP) {
+    if (tp_is_dkey(p)) {
         int s = (p - TP_DRUM0) / DP_N, k = (p - TP_DRUM0) % DP_N;
         if (k >= DP_K1 && k <= DP_K4)
-            return &dknob[par[TP_DRUM(s, DP_MODEL)] % NDM][k - DP_K1];
+            return dknob_of(par[TP_DRUM(s, DP_MODEL)] % NDM, k - DP_K1);
         return &DRUMP[k];
+    }
+    if (tp_is_dknob2(p)) {                       /* knob 5..8: the key's model's, or none */
+        int s = (p - TP_DRUMX0) / DPX_N, j = (p - TP_DRUMX0) % DPX_N;
+        return dknob_of(par[TP_DRUM(s, DP_MODEL)] % NDM, 4 + j);
     }
     if (lt >= NLT)
         lt = LT_OFF;
@@ -3207,11 +3374,11 @@ static void tp_text_i(const tp_info_t *i, int p, int v, int engine, char *num, c
         break;
     }
     case PK_SAMPLE: put_s(num, smp_name(v)); break;
-    case PK_BIPST:
+    case PK_BIPST: case PK_CENT:
         if (v - 64 > 0)
             *num++ = '+';
         put_i(num, v - 64);
-        put_s(unit, "st");
+        put_s(unit, i->kind == PK_CENT ? "ct" : "st");
         break;
     case PK_DMS: case PK_DECAY:
         if (i->kind == PK_DECAY && v >= 127)
@@ -3259,11 +3426,15 @@ void sound_default(uint8_t *par, int engine)
     for (p = 0; p < TP_DRUM0; p++)
         par[p] = tp_info(p, engine)->def;
     par[TP_ENGINE] = (uint8_t)engine;
-    for (k = 0; k < DL_NSOUND; k++)
+    for (k = 0; k < DL_NSOUND; k++) {
         for (p = 0; p < DP_N; p++)
             par[TP_DRUM(k, p)] = DL_DEFAULT_KIT[k][p];
+        for (p = 0; p < DPX_N; p++)               /* knobs 5..8: the key's model's (0 for a model with four) */
+            par[TP_DRUMX(k, p)] = DM_DEFAULT2[DL_DEFAULT_KIT[k][DP_MODEL] % NDM][p];
+    }
     if (engine == EG_DRUMLINE)
         par[TP_FTYPE] = FT_DYNAMIC;
+    par[TP_O2FINE] = 64;
 }
 
 /* -------------------------------------------------------------- presets --- */

@@ -73,8 +73,17 @@ static void key_model(int s, int model)               /* key s plays a model wit
 {
     int k;
     par[TP_DRUM(s, DP_MODEL)] = (uint8_t)model;
-    for (k = 0; k < 4; k++)
+    for (k = 0; k < 4; k++) {
         par[TP_DRUM(s, DP_K1 + k)] = DM_DEFAULT[model][k];
+        par[TP_DRUMX(s, k)] = DM_DEFAULT2[model][k];     /* (knobs 5..8: a model's with eight) */
+    }
+}
+static int knob_par(int s, int k) { return k < 4 ? TP_DRUM(s, DP_K1 + k) : TP_DRUMX(s, k - 4); }   /* knob k of 8 */
+static int knob_def(int m, int k) { return k < 4 ? DM_DEFAULT[m][k] : DM_DEFAULT2[m][k - 4]; }
+static const char *knob_name(int m, int k)
+{
+    const char *n = k < 4 ? DM_KNOB[m][k] : DM_KNOB2[m][k - 4];
+    return n ? n : "-";
 }
 
 static int nan_seen;
@@ -365,11 +374,11 @@ int main(void)
         h = one_hit(0, 127, 0, 0, 0, 0);
         db = dbfs(h.peak);
         ok = !nan_seen && db >= -20.0f && db <= 0.0f;
-        for (k = 0; k < 4 && ok; k++) {
+        for (k = 0; k < dm_knobs(m) && ok; k++) {     /* (a model with eight: all of them) */
             int e;
             for (e = 0; e <= 127; e += 127) {
                 float d2;
-                par[TP_DRUM(0, DP_K1 + k)] = (uint8_t)e;
+                par[knob_par(0, k)] = (uint8_t)e;
                 h2 = one_hit(0, 127, 0, 0, 0, 0);
                 d2 = dbfs(h2.peak);
                 if (d2 < worst_lo || k == 0)
@@ -383,20 +392,21 @@ int main(void)
                     par[TP_DRUM(0, DP_K1 + k)] = DM_DEFAULT[m][k];
                     continue;
                 }
-                if (nan_seen || d2 < (m == DM_SAMPLE && k == 2 ? -120.0f : -26.0f) || d2 > 1.0f) {   /* (the
-                                                       * sample's start at 99 %: its tail, faded to silence) */
-                    printf("  %s %s=%d: %.1f dBFS, nan %d\n", DM_NAME[m], DM_KNOB[m][k], e, (double)d2, nan_seen);
+                if (nan_seen || d2 < (m == DM_SAMPLE && k == 2 ? -120.0f : -26.0f) || d2 > 1.0f) {
+                                                       /* (the sample's start at 99 %: its tail, faded to silence) */
+                    printf("  %s %s=%d: %.1f dBFS, nan %d\n", DM_NAME[m], knob_name(m, k), e, (double)d2, nan_seen);
                     ok = 0;
                 }
-                if (k == 1 && m != DM_SAMPLE && ((e == 0 && (h2.tend < 0.0f || h2.tend > 1.5f)) || (e == 127 && (h2.tend < 0.0f || h2.tend > 12.0f)))) {
+                if (k == 1 && m != DM_SAMPLE && ((e == 0 && (h2.tend < 0.0f || h2.tend > 1.5f)) ||
+                                                 (e == 127 && (h2.tend < 0.0f || h2.tend > 12.0f)))) {
                     printf("  %s length=%d ends at %.2f s\n", DM_NAME[m], e, (double)h2.tend);
                     ok = 0;
                 }
-                par[TP_DRUM(0, DP_K1 + k)] = DM_DEFAULT[m][k];
+                par[knob_par(0, k)] = (uint8_t)knob_def(m, k);
             }
         }
         snprintf(name, sizeof name, "  %-10s %s/%s/%s/%s  default %5.1f dBFS, ends %5.1f .. %5.1f", DM_NAME[m],
-                 DM_KNOB[m][0], DM_KNOB[m][1], DM_KNOB[m][2], DM_KNOB[m][3], (double)db, (double)worst_lo,
+                 knob_name(m, 0), knob_name(m, 1), knob_name(m, 2), knob_name(m, 3), (double)db, (double)worst_lo,
                  (double)worst_hi);
         check(name, ok);
     }

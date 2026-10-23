@@ -465,14 +465,33 @@ static void apply_all(int trk)                             /* ISR: C_ALL (a load
 }
 
 /* ------------------------------------------------------- sequencer sink --- */
+/* the master's PUMP keys while the second core runs the master on a stretch (engine_render: beside the sequencer's
+ * next call): held, then given in order once it is done (mst_finish), when the master would have had them anyway */
+static uint8_t mst_pend, mk_n;
+static struct { uint8_t src, vel, kit; } mk_q[32];
+static void mst_finish(void);
+static void eng_master_key(int src, int vel, int kit)
+{
+    if (mst_pend) {
+        if (mk_n < sizeof mk_q / sizeof mk_q[0]) {
+            mk_q[mk_n].src = (uint8_t)src;
+            mk_q[mk_n].vel = (uint8_t)vel;
+            mk_q[mk_n].kit = (uint8_t)kit;
+            mk_n++;
+            return;
+        }
+        mst_finish();                                     /* (full: wait for it, then directly) */
+    }
+    master_key(MST, src, vel, kit);
+}
 /* the master's PUMP keys: a kit's kick (its first key, or a key on the kick model) keys "kick" and its own track's
  * (T1.., a kit's: its kicks, not its hats), any note of a melodic track that track's; the master takes the one it
  * follows (fx.h PB_*). Also from a muted track's steps (s_ghost) */
 static void pump_drum(int trk, int sound, int vel)
 {
     if (sound == 0 || epar[trk][TP_DRUM(sound, DP_MODEL)] == DM_KICK) {
-        master_key(MST, PB_KICK, vel, 1);
-        master_key(MST, PB_T1 + trk, vel, 1);
+        eng_master_key(PB_KICK, vel, 1);
+        eng_master_key(PB_T1 + trk, vel, 1);
     }
 }
 #ifdef PLAT_HOST
@@ -488,7 +507,7 @@ static void s_note_on(void *x, int trk, int note, int vel, int glide_ms, uint32_
 #ifdef PLAT_HOST
     host_note_ons++;                                   /* (the host's load model: a note's set-up) */
 #endif
-    master_key(MST, PB_T1 + trk, vel, 0);
+    eng_master_key(PB_T1 + trk, vel, 0);
     PROF_ADD(PR_NOTE, pn);
 }
 static void s_ghost(void *x, int trk, int sound, int vel)   /* a muted track's step: it keys the pump, silently */
@@ -499,7 +518,7 @@ static void s_ghost(void *x, int trk, int sound, int vel)   /* a muted track's s
     if (eng_drum[trk] && sound >= 0 && sound < NDRUM)
         pump_drum(trk, sound, vel);
     else if (!eng_drum[trk])
-        master_key(MST, PB_T1 + trk, vel, 0);
+        eng_master_key(PB_T1 + trk, vel, 0);
 }
 static void s_note_off(void *x, int trk, uint32_t tag)
 {
@@ -593,11 +612,17 @@ static void s_punch(void *x, uint32_t drum_mask, uint32_t mel_mask)
     eng_punch_drum = drum_mask;
     eng_punch_mel = mel_mask;
 }
+#if defined(PLAT_HOST) && !defined(PLAT_WEB)
+static void host_midi_out(uint32_t pkt);                  /* (host.c: the simulator's log of it not counted as work) */
+#define ENG_MIDI_OUT host_midi_out
+#else
+#define ENG_MIDI_OUT plat_midi_out
+#endif
 static void s_midi(void *x, uint8_t st, uint8_t d1, uint8_t d2)
 {
     uint32_t cin = st >= 0xF0 ? 0x0Fu : (uint32_t)(st >> 4);
     (void)x;
-    plat_midi_out(cin | ((uint32_t)st << 8) | ((uint32_t)d1 << 16) | ((uint32_t)d2 << 24));
+    ENG_MIDI_OUT(cin | ((uint32_t)st << 8) | ((uint32_t)d1 << 16) | ((uint32_t)d2 << 24));
 }
 static void s_step(void *x, int trk, int step)
 {
@@ -617,7 +642,7 @@ static void s_metro(void *x, int accent)
     metro_ph = 0.0f;
     metro_inc = (accent ? 1760.0f : 1320.0f) / 44100.0f;
     synth_duck_trigger(SY, DUCK_METRO);
-    master_key(MST, PB_METRO, accent ? 127 : 100, 0);
+    eng_master_key(PB_METRO, accent ? 127 : 100, 0);
 }
 /* named members: the sequencer may grow its sink at the end without this changing */
 static const seq_sink_t SINK = {
@@ -809,12 +834,27 @@ static void fx_job(void)
                 DSP_FAR(fx_process_lag)(FXS(k), snd_acc[k], fx_ret[k][0], fx_ret[k][1], snd_n, (int)snd_n);
         }
 }
-static void fx_job_timed(uint32_t arg)                     /* the effects' job (on either core) */
+/* the voices' job left for the second core to take straight after the effects' (render_sub, when the voices start
+ * while it is still at them: else it would wait for the first core to come back from its drums and start it), and
+ * whether it took it */
+static volatile uint32_t c2_chain;
+static volatile uint8_t c2_chained;
+static void core2_job(uint32_t arg);
+static void fx_job_timed(uint32_t arg)                     /* the effects' job (on either core; arg 0x100: the second) */
 {
-    uint32_t pt = plat_cycles();
-    (void)arg;
+    uint32_t pt = plat_cycles(), a;
     fx_job();
     PROF_ADD(PR_FXJ, pt);
+    if (arg & 0x100u) {
+        plat_cpu2_sync();
+        a = c2_chain;
+        if (a) {
+            c2_chain = 0;
+            c2_chained = 1;
+            plat_cpu2_sync();
+            core2_job(a);
+        }
+    }
 }
 /* the effects' job, when it runs on the second core, from the block's start: beside the first core's sequencer.
  * fx_done waits for it (or runs it here, if the second core failed) and sets the knobs locked meanwhile */
@@ -840,13 +880,14 @@ static volatile uint32_t c2_took;                          /* the last job's tim
  * it, and gives it back); a voice both gave back the first core renders after the wait. Core 1 checks the index it
  * reads (on some FM-1s its reads come back wrong now and then: loom_cpu1.h) */
 static int8_t ws_ord[NVOICE];
+static int32_t ws_n = NVOICE;                              /* the queue's length this stretch (synth_order) */
 static volatile int32_t ws_a, ws_b;                        /* taken: by the second core (the bottom), the first (the top) */
 static int ws_take1(void)                                  /* the second core's next voice, -1 none */
 {
     int32_t a = ws_a + 1, vi;
     ws_a = a;
     plat_cpu2_sync();
-    if (a + ws_b > NVOICE || a > NVOICE) {
+    if (a + ws_b > ws_n || a > ws_n) {
         ws_a = a - 1;
         plat_cpu2_sync();
         return -1;
@@ -859,12 +900,12 @@ static int ws_take0(void)                                  /* the first core's n
     int32_t b = ws_b + 1;
     ws_b = b;
     plat_cpu2_sync();
-    if (ws_a + b > NVOICE) {
+    if (ws_a + b > ws_n) {
         ws_b = b - 1;
         plat_cpu2_sync();
         return -1;
     }
-    return ws_ord[NVOICE - b];
+    return ws_ord[ws_n - b];
 }
 static void core2_job(uint32_t arg)
 {
@@ -976,10 +1017,54 @@ static void render_drums(uint32_t n)                    /* the drum tracks (the 
     metro_tick(n);
     PROF_ADD(PR_DRUM, pd);
 }
+/* the second core was still at the effects when the voices started: has it taken them (c2_chain), or is it free
+ * without them (then the slot is cleared and its job started here)? -> still late (neither yet) */
+static int c2_late(uint32_t arg, int *on2)
+{
+    plat_cpu2_sync();
+    if (c2_chained) {                                     /* it went on to the voices by itself */
+        *on2 = 1;
+        return 0;
+    }
+    if (plat_cpu2_busy())
+        return 1;
+    c2_chain = 0;                                         /* done before it saw the slot (it no longer reads it) */
+    plat_cpu2_sync();
+    if (c2_chained) {
+        *on2 = 1;
+        return 0;
+    }
+    fx_done();
+    *on2 = c2_run ? c2_run(core2_job, arg | 0x100u) : 0;
+    return 0;
+}
+/* the master on a stretch, on the second core (mst_at, mst_k: where in the block, how long) */
+static uint32_t mst_at, mst_k;
+static volatile uint8_t mst_ran;
+static void mst_job(uint32_t arg)
+{
+    uint32_t pm = plat_cycles();
+    (void)arg;
+    mst_ran = 1;
+    DSP_FAR(master_process)(MST, perc_l, perc_r, mel_l, mel_r, mix_l + mst_at, mix_r + mst_at, mst_k);
+    PROF_ADD(PR_MST, pm);
+}
+static void mst_finish(void)
+{
+    uint8_t k;
+    if (!mst_pend)
+        return;
+    mst_pend = 0;
+    if (c2_wait() && !mst_ran)                            /* (the second core failed before it began: here) */
+        DSP_FAR(master_process)(MST, perc_l, perc_r, mel_l, mel_r, mix_l + mst_at, mix_r + mst_at, mst_k);
+    for (k = 0; k < mk_n; k++)                            /* the keys held meanwhile, in order */
+        master_key(MST, mk_q[k].src, mk_q[k].vel, mk_q[k].kit);
+    mk_n = 0;
+}
 static void render_sub(uint32_t n, uint32_t at)
 {
     uint32_t arg = n & 0xFFu, pt, ps;
-    int on2 = 0, t, k, vi, i, late, late_at0, drums_left = 0;
+    int on2 = 0, t, k, vi, i, late, late_at0;
     PROF_T(pp);
     eng_prof[PR_SUBS]++;
     zerof(perc_l, n);
@@ -990,31 +1075,35 @@ static void render_sub(uint32_t n, uint32_t at)
     zerof(s2, n);
     perf_tick(n);
     synth_prepare(SY, n);                                 /* the shared per-chunk values, before either core renders */
-    synth_order(SY, ws_ord);
+    ws_n = synth_order(SY, ws_ord);
+    synth_idle(SY, ws_ord, ws_n, n);                      /* (the silent voices: moved on here, not taken) */
     ws_a = ws_b = 0;
     plat_cpu2_sync();
+    c2_chained = 0;
     late = late_at0 = fx_c2 && plat_cpu2_busy();          /* the second core still at the effects' job (begun with the
-                                                           * block): it joins when it is free (below) */
+                                                           * block): it takes the voices straight after it (c2_chain),
+                                                           * or, past it already, the first starts it (c2_late) */
     if (!late) {
         fx_done();                                        /* (done already, or one core) */
         on2 = c2_run ? c2_run(core2_job, arg | 0x100u) : 0;
+    } else {
+        c2_chain = arg | 0x100u;
+        plat_cpu2_sync();
     }
     PROF_ADD(PR_PREP, pp);
-    if (on2)                                              /* the second core at the voices: the drums here first */
-        render_drums(n);
+    render_drums(n);                                      /* the drums first, always: only this core renders them, so
+                                                           * the voices both cores can take are left for the end (with
+                                                           * the drums last, the second core, late from the effects,
+                                                           * found the queue empty and waited while this one did them) */
     ps = plat_cycles();
+    if (late)
+        late = c2_late(arg, &on2);
     while ((vi = ws_take0()) >= 0) {
         synth_render_on(SY, 0, vi, vi + 1, mel_l, mel_r, s1, s2, n);
-        if (late && !plat_cpu2_busy()) {                  /* free now: it takes from the bottom */
-            late = 0;
-            fx_done();
-            on2 = c2_run ? c2_run(core2_job, arg | 0x100u) : 0;
-            drums_left = 1;
-        }
+        if (late)
+            late = c2_late(arg, &on2);
     }
     PROF_ADD(PR_SYNTH0, ps);
-    if (!on2 || drums_left)
-        render_drums(n);
     pt = plat_cycles();
     fx_done();                                            /* (the voices all done here first: the effects' job) */
     if (on2 && c2_wait()) {                               /* the second failed: what it took, here (it may not have) */
@@ -1022,7 +1111,7 @@ static void render_sub(uint32_t n, uint32_t at)
         zerof(c2_r, n);
         zerof(c2_s1, n);
         zerof(c2_s2, n);
-        for (i = 0; i < ws_a && i < NVOICE; i++)
+        for (i = 0; i < ws_a && i < ws_n; i++)
             synth_render_on(SY, 0, ws_ord[i], ws_ord[i] + 1, c2_l, c2_r, c2_s1, c2_s2, n);
     } else if (on2) {
         PROF_ADD(PR_WAIT, pt);                            /* what the first core waited for the second */
@@ -1032,7 +1121,7 @@ static void render_sub(uint32_t n, uint32_t at)
         zerof(c2_s1, n);
         zerof(c2_s2, n);
     }
-    for (i = ws_a; i < NVOICE - ws_b; i++)                /* any both gave back */
+    for (i = ws_a; i < ws_n - ws_b; i++)                  /* any both gave back */
         synth_render_on(SY, 0, ws_ord[i], ws_ord[i] + 1, mel_l, mel_r, s1, s2, n);
     split_last[0] = (uint8_t)ws_a;                        /* (the profiler: the voices each core took) */
     split_last[1] = (uint8_t)ws_b;
@@ -1189,8 +1278,17 @@ void engine_render(int32_t *out_lr, uint32_t n, uint32_t gain_q12)
             k = n - done;
         if (!k)
             k = 1;
+        mst_finish();                                     /* (the last stretch's master: done before this one renders
+                                                           * into the same buffers) */
         render_sub(k, done);
-        {
+        mst_at = done;
+        mst_k = k;
+        mst_ran = 0;
+        if (done + k < n && c2_run && c2_run(mst_job, 0)) {   /* another stretch follows: its master on the second
+                                                           * core, beside the sequencer's call (which fires the next
+                                                           * stretch's steps); the block's last here, the output needs it */
+            mst_pend = 1;
+        } else {
             PROF_T(pm);
             DSP_FAR(master_process)(MST, perc_l, perc_r, mel_l, mel_r, mix_l + done, mix_r + done, k);
             PROF_ADD(PR_MST, pm);
@@ -1206,14 +1304,11 @@ void engine_render(int32_t *out_lr, uint32_t n, uint32_t gain_q12)
     eng_scene_cue = seq.cue;
     eng_pump_db = master_pump_db(MST);
     PROF_T(po);
-    {   /* quiet (the autosave waits for it: a flash write cuts the audio): every sample under -60 dB */
-        float pk = 0.0f;
-        for (i = 0; i < n; i++)
-            pk = fm_maxf(pk, fm_maxf(fm_fabsf(mix_l[i]), fm_fabsf(mix_r[i])));
-        eng_quiet = pk > 0.001f ? 0 : (uint16_t)(eng_quiet < 65535u ? eng_quiet + 1u : 65535u);
-    }
+    float pk = 0.0f;                                     /* (quiet: every sample under -60 dB; the autosave waits for
+                                                          * it, a flash write cuts the audio) */
     for (i = 0; i < n; i++) {                            /* Felucca's -6 dBFS ceiling of the 24-bit codec (2^22) */
         float l, r;
+        pk = fm_maxf(pk, fm_maxf(fm_fabsf(mix_l[i]), fm_fabsf(mix_r[i])));
         vol_s += (vol - vol_s) * VOL_SLEW;               /* MASTER's gain glides (a block's step would zipper) */
         l = mix_l[i] * vol_s;
         r = mix_r[i] * vol_s;
@@ -1224,6 +1319,7 @@ void engine_render(int32_t *out_lr, uint32_t n, uint32_t gain_q12)
         if (i & 1u)
             eng_scope[eng_scope_w++ & (SCOPE_N - 1u)] = (int16_t)((mix_l[i] + mix_r[i]) * 16383.5f);
     }
+    eng_quiet = pk > 0.001f ? 0 : (uint16_t)(eng_quiet < 65535u ? eng_quiet + 1u : 65535u);
     for (p = 0; p < NALLTRK; p++) {                      /* meters: the loudest since the UI took them (Q14, to 2) */
         uint32_t q = (uint32_t)(fm_minf(trk_peak[p], 2.0f) * 16383.5f);
         if (q > eng_peak[p])

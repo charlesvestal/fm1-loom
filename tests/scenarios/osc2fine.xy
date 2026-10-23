@@ -1,0 +1,114 @@
+# knit's osc 2 fine tune (TP_O2FINE, a tester: "OSC2 Fine Tune instead of Semitones"): on the Sub page, HOME held
+# turns osc 2's knob in cents (+-50) and the strip shows it; let go, the knob is semitones again and HOME's release
+# opens no page. Kept over a restart; a factory preset sets it back to 0; a user preset keeps it
+wait 300
+spin ALGO 2
+expect trk 3
+knob 3 engine knit
+tap EDIT
+turn SELECT 3
+expect page Sub
+spin K1 7
+expect par3.x1 71
+expect par3.fine 64
+listen
+press HOME
+wait 600
+listen
+spin K1 12
+wait 400
+said osc 2 fine +12 ct
+shot fine_held.png
+spin K1 60
+expect par3.fine 114
+spin K1 -88
+expect par3.fine 26
+spin K1 14
+release HOME
+wait 40
+expect par3.fine 40
+expect par3.x1 71
+expect page Sub
+spin K1 1
+expect par3.x1 72
+expect par3.fine 40
+expect epar3.fine 40
+projsave 1
+reboot
+wait 400
+expect par3.fine 40
+expect par3.x1 72
+# a factory preset: no fine tune
+preset 3 reese
+expect par3.fine 64
+# a user preset keeps it, also over a restart (presets format 8)
+knob 3 x1 70
+knob 3 fine 90
+usersave 3 2
+preset 3 reese
+expect par3.fine 64
+reboot
+wait 400
+preset 3 U2
+expect par3.fine 90
+expect par3.x1 70
+# user presets saved in format 7 (tests/fixtures/make_presets_v7.xy) load, each at no fine tune
+storeload tests/fixtures/store_presets_v7.bin
+reboot
+wait 400
+preset 3 U1
+expect par3.engine 0
+expect par3.x1 75
+expect par3.x2 90
+expect par3.fine 64
+# breaks-out's format 8 (tests/fixtures/make_presets_v8.py: the user presets without the fine, then the user kits)
+# put back: U1 at no fine tune, kit K1 there (its keys on two removed models: a kick and a snare from their defaults);
+# loading a kit leaves the track's fine as it was
+restore tests/fixtures/presets_v8.bkp
+expect restore_rc 0
+wait 400
+preset 3 U1
+expect par3.x1 75
+expect par3.x2 90
+expect par3.fine 64
+expect trk 1
+param 1 fine 77
+tap EDIT
+expect page Engine
+tap SEL
+turn SELECT 2
+turn ALGO 2
+tap SEL
+wait 40
+expect par1.d1.model 0
+expect par1.d1.k1 82
+expect par1.d1.k5 0
+expect par1.d2.model 1
+expect par1.fine 77
+# a kit saved (now format 9, the kits after the presets with their fine), Loom loaded, the kit back: its keys
+param 1 d3.model 4
+tap SEL
+turn SELECT 3
+turn ALGO 1
+tap SEL
+wait 40
+expect ask 0
+tap SEL
+turn SELECT 2
+turn ALGO -2
+tap SEL
+wait 40
+expect par1.d3.model 2
+tap SEL
+turn SELECT 2
+turn ALGO 3
+tap SEL
+wait 40
+expect par1.d3.model 4
+expect par1.d2.model 1
+expect par1.fine 77
+reboot
+wait 400
+preset 3 U1
+expect par3.x1 75
+expect par3.fine 64
