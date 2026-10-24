@@ -69,12 +69,6 @@ void app_splash(void);
 void app_redraw(void);
 #define APP_SYSEX                       /* the user sample bank over USB-MIDI (samples.c: F0 7D 46 4C) */
 int app_sysex(const uint8_t *p, uint32_t n);
-#ifndef PLAT_HOST
-#define APP_CSTART                      /* the second core held first thing at a start (plat_loom.c) */
-void app_cstart(void);
-#define APP_FAULT                       /* a crash: the second core given up, or this crash is its own (plat_loom.c:
-                                         * app_fault, after felucca-bsp's fm1_crash_t) */
-#endif
 
 /* the host simulator's part (host.c): LOOM-8's checks and commands, the screen reader's dump */
 #ifdef PLAT_HOST
@@ -90,24 +84,15 @@ void app_host_reboot(void);
 int app_host_fails(void);
 #define APP_HOST_MS                     /* the voices' and the estimated load's peaks (host.c "stats") */
 void app_host_ms(void);
+#define APP_HOST_CPU2                   /* the second core simulated in host.c (its work counted apart) */
 #endif
 
-/* LOOM-8's own platform extras, beyond fm1-base's plat.h: on the FM-1 in plat_loom.c (felucca-bsp's helpers and the
- * second core of cpu1/), in the simulator in host.c */
+/* LOOM-8's own platform extras, beyond fm1-base's plat.h (its second core too: fm1.toml cpu2 = true): on the FM-1 in
+ * plat_loom.c (felucca-bsp's helpers), in the simulator in host.c */
 uint32_t plat_cpu_peak_pct(void);       /* the render's peak load since the last call, % */
 uint32_t plat_cycles(void);             /* a cycle counter for the profiler (ISR) */
 int plat_store_load_prev(uint32_t obj, void *dst, uint32_t max);   /* the copy before the current one (a torn stream) */
 int loom_store_save(uint32_t obj, const void *src, uint32_t len);  /* plat_store_save, the host keeping the copy before */
-/* the second core (X0X's plat_cpu2_*) */
-int plat_cpu2_set(int on);              /* main loop: 0 = done; -1 = it did not start (one core) */
-int plat_cpu2_on(void);
-int plat_cpu2_run(void (*fn)(uint32_t), uint32_t arg);   /* ISR: 1 = the second core has it */
-int plat_cpu2_wait(void);               /* ISR: 0 = done; -1 = it failed (and is off): do the job here */
-void plat_cpu2_sync(void);             /* ISR: a barrier between the cores' reads and writes (render_sub's sharing) */
-int plat_cpu2_busy(void);               /* ISR: 1 = the job handed over is not done yet (no waiting) */
-int plat_cpu2_gave_up(void);            /* why it is off: 0 no, 1 it read a wrong job, 2 one did not finish, 3 barred */
-uint32_t plat_cpu2_bad(void);
-int plat_cpu2_barred(void);             /* 1: it was given up, or core 0 crashed beside it (until power-off or a new build) */
 int plat_vdc14_mv(void);                /* VDC14 as set at start, mV (the Status page) */
 int plat_sysvdd_mv(void);
 int plat_last_crash(uint32_t v[5]);     /* 1: a crash since power-on (vec, pc, emu, dbg, rets as its red screen) */
