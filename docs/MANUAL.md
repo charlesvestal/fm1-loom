@@ -116,32 +116,32 @@ press…" means keep **HOME** down while you press the next thing.
 | How do I… | Do this |
 | --- | --- |
 | pick a track | Turn **ALGORITHM** on any page. |
-| write a beat | Press **SEQ**. On a drum track, black key 1 is the kick: press it, then white keys 1, 5, 9 and 13. Black key 2 is the snare. |
-| write a note | On Steps, hold **SEQ** and play the note. Let go and press a white key: the note goes on that step. |
-| write a chord | On Steps, hold **SEQ** and hold the notes together. Let go and press a step. |
-| pick a drum sound | On a drum track's Steps page, press its black key, or hold **SEQ** and press any key. |
-| see a step | On Steps, hold its white key. The knobs show its velocity, length, chance and pitch. |
-| make a note longer | Hold its step and press a later white key. A bar under the cells shows how far a note reaches. |
-| nudge a step | Hold its step and press **OCT−** or **OCT+**. |
+| write a beat | Press **SEQ**. On a drum track, black key 1 is the kick: press it, then white keys 1, 5, 9 and 13. Black key 2 is the snare. <!-- hint: press SEQ; black 1; white 1,5,9,13 --> |
+| write a note | On Steps, hold **SEQ** and play the note. Let go and press a white key: the note goes on that step. <!-- hint: hold SEQ; white 3 --> |
+| write a chord | On Steps, hold **SEQ** and hold the notes together. Let go and press a step. <!-- hint: hold SEQ; white 3,5,7 --> |
+| pick a drum sound | On a drum track's Steps page, press its black key, or hold **SEQ** and press any key. <!-- hint: press SEQ; black 1 --> |
+| see a step | On Steps, hold its white key. The knobs show its velocity, length, chance and pitch. <!-- hint: white 5 --> |
+| make a note longer | Hold its step and press a later white key. A bar under the cells shows how far a note reaches. <!-- hint: white 1,5 --> |
+| nudge a step | Hold its step and press **OCT−** or **OCT+**. <!-- hint: press OCT−, OCT+; white 5 --> |
 | copy and paste | On Steps, press **SEL** and pick COPY PATTERN or COPY BAR. Where you want it, pick PASTE PATTERN or PASTE BAR (PASTE LOCKS ONLY pastes just the locks). For one step, hold it, press **SEL** and pick COPY STEP; then hold another step, press **SEL** and pick PASTE STEP. |
 | make a pattern twice as long | On Steps, press **SEL** and pick DOUBLE PATTERN. The pattern plays itself twice, so you can vary the second half. |
-| change a step's note | Hold its step and turn **KNOB 4**. This works on a drum step too: its hits play higher or lower. |
-| put a second sound on a drum step | Hold the step and press the sound's black key. |
-| take one note off a step | Hold the step, press **SEL**, pick the note and press **SEL**. |
-| change a step's chord | Hold the step and tap **SEQ**, then play the chord (you can let go of the step). Tap **SEQ** again when you're done. |
-| add a trick | Hold the step and press **ARP**. **KNOB 1** picks the first trick (pulse, hold, multiply, velocity, ramp up, ramp down, random, glide, bend, tonality, jump, skip lock, skip trick, skip trigger) and **KNOB 2** sets its value. **KNOB 3** and **KNOB 4** do the same for the second trick. Turn a trick back to "-" to remove it. |
+| change a step's note | Hold its step and turn **KNOB 4**. This works on a drum step too: its hits play higher or lower. <!-- hint: turn KNOB 4; white 5 --> |
+| put a second sound on a drum step | Hold the step and press the sound's black key. <!-- hint: black 2; white 5 --> |
+| take one note off a step | Hold the step, press **SEL**, pick the note and press **SEL**. <!-- hint: press SEL; white 5 --> |
+| change a step's chord | Hold the step and tap **SEQ**, then play the chord (you can let go of the step). Tap **SEQ** again when you're done. <!-- hint: press SEQ; white 5 --> |
+| add a trick | Hold the step and press **ARP**. **KNOB 1** picks the first trick (pulse, hold, multiply, velocity, ramp up, ramp down, random, glide, bend, tonality, jump, skip lock, skip trick, skip trigger) and **KNOB 2** sets its value. **KNOB 3** and **KNOB 4** do the same for the second trick. Turn a trick back to "-" to remove it. <!-- hint: press ARP; turn KNOB 1, KNOB 2; white 5 --> |
 | set a skip's pattern | Keep turning its value past "random". The same cycles come round again, first as "not on the last pass", then as "only the first". |
-| give a step a chance | Hold the step and turn **KNOB 3**. Past 99 %, the A:B cycles come next. |
-| lock a knob on a step | Hold the step, press **EDIT**, **ENV**, **FX** or **LFO**, and turn a knob. To clear a lock, hold **SEL** and turn that knob. The step's **SEL** list also has CLEAR LOCKS. |
-| clear a knob's automation | Hold **SEL** and turn the knob. This clears its motion and locks in the pattern (or, with steps held, only theirs). |
-| see the next bar | Press **OCT+** on Steps. (While **SEQ** is held, **OCT** sets the keys' octave and **PRESETS** the track's sound, so you can try notes before you write them.) |
-| play one bar of a long pattern, or jump about in it | Press **SEQ** and turn **SELECT** to the Bar page. Hold **SEQ** and press black key 1 to 4 to jump to that bar. Hold two of them to loop those bars, or tap one twice to loop that bar. |
-| set the track scale | On Steps, turn **KNOB 3**. Or, on the Bar page of a synth track, press a black key: 1, 2, 3, 4, 5, 6, 8, 16 sixteenths a step, or black key 9 for half a sixteenth. |
+| give a step a chance | Hold the step and turn **KNOB 3**. Past 99 %, the A:B cycles come next. <!-- hint: turn KNOB 3; white 5 --> |
+| lock a knob on a step | Hold the step, press **EDIT**, **ENV**, **FX** or **LFO**, and turn a knob. To clear a lock, hold **SEL** and turn that knob. The step's **SEL** list also has CLEAR LOCKS. <!-- hint: press EDIT; turn KNOB 1; white 5 --> |
+| clear a knob's automation | Hold **SEL** and turn the knob. This clears its motion and locks in the pattern (or, with steps held, only theirs). <!-- hint: hold SEL; turn KNOB 1 --> |
+| see the next bar | Press **OCT+** on Steps. (While **SEQ** is held, **OCT** sets the keys' octave and **PRESETS** the track's sound, so you can try notes before you write them.) <!-- hint: press OCT+ --> |
+| play one bar of a long pattern, or jump about in it | Press **SEQ** and turn **SELECT** to the Bar page. Hold **SEQ** and press black key 1 to 4 to jump to that bar. Hold two of them to loop those bars, or tap one twice to loop that bar. <!-- hint: hold SEQ; black 1,2,3,4 --> |
+| set the track scale | On Steps, turn **KNOB 3**. Or, on the Bar page of a synth track, press a black key: 1, 2, 3, 4, 5, 6, 8, 16 sixteenths a step, or black key 9 for half a sixteenth. <!-- hint: turn KNOB 3 --> |
 | change the pattern | On Steps, turn **KNOB 1**. While it plays, the new pattern comes in at the next bar line. Until then, the knob reads NEXT 1>2 and the tag line says "next P2". |
-| weave two patterns | On the track, press **ARP** and go to its last page, Weave. Press a black key for the track to weave in and a white key for its pattern; **KNOB 3** sets the rule. From then on, it plays woven. To bring it in by hand instead, set **KNOB 4** to "on WEAVE", then pick the WEAVE track with **ALGORITHM** and hold that track's white key. |
+| weave two patterns | On the track, press **ARP** and go to its last page, Weave. Press a black key for the track to weave in and a white key for its pattern; **KNOB 3** sets the rule. From then on, it plays woven. To bring it in by hand instead, set **KNOB 4** to "on WEAVE", then pick the WEAVE track with **ALGORITHM** and hold that track's white key. <!-- hint: press ARP; black 2; white 1; turn KNOB 3 --> |
 | change the sound | Press **EDIT** and turn **PRESETS** to step through the engine's own sounds. A name like "BASS 3/11" tells you what the sound is for and where you are in the list. **SEL** changes the engine. |
-| edit a drum sound | On a drum track, press **EDIT** and press the sound's black key. The knobs are the model's own four. Turn **SELECT** for the model, random, pan and volume. Its **SEL** list has the play mode. |
-| shape one drum | On a drum track, press **ENV** and press the drum's black key to get its own attack, hold, decay and lag. Turn **SELECT** for its filter: **PRESETS** picks low-pass, high-pass or band-pass, and the knobs set cutoff, resonance, envelope and drive. |
+| edit a drum sound | On a drum track, press **EDIT** and press the sound's black key. The knobs are the model's own four. Turn **SELECT** for the model, random, pan and volume. Its **SEL** list has the play mode. <!-- hint: press EDIT; black 1 --> |
+| shape one drum | On a drum track, press **ENV** and press the drum's black key to get its own attack, hold, decay and lag. Turn **SELECT** for its filter: **PRESETS** picks low-pass, high-pass or band-pass, and the knobs set cutoff, resonance, envelope and drive. <!-- hint: press ENV; black 1 --> |
 | play a sample | On a drum track, set a key's model to sample. On a synth track, press **SEL** and set ENGINE to sample. The sample knob picks the sample. |
 | load my own samples | Open <https://charlesvestal.github.io/fm1-loom/samples/> in Chrome or Edge with the FM-1 connected by USB. Add, replace, rename, reorder or remove samples, then press Send. They come after the factory samples, as user 1, user 2 ... |
 | get the breaks back (0.7 on) | On the samples page, press Add the breaks, then Send. |
@@ -157,20 +157,20 @@ press…" means keep **HOME** down while you press the next thing.
 | record step by step | While stopped, on Steps, tap **REC**. The red cursor starts after the last note. Each key (or chord) you play is written there, and the cursor moves on. **OCT+** leaves a rest and **OCT−** goes back. Tap **REC** again to finish. |
 | undo | Hold **HOME** and press **REC**. Hold **HOME** and press **PLAY** to redo. |
 | set the tempo | Press **HOME** and turn **KNOB 1**. Hold **HOME** while you turn it for tenths. On any page, you can also hold **HOME** and turn **SELECT**. |
-| use a throw | Press **FX** and turn **SELECT** to Throws. Hold a key: the lower octave works on the drums and the upper octave on the melodic tracks. Hold **REC** while it plays to record throws into the THROW track. |
-| make a new scene | Press **HOME** and press an empty white key. It becomes a copy of the scene that is playing. **OCT+** puts scenes 17 to 32 on the white keys. |
-| switch scenes while playing | On Arrange, press the scene's white key, and it starts at the next bar. Press it again to switch at once. To wait for the end of T1's pattern instead, set SCENES SWITCH in the **SEL** list to "pattern end". |
-| mute a track | On Arrange or Mix, press its black key. On Mix, hold it to solo the track for as long as you hold it. |
-| mute one drum sound in a scene | On Arrange, hold the kit track's black key and press white keys 1 to 11. |
-| make the whole mix pump with the kick | Press **GLO**, turn **SELECT** to Master out and turn **KNOB 4** (pump). **SEL** picks what drives it and how fast it swells back. |
-| solo a track | On Mix, hold its black key (hold several to solo them together). Let go and the mutes come back. |
-| sweep a few tracks together | Press **GLO** and turn **SELECT** to LFO, the shared LFO. The black keys pick the tracks, and **KNOB 4** picks what it moves. |
-| play a progression | Turn **ALGORITHM** to COND (the conductor). Press **EDIT** and play a chord: it moves the tracks that follow. Press **SEQ** and press a step to put the chord on it. Set the scale to 4 on the Bar page so that a step is a beat. |
-| let a track lead the chords | On COND, press **EDIT** and turn **SELECT** to Follow. Press the track's black key, and its lowest note sets the chord for the others (use a chord part or a bass line). Press the same key again to turn it off. |
+| use a throw | Press **FX** and turn **SELECT** to Throws. Hold a key: the lower octave works on the drums and the upper octave on the melodic tracks. Hold **REC** while it plays to record throws into the THROW track. <!-- hint: press FX; turn SELECT; white 1-16 --> |
+| make a new scene | Press **HOME** and press an empty white key. It becomes a copy of the scene that is playing. **OCT+** puts scenes 17 to 32 on the white keys. <!-- hint: press HOME; white 2 --> |
+| switch scenes while playing | On Arrange, press the scene's white key, and it starts at the next bar. Press it again to switch at once. To wait for the end of T1's pattern instead, set SCENES SWITCH in the **SEL** list to "pattern end". <!-- hint: press HOME; white 2 --> |
+| mute a track | On Arrange or Mix, press its black key. On Mix, hold it to solo the track for as long as you hold it. <!-- hint: black 1 --> |
+| mute one drum sound in a scene | On Arrange, hold the kit track's black key and press white keys 1 to 11. <!-- hint: black 1; white 1-11 --> |
+| make the whole mix pump with the kick | Press **GLO**, turn **SELECT** to Master out and turn **KNOB 4** (pump). **SEL** picks what drives it and how fast it swells back. <!-- hint: press GLO; turn SELECT, KNOB 4 --> |
+| solo a track | On Mix, hold its black key (hold several to solo them together). Let go and the mutes come back. <!-- hint: black 1 --> |
+| sweep a few tracks together | Press **GLO** and turn **SELECT** to LFO, the shared LFO. The black keys pick the tracks, and **KNOB 4** picks what it moves. <!-- hint: press GLO; turn SELECT, KNOB 4; black 1,2,3 --> |
+| play a progression | Turn **ALGORITHM** to COND (the conductor). Press **EDIT** and play a chord: it moves the tracks that follow. Press **SEQ** and press a step to put the chord on it. Set the scale to 4 on the Bar page so that a step is a beat. <!-- hint: turn ALGORITHM; press EDIT; white 1,3,5 --> |
+| let a track lead the chords | On COND, press **EDIT** and turn **SELECT** to Follow. Press the track's black key, and its lowest note sets the chord for the others (use a chord part or a bass line). Press the same key again to turn it off. <!-- hint: press EDIT; turn SELECT; black 3 --> |
 | get new sounds for the band | Press **HOME**, press **SEL** and pick RANDOMIZE PRESETS: T2 to T8 each get a random preset for their part. Press **SEL** for yes. |
-| save | LOOM-8 saves by itself when it is stopped and quiet. **SAVE** saves at once. Hold **SAVE** and press white key 1 to 3 to save to that slot. |
-| keep a sound | On a sound page, hold **SAVE** and press a white key. The sound becomes that user preset. |
-| load a project | Press **HOME** and press **SEL**. On LOAD PROJECT, turn **ALGORITHM** to pick the slot, then press **SEL**. NEW PROJECT starts an empty project in a free slot, with its sounds picked at random (new ones, as RANDOMIZE PRESETS gives). |
+| save | LOOM-8 saves by itself when it is stopped and quiet. **SAVE** saves at once. Hold **SAVE** and press white key 1 to 3 to save to that slot. <!-- hint: press SAVE --> |
+| keep a sound | On a sound page, hold **SAVE** and press a white key. The sound becomes that user preset. <!-- hint: hold SAVE; white 1 --> |
+| load a project | Press **HOME** and press **SEL**. On LOAD PROJECT, turn **ALGORITHM** to pick the slot, then press **SEL**. NEW PROJECT starts an empty project in a free slot, with its sounds picked at random (new ones, as RANDOMIZE PRESETS gives). <!-- hint: press HOME, SEL; turn ALGORITHM --> |
 
 ### The buttons
 

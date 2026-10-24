@@ -118,6 +118,8 @@ h2 { font: 700 1.4rem "Barlow Semi Condensed", "Barlow", sans-serif; margin: 2.2
 .threads { display: flex; gap: 6px; margin: 0 0 1.4rem; }
 .threads span { flex: 1; height: 6px; border-radius: 3px; }
 .lede { font-size: 1.15rem; margin: 0 0 1.6rem; max-width: 36rem; }
+.video { aspect-ratio: 16 / 9; margin: 0 0 1.4rem; border-radius: 14px; overflow: hidden; border: 1px solid var(--rule); background: #000; }
+.video iframe { width: 100%; height: 100%; border: 0; display: block; }
 .shots { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin: 0 0 1.8rem; }
 .shots img { width: 100%; height: auto; border-radius: 14px; image-rendering: pixelated; border: 1px solid var(--rule); }
 .status { border: 1px solid var(--rule); background: var(--card); border-radius: 14px; padding: 12px 16px; margin: 0 0 1.6rem; }
@@ -141,6 +143,8 @@ code { font-size: .9em; }
 <p class="lede">A pocket groovebox for the M-VAVE FM-1. Eight tracks, each in its own colour, on six synth
 engines, a sample player, a break slicer and a drum kit; a 64-step sequencer with tricks and parameter locks; and weave, which crosses two
 patterns into a third.</p>
+<div class="video"><iframe src="https://www.youtube-nocookie.com/embed/d84QXnfulRE" title="LOOM-8 video" loading="lazy"
+  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe></div>
 <div class="shots">
   <img src="img/screen-beat-playing.png" width="240" height="240" alt="The Steps page on T1, the kit, playing: kick and snare in pink, the playhead lit">
   <img src="img/screen-arrange.png" width="240" height="240" alt="Arrange: every track's pattern in its own colour, the scene number large at the right">

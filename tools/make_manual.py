@@ -49,6 +49,17 @@ figure { margin: 0; width: 240px; max-width: calc(50% - 6px); }
 figure img { display: block; width: 100%; height: auto; border-radius: 6px; background: #000;
              outline: 1px solid var(--line); }
 figcaption { margin-top: 6px; font-size: 13px; line-height: 1.3; color: var(--dim); }
+.video { aspect-ratio: 16 / 9; margin: 12px 0 20px; border-radius: 8px; overflow: hidden; background: #000; }
+.video iframe { width: 100%; height: 100%; border: 0; display: block; }
+.hint { display: block; width: 110px; height: auto; margin-top: 8px; }
+.hints td { padding-block: 12px 14px; } .hints td + td { vertical-align: middle; }
+#fm1 .hb { fill: #2c2d31; } #fm1 .hs { fill: #111; } #fm1 .off { fill: #4b4d53; } #fm1 .kw { fill: #a3a3a7; }
+#fm1 .kb, .hint .kb { fill: #232427; } .hint .on, .legend .on { fill: var(--red); }
+.hint .press, .legend .press { fill: #4b4d53; stroke: var(--red); stroke-width: 4; }
+.hint .arc, .legend .arc { fill: none; stroke: var(--red); stroke-width: 3.5; stroke-linecap: round; }
+.legend { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; color: var(--dim); font-size: 13px; }
+.legend svg { width: 20px; height: 15px; margin-left: 8px; } .legend svg:first-child { margin-left: 0; }
+.legend .press { stroke-width: 2; } .legend .arc { stroke-width: 2; }
 @media (max-width: 340px) { figure { max-width: 100%; } }
 @media (max-width: 480px) { h1 { font-size: 32px; } h2 { font-size: 22px; } }
 </style>
@@ -65,6 +76,106 @@ def inline(s):
     return s
 
 
+# The cheat sheet's hints: a small drawn FM-1 beside a row, the controls it uses lit (held filled, pressed outlined,
+# turned with an arc, keys played lit). The controls come from the row's bold names (the first sentence naming one),
+# each lit as the verb before it says (hold / press / tap / turn; else a knob turns and a button is pressed). A row
+# can say it itself in a comment, which GitHub doesn't show: <!-- hint: hold HOME; press REC; black 1; white 1-11 -->
+HINT_KNOBS = {"MASTER": (22, 20), "SELECT": (50, 20), "PRESETS": (22, 46), "ALGORITHM": (50, 46),
+              "KNOB 1": (160, 18), "KNOB 2": (184, 18), "KNOB 3": (208, 18), "KNOB 4": (232, 18)}
+HINT_BTNS = {n: (150 + i * 22, 36) for i, n in enumerate(["FX", "SEL", "ENV", "LFO", "EDIT", "GLO"])}
+HINT_BTNS.update({n: (150 + i * 22, 58) for i, n in enumerate(["HOME", "SAVE", "ARP", "SEQ", "PLAY", "REC"])})
+HINT_BTNS.update({"OCT−": (14, 66), "OCT+": (40, 66)})
+HINT_ALIAS = {"OCT-": ["OCT−"], "OCT": ["OCT−", "OCT+"], "KNOB 1–4": ["KNOB 1", "KNOB 2", "KNOB 3", "KNOB 4"]}
+HINT_BLACK_AFTER = [0, 1, 2, 4, 5, 7, 8, 9, 11, 12, 14]          # black key k sits after white key HINT_BLACK_AFTER[k]
+HINT_NOTE = re.compile(r"<!--\s*hint:(.*?)-->")
+
+
+def hint_controls(name):
+    return HINT_ALIAS.get(name, [name] if name in HINT_KNOBS or name in HINT_BTNS else [])
+
+
+def hint_parse(cell):
+    """(hold, press, turn, white, black) for a row's cell, or None when it uses no control"""
+    hold, press, turn, white, black = set(), set(), set(), set(), set()
+    m = HINT_NOTE.search(cell)
+    if m:
+        for part in m.group(1).split(";"):
+            verb, _, rest = part.strip().partition(" ")
+            if verb in ("white", "black"):
+                keys = white if verb == "white" else black
+                for r in rest.split(","):
+                    a, _, b = r.strip().partition("-")
+                    keys.update(range(int(a), int(b or a) + 1))
+            else:
+                for n in rest.split(","):
+                    {"hold": hold, "press": press, "turn": turn}[verb].update(hint_controls(n.strip()))
+        return hold, press, turn, white, black
+    for sentence in re.split(r"(?<=[.:])\s+(?=[A-Z])", HINT_NOTE.sub("", cell)):
+        last = 0
+        for b in re.finditer(r"\*\*([^*]+)\*\*", sentence):
+            names = hint_controls(b.group(1))
+            if not names:
+                continue
+            verbs = re.findall(r"\b(hold|press|tap|turn)", sentence[last:b.start()].lower())
+            last = b.end()
+            for n in names:
+                verb = verbs[-1] if verbs else ("turn" if n in HINT_KNOBS else "press")
+                if n in HINT_KNOBS and verb != "hold":
+                    turn.add(n)
+                else:
+                    (hold if verb == "hold" else press).add(n)
+        if hold or press or turn:
+            return hold, press, turn, white, black
+    return None
+
+
+def hint_parts(lit=None):
+    """the panel's shapes: every control unlit (lit None, the shared drawing), or only those lit"""
+    hold, press, turn, white, black = lit or (set(),) * 5
+    s = [] if lit else ['<rect x="1" y="1" width="288" height="126" rx="12" class="hb"/>',
+                        '<rect x="78" y="8" width="56" height="56" rx="6" class="hs"/>']
+    for n, (x, y) in HINT_KNOBS.items():
+        if not lit or n in turn or n in hold:
+            s.append(f'<circle cx="{x}" cy="{y}" r="8.5" class="{"on" if lit else "off"}"/>')
+        if n in turn:
+            s.append(f'<path d="M{x - 12},{y + 4} A12.5,12.5 0 1 1 {x + 12},{y + 4} l-5,-1 m5,1 l1,-5" class="arc"/>')
+    for n, (x, y) in HINT_BTNS.items():
+        cls = "on" if n in hold else ("press" if n in press else "off")
+        if not lit or cls != "off":
+            s.append(f'<rect x="{x}" y="{y}" width="{22 if n.startswith("OCT") else 18}" height="14" rx="3" '
+                     f'class="{cls}"/>')
+    kw = 270 / 16
+    for i in range(16):
+        if not lit or i + 1 in white:
+            s.append(f'<rect x="{10 + i * kw:.1f}" y="80" width="{kw - 2:.1f}" height="40" rx="2" '
+                     f'class="{"on" if lit else "kw"}"/>')
+    for k, a in enumerate(HINT_BLACK_AFTER):
+        if not lit or white or k + 1 in black:                 # over a lit white key, every black key again
+            s.append(f'<rect x="{10 + (a + 1) * kw - kw * 0.34:.1f}" y="78" width="{kw * 0.68 - 1:.1f}" height="26" '
+                     f'rx="2" class="{"on" if lit and k + 1 in black else "kb"}"/>')
+    return "".join(s)
+
+
+HINT_PANEL = ('<svg width="0" height="0" style="position:absolute" aria-hidden="true"><symbol id="fm1" viewBox="0 0 290 128">'
+              + hint_parts() + "</symbol></svg>")
+
+
+def hint_svg(cell, label):
+    lit = hint_parse(cell)
+    if not lit:
+        return ""
+    return (f'<svg class="hint" viewBox="0 0 290 128" role="img" aria-label="{html.escape(label)}">'
+            f'<use href="#fm1"/>{hint_parts(lit)}</svg>')
+
+
+HINT_LEGEND = ('<p class="legend"><svg viewBox="0 0 22 16"><rect x="2" y="2" width="18" height="12" rx="3" class="on"/></svg>'
+               ' hold <svg viewBox="0 0 22 16"><rect x="2" y="2" width="18" height="12" rx="3" class="press"/></svg> press '
+               '<svg viewBox="0 0 22 16"><circle cx="11" cy="10" r="4.5" class="on"/><path d="M3,11 A8,8 0 1 1 19,11" '
+               'class="arc"/></svg> turn <svg viewBox="0 0 22 16"><rect x="6" y="1" width="10" height="14" rx="2" '
+               'class="on"/></svg> keys</p>')
+HINT_SECTIONS = ("How do I…", "The buttons")
+
+
 IMG = re.compile(r'<img src="([^"]+)"[^>]*?alt="([^"]*)"[^>]*?title="([^"]*)"[^>]*>')   # the manual's images
 
 
@@ -76,9 +187,17 @@ def figures(md_text):
     return text, ('<div class="shots">' + "".join(figs) + "</div>") if figs else ""
 
 
+YOUTUBE = re.compile(r"https://www\.youtube\.com/watch\?v=([\w-]+)")
+
+
 def block(md_text, tag="p", cls=""):
     text, shots = figures(md_text)
     out = f"<{tag}{cls}>{inline(text)}</{tag}>" if text else ""
+    m = YOUTUBE.search(text)                   # a paragraph linking a video: the video under it
+    if m:
+        out += (f'<div class="video"><iframe src="https://www.youtube-nocookie.com/embed/{m.group(1)}" '
+                'title="LOOM-8 video" loading="lazy" allow="accelerometer; autoplay; clipboard-write; encrypted-media; '
+                'gyroscope; picture-in-picture" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe></div>')
     return out + shots
 
 
@@ -96,12 +215,14 @@ def render(md):
             para.clear()
 
     first_p = True
+    section = ""
     while i < len(lines):
         ln = lines[i]
         if ln.startswith("#"):
             flush()
             n = len(ln) - len(ln.lstrip("#"))
             t = ln[n:].strip()
+            section = t
             out.append(f'<h{n} id="{slug(t)}">{inline(t)}</h{n}>')
             i += 1
             continue
@@ -112,11 +233,17 @@ def render(md):
                 rows.append([c.strip() for c in lines[i].strip().strip("|").split("|")])
                 i += 1
             rows = [r for r in rows if not all(re.fullmatch(r"-*", c) for c in r)]
-            t = ['<div class="wrap" tabindex="0" role="region" aria-label="table">']
-            t[0] += "<table>"
+            hints = section in HINT_SECTIONS
+            t = [HINT_PANEL + HINT_LEGEND if section == HINT_SECTIONS[0] else ""]
+            t.append('<div class="wrap" tabindex="0" role="region" aria-label="table">')
+            t[-1] += '<table class="hints">' if hints else "<table>"
             for k, r in enumerate(rows):
                 tag = "th" if k == 0 else "td"
-                t.append("<tr>" + "".join(f"<{tag}>{inline(c)}</{tag}>" for c in r) + "</tr>")
+                cells = [inline(HINT_NOTE.sub("", c).strip()) for c in r]
+                if hints and k:                                # the hint under the row's first cell
+                    label = re.sub(r"\*\*", "", r[0]) + ": the controls it uses"
+                    cells[0] += hint_svg(r[0] if section == HINT_SECTIONS[1] else r[1], label)
+                t.append("<tr>" + "".join(f"<{tag}>{c}</{tag}>" for c in cells) + "</tr>")
             t.append("</table></div>")
             out.append("".join(t))
             continue
