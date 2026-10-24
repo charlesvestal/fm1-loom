@@ -1215,10 +1215,15 @@ static void page_knobs(knob_t *k)
         kv(&k[0], "TEMPO", t, (int)proj.tempo_x10 / 10 - 40, 180);
         kname(&k[1], "GROOVE", GR_NAME, proj.groove, NGROOVE);
         if (is_seqt(trk)) {
-            static char pn[12];                      /* the track's pattern in this scene ("T2 PAT"; cued: "1>2") */
+            static char pn[12];                      /* the track's pattern in this scene ("T2 PAT"; cued: "1>2";
+                                                      * THROW's name too long for a knob: "PATTERN") */
             char c[8], *ce;
             kn(&k[2], "AMOUNT", tp->groove, 0);
-            s_cat(s_cat(pn, TRACK_NAME[trk]), " PAT");
+            pn[0] = 0;
+            if (s_len(TRACK_NAME[trk]) > 4)
+                s_cat(pn, "PATTERN");
+            else
+                s_cat(s_cat(pn, TRACK_NAME[trk]), " PAT");
             if (playing() && seq.pcue[trk] < NPATT && seq.pcue[trk] != cur_pat(trk)) {
                 ce = num_s((uint32_t)cur_pat(trk) + 1u, c);
                 *ce++ = '>';
