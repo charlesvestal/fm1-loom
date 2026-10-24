@@ -600,23 +600,23 @@ mode: one-shot, gated, loop, or choke groups 1 to 3. A new model starts from its
 
 **Kits.** A kit track's **SEL** list on Engine has **KIT** and **SAVE KIT**. KIT loads a whole kit onto the track:
 its eleven keys with everything on them, the kit's envelope and filter, its LFO and character. The track's level,
-pan, player and MIDI OUT stay as they are. Fourteen kits come with LOOM-8:
+pan, player and MIDI OUT stay as they are. Ten kits come with LOOM-8, named for fibers and cloth:
 
 - **Loom**: the kit a new project starts with.
-- **Loom Samples**: the 909 kick, snare, hat and clap from the sample bank on the first five keys (the closed hat
-  cut short, the open hat whole), the rest as Loom.
-- **Machine**: the x models throughout.
-- **Sophie**: sophie's kick, snares, toms, crash and bell, with clang's closed hat, clap and noise.
-- **Clang**: clang on every key.
-- **House**, **Garage**, **Jungle**, **Electro**, **Lo-fi**: the three mixed for each style (Jungle's clap key is a
-  ghost snare, Electro's noise key a zap).
-- **909 Plus**, **Analog Plus**, **Deep Mix**, **Breaks Mix**: a standard core (the factory 909 samples, LOOM-8's own
-  kick, snare and hats) with the new models as color: rims, toms, cymbals, a cowbell, bells, a ghost snare.
+- **Nylon**: the x models throughout.
+- **Elastane**: sophie throughout, rubbery: a bouncing kick, crushed ticks, a latex snap, toms that boing.
+- **Wire**: clang throughout, hard and metallic: short, bright and folded.
+- **Burlap**: rough and quick: a tight kick, a cracking snare, a ghost snare on the clap's key, a ride.
+- **Sequin**: shiny: a long boom, a bodied snare and clap, FM toms, a driven shaker.
+- **Frayed**: crushed and folded: Sophie's crusher, digisophie's fold.
+- **Denim**: the factory 909 samples, with sophie's toms and the x models' conga and shaker.
+- **Linen**: short and dry: a tight kick, ticking hats, clicks and a small clap.
+- **Velvet**: deep: a round, long kick, the 909 clap, dusty hats and a round conga.
 
 The new kits keep the default kit's layout: kick, snare, closed hat, open hat (the two in choke group 1), clap, low
-and high tom, percussion, noise, cymbal, bell.
+and high tom, conga, shaker, string, fm (a short FM blip), so a pattern plays the same parts on every kit.
 
-SAVE KIT keeps the track's kit in one of four user kits, K1 to K4, named after the track's sound (LOOM-8 asks
+SAVE KIT keeps the track's kit in one of eight user kits, K1 to K8, named after the track's sound (LOOM-8 asks
 before it replaces one). Then KIT loads them like the others, in any project. User kits are kept with the user
 presets, and a backup holds them too.
 

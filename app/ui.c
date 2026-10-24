@@ -2716,32 +2716,15 @@ static void kit_pack(const uint8_t *par, const char *name, uint8_t *img)
     memcpy(img + NAME_LEN, par, NTP_SOUND);
     memcpy(img + NAME_LEN + NTP_SOUND, par + TP_DRUM0, KIT_KEYS);
 }
-static void kit_model(uint8_t *par, int key, int m)   /* a key to another model, its knobs from the model's defaults */
-{
-    par[TP_DRUM(key, DP_MODEL)] = (uint8_t)m;
-    for (int k = 0; k < 4; k++) {
-        par[TP_DRUM(key, DP_K1 + k)] = DM_DEFAULT[m][k];
-        par[TP_DRUMX(key, k)] = DM_DEFAULT2[m][k];
-    }
-}
-/* the factory kits, from the default kit (Loom): Loom Samples the factory bank's 909 kick, snare, hat and clap on
- * their keys (the closed hat cut short); the others tools/gen_kits.py's (kits.h GKIT: each key's model, knobs 1..8,
+/* the factory kits, from the default kit (Loom): the others tools/gen_kits.py's (kits.h GKIT: each key's model, knobs 1..8,
  * volume, pan, play mode, the key's decay) */
 static void kit_factory(int k, uint8_t *img)
 {
-    static const uint8_t SMP[5] = {0, 1, 2, 2, 3};   /* kick, snare, hat, open, clap: the bank's first four */
     uint8_t par[NTP];
     sound_default(par, EG_DRUMLINE);
-    if (k == 1)
-        for (int key = 0; key < 5; key++) {
-            kit_model(par, key, DM_SAMPLE);
-            par[TP_DRUM(key, DP_K1)] = SMP[key];
-            if (key == 2)
-                par[TP_DRUM(key, DP_DECAY)] = 60;    /* (about 80 ms) */
-        }
-    if (k >= 2)
+    if (k >= 1)
         for (int key = 0; key < DL_NSOUND; key++) {
-            const uint8_t *g = GKIT[k - 2][key];
+            const uint8_t *g = GKIT[k - 1][key];
             par[TP_DRUM(key, DP_MODEL)] = g[0];
             for (int j = 0; j < 4; j++) {
                 par[TP_DRUM(key, DP_K1 + j)] = g[1 + j];

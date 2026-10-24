@@ -170,7 +170,7 @@ extern user_preset_t user_presets[NUSER_PRESETS];
  * the kit's envelope, bus filter, sends, LFO, character, volume) and its keys (par[TP_DRUM0..TP_O2FINE)); not the mix, the
  * players or MIDI OUT. They live in the presets object after the user presets (PRESETS_FORMAT 9), in flash only:
  * RAM keeps their names */
-#define NUSER_KITS 4
+#define NUSER_KITS 8                     /* (formats 8..10 held four: presets_load) */
 #define KIT_KEYS (TP_O2FINE - TP_DRUM0)          /* (the keys and their knobs 5..8: not knit's osc 2 fine after them) */
 #define KIT_LEN (NAME_LEN + NTP_SOUND + KIT_KEYS)
 extern char user_kit_name[NUSER_KITS][NAME_LEN];   /* "" = an empty slot */
