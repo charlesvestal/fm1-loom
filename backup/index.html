@@ -1,0 +1,1100 @@
+<!doctype html>
+<!-- SPDX-License-Identifier: MPL-2.0
+     Copyright (C) 2026 Charles Vestal
+     Backup and restore in the browser (fm1.toml backup = true): tools/fm1_backup.py's backup and restore over Web MIDI
+     (SysEx), on the protocol of device/backup.c. From Polly's. tools/make_site.py fills in the firmware's own
+     ({{...}}): NAME, ID its identity's prefix (fm1.toml id_prefix), MAGIC and BACKUP_VERSION (app.h APP_BACKUP_MAGIC,
+     APP_BACKUP_VERSION), EXT the files' extension, HOLDS what a backup holds (a phrase), EXTRA more notes (<li>s),
+     EXTRAS_JS the firmware's own sections (default none: "const EXTRAS = [];"), TERMINAL the note on doing it from
+     a terminal. The part between the "backup
+     protocol" markers is what tests/backup_page_test.mjs runs against a simulated FM-1 and against a transcript of
+     tools/fm1_backup.py.
+     A firmware's sections: what it keeps outside the backup's parts (too big for device/backup.c, which holds a
+     restore in RAM until it is checked), read and written by the page over the firmware's own SysEx. Each is an
+     object in EXTRAS: {tag (4 letters), what (a phrase: "the samples"), backup(link, onProgress(0..1)) -> bytes,
+     check(bytes) -> a phrase on what it holds (throws on a bad one), restore(link, bytes, onProgress(0..1))
+     (throws on failure)}; link: send(bytes), read(ms) -> a SysEx message or null, drain(), lost. In the file, after
+     the backup's own CRC, each section: its tag, u32 length, the bytes, u32 CRC-32 of the bytes (fm1_backup.py
+     split). A restore puts the backup back first, then, once the FM-1 said yes, each section the page knows. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Backup · LOOM-8</title>
+<meta name="description" content="Save what an FM-1 running LOOM-8 keeps to a file, and load them back later. It works in Chrome or Edge.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;600&family=Barlow+Semi+Condensed:wght@600;700&display=swap">
+<style>
+:root { --ground: #faf4e8; --ink: #48392f; --muted: #725f4c; --rule: #e6dccb; --accent: #e0683a; --teal: #1f8a80; --card: #fffaf1;
+        --accent-ink: #b4481c; --on-accent: #2a140a; color-scheme: light; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) { --ground: #1c1814; --ink: #f2e8d8; --muted: #b3a28e; --rule: #3a322a; --accent: #f28a5a; --teal: #4cc3b6; --card: #26201b;
+                                    --accent-ink: #f28a5a; color-scheme: dark; }
+}
+:root[data-theme="dark"] { --ground: #1c1814; --ink: #f2e8d8; --muted: #b3a28e; --rule: #3a322a; --accent: #f28a5a; --teal: #4cc3b6; --card: #26201b;
+                           --accent-ink: #f28a5a; color-scheme: dark; }
+* { box-sizing: border-box; }
+body { background: var(--ground); color: var(--ink); margin: 0; padding-inline: 16px; padding-block: 32px 64px;
+       font: 400 17px/1.55 "Barlow", "Helvetica Neue", Arial, sans-serif; }
+main { max-width: 40rem; margin: 0 auto; }
+h1 { font: 700 2.2rem/1.1 "Barlow Semi Condensed", "Barlow", sans-serif; margin: 0 0 .6rem; }
+h2 { font: 600 1.3rem/1.2 "Barlow Semi Condensed", "Barlow", sans-serif; margin: 0 0 .4rem; }
+p { margin: 0 0 .8rem; }
+a { color: var(--accent-ink); }
+:focus-visible { outline: 2px solid var(--teal); outline-offset: 2px; }
+.lede { color: var(--muted); margin-bottom: 1.4rem; }
+.card { background: var(--card); border: 1px solid var(--rule); border-radius: 12px; padding: 1rem 1.1rem; margin: 0 0 1rem; }
+.card p { color: var(--muted); }
+.card p.file { color: var(--ink); }
+button, label.pick { font: 600 1rem "Barlow", sans-serif; border-radius: 999px; padding: .45em 1.3em; cursor: pointer;
+                     border: 1px solid var(--accent); display: inline-block; }
+button.primary { background: var(--accent); color: var(--on-accent); }
+button.quiet, label.pick { background: var(--ground); color: var(--ink); border-color: var(--rule); }
+button:disabled { opacity: .35; cursor: default; }
+label.pick:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
+label.pick input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+.row { display: flex; flex-wrap: wrap; gap: .6rem; align-items: center; }
+.status { border-left: 4px solid var(--teal); background: var(--card); border-radius: 0 10px 10px 0; padding: .7rem 1rem; margin: 0 0 1rem;
+          min-height: 3.1rem; }
+.status.err { border-left-color: var(--accent); }
+.status.ask { border-left-color: #e2a63c; }
+.status p { margin: 0; color: var(--ink); }
+progress { width: 100%; height: 6px; margin: .2rem 0 1rem; accent-color: var(--teal); }
+progress[hidden] { display: none; }
+ul.small, p.small { color: var(--muted); font-size: .92rem; }
+ul.small { padding-left: 1.1rem; margin: 0; }
+kbd { font: 600 .9em "Barlow Semi Condensed", "Barlow", sans-serif; border: 1px solid var(--rule); border-bottom-width: 2px;
+      border-radius: 4px; padding: 0 .3em; background: var(--ground); }
+</style>
+<style>
+:root { --ground: #f4ecdc; --bg: #f4ecdc; --card: #fffaf0; --panel: #fffaf0; --now: #e9dcc4; --rule: #d8c6a8; --line: #d8c6a8; --muted: #6a5440; --dim: #6a5440; --ink: #24180f; --fg: #24180f; --accent: #8a5a00; --on-accent: #ffffff; --keytext: #ffffff; --teal: #2a7a72; --bad: #b3261e; --red: #b3261e; --focus: #2f5f9a; --wave: #a08a6e; --key: #24180f; color-scheme: light; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --ground: #18120e; --bg: #18120e; --card: #2c221a; --panel: #2c221a; --now: #46382a; --rule: #4a3c2e; --line: #4a3c2e; --muted: #beaa8c; --dim: #beaa8c; --ink: #f4e6c8; --fg: #f4e6c8; --accent: #e6b432; --on-accent: #18120e; --keytext: #18120e; --teal: #46aaa0; --bad: #ff7a5c; --red: #ff7a5c; --focus: #8fb4e0; --wave: #786450; --key: #f4e6c8; color-scheme: dark; } }
+:root[data-theme="dark"] { --ground: #18120e; --bg: #18120e; --card: #2c221a; --panel: #2c221a; --now: #46382a; --rule: #4a3c2e; --line: #4a3c2e; --muted: #beaa8c; --dim: #beaa8c; --ink: #f4e6c8; --fg: #f4e6c8; --accent: #e6b432; --on-accent: #18120e; --keytext: #18120e; --teal: #46aaa0; --bad: #ff7a5c; --red: #ff7a5c; --focus: #8fb4e0; --wave: #786450; --key: #f4e6c8; color-scheme: dark; }
+.lm-top { max-width: 64rem; margin: 0 auto 28px; display: flex; flex-wrap: wrap; align-items: center; gap: .3rem 1.4rem;
+          padding: 14px 0 12px; border-bottom: 1px solid var(--rule); font: 600 1rem/1.4 "Barlow", "Helvetica Neue", Arial, sans-serif; }
+.lm-top .lm-brand { display: inline-flex; align-items: center; gap: .55rem; color: var(--ink); text-decoration: none;
+                    font: 700 1.35rem/1 "Barlow Semi Condensed", "Barlow", sans-serif; letter-spacing: .02em; }
+.lm-top .lm-threads { display: inline-flex; gap: 3px; }
+.lm-top .lm-threads i { width: 4px; height: 18px; border-radius: 2px; }
+.lm-top nav { display: flex; flex-wrap: wrap; gap: .2rem 1.1rem; margin-left: auto; }
+.lm-top nav a { color: var(--muted); text-decoration: none; padding: 2px 0; border-bottom: 2px solid transparent; }
+.lm-top nav a:hover, .lm-top nav a:focus-visible { color: var(--ink); }
+.lm-top nav a[aria-current="page"] { color: var(--ink); border-bottom-color: var(--accent); }
+@media (max-width: 520px) { .lm-top nav { margin-left: 0; width: 100%; } }
+</style></head>
+<body><header class="lm-top"><a class="lm-brand" href="../"><span class="lm-threads" aria-hidden="true"><i style="background:#e6b432"></i><i style="background:#d66030"></i><i style="background:#a0aa46"></i><i style="background:#46aaa0"></i><i style="background:#6e96c8"></i><i style="background:#b46e96"></i><i style="background:#d2aa78"></i><i style="background:#96be96"></i></span>LOOM-8</a><nav aria-label="LOOM-8"><a href="../emu/">Try it</a><a href="../manual/">Manual</a><a href="../install/">Install</a><a href="../samples/">Samples</a><a href="../backup/" aria-current="page">Backup</a><a href="https://github.com/charlesvestal/fm1-loom">Source</a></nav></header>
+<main>
+<h1>Back up LOOM-8</h1>
+<p class="lede">Save what LOOM-8 keeps to a file on this computer, and load them back later. Connect the FM-1 with a USB
+cable. This page works in Chrome or Edge, and there is nothing to install.</p>
+
+<!-- what is happening, in words: the status (polite) and, when something fails, the alert (read at once) -->
+<div class="status" id="statusBox"><p id="status" role="status">Plug the FM-1 running LOOM-8 into this computer with a USB cable.</p><p id="alert" role="alert"></p></div>
+<progress id="bar" max="100" value="0" hidden aria-label="Backup progress"></progress>
+
+<section class="card" aria-labelledby="bh">
+  <h2 id="bh">Back up</h2>
+  <p>This saves everything to a <b>.loom8</b> file. That includes the three projects, the user presets and the samples. LOOM-8 can keep playing. If you have
+  changes that aren't saved yet, stop LOOM-8 first so they go in the file too.</p>
+  <div class="row"><button id="backup" class="primary" type="button">Back up</button></div>
+</section>
+
+<section class="card" aria-labelledby="rh">
+  <h2 id="rh">Restore</h2>
+  <p>This puts a backup back on LOOM-8, and it <b>replaces everything</b> there. Stop LOOM-8 first. LOOM-8 checks the
+  whole file before anything changes. Then its screen asks <b>RESTORE FROM USB?</b> Press <kbd>SEL</kbd> on the FM-1 to restore, or
+  <kbd>HOME</kbd> to keep what you have.</p>
+  <div class="row">
+    <label class="pick">Choose a backup&hellip;<input type="file" id="file" accept=".loom8" aria-describedby="fileInfo"></label>
+    <button id="restore" class="primary" type="button" disabled>Restore</button>
+  </div>
+  <p class="file" id="fileInfo" hidden></p>
+</section>
+
+<ul class="small">
+  <li>A backup doesn't hold the button calibration: it belongs to the FM-1.</li>
+  <li>The samples go in the file too. A restore sends them after LOOM-8 has said yes on its screen, which takes about 20 seconds more. An older backup has no samples, so a restore from it leaves the samples as they are.</li>
+  <li>A cut cable or a damaged file changes nothing. Even a power cut during the write leaves either what was there or
+    the backup, never a mix.</li>
+  <li>The browser asks once for permission to use MIDI with SysEx. Allow it, and close other apps that use the FM-1's MIDI first.</li>
+  <li>You can also do it from a terminal, in LOOM-8's repository: <code>python3 base/tools/fm1_backup.py</code> for the projects and presets (the same files: it leaves their samples alone), and <code>python3 tools/loom_samples.py backup</code> / <code>restore</code> for the samples (its restore takes this page's files too).</li>
+</ul>
+</main>
+<script>
+"use strict";
+// --- backup protocol: begin (tools/fm1_backup.py, device/backup.c; tested by tests/backup_page_test.mjs)
+const FW = { name: "LOOM-8", id: "FM-1_10", magic: "LM8B", version: Number("1"), ext: "loom8" };
+const PB = (() => {
+  const HS_QUERY = [0xF0, 0x00, 0x32, 0x45, 0x00, 0x00, 0x00, 0x40, 0x7F, 0xF7];   // fm1_install.py / fm1ota.js
+  const RS_REQ = 0x41, BU_REQ = 0x42, BU_END = 0x43;
+  const OK_ADDR = 0xC0000000, ASK_ADDR = 0xC1000000, FAIL_ADDR = 0xCF000000;
+  const NAME = FW.name, MAGIC = [...FW.magic].map((c) => c.charCodeAt(0)), VERSION = FW.version;   // app.h's
+  const HEAD = 16, REC = 8, PAYLOAD_MAX = 3840, MAXDATA = 512;
+  const PLAYING = 10, DECLINED = 11;
+  const ID = FW.id;                                                // the firmware's package identity (its prefix)
+  const DELAY = { poll: 500, idle: 10000, ask: 75000, first: 3000, hs: 1000 };   // ms, as fm1_backup.py
+  const ERRORS = {
+    1: "the file's size", 2: "the transfer (a piece of the file did not arrive)", 3: "the file's head",
+    4: "a part's header", 5: "a part's check (a byte changed on the way)", 6: "the whole file's check",
+    7: `erasing ${NAME}'s memory`, 8: `writing ${NAME}'s memory`, 9: "reading back what was written",
+    10: `${NAME} is playing`, 11: "HOME was pressed on the FM-1",
+    12: `writing the last step (${NAME} finishes it when it's switched on again)`,
+  };
+
+  function fail(code, msg) { const e = new Error(msg); e.code = code; return e; }
+
+  function pack7(data) {
+    const out = []; let acc = 0, nb = 0;
+    for (const b of data) { acc |= b << nb; nb += 8; while (nb >= 7) { out.push(acc & 0x7F); acc >>>= 7; nb -= 7; } }
+    if (nb) out.push(acc & 0x7F);
+    return out;
+  }
+  function unpack7(s) {
+    const out = []; let acc = 0, nb = 0;
+    for (const b of s) { acc |= (b & 0x7F) << nb; nb += 7; while (nb >= 8) { out.push(acc & 0xFF); acc >>>= 8; nb -= 8; } }
+    return out;
+  }
+  const CRC_T = (() => {
+    const t = new Uint32Array(256);
+    for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; }
+    return t;
+  })();
+  function crc32(bytes, start = 0, end = bytes.length) {          // zlib's
+    let c = 0xFFFFFFFF;
+    for (let i = start; i < end; i++) c = CRC_T[(c ^ bytes[i]) & 0xFF] ^ (c >>> 8);
+    return (c ^ 0xFFFFFFFF) >>> 0;
+  }
+  const u16 = (b, o) => b[o] | b[o + 1] << 8;
+  const u32 = (b, o) => (b[o] | b[o + 1] << 8 | b[o + 2] << 16 | b[o + 3] << 24) >>> 0;
+  const le32 = (v) => [v & 0xFF, (v >>> 8) & 0xFF, (v >>> 16) & 0xFF, (v >>> 24) & 0xFF];
+
+  // a host message in the update's framing (ota.c ota_take)
+  function frame(cmd, body) {
+    const n = body.length; let s = 0;
+    for (const b of body) s += b;
+    return [0xF0, ...pack7([0x00, 0x59, cmd, n & 0xFF, (n >> 8) & 0xFF, 0, ...body, ~s & 0xFF]), 0xF7];
+  }
+  // a device message -> {cmd, body} or null
+  function parseFrame(pkt) {
+    if (pkt.length < 2 || pkt[0] !== 0xF0 || pkt[pkt.length - 1] !== 0xF7) return null;
+    const u = unpack7(pkt.slice(1, -1));
+    if (u.length < 7 || u[0] !== 0 || u[1] !== 0x59) return null;
+    const n = u[3] | u[4] << 8 | u[5] << 16;
+    if (n + 7 !== u.length) return null;
+    let s = 0;
+    for (let i = 6; i < 6 + n; i++) s += u[i];
+    if ((~s & 0xFF) !== u[6 + n]) return null;
+    return { cmd: u[2], body: u.slice(6, 6 + n) };
+  }
+  // the answer to a read request (fm1_install.py response)
+  function response(addr, data, fl = 0) {
+    const n = data.length;
+    const body = [0x00, 0x59, 0x30, (n + 8) & 0xFF, ((n + 8) >> 8) & 0xFF, 0, fl, ...le32(addr), n & 0xFF, (n >> 8) & 0xFF, 0, ...data];
+    let s = 0;
+    for (let i = 6; i < body.length; i++) s += body[i];
+    body.push(~s & 0xFF);
+    return [0xF0, ...pack7(body), 0xF7];
+  }
+  function parseRequest(pkt) {
+    if (pkt.length < 2 || pkt[0] !== 0xF0 || pkt[pkt.length - 1] !== 0xF7) return null;
+    const u = unpack7(pkt.slice(1, -1));
+    if (u.length !== 15 || u[0] !== 0 || u[1] !== 0x59 || u[2] !== 0x30) return null;
+    let s = 0;
+    for (let i = 6; i < 14; i++) s += u[i];
+    if ((~s & 0xFF) !== u[14]) return null;
+    return { fl: u[6], addr: u32(u, 7), len: u[11] | u[12] << 8 | u[13] << 16 };
+  }
+  function parseIdentity(pkt) {
+    if (pkt.length < 2 || pkt[0] !== 0xF0 || pkt[pkt.length - 1] !== 0xF7) return null;
+    const d = unpack7(pkt.slice(1, -1));
+    if (d.length !== 34 || d[0] !== 0 || d[1] !== 0x59 || d[2] !== 0x11) return null;
+    const txt = String.fromCharCode(...d.slice(6, 33)).replace(/\0+$/, "");
+    return /^[^_]+_\d+$/.test(txt) ? txt : null;
+  }
+
+  // a backup file checked whole -> {flags, objs: [{obj, data}]}; throws (code "file") with what is wrong in plain words
+  function parse(image) {
+    const bad = (m) => fail("file", m);
+    if (image.length < HEAD + 4) throw bad(`This file is too short to be a ${NAME} backup.`);
+    if (MAGIC.some((b, i) => image[i] !== b)) throw bad(`This file is not a ${NAME} backup.`);
+    const ver = u16(image, 4), n = u16(image, 6), flags = u32(image, 8);
+    if (u32(image, 12) !== crc32(image, 0, 12)) throw bad("This backup is damaged (its head).");
+    if (ver < VERSION) throw bad(`This is a backup from an older ${NAME} (version ${ver}). This ${NAME} can't restore it. Nothing was changed.`);
+    if (ver !== VERSION) throw bad(`This is a backup from another version of ${NAME} (version ${ver}). This ${NAME} can't restore it.`);
+    if (image.length < HEAD + n * REC + 4) throw bad("This backup is cut short.");
+    const objs = []; let pos = HEAD;
+    for (let k = 0; k < n; k++) {
+      if (pos + REC > image.length) throw bad("This backup is cut short.");
+      const obj = u16(image, pos), ln = u16(image, pos + 2), crc = u32(image, pos + 4);
+      pos += REC;
+      if (ln > PAYLOAD_MAX || pos + ln + 4 > image.length) throw bad(`This backup is damaged (part ${k + 1}).`);
+      if (crc32(image, pos, pos + ln) !== crc) throw bad(`This backup is damaged (part ${k + 1}: a byte changed).`);
+      objs.push({ obj, data: image.subarray(pos, pos + ln) });
+      pos += ln;
+    }
+    if (pos + 4 !== image.length || u32(image, pos) !== crc32(image, 0, pos)) throw bad("This backup is damaged (the whole file's check).");
+    return { flags, objs };
+  }
+  // a file -> {image: the backup itself, sections: [{tag, data}]}: the firmware's sections after the backup's own
+  // CRC (EXTRAS); throws (code "file") on a damaged one. The backup itself is checked by parse.
+  function split(file) {
+    const bad = (m) => fail("file", m);
+    let pos = HEAD;
+    if (file.length >= HEAD) {
+      const n = u16(file, 6);
+      for (let k = 0; k < n && pos + REC <= file.length; k++) pos += REC + u16(file, pos + 2);
+    }
+    pos += 4;
+    if (pos >= file.length) return { image: file, sections: [] };
+    const sections = []; let at = pos;
+    while (at < file.length) {
+      if (at + 8 > file.length) throw bad("This backup is damaged (a section after it is cut short).");
+      const tag = String.fromCharCode(...file.subarray(at, at + 4)), ln = u32(file, at + 4);
+      if (at + 8 + ln + 4 > file.length) throw bad(`This backup is damaged (its section ${tag} is cut short).`);
+      const data = file.subarray(at + 8, at + 8 + ln);
+      if (u32(file, at + 8 + ln) !== crc32(data)) throw bad(`This backup is damaged (its section ${tag}: a byte changed).`);
+      sections.push({ tag, data });
+      at += 8 + ln + 4;
+    }
+    return { image: file.subarray(0, pos), sections };
+  }
+  function join(image, sections) {
+    const parts = [image];
+    for (const { tag, data } of sections) {
+      const head = new Uint8Array(8);
+      for (let i = 0; i < 4; i++) head[i] = tag.charCodeAt(i);
+      head.set(le32(data.length), 4);
+      parts.push(head, data, Uint8Array.from(le32(crc32(data))));
+    }
+    const out = new Uint8Array(parts.reduce((a, p) => a + p.length, 0));
+    let o = 0;
+    for (const p of parts) { out.set(p, o); o += p.length; }
+    return out;
+  }
+  function summary(objs) {
+    const used = objs.filter((o) => o.data.length).length;
+    const total = objs.reduce((a, o) => a + o.data.length, 0);
+    return `${used} of ${objs.length} parts with something saved (${total.toLocaleString("en")} bytes)`;
+  }
+
+  async function handshake(link, tries = 2) {
+    link.drain();
+    for (let t = 0; t < tries; t++) {
+      if (!link.send(HS_QUERY)) return null;
+      const end = Date.now() + DELAY.hs;
+      while (Date.now() < end) {
+        const p = await link.read(end - Date.now());
+        if (!p) break;
+        const id = parseIdentity(p);
+        if (id) return id;
+      }
+    }
+    return null;
+  }
+
+  // the first MIDI port pair that answers as an FM-1 (ports named after the firmware first); a Link from makeLink(input, output)
+  const NAME_RE = new RegExp(NAME.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
+  async function find(access, makeLink) {
+    const ins = [...access.inputs.values()].filter((p) => p.state !== "disconnected" &&
+      (NAME_RE.test(p.name || "") || /fm-?1|felucca|composite|sinco|usb-midi/i.test(p.name || "")));   // never probe other gear
+    ins.sort((a, b) => NAME_RE.test(b.name) - NAME_RE.test(a.name));
+    const outs = [...access.outputs.values()];
+    const base = (s) => (s || "").replace(/\s+\d+$/, "");
+    let other = null;
+    for (const input of ins) {
+      const same = outs.filter((o) => base(o.name) === base(input.name));
+      const output = outs.find((o) => o.name === input.name) || (same.length === 1 ? same[0] : null) || (outs.length === 1 ? outs[0] : null);
+      if (!output) continue;
+      try { await input.open(); await output.open(); } catch (_) { continue; }
+      const link = makeLink(input, output);
+      const id = await handshake(link);
+      if (id && id.startsWith(ID)) return { link, id, name: input.name };
+      if (id) other = other || id;
+      link.close();
+    }
+    if (other) throw fail("model", `The FM-1 runs other firmware (${other}), not ${NAME}. Install ${NAME} first.`);
+    throw fail("notfound", `${NAME} not found. Plug the FM-1 in with a USB data cable, close other apps that use its MIDI, and try again.`);
+  }
+
+  // the device's backup frames until its end frame -> {image, flags} (checked)
+  async function backup(link, onProgress = () => {}) {
+    link.drain();
+    link.send(frame(BU_REQ, MAGIC));
+    const got = []; let last = Date.now(), first = true;
+    for (;;) {
+      const pkt = await link.read(DELAY.poll);
+      if (!pkt) {
+        if (link.lost) throw fail("lost", "The FM-1 was disconnected. Plug it in and press Back up again.");
+        if (Date.now() - last > (first ? DELAY.first : DELAY.idle)) {
+          throw fail("stopped", first ? `${NAME} didn't answer. If it's an older ${NAME} without backup, update it on the Install page.`
+                                      : `${NAME} stopped sending. Press Back up again.`);
+        }
+        continue;
+      }
+      const f = parseFrame(pkt);
+      if (!f) continue;
+      last = Date.now();
+      if (f.cmd === BU_REQ && f.body.length >= 4) {
+        first = false;
+        if (u32(f.body, 0) !== got.length) throw fail("lost", "A piece of the backup went missing on the way. Press Back up again.");
+        for (let i = 4; i < f.body.length; i++) got.push(f.body[i]);
+        onProgress(got.length);
+      } else if (f.cmd === BU_END && f.body.length >= 10) {
+        const n = u32(f.body, 0), crc = u32(f.body, 4), status = f.body[8], flags = f.body[9];
+        if (status) throw fail("flash", `${NAME} could not read its memory (status ${status}). Try again.`);
+        const image = Uint8Array.from(got);
+        if (n !== image.length || crc !== crc32(image)) throw fail("lost", "The backup arrived damaged. Press Back up again.");
+        try { parse(image); } catch (e) { throw fail("lost", `The backup arrived damaged (${e.message}). Press Back up again.`); }
+        return { image, flags };
+      }
+    }
+  }
+
+  // send a checked backup image: answer the FM-1's reads until it reports -> 0 restored, else its code (PLAYING, DECLINED, ...)
+  async function restore(link, image, onEvent = () => {}) {
+    parse(image);                                                  // (the page checked it already: never send a bad one)
+    link.drain();
+    link.send(frame(RS_REQ, [...le32(image.length), ...le32(crc32(image))]));
+    let last = Date.now(), idle = DELAY.first, asked = 0;
+    for (;;) {
+      const pkt = await link.read(DELAY.poll);
+      if (!pkt) {
+        if (link.lost) throw fail("lost", `The FM-1 was disconnected. Nothing changed, unless ${NAME} said RESTORED.`);
+        if (Date.now() - last > idle) {
+          throw fail("stopped", asked ? `${NAME} stopped asking for the file. Nothing changed.`
+                                      : `${NAME} didn't answer. If it's an older ${NAME} without restore, update it on the Install page.`);
+        }
+        continue;
+      }
+      const r = parseRequest(pkt);
+      if (!r) continue;
+      last = Date.now(); idle = DELAY.idle; asked++;
+      const top = (r.addr & 0xFF000000) >>> 0;
+      if (top === OK_ADDR || top === FAIL_ADDR || top === ASK_ADDR) {
+        link.send(response(r.addr, [0x73, 0x75, 0x63, 0x63, 0x65, 0x73, 0x73, 0], r.fl));   // "success\0"
+        if (r.addr === ASK_ADDR) { idle = DELAY.ask; onEvent("ask"); continue; }
+        return r.addr === OK_ADDR ? 0 : (r.addr & 0xFFFF) || 99;
+      }
+      if (r.len > MAXDATA || r.addr >= image.length) throw fail("badreq", `${NAME} asked for a part outside the file (${r.addr.toString(16)}+${r.len}). Nothing changed.`);
+      const data = Array.from(image.subarray(r.addr, r.addr + r.len));
+      while (data.length < r.len) data.push(0);
+      if (!link.send(response(r.addr, data, r.fl))) throw fail("lost", "The FM-1 was disconnected. Nothing changed.");
+      onEvent("progress", Math.min(r.addr + r.len, image.length) * 100 / image.length);
+    }
+  }
+
+  return { HS_QUERY, RS_REQ, BU_REQ, BU_END, OK_ADDR, ASK_ADDR, FAIL_ADDR, VERSION, PLAYING, DECLINED, ID, NAME, MAGIC, DELAY, ERRORS,
+           pack7, unpack7, crc32, frame, parseFrame, response, parseRequest, parseIdentity, parse, split, join, summary, find, backup,
+           restore };
+})();
+// --- backup protocol: end
+
+const EXTRAS = (() => {
+// SPDX-License-Identifier: GPL-3.0-only
+// LOOM-8's user sample bank in the browser: tools/loom_samples.py and tools/sampleio.py (its numpy path) as plain
+// functions, so the samples page (app/web/samples/index.html) builds the bank the command line builds: the same
+// layout and header byte for byte, the same sound within a rounding (numpy sums a convolution in its own order).
+// tests/host/samples_web.mjs checks it against loom_samples.py. Adapted, as those are, from X0X's sample helpers
+// (Felucca's, Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments).
+//
+// Keep the order of operations of sampleio.py when touching these.
+
+const RATES = [11025, 16000, 22050, 32000];
+const AUTO = [22050, 16000, 11025];
+const BLK = 64;
+const REGIONS = [[0xC1000, 0x1B000], [0xE5000, 0x17000], [0x93000, 0x4000]];
+const XDATA = [1, 2], REC_MARK = 0xF06;
+const BANK_SIZE = REGIONS.reduce((a, r) => a + r[1], 0);
+const BANK_HDR = 2048, BANK_MAX_DATA = BANK_SIZE - BANK_HDR, BANK_N = 32, BANK_VER = 2;
+const ENT0 = 64, ENT = 40, BANK_MAGIC = 0x504D534C, NAME_LEN = 12, BARS_MAX = 16;
+const LOOP_ROOT = 53;                  // a loop's slice 1: F3, the lowest key
+const HDR_USED = ENT0 + BANK_N * ENT;  // the header's bytes the FM-1 keeps (1344)
+const PART = 320, NPART = Math.ceil(HDR_USED / PART);
+const READ_MAX = 224;                  // samples.c SB_READ_MAX
+
+const IMA_STEP = [7, 8, 9, 10, 11, 12, 13, 14, 16, 17, 19, 21, 23, 25, 28, 31, 34, 37, 41, 45, 50, 55, 60, 66, 73, 80, 88,
+  97, 107, 118, 130, 143, 157, 173, 190, 209, 230, 253, 279, 307, 337, 371, 408, 449, 494, 544, 598, 658,
+  724, 796, 876, 963, 1060, 1166, 1282, 1411, 1552, 1707, 1878, 2066, 2272, 2499, 2749, 3024, 3327, 3660,
+  4026, 4428, 4871, 5358, 5894, 6484, 7132, 7845, 8630, 9493, 10442, 11487, 12635, 13899, 15289, 16818,
+  18500, 20350, 22385, 24623, 27086, 29794, 32767];
+const IMA_IDX = [-1, -1, -1, -1, 2, 4, 6, 8];
+
+// ---- WAV in (sampleio.read_any_wav): -> {rate, x: mono floats, loop: [start, end] or null}
+function readWav(buf) {
+  const d = new DataView(buf.buffer || buf, buf.byteOffset || 0, buf.byteLength);
+  const tag4 = (o) => String.fromCharCode(d.getUint8(o), d.getUint8(o + 1), d.getUint8(o + 2), d.getUint8(o + 3));
+  if (d.byteLength < 12 || tag4(0) !== "RIFF" || tag4(8) !== "WAVE") throw new Error("not a WAV file");
+  const ch = {};
+  for (let i = 12; i + 8 <= d.byteLength;) {
+    const id = tag4(i), n = d.getUint32(i + 4, true);
+    if (!(id in ch)) ch[id] = [i + 8, n];
+    i += 8 + n + (n & 1);
+  }
+  if (!ch["fmt "]) throw new Error("WAV without a fmt chunk");
+  const fo = ch["fmt "][0];
+  let tag = d.getUint16(fo, true);
+  const nch = d.getUint16(fo + 2, true), sr = d.getUint32(fo + 4, true), bits = d.getUint16(fo + 14, true);
+  if (tag === 0xFFFE) tag = d.getUint16(fo + 24, true);
+  const bps = bits >> 3;
+  if ((tag !== 1 && tag !== 3) || !bps || !nch) throw new Error(`unsupported WAV (tag ${tag}, ${bits} bit)`);
+  const [o, n] = ch.data || [0, 0];
+  const frame = bps * nch, nfr = Math.floor(Math.min(n, d.byteLength - o) / frame);
+  const val = (p) => {
+    if (tag === 3) return bps === 4 ? d.getFloat32(p, true) : d.getFloat64(p, true);
+    if (bps === 2) return d.getInt16(p, true) / 32768;
+    if (bps === 3) return ((d.getUint8(p) << 8 | d.getUint8(p + 1) << 16 | d.getUint8(p + 2) << 24) >> 0) / 2147483648;
+    if (bps === 4) return d.getInt32(p, true) / 2147483648;
+    return (d.getUint8(p) - 128) / 128;
+  };
+  const x = new Float64Array(nfr);
+  for (let f = 0; f < nfr; f++) {
+    const p = o + f * frame;
+    let acc = 0;                                  // sum(v[f:f + nch]) / nch, from 0, left to right
+    for (let c = 0; c < nch; c++) acc += val(p + c * bps);
+    x[f] = nch > 1 ? acc / nch : acc;
+  }
+  let loop = null;
+  if (ch.smpl) {
+    const so = ch.smpl[0];
+    if (so + 52 <= d.byteLength && d.getUint32(so + 28, true)) loop = [d.getUint32(so + 44, true), d.getUint32(so + 48, true)];
+  }
+  return { rate: sr, x, loop };
+}
+
+// numpy.convolve(a, h, mode="same"): length max(N, M), from (min(N, M) - 1) // 2 of the full convolution
+function convolveSame(a, h) {
+  const N = a.length, M = h.length, L = Math.max(N, M), off = (Math.min(N, M) - 1) >> 1;
+  const out = new Float64Array(L);
+  for (let i = 0; i < L; i++) {
+    const k = i + off;                            // full[k] = sum_j a[k - j] h[j]
+    let acc = 0, j0 = Math.max(0, k - N + 1), j1 = Math.min(M - 1, k);
+    for (let j = j0; j <= j1; j++) acc += a[k - j] * h[j];
+    out[i] = acc;
+  }
+  return out;
+}
+
+function sinc(x) { if (x === 0) return 1.0; const y = Math.PI * x; return Math.sin(y) / y; }
+function blackman(M) {                            // numpy.blackman
+  const w = new Float64Array(M);
+  if (M === 1) { w[0] = 1; return w; }
+  for (let i = 0; i < M; i++) {
+    const n = 1 - M + 2 * i;
+    w[i] = 0.42 + 0.5 * Math.cos(Math.PI * n / (M - 1)) + 0.08 * Math.cos(2.0 * Math.PI * n / (M - 1));
+  }
+  return w;
+}
+
+// sampleio.resample (numpy): down, a windowed-sinc low-pass at 90 % of the new half rate; then linear interpolation
+function resample(x, sr, to) {
+  if (sr === to) return Float64Array.from(x);
+  let a = Float64Array.from(x);
+  if (a.length <= 1) return new Float64Array(0);
+  if (to < sr) {
+    const fc = 0.45 * to / sr, half = Math.ceil(8.0 / fc), M = 2 * half + 1, w = blackman(M), h = new Float64Array(M);
+    let sum = 0;
+    for (let i = 0; i < M; i++) { const t = i - half; h[i] = 2.0 * fc * sinc(2.0 * fc * t) * w[i]; }
+    for (let i = 0; i < M; i++) sum += h[i];
+    for (let i = 0; i < M; i++) h[i] /= sum;
+    a = convolveSame(a, h);
+  }
+  const n = Math.ceil((a.length - 1) * to / sr), step = sr / to, out = new Float64Array(n), last = a.length - 1;
+  for (let i = 0; i < n; i++) {                   // numpy.interp on 0, 1, 2 ...
+    const p = i * step, j = Math.floor(p);
+    out[i] = j >= last ? a[last] : (a[j + 1] - a[j]) * (p - j) + a[j];
+  }
+  return out;
+}
+
+// the pre-emphasis the playback's linear interpolation takes back off (sampleio.EMPHASIS)
+const EMPHASIS = [0.0517, -0.21, 1.3362, -0.21, 0.0517].map((v) => v / 1.0196);
+function emphasis(x) { return convolveSame(Float64Array.from(x), EMPHASIS); }
+
+function roundHalfEven(v) {                       // Python's round()
+  const f = Math.floor(v), d = v - f;
+  if (d > 0.5) return f + 1;
+  if (d < 0.5) return f;
+  return f % 2 === 0 ? f : f + 1;
+}
+
+// sampleio.to_int16: the peak normalised to 30000
+function toInt16(x, peakTo = 30000) {
+  let pk = 1e-9;
+  for (const v of x) { const a = Math.abs(v); if (a > pk) pk = a; }
+  const out = new Int16Array(x.length);
+  for (let i = 0; i < x.length; i++) out[i] = Math.max(-32768, Math.min(32767, roundHalfEven(x[i] / pk * peakTo)));
+  return out;
+}
+
+// sampleio.note_from_name: "C4" / "F#3" / "Bb2" in a name, C4 = 60
+function noteFromName(name, def = 60) {
+  const m = /(?<![A-Za-z])([A-G])([#b]?)(-?\d)(?!\d)/.exec(name);
+  if (!m) return def;
+  const pc = "C D EF G A B".indexOf(m[1]) + ({ "#": 1, b: -1, "": 0 })[m[2]];
+  return Math.max(0, Math.min(127, (parseInt(m[3], 10) + 1) * 12 + pc));
+}
+
+// sampleio.clean_name: lower case, printable, at most 11 characters
+function cleanName(name) {
+  const s = name.toLowerCase().replace(/_/g, " ").replace(/[^a-z0-9 _.-]/g, "").trim();
+  return (s || "sample").slice(0, NAME_LEN - 1);
+}
+
+const NOTE = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
+function noteName(n) { return NOTE[n % 12] + (Math.floor(n / 12) - 1); }
+
+// sampleio.ima_encode: -> {adpcm, ck: Uint32Array of the decoder's state before every BLK-th sample}
+function imaEncode(s) {
+  let pred = 0, idx = 0;
+  const adpcm = new Uint8Array(((s.length + 1) >> 1)), ck = new Uint32Array(Math.ceil(s.length / BLK));
+  for (let n = 0; n < s.length; n++) {
+    if (n % BLK === 0) ck[n / BLK] = ((pred & 0xFFFF) | idx << 16) >>> 0;
+    const step = IMA_STEP[idx];
+    let diff = s[n] - pred, code = 0;
+    if (diff < 0) { code = 8; diff = -diff; }
+    let vd = step >> 3;
+    if (diff >= step) { code |= 4; diff -= step; vd += step; }
+    if (diff >= step >> 1) { code |= 2; diff -= step >> 1; vd += step >> 1; }
+    if (diff >= step >> 2) { code |= 1; vd += step >> 2; }
+    pred = code & 8 ? pred - vd : pred + vd;
+    if (pred > 32767) pred = 32767; else if (pred < -32768) pred = -32768;
+    idx += IMA_IDX[code & 7];
+    if (idx < 0) idx = 0; else if (idx > 88) idx = 88;
+    adpcm[n >> 1] |= n & 1 ? code << 4 : code;
+  }
+  return { adpcm, ck };
+}
+
+// the firmware's decoder (dsp/sample.c): for the pictures of samples read back
+function imaDecode(b, n) {
+  let pred = 0, idx = 0;
+  const out = new Int16Array(n);
+  for (let i = 0; i < n; i++) {
+    const code = (b[i >> 1] >> (i & 1 ? 4 : 0)) & 15, step = IMA_STEP[idx];
+    let vd = step >> 3;
+    if (code & 4) vd += step;
+    if (code & 2) vd += step >> 1;
+    if (code & 1) vd += step >> 2;
+    pred = code & 8 ? pred - vd : pred + vd;
+    if (pred > 32767) pred = 32767; else if (pred < -32768) pred = -32768;
+    idx += IMA_IDX[code & 7];
+    if (idx < 0) idx = 0; else if (idx > 88) idx = 88;
+    out[i] = pred;
+  }
+  return out;
+}
+
+function sampleBytes(n) { return Math.ceil(n / BLK) * 4 + Math.floor((Math.floor((n + 1) / 2) + 3) / 4) * 4; }
+function bytesPerSecond(rate) { return rate * (0.5 + 4.0 / BLK); }
+
+// a file's samples at a rate, ready for the bank (loom_samples.at_rate): {s: Int16Array, loop}
+function atRate(x, sr, loop, rate) {
+  const s = toInt16(emphasis(resample(x, sr, rate)));
+  const lp = loop ? [Math.trunc(loop[0] * rate / sr), Math.trunc((loop[1] + 1) * rate / sr)] : null;
+  return { s, loop: lp };
+}
+function lengthAt(nx, sr, rate) { return Math.trunc(nx * rate / sr); }
+
+// ---- the bank's layout (sampleio.user_bank)
+function regionStarts() { const out = []; let v = 0; for (const [, n] of REGIONS) { out.push(v); v += n; } return out; }
+const STARTS = regionStarts();
+function regionOf(v) {
+  for (let r = 0; r < REGIONS.length; r++) if (STARTS[r] <= v && v < STARTS[r] + REGIONS[r][1]) return r;
+  return REGIONS.length;
+}
+
+class TooLong extends Error {}
+
+function place(blobs, pad) {
+  const starts = [...STARTS, BANK_SIZE], out = [];
+  let v = BANK_HDR;
+  for (let k = 0; k < blobs.length; k++) {
+    const [ckb, adpb] = blobs[k];
+    v = (v + pad[k] + 3) & ~3;
+    let a;
+    for (;;) {
+      const r = regionOf(v);
+      if (r >= REGIONS.length) throw new TooLong("too long");
+      if (v + ckb.length > starts[r + 1]) { v = starts[r + 1]; continue; }
+      a = v + ckb.length;
+      const ra = a < BANK_SIZE ? regionOf(a) : REGIONS.length;
+      if (ra >= REGIONS.length || a + adpb.length > starts[Math.min(ra + 2, REGIONS.length)]) {
+        if (ra + 1 >= REGIONS.length) throw new TooLong("too long");
+        v = starts[ra + 1];
+        continue;
+      }
+      break;
+    }
+    out.push([v, a]);
+    v = a + adpb.length;
+  }
+  if (v > BANK_SIZE) throw new TooLong("too long");
+  return { where: out, end: v };
+}
+
+function marks(img, end) {
+  const out = [];
+  for (const r of XDATA)
+    for (let sec = 0; sec < REGIONS[r][1]; sec += 0x1000) {
+      const v = STARTS[r] + sec + REC_MARK;
+      if (v + 2 <= end && img[v] === 0x41 && img[v + 1] === 0x54) out.push(v);
+    }
+  return out;
+}
+
+let CRC_T = null;
+function crc32(b) {                        // zlib.crc32
+  if (!CRC_T) {
+    CRC_T = new Uint32Array(256);
+    for (let n = 0; n < 256; n++) {
+      let c = n;
+      for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1;
+      CRC_T[n] = c >>> 0;
+    }
+  }
+  let c = 0xFFFFFFFF;
+  for (let i = 0; i < b.length; i++) c = CRC_T[(c ^ b[i]) & 0xFF] ^ (c >>> 8);
+  return (c ^ 0xFFFFFFFF) >>> 0;
+}
+
+// a sample for the bank: {name, n, root, loop: [ls, le] or null, bars, rate} and either s (Int16Array: encoded here)
+// or ckb + adpcm (as stored: a sample read back, kept as it is)
+function blobOf(smp) {
+  if (smp.adpcm) return [smp.ckb, smp.adpcm];
+  const { adpcm, ck } = imaEncode(smp.s);
+  const ckb = new Uint8Array(ck.length * 4), dv = new DataView(ckb.buffer);
+  ck.forEach((c, i) => dv.setUint32(i * 4, c, true));
+  return [ckb, adpcm];
+}
+
+// sampleio.user_bank: -> the bank's image (header + data, without the padding to BANK_SIZE); throws "too long ..."
+function userBank(samples) {
+  if (samples.length < 1 || samples.length > BANK_N) throw new Error(`1..${BANK_N} samples in the bank`);
+  const blobs = [], meta = [];
+  for (const smp of samples) {
+    const n = smp.adpcm ? smp.n : smp.s.length;
+    if (!(smp.bars >= 0 && smp.bars <= BARS_MAX)) throw new Error(`${smp.name}: ${smp.bars} bars (0..${BARS_MAX})`);
+    if (!(smp.rate >= 4000 && smp.rate <= 48000)) throw new Error(`${smp.name}: ${smp.rate} Hz (4000..48000)`);
+    if (!n) throw new Error(`${smp.name}: no audio`);
+    blobs.push(blobOf(smp));
+    let [ls, le] = smp.loop || [0, 0];
+    le = Math.min(le, n);
+    if (le <= ls) ls = le = 0;
+    meta.push({ nm: cleanName(smp.name), n, ls, le, root: Math.max(0, Math.min(127, smp.root)), bars: smp.bars, rate: smp.rate });
+  }
+  const pad = new Array(blobs.length).fill(0);
+  let where, end, img = null;
+  for (let t = 0; ; t++) {
+    if (t >= 4096) throw new Error("could not keep the update record's mark out of the bank");
+    try { ({ where, end } = place(blobs, pad)); } catch (e) {
+      if (e instanceof TooLong) {
+        const used = blobs.reduce((a, [c, d]) => a + c.length + d.length, 0);
+        throw new TooLong(`too long: ${used} B, the bank holds ${BANK_MAX_DATA} B`);
+      }
+      throw e;
+    }
+    img = new Uint8Array(end).fill(0xFF);
+    blobs.forEach(([ckb, adpb], k) => { img.set(ckb, where[k][0]); img.set(adpb, where[k][1]); });
+    const mk = marks(img, end);
+    if (!mk.length) break;
+    const k = where.findIndex(([c, a], i) => c <= mk[0] && mk[0] < a + blobs[i][1].length);
+    if (k < 0) throw new Error("an update record's mark outside the samples");
+    pad[k] += 4;
+  }
+  const data = img.subarray(BANK_HDR);
+  const hdr = new Uint8Array(BANK_HDR), v = new DataView(hdr.buffer);
+  v.setUint32(0, BANK_MAGIC, true);
+  v.setUint16(4, BANK_VER, true);
+  hdr[6] = meta.length;
+  hdr[7] = 0;
+  v.setUint32(8, data.length, true);
+  v.setUint32(12, crc32(data), true);
+  v.setUint32(16, BANK_SIZE, true);
+  meta.forEach((m, k) => {
+    const o = ENT0 + k * ENT;
+    for (let i = 0; i < m.nm.length; i++) hdr[o + i] = m.nm.charCodeAt(i);
+    v.setUint32(o + 12, where[k][1], true);         // the ADPCM, then the checkpoints
+    v.setUint32(o + 16, where[k][0], true);
+    v.setUint32(o + 20, m.n, true);
+    v.setUint32(o + 24, m.ls, true);
+    v.setUint32(o + 28, m.le, true);
+    hdr[o + 32] = m.root;
+    hdr[o + 34] = m.bars;
+    v.setUint16(o + 36, m.rate, true);
+  });
+  const out = new Uint8Array(BANK_HDR + data.length);
+  out.set(hdr);
+  out.set(data, BANK_HDR);
+  return out;
+}
+
+// a bank's header -> its samples' entries (null: not a bank)
+function parseHeader(hdr) {
+  const v = new DataView(hdr.buffer, hdr.byteOffset, hdr.byteLength);
+  if (hdr.length < ENT0 || v.getUint32(0, true) !== BANK_MAGIC || v.getUint16(4, true) !== BANK_VER) return null;
+  const count = hdr[6], out = [];
+  if (count > BANK_N || hdr.length < ENT0 + count * ENT) return null;
+  for (let k = 0; k < count; k++) {
+    const o = ENT0 + k * ENT;
+    let name = "";
+    for (let i = 0; i < NAME_LEN && hdr[o + i]; i++) name += String.fromCharCode(hdr[o + i]);
+    out.push({ name, adpOff: v.getUint32(o + 12, true), ckOff: v.getUint32(o + 16, true), n: v.getUint32(o + 20, true),
+      ls: v.getUint32(o + 24, true), le: v.getUint32(o + 28, true), root: hdr[o + 32], bars: hdr[o + 34],
+      rate: v.getUint16(o + 36, true) });
+  }
+  return { count, dataLen: v.getUint32(8, true), crc: v.getUint32(12, true), entries: out };
+}
+
+// loom_samples.pack7: groups of up to 7 bytes, each preceded by their top bits; and back
+function pack7(b) {
+  const out = [];
+  for (let i = 0; i < b.length; i += 7) {
+    let m = 0;
+    const g = b.subarray ? b.subarray(i, i + 7) : b.slice(i, i + 7);
+    g.forEach((x, j) => { m |= ((x >> 7) & 1) << j; });
+    out.push(m);
+    for (const x of g) out.push(x & 0x7F);
+  }
+  return out;
+}
+function unpack7(a) {
+  const out = [];
+  for (let i = 0; i < a.length;) {
+    const m = a[i++];
+    for (let j = 0; j < 7 && i < a.length; j++) out.push(a[i++] | ((m >> j) & 1) << 7);
+  }
+  return new Uint8Array(out);
+}
+
+// loom_samples.frames: the upload's frames, [command, args, timeout ms, what]
+function* frames(image) {
+  yield [11, [0], 10000, "begin"];
+  for (let off = BANK_HDR; off < image.length; off += 256)
+    yield [12, [0, off & 0x7F, (off >> 7) & 0x7F, (off >> 14) & 0x7F, ...pack7(image.subarray(off, off + 256))], 5000, off];
+  for (let part = 0; part < NPART; part++)
+    yield [16, [0, part, ...pack7(image.subarray(0, BANK_HDR).subarray(part * PART, (part + 1) * PART))], 3000, `header part ${part}`];
+  yield [13, [0], 20000, "end"];
+}
+
+// loom_samples.build: the bank from items in order, each either kept ({name, n, root, loop, bars, rate, ckb, adpcm}:
+// read back) or new ({name, x, sr, loop (the file's), root, bars, rate: its own or null}); rate: for the new ones that
+// did not choose (null: auto, the highest of AUTO at which all fits). -> {img, chose}; throws TooLong.
+// cache (a Map) keeps each new item's samples at a rate between calls.
+function build(items, rate = null, cache = new Map()) {
+  if (items.length < 1 || items.length > BANK_N) throw new Error(`1..${BANK_N} samples in the bank`);
+  const tries = rate ? [rate] : AUTO;
+  for (const r of tries) {
+    const est = items.reduce((a, it) => a + sampleBytes(it.adpcm ? it.n : lengthAt(it.x.length, it.sr, it.rate || r)), 0);
+    if (est > BANK_MAX_DATA) continue;
+    const smps = items.map((it) => {
+      if (it.adpcm) return it;
+      const rr = it.rate || r, key = rr;
+      let c = cache.get(it);
+      if (!c) cache.set(it, c = new Map());
+      if (!c.has(key)) c.set(key, atRate(it.x, it.sr, it.loop, rr));
+      const { s, loop } = c.get(key);
+      return { name: it.name, s, root: it.root, loop, bars: it.bars, rate: rr };
+    });
+    try { return { img: userBank(smps), chose: r }; } catch (e) { if (!(e instanceof TooLong)) throw e; }
+  }
+  const last = tries[tries.length - 1];
+  const need = items.reduce((a, it) => a + sampleBytes(it.adpcm ? it.n : lengthAt(it.x.length, it.sr, it.rate || last)), 0);
+  throw new TooLong(`too long: ${(need / 1024).toFixed(1)} KB at ${last} Hz, the bank holds ${(BANK_MAX_DATA / 1024).toFixed(1)} KB`);
+}
+
+// the samples of a bank image as kept items (a bank read back: each sample's checkpoints and ADPCM as stored)
+function keptOf(img) {
+  const h = parseHeader(img.subarray(0, Math.min(BANK_HDR, img.length)));
+  if (!h) return [];
+  return h.entries.map((e) => ({
+    name: e.name, n: e.n, root: e.root, loop: e.le > e.ls ? [e.ls, e.le] : null, bars: e.bars, rate: e.rate,
+    ckb: img.slice(e.ckOff, e.ckOff + Math.ceil(e.n / BLK) * 4), adpcm: img.slice(e.adpOff, e.adpOff + ((e.n + 1) >> 1)),
+  }));
+}
+
+// SPDX-License-Identifier: GPL-3.0-only
+// LOOM-8's sample bank as a section of the backup file (fm1-base's web/backup page, EXTRAS; tag "LSMP"): read back
+// through SMP_READ (17), written as the samples page writes it (BEGIN 11, WRITE 12, HDR 16, END 13; ERASE 14 for a
+// bank with no samples), app/samples.c. The section is the bank's image as tools/loom_samples.py backup / extract
+// make it (the 2048-byte header, then the data; a header alone with a count of 0 for an empty bank), so
+// "loom_samples.py restore" takes the file too. tools/make_pages.py inlines it after app/web/samples/loom_samples.js,
+// both inside one function that returns EXTRAS; tests/host/backup_web.mjs runs it against a simulated FM-1.
+const SB = [0x7D, 0x46, 0x4C];
+const SB_RC = { 1: "size or offset", 2: "erase", 3: "write", 4: "not begun", 5: "header", 6: "the data's check",
+  7: "no samples", 8: "an update record's mark" };
+
+// one request, its answer (the bytes after the command; one that is(r) accepts: a read's or a write's own offset, not
+// a late answer to an earlier one) or an error; link: fm1-base's backup page Link
+async function sbReq(link, cmd, args, ms = 3000, is = () => true) {
+  link.send([0xF0, ...SB, cmd, ...args, 0xF7]);
+  const end = Date.now() + ms;
+  for (;;) {
+    const left = end - Date.now();
+    if (left <= 0 || link.lost) throw new Error("LOOM-8 stopped answering.");
+    const p = await link.read(left);
+    if (p && p.length > 5 && p[1] === SB[0] && p[2] === SB[1] && p[3] === SB[2] && p[4] === cmd && is(p.slice(5, -1))) return p.slice(5, -1);
+  }
+}
+const off3 = (o) => [o & 0x7F, (o >> 7) & 0x7F, (o >> 14) & 0x7F];
+const sameOff = (r, o) => r[1] === (o & 0x7F) && r[2] === ((o >> 7) & 0x7F) && r[3] === ((o >> 14) & 0x7F);
+
+// n bytes of the bank from virtual offset off (224 a request; a lost answer asked again)
+async function sbRead(link, off, n, onPart) {
+  const out = new Uint8Array(n);
+  for (let at = 0; at < n;) {
+    const want = Math.min(READ_MAX, n - at), adr = off + at;
+    let r = null;
+    for (let k = 1; !r; k++) {
+      try { r = await sbReq(link, 17, [0, ...off3(adr), want & 0x7F, want >> 7], 3000, (a) => sameOff(a, adr)); }
+      catch (e) { if (k >= 4) throw e; }
+    }
+    if (r[4]) throw new Error(r[4] === 4 ? "LOOM-8 is in the middle of writing its samples. Try again when it's done."
+                                         : `LOOM-8 couldn't read its samples (${SB_RC[r[4]] || r[4]}).`);
+    const b = unpack7(r.slice(5));
+    if (b.length < want) throw new Error("A piece of the samples went missing on the way. Press Back up again.");
+    out.set(b.subarray(0, want), at);
+    at += want;
+    if (onPart) onPart(at / n);
+  }
+  return out;
+}
+
+function emptyBank() {
+  const hdr = new Uint8Array(BANK_HDR), v = new DataView(hdr.buffer);
+  v.setUint32(0, BANK_MAGIC, true);
+  v.setUint16(4, BANK_VER, true);
+  v.setUint32(16, BANK_SIZE, true);
+  return hdr;
+}
+
+// a section's bank image checked -> {count, used, img} (throws in plain words)
+function bankOf(data) {
+  const h = data.length >= BANK_HDR ? parseHeader(data.subarray(0, BANK_HDR)) : null;
+  if (!h || h.dataLen > BANK_MAX_DATA || data.length !== BANK_HDR + h.dataLen)
+    throw new Error("The samples in this backup are damaged.");
+  if (crc32(data.subarray(BANK_HDR)) !== h.crc) throw new Error("The samples in this backup are damaged (a byte changed).");
+  return { count: h.count, used: h.dataLen, img: data };
+}
+
+const LOOM_SAMPLES = {
+  tag: "LSMP",
+  what: "the samples",
+  async backup(link, onProgress = () => {}) {
+    const info = await sbReq(link, 15, [0]);
+    if (info[0] !== 2) throw new Error("This LOOM-8 is too old to back up its samples. Update it from the Install page.");
+    if (!info[5]) { onProgress(1); return emptyBank(); }
+    const hdr = await sbRead(link, 0, BANK_HDR);
+    const h = parseHeader(hdr);
+    if (!h || h.dataLen > BANK_MAX_DATA) throw new Error("LOOM-8's samples could not be read (their header).");
+    const data = await sbRead(link, BANK_HDR, h.dataLen, onProgress);
+    if (crc32(data) !== h.crc) throw new Error("The samples arrived damaged. Press Back up again.");
+    const img = new Uint8Array(BANK_HDR + data.length);
+    img.set(hdr);
+    img.set(data, BANK_HDR);
+    return img;
+  },
+  check(data) {
+    const b = bankOf(data);
+    return b.count ? `${b.count} sample${b.count === 1 ? "" : "s"} (${Math.round(b.used / 1024)} KB)` : "no samples";
+  },
+  async restore(link, data, onProgress = () => {}) {
+    const b = bankOf(data);
+    if (!b.count) {
+      const r = await sbReq(link, 14, [0], 60000);
+      if (r[1]) throw new Error(`LOOM-8 couldn't erase its samples (${SB_RC[r[1]] || r[1]}).`);
+      onProgress(1);
+      return;
+    }
+    const total = b.img.length - BANK_HDR;
+    for (const [cmd, args, ms, what] of frames(b.img)) {
+      let r = null;
+      for (let k = 1; !r; k++) {                     // a write again when its answer is lost (the same bytes)
+        try { r = await sbReq(link, cmd, args, ms, (a) => cmd !== 12 || sameOff(a, what)); }
+        catch (e) { if (cmd !== 12 || k >= 4) throw e; }
+      }
+      const rc = r.length ? r[r.length - 1] : 99;
+      if (rc) throw new Error(`LOOM-8 didn't take the samples (${SB_RC[rc] || rc}).`);
+      if (cmd === 12) onProgress((Math.min(what + 256, b.img.length) - BANK_HDR) / total);
+    }
+    const info = await sbReq(link, 15, [0]);
+    if (info[5] !== b.count) throw new Error(`LOOM-8 shows ${info[5]} samples, not ${b.count}.`);
+  },
+};
+return [LOOM_SAMPLES];
+})();
+
+// one MIDI in/out pair with a SysEx queue (as fm1ota.js)
+class Link {
+  constructor(input, output) {
+    this.input = input; this.output = output; this.q = []; this.waiter = null;
+    input.onmidimessage = (ev) => {
+      if (ev.data[0] !== 0xF0) return;
+      this.q.push(Array.from(ev.data));
+      if (this.waiter) { const w = this.waiter; this.waiter = null; w(); }
+    };
+  }
+  get lost() { return this.input.state === "disconnected" || this.output.state === "disconnected"; }
+  send(bytes) { try { this.output.send(bytes); return true; } catch (_) { return false; } }
+  drain() { this.q.length = 0; }
+  async read(ms) {
+    if (!this.q.length) {
+      let tm;
+      await Promise.race([new Promise((r) => { this.waiter = r; }), new Promise((r) => { tm = setTimeout(r, Math.max(ms, 0)); })]);
+      clearTimeout(tm);
+      this.waiter = null;
+    }
+    return this.q.shift() || null;
+  }
+  close() { this.input.onmidimessage = null; }
+}
+
+const $ = (id) => document.getElementById(id);
+const bar = $("bar");
+let busy = false, picked = null;
+let lastSaid = 0;
+function say(html, kind = "") {
+  $("status").innerHTML = kind === "err" ? "" : html;
+  $("alert").innerHTML = kind === "err" ? html : "";
+  $("statusBox").className = "status" + (kind ? " " + kind : "");
+  lastSaid = performance.now();
+}
+// progress in words at most every 2 s, or every 10 percent (a screen reader reads each change)
+let lastPct = -100;
+function sayProgress(html, pct) {
+  const now = performance.now();
+  if (now - lastSaid < 2000 && !(pct != null && pct - lastPct >= 10)) return;
+  if (pct != null) lastPct = pct;
+  say(html);
+}
+function progress(v) { bar.hidden = v == null; if (v != null) bar.value = v; }
+function setBusy(on) {
+  busy = on;
+  $("backup").disabled = on;
+  $("restore").disabled = on || !picked;
+  $("file").disabled = on;
+}
+window.addEventListener("beforeunload", (e) => { if (busy) { e.preventDefault(); e.returnValue = ""; } });
+
+let access = null;
+async function connect() {
+  if (!navigator.requestMIDIAccess) throw Object.assign(new Error("This browser has no Web MIDI. Open this page in Chrome or Edge."), { code: "nomidi" });
+  if (!access) {
+    try { access = await navigator.requestMIDIAccess({ sysex: true }); }
+    catch (_) { throw Object.assign(new Error("MIDI with SysEx was not allowed. Allow MIDI in the site settings (the address bar), then try again."), { code: "denied" }); }
+  }
+  say(`Looking for ${esc(FW.name)}&hellip;`);
+  return PB.find(access, (i, o) => new Link(i, o));
+}
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+
+$("backup").addEventListener("click", async () => {
+  if (busy) return;
+  setBusy(true);
+  let dev = null;
+  try {
+    dev = await connect();
+    say(`Receiving the backup from ${esc(FW.name)}&hellip;`);
+    progress(0);
+    const { image, flags } = await PB.backup(dev.link, (n) => { sayProgress(`Receiving the backup: ${n.toLocaleString("en")} bytes`); bar.removeAttribute("value"); });
+    const sections = [];
+    for (const ex of EXTRAS) {
+      say(`Receiving ${esc(ex.what)} from ${esc(FW.name)}&hellip;`);
+      lastPct = -100;
+      progress(0);
+      const data = await ex.backup(dev.link, (f) => { sayProgress(`Receiving ${esc(ex.what)}: ${Math.floor(f * 100)} percent`, Math.floor(f * 100)); progress(f * 100); });
+      sections.push({ tag: ex.tag, data, ex });
+    }
+    const file = PB.join(image, sections);
+    const d = new Date(), pad = (v) => String(v).padStart(2, "0");
+    const name = `${FW.name.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-backup-${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}.${FW.ext}`;
+    const url = URL.createObjectURL(new Blob([file], { type: "application/octet-stream" }));
+    const a = document.createElement("a");
+    a.href = url; a.download = name;
+    document.body.append(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
+    progress(null);
+    say(`Done. <b>${esc(name)}</b> is in your downloads. It holds ${esc(PB.summary(PB.parse(image).objs))}` +
+        sections.map((s) => `, and ${esc(s.ex.check(s.data))}`).join("") + "." +
+        (flags & 1 ? `<br>${esc(FW.name)} was playing, so changes it hadn't saved yet aren't in it. To include them, stop ${esc(FW.name)} and back up again.` : ""));
+  } catch (e) {
+    progress(null);
+    say(esc(e.message), "err");
+  } finally {
+    if (dev) dev.link.close();
+    setBusy(false);
+  }
+});
+
+$("file").addEventListener("change", async (e) => {
+  picked = null;
+  const f = e.target.files && e.target.files[0];
+  const info = $("fileInfo");
+  info.hidden = true;
+  if (f) {
+    try {
+      const { image, sections } = PB.split(new Uint8Array(await f.arrayBuffer()));
+      const { flags, objs } = PB.parse(image);
+      const known = sections.map((s) => ({ ...s, ex: EXTRAS.find((ex) => ex.tag === s.tag) })).filter((s) => s.ex);
+      const said = known.map((s) => `, and ${s.ex.check(s.data)}`).join("");
+      const missing = EXTRAS.filter((ex) => !known.some((s) => s.ex === ex));
+      picked = { image, sections: known, name: f.name };
+      info.innerHTML = `<b>${esc(f.name)}</b>: ${esc(PB.summary(objs))}${esc(said)}${flags & 1 ? `, taken while ${esc(FW.name)} was playing` : ""}.` +
+        (missing.length ? ` It doesn't hold ${esc(missing.map((ex) => ex.what).join(" or "))}, so ${missing.length > 1 ? "those stay" : "they stay"} as they are.` : "");
+      info.hidden = false;
+      say(`Ready to restore. Stop ${esc(FW.name)} first, then press Restore.`);
+    } catch (err) {
+      say(`${esc(f.name)}: ${esc(err.message)}`, "err");
+      info.innerHTML = `<b>${esc(f.name)}</b>: ${esc(err.message)} Choose a ${esc(FW.name)} backup (.${esc(FW.ext)}) instead.`;   // (next to the control too)
+      info.hidden = false;
+    }
+  }
+  setBusy(false);
+});
+
+$("restore").addEventListener("click", async () => {
+  if (busy || !picked) return;
+  if (!confirm(`Replace everything on ${FW.name} with ${picked.name}?\n\n${FW.name} asks too, on its screen.`)) return;
+  setBusy(true);
+  let dev = null;
+  try {
+    dev = await connect();
+    say(`Sending the backup to ${esc(FW.name)}&hellip;`);
+    lastPct = -100;
+    progress(0);
+    const code = await PB.restore(dev.link, picked.image, (what, pct) => {
+      if (what === "progress") { sayProgress(`Sending the backup: ${Math.floor(pct)} percent`, Math.floor(pct)); progress(pct); }
+      if (what === "ask") {
+        progress(100);
+        say(`Sent and checked. ${esc(FW.name)} now asks <b>RESTORE FROM USB?</b> on the FM-1. Press <kbd>SEL</kbd> to restore, or <kbd>HOME</kbd> to keep what you have.`, "ask");
+      }
+    });
+    progress(null);
+    if (code === 0 && picked.sections.length) {
+      for (const s of picked.sections) {
+        say(`Restored. Now sending ${esc(s.ex.what)}&hellip;`);
+        lastPct = -100;
+        progress(0);
+        try {
+          await s.ex.restore(dev.link, s.data, (f) => { sayProgress(`Sending ${esc(s.ex.what)}: ${Math.floor(f * 100)} percent`, Math.floor(f * 100)); progress(f * 100); });
+        } catch (e) {
+          throw new Error(`${FW.name} restored the backup, but not ${s.ex.what}: ${e.message} Restore again to send them.`);
+        }
+      }
+      progress(null);
+      say(`Done. ${esc(FW.name)} restored the backup and ${esc(picked.sections.map((s) => s.ex.what).join(" and "))}, and reloaded everything.`);
+    } else if (code === 0) say(`Done. ${esc(FW.name)} restored the backup and reloaded everything.`);
+    else if (code === PB.PLAYING) say(`<b>STOP FIRST.</b> ${esc(FW.name)} is playing. Press <kbd>PLAY</kbd> on the FM-1 to stop it, then press Restore again. Nothing changed.`, "err");
+    else if (code === PB.DECLINED) say("Not restored. Someone pressed <kbd>HOME</kbd> on the FM-1, or nobody answered within a minute. Nothing changed.", "err");
+    else say(`Not restored. There was a problem with ${esc(PB.ERRORS[code] || "code " + code)}.` + (code === 12 ? "" : " Nothing changed. Try again."), "err");
+  } catch (e) {
+    progress(null);
+    say(esc(e.message), "err");
+  } finally {
+    if (dev) dev.link.close();
+    setBusy(false);
+  }
+});
+</script>
+</body>
+</html>

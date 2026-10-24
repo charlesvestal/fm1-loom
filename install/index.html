@@ -1,0 +1,784 @@
+<!doctype html>
+<!-- SPDX-License-Identifier: MPL-2.0
+     Copyright (C) 2026 Charles Vestal
+     Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments
+     A firmware's installer page: Felucca's (by way of X0X and FoMni-1), English first. tools/make_site.py fills in
+     the firmware's name, source and credits ({{...}}) and inlines fm1pkg.js, fm1ota.js and the package's metadata. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Install · LOOM-8</title>
+<style>
+  /* light: the coral and the dim brown darkened just enough for 4.5:1 on the cream (and white on the coral) */
+  :root { --bg: #faf4e8; --fg: #48392f; --dim: #6e5c4b; --accent: #b84a1e; --on-accent: #fff; --bad: #a3271b; --focus: #1f6fd1; }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) { --bg: #1c1814; --fg: #f2e8d8; --dim: #b3a28e; --accent: #f28a5a; --on-accent: #2a140a; --bad: #ff8a73; --focus: #79adff; }
+  }
+  :root[data-theme="dark"] { --bg: #1c1814; --fg: #f2e8d8; --dim: #b3a28e; --accent: #f28a5a; --on-accent: #2a140a; --bad: #ff8a73; --focus: #79adff; }
+  body { margin: 0; background: var(--bg); color: var(--fg);
+         font: 16px/1.6 -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif; }
+  main { max-width: 520px; margin: 0 auto; padding: 48px 16px 0; }
+  footer { max-width: 520px; margin: 0 auto; padding: 24px 16px 48px; }
+  h1 { font-size: 24px; font-weight: 600; margin: 0 0 24px; }
+  .lang { float: right; font-size: 13px; color: var(--dim); cursor: pointer; text-decoration: underline; background: none; padding: 4px 0; }
+  p { margin: 0 0 16px; }
+  button { font: inherit; background: var(--accent); color: var(--on-accent); border: 0; border-radius: 999px; padding: 8px 22px; cursor: pointer; }
+  button:disabled { opacity: .45; cursor: default; }
+  :focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+  a { color: inherit; }
+  #alert { color: var(--bad); font-weight: 600; margin: 0; }
+  #alert:empty { display: none; }
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  #status { margin-top: 16px; min-height: 1.6em; }
+  .small { color: var(--dim); font-size: 13px; }
+  progress { width: 100%; height: 8px; margin-top: 16px; accent-color: var(--accent); }
+  pre { color: var(--dim); font-size: 12px; white-space: pre-wrap; margin-top: 16px; }
+  /* the log: its own scrolling box (an install is a few thousand lines), hidden until it has some */
+  #log { max-height: 15em; overflow-y: auto; overscroll-behavior: contain; padding: 8px 10px; border-radius: 6px;
+         border: 1px solid color-mix(in srgb, var(--dim) 35%, transparent); }
+  #log:empty { display: none; }
+  h2 { font-size: 18px; font-weight: 600; margin: 40px 0 12px; }
+  ol { margin: 0 0 16px; padding-left: 20px; }
+  textarea { width: 100%; box-sizing: border-box; font: 12px/1.4 ui-monospace, Menlo, monospace; color: var(--fg);
+             background: transparent; border: 1px solid var(--dim); border-radius: 6px; padding: 8px; }
+  input[type=file] { font: inherit; font-size: 13px; color: var(--fg); max-width: 100%; }
+  .opt { display: flex; gap: 10px; align-items: flex-start; margin: 0 0 8px; }
+  .opt input { margin-top: 6px; accent-color: var(--accent); }
+  .backup { border: 2px solid var(--accent); border-radius: 10px; padding: 12px 14px; margin: 0 0 16px; }
+  .backup strong { color: var(--accent); }
+  dialog { max-width: 440px; border: 0; border-radius: 12px; padding: 24px; background: var(--bg); color: var(--fg);
+           box-shadow: 0 8px 40px rgba(0, 0, 0, .35); }
+  dialog::backdrop { background: rgba(0, 0, 0, .45); }
+  dialog h2 { margin: 0 0 12px; }
+  dialog .row { display: flex; gap: 12px; justify-content: flex-end; margin: 24px 0 0; }
+  button.plain { background: none; color: var(--fg); border: 1px solid var(--dim); }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+  .note { border-left: 4px solid var(--accent); padding: 4px 0 4px 12px; }
+</style>
+<style>
+:root { --ground: #f4ecdc; --bg: #f4ecdc; --card: #fffaf0; --panel: #fffaf0; --now: #e9dcc4; --rule: #d8c6a8; --line: #d8c6a8; --muted: #6a5440; --dim: #6a5440; --ink: #24180f; --fg: #24180f; --accent: #8a5a00; --on-accent: #ffffff; --keytext: #ffffff; --teal: #2a7a72; --bad: #b3261e; --red: #b3261e; --focus: #2f5f9a; --wave: #a08a6e; --key: #24180f; color-scheme: light; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --ground: #18120e; --bg: #18120e; --card: #2c221a; --panel: #2c221a; --now: #46382a; --rule: #4a3c2e; --line: #4a3c2e; --muted: #beaa8c; --dim: #beaa8c; --ink: #f4e6c8; --fg: #f4e6c8; --accent: #e6b432; --on-accent: #18120e; --keytext: #18120e; --teal: #46aaa0; --bad: #ff7a5c; --red: #ff7a5c; --focus: #8fb4e0; --wave: #786450; --key: #f4e6c8; color-scheme: dark; } }
+:root[data-theme="dark"] { --ground: #18120e; --bg: #18120e; --card: #2c221a; --panel: #2c221a; --now: #46382a; --rule: #4a3c2e; --line: #4a3c2e; --muted: #beaa8c; --dim: #beaa8c; --ink: #f4e6c8; --fg: #f4e6c8; --accent: #e6b432; --on-accent: #18120e; --keytext: #18120e; --teal: #46aaa0; --bad: #ff7a5c; --red: #ff7a5c; --focus: #8fb4e0; --wave: #786450; --key: #f4e6c8; color-scheme: dark; }
+.lm-top { max-width: 64rem; margin: 0 auto 28px; display: flex; flex-wrap: wrap; align-items: center; gap: .3rem 1.4rem;
+          padding: 14px 0 12px; border-bottom: 1px solid var(--rule); font: 600 1rem/1.4 "Barlow", "Helvetica Neue", Arial, sans-serif; }
+.lm-top .lm-brand { display: inline-flex; align-items: center; gap: .55rem; color: var(--ink); text-decoration: none;
+                    font: 700 1.35rem/1 "Barlow Semi Condensed", "Barlow", sans-serif; letter-spacing: .02em; }
+.lm-top .lm-threads { display: inline-flex; gap: 3px; }
+.lm-top .lm-threads i { width: 4px; height: 18px; border-radius: 2px; }
+.lm-top nav { display: flex; flex-wrap: wrap; gap: .2rem 1.1rem; margin-left: auto; }
+.lm-top nav a { color: var(--muted); text-decoration: none; padding: 2px 0; border-bottom: 2px solid transparent; }
+.lm-top nav a:hover, .lm-top nav a:focus-visible { color: var(--ink); }
+.lm-top nav a[aria-current="page"] { color: var(--ink); border-bottom-color: var(--accent); }
+@media (max-width: 520px) { .lm-top nav { margin-left: 0; width: 100%; } }
+</style></head>
+<body><header class="lm-top"><a class="lm-brand" href="../"><span class="lm-threads" aria-hidden="true"><i style="background:#e6b432"></i><i style="background:#d66030"></i><i style="background:#a0aa46"></i><i style="background:#46aaa0"></i><i style="background:#6e96c8"></i><i style="background:#b46e96"></i><i style="background:#d2aa78"></i><i style="background:#96be96"></i></span>LOOM-8</a><nav aria-label="LOOM-8"><a href="../emu/">Try it</a><a href="../manual/">Manual</a><a href="../install/" aria-current="page">Install</a><a href="../samples/">Samples</a><a href="../backup/">Backup</a><a href="https://github.com/charlesvestal/fm1-loom">Source</a></nav></header>
+<main>
+  <button type="button" class="lang" id="lang" lang="ja">日本語</button>
+  <h1>Install LOOM-8</h1>
+  <p data-t="intro">Connect the FM-1 by USB, then press Install. It works in Chrome or Edge; the browser asks once to allow MIDI: allow it.</p>
+  <p class="note"><b>The breaks have moved.</b> From 0.7, the four breaks (classic, heat, choke and ecstasy) are no longer built into the firmware. After installing, add them from <a href="../samples/">the samples page</a> with "Add the breaks". They then work as before, in the slice presets and in your projects.</p>
+  <p data-t="warn">Do not unplug the USB cable while writing.</p>
+  <p class="small" data-t="direct"></p>
+  <p class="small"><span data-t="brick"></span>
+    <a href="https://github.com/hugelton/felucca-bsp/tree/main/tools" data-t="bricklink">recovering an FM-1 that won't start</a></p>
+  <p class="small" data-t="back"></p>
+  <p class="small"><a href="https://www.m-vave.com/download" target="_blank" rel="noopener">www.m-vave.com/download<span class="sr" data-t="newtab"> (opens in a new tab)</span></a></p>
+  <div id="mbootopt" hidden>
+    <p class="opt"><input type="checkbox" id="mboot"><label for="mboot" data-t="mboot"></label></p>
+    <p class="small"><span data-t="mbootwhy"></span>
+      <a href="https://github.com/jvitkauskas/m-bootloader" target="_blank" rel="noopener">github.com/jvitkauskas/m-bootloader<span class="sr" data-t="newtab"> (opens in a new tab)</span></a></p>
+  </div>
+  <p class="backup"><strong data-t="bakh">Back up first.</strong> <span data-t="confirmbak"></span>
+    <a class="baklink" href="../backup/" target="_blank" rel="noopener"><span data-t="backuplink"></span><span class="sr" data-t="newtab"> (opens in a new tab)</span></a></p>
+  <p><button type="button" id="go" disabled data-t="install">Install</button></p>
+  <label class="sr" for="bar" data-t="progress">Progress</label>
+  <progress id="bar" max="100" value="0"></progress>
+  <p id="status" role="status"></p>
+  <p id="alert" role="alert"></p>
+  <pre id="log"></pre>
+  <h2 data-t="stockh">Back to the stock firmware</h2>
+  <p class="small" data-t="stockwhy"></p>
+  <ol class="small">
+    <li><span data-t="stock1"></span> <a id="stocklink" href="https://yms-file-store.oss-cn-hongkong.aliyuncs.com/software/firmware/FM-1.fwsc">FM-1.fwsc</a></li>
+    <li><label for="stockfile" data-t="stock2">Choose the file you downloaded:</label><br><input type="file" id="stockfile" accept=".fwsc"></li>
+    <li data-t="stock3"></li>
+  </ol>
+  <p><button type="button" id="stockgo" disabled data-t="stockinstall">Install the stock firmware</button></p>
+  <h2 data-t="reporth">Report a problem</h2>
+  <p class="small" data-t="reportwhy"></p>
+  <p><button type="button" id="reportgo" data-t="reportread">Read the crash report</button>
+    <button type="button" id="reportcopy" hidden data-t="reportcopy">Copy</button></p>
+  <p id="reportstatus" role="status"></p>
+  <label class="sr" for="report" data-t="reportlabel">Crash report</label>
+  <textarea id="report" readonly hidden rows="14"></textarea>
+  <p><a href="../" data-t="manual">Back to LOOM-8</a></p>
+</main>
+<dialog id="confirm" aria-labelledby="confirmh">
+  <form method="dialog">
+    <h2 id="confirmh" data-t="confirmh"></h2>
+    <p class="backup"><strong data-t="bakh">Back up first.</strong> <span data-t="confirmbak"></span>
+      <a class="baklink" href="../backup/" target="_blank" rel="noopener"><span data-t="backuplink"></span><span class="sr" data-t="newtab"> (opens in a new tab)</span></a></p>
+    <p class="opt"><input type="checkbox" id="bakok"><label for="bakok" data-t="bakok"></label></p>
+    <p data-t="confirm1"></p>
+    <p id="confirmboot" data-t="confirmboot"></p>
+    <div class="row"><button type="submit" class="plain" value="cancel" data-t="confirmcancel"></button>
+      <button type="submit" id="confirmgo" value="go" disabled data-t="confirmgo"></button></div>
+  </form>
+</dialog>
+<footer>
+  <p class="small">LOOM-8 is built on fm1-base and felucca-bsp, from Felucca by Leo Kuroshita (@kurogedelic), <a href="https://hugelton.com" target="_blank" rel="noopener">Hügelton Instruments<span class="sr" data-t="newtab"> (opens in a new tab)</span></a>. Supersaw (brocade): after NuSaw (MIT). Cane, voile and gingham: Mutable Instruments Braids by Emilie Gillet (MIT). Reverb: PSXVerb (MIT). The x drums: after MACHINEDRUM by Omodaka9375 (MIT); sophie: Sophie by Matt Estela (MIT); clang: digisophie (MIT). Fonts: Barlow, Terminus (SIL OFL 1.1).<br>
+    Fonts: Barlow Semi Condensed (SIL OFL 1.1). M-VAVE and FM-1 are trademarks of their respective owners.<br>
+    <span data-t="license"></span> <a href="https://github.com/charlesvestal/fm1-loom" target="_blank" rel="noopener">github.com/charlesvestal/fm1-loom<span class="sr" data-t="newtab"> (opens in a new tab)</span></a></p>
+</footer>
+<script type="module">
+// SPDX-License-Identifier: MPL-2.0
+// Copyright (C) 2026 Charles Vestal
+// Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments
+//
+// FM-1 .fwsc packages in the browser: the package identity and the image the
+// device reads during an update.
+
+const BLOCKS = 20, BLK = 0x30, KEEP = 0x2F;
+
+// the package identity ("FM-1_904"): one marker byte after each of the first 20 blocks
+function productOf(fwsc) {
+  if (fwsc.length < BLOCKS * BLK) throw new Error("not an FM-1 package (too short)");
+  let s = "";
+  for (let i = 0; i < BLOCKS; i++) {
+    const m = fwsc[i * BLK + KEEP];
+    if (m !== 0x7D) s += String.fromCharCode((m - i - 1) & 0xFF);
+  }
+  return s;
+}
+
+// the image the device addresses during an update: the .fwsc without the 20 marker bytes
+function logicalImage(fwsc) {
+  const out = new Uint8Array(fwsc.length - BLOCKS);
+  for (let i = 0; i < BLOCKS; i++) out.set(fwsc.subarray(i * BLK, i * BLK + KEEP), i * KEEP);
+  out.set(fwsc.subarray(BLOCKS * BLK), BLOCKS * KEEP);
+  return out;
+}
+
+// the UFW entries of a logical image, by type (0 flash.bin, 100 ota.bin): {off, len}. The header and the
+// entry list are ciphered with key 0xFFFF (felucca-bsp chip/ota.c ota_jl_enc); the CRCs are not checked here
+function ufwEntries(image) {
+  const dec = (off, n) => {
+    const b = image.slice(off, off + n);
+    for (let i = 0, k = 0xFFFF; i < n; i++) { b[i] ^= k & 0xFF; k = ((k << 1) ^ (k & 0x8000 ? 0x1021 : 0)) & 0xFFFF; }
+    return b;
+  };
+  const rd16 = (b, o) => b[o] | (b[o + 1] << 8);
+  const rd32 = (b, o) => (b[o] | (b[o + 1] << 8) | (b[o + 2] << 16) | (b[o + 3] << 24)) >>> 0;
+  const out = {};
+  const n = Math.min(rd16(dec(0, 0x40), 8), 11);
+  for (let i = 0; i < n; i++) {
+    const e = dec(0x40 + i * 0x50, 0x50);
+    out[rd16(e, 0)] = { off: rd32(e, 8), len: rd32(e, 12) };
+  }
+  return out;
+}
+
+// SPDX-License-Identifier: MPL-2.0
+// Copyright (C) 2026 Charles Vestal
+// Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments
+//
+// The FM-1 USB-MIDI update protocol (M-UPGRADE compatible) over WebMIDI.
+// Step 1: the running firmware reads parts of the package and stages the update
+// loader. Step 2: the loader reads the whole image and writes it. In both steps
+// the device sends cmd 0x30 read requests on the logical image and we answer.
+
+const HS_QUERY = [0xF0, 0x00, 0x32, 0x45, 0x00, 0x00, 0x00, 0x40, 0x7F, 0xF7];
+const UPGRADE = [0xF0, 0x22, 0x24, 0x35, 0x7F, 0xF7];
+const MAXDATA = 512;
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const IS_OTA = (id) => /^ota-/i.test(id.model);
+
+// M-VAVE's FM1 Open firmware (V10, 2026-10): its updater takes only a package it has been told about
+// first (cmd 49 reads its state, cmd 50 arms it with the image length and the package's SHA-256); then
+// the update runs as usual. Only M-VAVE's own FM-1 firmware is installed over it: its loader rewrites the
+// whole flash, boot head included, which returns the FM-1 to stock.
+const OPEN_RE = /^FM1_(OFFICIAL_OPEN|COMMUNITY_\d+)$/;
+// M-VAVE's FM-1 firmware, any version: "FM-1_0" and two digits ("FM-1_016"; fm1-base's dev builds are
+// "FM-1_x00", its releases longer; m-bootloader's installer is FM-1_099). Whether a package is safe to write is the device's to check
+// (felucca-bsp chip/ota.c: a well-made writer, a bootable boot area), not a list of known files
+const IS_STOCK = (product) => /^FM-1_0\d\d$/.test(product) && product !== "FM-1_099";
+
+// errors carry a code the pages translate: notfound, model, stopped, noloader, lost, noreturn,
+// mismatch (detail: the identity the device reports), badreq
+function fail(code, msg, detail = "") { const e = new Error(msg); e.code = code; e.detail = detail; return e; }
+
+function pack7(data) {
+  const out = []; let acc = 0, nb = 0;
+  for (const b of data) {
+    acc |= b << nb; nb += 8;
+    while (nb >= 7) { out.push(acc & 0x7F); acc >>>= 7; nb -= 7; }
+  }
+  if (nb) out.push(acc & 0x7F);
+  return out;
+}
+
+function unpack7(s) {
+  const out = []; let acc = 0, nb = 0;
+  for (const b of s) {
+    acc |= (b & 0x7F) << nb; nb += 7;
+    while (nb >= 8) { out.push(acc & 0xFF); acc >>>= 8; nb -= 8; }
+  }
+  return out;
+}
+
+function response(addr, data, fl = 0) {
+  const len = data.length;
+  const body = [0x00, 0x59, 0x30, (len + 8) & 0xFF, ((len + 8) >> 8) & 0xFF, 0, fl,
+    addr & 0xFF, (addr >>> 8) & 0xFF, (addr >>> 16) & 0xFF, (addr >>> 24) & 0xFF,
+    len & 0xFF, (len >> 8) & 0xFF, 0, ...data];
+  let s = 0;
+  for (let i = 6; i < body.length; i++) s += body[i];
+  body.push(~s & 0xFF);
+  return [0xF0, ...pack7(body), 0xF7];
+}
+
+function parseRequest(pkt) {
+  if (pkt[0] !== 0xF0 || pkt[pkt.length - 1] !== 0xF7) return null;
+  const u = unpack7(pkt.slice(1, -1));
+  if (u.length !== 15 || u[0] !== 0 || u[1] !== 0x59 || u[2] !== 0x30) return null;
+  let s = 0;
+  for (let i = 6; i < 14; i++) s += u[i];
+  if ((~s & 0xFF) !== u[14]) return null;
+  return { fl: u[6], addr: (u[7] | (u[8] << 8) | (u[9] << 16) | (u[10] << 24)) >>> 0, len: u[11] | (u[12] << 8) | (u[13] << 16) };
+}
+
+function parseIdentity(pkt) {
+  const d = unpack7(pkt.slice(1, -1));
+  if (d.length !== 34 || d[0] !== 0 || d[1] !== 0x59 || d[2] !== 0x11) return null;
+  const txt = String.fromCharCode(...d.slice(6, 33)).replace(/\0+$/, "");
+  if (OPEN_RE.test(txt)) return { text: txt, model: "FM-1", version: 0, open: true };
+  const m = /^([^_]+)_(\d+)$/.exec(txt);
+  return m ? { text: txt, model: m[1], version: parseInt(m[2], 10) } : null;
+}
+
+// one MIDI in/out pair with a SysEx queue
+class Link {
+  constructor(input, output) {
+    this.input = input; this.output = output; this.q = []; this.waiter = null;
+    input.onmidimessage = (ev) => {
+      if (ev.data[0] !== 0xF0) return;
+      this.q.push(Array.from(ev.data));
+      if (this.waiter) { const w = this.waiter; this.waiter = null; w(); }
+    };
+  }
+  get lost() { return this.input.state === "disconnected" || this.output.state === "disconnected"; }
+  // false when the port is gone (unplugged): WebMIDI throws on a disconnected output
+  send(bytes) {
+    try { this.output.send(bytes); return true; } catch (_) { return false; }
+  }
+  drain() { this.q.length = 0; }
+  async read(ms) {
+    if (!this.q.length) {
+      let tm;
+      await Promise.race([new Promise((r) => { this.waiter = r; }), new Promise((r) => { tm = setTimeout(r, ms); })]);
+      clearTimeout(tm);
+      this.waiter = null;
+    }
+    return this.q.shift() || null;
+  }
+  close() { this.input.onmidimessage = null; }
+}
+
+async function handshake(link, tries = 3) {
+  link.drain();
+  for (let t = 0; t < tries; t++) {
+    if (!link.send(HS_QUERY)) return null;
+    const end = Date.now() + 1000;
+    while (Date.now() < end) {
+      const p = await link.read(end - Date.now());
+      if (!p) break;
+      const id = parseIdentity(p);
+      if (id) return id;
+    }
+  }
+  return null;
+}
+
+function frame(cmd, payload = []) {
+  let s = 0;
+  for (const b of payload) s += b;
+  return [0xF0, ...pack7([0x00, 0x59, cmd, payload.length & 0xFF, payload.length >> 8, 0, ...payload, ~s & 0xFF]), 0xF7];
+}
+
+// send a command -> the payload of its reply, or null
+async function query(link, cmd, payload = []) {
+  link.drain();
+  if (!link.send(frame(cmd, payload))) return null;
+  const end = Date.now() + 1500;
+  while (Date.now() < end) {
+    const p = await link.read(end - Date.now());
+    if (!p) break;
+    if (p[0] !== 0xF0 || p[p.length - 1] !== 0xF7) continue;
+    const u = unpack7(p.slice(1, -1));
+    if (u.length < 7 || u[0] !== 0 || u[1] !== 0x59 || u[2] !== cmd) continue;
+    let s = 0;
+    for (let i = 6; i < u.length; i++) s += u[i];
+    if ((s & 0xFF) === 0xFF) return u.slice(6, 6 + (u[3] | (u[4] << 8)));
+  }
+  return null;
+}
+
+class Updater {
+  constructor(access, log) {
+    this.access = access;
+    this.log = log || (() => {});
+  }
+
+  // every in/out pair with the same port name that answers the handshake
+  async find(filter) {
+    const outs = [...this.access.outputs.values()];
+    for (const input of this.access.inputs.values()) {
+      if (input.state === "disconnected") continue;
+      if (!/fm-?1|felucca|ota|composite|sinco|usb-midi/i.test(input.name || "")) continue;   // never probe other gear
+      const output = outs.find((o) => o.name === input.name) || (outs.length === 1 ? outs[0] : null);
+      if (!output) continue;
+      try { await input.open(); await output.open(); } catch (_) { continue; }
+      const link = new Link(input, output);
+      const id = await handshake(link, 2);
+      if (id && (!filter || filter(id))) return { link, id, name: input.name };
+      link.close();
+    }
+    return null;
+  }
+
+  async waitFor(filter, ms) {
+    const end = Date.now() + ms;
+    while (Date.now() < end) {
+      const dev = await this.find(filter);
+      if (dev) return dev;
+      await sleep(1000);
+    }
+    return null;
+  }
+
+  // serve read requests until the device asks for one of the finish addresses; stops early
+  // when the port disappears (lost: true) instead of waiting out idleMs
+  async serve(link, image, finishAddr, idleMs, onProgress) {
+    let served = 0, bytes = 0, last = Date.now();
+    for (;;) {
+      const pkt = await link.read(1000);
+      if (!pkt) {
+        if (link.lost) return { served, finished: false, lost: true };
+        if (Date.now() - last > idleMs) return { served, finished: false };
+        continue;
+      }
+      const r = parseRequest(pkt);
+      if (!r) continue;
+      last = Date.now();
+      if (r.addr === 0xE0000000 || r.addr === 0xF0000000) {
+        link.send(response(r.addr, [...new TextEncoder().encode("success"), 0]));
+        if (r.addr === finishAddr) return { served, finished: true };
+        continue;
+      }
+      if (r.len > MAXDATA || r.addr + r.len > image.length) throw fail("badreq", `bad request ${r.addr.toString(16)}+${r.len}`);
+      await sleep(10);
+      if (!link.send(response(r.addr, Array.from(image.subarray(r.addr, r.addr + r.len)), r.fl))) {
+        return { served, finished: false, lost: true };
+      }
+      served++;
+      bytes += r.len;
+      if (onProgress) onProgress(served, bytes);
+    }
+  }
+
+  // full install: running firmware -> loader -> new firmware
+  async install(image, product, onStep, sha256) {
+    const step = onStep || (() => {});
+    const dev = await this.find((id) => !IS_OTA(id));
+    if (!dev) throw fail("notfound", "FM-1 not found (USB cable, and no other app using it?)");
+    const [model] = product.split("_");
+    if (dev.id.model !== model) { dev.link.close(); throw fail("model", `the device is ${dev.id.text}, the package is for ${product}`); }
+    if (dev.id.open) await this.arm(dev, image, product, sha256);
+    step("start", dev.id.text);
+    dev.link.send(UPGRADE);
+    await sleep(2000);
+    const s1 = await this.serve(dev.link, image, 0xE0000000, 8000, (n, b) => step("verify", n, b));
+    dev.link.close();
+    if (!s1.finished) throw fail(s1.lost ? "lost" : "stopped", `the device ${s1.lost ? "was disconnected" : "stopped"} after ${s1.served} requests: nothing was written`);
+    step("loader");
+    await sleep(3000);
+    const ota = await this.waitFor(IS_OTA, 30000);
+    if (!ota) throw fail("noloader", "the update loader did not appear. Replug the USB cable and press Install again: the device stays in update mode until it is finished.");
+    const s2 = await this.write(ota, image, step);
+    if (!s2.finished) throw fail(s2.lost ? "lost" : "stopped", `the loader ${s2.lost ? "was disconnected" : "stopped"} after ${s2.served} requests. Replug and press Install again to resume.`);
+    step("reboot");
+    await sleep(3000);
+    const back = await this.waitFor((id) => !IS_OTA(id), 40000);
+    if (!back) throw fail("noreturn", "the device did not come back: power-cycle it");
+    back.link.close();
+    if (back.id.text !== product) throw fail("mismatch", `installed, but the device reports ${back.id.text}`, back.id.text);
+    step("done", back.id.text);
+    return back.id.text;
+  }
+
+  // m-bootloader (github.com/jvitkauskas/m-bootloader, MIT) after an install: the running firmware (product)
+  // stages the package's installer (no flash.bin: any well-made writer, felucca-bsp chip/ota.c) and resets; the bootloader
+  // runs it, it rewrites the boot area [0, 0x4000) only and restarts into the firmware. It never talks to us:
+  // we wait for the firmware to come back. A firmware that does not know it refuses it, and nothing is written.
+  async installBoot(image, product, onStep) {
+    const step = onStep || (() => {});
+    const dev = await this.waitFor((id) => !IS_OTA(id) && id.text === product, 40000);
+    if (!dev) throw fail("noreturn", "the device did not come back: power-cycle it");
+    step("bootstart");
+    dev.link.send(UPGRADE);
+    await sleep(2000);
+    const s = await this.serve(dev.link, image, 0xE0000000, 8000);
+    dev.link.close();
+    if (!s.finished) throw fail(s.lost ? "lost" : "bootrefused", `m-bootloader: the device stopped after ${s.served} requests: nothing was written`);
+    step("bootwrite");
+    await sleep(3000);
+    const back = await this.waitFor((id) => !IS_OTA(id), 40000);
+    if (!back) throw fail("noreturn", "the device did not come back: power-cycle it");
+    back.link.close();
+    step("bootdone", back.id.text);
+    return back.id.text;
+  }
+
+  // M-VAVE's Open firmware: allow the update of M-VAVE's own firmware (sha256: the package file's, hex)
+  async arm(dev, image, product, sha256) {
+    if (!IS_STOCK(product) || !/^[0-9a-f]{64}$/.test(sha256 || "")) {
+      dev.link.close();
+      throw fail("open", `This FM-1 runs M-VAVE's ${dev.id.text} firmware. Put the stock firmware back first ("Back to the stock firmware"), then install this.`, dev.id.text);
+    }
+    const cap = await query(dev.link, 49);
+    if (!cap || cap.length !== 47 || String.fromCharCode(...cap.slice(0, 4)) !== "FMC1" || cap[6] !== 0) {
+      dev.link.close();
+      throw fail("stopped", `${dev.id.text} did not accept the update: nothing was written`);
+    }
+    const n = image.length;
+    const tag = sha256.match(/../g).map((h) => parseInt(h, 16));
+    const ack = await query(dev.link, 50, [1, cap[5], n & 0xFF, (n >>> 8) & 0xFF, (n >>> 16) & 0xFF, (n >>> 24) & 0xFF, ...tag]);
+    if (!ack || ack.length !== 1 || ack[0] !== 0) {
+      dev.link.close();
+      throw fail("stopped", `${dev.id.text} refused the package: nothing was written`);
+    }
+  }
+
+  // step 2 with the loader found by find()/waitFor()
+  async write(ota, image, step) {
+    ota.link.send(UPGRADE);
+    await sleep(2000);
+    const s2 = await this.serve(ota.link, image, 0xF0000000, 180000, (n, b) => step("write", n, b));
+    ota.link.close();
+    return s2;
+  }
+
+  // resume: the device is already in update mode (loader) -> true when the write finished
+  async resume(image, onStep) {
+    const ota = await this.find(IS_OTA);
+    if (!ota) return false;
+    return (await this.write(ota, image, onStep || (() => {}))).finished;
+  }
+}
+
+const $ = (id) => document.getElementById(id);
+const TEXT = {
+  ja: {
+    intro: "FM-1 を USB で接続し、「インストール」を押してください。Chrome か Edge で使えます。ブラウザが MIDI の使用許可を一度求めるので、許可してください。",
+    newtab: "（新しいタブで開きます）", progress: "進行状況", pct: " {n}%",
+    warn: "書き込み中は USB を抜かないでください。",
+    install: "インストール", other: "English",
+    manual: "LOOM-8 のページへ",
+    direct: "USB ケーブルはパソコンに直接つないでください。Probe や Transporter などの機材は不要です。",
+    brick: "万一 FM-1 が起動しなくなった場合は、Mac から標準ファームウェアに戻せます:",
+    bricklink: "起動しない FM-1 の復旧（英語）",
+    back: "公式ファームウェアに戻すには、このページ下の「純正ファームウェアに戻す」か、M-VAVE 公式のアップデーター M-UPGRADE（Downloads → PC Software → M-UPGRADE）を使います。",
+    stockh: "純正ファームウェアに戻す",
+    stockwhy: "M-VAVE の FM-1 ファームウェアを、LOOM-8（またはそのセーフモード）から同じ USB ケーブルで書き込みます。LOOM-8 で保存したものは消えることがあります。",
+    stock1: "M-VAVE の FM-1 ファームウェアをダウンロード:",
+    stock2: "ダウンロードしたファイルを選ぶ:",
+    stock3: "FM-1 を USB で接続し、下のボタンを押す。",
+    stockinstall: "純正ファームウェアを書き込む",
+    stockok: "M-VAVE の FM-1 ファームウェアです。ボタンを押してください。",
+    stockbad: "これは M-VAVE の FM-1 ファームウェアのファイルではありません。上のリンクのファイルを選んでください。",
+    stockdone: "完了。FM-1 は純正ファームウェアで起動しました。",
+    nomidi: "このブラウザでは使えません。Chrome か Edge で開いてください。", loadfail: "読み込めませんでした: ",
+    start: "開始します", verify: "確認中", loader: "書き込みモードに切り替え中", write: "書き込み中",
+    reboot: "再起動中", done: "完了しました", stopped: "途中で止まりました。USB を挿し直してもう一度押してください。",
+    error: "エラー: ",
+    denied: "MIDI（SysEx）の使用が許可されませんでした。アドレスバーのサイト設定で MIDI を許可して、もう一度押してください。",
+    notfound: "FM-1 が見つかりません。USB ケーブル（データ通信用か）を確かめ、MIDI を使う他のアプリやブラウザのタブ（別のファームウェアのインストーラーやエディター）を閉じてから、もう一度押してください。別のファームウェアからは、そのまま起動した状態で構いません（アップデートモードは不要です）。",
+    model: "接続されている機器は FM-1 ではありません。",
+    lost: "USB の接続が切れました。挿し直してもう一度押してください。",
+    noloader: "書き込みモードの FM-1 が見つかりません。USB を挿し直してもう一度押してください（終わるまで書き込みモードのままです）。",
+    noreturn: "FM-1 が戻ってきません。電源を入れ直してください。",
+    mismatch: "書き込みは終わりましたが、FM-1 が別のバージョンを報告しています: ",
+    badpkg: "インストールするファイルが壊れています。ページを再読み込みしてください。",
+    leave: "書き込み中です。ページを閉じないでください。",
+    license: "GPL-3.0-only、無保証。ソース:",
+    reporth: "不具合を報告する",
+    reportwhy: "FM-1 がクラッシュしたら、電源を切らずに USB で接続し、下のボタンを押してください。クラッシュの記録は再起動では残りますが、電源を切ると消えます。表示された内容をコピーして、何をしていたかと一緒に送ってください。",
+    reportread: "クラッシュの記録を読む", reportcopy: "コピー", reportlabel: "クラッシュの記録",
+    reportwait: "読み込み中…", reportnone: "応答がありません。FM-1 が LOOM-8 を実行しているか確かめてください。",
+    reportok: "読み込みました。コピーして送ってください。", reportcopied: "コピーしました。",
+    mboot: "m-bootloader も書き込む: 電源を入れるときに PLAY を押したままでリカバリーメニュー、REC でアップデートモード。ファームウェアが起動しないときにも使えます。",
+    mbootwhy: "Julius Vitkauskas によるオープンなブートローダー（MIT）。M-VAVE のブートローダーと置き換わり、ファームウェアを更新しても残ります。「純正ファームウェアに戻す」で M-VAVE のものに戻ります。メニューの WIPE USER DATA は、ファームウェアが保存したものをすべて消去します。",
+    confirmh: "インストールの前に",
+    confirm1: "書き込み中、FM-1 の画面には UPDATING と進み具合が出るか、暗いままになります。このページに「完了しました」と出るまで、USB ケーブルを抜いたり電源を切ったりしないでください。数分かかることがあります。",
+    confirmboot: "ファームウェアの後に m-bootloader を書き込みます。FM-1 はその間にもう一度再起動します。",
+    bakh: "先にバックアップを。", confirmbak: "書き込みで LOOM-8 に保存したものが消えることがあります。",
+    bakok: "バックアップを取った（または残したいものはない）",
+    backuplink: "LOOM-8 をバックアップする", confirmgo: "書き込む", confirmcancel: "キャンセル",
+    bootstart: "m-bootloader を書き込み中", bootwrite: "m-bootloader を書き込み中。FM-1 は自動で再起動します",
+    bootdone: "完了しました（m-bootloader 付き）",
+    bootrefused: "LOOM-8 はインストールされましたが、m-bootloader は書き込めませんでした。ほかは何も変わっていません。",
+  },
+  en: {
+    intro: "Connect the FM-1 by USB, then press Install. It works in Chrome or Edge; the browser asks once to allow MIDI: allow it.",
+    newtab: " (opens in a new tab)", progress: "Progress", pct: ", {n} percent",
+    warn: "Do not unplug the USB cable while writing.",
+    install: "Install", other: "日本語",
+    manual: "Back to LOOM-8",
+    direct: "Connect the USB cable directly to the computer. No probe or Transporter is needed.",
+    brick: "If the FM-1 no longer starts, a Mac can put the stock firmware back:",
+    bricklink: "recovering an FM-1 that won't start",
+    back: "To go back to the official firmware, use \"Back to the stock firmware\" below, or M-VAVE's own updater, M-UPGRADE (Downloads → PC Software → M-UPGRADE).",
+    stockh: "Back to the stock firmware",
+    stockwhy: "This writes M-VAVE's own FM-1 firmware back, from LOOM-8 (or its safe mode, or another firmware with the same update entry) over the same USB cable. What LOOM-8 saved may be lost.",
+    stock1: "Download M-VAVE's FM-1 firmware:",
+    stock2: "Choose the file you downloaded:",
+    stock3: "Connect the FM-1 by USB and press the button below.",
+    stockinstall: "Install the stock firmware",
+    stockok: "That is M-VAVE's FM-1 firmware. Press the button to install it.",
+    stockbad: "That is not M-VAVE's FM-1 firmware. Choose the file from the link above.",
+    stockdone: "Done. The FM-1 has restarted with its original firmware.",
+    nomidi: "This browser cannot do it. Open the page in Chrome or Edge.", loadfail: "Could not load: ",
+    start: "Starting", verify: "Verifying", loader: "Switching to update mode", write: "Writing",
+    reboot: "Restarting", done: "Done", stopped: "Stopped. Replug the USB cable and press Install again.",
+    error: "Error: ",
+    denied: "MIDI (SysEx) access was not allowed. Allow MIDI in the site settings (address bar) and press Install again.",
+    notfound: "FM-1 not found. Check the USB cable (a data cable), close other apps and browser tabs that use MIDI (another firmware's installer or editor), and press Install again. Coming from another firmware, leave it running as it is: no update mode is needed.",
+    model: "The connected device is not an FM-1.",
+    lost: "The USB connection was lost. Replug it and press Install again.",
+    noloader: "The FM-1 in update mode was not found. Replug the USB cable and press Install again (it stays in update mode until it is finished).",
+    noreturn: "The FM-1 did not come back. Power-cycle it.",
+    mismatch: "Written, but the FM-1 reports another version: ",
+    badpkg: "The file to install is damaged. Reload the page.",
+    leave: "Writing. Do not close the page.",
+    license: "GPL-3.0-only, no warranty. Source:",
+    reporth: "Report a problem",
+    reportwhy: "If the FM-1 crashed, don't switch it off: connect it by USB and press the button below. The crash record survives a restart, but not switching off. Copy what appears and send it, with what you were doing at the time.",
+    reportread: "Read the crash report", reportcopy: "Copy", reportlabel: "Crash report",
+    reportwait: "Reading…", reportnone: "No answer. Check that the FM-1 is running LOOM-8.",
+    reportok: "Read. Copy it and send it.", reportcopied: "Copied.",
+    mboot: "Also install m-bootloader: hold PLAY while switching on for a recovery menu, or REC for update mode, even when a firmware won't start.",
+    mbootwhy: "An open bootloader by Julius Vitkauskas (MIT). It replaces M-VAVE's bootloader and stays through firmware updates; \"Back to the stock firmware\" puts M-VAVE's back. Its menu's WIPE USER DATA erases everything firmwares have saved.",
+    confirmh: "Before you install",
+    confirm1: "While it is written, the FM-1's screen shows UPDATING and a bar, or stays dark. Don't unplug the USB cable or switch the FM-1 off until this page says Done. It can take several minutes.",
+    confirmboot: "m-bootloader is written after the firmware: the FM-1 restarts once more for it.",
+    bakh: "Back up first.", confirmbak: "Installing can lose what LOOM-8 has saved.",
+    bakok: "I've backed up, or have nothing to keep.",
+    backuplink: "Back up LOOM-8", confirmgo: "Install", confirmcancel: "Cancel",
+    bootstart: "Installing m-bootloader", bootwrite: "Installing m-bootloader: the FM-1 restarts by itself",
+    bootdone: "Done, with m-bootloader",
+    bootrefused: "LOOM-8 is installed, but m-bootloader could not be: nothing else was changed.",
+  },
+};
+let lang = "en";                                 /* English first; 日本語 is a click away */
+const t = (k) => TEXT[lang][k];
+/* what happens goes to two regions: #status (polite) the steps and the progress, #alert a failure */
+const FAILS = new Set(["nomidi", "loadfail", "stopped", "error", "denied", "notfound", "model", "lost", "noloader",
+                       "noreturn", "mismatch", "badpkg", "stockbad", "bootrefused"]);
+let lastKey = null, lastArg = "", lastPct = null;
+const textOf = (k, arg, pct) => t(k) + arg + (pct == null ? "" : t("pct").replace("{n}", pct));
+function show() {
+  if (!lastKey) return;
+  const txt = textOf(lastKey, lastArg, lastPct);
+  if (FAILS.has(lastKey)) { $("status").textContent = ""; $("alert").textContent = txt; }
+  else { $("alert").textContent = ""; $("status").textContent = txt; }
+}
+function applyLang() {
+  document.documentElement.lang = lang;
+  document.querySelectorAll("[data-t]").forEach((e) => { e.textContent = t(e.dataset.t); });
+  document.querySelectorAll("[data-t-label]").forEach((e) => { e.setAttribute("aria-label", t(e.dataset.tLabel)); });
+  $("lang").textContent = t("other");
+  $("lang").lang = lang === "ja" ? "en" : "ja";            /* the button names the other language, in it */
+  show();
+}
+$("lang").addEventListener("click", () => { lang = lang === "ja" ? "en" : "ja"; applyLang(); });
+applyLang();
+const sayK = (k, arg = "") => { lastKey = k; lastArg = arg; lastPct = null; show(); };
+/* a step with its share done: said when the step changes, then every 10 percent or 2 seconds at most */
+let saidAt = 0;
+const sayPct = (k, pct) => {
+  pct = Math.max(0, Math.min(100, Math.round(pct)));
+  const now = performance.now();
+  if (k === lastKey && lastPct != null && pct < lastPct + 10 && (now - saidAt < 2000 || pct === lastPct)) return;
+  lastKey = k; lastArg = ""; lastPct = pct; saidAt = now; show();
+};
+const say = (txt) => { lastKey = null; $("alert").textContent = ""; $("status").textContent = txt; };
+/* follows the newest line, unless the reader has scrolled up to look at an earlier one */
+const log = (t) => {
+  const el = $("log"), atEnd = el.scrollHeight - el.scrollTop - el.clientHeight < 24;
+  el.append(t + "\n");
+  if (atEnd) el.scrollTop = el.scrollHeight;
+};
+let image = null, boot = null;
+const meta = {"version": "0.7", "product": "FM-1_10000700", "pkg": "../firmware/loom-0.7.fwsc", "backup": true, "boot": {"pkg": "../firmware/m-bootloader-1.2.fwsc", "version": "1.2", "sha256": "0e89141f52d1f2d62198d4f69147a2c15c8360806e64d48002990a6fdab6d6dd"}};
+
+/* the backup: a requirement before every install; the link where the site has the backup page */
+document.querySelectorAll(".baklink").forEach((a) => { a.hidden = !meta.backup; });
+$("bakok").addEventListener("change", () => { $("confirmgo").disabled = !$("bakok").checked; });
+
+let writing = false;
+window.addEventListener("beforeunload", (e) => { if (writing) { e.preventDefault(); e.returnValue = t("leave"); } });
+
+(async () => {
+  if (!navigator.requestMIDIAccess) { sayK("nomidi"); return; }
+  try {
+    const r = await fetch(meta.pkg);
+    if (!r.ok) throw new Error(`${meta.pkg}: HTTP ${r.status}`);
+    const pkg = new Uint8Array(await r.arrayBuffer());
+    if (productOf(pkg) !== meta.product) { sayK("badpkg"); return; }
+    image = logicalImage(pkg);
+    say(`LOOM-8 ${meta.version}`);
+    $("go").disabled = false;
+  } catch (e) { sayK("loadfail", e.message); }
+  /* m-bootloader: offered only when its package is here and is the one the site was made with */
+  try {
+    if (!meta.boot) return;
+    const r = await fetch(meta.boot.pkg);
+    if (!r.ok) return;
+    const raw = new Uint8Array(await r.arrayBuffer());
+    const hex = [...new Uint8Array(await crypto.subtle.digest("SHA-256", raw))].map((b) => b.toString(16).padStart(2, "0")).join("");
+    if (hex !== meta.boot.sha256 || productOf(raw) !== "FM-1_099") return;
+    boot = logicalImage(raw);
+    $("mbootopt").hidden = false;
+  } catch (_) { /* no option, then */ }
+})();
+
+/* stock firmware: M-VAVE's FM-1 firmware, any version, chosen by the user (M-VAVE's server allows no cross-site
+   download) and named as M-VAVE's (IS_STOCK, fm1ota.js, inlined above); the FM-1 checks the package itself before writing */
+let stock = null;
+$("stockfile").addEventListener("change", async (e) => {
+  stock = null;
+  $("stockgo").disabled = true;
+  const f = e.target.files && e.target.files[0];
+  if (!f) return;
+  try {
+    const raw = new Uint8Array(await f.arrayBuffer());
+    const hex = [...new Uint8Array(await crypto.subtle.digest("SHA-256", raw))].map((b) => b.toString(16).padStart(2, "0")).join("");
+    const product = productOf(raw);
+    if (!IS_STOCK(product)) { sayK("stockbad"); return; }
+    stock = { image: logicalImage(raw), product, sha256: hex };
+    $("stockgo").disabled = writing;
+    sayK("stockok");
+  } catch (err) { sayK("error", err && err.message); }
+});
+
+/* before anything is written: the screen, the cable, the time, a backup */
+function confirmed(withBoot) {
+  const d = $("confirm");
+  $("confirmboot").hidden = !withBoot;
+  $("bakok").checked = false;                    /* asked every time */
+  $("confirmgo").disabled = true;
+  d.returnValue = "";
+  d.showModal();
+  return new Promise((r) => d.addEventListener("close", () => r(d.returnValue === "go"), { once: true }));
+}
+
+async function run(img, product, isStock, sha256) {
+  const withBoot = !isStock && !!boot && $("mboot").checked;
+  if (!(await confirmed(withBoot))) return;
+  let midi;
+  try { midi = await navigator.requestMIDIAccess({ sysex: true }); }
+  catch (e) { sayK("denied"); return; }
+  writing = true;
+  $("go").disabled = $("stockgo").disabled = true;
+  try {
+    const up = new Updater(midi, log);
+    /* progress: the bytes the device reads, against what it reads for this package (the size of the package,
+       not a fixed request count). Step 1 (the running firmware): the UFW header, the loader's head twice, its
+       body. Step 2 (fm1-base's loader): the header, the chip-key check, the whole flash.bin (checked before
+       anything is erased), then the app area again as it writes it. Held at 99 until the device comes back. */
+    const ent = ufwEntries(img), fl = ent[0], ldr = ent[100];
+    const CHECK = 0x400 + 0x400 + (ldr ? ldr.len - 0x20 : 0);
+    const WRITE = fl && fl.len > 0x4000 && fl.len <= 0x100000 ? 0x400 + 0x20 + fl.len + (fl.len - 0x4000) : img.length;
+    const total = CHECK + WRITE;
+    const step = (k, a, b) => {
+      log(`${k} ${a ?? ""}`);
+      if (k === "start") sayK("start");
+      if (k === "verify") { $("bar").value = (Math.min(b, CHECK) / total) * 100; sayPct("verify", $("bar").value); }
+      if (k === "loader") sayK("loader");
+      if (k === "write") { $("bar").value = Math.min(99, ((CHECK + b) / total) * 100); sayPct("write", $("bar").value); }
+      if (k === "reboot") sayK("reboot");
+      if (k === "done" && !withBoot) { $("bar").value = 100; sayK(isStock ? "stockdone" : "done"); }
+      if (k === "bootstart" || k === "bootwrite") sayK(k);
+      if (k === "bootdone") { $("bar").value = 100; sayK("bootdone"); }
+    };
+    const ota = await up.find((id) => /^ota-/i.test(id.model));
+    if (ota) {
+      ota.link.close();
+      const done = await up.resume(img, step);
+      if (done && withBoot) await up.installBoot(boot, product, step);
+      else {
+        if (done) $("bar").value = 100;
+        sayK(done ? (isStock ? "stockdone" : "done") : "stopped");
+      }
+    } else {
+      await up.install(img, product, step, sha256);
+      if (withBoot) await up.installBoot(boot, product, step);
+    }
+  } catch (e) {
+    if (isStock && e && e.code === "mismatch") { $("bar").value = 100; sayK("stockdone"); }   /* stock names itself its own way */
+    else if (e && e.code && TEXT[lang][e.code]) sayK(e.code, e.detail || "");
+    else sayK("error", e && e.message);
+    log(String(e && e.stack || e));
+  }
+  writing = false;
+  $("go").disabled = !image;
+  $("stockgo").disabled = !stock;
+}
+
+$("go").addEventListener("click", () => run(image, meta.product, false));
+$("stockgo").addEventListener("click", () => { if (stock) run(stock.image, stock.product, true, stock.sha256); });
+
+/* the crash report: the firmware's log readout (device/main_fm1.c log_frame: F0 7D 4C 47 F7 asks, a frame a line,
+   "end" last), the same as tools/fm1_remote.py log */
+const LG = [0x7D, 0x4C, 0x47];
+$("reportgo").addEventListener("click", async () => {
+  const st = (k) => { $("reportstatus").textContent = t(k); };
+  let midi;
+  try { midi = await navigator.requestMIDIAccess({ sysex: true }); }
+  catch (e) { $("reportstatus").textContent = t(navigator.requestMIDIAccess ? "denied" : "nomidi"); return; }
+  if (writing) return;
+  $("reportgo").disabled = true;
+  st("reportwait");
+  const lines = [];
+  try {
+    const dev = await new Updater(midi).find((id) => !IS_OTA(id));
+    if (dev) {
+      lines.push(`${dev.id.text} (${dev.name}), ${new Date().toISOString()}`);
+      dev.link.drain();
+      dev.link.send([0xF0, ...LG, 0xF7]);
+      const end = Date.now() + 4000;
+      while (Date.now() < end) {
+        const p = await dev.link.read(end - Date.now());
+        if (!p) break;
+        if (p.length < 5 || p[1] !== LG[0] || p[2] !== LG[1] || p[3] !== LG[2]) continue;
+        const txt = String.fromCharCode(...p.slice(4, -1));
+        if (txt === "end") break;
+        lines.push(txt);
+      }
+      dev.link.close();
+    }
+  } catch (e) { lines.push(String(e && e.message || e)); }
+  $("reportgo").disabled = false;
+  if (lines.length < 2) { st("reportnone"); return; }
+  $("report").value = lines.join("\n");
+  $("report").hidden = $("reportcopy").hidden = false;
+  st("reportok");
+});
+$("reportcopy").addEventListener("click", async () => {
+  try { await navigator.clipboard.writeText($("report").value); $("reportstatus").textContent = t("reportcopied"); }
+  catch (_) { $("report").select(); }
+});
+</script>
+</body>
+</html>
