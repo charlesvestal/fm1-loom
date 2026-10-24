@@ -77,7 +77,7 @@ tap EDIT
 expect page Engine
 tap SEL
 turn SELECT 2
-turn ALGO -4
+turn ALGO -8
 tap SEL
 wait 40
 expect par1.d1.model 0
@@ -85,7 +85,7 @@ expect par1.d1.k1 82
 expect par1.d1.k5 0
 expect par1.d2.model 1
 expect par1.fine 77
-# a kit saved (now format 10, the kits after the presets with their fine), Loom loaded, the kit back: its keys (a key
+# a kit saved (now format 11, eight kits after the presets with their fine), Loom loaded, the kit back: its keys (a key
 # on sophie, model 20: a development build's number before format 10, a model of its own now: kept)
 param 1 d3.model 4
 param 1 d5.model 20
@@ -97,13 +97,13 @@ wait 40
 expect ask 0
 tap SEL
 turn SELECT 2
-turn ALGO 4
+turn ALGO 8
 tap SEL
 wait 40
 expect par1.d3.model 2
 tap SEL
 turn SELECT 2
-turn ALGO -3
+turn ALGO -7
 tap SEL
 wait 40
 expect par1.d3.model 4

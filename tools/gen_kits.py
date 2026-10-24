@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-3.0-only
-"""LOOM-8's factory kits after Loom and Loom Samples: each kit eleven keys, written here in each model's own terms
+"""LOOM-8's factory kits after Loom: each kit eleven keys, written here in each model's own terms
 (MACHINEDRUM's 0..100, Sophie's and digisophie's controls), into the GKIT table app/pages.c and app/ui.c use (kit_factory).
   tools/gen_kits.py OUT.h           (run by the build: app/fm1.toml gen; the host tests run it too)
   tools/gen_kits.py --xy NAME       a kit as the host simulator's knob lines (track 1), for renders and checks
@@ -59,7 +59,7 @@ def loom(model, k1, k2, k3, k4, **key):
     return dict(model=M[model], knobs=[k1, k2, k3, k4], **key)
 
 
-SMP = dict(kick909=0, snare909=1, hat909=2, clap909=3)                # the factory bank's first four (Loom Samples)
+SMP = dict(kick909=0, snare909=1, hat909=2, clap909=3)                # the factory bank's first four
 
 
 def smp(sample, pitch=64, **key):
@@ -71,9 +71,19 @@ def hat(k, **key):                                                     # the clo
     return dict(k, mode=PM_CHOKE1, **key)
 
 
+S_STRING = sophie("pipe", 52, 0.5, 30, 30, 10, 0, 0)               # (a warm, struck string)
+S_CONGA = sophie("boom", 55, 0.25, 25, 20, 5, 30, 0)
+X_BELL = x("xfm", 72, 30, 76, 30, 0, 35)                      # (C5; ratio 3.5, its brightness gone in ~0.1 s)
+X_PLUCK = x("xfm", 55, 22, 40, 15, 0, 45)                     # (G3; ratio 1: a plucked FM string)
+X_CONGA = x("xtom", 60, 20, 70, 25, 0, 0)
+X_SHAKER = x("xnoise", tone=100, decay=5)
+# the fm key: a short, woody FM blip, low and little metal (a bell was too tonal and metallic for a kit)
+X_BLIP = x("xfm", 50, 12, 60, 10, 0, 25)                      # (D3; ratio 2, ~0.1 s)
+SO_BLIP = sophie("boom", 50, 0.12, 40, 30, 5, 20, 0)
+CL_BLIP = clang("boom", 50, 0.12, 40, 40, 20, 5)
 # the kits: name (11 characters at most), then the eleven keys; db = the key's volume, pan 0..127 (64 the middle)
 KITS = [
-    ("Machine", [                                   # MACHINEDRUM's, as you hearted them
+    ("Nylon", [                                   # MACHINEDRUM's, as you hearted them
         x("xkick", 36, 50, 40, 70, 10, 12, drive=45, db=-2),
         x("xsnare", 53, 30, 85, 100, 60, 12, db=8),
         hat(x("xhat", 82, 3, 76, 22, 92, 12), db=13, pan=56),
@@ -86,64 +96,32 @@ KITS = [
         x("xhat", 91, 65, 76, 22, 92, 12, db=-1, pan=40),
         x("xfm", 79, 18, 76, 22, 10, 30, db=0, pan=84),
     ]),
-    ("Sophie", [                                    # Sophie's kick, snares and crash, digisophie's closed hat
-        sophie("boom", 31, 0.35, 24, 30, 6, 55, 0, db=-1),
-        sophie("stack", 40, 0.18, 63, 82, 28, 24, 38, db=0),
-        hat(clang("shard", 42, 0.055, 119, 124, 0, 74), db=3, pan=56),
-        hat(sophie("shard", 46, 0.48, 91, 96, 62, -4, 0), db=-10, pan=72),
-        clang("shard", 39, 0.19, 107, 112, -5, 53, db=6),
-        sophie("fuse", 41, 0.42, 24, 44, 16, 58, 8, db=-5, pan=50),
-        sophie("boom", 48, 0.3, 30, 50, 20, 40, 8, db=-4, pan=78),
-        sophie("shard", 37, 0.09, 76, 72, 34, 16, 48, db=-4, pan=80),
-        clang("shard", 45, 0.12, 127, 127, 0, 127, 60, db=-4, pan=44),
-        sophie("stack", 49, 1.65, 78, 92, 72, -12, 28, db=-13, pan=40),  # (Sophie's factory crash)
-        sophie("pipe", 60, 0.6, 50, 50, 20, 0, 0, db=-8, pan=84),
-    ]),
-    ("Clang", [                                     # digisophie's, all of it
-        clang("fuse", 31, 0.28, 30, 10, 35, 8, db=5),
-        clang("shard", 38, 0.24, 66, 97, 18, 23, db=6),
-        hat(clang("shard", 42, 0.055, 119, 124, 0, 74), db=3, pan=56),
-        hat(clang("shard", 46, 0.48, 116, 122, -3, 79), db=-5, pan=72),
-        clang("shard", 39, 0.19, 107, 112, -5, 53, db=6),
-        clang("fuse", 43, 0.42, 30, 56, 37, 20, db=0, pan=50),
-        clang("boom", 48, 0.3, 30, 56, 37, 20, db=3, pan=78),
-        clang("shard", 37, 0.09, 97, 91, 10, 43, db=4, pan=80),
-        clang("shard", 45, 0.5, 127, 127, 0, 127, db=-9, pan=44),
-        x("xhat", 91, 65, 76, 22, 92, 12, db=-1, pan=40),               # (MACHINEDRUM's cymbal)
-        clang("pipe", 60, 0.6, 60, 64, 0, 20, db=-3, pan=84),
-    ]),
-    ("House", [                                     # round kick, long clap, crisp digital hats, a cowbell, a rim
-        x("xkick", 36, 45, 30, 70, 20, 10, drive=35, db=-1),
-        x("xsnare", 50, 28, 70, 40, 45, 20, db=8),
-        hat(clang("shard", 44, 0.06, 112, 118, 0, 60), db=3, pan=58),
-        hat(x("xhat", 74, 26, 30, 22, 92, 12), db=7, pan=70),
-        x("xclap", tone=80, decay=40, db=8),
-        x("xtom", 43, 40, 60, 30, 5, 20, db=0, pan=48),
-        x("xtom", 50, 36, 60, 30, 5, 20, db=1, pan=80),
-        x("xrim", 67, 14, 80, 22, 8, db=4, pan=82),
-        x("xnoise", tone=100, decay=8, db=3, pan=46),
-        x("xhat", 91, 65, 76, 22, 92, 12, db=-1, pan=40),               # (MACHINEDRUM's cymbal)
-        x("xfm", 79, 15, 76, 22, 10, 30, db=1, pan=86),
-    ]),
-    ("Garage", [                                    # a short punchy kick, a snappy snare, shuffling hats, a rim
-        x("xkick", 38, 26, 50, 85, 40, 20, drive=40, db=1),
-        x("xsnare", 55, 24, 100, 100, 70, 10, db=8),
-        hat(clang("shard", 42, 0.045, 119, 124, 0, 74), db=4, pan=58),
-        hat(clang("shard", 46, 0.25, 116, 122, -3, 79), db=-2, pan=72),
-        x("xclap", tone=90, decay=14, db=13),
-        sophie("fuse", 43, 0.36, 38, 52, 22, 48, 12, db=-5, pan=50),
-        sophie("fuse", 50, 0.23, 58, 64, 30, 36, 18, db=-4, pan=78),
-        x("xrim", 79, 12, 80, 30, 8, db=4, pan=82),
-        x("xnoise", tone=96, decay=6, db=4, pan=44),
-        x("xhat", 91, 65, 76, 22, 92, 12, db=-1, pan=40),              # (MACHINEDRUM's cymbal)
-        sophie("stack", 67, 0.25, 50, 60, 20, 0, 10, db=-7, pan=84),
-    ]),
-    ("Jungle", [                                    # a tight kick, a cracking snare, a ghost snare, ride and crash
+    ("Elastane", [                              # Sophie's, rubbery: a bouncing kick, crushed ticks, a latex snap, toms that boing
+        sophie("kick", 31, 0.5, 15, 8, 6, 90, 0, db=-2),
+        sophie("stack", 43, 0.25, 40, 45, 40, 40, 55, db=0),
+        hat(sophie("shard", 44, 0.05, 70, 45, 30, 0, 50), db=-5, pan=56),
+        hat(sophie("shard", 46, 0.35, 70, 55, 50, -4, 30), db=-10, pan=72),
+        sophie("split", 42, 0.18, 50, 35, 40, 30, 30, db=-1),           # (a latex snap)
+        sophie("boom", 43, 0.4, 15, 15, 10, 85, 0, db=-5, pan=50),
+        sophie("boom", 50, 0.35, 15, 15, 10, 85, 0, db=-5, pan=78),
+        CL_BLIP, CL_BLIP, CL_BLIP, CL_BLIP,                          # (keys 8..11: SLOTS)
+]),
+    ("Wire", [                               # digisophie's, hard and metallic: short, bright, folded
+        clang("fuse", 33, 0.18, 50, 30, 30, 10, 40, db=7),
+        clang("shard", 38, 0.16, 90, 120, 18, 40, 40, db=8),
+        hat(clang("shard", 44, 0.03, 127, 127, 0, 90), db=7, pan=56),
+        hat(clang("shard", 46, 0.3, 124, 127, -3, 90), db=-3, pan=72),
+        clang("shard", 39, 0.12, 127, 127, -5, 70, 30, db=8),
+        clang("fuse", 45, 0.25, 40, 60, 30, 20, 30, db=2, pan=50),
+        clang("fuse", 52, 0.2, 40, 60, 30, 20, 30, db=3, pan=78),
+        CL_BLIP, CL_BLIP, CL_BLIP, CL_BLIP,                          # (keys 8..11: SLOTS)
+]),
+    ("Burlap", [                                    # a tight kick, a cracking snare, a ghost snare, ride and crash
         x("xkick", 36, 28, 45, 20, 30, 15, drive=30, db=2),
         sophie("shard", 38, 0.24, 52, 76, 18, 28, 0, db=-1),
         hat(x("xhat", 84, 6, 90, 22, 92, 20), db=12, pan=58),
         hat(x("xhat", 80, 30, 60, 22, 92, 20), db=6, pan=72),
-        sophie("fuse", 40, 0.16, 52, 76, 18, 28, 20, db=-11),        # (the ghost snare, on the clap's key)
+        sophie("fuse", 40, 0.16, 52, 76, 18, 28, 20, db=-10),        # (the ghost snare, on the clap's key)
         x("xtom", 45, 30, 76, 40, 10, 12, db=2, pan=50),
         x("xtom", 52, 26, 76, 40, 10, 12, db=3, pan=78),
         x("xrim", 74, 10, 76, 22, 10, db=5, pan=80),
@@ -151,7 +129,7 @@ KITS = [
         x("xhat", 96, 45, 90, 22, 92, 30, db=1, pan=40),              # (a ride: MACHINEDRUM's cymbal, shorter)
         x("xhat", 91, 65, 76, 22, 92, 12, db=2, pan=84),                 # (the crash: MACHINEDRUM's cymbal)
     ]),
-    ("Electro", [                                   # a long boom, a bodied snare and clap, FM toms, cowbell, a zap
+    ("Sequin", [                                   # a long boom, a bodied snare and clap, FM toms, cowbell, a zap
         x("xkick", 31, 70, 30, 40, 10, 10, drive=30, db=-2),
         x("xsnare", 50, 30, 60, 30, 50, 80, db=9),
         hat(x("xhat", 82, 4, 90, 22, 92, 12), db=13, pan=56),
@@ -164,11 +142,11 @@ KITS = [
         x("xhat", 91, 70, 50, 22, 92, 40, db=-2, pan=40),
         x("xfm", 79, 18, 76, 22, 10, 30, db=0, pan=86),
     ]),
-    ("Lo-fi", [                                     # crushed and folded: Sophie's crusher, digisophie's fold
+    ("Frayed", [                                     # crushed and folded: Sophie's crusher, digisophie's fold
         sophie("kick", 31, 0.3, 24, 8, 6, 55, 30, db=-1),
         sophie("shard", 38, 0.2, 52, 76, 18, 28, 70, db=-1),
         hat(sophie("shard", 42, 0.06, 94, 98, 58, 0, 75, pan=58), db=-5),
-        hat(sophie("shard", 46, 0.3, 91, 96, 62, -4, 70, pan=72), db=-10),
+        hat(sophie("shard", 46, 0.3, 91, 96, 62, -4, 70, pan=72), db=-9),
         clang("pipe", 39, 0.22, 107, 112, -5, 53, 60, db=4),
         clang("boom", 43, 0.4, 30, 56, 37, 20, 50, db=2, pan=50),
         clang("boom", 48, 0.3, 30, 56, 37, 20, 50, db=3, pan=78),
@@ -177,60 +155,73 @@ KITS = [
         sophie("stack", 49, 1.2, 78, 92, 72, -12, 60, db=-13, pan=40),
         clang("pipe", 60, 0.6, 60, 64, 0, 20, 40, db=-3, pan=84),
     ]),
-    # the mixed kits: a standard core (the factory bank's 909 samples, LOOM-8's own models), the new models as color
-    ("909 Plus", [                                  # the 909 samples, sophie's toms, the x rim, cymbal and cowbell
+    # the mixed kits: the factory bank's 909 samples or the x models as the core, the new models as color (LOOM-8's own
+# models stay in the Loom kit)
+    ("Denim", [                                  # the 909 samples, sophie's toms, the x rim, cymbal and cowbell
         smp("kick909", db=4),
         smp("snare909", db=10),
         hat(smp("hat909", decay=60), db=7, pan=56),                   # (cut short: about 80 ms)
         hat(smp("hat909"), db=9, pan=72),
         smp("clap909", db=13),
-        sophie("fuse", 43, 0.36, 38, 52, 22, 48, 12, db=-5, pan=50),
-        sophie("fuse", 50, 0.23, 58, 64, 30, 36, 18, db=-4, pan=78),
+        sophie("fuse", 45, 0.4, 34, 48, 18, 52, 8, db=-5, pan=50),
+        sophie("fuse", 52, 0.28, 52, 60, 26, 40, 12, db=-4, pan=78),
         x("xrim", 67, 14, 80, 22, 8, db=4, pan=82),
         x("xnoise", tone=100, decay=8, db=3, pan=46),
         x("xhat", 91, 65, 76, 22, 92, 12, db=-1, pan=40),
         x("xfm", 79, 15, 76, 22, 10, 30, db=1, pan=86),
     ]),
-    ("Analog Plus", [                               # LOOM-8's own kick, snare, hats and clap; x toms, rim, cymbal; a bell
-        loom("kick", 82, 42, 64, 64, db=0),
-        loom("snare", 79, 40, 84, 64, db=8),
-        hat(loom("hat", 93, 23, 64, 88), db=7, pan=56),
-        hat(loom("hat", 93, 88, 64, 88), db=0, pan=72),
-        loom("clap", 100, 64, 64, 38, db=11),
-        x("xtom", 43, 40, 60, 30, 5, 20, db=0, pan=48),
-        x("xtom", 50, 36, 60, 30, 5, 20, db=1, pan=80),
-        x("xrim", 72, 12, 76, 22, 10, db=5, pan=82),
-        loom("shaker", 31, 64, 64, 101, db=-1, pan=44),
-        x("xhat", 91, 65, 76, 22, 92, 12, db=-1, pan=40),
-        sophie("pipe", 72, 0.6, 50, 50, 20, 0, 0, db=-8, pan=84),
+    ("Linen", [                                   # short and dry: a tight kick, ticking hats, clicks, a small clap
+        x("xkick", 38, 22, 40, 60, 10, 0, drive=20, db=4),
+        x("xsnare", 58, 14, 90, 60, 60, 0, db=10),
+        hat(clang("shard", 46, 0.03, 120, 124, 0, 70), db=7, pan=56),
+        hat(clang("shard", 46, 0.15, 118, 122, 0, 75), db=0, pan=72),
+        x("xclap", tone=95, decay=10, db=13),
+        clang("boom", 45, 0.15, 30, 50, 30, 10, db=6, pan=48),
+        clang("boom", 52, 0.12, 30, 50, 30, 10, db=7, pan=80),
+        x("xrim", 76, 8, 80, 20, 5, db=0, pan=82),
+        x("xnoise", tone=100, decay=3, db=0, pan=44),
+        x("xhat", 96, 30, 90, 22, 92, 30, db=0, pan=40),              # (a short ride)
+        CL_BLIP,
     ]),
-    ("Deep Mix", [                                  # the house demo's round kick, the 909 clap, LOOM's hat and conga
-        loom("kick", 76, 64, 48, 60, db=-1),
-        x("xsnare", 50, 28, 70, 40, 45, 20, db=8),
-        hat(loom("hat", 96, 23, 64, 88), db=7, pan=58),
-        hat(x("xhat", 74, 26, 30, 22, 92, 12), db=7, pan=70),
+    ("Velvet", [                                  # a round, long kick, the 909 clap, dusty hats, a round conga
+        x("xkick", 34, 55, 25, 50, 10, 5, drive=25, db=-1),
+        x("xsnare", 48, 34, 55, 35, 40, 15, db=7),
+        hat(x("xhat", 76, 8, 40, 22, 92, 12), db=11, pan=58),
+        hat(x("xhat", 72, 34, 25, 22, 92, 10), db=5, pan=70),
         smp("clap909", db=13),
-        loom("conga", 109, 46, 64, 0, db=2, pan=48),
-        x("xtom", 50, 36, 60, 30, 5, 20, db=1, pan=80),
-        x("xrim", 67, 14, 80, 22, 8, db=4, pan=82),
-        loom("shaker", 50, 64, 64, 101, db=1, pan=44),
-        x("xhat", 91, 65, 76, 22, 92, 12, db=-1, pan=40),
-        sophie("pipe", 60, 0.6, 50, 50, 20, 0, 0, db=-8, pan=84),
-    ]),
-    ("Breaks Mix", [                                # a tight LOOM kick, the 909 snare, x hats, a ghost snare, ride, crash
-        loom("kick", 82, 30, 80, 64, db=1),
-        smp("snare909", db=10),
-        hat(x("xhat", 84, 6, 90, 22, 92, 20), db=12, pan=58),
-        hat(x("xhat", 80, 30, 60, 22, 92, 20), db=6, pan=72),
-        sophie("fuse", 40, 0.16, 52, 76, 18, 28, 20, db=-11),        # (the ghost snare, on the clap's key)
-        loom("tom", 70, 46, 38, 64, db=4, pan=50),
-        loom("tom", 100, 46, 38, 64, db=4, pan=78),
-        x("xrim", 74, 10, 76, 22, 10, db=5, pan=80),
-        x("xnoise", tone=86, decay=10, db=3, pan=44),
-        x("xhat", 96, 45, 90, 22, 92, 30, db=1, pan=40),           # (a ride)
-        x("xhat", 91, 65, 76, 22, 92, 12, db=2, pan=84),           # (a crash)
+        x("xtom", 43, 40, 50, 30, 5, 10, db=0, pan=48),
+        x("xtom", 52, 40, 50, 30, 5, 10, db=0, pan=80),
+        x("xrim", 67, 14, 80, 22, 8, db=0, pan=82),
+        x("xnoise", tone=70, decay=12, db=0, pan=44),
+        x("xhat", 91, 65, 76, 22, 92, 12, db=0, pan=40),
+        SO_BLIP,
     ]),
 ]
+# keys 8..11 as the default kit names them (conga, shaker, string, fm): a pattern written on Loom plays the same roles on
+# every kit. the kit's own models; the fm key a short FM blip
+SLOTS = {                                                              # each kit's own: no two kits share a key here
+    "Nylon": [X_CONGA, X_SHAKER, X_PLUCK, X_BLIP],
+    "Elastane": [sophie("boom", 55, 0.2, 30, 30, 10, 60, 0), sophie("shard", 45, 0.07, 100, 100, 50, 0, 0),
+               sophie("pipe", 48, 0.3, 40, 40, 10, 0, 0), sophie("boom", 48, 0.12, 50, 40, 10, 15, 0)],
+    "Wire": [clang("boom", 55, 0.2, 30, 40, 20, 10), clang("shard", 45, 0.08, 127, 127, 0, 60),
+              clang("pipe", 48, 0.3, 50, 50, 0, 10), CL_BLIP],
+    "Burlap": [x("xtom", 57, 18, 80, 35, 5, 0), x("xnoise", tone=88, decay=6), x("xfm", 55, 28, 50, 20, 0, 55),
+               clang("boom", 47, 0.1, 50, 50, 30, 10)],
+    "Sequin": [x("xtom", 60, 22, 70, 40, 0, 40), x("xnoise", tone=100, decay=4, drive=60), x("xfm", 48, 26, 50, 25, 0, 60),
+                x("xfm", 55, 10, 80, 30, 0, 40)],
+    "Frayed": [clang("boom", 55, 0.2, 30, 40, 20, 10, 50), sophie("shard", 45, 0.06, 100, 100, 60, 0, 70),
+              clang("pipe", 48, 0.3, 50, 50, 0, 10, 40), dict(SO_BLIP, knobs=SO_BLIP["knobs"][:7] + [k127(40)])],
+    "Denim": [x("xtom", 64, 18, 70, 20, 0, 0), x("xnoise", tone=90, decay=7), sophie("pipe", 60, 0.3, 40, 30, 10, 0, 0),
+                 x("xfm", 52, 14, 55, 12, 0, 20)],
+    "Linen": [x("xrim", 64, 10, 60, 30, 0), x("xnoise", tone=100, decay=3), clang("pipe", 55, 0.2, 50, 60, 0, 10),
+                clang("boom", 50, 0.08, 45, 45, 20, 5)],
+    "Velvet": [S_CONGA, x("xnoise", tone=70, decay=12), S_STRING, sophie("boom", 45, 0.18, 30, 25, 5, 20, 0)],
+}
+# their volumes, balanced by role as the other keys (conga 6 dB under the kick, the shaker 14, the string and the fm 8)
+SLOT_DB = {"Nylon": [3, 4, 0, 1], "Elastane": [-5, -6, -6, -7], "Wire": [1, 0, 0, 0], "Burlap": [3, 4, -1, 2],
+           "Sequin": [2, 7, -1, 1], "Frayed": [1, -7, 0, -8], "Denim": [3, 4, -7, 0], "Linen": [7, 4, 1, 3],
+           "Velvet": [-7, 4, -8, -9]}
+KITS = [(name, keys[:7] + [dict(k, db=d) for k, d in zip(SLOTS[name], SLOT_DB[name])]) for name, keys in KITS]
 assert all(len(keys) == 11 and len(name) <= 11 for name, keys in KITS)
 
 
@@ -245,7 +236,7 @@ def key_bytes(k):
 
 def header():
     out = ["/* SPDX-License-Identifier: GPL-3.0-only */",
-           "/* generated by tools/gen_kits.py: the factory kits after Loom and Loom Samples (app/ui.c kit_factory) */",
+           "/* generated by tools/gen_kits.py: the factory kits after Loom (app/ui.c kit_factory) */",
            f"#define NGKITS {len(KITS)}",
            "static const char *const GKIT_NAME[NGKITS] = {" + ", ".join(f'"{n}"' for n, _ in KITS) + "};",
            "/* each key: the model, its knobs 1..8, volume, pan, play mode, the key's decay (127: off, the model's own) */",

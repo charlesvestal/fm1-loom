@@ -1,0 +1,70 @@
+# eight user kits (presets format 11): a format 10 presets object (four kits, tests/fixtures/make_presets_v10.py) put
+# back loads as K1..K4 with K5..K8 empty; a kit saved into K8 keeps the four; a restart keeps all of them
+wait 300
+listen
+expect trk 1
+restore tests/fixtures/presets_v10.bkp
+expect restore_rc 0
+wait 400
+tap EDIT
+expect page Engine
+# K1 (from Loom backward: -8): its key on sophie stays sophie (a format 10 kit: no development build's numbers)
+tap SEL
+turn SELECT 2
+turn ALGO -8
+tap SEL
+wait 40
+said K1 first
+expect par1.d1.model 20
+# K4 (three on)
+tap SEL
+turn SELECT 2
+turn ALGO 3
+tap SEL
+wait 40
+said K4 fourth
+expect par1.d1.model 11
+# K5: empty
+tap SEL
+turn SELECT 2
+turn ALGO 1
+tap SEL
+wait 40
+said NO KIT
+# into K8 (SAVE KIT: seven on from K1; empty, no question)
+param 1 d2.model 12
+tap SEL
+turn SELECT 3
+turn ALGO 7
+wait 300
+said K8 (empty)
+tap SEL
+wait 40
+said KIT SAVED
+expect ask 0
+reboot
+wait 400
+tap EDIT
+# K8 (its name the track's, as loaded from K4) (from Loom backward: -1), then K1 and K4 still there
+tap SEL
+turn SELECT 2
+turn ALGO -1
+tap SEL
+wait 40
+said K8 fourth
+expect par1.d1.model 11
+expect par1.d2.model 12
+tap SEL
+turn SELECT 2
+turn ALGO -7
+tap SEL
+wait 40
+said K1 first
+expect par1.d1.model 20
+tap SEL
+turn SELECT 2
+turn ALGO 3
+tap SEL
+wait 40
+said K4 fourth
+expect par1.d1.model 11

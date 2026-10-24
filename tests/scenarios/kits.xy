@@ -1,5 +1,5 @@
-# kits (a kit track's SELECT list on Engine): KIT loads a factory kit (Loom, Loom Samples, tools/gen_kits.py's) or a user
-# kit (K1..K4, the list's last four: turned to from Loom backward, -4 .. -1);
+# kits (a kit track's SELECT list on Engine): KIT loads a factory kit (Loom, tools/gen_kits.py's) or a user
+# kit (K1..K8, the list's last eight: turned to from Loom backward, -8 .. -1);
 # SAVE KIT keeps the track's kit in a user slot (asking before replacing one), in flash with the user presets: a
 # restart keeps it, and loading a kit keeps the track's mix
 wait 300
@@ -8,17 +8,17 @@ expect trk 1
 tap EDIT
 expect page Engine
 param 1 level 90
-# Loom Samples: the bank's kick, snare, hat, clap
+# Nylon: the x models (x kick, x clap, x tom)
 tap SEL
 turn SELECT 2
 turn ALGO 1
 tap SEL
 wait 40
-said Loom Samples
-expect par1.d1.model 10
-expect par1.d1.k1 0
-expect par1.d5.k1 3
-expect par1.d6.model 8
+said Nylon
+expect par1.d1.model 11
+expect par1.d1.k1 36
+expect par1.d5.k1 97
+expect par1.d6.model 15
 expect par1.level 90
 expect par1.engine 8
 # into K1 (empty: no question)
@@ -37,22 +37,22 @@ wait 40
 expect par1.d1.model 0
 tap SEL
 turn SELECT 2
-turn ALGO -4
+turn ALGO -8
 tap SEL
 wait 40
 said K1
-expect par1.d1.model 10
-expect par1.d5.k1 3
+expect par1.d1.model 11
+expect par1.d5.k1 97
 reboot
 wait 300
 expect par1.d1.model 0
 tap EDIT
 tap SEL
 turn SELECT 2
-turn ALGO -4
+turn ALGO -8
 tap SEL
 wait 40
-expect par1.d1.model 10
+expect par1.d1.model 11
 # changed and saved over K1: asked first
 param 1 d1.model 0
 tap SEL

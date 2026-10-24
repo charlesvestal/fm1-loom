@@ -2052,12 +2052,12 @@ static void proj_slot_text(int slot, char *t)     /* "Proj 2", "Proj 3 (open)", 
     else if (!project_exists(slot))
         s_cat(e, " (empty)");
 }
-/* the kits (a kit track's SELECT list): the factory kits (Loom, Loom Samples, then tools/gen_kits.py's), then the
+/* the kits (a kit track's SELECT list): the factory kits (Loom, then tools/gen_kits.py's), then the
  * user's (project.c user_kit_name) */
 #include "kits.h"
-#define NFKITS (2 + NGKITS)
+#define NFKITS (1 + NGKITS)
 #define NKITS (NFKITS + NUSER_KITS)
-static const char *kit_name(int k) { return k == 0 ? "Loom" : k == 1 ? "Loom Samples" : GKIT_NAME[k - 2]; }
+static const char *kit_name(int k) { return k == 0 ? "Loom" : GKIT_NAME[k - 1]; }
 static void kit_label(int k, char *t)              /* "Loom", "K2 deep", "K3 (empty)" */
 {
     if (k < NFKITS) {

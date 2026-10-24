@@ -62,11 +62,14 @@ typedef char trk_layout[(offsetof(trk_t, name) == NTP && sizeof(trk_t) == NTP + 
 typedef char preset_packed[(sizeof(user_preset_t) == NAME_LEN + 2u + NTP_SOUND) ? 1 : -1];   /* (no padding) */
 #define PRESET_OLD (NAME_LEN + 1u + NTP_SOUND)                    /* formats 6..8: a user preset without its fine */
 #define PRESETS_V7 (4u + NUSER_PRESETS * PRESET_OLD)              /* 6, 7: the user presets alone */
-#define PRESETS_V8 (PRESETS_V7 + NUSER_KITS * KIT_LEN)            /* 8: the user kits after them */
+#define OLD_KITS 4u                                               /* formats 8..10: four user kits */
+#define PRESETS_V8 (PRESETS_V7 + OLD_KITS * KIT_LEN)              /* 8: the user kits after them */
 #define PRESETS_KITS (4u + (uint32_t)sizeof user_presets)         /* 9: where the kits start */
 #define PRESETS_LEN (PRESETS_KITS + NUSER_KITS * KIT_LEN)
+#define PRESETS_V10 (PRESETS_KITS + OLD_KITS * KIT_LEN)          /* 9, 10: four kits */
 typedef char presets_fit[(PRESETS_LEN <= PLAT_STORE_MAX && PRESETS_V7 == 836u) ? 1 : -1];
-#define PRESETS_FORMAT 10u               /* 10: as 9, its kits' keys on the new models (11..20: keys_fix leaves them);
+#define PRESETS_FORMAT 11u               /* 11: eight user kits (10 and 9 held four, loaded as K1..K4);
+                                          * 10: as 9, its kits' keys on the new models (11..20: keys_fix leaves them);
                                           * 9: knit's osc 2 fine (user_preset_t o2fine), the kits after; 8: the user kits;
                                           * 7: the filter type off (FT_DYNAMIC) moved past bp12 (TP_FTYPE 4/5 swap, below);
                                           * 6: the octave (TP_OCT); 5: the engine's second page (TP_X1..X4); 4: no tape send (TP_SENDT);
@@ -855,7 +858,8 @@ int presets_load(void)
         user_presets[k].name[0] = 0;
     for (k = 0; k < NUSER_KITS; k++)
         user_kit_name[k][0] = 0;
-    if (!((fmt == PRESETS_FORMAT || fmt == 9u) && n == (int)PRESETS_LEN) && !(fmt == 8u && n == (int)PRESETS_V8) &&
+    if (!(fmt == PRESETS_FORMAT && n == (int)PRESETS_LEN) && !((fmt == 10u || fmt == 9u) && n == (int)PRESETS_V10) &&
+        !(fmt == 8u && n == (int)PRESETS_V8) &&
         !((fmt == 6u || fmt == 7u) && n == (int)PRESETS_V7))
         return -1;
     if (fmt >= 9u)
@@ -882,7 +886,7 @@ int presets_load(void)
             user_presets[k].name[0] = 0;
     }
     if (fmt >= 8u)
-        for (k = 0; k < NUSER_KITS; k++) {
+        for (k = 0; k < (fmt == PRESETS_FORMAT ? NUSER_KITS : (int)OLD_KITS); k++) {
             const uint8_t *img = io_buf + (fmt == 8u ? PRESETS_V7 : PRESETS_KITS) + (uint32_t)k * KIT_LEN;
             for (i = 0; i < NAME_LEN; i++)
                 user_kit_name[k][i] = (char)img[i];
@@ -901,12 +905,17 @@ static void presets_image(void)
 {
     int n = plat_store_load(OBJ_PRESETS, io_buf, sizeof io_buf);
     uint32_t i, fmt = get32(io_buf);
-    if (fmt == 8u && n == (int)PRESETS_V8)
-        for (i = NUSER_KITS * KIT_LEN; i-- > 0;)     /* (up: copied from the end) */
+    uint32_t keep = 0;                          /* the kits' bytes kept: the rest of the slots empty */
+    if (fmt == 8u && n == (int)PRESETS_V8) {
+        for (i = OLD_KITS * KIT_LEN; i-- > 0;)       /* (up: copied from the end) */
             io_buf[PRESETS_KITS + i] = io_buf[PRESETS_V7 + i];
-    else if ((fmt != PRESETS_FORMAT && fmt != 9u) || n != (int)PRESETS_LEN)
-        for (i = PRESETS_KITS; i < PRESETS_LEN; i++)
-            io_buf[i] = 0;
+        keep = OLD_KITS * KIT_LEN;
+    } else if ((fmt == 10u || fmt == 9u) && n == (int)PRESETS_V10)
+        keep = OLD_KITS * KIT_LEN;
+    else if (fmt == PRESETS_FORMAT && n == (int)PRESETS_LEN)
+        keep = NUSER_KITS * KIT_LEN;
+    for (i = PRESETS_KITS + keep; i < PRESETS_LEN; i++)
+        io_buf[i] = 0;
     put32(io_buf, PRESETS_FORMAT);
     for (i = 0; i < sizeof user_presets; i++)
         io_buf[4u + i] = ((const uint8_t *)user_presets)[i];
@@ -921,20 +930,23 @@ int presets_save(void)
 int kit_load(int slot, uint8_t *img)
 {
     int n;
-    uint32_t i, at;
+    uint32_t i, at, fmt;
     if (slot < 0 || slot >= NUSER_KITS || !user_kit_name[slot][0])
         return -1;
     n = plat_store_load(OBJ_PRESETS, io_buf, sizeof io_buf);
-    if ((get32(io_buf) == PRESETS_FORMAT || get32(io_buf) == 9u) && n == (int)PRESETS_LEN)
+    fmt = get32(io_buf);
+    if (fmt == PRESETS_FORMAT && n == (int)PRESETS_LEN)
         at = PRESETS_KITS;
-    else if (get32(io_buf) == 8u && n == (int)PRESETS_V8)
+    else if ((fmt == 10u || fmt == 9u) && n == (int)PRESETS_V10 && slot < (int)OLD_KITS)
+        at = PRESETS_KITS;
+    else if (fmt == 8u && n == (int)PRESETS_V8 && slot < (int)OLD_KITS)
         at = PRESETS_V7;
     else
         return -1;
     for (i = 0; i < KIT_LEN; i++)
         img[i] = io_buf[at + (uint32_t)slot * KIT_LEN + i];
     img[NAME_LEN - 1] = 0;
-    return img[NAME_LEN + TP_ENGINE] != EG_DRUMLINE ? -1 : get32(io_buf) == PRESETS_FORMAT ? 0 : 1;
+    return img[NAME_LEN + TP_ENGINE] != EG_DRUMLINE ? -1 : fmt >= 10u ? 0 : 1;
 }
 
 int kit_save(int slot, const uint8_t *img)
