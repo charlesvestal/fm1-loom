@@ -2427,8 +2427,8 @@ static void voice_chunk(synth_t *s, voice_t *v)
         if (v->engine == EG_KNIT) {            /* its second page (knit_prep) */
             for (i = 0; i < 4; i++) {
                 float xv = (float)P(s, trk, TP_X1 + i);
-                if (i == 0)                      /* (osc 2's fine, in cents: TP_O2FINE) */
-                    xv += (float)(P(s, trk, TP_O2FINE) - 64) * 0.01f;
+                if (i == 0)                      /* (osc 2's fine, in cents: TP_O2FINE, past the locks: the knob) */
+                    xv += (float)(s->par[trk][TP_O2FINE] - 64) * 0.01f;
                 moved |= xv != c->ex[18 + i];
                 c->ex[18 + i] = xv;
             }
