@@ -86,9 +86,8 @@ void app_init(void)
         project_save(proj_slot);                    /* written now, on one core, the project as it loaded;
                                                      * Setup > 2nd core turns it back on */
     }
-    if (!proj.one_core && plat_loom_two_cores_ok() &&   /* after a failed start, one core (as X0X) */
-        plat_cpu2_set(1) == 0)                      /* the second core: at power-on, before the audio and the */
-        engine_set_core2(plat_cpu2_run, plat_cpu2_wait);   /* timers, as X0X starts it; if it does not answer, one core */
+    if (!proj.one_core && plat_cpu2_set(1) == 0)  /* the second core: at power-on, before the audio and the timers */
+        engine_set_core2(plat_cpu2_run, plat_cpu2_wait);   /* (fm1-base's: a failure of it restarts the FM-1) */
 #else
     engine_set_core2(plat_cpu2_run, plat_cpu2_wait);
 #endif

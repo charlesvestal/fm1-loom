@@ -62,5 +62,3 @@ static void plat_loom_init(void)
     vdc14_level = (uint8_t)fm1_vdc14();
     sysvdd_level = (uint8_t)fm1_sysvdd();
 }
-/* the second core at power-on, before the audio and the timers, as X0X starts it; one core after a failed start */
-static int plat_loom_two_cores_ok(void) { return !bootguard.failed; }
