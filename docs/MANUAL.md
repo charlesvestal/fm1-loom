@@ -695,11 +695,23 @@ upright bass, strings, brass, flute and an orchestra hit; a vinyl loop; and four
 (classic, heat, choke and ecstasy). Then come thirty-two of yours, user 1 to user 32. Both the sample model on a
 drum key and the sample engine on a synth track play them, and the knob shows each one's name.
 
-Since 0.7 the four breaks are no longer built into the firmware, because they take room that new sounds need. To
-add them, open [the samples page](https://charlesvestal.github.io/fm1-loom/samples/), press **Add the breaks**,
-then Send (or run `tools/loom_samples.py load breaks`). They go into your bank (92 KB of its 214) and keep their
-own places on the sample knob, so the slice presets and your projects find them by name. Until you add them, the
-breaks are silent and the picture says "install the breaks: samples page".
+LOOM-8's own sounds live in the sample bank, in the FM-1's flash, beside yours. The bank holds 214 KB of sound
+(about 19 seconds at 22 kHz). The twelve sounds other than the breaks take 86 KB of it; the installer puts them
+there after your samples (since 0.8; before, they were built into the firmware). They aren't user slots: user 1
+to user 32 are all still yours, and the sounds keep their own places on the sample knob, so kits, presets and
+your projects find them.
+
+If your samples leave no room for LOOM-8's sounds, the installer asks first. It can make room by storing the
+samples it names at a lower rate (what's above half that rate is lost, and that can't be undone on the FM-1, so
+keep the original files), install without the sounds, or stop. Without them, the kits and presets that use them
+are silent and the picture says "install the sounds: samples page"; to add them later, open
+[the samples page](https://charlesvestal.github.io/fm1-loom/samples/), press **Add LOOM-8's sounds**, then Send
+(or run `tools/loom_samples.py factory`, with `--make-room` to make room the same way).
+
+Since 0.7 the four breaks aren't in the firmware either. To add them, press **Add the breaks** on the samples
+page, then Send (or run `tools/loom_samples.py load breaks`). They take 92 KB and keep their own places on the
+sample knob, so the slice presets and your projects find them by name. Until you add them, the breaks are silent
+and the picture says "install the breaks: samples page".
 
 The **sample** engine plays a sample at the pitch of the note. The sample's root note plays it at its own rate;
 an octave up plays it twice as fast. Its knobs:
@@ -1114,7 +1126,17 @@ gets out of the kick's way while the rest plays on.
 
 ### MIDI
 
-Over USB, each track has its own channel: T1 to T8 on channels 1 to 8, FX I on 9, FX II on 10, and the master and
+LOOM-8 speaks MIDI over USB and over Bluetooth, the same on both: what comes in from either plays, and what it
+sends goes out on both.
+
+**Bluetooth.** The FM-1 shows up as "FM-1", a Bluetooth MIDI device, while LOOM-8 runs. On a Mac, open Audio MIDI
+Setup, choose Window, Show MIDI Studio, click the Bluetooth button, and press Connect next to FM-1. On an iPhone
+or iPad, connect from the app you play with (most have a Bluetooth MIDI button in their MIDI settings). Bluetooth
+bunches messages together, so LOOM-8 plays a clock that comes over Bluetooth by the times the sender stamped on
+it: the tempo is as steady as over USB, but about 75 ms late. Set your DAW's clock delay (or MIDI sync offset) to
+send the clock about 75 ms early to line LOOM-8 up with it. Notes and CCs play as they arrive.
+
+Each track has its own channel: T1 to T8 on channels 1 to 8, FX I on 9, FX II on 10, and the master and
 the scenes on 11. Notes on channels 12 to 16 play whichever instrument track is selected (if the conductor or
 throws track is selected, the last instrument track you had). LOOM-8 never sends on 12 to 16. Notes on 9 and 10
 do nothing.
