@@ -4,6 +4,7 @@ id_prefix = "FM-1_10"          # package identity: dev FM-1_1000, releases FM-1_
 usb_manufacturer = "LOOM-8"
 usb_product = "LOOM-8 FM-1"
 ble = true                     # Bluetooth MIDI with a computer (the ble-spike branch)
+ble_trim = true                # a MIDI peripheral only: JieLi's central, classic and test code cut (base/tools/build.py)
 ble_stack_kb = 3               # its three tasks' stacks at 3 KB, not 8 (1.3 KB deep at most, a link with MIDI both ways)
 ble_heap_kb = 12               # its heap at 12 KB, not 24 (7.1 KB at most: a link, MIDI both ways, a flood of 300 messages a second)
 usb_audio_in = true            # the master output recordable over USB (Setup's USB AUDIO: follows the knob, or full)
