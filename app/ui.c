@@ -1664,6 +1664,8 @@ static void page_button(int b)
     if (is_aux(sel_trk()) && (b == B_ENV || b == B_LFO || (b == B_ARP && sel_trk() == AUX_WEAVE)))
         track_select(ui.last_inst);              /* (the conductor, the throws, WEAVE have no such page: the track
                                                   * played last, as Mix's FX strips do; each track's weave is its ARP's) */
+    if ((b == B_ENV || b == B_LFO) && is_midi(sel_trk()))
+        say_no(b == B_ENV ? "NO ENVELOPE" : "NO LFO", "on a MIDI track");
     for (uint32_t i = 0; i < NPAGE_BTN; i++)
         if (PAGE_BTN[i].btn == b) {
             ui.page = (uint8_t)(b == B_HOME && ui.page == P_ARRANGE ? P_SONG : grp_page((int)i, 0));
@@ -2336,6 +2338,11 @@ static void list_change_do(int32_t e)
         case A_MIDI_OUT:
             set_tp(sel_trk(), TP_CHAN, d > 0);
             break;
+        case A_MIDI_CC: {                        /* a MIDI track's knob's CC, 0..119 ("KNOB 3 CC") */
+            int k = lst.row[lst.sel].name[5] - '1', p = midi_cc_par(k & 7);
+            set_tp(sel_trk(), p, clampi(proj.trk[sel_trk()].par[p] + (int)accel(EN_ALGO, e), 0, NMIDI_CC - 1));
+            break;
+        }
         case A_FOLLOW: {
             int t = list_follow_trk();
             set_tp(t, TP_BRAIN, (proj.trk[t].par[TP_BRAIN] % 3 + d + 3) % 3);
@@ -2659,6 +2666,16 @@ static void act_scramble(void)                   /* a random sound: the engine s
             par[q] = (uint8_t)(in->lo + (int)((r >> 8) % (uint32_t)(in->hi - in->lo + 1)));
         }
         engine_set_all(trk);
+        mark_dirty();
+        return;
+    }
+    if (is_midi(trk)) {                          /* a MIDI track: its eight knobs (not their CCs), each sent */
+        for (int k = 0; k < 8; k++) {
+            int q = k < 4 ? TP_E1 + k : TP_X1 + k - 4;
+            r = r * 1664525u + 1013904223u;
+            par[q] = (uint8_t)((r >> 8) % 128u);
+            engine_set(trk, q, par[q]);
+        }
         mark_dirty();
         return;
     }
@@ -3054,7 +3071,7 @@ static void action_run(int a)
         break;
     case A_FOLLOW: case A_USB_AUDIO: case A_COUNT_IN: case A_THEME: case A_PLAYMODE: case A_FTYPE: case A_FX_HP: case A_FX_LP:
     case A_FX_SEND: case A_PUMP_BY: case A_PUMP_REL: case A_PUMP_ACC: case A_LEVEL: case A_SCENE_AT: case A_AUTOSAVE:
-    case A_MIDI_OUT: case A_LOOP_FREE: case A_CC_OUT: case A_SCENES_OUT: return;   /* (ALGORITHM sets them; SEL
+    case A_MIDI_OUT: case A_LOOP_FREE: case A_CC_OUT: case A_SCENES_OUT: case A_MIDI_CC: return;   /* (ALGORITHM sets them; SEL
                                                                                     * leaves the list) */
     case A_REMOVE_NOTE: act_remove_note(lst.sel); break;
     case A_INSERT_SLOT:

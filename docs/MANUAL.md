@@ -1,7 +1,7 @@
 # LOOM-8 manual
 
 LOOM-8 turns the M-VAVE FM-1 into a pocket groovebox: eight threads of sound on a 64-step loom. You get eight
-tracks with nine engines (six synths, a sample player, a break slicer and a drum kit), a 64-step sequencer with
+tracks with ten engines (six synths, a sample player, a break slicer, a drum kit and MIDI out), a 64-step sequencer with
 fourteen step tricks and parameter locks, players, twelve throws (momentary effects) per octave, a conductor that
 moves the song through a progression, two send effects (the reverb includes the PlayStation's own reverbs among
 its modes), a mixer, a master section, thirty-two scenes and a song. You can weave two patterns into a third: bar
@@ -487,6 +487,7 @@ delay. Press **SEL** for the list:
 | sample | sample, start, length, mode | 18 |
 | slice | sample, slices, pitch, gate | 11 |
 | kit | the model knobs of the key shown | |
+| midi | eight knobs, each sending a CC | |
 
 Knit and rayon have a second set of knobs. Press **EDIT**, then turn **SELECT** to the Sub page.
 
@@ -841,6 +842,24 @@ up to about 16 seconds long at 22050 Hz.
 The sound stops while the FM-1 writes the samples (longer for a fuller bank). When the screen says LOADED, the
 FM-1 has checked every byte. A track that was playing a sample keeps pointing at the same slot: user 2 is still
 user 2, whatever is in it now.
+
+### MIDI
+
+The **midi** engine plays an outside synth instead of a sound of LOOM-8's own. The track makes no sound on the FM-1.
+Its notes (keys, steps, the arp, strums) go out over USB and Bluetooth on the track's own channel, T1 on channel 1
+up to T8 on channel 8, whether or not the track's MIDI OUT is on.
+
+It has eight knobs: four on the Engine page and four more on Engine 2 (press **EDIT**, then turn **SELECT**). Each
+sends a CC on the track's channel whenever it moves, whether you turn it, a step's lock moves it, or recorded
+motion plays it back. The picture shows all eight as bars, the page's four bright, each with its CC number under it.
+To change which CC a knob sends, press **SEL** and turn KNOB 1 CC to KNOB 8 CC (0 to 119). They start as 74, 71, 73
+and 72 (cutoff, resonance, attack and release on most synths), then 1, 75, 91 and 93 (mod wheel, decay, reverb and
+chorus).
+
+A MIDI track has no envelope, filter, LFO, character or sends, so **ENV** and **LFO** take you to its knobs, and
+**FX** shows only FX I, FX II and Throws. Play keeps its glide, voice mode and octave. SCRAMBLE sets the eight
+knobs at random and leaves their CC numbers alone. The track's CC 9 still mutes it, but the other CCs coming in on
+its channel do nothing, so a synth that echoes CCs back can't change the CC numbers.
 
 ### The synth pages
 

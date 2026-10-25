@@ -40,7 +40,7 @@ static const uint8_t E_GLIDE[NENGINE] = {
     0xB, /* knit: wave, detune, width (not the voices) */  0xD, /* rayon: bright, edge, tine (not the ratio) */
     0xE, /* jacquard: scan, bend, ripple (not the table) */ 0x0, /* bellows: four switches */
     0xE, /* cane: timbre, color, damp */ 0xE,               /* voile: timbre, color, breath */
-    0x0, 0x0, 0x0};                                        /* sample, slice (where a note starts), the kit */
+    0x0, 0x0, 0x0, 0x0};                                   /* sample, slice (where a note starts), the kit, midi */
 static inline float glide_to(float from, float to)
 {
     float d = to - from;
@@ -60,16 +60,17 @@ static inline float glide_to(float from, float to)
 const char *const RL_NAME[NRL] = {"bass", "lead", "pad", "keys", "pluck", "bell", "stab", "strings", "brass", "voice",
                                   "chord", "fx", "drum", "loop"};
 const char *const EG_NAME[NENGINE] = {"knit", "rayon", "jacquard", "bellows", "cane", "voile", "sample", "slice",
-                                      "kit"};
+                                      "kit", "midi"};
 const char *const EG_KNOB[NENGINE][4] = {
     {"wave", "detune", "voices", "width"}, {"bright", "ratio", "edge", "tine"},     {"table", "scan", "bend", "ripple"},
     {"stops", "pedal", "rotor", "rate"},   {"model", "timbre", "color", "damp"},   {"model", "timbre", "color", "breath"},
-    {"sample", "start", "length", "mode"}, {"sample", "slices", "pitch", "gate"},  {"-", "-", "-", "-"}};
+    {"sample", "start", "length", "mode"}, {"sample", "slices", "pitch", "gate"},  {"-", "-", "-", "-"},
+    {"cc", "cc", "cc", "cc"}};                   /* (midi: each knob named by its CC, tp_info_par) */
 /* each engine's plain sound (INIT), 0..127; bellows' four are discrete 1..8, knit's voices 1..7, the Braids engines'
  * models a name each (synth.h NCANE ...) */
 static const uint8_t EG_DEF[NENGINE][4] = {{0, 20, 1, 0},  {40, 25, 0, 0}, {0, 40, 0, 0},  {3, 4, 2, 5},
                                            {0, 64, 64, 0}, {2, 0, 64, 0},  {5, 0, 127, SM_ONESHOT}, {SMP_BREAK, 1, 64, 127},
-                                           {0, 0, 0, 0}};
+                                           {0, 0, 0, 0}, {64, 64, 64, 64}};
 static const char *const VMODE_N[3] = {"poly", "mono", "legato"};
 static const char *const FTYPE_N[NFT] = {"lp24", "ladder", "lp12", "hp12", "bp12", "off"};   /* FT_DYNAMIC: no
                                                                           * filter on a synth track; the kit's
@@ -1563,8 +1564,8 @@ void synth_note_on(synth_t *s, int trk, int note, int vel, int glide_ms, uint32_
     int mode;
     if (trk < 0 || trk >= NTRK || note < 0 || note > 127)
         return;
-    if (P(s, trk, TP_ENGINE) == EG_DRUMLINE)
-        return;                                  /* dsp/drumline.c plays those */
+    if (!eg_synth(P(s, trk, TP_ENGINE)))
+        return;                                  /* dsp/drumline.c plays a kit's; a MIDI track's go out only */
     if (vel < 1)
         vel = 1;
     if (vel > 127)
@@ -3045,6 +3046,16 @@ static const tp_info_t SAMPLE_X_P[4] = {{"loop start", 0, 127, 0, PK_PCT, 0}, {"
 /* orbit's second page: the index's fall (0 held; 20 ms .. 4 s), its floor, keyscale (rayon_prep) */
 static const tp_info_t RAYON_X_P[4] = {{"fall", 0, 127, 0, PK_NUM, 0}, {"floor", 0, 127, 0, PK_PCT, 0},
                                        {"keyscale", 0, 127, 0, PK_PCT, 0}, {"-", 0, 0, 0, PK_NUM, 0}};
+/* the MIDI engine (EG_MIDI): its second page's knobs (each named by its CC: tp_info_par), and the eight knobs' CC
+ * numbers (TP_A..TP_R, TP_FA..TP_FR; set on the SEL list): cutoff, resonance, attack, release; mod wheel, decay,
+ * reverb, chorus */
+static const tp_info_t MIDI_X_P[4] = {{"cc", 0, 127, 0, PK_NN, 0}, {"cc", 0, 127, 64, PK_NN, 0},
+                                      {"cc", 0, 127, 0, PK_NN, 0}, {"cc", 0, 127, 0, PK_NN, 0}};
+static const tp_info_t MIDI_CC_P[8] = {{"knob 1", 0, NMIDI_CC - 1, 74, PK_NUM, 0}, {"knob 2", 0, NMIDI_CC - 1, 71, PK_NUM, 0},
+                                       {"knob 3", 0, NMIDI_CC - 1, 73, PK_NUM, 0}, {"knob 4", 0, NMIDI_CC - 1, 72, PK_NUM, 0},
+                                       {"knob 5", 0, NMIDI_CC - 1, 1, PK_NUM, 0},  {"knob 6", 0, NMIDI_CC - 1, 75, PK_NUM, 0},
+                                       {"knob 7", 0, NMIDI_CC - 1, 91, PK_NUM, 0}, {"knob 8", 0, NMIDI_CC - 1, 93, PK_NUM, 0}};
+static const char *const MIDI_CC_N[NMIDI_CC] = {"cc 0", "cc 1", "cc 2", "cc 3", "cc 4", "cc 5", "cc 6", "cc 7", "cc 8", "cc 9", "cc 10", "cc 11", "cc 12", "cc 13", "cc 14", "cc 15", "cc 16", "cc 17", "cc 18", "cc 19", "cc 20", "cc 21", "cc 22", "cc 23", "cc 24", "cc 25", "cc 26", "cc 27", "cc 28", "cc 29", "cc 30", "cc 31", "cc 32", "cc 33", "cc 34", "cc 35", "cc 36", "cc 37", "cc 38", "cc 39", "cc 40", "cc 41", "cc 42", "cc 43", "cc 44", "cc 45", "cc 46", "cc 47", "cc 48", "cc 49", "cc 50", "cc 51", "cc 52", "cc 53", "cc 54", "cc 55", "cc 56", "cc 57", "cc 58", "cc 59", "cc 60", "cc 61", "cc 62", "cc 63", "cc 64", "cc 65", "cc 66", "cc 67", "cc 68", "cc 69", "cc 70", "cc 71", "cc 72", "cc 73", "cc 74", "cc 75", "cc 76", "cc 77", "cc 78", "cc 79", "cc 80", "cc 81", "cc 82", "cc 83", "cc 84", "cc 85", "cc 86", "cc 87", "cc 88", "cc 89", "cc 90", "cc 91", "cc 92", "cc 93", "cc 94", "cc 95", "cc 96", "cc 97", "cc 98", "cc 99", "cc 100", "cc 101", "cc 102", "cc 103", "cc 104", "cc 105", "cc 106", "cc 107", "cc 108", "cc 109", "cc 110", "cc 111", "cc 112", "cc 113", "cc 114", "cc 115", "cc 116", "cc 117", "cc 118", "cc 119"};
 static const tp_info_t STRUM_P[4] = {{"roll", 0, 63, 30, PK_NUM, 0}, {"pattern", 0, 3, 0, PK_NAMES, MPAT_N},
                                        {"-", 0, 0, 0, PK_NUM, 0}, {"hold", 0, 1, 0, PK_SWITCH, 0}};
 /* the LFO's knobs per type (synth.h): speed / amount / dest / x / x2 */
@@ -3158,8 +3169,10 @@ const tp_info_t *tp_info(int p, int engine)
             engine = EG_KNIT;
         return &eknob[engine][p - TP_E1];
     }
+    if (engine == EG_MIDI && midi_cc_of(p) >= 0)
+        return &MIDI_CC_P[midi_cc_of(p)];
     if (p >= TP_X1 && p <= TP_X4)                /* the engine's second page: knit's, rayon's, else none */
-        return engine == EG_RAYON ? &RAYON_X_P[p - TP_X1]
+        return engine == EG_MIDI ? &MIDI_X_P[p - TP_X1] : engine == EG_RAYON ? &RAYON_X_P[p - TP_X1]
              : engine == EG_KNIT ? &KNIT_X_P[p - TP_X1] : engine == EG_SAMPLE ? &SAMPLE_X_P[p - TP_X1] : &NONE_P;
     if (engine == EG_DRUMLINE) {
         if (p >= TP_A && p <= TP_R)
@@ -3200,6 +3213,12 @@ const tp_info_t *tp_info_par(int p, const uint8_t *par)
     if (tp_is_dknob2(p)) {                       /* knob 5..8: the key's model's, or none */
         int s = (p - TP_DRUMX0) / DPX_N, j = (p - TP_DRUMX0) % DPX_N;
         return dknob_of(par[TP_DRUM(s, DP_MODEL)] % NDM, 4 + j);
+    }
+    if (engine == EG_MIDI && midi_knob(p) >= 0) {   /* a knob named by its CC: "cc 74" */
+        tp_info_t *i = &dk_ring[dk_at++ & 15u];
+        *i = *tp_info(p, engine);
+        i->name = MIDI_CC_N[par[midi_cc_par(midi_knob(p))] % NMIDI_CC];
+        return i;
     }
     if (lt >= NLT)
         lt = LT_OFF;

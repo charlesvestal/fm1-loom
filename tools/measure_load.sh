@@ -47,7 +47,7 @@ pick = opt("--engines")
 WHITE_K = [0, 2, 4, 6, 7, 9, 11, 12, 14, 16, 18, 19, 21, 23, 24, 26]
 BLACK_K = [1, 3, 5, 8, 10, 13, 15, 17, 20, 22, 25]
 CHORD = [WHITE_K[i] for i in (1, 3, 5, 7, 9, 11)]          # G3 B3 D4 F4 A4 C5: six keys a third apart
-EG = ["knit", "rayon", "jacquard", "bellows", "cane", "voile", "sample", "slice", "kit"]   # synth.c EG_NAME, in order
+EG = ["knit", "rayon", "jacquard", "bellows", "cane", "voile", "sample", "slice", "kit", "midi"]   # synth.c EG_NAME, in order
 NAMES = {"model": {"cane": ["pluck", "bow", "reed", "flute", "bell", "drum"],
                    "voile": ["vosim", "vowel", "choir", "whisper"]},
          "mode": ["one-shot", "loop", "reverse", "ping-pong"]}

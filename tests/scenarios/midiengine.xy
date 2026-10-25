@@ -1,0 +1,70 @@
+# the MIDI engine (synth.h EG_MIDI): no sound; the track's notes out on its own channel (its MIDI OUT does not
+# apply); its eight knobs each send a CC (numbers on the SEL list, kept in TP_A..TP_R, TP_FA..TP_FR)
+wait 300
+projnew
+knob 3 engine midi
+expect par3.0 9
+# MIDI OUT off: a MIDI track's notes still go out, and nothing sounds
+param 3 51 0
+out
+play 3 60 on
+wait 20
+expect voices 0
+expect_out USB 92 3C 64
+play 3 60 off
+wait 20
+expect_out USB 82 3C 00
+# knob 1 (TP_E1) sends CC 74 (its default) on channel 3; knob 5 (TP_X1) CC 1
+out
+knob 3 1 100
+wait 5
+expect_out USB B2 4A 64
+knob 3 34 20
+wait 5
+expect_out USB B2 01 14
+# the same value again sends nothing (the count: the notes' two and the two CCs)
+knob 3 1 100
+wait 5
+expect midi_out 4
+# knob 1's CC changed (TP_A) to 10: its next move goes out on it
+param 3 9 10
+knob 3 1 101
+wait 5
+expect_out USB B2 0A 65
+# on T3, ENV and LFO have no pages: the Engine page; FX: FX I first (no Character, no Sends)
+turn ALGO 2
+expect trk 3
+tap ENV
+expect page Engine
+tap LFO
+expect page Engine
+tap FX
+expect page FX_I
+# EDIT: Engine, then Engine 2 (knobs 5..8)
+tap EDIT
+expect page Engine
+turn SELECT 1
+expect page Engine_2
+# turning knob 1 by hand on Engine sends on CC 10
+tap EDIT
+out
+turn K1 3
+wait 20
+expect ccouts 0
+expect par3.9 10
+# a lock on step 1 (knob 1 at 30): its CC (10) goes out as the step plays, and the note on channel 3
+step 3 1 1 62 100
+lock 3 1 1 e1 30
+out
+tap PLAY
+wait 100
+expect_out USB B2 0A 1E
+expect_out USB 92 3E 64
+tap PLAY
+wait 50
+# back to a sound: knit plays again
+knob 3 engine knit
+play 3 60 on
+wait 20
+expect voices 1
+play 3 60 off

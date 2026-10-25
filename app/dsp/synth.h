@@ -27,8 +27,12 @@
  * the slice plays). The note at the sample's root plays slice 1, the next note slice 2 ..., wrapping:
  * slice = (note - root) mod slices. A sample that states its bars (sample.h smp_t.bars) plays at the
  * tempo (its bars last as many bars of the song), the pitch knob on top; one that does not, at its own rate */
-enum { EG_KNIT, EG_RAYON, EG_JACQUARD, EG_BELLOWS, EG_CANE, EG_VOILE, EG_SAMPLE, EG_SLICE, EG_DRUMLINE,
-       NENGINE };                                    /* (saved by number: PROJ_FORMAT 10 renumbered them) */
+/* EG_MIDI plays nothing here: the track's notes go out on its own channel (always: its MIDI OUT does not apply),
+ * and its eight knobs (TP_E1..E4, TP_X1..X4) each send a CC on that channel when they move (by hand, a lock,
+ * automation); the knobs' CC numbers in TP_A..TP_R and TP_FA..TP_FR (no envelope on such a track): MIDI_CC_P */
+enum { EG_KNIT, EG_RAYON, EG_JACQUARD, EG_BELLOWS, EG_CANE, EG_VOILE, EG_SAMPLE, EG_SLICE, EG_DRUMLINE, EG_MIDI,
+       NENGINE };                                    /* (saved by number: PROJ_FORMAT 10 renumbered them; a new one
+                                                      * goes last) */
 /* the Braids engines (dsp/braids.h, after Mutable Instruments Braids, MIT): E1 the model, E2 Braids' timbre, E3 its
  * color, E4 cane's damp, voile's breath. cane: pluck, bow, reed, flute, bell, drum, at most CN_SLOTS of its voices
  * (each a slot of CN_LEN int16 for its lines); voile: vosim, vowel, choir, whisper */
@@ -36,7 +40,8 @@ enum { EG_KNIT, EG_RAYON, EG_JACQUARD, EG_BELLOWS, EG_CANE, EG_VOILE, EG_SAMPLE,
 #define NVOILE 4
 #define CN_SLOTS 4
 #define CN_LEN 1536
-static inline int eg_synth(int e) { return e >= 0 && e < NENGINE && e != EG_DRUMLINE; }   /* a voice engine */
+static inline int eg_synth(int e) { return e >= 0 && e < NENGINE && e != EG_DRUMLINE && e != EG_MIDI; }   /* a voice
+                                                                                                         * engine */
 enum { SM_ONESHOT, SM_LOOP, SM_REVERSE, SM_PINGPONG, NSM };   /* the sample engine's modes (TP_E4) */
 #define SL_NCOUNT 4                                  /* the slice engine's counts: 4 << TP_E2 */
 static inline int sl_count(int v) { return 4 << (v < 0 ? 0 : v >= SL_NCOUNT ? SL_NCOUNT - 1 : v); }
@@ -95,6 +100,15 @@ _Static_assert(NTP <= 511, "a parameter's index: nine bits in the engine's queue
 #define TP_DRUMX(s, j) (TP_DRUMX0 + (s) * DPX_N + (j))
 static inline int tp_is_dkey(int p) { return p >= TP_DRUM0 && p < TP_DRUMX0; }   /* a key's DP_* */
 static inline int tp_is_dknob2(int p) { return p >= TP_DRUMX0 && p < TP_O2FINE; }   /* a key's knob 5..8 */
+/* the MIDI engine (EG_MIDI): its knob k 0..7 (TP_E1..E4, TP_X1..X4) from a parameter, -1 none; the parameter
+ * holding knob k's CC number (TP_A..TP_R, TP_FA..TP_FR) */
+static inline int midi_knob(int p)
+{
+    return p >= TP_E1 && p <= TP_E4 ? p - TP_E1 : p >= TP_X1 && p <= TP_X4 ? 4 + p - TP_X1 : -1;
+}
+static inline int midi_cc_par(int k) { return k < 4 ? TP_A + k : TP_FA + k - 4; }
+static inline int midi_cc_of(int p) { return p >= TP_A && p <= TP_R ? p - TP_A : p >= TP_FA && p <= TP_FR ? 4 + p - TP_FA : -1; }
+#define NMIDI_CC 120                                 /* a knob's CC: 0..119 (120..127 are the channel modes) */
 #define NTP_SOUND TP_PLAYER                          /* a preset keeps par[0..TP_PLAYER): the character, the engine's
                                                       * second page (TP_X1..X4) too */
 

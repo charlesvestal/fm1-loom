@@ -234,7 +234,7 @@ enum { A_CLEAR_NOTES, A_CLEAR_LOCKS, A_CLEAR_BOTH, A_COPY_PAT, A_PASTE_PAT, A_RO
        A_COUNT_IN, A_PLAYMODE, A_FTYPE, A_FX_HP, A_FX_LP, A_FX_SEND, A_WEAVE, A_THEME, A_PUMP_BY, A_PUMP_REL,
        A_PUMP_ACC, A_LEVEL, A_SCENE_AT, A_SAVE_TO, A_AUTOSAVE, A_RANDOM_SOUNDS, A_MIDI_OUT, A_LOOP_FREE, A_COPY_BAR,
        A_COPY_STEP, A_PASTE_BAR, A_PASTE_STEP, A_PASTE_LOCKS, A_DOUBLE, A_CLEAR_STEP_LOCKS, A_CC_OUT, A_SCENES_OUT,
-       A_KIT, A_SAVE_KIT, NACTIONS };
+       A_KIT, A_SAVE_KIT, A_MIDI_CC, NACTIONS };
 static const char *const ACTION_NAME[NACTIONS] = {
     "CLEAR NOTES", "CLEAR LOCKS", "CLEAR NOTES AND LOCKS", "COPY PATTERN", "PASTE PATTERN", "ROTATE FORWARD",
     "ROTATE BACK", "DUPLICATE BAR", "ENGINE", "PRESET", "SCRAMBLE", "SAVE AS PRESET", "RESET SOUND", "FOLLOWS CONDUCTOR",
@@ -242,7 +242,10 @@ static const char *const ACTION_NAME[NACTIONS] = {
     "ALL NOTES OFF", "EFFECT", "REMOVE", "COUNT-IN", "PLAY MODE", "FILTER TYPE", "HIGH-PASS", "LOW-PASS",
     "TO FX II", "KEEP AS PATTERN", "THEME", "PUMP BY", "RELEASE", "ACCENT", "LEVEL", "SCENES SWITCH", "SAVE TO", "AUTOSAVE",
     "RANDOMIZE PRESETS", "MIDI OUT", "LOOP THROWS", "COPY BAR", "COPY STEP", "PASTE BAR", "PASTE STEP",
-    "PASTE LOCKS ONLY", "DOUBLE PATTERN", "CLEAR LOCKS", "CC OUT", "SCENES OUT", "KIT", "SAVE KIT"};
+    "PASTE LOCKS ONLY", "DOUBLE PATTERN", "CLEAR LOCKS", "CC OUT", "SCENES OUT", "KIT", "SAVE KIT", "KNOB CC"};
+/* a MIDI track's eight rows of A_MIDI_CC: each knob's CC (ui.c list_midi_knob reads the digit back) */
+static const char *const MIDI_CC_ROW[8] = {"KNOB 1 CC", "KNOB 2 CC", "KNOB 3 CC", "KNOB 4 CC", "KNOB 5 CC",
+                                           "KNOB 6 CC", "KNOB 7 CC", "KNOB 8 CC"};
 /* the weave's ways (pattern.h WV_*): what this pattern keeps of itself */
 static const char *const WEAVE_NAME[NWV] = {"bars", "steps", "rhythm", "pitch"};
 #define LIST_ROWS 36                  /* (GLO's: its seven pages' knobs and its actions) */
@@ -509,6 +512,8 @@ static int is_aux(int t) { return t >= NTRK; }
 static int is_seqt(int t) { return t < NSEQT; }
 static int steps_page(int p) { return p == P_STEPS || p == P_BAR; }   /* SEQ's pages: both write steps */
 static int is_drum(int t) { return t < NTRK && proj.trk[t].par[TP_ENGINE] == EG_DRUMLINE; }
+static int is_midi(int t) { return t < NTRK && proj.trk[t].par[TP_ENGINE] == EG_MIDI; }   /* (no sound: notes and CCs
+                                                                                         * out, synth.h EG_MIDI) */
 /* a page's name: a drum track's Play page is its Key page, its Filter env page the kit's envelope */
 static const char *page_name_of(int p, int trk)
 {
@@ -524,7 +529,7 @@ static const char *page_name_of(int p, int trk)
         return "Follow";
     if (trk < NTRK && p == P_SUB && proj.trk[trk].par[TP_ENGINE] == EG_SAMPLE)
         return "Loop";
-    if (is_drum(trk) && p == P_SUB)
+    if ((is_drum(trk) || is_midi(trk)) && p == P_SUB)
         return "Engine 2";
     return PAGE_NAME[p % NPAGES];
 }
@@ -581,7 +586,7 @@ static int kit_x_page(int t)                         /* a kit whose key shown ha
 static int x_page(int t)                             /* the engine has a second page of knobs (TP_X1..X4) */
 {
     int e = t < NTRK ? proj.trk[t].par[TP_ENGINE] : -1, m = t < NTRK ? proj.trk[t].par[TP_E4] % NSM : 0;
-    return e == EG_RAYON || e == EG_KNIT || (e == EG_SAMPLE && (m == SM_LOOP || m == SM_PINGPONG)) ||   /* (the
+    return e == EG_RAYON || e == EG_KNIT || e == EG_MIDI || (e == EG_SAMPLE && (m == SM_LOOP || m == SM_PINGPONG)) ||   /* (the
                                                                                      * sample's loop page: looping) */
            kit_x_page(t);
 }
@@ -597,7 +602,12 @@ static int group_n(int g)
     if (b == B_ARP)                                  /* (grp_page: Players, Players 2, Hold the arp's, Weave) */
         return is_aux(trk) ? 1 : is_drum(trk) || pl_type(trk) == PL_OFF ? 2 : pl_type(trk) == PL_ARP ? 4 : 3;
     if (b == B_ENV)
-        return is_drum(trk) ? 4 : 3;                 /* a kit: the key's envelope, filter; the kit's envelope, filter */
+        return is_drum(trk) ? 4 : is_midi(trk) ? 1 : 3;   /* a kit: the key's envelope, filter; the kit's envelope,
+                                                           * filter (a MIDI track: none, page_button stays) */
+    if (b == B_LFO && is_midi(trk))
+        return 1;
+    if (b == B_FX && is_midi(trk))
+        return 3;                                    /* (grp_page: FX I, FX II, Throws: no Character, no Sends) */
     if (b == B_GLO)
         return DEBUG_BUILD ? 7 : 6;                  /* Debug last, in a debug build only */
     return PAGE_BTN[g].n;
@@ -612,14 +622,18 @@ static int wv_cued(int t) { return proj.trk[t].rsv[3] & 1u; }   /* PLAYS: 0 alwa
 static int wv_kind(int t) { return t == AUX_PUNCH ? WK_FX : is_drum(t) ? WK_KIT : WK_MEL; }
 static int grp_page(int g, int i)
 {
+    if ((PAGE_BTN[g].btn == B_ENV || PAGE_BTN[g].btn == B_LFO) && is_midi(sel_trk()))
+        return P_ENGINE;                             /* (a MIDI track has no sound to shape: its knobs instead) */
     if (PAGE_BTN[g].btn == B_EDIT && sel_trk() == AUX_BRAIN)   /* Engine, Play (routing), Sub (Follow) */
         return i == 2 ? P_SUB : P_ENGINE + i;
     if (PAGE_BTN[g].btn == B_EDIT && sel_trk() < NTRK && (proj.trk[sel_trk()].par[TP_ENGINE] == EG_SAMPLE ||
-        is_drum(sel_trk())) && x_page(sel_trk())) {  /* a looping sample: its Loop page second, after Engine (a
+        is_drum(sel_trk()) || is_midi(sel_trk())) && x_page(sel_trk())) {  /* a looping sample: its Loop page second, after Engine (a
                                                       * kit's key of eight knobs: Engine 2) */
         static const uint8_t SMPP[4] = {P_ENGINE, P_SUB, P_PLAY, P_PLAY2};
         return SMPP[i & 3];
     }
+    if (PAGE_BTN[g].btn == B_FX && is_midi(sel_trk()))
+        return P_FX1 + i % 3;                        /* (a MIDI track: no sound for Character or Sends) */
     if (PAGE_BTN[g].btn == B_ARP) {
         static const uint8_t ARPP[4] = {P_PLAYERS, P_PLAYERS2, P_PLAYERS3, P_WEAVE};
         static const uint8_t OTHER[3] = {P_PLAYERS, P_PLAYERS2, P_WEAVE};
@@ -2216,6 +2230,12 @@ static void list_build(void)
             list_add(ACTION_NAME[A_EFFECT], fx_label(ui.pick_fx % NFXPICK), LK_PICK, A_EFFECT);
         } else if (!is_aux(trk)) {
             list_add(ACTION_NAME[A_ENGINE], EG_NAME[ui.pick_engine % NENGINE], LK_PICK, A_ENGINE);
+            if (is_midi(trk))                        /* its knobs' CCs (its notes always go out: no MIDI OUT) */
+                for (int k = 0; k < 8; k++) {
+                    char v[4];
+                    num_s(proj.trk[trk].par[midi_cc_par(k)] % NMIDI_CC, v);
+                    list_add(MIDI_CC_ROW[k], v, LK_PICK, A_MIDI_CC);
+                }
             if (NPRESETS > 0)
                 list_add(ACTION_NAME[A_PRESET], PRESETS[ui.pick_preset % NPRESETS].name, LK_PICK, A_PRESET);
             list_add(ACTION_NAME[A_SCRAMBLE], 0, LK_ACTION, A_SCRAMBLE);
@@ -2224,7 +2244,8 @@ static void list_build(void)
             list_add(ACTION_NAME[A_INIT], 0, LK_ACTION, A_INIT);
             s_cat(fol_t, FOLLOW_NAME[proj.trk[trk].par[TP_BRAIN] % 3]);
             list_add(ACTION_NAME[A_FOLLOW], fol_t, LK_PICK, A_FOLLOW);
-            list_midi_out(trk);
+            if (!is_midi(trk))
+                list_midi_out(trk);
         }
     } else if (keep >= P_MIX) {                     /* GLO's one list: the pump's settings, the level, USB audio */
         static char by[8], rel[12], lev[8];
@@ -3309,6 +3330,20 @@ static const uint8_t *par_now(int trk)
     }
     return now;
 }
+/* the MIDI engine: its eight knobs' values as bars, each with its CC; the page's four bright */
+static void pic_midi(int32_t x0, int32_t y0, const uint8_t *p, int second)
+{
+    char t[8];
+    for (int k = 0; k < 8; k++) {
+        int v = p[k < 4 ? TP_E1 + k : TP_X1 + k - 4], hb = 2 + v * 58 / 127;
+        int32_t x = x0 + k * 25;
+        uint16_t c = (k >= 4) == (second != 0) ? K_NOW : K_FAINT;
+        cv_round(x, y0, 18, 60, 3, K_LINE);
+        cv_round(x, y0 + 60 - hb, 18, hb, 3, c);
+        num_s(p[midi_cc_par(k)] % NMIDI_CC, t);
+        text_c(x + 9, y0 + 64, &FONT_XS, t, (k >= 4) == (second != 0) ? K_TEXT : K_DIM);
+    }
+}
 static void draw_engine(void)
 {
     int trk = sel_trk(), eg = proj.trk[trk].par[TP_ENGINE] % NENGINE;
@@ -3320,6 +3355,10 @@ static void draw_engine(void)
     h = hash_u(h, (uint32_t)(pic_lvl * 32.0f));
     for (int i = 0; i < 4; i++)
         h = hash_u(h, p[TP_E1 + i]);
+    if (eg == EG_MIDI)                               /* (the second page's values, the eight CCs, which page) */
+        for (int k = 0; k < 8; k++)
+            h = hash_u(h, (uint32_t)p[k < 4 ? TP_E1 + k : TP_X1 + k - 4] | (uint32_t)p[midi_cc_par(k)] << 8 |
+                              (uint32_t)ui.page << 16);
     if (eg == EG_SAMPLE || eg == EG_SLICE)           /* (the bank: an upload changes what the picture shows) */
         h = hash_u(h, (uint32_t)smp_user_count() << 16 ^ smp_user_bytes());
     if (eg == EG_SAMPLE)                             /* (its loop page's knobs mark the loop) */
@@ -3340,6 +3379,11 @@ static void draw_engine(void)
     if (!begin_main(h))
         return;
     cv_text(10, 2, &FONT_B, EG_NAME[eg], K_TEXT);
+    if (eg == EG_MIDI) {                             /* where its notes and CCs go */
+        char ch[16];
+        num_s((uint32_t)trk + 1u, s_cat(ch, "channel "));
+        cv_text(60, 6, &FONT_S, ch, K_DIM);
+    }
     {
         char nm[NAME_LEN + 1];
         for (int i = 0; i < NAME_LEN; i++)
@@ -3357,6 +3401,7 @@ static void draw_engine(void)
     case EG_CANE: pic_cane(20, 24, 200, 88, p, pic_f); break;
     case EG_VOILE: pic_voile(20, 24, 200, 88, p, pic_f); break;
     case EG_KNIT: pic_knit(20, 24, 200, 88, p, pic_f); break;
+    case EG_MIDI: pic_midi(24, 30, p, ui.page == P_SUB); break;
     default: pic_drumline(10, 26, 220, 90, p, pic_f); break;
     }
     cv_blit(0, MAIN_Y);
@@ -3638,8 +3683,9 @@ static void draw_sub(void)
     int eg = proj.trk[sel_trk()].par[TP_ENGINE];
     if (eg == EG_RAYON)
         draw_rayon_fall();
-    else if (eg == EG_SAMPLE)
-        draw_engine();                           /* (the sample's loop page: the waveform, its loop marked) */
+    else if (eg == EG_SAMPLE || eg == EG_MIDI)
+        draw_engine();                           /* (the sample's loop page: the waveform, its loop marked; MIDI's
+                                                  * knobs 5..8: its eight bars) */
     else
         draw_knit_x();
 }
