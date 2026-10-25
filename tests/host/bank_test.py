@@ -48,20 +48,20 @@ def window_end(v):
 
 # ---- a bank over the windows: the first sample long enough to run into the second window
 rate = 22050
-a = tone(200000, 440, rate)                         # 112.5 KB: past the first window's 106 KB of data
+a = tone(210000, 440, rate)                         # 109 KB: past the first window's 106 KB of data
 b = tone(30000, 220, 16000)
 c = tone(5000, 880, 11025)
 img = sio.user_bank([("long", a, 69, None, 0, rate), ("mid", b, 57, None, 0, 16000), ("short", c, 81, (100, 4000), 2,
                                                                                          11025)])
 h, es = entries(img)
-check("header: magic, version 2, 3 samples, made for 216 KB, CRC of the data",
-      h["magic"] == sio.BANK_MAGIC and h["ver"] == 2 and h["cnt"] == 3 and h["size"] == sio.BANK_SIZE == 221184 and
+check("header: magic, version 3, 3 samples, made for 216 KB, CRC of the data",
+      h["magic"] == sio.BANK_MAGIC and h["ver"] == 3 and h["cnt"] == 3 and h["size"] == sio.BANK_SIZE == 221184 and
       h["len"] == len(img) - sio.BANK_HDR and h["crc"] == (__import__("zlib").crc32(img[sio.BANK_HDR:]) & 0xFFFFFFFF))
 check("each sample's rate, root, loop and bars kept",
       [e["rate"] for e in es] == [22050, 16000, 11025] and [e["root"] for e in es] == [69, 57, 81] and
       (es[2]["ls"], es[2]["le"], es[2]["bars"]) == (100, 4000, 2))
 ok = all(e["ck"] % 4 == 0 and e["ck"] >= sio.BANK_HDR and
-         e["ck"] + 4 * ((e["n"] + 63) // 64) <= window_end(e["ck"]) for e in es)
+         e["ck"] + 4 * ((e["n"] + sio.BLK - 1) // sio.BLK) <= window_end(e["ck"]) for e in es)
 check("every sample's checkpoints in one window, 4-aligned, after the header", ok)
 e0 = es[0]
 nb = (e0["n"] + 1) // 2
@@ -106,8 +106,8 @@ one = int((sio.REGIONS[0][1] - sio.BANK_HDR + sio.REGIONS[1][1]) / sio.bytes_per
 img = sio.user_bank([("one", tone(one, 300, 22050), 60, None)])
 check(f"one sample of {one / 22050:.1f} s at 22050 Hz fits (two windows)", entries(img)[0]["cnt"] == 1)
 secs = {r: sio.BANK_MAX_DATA / sio.bytes_per_second(r) for r in sio.RATES}
-check("in all: 35.3 s at 11025, 24.3 at 16000, 17.7 at 22050, 12.2 at 32000",
-      [round(secs[r], 1) for r in sio.RATES] == [35.3, 24.3, 17.7, 12.2])
+check("in all: 37.4 s at 11025, 25.8 at 16000, 18.7 at 22050, 12.9 at 32000",
+      [round(secs[r], 1) for r in sio.RATES] == [37.4, 25.8, 18.7, 12.9])
 
 # ---- an update record's mark ("AT" at 0xF06 of a sector of an extra window) kept out: make the layout see one
 long = tone(150000, 523, 22050)
@@ -145,25 +145,25 @@ with tempfile.TemporaryDirectory() as d:
         return str(p)
 
     small = [wav("a.wav", 1.0), wav("b.wav", 1.5)]
-    img = ls.build([small[0] + "%32k", small[1]], quiet=True)
+    img = ls.build([small[0] + "%32k", small[1]], quiet=True, factory=False)
     _, es = entries(img)
     check("per sample: %32k, the other auto at 22050 (it fits)", [e["rate"] for e in es] == [32000, 22050])
     check("lengths at those rates (1.0 s, 1.5 s)", abs(es[0]["n"] - 32000) < 40 and abs(es[1]["n"] - 33075) < 40)
     big = [wav(f"l{i}.wav", 6.0) for i in range(4)]    # 24 s: too long at 22050 (17.7 s), fits at 16000 (24.3)
-    img = ls.build(big, quiet=True)
+    img = ls.build(big, quiet=True, factory=False)
     check("auto: 24 s of sound at 16000 Hz (not 22050)", {e["rate"] for e in entries(img)[1]} == {16000})
-    img = ls.build(big[:2], rate=11025, quiet=True)
+    img = ls.build(big[:2], rate=11025, quiet=True, factory=False)
     check("--rate 11025 for all", {e["rate"] for e in entries(img)[1]} == {11025})
     try:
-        ls.build(big * 2, quiet=True)
+        ls.build(big * 2, quiet=True, factory=False)
         check("48 s is refused, even at 11025 Hz", False)
     except ValueError as e:
         check("48 s is refused, even at 11025 Hz", str(e).startswith("too long"))
-    img = ls.build(small, quiet=True)
+    img = ls.build(small, quiet=True, factory=False)
     fr = list(ls.frames(img))
     pages = [f for f in fr if f[0] == 12]
     check(f"an upload: begin, {len(pages)} pages from 2048, {ls.NPART} header parts, end",
-          fr[0][0] == 11 and fr[-1][0] == 13 and [f[0] for f in fr].count(16) == ls.NPART == 5 and
+          fr[0][0] == 11 and fr[-1][0] == 13 and [f[0] for f in fr].count(16) == ls.NPART == 6 and
           pages[0][3] == sio.BANK_HDR and pages[-1][3] + 256 >= len(img))
     # the header's parts, unpacked, are the header
     out = bytearray()
@@ -175,6 +175,22 @@ with tempfile.TemporaryDirectory() as d:
                 out += bytes(x | ((m >> j) & 1) << 7 for j, x in enumerate(g))
                 i += 1 + len(g)
     check("the header's parts carry the header", bytes(out[:sio.ENT0 + 2 * sio.ENT]) == img[:sio.ENT0 + 2 * sio.ENT])
+
+# a version 2 bank (a checkpoint every 64 samples, before 0.8) read back: kept as version 3 (every 128), its checkpoints
+# every other one of the old (the same decoder states: none lost), the ADPCM as it was
+smps = [("a", tone(5000, 220, 22050), 60, None), ("b", tone(777, 440, 16000), 64, (100, 700), 0, 16000)]
+blk, ver = sio.BLK, sio.BANK_VER
+sio.BLK, sio.BANK_VER = sio.BLK_V2, 2
+try:
+    v2 = sio.user_bank(smps)
+finally:
+    sio.BLK, sio.BANK_VER = blk, ver
+kept = sio.stored_of(v2)
+v3 = sio.user_bank(kept)
+fresh = sio.user_bank(smps)
+check("a version 2 bank, rebuilt: the version 3 bank of the same samples, byte for byte",
+      struct.unpack_from("<H", v2, 4)[0] == 2 and v3 == fresh)
+check("a checkpoint every 128 samples: 0.53 bytes a sample, not 0.56", abs(sio.bytes_per_second(1) - 0.53125) < 1e-9)
 
 print("bank tool:", "all ok" if not bad else f"{bad} FAILED")
 sys.exit(1 if bad else 0)

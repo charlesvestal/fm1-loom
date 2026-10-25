@@ -530,6 +530,36 @@ static void sample_tests(void)
                 ok2 = 0;
             }
         check("across the seam: every sample as encoded, forwards and backwards", ok2);
+        {   /* a version 2 bank (a checkpoint every 64, before 0.8): read as it is, backwards too */
+            int ok3 = 1;
+            const smp_t *s2;
+            smp_cache_t c2;
+            bank_blk = SMP_BLK_V2;
+            gen_hz = 300.0f;
+            bank_reset();
+            bank_add_at("seam", gen_sine, 30000, 60, 0, 16000, at);
+            bank_seal();
+            bank_attach();
+            s2 = smp_user_scan() == 1 ? smp_get(smp_factory()) : 0;
+            smp_cache_reset(&c2);
+            for (i = 29999; i >= 0 && s2; i--)
+                if (smp_one(&c2, s2, i) != fwd[i]) {
+                    printf("    version 2, backwards, sample %d differs\n", i);
+                    ok3 = 0;
+                    break;
+                }
+            check("a version 2 bank (a checkpoint every 64): every sample as encoded, backwards", s2 && ok3);
+            bank_blk = SMP_BLK;
+            gen_hz = 500.0f;
+            bank_reset();
+            gen_hz = 300.0f;
+            bank_add_at("seam", gen_sine, 30000, 60, 0, 16000, at);
+            gen_hz = 500.0f;
+            bank_add_at("last", gen_sine, 8000, 60, 0, 11025, smp_reg_v(2) + 64u);
+            bank_seal();
+            bank_attach();
+            smp_user_scan();
+        }
         par[0][TP_E1] = (uint8_t)smp_factory();
         par[0][TP_E4] = SM_ONESHOT;
         stop = sample_run(60, 2.5f, &n);
@@ -545,8 +575,9 @@ static void sample_tests(void)
         bank_attach();
         check("a sample whose checkpoints cross a window's end is refused", smp_user_scan() == 0);
         bank_reset();
-        /* (its 12 KB of checkpoints before the first seam, its ADPCM on past the second window's end) */
-        bank_add_at("x", gen_sine, 2 * (int)SMP_REG1_SIZE + 4096, 60, 0, 16000, smp_reg_v(1) - 14000u);
+        /* (its 6 KB of checkpoints before the first seam, its ADPCM on past the second window's end) */
+        bank_add_at("x", gen_sine, 2 * (int)SMP_REG1_SIZE + 4096, 60, 0, 16000,
+                    smp_reg_v(1) - 1000u - (uint32_t)((2 * SMP_REG1_SIZE + 4096 + SMP_BLK - 1) / SMP_BLK) * 4u);
         bank_seal();
         bank_attach();
         check("a sample over three windows (two seams) is refused", smp_user_scan() == 0);

@@ -138,7 +138,7 @@ static uint32_t sb_rd32(const uint8_t *p) { return (uint32_t)p[0] | (uint32_t)p[
 static uint32_t sb_end(void)
 {
     uint32_t len = sb_rd32(sb_hdr + 8), cnt = sb_hdr[6], crc;
-    if (sb_rd32(sb_hdr) != SMP_BANK_MAGIC || sb_hdr[4] != SMP_BANK_VER || sb_hdr[5] || !cnt || cnt > SMP_NUSER ||
+    if (sb_rd32(sb_hdr) != SMP_BANK_MAGIC || !SMP_BANK_VER_OK(sb_hdr[4]) || sb_hdr[5] || !cnt || cnt > SMP_NENT ||
         len > SMP_BANK_SIZE - SMP_BANK_HDR || sb_rd32(sb_hdr + 16) != SMP_BANK_SIZE)
         return 5;
     if (smp_bank_crc(len, &crc) || crc != sb_rd32(sb_hdr + 12))
@@ -279,8 +279,8 @@ static int smp_frame(const uint8_t *p, uint32_t n)
         sb_b(from);
         sb_b(k);
         for (i = from; i < from + k; i++) {
-            const smp_t *sm = smp_get(smp_factory() + (int)i);
-            sb_str(smp_name(smp_factory() + (int)i));
+            const smp_t *sm = smp_entry((int)i);     /* (every entry: the factory set's too) */
+            sb_str(sm->name);
             sb_b(sm->rate);
             sb_b(sm->rate >> 7u);
             sb_b(sm->rate >> 14u);

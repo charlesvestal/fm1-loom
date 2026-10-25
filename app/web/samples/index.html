@@ -87,6 +87,10 @@
     <span class="small">or drop files here. Drop one on a sample to replace it.</span>
   </div>
   <div class="bar">
+    <button class="quiet" id="factory">Add LOOM-8's sounds</button>
+    <span class="small" id="factorynote">the kits' drums, the instruments, the sweep and the vinyl (86 KB).</span>
+  </div>
+  <div class="bar">
     <button class="quiet" id="breaks">Add the breaks</button>
     <span class="small" id="breaksnote">classic, heat, choke and ecstasy: the slice engine's four breaks (92 KB).</span>
   </div>
@@ -130,14 +134,13 @@
 <script type="module">
 /*LIB*/
 const $ = (id) => document.getElementById(id);
-const HDR = [0x7D, 0x46, 0x4C];
-const RC = { 1: "a size or offset", 2: "erasing", 3: "writing", 4: "the bank not begun", 5: "the header", 6: "the data's check",
-  7: "no samples", 8: "a reserved mark" };
 const KB = (b) => `${(b / 1024).toFixed(0)} KB`;
 let link = null, busy = false, readOk = false;
 // the samples in order: kept ({name, n, root, loop, bars, rate, ckb, adpcm, pic}) or new ({name, x, sr, loop, root,
 // rootSet, bars, rate: null, file, isNew, pic}); devImg: the bank as read (null: empty)
 let items = [], devImg = null, replaceAt = -1, plan = null;
+// the factory set's entries in the bank (0.8: kept apart from the list, sent after it), and the set itself (factory.bin)
+let fset = [], factory = null, roomNote = "";
 const cache = new Map();
 
 function say(t) { $("alert").textContent = ""; $("status").textContent = t; }
@@ -155,9 +158,9 @@ function sayPct(t, frac) {                          // progress, at most every 2
 function rateChoice() { const v = $("rate").value; return v === "auto" ? null : Number(v); }
 function replan() {
   plan = null;
-  if (!items.length) { plan = { img: null, chose: null, used: 0 }; return; }
+  if (!items.length && !fset.length) { plan = { img: null, chose: null, used: 0 }; return; }
   try {
-    const { img, chose } = build(items, rateChoice(), cache);
+    const { img, chose } = build([...items, ...fset], rateChoice(), cache);
     plan = { img, chose, used: img.length - BANK_HDR };
   } catch (e) { plan = { err: e.message }; }
 }
@@ -168,8 +171,8 @@ function changed() {
   for (let i = 0; i < plan.img.length; i++) if (plan.img[i] !== devImg[i]) return true;
   return false;
 }
-function rateOf(it) { return it.adpcm ? it.rate : it.rate || (plan && plan.chose) || rateChoice() || 22050; }
-function lengthOf(it) { return it.adpcm ? it.n : lengthAt(it.x.length, it.sr, rateOf(it)); }
+function rateOf(it) { return it.adpcm || it.s ? it.rate : it.rate || (plan && plan.chose) || rateChoice() || 22050; }
+function lengthOf(it) { return it.adpcm ? it.n : it.s ? it.s.length : lengthAt(it.x.length, it.sr, rateOf(it)); }
 
 // ---- the list ----------------------------------------------------------------------
 function noteOptions(sel) {
@@ -193,14 +196,14 @@ function render(focus = null) {
     list.innerHTML = '<div class="empty">No samples of your own yet. Add some below.</div>';
   items.forEach((it, i) => {
     const r = document.createElement("div"), n = lengthOf(it), rate = rateOf(it), id = `s${i}`;
-    r.className = it.isNew ? "smp new" : "smp";
+    r.className = it.isNew || it.s ? "smp new" : "smp";
     r.setAttribute("role", "group");
     r.setAttribute("aria-label", `user ${i + 1}, ${it.name}`);
     const bpm = it.bars ? ` · ${(it.bars * 240 * rate / n).toFixed(1)} BPM at its own speed` : "";
     r.innerHTML = `<div class="num">user ${i + 1}</div>
       <div class="top">
         <input type="text" id="${id}n" maxlength="11" value="" aria-label="user ${i + 1}: name" spellcheck="false">
-        <span class="facts">${(n / rate).toFixed(2)} s · ${(rate / 1000).toFixed(rate % 1000 ? 1 : 0)} kHz${it.isNew ? " · new" : ""}${bpm}</span>
+        <span class="facts">${(n / rate).toFixed(2)} s · ${(rate / 1000).toFixed(rate % 1000 ? 1 : 0)} kHz${it.isNew ? " · new" : it.s ? " · made smaller" : ""}${bpm}</span>
         <span class="acts">
           <button class="link up" aria-label="Move user ${i + 1} up"${i ? "" : " disabled"}>↑</button>
           <button class="link dn" aria-label="Move user ${i + 1} down"${i < items.length - 1 ? "" : " disabled"}>↓</button>
@@ -245,6 +248,12 @@ function render(focus = null) {
   $("discard").hidden = !ch && !(readOk && plan && plan.err);
   $("discard").disabled = busy;
   $("add").disabled = busy || !readOk || items.length >= BANK_N;
+  const fmiss = factory ? factoryMissing(fset, factory).length : (fset.length < NFENT ? NFENT - fset.length : 0);
+  $("factory").disabled = busy || !readOk || !fmiss;
+  $("factorynote").textContent = roomNote || (readOk && !fmiss ? "LOOM-8's sounds are in the bank." :
+    readOk ? `${fmiss === NFENT ? "LOOM-8's sounds are" : `${fmiss} of LOOM-8's sounds are`} not in the bank: the kits ` +
+    "and presets that use them are silent. Add them, then Send." :
+    "the kits' drums, the instruments, the sweep and the vinyl (86 KB).");
   $("breaks").disabled = busy || !readOk || !breaksMissing().length;
   $("breaksnote").textContent = readOk && !breaksMissing().length ? "The breaks are in the bank." :
     "classic, heat, choke and ecstasy: the slice engine's four breaks (92 KB).";
@@ -261,6 +270,7 @@ function render(focus = null) {
 function picOf(it) {
   if (it.pic) return it.pic;
   if (it.adpcm) return (it.pic = imaDecode(it.adpcm, it.n));
+  if (it.s) return (it.pic = it.s);                // (made smaller to make room: its samples as they will be)
   const x = it.x, out = new Int16Array(Math.min(x.length, 20000));
   let pk = 1e-9;
   for (const v of x) pk = Math.max(pk, Math.abs(v));
@@ -315,6 +325,34 @@ async function addFiles(list, at = -1) {
 // (tools/make_pages.py copies app/samples/), stored as the factory bank kept them (tools/gen_samples.py RECORDINGS)
 const BREAKS = [["classic", 1], ["heat", 1], ["choke", 2], ["ecstasy", 1]];
 function breaksMissing() { return BREAKS.filter(([nm]) => !items.some((it) => it.name === nm)); }
+// ---- LOOM-8's own sounds: in the firmware until 0.8, now in the bank (factory.bin beside this page: tools/gen_samples.py
+// --factory-bank), marked as the factory set's: not user slots, after them. If they do not fit, the user's samples
+// above a rate are put at it (makeRoom), said here before anything is sent
+async function getFactory() {
+  if (factory) return factory;
+  const r = await fetch("factory.bin");
+  if (!r.ok) throw new Error(`Couldn't fetch LOOM-8's sounds (HTTP ${r.status}). Check the connection and try again.`);
+  factory = factoryOf(new Uint8Array(await r.arrayBuffer()));
+  return factory;
+}
+async function addFactory() {
+  if (busy || !readOk) return;
+  let f;
+  try { f = await getFactory(); } catch (e) { fail(e.message); return; }
+  if (!factoryMissing(fset, f).length) { say("LOOM-8's sounds are already in the bank."); return; }
+  const kept = items.filter((it) => it.adpcm), fresh = items.filter((it) => !it.adpcm);
+  if (fresh.length) { fail("Send or discard the new samples first, then add LOOM-8's sounds."); return; }
+  const r = makeRoom([...kept, ...fset], f);
+  if (!r) { fail("Your samples take too much room for LOOM-8's sounds, even at 11 kHz. Remove some first."); return; }
+  items = r.items.filter((it) => !isFactory(it));
+  fset = r.items.filter(isFactory);
+  roomNote = r.cap ? `To make room, ${r.changed.join(", ")} ${r.changed.length > 1 ? "are" : "is"} now at ` +
+    `${r.cap / 1000 | 0} kHz (what is above ${r.cap / 2000 | 0} kHz goes). Send to apply, or Discard to keep them as they were.` : "";
+  say(r.cap ? "LOOM-8's sounds added, your samples made smaller to fit: send them to the FM-1." :
+    "LOOM-8's sounds added: send them to the FM-1.");
+  render();
+}
+
 async function addBreaks() {
   if (busy || !readOk) return;
   const want = breaksMissing();
@@ -334,82 +372,28 @@ async function addBreaks() {
 }
 
 // ---- the FM-1 ----------------------------------------------------------------------
-class Link {
-  constructor(input, output) {
-    this.input = input; this.output = output; this.wait = null;
-    input.onmidimessage = (ev) => {
-      const d = ev.data;
-      if (d[0] !== 0xF0 || d[1] !== HDR[0] || d[2] !== HDR[1] || d[3] !== HDR[2] || !this.wait || d[4] !== this.wait.cmd) return;
-      const w = this.wait;
-      this.wait = null;
-      clearTimeout(w.timer);
-      w.resolve([...d.slice(5, d.length - 1)]);
-    };
-  }
-  req(cmd, args, ms = 3000) {
-    return new Promise((resolve, reject) => {
-      this.wait = { cmd, resolve, timer: setTimeout(() => { this.wait = null; reject(new Error("The FM-1 stopped answering.")); }, ms) };
-      this.output.send([0xF0, ...HDR, cmd, ...args, 0xF7]);
-    });
-  }
-  async retry(cmd, args, ms, tries = 3) {
-    for (let k = 1; ; k++) { try { return await this.req(cmd, args, ms); } catch (e) { if (k >= tries) throw e; } }
-  }
-}
 async function connect() {
   if (!navigator.requestMIDIAccess) throw new Error("This browser can't talk to MIDI devices. Use Chrome or Edge.");
-  const midi = await navigator.requestMIDIAccess({ sysex: true });
-  const outs = [...midi.outputs.values()];
-  const ins = [...midi.inputs.values()].filter((i) => i.state !== "disconnected" && /loom|fm-1/i.test(i.name || ""))
-    .sort((a, b) => /loom/i.test(b.name) - /loom/i.test(a.name));
-  for (const input of ins) {
-    const output = outs.find((o) => o.name === input.name);
-    if (!output) continue;
-    await input.open();
-    await output.open();
-    const l = new Link(input, output);
-    try { await l.retry(25, [], 1000); return l; } catch (_) { /* not answering: the next */ }
-  }
-  throw new Error("No FM-1 running LOOM-8 found. Connect it by USB, and close other apps that use its MIDI port.");
-}
-async function readBytes(off, n, onPart) {          // SMP_READ, 224 bytes a request
-  const out = new Uint8Array(n);
-  for (let at = 0; at < n;) {
-    const want = Math.min(READ_MAX, n - at), adr = off + at;
-    const r = await link.retry(17, [0, adr & 0x7F, (adr >> 7) & 0x7F, (adr >> 14) & 0x7F, want & 0x7F, want >> 7], 3000);
-    if (r[4]) throw new Error(r[4] === 4 ? "The FM-1 is in the middle of writing its samples." : "The FM-1 couldn't read its samples.");
-    const b = unpack7(r.slice(5));
-    if (b.length < want) throw new Error("short read");
-    out.set(b.subarray(0, want), at);
-    at += want;
-    if (onPart) onPart(at / n);
-  }
-  return out;
+  const l = await findLink(await navigator.requestMIDIAccess({ sysex: true }));
+  if (!l) throw new Error("No FM-1 running LOOM-8 found. Connect it by USB, and close other apps that use its MIDI port.");
+  return l;
 }
 async function readAll() {
-  const info = await link.req(15, [0]);
-  if (info[0] !== 2) throw new Error("This LOOM-8 is too old for this page. Update it from the install page, then connect again.");
   const bar = $("progress");
   items = [];
+  fset = [];
   devImg = null;
-  if (!info[5]) { readOk = true; return; }
-  let hdr;
-  try { hdr = await readBytes(0, HDR_USED); } catch (e) {
-    if (/stopped answering/.test(e.message))
-      throw new Error("This LOOM-8 can't send its samples back to the page. Update it from the install page (0.5-beta or later), then connect again.");
-    throw e;
-  }
-  const h = parseHeader(hdr);
-  if (!h || !h.count) { readOk = true; return; }
   bar.hidden = false;
   try {
-    const data = await readBytes(BANK_HDR, h.dataLen, (f) => { bar.value = f * 100; sayPct("Reading the samples", f); });
-    const img = new Uint8Array(BANK_HDR + h.dataLen);
-    img.set(hdr);
-    img.set(data, BANK_HDR);
-    items = keptOf(img);
-    devImg = build(items).img;                       // (the same bytes: what Send compares with)
+    const img = await readBank(link, (f) => { bar.value = f * 100; sayPct("Reading the samples", f); });
+    if (img) {
+      const kept = keptOf(img);
+      items = kept.filter((it) => !isFactory(it));
+      fset = kept.filter(isFactory);
+      devImg = build(kept).img;                    // (the same bytes: what Send compares with)
+    }
   } finally { bar.hidden = true; }
+  roomNote = "";
   readOk = true;
 }
 
@@ -435,36 +419,19 @@ $("discard").onclick = () => run(readFromDevice);
 
 $("send").onclick = () => run(async () => {
   const bar = $("progress");
-  if (!plan.img) {                                   // nothing left: the bank erased
-    say("Erasing the samples…");
-    const r = await link.req(14, [0], 60000);
-    if (r[1]) throw new Error(`The FM-1 couldn't erase its samples (${RC[r[1]] || r[1]}).`);
-  } else {
-    const fr = [...frames(plan.img)], total = plan.img.length - BANK_HDR;
-    bar.hidden = false;
-    bar.value = 0;
-    say("Sending…");
-    for (const [cmd, args, ms, what] of fr) {
-      let r;
-      for (let k = 1; ; k++) {                       // a write again when its answer is lost (the same bytes)
-        try { r = await link.req(cmd, args, ms); break; } catch (e) { if (cmd !== 12 || k >= 4) throw e; }
-      }
-      const rc = r.length ? r[r.length - 1] : 99;
-      if (rc) throw new Error(`The FM-1 didn't take the samples (${RC[rc] || rc}${cmd === 12 ? ` at ${what}` : ""}).`);
-      if (cmd === 12) {
-        const done = Math.min(what + 256, plan.img.length) - BANK_HDR;
-        bar.value = done / total * 100;
-        sayPct("Sending", done / total);
-      }
-    }
-    bar.hidden = true;
-  }
+  say(plan.img ? "Sending…" : "Erasing the samples…");
+  bar.hidden = false;
+  bar.value = 0;
+  try { await sendBank(link, plan.img, (f) => { bar.value = f * 100; sayPct("Sending", f); }); }
+  finally { bar.hidden = true; }
   say("Reading back…");
   await readAll();
-  say(`Done: ${items.length} sample${items.length === 1 ? "" : "s"} on the FM-1, user 1 to user ${items.length}.`);
+  say(`Done: ${items.length} sample${items.length === 1 ? "" : "s"} on the FM-1` +
+      (items.length ? `, user 1 to user ${items.length}` : "") + (fset.length ? `, and LOOM-8's sounds.` : "."));
 });
 
 $("breaks").onclick = addBreaks;
+$("factory").onclick = addFactory;
 $("add").onclick = () => { replaceAt = -1; $("files").multiple = true; $("files").click(); };
 $("files").onchange = (ev) => { addFiles([...ev.target.files], replaceAt); ev.target.value = ""; replaceAt = -1; };
 $("rate").onchange = () => render();

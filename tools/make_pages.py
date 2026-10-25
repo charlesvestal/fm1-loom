@@ -222,12 +222,20 @@ def main(pkg, version, out):
     warn = '<p data-t="warn">'
     if page.count(warn) != 1:
         raise SystemExit(f"base/web/installer.html must contain {warn} once")
-    page = page.replace(warn, '<p class="note"><b>The breaks have moved.</b> From 0.7, the four breaks (classic, heat, '
-                        'choke and ecstasy) are no longer built into the firmware. After installing, add them from '
-                        '<a href="../samples/">the samples page</a> with "Add the breaks". They then work as before, '
-                        'in the slice presets and in your projects.</p>\n  ' + warn)
+    page = page.replace(warn, '<p class="note"><b>LOOM-8\'s sounds now live in the sample bank.</b> From 0.8, its own '
+                        'sounds (the kits\' drums, the instruments, the sweep and the vinyl: 86 KB) are no longer built '
+                        'into the firmware, to make room for Bluetooth MIDI. The installer adds them to the sample bank '
+                        'after your samples, which keep their numbers; if your samples leave no room for them, it asks '
+                        'first. The four breaks (from 0.7) are on <a href="../samples/">the samples page</a>: "Add the '
+                        'breaks".</p>\n  ' + warn)
     page = page.replace("</style>", "  .note { border-left: 4px solid var(--accent); padding: 4px 0 4px 12px; }\n</style>", 1)
-    (out / "install" / "index.html").write_text(page.replace("/*LIB*/", lib).replace("/*META*/", meta), encoding="utf-8")
+    # the installer's own steps for LOOM-8 (base/web/installer.html APP): the factory set into the sample bank
+    app_js = ("(() => {\n" + strip_module((SRC / "app" / "web" / "samples" / "loom_samples.js").read_text(encoding="utf-8"))
+              + "\n" + (SRC / "app" / "web" / "install_app.js").read_text(encoding="utf-8") + "\nreturn { before, after };\n})()")
+    if page.count("/*APP*/") != 1:
+        raise SystemExit("base/web/installer.html must contain /*APP*/ once")
+    (out / "install" / "index.html").write_text(page.replace("/*LIB*/", lib).replace("/*META*/", meta)
+                                                .replace("/*APP*/", app_js), encoding="utf-8")
     # the backup page's own section: the sample bank (app/web/backup/extras.js on the samples page's code)
     extras = ("const EXTRAS = (() => {\n" +
               strip_module((SRC / "app" / "web" / "samples" / "loom_samples.js").read_text(encoding="utf-8")) + "\n" +
@@ -251,6 +259,9 @@ def main(pkg, version, out):
     (out / "samples" / "index.html").write_text(spage.replace("/*LIB*/", slib), encoding="utf-8")
     # the break pack (out of the firmware since 0.7): the samples page's "Add the breaks" fetches these
     import gen_samples
+    import sampleio
+    # LOOM-8's own sounds (out of the firmware since 0.8): the installer and the samples page add them to the bank
+    (out / "samples" / "factory.bin").write_bytes(sampleio.user_bank(gen_samples.factory_set()))
     (out / "samples" / "breaks").mkdir()
     for brk, f, _, _ in gen_samples.RECORDINGS:
         shutil.copy(gen_samples.SAMPLE_DIR / f, out / "samples" / "breaks" / f"{brk}.wav")

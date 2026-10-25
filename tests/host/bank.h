@@ -1,5 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* A user sample bank built in RAM for the host tests, in tools/sampleio.py's format (version 2, app/dsp/sample.h):
+/* A user sample bank built in RAM for the host tests, in tools/sampleio.py's format (version 3, app/dsp/sample.h; or 2,
+ * bank_blk = SMP_BLK_V2: a checkpoint every 64 samples, as before 0.8):
  * the image in one virtual space (bank[]), each window then copied into a buffer of its own (bank_attach), so a
  * reader that took the windows for one block of memory would read the wrong bytes.
  *   bank_reset();  bank_add(...) / bank_add_at(...);  bank_seal();  bank_attach();  smp_user_scan()
@@ -18,6 +19,7 @@ static uint8_t bank[SMP_BANK_SIZE];
 static uint8_t bank_w0[SMP_REG0_SIZE], bank_w1[SMP_REG1_SIZE], bank_w2[SMP_REG2_SIZE];
 static uint32_t bank_end;
 static int bank_cnt;
+static int bank_blk = SMP_BLK;                   /* samples a checkpoint: SMP_BLK (version 3) or SMP_BLK_V2 (2) */
 static int16_t bank_pcm[1 << 19];                /* the last sample added, as the decoder will give it back */
 
 static void bank_reset(void)
@@ -32,13 +34,13 @@ static void bank_reset(void)
 static int bank_add_at(const char *name, float (*gen)(int), int n, int root, int bars, int rate, uint32_t at)
 {
     int pred = 0, idx = 0, i;
-    uint32_t ck_off = at ? at : (bank_end + 3u) & ~3u, adp_off = ck_off + (uint32_t)((n + 63) / 64) * 4u;
+    uint32_t ck_off = at ? at : (bank_end + 3u) & ~3u, adp_off = ck_off + (uint32_t)((n + bank_blk - 1) / bank_blk) * 4u;
     uint8_t *e = bank + SMP_ENT0 + (uint32_t)bank_cnt * SMP_ENT;
     memset(bank + adp_off, 0, (size_t)(n + 1) / 2u);
     for (i = 0; i < n; i++) {
         int x = (int)gen(i), step, diff, code = 0, vd;
-        if (i % 64 == 0)
-            put32(bank + ck_off + (uint32_t)(i / 64) * 4u, (uint32_t)(pred & 0xFFFF) | (uint32_t)idx << 16);
+        if (i % bank_blk == 0)
+            put32(bank + ck_off + (uint32_t)(i / bank_blk) * 4u, (uint32_t)(pred & 0xFFFF) | (uint32_t)idx << 16);
         step = BK_IMA_S[idx];
         diff = x - pred;
         if (diff < 0) { code = 8; diff = -diff; }
@@ -74,7 +76,7 @@ static int bank_add(const char *name, float (*gen)(int), int n, int root, int ba
 static void bank_seal(void)                      /* the header: magic, version, count, length, CRC, size */
 {
     put32(bank, SMP_BANK_MAGIC);
-    bank[4] = SMP_BANK_VER;
+    bank[4] = bank_blk == SMP_BLK_V2 ? 2u : SMP_BANK_VER;
     bank[5] = 0;
     bank[6] = (uint8_t)bank_cnt;
     put32(bank + 8, bank_end - SMP_BANK_HDR);

@@ -476,7 +476,7 @@ int app_expect(const char *what, int *got)
     else if (!strncmp(what, "name", 4) && what[4])  /* nameT: track T's name, its first letter's code */
         *got = (uint8_t)proj.trk[(atoi(what + 4) - 1 + NALLTRK) % NALLTRK].name[0];
     else if (!strcmp(what, "user"))                 /* the user bank: its samples, its data's bytes, user N's rate */
-        *got = smp_user_count();
+        *got = smp_user_slots();
     else if (!strcmp(what, "userbytes"))
         *got = (int)smp_user_bytes();
     else if (!strncmp(what, "rate", 4) && isnum(what + 4)) {
@@ -1322,7 +1322,8 @@ int app_host_cmd(const char *cmd, const char *a, const char *b, const char *c, c
             plat_data_erase(off);
             plat_data_write(off, img + v, 0x1000u);
         }
-        printf("samples: %s, %d B, %d user samples\n", a, (int)nb, smp_user_scan());
+        smp_user_scan();
+        printf("samples: %s, %d B, %d user samples\n", a, (int)nb, smp_user_slots());
         run_ms(1);
     } else if (!strcmp(cmd, "readback")) {          /* readback IMG: the bank read back through SMP_READ (as the samples
                                                      * page reads it), the header's used part and the data, against IMG */
@@ -1401,7 +1402,7 @@ int app_host_cmd(const char *cmd, const char *a, const char *b, const char *c, c
             nf++;
         }
         fclose(uf);
-        printf("upload: %s, %d frames, %d user samples, %u B\n", a, nf, smp_user_count(), (unsigned)smp_user_bytes());
+        printf("upload: %s, %d frames, %d user samples, %u B\n", a, nf, smp_user_slots(), (unsigned)smp_user_bytes());
         run_ms(1);
     } else if (!strcmp(cmd, "meter"))               /* meter MS: the model's load over MS ms */
         meter_run((uint32_t)atoi(a));
@@ -1539,7 +1540,12 @@ int app_host_cmd(const char *cmd, const char *a, const char *b, const char *c, c
                 if (n > 0)
                     fwrite(store[o], 1, (size_t)n, f);
             } else {
-                if (fread(&n, 4, 1, f) != 1 || n > (int32_t)PLAT_STORE_MAX ||
+                if (o == OBJ_BLE && fread(&n, 4, 1, f) != 1) {   /* a file from before OBJ_BLE (0.8): none */
+                    store_len[o] = -1;
+                    store_prev_len[o] = -1;
+                    continue;
+                }
+                if ((o != OBJ_BLE && fread(&n, 4, 1, f) != 1) || n > (int32_t)PLAT_STORE_MAX ||
                     (n > 0 && fread(store[o], 1, (size_t)n, f) != (size_t)n))
                     host_die("storeload: a short or broken file", a);
                 store_len[o] = n;

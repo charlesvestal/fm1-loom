@@ -9,6 +9,12 @@ samples (tools/sampleio.py), into a header the firmware compiles in (dsp/sample.
 
   gen_samples.py OUT.h [WAVDIR]      WAVDIR: also each sample as a 16-bit WAV (to listen to)
   gen_samples.py --break-specs       the break pack as tools/loom_samples.py specs, one a line
+  gen_samples.py --factory-bank OUT.bin   the factory set as a user bank's image, its entries marked as the factory
+                                     set's (the installer and the samples page add them to the FM-1's bank)
+
+Since 0.8 the FM-1's build leaves the factory set out of the image (94 KB, for Bluetooth): its rows are empty there
+and play the bank's entries of the factory set, the same bytes (sampleio.ima_encode); the host simulator, the DSP
+tests and the emulator keep it built in (SMP_FACT_BUILTIN, dsp/sample.c).
 """
 import math
 import struct
@@ -160,9 +166,20 @@ def break_specs():
     return [f"{name}={SAMPLE_DIR / f}:{BREAK_ROOT}@{bars}%{rate}" for name, f, rate, bars in RECORDINGS]
 
 
+def factory_set():
+    """the factory set (the image's samples until 0.8) as sampleio.user_bank's samples, marked as the factory set's"""
+    return [(name, s, root, loop, bars, rate, sio.E_FACTORY) for name, s, root, loop, bars, rate in build()]
+
+
 def main():
     if len(sys.argv) == 2 and sys.argv[1] == "--break-specs":     # for the tests and loom_samples.py
         print("\n".join(break_specs()))
+        return
+    if len(sys.argv) == 3 and sys.argv[1] == "--factory-bank":
+        img = sio.user_bank(factory_set())
+        Path(sys.argv[2]).parent.mkdir(parents=True, exist_ok=True)
+        Path(sys.argv[2]).write_bytes(img)
+        print(f"factory bank: {len(factory_set())} samples, {sio.bank_used(img)} B")
         return
     if len(sys.argv) < 2:
         sys.exit(__doc__)
@@ -184,8 +201,11 @@ def main():
              f"{4 * len(ck_all)} B of checkpoints */",
              "#pragma once",
              f"#define SMP_NFACT {len(rows)}",
+             f"#define SMP_FACT_NSET {len(smp)}   /* the factory set (the rows before the breaks): the bank's entries "
+             "of it on the FM-1 */",
              f"#define SMP_FACT_BREAK {[r[0] for r in rows].index(RECORDINGS[0][0])}   /* the first break: the slice "
              "engine's sample */",
+             "#if SMP_FACT_BUILTIN                /* (dsp/sample.c: the host and the emulator) */",
              f"static const uint8_t SMP_FACT_ADP[{len(adp_all)}] = {{"]
     for i in range(0, len(adp_all), 24):
         lines.append("    " + ", ".join(str(b) for b in adp_all[i:i + 24]) + ",")
@@ -194,6 +214,7 @@ def main():
     for i in range(0, len(ck_all), 8):
         lines.append("    " + ", ".join(f"0x{c:08X}u" for c in ck_all[i:i + 8]) + ",")
     lines.append("};")
+    lines.append("#endif")
     lines.append("/* name, ADPCM offset, checkpoint index, samples, loop start, loop end (0: none), root, bars (0: "
                  "not a loop of bars), rate */")
     lines.append("static const struct { const char *name; uint32_t adp, ck, n, ls, le; uint8_t root, bars; "

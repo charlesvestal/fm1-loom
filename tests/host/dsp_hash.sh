@@ -11,7 +11,7 @@ mkdir -p build/gen build/host
 [ -f build/gen/wavetables.h ] || "$PY" tools/gen_wavetables.py build/gen/wavetables.h
 [ -f build/gen/samples.h ] || "$PY" tools/gen_samples.py build/gen/samples.h >/dev/null
 "$PY" tools/gen_presets.py build/gen/presets.h
-[ -f build/gen/breaks.bin ] || "$PY" tools/loom_samples.py build build/gen/breaks.bin breaks >/dev/null
+[ -f build/gen/breaks.bin ] || "$PY" tools/loom_samples.py build --no-factory build/gen/breaks.bin breaks >/dev/null
 $CC -O2 -ffp-contract=off -std=c99 -Wall -Wextra -Wdouble-promotion -Werror -DPLAT_HOST -Iapp/dsp -Ibase/include -Ibuild/gen \
     -o build/host/dsp_hash tests/host/dsp_hash.c app/dsp/synth.c app/dsp/drumline.c app/dsp/digisophie.c \
     app/dsp/sample.c app/dsp/fx.c

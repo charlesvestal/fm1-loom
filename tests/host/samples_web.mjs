@@ -121,7 +121,7 @@ if (hasNumpy) {
   const out = join(dir, "py.bin");
   const log = py(`import loom_samples as ls
 from pathlib import Path
-Path("${out}").write_bytes(ls.build(${JSON.stringify(specs)}, None))`);
+Path("${out}").write_bytes(ls.build(${JSON.stringify(specs)}, None, factory=False))`);
   const pyImg = readFileSync(out);
   const items = specs.map((sp) => {
     let name = null, s = sp, rate = null, bars = 0, root = null;
@@ -138,6 +138,41 @@ Path("${out}").write_bytes(ls.build(${JSON.stringify(specs)}, None))`);
   ph.fill(0, 12, 16); jh.fill(0, 12, 16);
   check(`loom_samples.py build: auto chose ${chose} Hz; the same header but the CRC (${img.length} B, ${log.trim().split("\n").pop()})`,
     img.length === pyImg.length && Buffer.compare(ph, jh) === 0);
+}
+
+// 3b. with the factory set (0.8): the page's (factory.bin's entries, kept as stored, after the samples) is the command
+// line's (its default), byte for byte; and the factory set's entries are the image's own until 0.8 (gen_samples.py)
+if (hasNumpy) {
+  const fb = join(dir, "factory.bin"), out2 = join(dir, "py_f.bin");
+  py(`import gen_samples, sampleio as sio
+from pathlib import Path
+Path("${fb}").write_bytes(sio.user_bank(gen_samples.factory_set()))`);
+  const factory = L.factoryOf(new Uint8Array(readFileSync(fb)));
+  check(`the factory set: ${factory.length} entries, all marked`, factory.length === L.NFENT && factory.every(L.isFactory));
+  const specs = [`${files[0][0]}`, `beat=${files[1][0]}@1`];
+  py(`import loom_samples as ls
+from pathlib import Path
+Path("${out2}").write_bytes(ls.build(${JSON.stringify(specs)}, None, quiet=True))`);
+  const items = specs.map((sp) => {
+    let name = null, s = sp, bars = 0;
+    if (s.includes("=")) [name, s] = s.split("=");
+    if (/@\d+$/.test(s)) { bars = Number(s.split("@").pop()); s = s.replace(/@\d+$/, ""); }
+    const { rate: sr, x, loop } = L.readWav(readFileSync(s));
+    const stem = s.split("/").pop().replace(/\.wav$/, "");
+    return { name: name || stem, x, sr, loop, root: bars ? L.LOOP_ROOT : L.noteFromName(stem), bars, rate: null };
+  });
+  const missing = L.factoryMissing(items, factory);
+  const { img } = L.build([...items, ...missing]);
+  const pyImg = readFileSync(out2);
+  const ph = Buffer.from(pyImg.subarray(0, L.BANK_HDR)), jh = Buffer.from(img.subarray(0, L.BANK_HDR));
+  ph.fill(0, 12, 16); jh.fill(0, 12, 16);
+  check(`with the factory set: the page's bank is the command line's (${img.length} B)`,
+    missing.length === L.NFENT && img.length === pyImg.length && Buffer.compare(ph, jh) === 0);
+  const h = L.parseHeader(img.subarray(0, L.BANK_HDR));
+  check("the samples first (user 1, user 2), the factory set after them",
+    h.count === 2 + L.NFENT && !(h.entries[0].flags & L.E_FACTORY) && !(h.entries[1].flags & L.E_FACTORY) &&
+    h.entries.slice(2).every((e) => e.flags & L.E_FACTORY));
+  check("a bank with the factory set needs none of it again", L.factoryMissing(L.keptOf(img), factory).length === 0);
 }
 
 // 4. read back and built again

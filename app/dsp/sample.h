@@ -8,7 +8,7 @@
  * Every SMP_BLK samples a checkpoint holds the decoder's state, so a voice reads any sample through a
  * small cache (smp_cache_t, 80 bytes: a window of SMP_WIN + 1 decoded samples and the decoder's state after
  * it). Forward, the next window carries on from that state (32 IMA steps per 32 samples); backward or after
- * a jump (a loop, a start anywhere) it starts again from the window's checkpoint (33 or 65 steps). The
+ * a jump (a loop, a start anywhere) it starts again from the window's checkpoint (33 to SMP_BLK + 1 steps). The
  * format and the user bank's layout: tools/sampleio.py.
  *
  * The user bank's windows (SMP_REG*): the data area from the projects' end to the panel calibration, and
@@ -27,9 +27,16 @@
 #define SMP_RATE 22050                    /* the factory samples' rate (a user sample states its own) */
 #define SMP_RATE_MIN 4000u                /* a user sample's rate, Hz */
 #define SMP_RATE_MAX 48000u
-#define SMP_BLK 64                        /* samples per checkpoint (a power of two) */
+#ifndef SMP_BLK
+#define SMP_BLK 128                       /* samples per checkpoint (a power of two): the factory set's, and a bank's
+                                           * since version 3 (0.8; 64 before: the checkpoints' 11 % of the bytes
+                                           * halved, a jump or a step backwards decoding up to 129 samples, not 65) */
+#endif
+#define SMP_BLK_V2 64                     /* a version 2 bank's (still read) */
 #define SMP_WIN 32                        /* samples a cache window holds (and the next one's first) */
 #define SMP_NUSER 32                      /* the user bank's slots (user 1 is index SMP_NFACT, as before) */
+#define SMP_NFENT 12                      /* the bank's entries for the factory set (since 0.8: SMP_E_FACTORY) */
+#define SMP_NENT (SMP_NUSER + SMP_NFENT)  /* the bank's entries: the user slots and the factory set's */
 #define SMP_NAME 12
 #define SMP_NREG 3                        /* the bank's windows, in the order it fills them */
 #define SMP_REG0 0xC1000u                 /* the data area after the projects, up to the calibration: 108 KB */
@@ -42,10 +49,15 @@
 #define SMP_BANK_BASE SMP_REG0            /* flash offset of the bank's header */
 #define SMP_BANK_HDR 2048u                /* the header; the data follows */
 #define SMP_BANK_MAGIC 0x504D534Cu        /* "LSMP" */
-#define SMP_BANK_VER 2u                   /* 1: one window at 0xCF000, 16 slots, 22050 Hz (no longer read) */
+#define SMP_BANK_VER 3u                   /* 3: a checkpoint every SMP_BLK (0.8); 2: every 64 (still read); 1: one
+                                           * window at 0xCF000, 16 slots, 22050 Hz (no longer read) */
+#define SMP_BANK_VER_OK(v) ((v) == 2u || (v) == 3u)
 #define SMP_ENT0 64u                      /* the header's first entry */
 #define SMP_ENT 40u                       /* bytes an entry */
-#define SMP_HDR_USED (SMP_ENT0 + SMP_NUSER * SMP_ENT)   /* 1344: what an upload stages */
+#define SMP_HDR_USED (SMP_ENT0 + SMP_NENT * SMP_ENT)    /* 1824: what an upload stages */
+#define SMP_E_FACTORY 0x01u               /* an entry's flags (byte 33): one of the factory set, installed in the bank
+                                           * (the installer, the samples page): its factory row plays it, and it is
+                                           * no user slot */
 #define SMP_BREAK 12                      /* the factory break (tools/gen_samples.py): the slice engine's default */
 #define SMP_BARS_MAX 16                   /* a user entry's bars above this: not stated */
 
@@ -119,7 +131,9 @@ void smp_user_attach(const uint8_t *const *reg);   /* where it reads: each windo
                                                      * on the host; 0: none) */
 int smp_user_scan(void);                  /* (re)read its header: the samples it holds, 0 = none / not valid */
 void smp_user_drop(void);                 /* about to be rewritten: the user samples vanish now */
-int smp_user_count(void);
+int smp_user_count(void);                 /* the bank's entries (the factory set's too) */
+int smp_user_slots(void);                 /* the user slots filled (the entries not the factory set's) */
+const smp_t *smp_entry(int i);            /* entry i, 0 .. smp_user_count() - 1 (0: none) */
 uint32_t smp_user_bytes(void);            /* its data, bytes */
 uint32_t smp_crc32(const uint8_t *p, uint32_t n);
 uint32_t smp_crc32_more(uint32_t c, const uint8_t *p, uint32_t n);   /* on from c (start: 0) */
