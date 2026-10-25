@@ -246,6 +246,12 @@ static int loop_after(const tpat_t *p, int pos, int *wrapped)
     }
     return n;
 }
+static int loop_before(const tpat_t *p, int pos)   /* the step before pos in the loop (wrapping at its start) */
+{
+    int f, e;
+    pat_loop(p, &f, &e);
+    return pos <= f || pos >= e ? e - 1 : pos - 1;
+}
 static int loop_from(const tpat_t *p)
 {
     int f, e;
@@ -1700,6 +1706,15 @@ static void arp_pan(seq_t *s, int t, int pan, const seq_sink_t *o)
         o->pan(o->ctx, t, pan);
 }
 
+/* a countdown a live key sets (seq_keys_live), from the sound's now: the sequencer's is live_lead later (one due
+ * sooner than that: at once, the next time it looks) */
+static uint32_t live_less(const seq_t *s, uint32_t v)
+{
+    if (v == NEVER || !s->live_lead)
+        return v;
+    return v > s->live_lead ? v - s->live_lead : 0;
+}
+
 static void arp_off(seq_t *s, int t, const seq_sink_t *o)
 {
     player_t *pl = &s->player[t];
@@ -1862,8 +1877,8 @@ static void arp_fire(seq_t *s, int t, const seq_sink_t *o)
                    TAG_ARP | (uint32_t)note, o);
     pl->arp_note = (uint8_t)note;
     gate = len >= 2 ? P / 10u * 9u : len == 1 ? P / 2u : P / 4u;   /* long 90 %, medium 50 %, short 25 % */
-    pl->arp_to_off = carry + gate;
-    pl->arp_to_next = carry + P;
+    pl->arp_to_off = live_less(s, carry + gate);
+    pl->arp_to_next = live_less(s, carry + P);
 }
 
 /* the maestro: the chord moved so its lowest note is the key, in musical order (or reversed, or alternating,
@@ -1967,7 +1982,7 @@ static void roll_fire(seq_t *s, int t, const seq_sink_t *o)
         pl->roll_to_next = NEVER;
         pl->nroll = 0;
     } else                            /* roll / 63 of the track's step between the notes */
-        pl->roll_to_next = carry + seq_step_q8(s, t) / 63u * (uint32_t)roll;
+        pl->roll_to_next = live_less(s, carry + seq_step_q8(s, t) / 63u * (uint32_t)roll);
 }
 
 /* a step on an arp track: its notes join the keys held, for the step's length (the next step's replace them) */
@@ -2128,11 +2143,18 @@ static void rec_key_on(seq_t *s, int t, int note, int vel)
     seq_trk_t *tr = &s->t[t];
     uint32_t L = tr->step_q8 ? tr->step_q8 : seq_step_q8(s, t);
     int p = tr->pos, i, q = tp->quant > 100 ? 100 : tp->quant;
-    int32_t age = (int32_t)(tr->age > L ? L : tr->age), ticks;
+    int32_t age = (int32_t)(tr->age > L ? L : tr->age) - (int32_t)s->ahead, ticks;
     int early = 0;
     step_t *st;
     if (!tr->started)
         return;
+    if (age < 0) {                    /* (the look-ahead: this step has not sounded yet; the key came in the one
+                                       * before, which is what the player heard) */
+        p = loop_before(tp, p);
+        age += (int32_t)L;
+        if (age < 0)
+            age = 0;
+    }
     if ((uint32_t)age > L / 2u) {     /* nearer the next step */
         p = loop_after(tp, p, 0);
         age -= (int32_t)L;
@@ -3055,6 +3077,43 @@ void seq_advance(seq_t *s, uint32_t k, const seq_sink_t *o)
         s->clk_to_next = 0;
 }
 
+/* the players' notes due now (a key's first: an arp aligned to now, a roll's first note): seq_advance's own loop,
+ * the players only */
+static void players_due(seq_t *s, const seq_sink_t *o)
+{
+    for (int t = 0; t < NTRK; t++) {
+        player_t *pl = &s->player[t];
+        if (pl->arp_to_off < SEQ_DUE)
+            arp_off(s, t, o);
+        if (pl->sq_to_off < SEQ_DUE)
+            step_arp_end(s, t, o);
+        if (pl->arp_to_next < SEQ_DUE) {
+            s->quiet = pl->quiet && pl->nheld;
+            arp_fire(s, t, o);
+            s->quiet = 0;
+        }
+        if (pl->roll_to_next < SEQ_DUE) {
+            s->quiet = pl->quiet;
+            roll_fire(s, t, o);
+            s->quiet = 0;
+        }
+        if (pl->sroll_to_next < SEQ_DUE)
+            step_roll_fire(s, t, o);
+    }
+}
+
+void seq_keys_live(seq_t *s, uint32_t lead, const seq_sink_t *o)
+{
+    if (s->kq_r == s->kq_w)
+        return;
+    s->live_lead = lead;
+    punch_update(s, o);
+    keys_play(s, o);
+    punch_update(s, o);               /* (as seq_advance: the keys may have started a loop or a fill) */
+    players_due(s, o);
+    s->live_lead = 0;
+}
+
 void seq_start(seq_t *s, int from_start)
 {
     if (from_start)
@@ -3151,7 +3210,11 @@ int seq_rec_pos(const seq_t *s, int trk)
     if (!s->playing || !tr->started)
         return 0;
     L = tr->step_q8 ? tr->step_q8 : seq_step_q8(s, trk);
-    return tr->age > L / 2u ? loop_after(tp, tr->pos, 0) : tr->pos;
+    if (tr->age < s->ahead) {         /* (the look-ahead: the step has not sounded yet; the one before is heard) */
+        uint32_t age = tr->age + L - s->ahead;
+        return age > L / 2u ? tr->pos : loop_before(tp, tr->pos);
+    }
+    return tr->age - s->ahead > L / 2u ? loop_after(tp, tr->pos, 0) : tr->pos;
 }
 
 void seq_rec_knob(seq_t *s, int trk, int param, int val)

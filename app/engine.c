@@ -167,11 +167,14 @@ int engine_core2_state(void)
 #define GUARD_VOICES 8
 static uint8_t guard_on, guard_applied, guard_cap = NVOICE, guard_run;
 static uint32_t guard_avg_q8, guard_calm, guard_frames;
+static uint32_t la_pct;                                   /* the last block's look-ahead run, % of its time */
 void engine_load(uint32_t pct)
 {
     uint32_t frames = guard_frames;
     guard_frames = 0;
-    synth_load_hint(SY, pct);                        /* (the note-start check: synth.c load_over) */
+    /* (the note-start check, synth.c load_over: the last block's load without its look-ahead run, which was the
+     * next block's sequencing: else a block before a section change, carrying it, has the chord's notes steal) */
+    synth_load_hint(SY, pct > la_pct ? pct - la_pct : 0u);
     guard_avg_q8 = (guard_avg_q8 * 15u + pct * 256u) / 16u;
     guard_run = pct > GUARD_ON_LAST ? (uint8_t)(guard_run < 255u ? guard_run + 1u : 255u) : 0u;
     if (guard_run >= GUARD_ON_RUN || guard_avg_q8 > GUARD_ON_AVG * 256u) {
@@ -645,6 +648,160 @@ static void s_metro(void *x, int accent)
     synth_duck_trigger(SY, DUCK_METRO);
     eng_master_key(PB_METRO, accent ? 127 : 100, 0);
 }
+/* ---------------------------------------------------------- the look-ahead --- */
+/* The sequencer runs a block ahead of the sound: at the end of each block it moves through the next one, its calls
+ * to the sink queued here with their frames, and the next block plays them back at those frames, its stretches cut
+ * where the sequencer's were. The total is the same; a step's work lands in the block before the one that sounds it
+ * (a section change: the step's work in the light block before it, the voices it starts in their own). Live while
+ * stopped and on an external clock (its ticks fire the steps: nothing to see ahead), and on the block that starts
+ * the transport (then ahead from the next). The keys stay live: seq_keys_live at the block's start. What the
+ * sequencer reads from the main loop (a knob it uses, a stop, a scene now) reaches the sound a block later. */
+enum { LA_NOTE_ON, LA_NOTE_OFF, LA_DRUM, LA_LOCK, LA_BEND, LA_PUNCH, LA_MIDI, LA_STEP, LA_SCENE, LA_METRO, LA_PAN,
+       LA_DRUM_OFF, LA_GHOST, LA_CUT };
+typedef struct { uint16_t at; uint8_t kind, trk; int16_t a, b; uint32_t c; } la_ev_t;
+#define LA_N 192                                          /* (the demos: 37..51 a block; stress, every voice busy: 171) */
+static la_ev_t la_q[LA_N] POOL;
+static uint16_t la_n, la_at, la_frames;                  /* events queued; the frame the next goes at; the block's */
+static uint8_t la_ok;                                     /* the queue is this block's: play it back */
+static uint8_t la_enable = 1;                             /* (the host: LOOM_LOOKAHEAD=0 for the old way, to compare) */
+static uint32_t la_lost, la_most;                         /* events that found the queue full (played at once);
+                                                           * the most a block queued */
+#ifdef PLAT_HOST
+void engine_lookahead(int on) { la_enable = (uint8_t)(on != 0); }   /* (host.c: LOOM_LOOKAHEAD) */
+uint32_t engine_lookahead_most(void) { return la_most; }
+uint32_t engine_lookahead_lost(void) { return la_lost; }
+#endif
+static const seq_sink_t SINK;
+static la_ev_t *la_put(int kind, int trk)
+{
+    la_ev_t *e;
+    if (la_n >= LA_N) {
+        la_lost++;
+        return 0;
+    }
+    e = &la_q[la_n++];
+    e->at = la_at;
+    e->kind = (uint8_t)kind;
+    e->trk = (uint8_t)trk;
+    e->a = e->b = 0;
+    e->c = 0;
+    return e;
+}
+static void r_note_on(void *x, int trk, int note, int vel, int glide_ms, uint32_t tag)
+{
+    la_ev_t *e = la_put(LA_NOTE_ON, trk);
+    if (!e) { SINK.note_on(x, trk, note, vel, glide_ms, tag); return; }
+    e->a = (int16_t)(note | vel << 8);
+    e->b = (int16_t)glide_ms;
+    e->c = tag;
+}
+static void r_note_off(void *x, int trk, uint32_t tag)
+{
+    la_ev_t *e = la_put(LA_NOTE_OFF, trk);
+    if (!e) { SINK.note_off(x, trk, tag); return; }
+    e->c = tag;
+}
+static void r_drum(void *x, int trk, int sound, int vel, int pitch_semi, int short_gate, int long_tail)
+{
+    la_ev_t *e = la_put(LA_DRUM, trk);
+    if (!e) { SINK.drum(x, trk, sound, vel, pitch_semi, short_gate, long_tail); return; }
+    e->a = (int16_t)(sound | vel << 8);
+    e->b = (int16_t)pitch_semi;
+    e->c = (uint32_t)(short_gate & 0xFFFF) | (uint32_t)long_tail << 16;
+}
+static void r_lock(void *x, int trk, int param, int val)
+{
+    la_ev_t *e = la_put(LA_LOCK, trk);
+    if (!e) { SINK.lock(x, trk, param, val); return; }
+    e->a = (int16_t)param;
+    e->b = (int16_t)val;
+}
+static void r_bend(void *x, int trk, int cents)
+{
+    la_ev_t *e = la_put(LA_BEND, trk);
+    if (!e) { SINK.bend(x, trk, cents); return; }
+    e->b = (int16_t)cents;
+}
+static void r_punch(void *x, uint32_t drum_mask, uint32_t mel_mask)
+{
+    la_ev_t *e = la_put(LA_PUNCH, 0);
+    if (!e) { SINK.punch(x, drum_mask, mel_mask); return; }
+    e->a = (int16_t)(mel_mask & 0xFFFFu);
+    e->b = (int16_t)(mel_mask >> 16);
+    e->c = drum_mask;
+}
+static void r_midi(void *x, uint8_t st, uint8_t d1, uint8_t d2)
+{
+    la_ev_t *e = la_put(LA_MIDI, 0);
+    if (!e) { SINK.midi(x, st, d1, d2); return; }
+    e->a = (int16_t)(st | d1 << 8);
+    e->b = d2;
+}
+static void r_step(void *x, int trk, int step)
+{
+    la_ev_t *e = la_put(LA_STEP, trk);
+    if (!e) { SINK.step(x, trk, step); return; }
+    e->a = (int16_t)step;
+}
+static void r_scene(void *x, int scene)
+{
+    la_ev_t *e = la_put(LA_SCENE, 0);
+    if (!e) { SINK.scene(x, scene); return; }
+    e->a = (int16_t)scene;
+}
+static void r_metro(void *x, int accent)
+{
+    la_ev_t *e = la_put(LA_METRO, 0);
+    if (!e) { SINK.metro(x, accent); return; }
+    e->a = (int16_t)accent;
+}
+static void r_pan(void *x, int trk, int pan)
+{
+    la_ev_t *e = la_put(LA_PAN, trk);
+    if (!e) { SINK.pan(x, trk, pan); return; }
+    e->b = (int16_t)pan;
+}
+static void r_drum_off(void *x, int trk, int sound)
+{
+    la_ev_t *e = la_put(LA_DRUM_OFF, trk);
+    if (!e) { SINK.drum_off(x, trk, sound); return; }
+    e->a = (int16_t)sound;
+}
+static void r_ghost(void *x, int trk, int sound, int vel)
+{
+    la_ev_t *e = la_put(LA_GHOST, trk);
+    if (!e) { SINK.ghost(x, trk, sound, vel); return; }
+    e->a = (int16_t)(sound | vel << 8);
+}
+static const seq_sink_t REC = {
+    .note_on = r_note_on, .note_off = r_note_off, .drum = r_drum, .lock = r_lock, .bend = r_bend, .punch = r_punch,
+    .midi = r_midi, .step = r_step, .scene = r_scene, .metro = r_metro, .pan = r_pan, .drum_off = r_drum_off,
+    .ghost = r_ghost, .ctx = 0};
+/* the queued calls at frame at, from *i on, through the sink */
+static void la_play(uint32_t at, uint32_t *i)
+{
+    for (; *i < la_n && la_q[*i].at == at; (*i)++) {
+        const la_ev_t *e = &la_q[*i];
+        int t = e->trk;
+        switch (e->kind) {
+        case LA_NOTE_ON: SINK.note_on(0, t, e->a & 0xFF, (e->a >> 8) & 0xFF, e->b, e->c); break;
+        case LA_NOTE_OFF: SINK.note_off(0, t, e->c); break;
+        case LA_DRUM: SINK.drum(0, t, e->a & 0xFF, (e->a >> 8) & 0xFF, e->b, (int16_t)(e->c & 0xFFFFu), (int)(e->c >> 16)); break;
+        case LA_LOCK: SINK.lock(0, t, e->a, e->b); break;
+        case LA_BEND: SINK.bend(0, t, e->b); break;
+        case LA_PUNCH: SINK.punch(0, e->c, (uint32_t)(uint16_t)e->a | (uint32_t)(uint16_t)e->b << 16); break;
+        case LA_MIDI: SINK.midi(0, (uint8_t)(e->a & 0xFF), (uint8_t)((e->a >> 8) & 0xFF), (uint8_t)e->b); break;
+        case LA_STEP: SINK.step(0, t, e->a); break;
+        case LA_SCENE: SINK.scene(0, e->a); break;
+        case LA_METRO: SINK.metro(0, e->a); break;
+        case LA_PAN: SINK.pan(0, t, e->b); break;
+        case LA_DRUM_OFF: SINK.drum_off(0, t, e->a); break;
+        case LA_GHOST: SINK.ghost(0, t, e->a & 0xFF, (e->a >> 8) & 0xFF); break;
+        default: break;                               /* LA_CUT: a stretch's end, nothing to call */
+        }
+    }
+}
+
 /* named members: the sequencer may grow its sink at the end without this changing */
 static const seq_sink_t SINK = {
     .note_on = s_note_on, .note_off = s_note_off, .drum = s_drum, .lock = s_lock, .bend = s_bend, .punch = s_punch,
@@ -1273,11 +1430,31 @@ void engine_render(int32_t *out_lr, uint32_t n, uint32_t gain_q12)
             else
                 fx_job_timed(0);
         }
-        seq_advance(&seq, 0, &SINK);
+        if (la_ok && la_frames != n) {                    /* (a block of another size: the queue at once, then live) */
+            uint32_t j = 0;
+            while (j < la_n)
+                la_play(la_q[j].at, &j);
+            la_ok = 0;
+            seq.ahead = 0;
+        }
+        if (la_ok)
+            seq_keys_live(&seq, n << 8, &SINK);           /* the keys now, at the sound's time */
+        else
+            seq_advance(&seq, 0, &SINK);
+        PROF_ADD(PR_SEQ, pt);
+    }
+    uint32_t la_i = 0;
+    if (la_ok) {
+        PROF_T(pt);
+        la_play(0, &la_i);
         PROF_ADD(PR_SEQ, pt);
     }
     while (done < n) {
-        uint32_t k = seq_until_event(&seq, n - done);
+        uint32_t k;
+        if (la_ok)                                        /* to the next queued frame (the sequencer's next stretch) */
+            k = (la_i < la_n ? la_q[la_i].at : n) - done;
+        else
+            k = seq_until_event(&seq, n - done);
         if (k > n - done)
             k = n - done;
         if (k > STRETCH_MAX)
@@ -1301,10 +1478,48 @@ void engine_render(int32_t *out_lr, uint32_t n, uint32_t gain_q12)
         }
         {
             PROF_T(pt);
-            seq_advance(&seq, k, &SINK);
+            if (la_ok)
+                la_play(done + k, &la_i);
+            else
+                seq_advance(&seq, k, &SINK);
             PROF_ADD(PR_SEQ, pt);
         }
         done += k;
+    }
+    {   /* the next block, ahead: while playing on its own clock (else live, from where it is) */
+        PROF_T(pt);
+        la_pct = 0;
+        la_n = 0;
+        la_ok = 0;
+        if (la_enable && seq.playing && !seq.ext && !seq.ext_pending) {
+            uint32_t t = 0;
+            la_at = 0;
+            la_frames = (uint16_t)n;
+            seq_advance(&seq, 0, &REC);
+            while (t < n) {
+                uint32_t k = seq_until_event(&seq, n - t);
+                if (k > n - t)
+                    k = n - t;
+                if (k > STRETCH_MAX)
+                    k = STRETCH_MAX;
+                if (!k)
+                    k = 1;
+                t += k;
+                la_at = (uint16_t)t;
+                if (t < n) {                              /* (a stretch's end: the render cuts there too) */
+                    la_ev_t *e = la_put(LA_CUT, 0);
+                    (void)e;
+                }
+                seq_advance(&seq, k, &REC);
+            }
+            la_ok = 1;
+            seq.ahead = n << 8;
+            la_pct = (plat_cycles() - pt) * 100u / (n * 544u);   /* (544 ticks of 24 MHz a frame) */
+            if (la_n > la_most)
+                la_most = la_n;
+        } else
+            seq.ahead = 0;
+        PROF_ADD(PR_SEQ, pt);
     }
     snd_n = n;                                           /* this block's sends: the next block's effects' */
     eng_scene_cue = seq.cue;

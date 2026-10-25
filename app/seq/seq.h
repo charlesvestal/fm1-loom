@@ -284,11 +284,19 @@ typedef struct {
     uint8_t wv_ppat;                  /* the WEAVE track's pattern playing (the scene's) */
     uint8_t wv_left[NSEQT];           /* sixteenths each track's recorded weave still lasts */
     uint8_t wv_rec_at[NSEQT];         /* recording: the step a held weave started on (0xFF none) */
+    /* the look-ahead (engine.c): the sequencer run a block ahead of the sound, its calls queued and played at their
+     * frames. ahead: how far ahead it is now (samples Q8, 0 when live); live_lead: the same while seq_keys_live plays
+     * the keys, which happen at the sound's time: what they set counting from now counts from that much earlier */
+    volatile uint32_t ahead;
+    uint32_t live_lead;
 } seq_t;
 
 void seq_init(seq_t *s, patterns_t *P, uint8_t (*par)[NTP_ALL]);
 uint32_t seq_until_event(seq_t *s, uint32_t n);
 void seq_advance(seq_t *s, uint32_t k, const seq_sink_t *o);
+/* the look-ahead: the keys (and what they make due now: a player's first note) played at once through o, while the
+ * sequencer is lead (samples Q8) ahead of the sound; seq_advance then finds none */
+void seq_keys_live(seq_t *s, uint32_t lead, const seq_sink_t *o);
 
 /* main loop / MIDI side (flag writes, picked up at the next block) */
 void seq_start(seq_t *s, int from_start);

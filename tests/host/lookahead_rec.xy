@@ -1,0 +1,126 @@
+# The look-ahead (engine.c): live recording while playing, keys at offsets across the step boundaries and a knob
+# recorded; tests/host/lookahead_test.sh plays it with the look-ahead off and on and compares the projects saved
+wait 300
+spin ALGO 1
+expect trk 2
+tap SEQ
+tap PLAY
+wait 250
+press REC
+key 0 down
+wait 21
+key 0 up
+wait 16
+key 2 down
+wait 21
+key 2 up
+wait 16
+key 4 down
+wait 21
+key 4 up
+wait 16
+key 5 down
+wait 21
+key 5 up
+wait 16
+key 7 down
+wait 21
+key 7 up
+wait 16
+key 9 down
+wait 21
+key 9 up
+wait 16
+key 11 down
+wait 21
+key 11 up
+wait 16
+key 12 down
+wait 21
+key 12 up
+wait 16
+key 0 down
+wait 21
+key 0 up
+wait 16
+key 2 down
+wait 21
+key 2 up
+wait 16
+key 4 down
+wait 21
+key 4 up
+wait 16
+key 5 down
+wait 21
+key 5 up
+wait 16
+key 7 down
+wait 21
+key 7 up
+wait 16
+key 9 down
+wait 21
+key 9 up
+wait 16
+key 11 down
+wait 21
+key 11 up
+wait 16
+key 12 down
+wait 21
+key 12 up
+wait 16
+key 0 down
+wait 21
+key 0 up
+wait 16
+key 2 down
+wait 21
+key 2 up
+wait 16
+key 4 down
+wait 21
+key 4 up
+wait 16
+key 5 down
+wait 21
+key 5 up
+wait 16
+key 7 down
+wait 21
+key 7 up
+wait 16
+key 9 down
+wait 21
+key 9 up
+wait 16
+key 11 down
+wait 21
+key 11 up
+wait 16
+key 12 down
+wait 21
+key 12 up
+wait 16
+release REC
+wait 400
+tap EDIT
+press REC
+spin K1 3
+wait 53
+spin K1 3
+wait 53
+spin K1 3
+wait 53
+spin K1 3
+wait 53
+spin K1 3
+wait 53
+spin K1 3
+wait 53
+release REC
+wait 300
+tap PLAY
+expect playing 0
+projsave 1 la_test

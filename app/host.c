@@ -908,6 +908,8 @@ static void stats_print(void)
     printf("stats: %.1f s playing, peak synth voices %u (of %d), peak drum voices %u, guard trips %u; "
            "model load peak %.0f %%, mean %.0f %%, over 85 %% for %u ms\n", st_ms / 1000.0, st_syn, NVOICE, st_drum,
            (unsigned)(eng_guard_count - st_guard0), st_load, st_ms ? st_load_sum / (float)st_ms : 0.0f, st_hi_ms);
+    printf("look-ahead: at most %u calls a block, %u found the queue full\n", (unsigned)engine_lookahead_most(),
+           (unsigned)engine_lookahead_lost());
 }
 
 /* a master value as a script writes it: a number, or for pumpby kick / t1..t8 / metro, for accent on / off */
@@ -943,6 +945,8 @@ static void host_env(void)                          /* LOOM_SOLO, LOOM_MST (once
                             : atoi(p) >= 1 && atoi(p) <= 8 ? 1u << (atoi(p) - 1) : 0u);
         synth_host_solo = m;
     }
+    if ((e = getenv("LOOM_LOOKAHEAD")) && *e)       /* the sequencer a block ahead (engine.c), or live as before */
+        engine_lookahead(atoi(e) != 0);
     if ((e = getenv("LOOM_LOAD")) && *e)            /* the guard's input fixed (a script's "load N" still wins) */
         load_force = atoi(e);
     if ((e = getenv("LOOM_MST")) && *e)
