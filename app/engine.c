@@ -796,9 +796,9 @@ static void drain(void)
 
 /* the mix of one stretch between two events: the percussion group, the melodic group, the two
  * sends; the second core's own; the drumlines' and the FX returns' scratch. In .bss, not the pool
- * (the pool is for the lines). STRETCH_MAX frames each: a block's stretches are cut to it (ble-spike: 128, not
- * the block's 256, for the RAM Bluetooth takes); mix_l / mix_r are the whole block's. */
-#define STRETCH_MAX 128u
+ * (the pool is for the lines). STRETCH_MAX frames each, a whole block (128 cost a stretch more a block: 8 points
+ * of pop's busiest); mix_l / mix_r the same. In the pool: Bluetooth's RAM. */
+#define STRETCH_MAX 256u
 static float perc_l[STRETCH_MAX] POOL, perc_r[STRETCH_MAX] POOL, mel_l[STRETCH_MAX] POOL, mel_r[STRETCH_MAX] POOL;
 static float s1[STRETCH_MAX] POOL, s2[STRETCH_MAX] POOL;
 static float c2_l[STRETCH_MAX] POOL, c2_r[STRETCH_MAX] POOL, c2_s1[STRETCH_MAX] POOL, c2_s2[STRETCH_MAX] POOL;
