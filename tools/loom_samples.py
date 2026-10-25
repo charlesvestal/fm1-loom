@@ -7,6 +7,8 @@
   loom_samples.py info                          what the bank holds now
   loom_samples.py load [--rate R] SPEC ...      replace the bank with these (up to 32), and the factory set
   loom_samples.py erase [--all]                 empty the bank: the factory set left in it (--all: that too)
+  loom_samples.py factory [--make-room]         LOOM-8's sounds added after the samples there (the installer's step);
+                                                --make-room: if they do not fit, your samples made smaller to fit
   loom_samples.py build [--rate R] OUT.bin SPEC ...   no device: the bank's image into OUT.bin
                                                 (the host simulator loads it: "samples OUT.bin")
   loom_samples.py syx [--rate R] OUT.syx SPEC ...     no device: the SysEx frames "load" would send (and "info"),
@@ -24,7 +26,8 @@
         "bank:FILE.bin": the samples of a bank image (a backup, a build) as it stores them
 
 load, build and syx add the factory set after the samples given (if no SPEC says where: "factory"), so a load
-never leaves the kits silent; --no-factory leaves it out. Its 12 entries are not user slots: user 1 is still the
+never leaves the kits silent; --no-factory leaves it out; --make-room puts samples kept as stored (bank:FILE) at a
+lower rate when the bank would not fit otherwise. Its 12 entries are not user slots: user 1 is still the
 first sample given. It takes 86 KB of the bank.
 
 Each file becomes one sample: mixed to mono, resampled to its rate (a windowed-sinc anti-alias filter first),
@@ -172,8 +175,38 @@ def is_factory_set(p):
     return is_factory(p) and len(p) > 6 and bool(p[6] & sio.E_FACTORY)
 
 
-def build(specs, rate=None, quiet=False, factory=True):
-    """the bank's image; --rate R for every sample that did not choose (None: auto)"""
+def at_rate_stored(p, rate):
+    """a sample kept as stored (bank:FILE, a backup) at a lower rate: decoded, resampled, its level kept (one
+    generation of ADPCM more), as the installer's makeRoom (loom_samples.js atRateKept)"""
+    name, st, root, loop, bars, old, flags = p
+    y = sio.resample([float(v) for v in sio.ima_decode(st.adp, st.n)], old, rate)
+    s16 = [max(-32768, min(32767, int(round(v)))) for v in y]
+    if loop:
+        loop = (int(loop[0] * rate / old), min(len(s16), int(loop[1] * rate / old)))
+    return Factory((name, s16, root, loop, bars, rate, flags))
+
+
+def make_room(parsed, rate):
+    """the samples kept as stored above a rate put at it, the highest of AUTO at which the bank fits (the factory
+    set's never): (image, the rate, the names made smaller), or None"""
+    for cap in AUTO:
+        changed, nxt = [], []
+        for p in parsed:
+            if is_factory(p) and not is_factory_set(p) and isinstance(p[1], sio.Stored) and p[5] > cap:
+                changed.append(p[0])
+                nxt.append(at_rate_stored(p, cap))
+            else:
+                nxt.append(p)
+        if changed:
+            img = fits(nxt, rate or AUTO[-1])
+            if img:
+                return img, cap, changed
+    return None
+
+
+def build(specs, rate=None, quiet=False, factory=True, room=False):
+    """the bank's image; --rate R for every sample that did not choose (None: auto); room: if it does not fit, the
+    samples kept as stored made smaller (make_room)"""
     parsed = [s if is_factory(s) else parse(s) for s in expand(specs, factory)]
     own = [p for p in parsed if not is_factory(p)]
     if not parsed or len([p for p in parsed if not is_factory_set(p)]) > sio.BANK_N:
@@ -191,6 +224,13 @@ def build(specs, rate=None, quiet=False, factory=True):
         if img:
             chose = r
             break
+    if img is None and room:
+        r = make_room(parsed, rate)
+        if r:
+            img, cap, changed = r
+            if not quiet:
+                print(f"made room: {', '.join(changed)} at {cap} Hz (what is above {cap // 2} Hz went)")
+            return img
     if img is None:
         need = fixed + sum(sio.sample_bytes(length_at(p, p[6] or tries[-1])) for p in own)
         raise ValueError(f"too long: {need / 1024:.1f} KB at {tries[-1]} Hz, the bank holds "
@@ -429,11 +469,18 @@ def extract(dump):
     return checked(v, "the dump's bank")
 
 
+ROOM = False                                        # --make-room (args_of)
+
+
 def args_of(argv):
-    """[--rate R] [--no-factory] [--all] rest -> (rate or None, factory, rest)"""
+    """[--rate R] [--no-factory] [--all] [--make-room] rest -> (rate or None, factory, rest); --make-room sets ROOM"""
+    global ROOM
     factory = True
-    while argv[:1] and argv[0] in ("--no-factory", "--all"):
-        factory = False
+    while argv[:1] and argv[0] in ("--no-factory", "--all", "--make-room"):
+        if argv[0] == "--make-room":
+            ROOM = True
+        else:
+            factory = False
         argv = argv[1:]
     rate = None
     if argv[:1] == ["--rate"] and len(argv) > 1:
@@ -442,15 +489,18 @@ def args_of(argv):
     elif argv[:1] and argv[0].startswith("--rate="):
         rate = rate_of(argv[0].split("=", 1)[1])
         argv = argv[1:]
-    while argv[:1] and argv[0] in ("--no-factory", "--all"):
-        factory = False
+    while argv[:1] and argv[0] in ("--no-factory", "--all", "--make-room"):
+        if argv[0] == "--make-room":
+            ROOM = True
+        else:
+            factory = False
         argv = argv[1:]
     return rate, factory, argv
 
 
 def main():
     if len(sys.argv) < 2 or sys.argv[1] not in ("info", "load", "erase", "build", "syx", "backup", "restore",
-                                                 "extract"):
+                                                 "extract", "factory"):
         sys.exit(__doc__)
     cmd = sys.argv[1]
     try:
@@ -458,7 +508,7 @@ def main():
         if cmd in ("build", "syx"):
             if len(rest) < 2:
                 sys.exit(__doc__)
-            img = build(rest[1:], rate, factory=factory)
+            img = build(rest[1:], rate, factory=factory, room=ROOM)
             if cmd == "build":
                 Path(rest[0]).write_bytes(img)
             else:
@@ -488,7 +538,7 @@ def main():
         if cmd == "load":
             if not rest:
                 sys.exit(__doc__)
-            img = build(rest, rate, factory=factory)
+            img = build(rest, rate, factory=factory, room=ROOM)
             sys.exit(0 if upload(Link(), img) else 1)
         if cmd == "erase" and factory:              # the factory set kept: the bank is it alone
             img = build([], factory=True, quiet=True)
@@ -497,6 +547,23 @@ def main():
     except (OSError, ValueError) as e:
         sys.exit(f"cannot build the bank: {e}")
     link = Link()
+    if cmd == "factory":                            # the installer's step: the set after the samples there
+        img = backup(link)
+        own = [t for t in sio.stored_of(img) if not t[6] & sio.E_FACTORY] if img[6] else []
+        have = {t[0] for t in sio.stored_of(img) if t[6] & sio.E_FACTORY} if img[6] else set()
+        import gen_samples
+        if {t[0] for t in gen_samples.factory_set()} <= have:
+            print("LOOM-8's sounds are in the bank already")
+            return
+        path = Path("build") / "factory_before.bin"
+        path.parent.mkdir(exist_ok=True)
+        path.write_bytes(img)
+        try:
+            new = build([f"bank:{path}"] if own else [], factory=True, room=ROOM)
+        except ValueError as e:
+            sys.exit(f"cannot add LOOM-8's sounds: {e}" + ("" if ROOM else "\n  --make-room: your samples made smaller to fit "
+                                                             "(their highs above the rate's half go; back up first)"))
+        sys.exit(0 if upload(link, new) else 1)
     if cmd == "backup":
         if len(rest) != 1:
             sys.exit(__doc__)
