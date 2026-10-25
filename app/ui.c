@@ -1984,7 +1984,7 @@ static void setup_knob(int k, int32_t e)
     if (k == 0)
         proj.lights = (uint8_t)clampi(proj.lights + e, 0, 2);
     else if (k == 1)
-        seq.send_clock = proj.send_clock = (uint8_t)(e > 0);
+        seq.clock = proj.clock = CLOCK_AT[clampi(CLOCK_POS[proj.clock % SEQ_NCLK] + (e > 0 ? 1 : -1), 0, SEQ_NCLK - 1)];
     else if (k == 2)
         seq.send_notes = proj.send_notes = (uint8_t)(e > 0);
     else

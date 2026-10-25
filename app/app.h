@@ -142,7 +142,7 @@ typedef struct {
     uint8_t groove;                     /* the project's groove type (pattern.h GR_*); each track has its amount */
     uint8_t metronome;                  /* 0 off, 1 while recording, 2 on */
     uint8_t lights;                     /* 0 off, 1 keys and glow, 2 keys only */
-    uint8_t send_clock, send_notes, one_core, usb_full;
+    uint8_t clock, send_notes, one_core, usb_full;
     uint8_t scene;                      /* the scene to start on */
     uint8_t trk_sel;                    /* the track selected */
     uint8_t rsv[10];                    /* (format 4 had 14: its last four are master[0..3] now); rsv[0] the count-in,

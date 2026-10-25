@@ -1092,8 +1092,8 @@ Turn **SELECT** for more pages:
 - Master out: the drums' level, the melodic tracks' level, the compressor and the pump. Its **SEL** list has what
   the pump follows, its release and accent, and the output level.
 
-On Setup, the knobs are the lights, sending MIDI clock, sending MIDI notes (on in a new project) and the theme
-(tape deck, blueprint or b/w). The page also shows where the tempo comes from (LOOM-8, or a MIDI clock coming
+On Setup, the knobs are the lights, the MIDI clock (internal, receive or send: see MIDI below), sending MIDI
+notes (on in a new project) and the theme (tape deck, blueprint or b/w). The page also shows where the tempo comes from (LOOM-8, or a MIDI clock coming
 in), the USB audio level, the autosave and the version. **GLO**'s **SEL** list sets the USB audio level, LOOP
 THROWS, AUTOSAVE, CC OUT and SCENES OUT. On every page, the header shows the scene playing ("S3") before the
 tempo. You'll find the projects on **HOME**'s **SEL** list and the count-in on **REC**'s knobs.
@@ -1157,13 +1157,25 @@ bunches messages together, so LOOM-8 plays a clock that comes over Bluetooth by 
 it: the tempo is as steady as over USB, but about 75 ms late. Set your DAW's clock delay (or MIDI sync offset) to
 send the clock about 75 ms early to line LOOM-8 up with it. Notes and CCs play as they arrive.
 
+**Clock.** Setup's **CLOCK** knob decides who keeps time:
+
+- **receive** (a new project's setting): LOOM-8 follows a MIDI clock coming in, and its Start, Continue and Stop,
+  and sends no clock. With no clock coming in, it plays at its own tempo; half a second after a clock stops, it
+  goes back to its own tempo.
+- **send**: LOOM-8 keeps time and sends its clock, with Start, Continue and Stop, over USB and Bluetooth. It
+  ignores any clock or Start and Stop coming in.
+- **internal**: LOOM-8 keeps time and neither follows nor sends a clock.
+
+A project from 0.7 or older that sent the clock opens on send, and one that didn't opens on internal.
+
 Each track has its own channel: T1 to T8 on channels 1 to 8, FX I on 9, FX II on 10, and the master and
 the scenes on 11. Notes on channels 12 to 16 play whichever instrument track is selected (if the conductor or
 throws track is selected, the last instrument track you had). LOOM-8 never sends on 12 to 16. Notes on 9 and 10
 do nothing.
 
 The TRS jack is MIDI in. Everything that comes in over USB works from it too (notes, CCs, Program Change, and
-MIDI clock with start and stop), except SysEx. The FM-1 has no MIDI out jack, so LOOM-8 sends only over USB.
+MIDI clock with start and stop), except SysEx. The FM-1 has no MIDI out jack, so LOOM-8 sends only over USB and
+Bluetooth.
 
 Each track's **SEL** list on its sound pages has MIDI OUT. With it on, the track's notes go out on its own
 channel, as long as Setup's NOTES is on too. MIDI OUT is on in a new project, and a project from an older version

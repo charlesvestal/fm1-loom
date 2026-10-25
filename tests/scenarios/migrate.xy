@@ -20,6 +20,7 @@ expect note 1 1 5 1
 expect lane 2 1 e1 1
 expect used 7
 expect sendnotes 1
+expect clock 1
 expect par1.51 1
 expect par2.51 1
 expect par8.51 1
