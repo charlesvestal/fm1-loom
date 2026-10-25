@@ -14,26 +14,8 @@
 #define SYNTH_C "../../app/dsp/synth.c"     /* (another synth.c to measure: -DSYNTH_C='"path"') */
 #endif
 #include SYNTH_C
-#ifdef __APPLE__
-#include <unistd.h>
-#include <libproc.h>
-#include <sys/resource.h>
-static uint64_t instr_now(void)
-{
-    struct rusage_info_v4 ri;
-    if (!proc_pid_rusage(getpid(), RUSAGE_INFO_V4, (rusage_info_t *)&ri))
-        return ri.ri_instructions;
-    return 0;
-}
-#else
-static uint64_t instr_now(void) { return 0; }
-#endif
-static double now_ns(void)
-{
-    struct timespec ts;
-    clock_gettime(CLOCK_MONOTONIC, &ts);
-    return (double)ts.tv_sec * 1e9 + (double)ts.tv_nsec;
-}
+#include "instr_count.h"                       /* instr_now, ns_now */
+static double now_ns(void) { return (double)ns_now(); }
 
 #define SECS 2
 #define NS (44100 * SECS)

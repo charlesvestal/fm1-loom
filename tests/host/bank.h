@@ -38,16 +38,21 @@ static int bank_add_at(const char *name, float (*gen)(int), int n, int root, int
     uint8_t *e = bank + SMP_ENT0 + (uint32_t)bank_cnt * SMP_ENT;
     memset(bank + adp_off, 0, (size_t)(n + 1) / 2u);
     for (i = 0; i < n; i++) {
-        int x = (int)gen(i), step, diff, code = 0, vd;
+        int x = (int)gen(i), step, left, code, vd, b;
         if (i % bank_blk == 0)
             put32(bank + ck_off + (uint32_t)(i / bank_blk) * 4u, (uint32_t)(pred & 0xFFFF) | (uint32_t)idx << 16);
         step = BK_IMA_S[idx];
-        diff = x - pred;
-        if (diff < 0) { code = 8; diff = -diff; }
+        left = x < pred ? pred - x : x - pred;
+        code = x < pred ? 8 : 0;
         vd = step >> 3;
-        if (diff >= step) { code |= 4; diff -= step; vd += step; }
-        if (diff >= step >> 1) { code |= 2; diff -= step >> 1; vd += step >> 1; }
-        if (diff >= step >> 2) { code |= 1; vd += step >> 2; }
+        for (b = 0; b < 3; b++) {                /* the magnitude bits 4, 2, 1: step, step / 2, step / 4 */
+            int part = step >> b;
+            if (left >= part) {
+                code |= 4 >> b;
+                left -= part;
+                vd += part;
+            }
+        }
         pred = code & 8 ? pred - vd : pred + vd;
         pred = pred > 32767 ? 32767 : pred < -32768 ? -32768 : pred;
         idx += BK_IMA_I[code & 7];

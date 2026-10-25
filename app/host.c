@@ -61,15 +61,9 @@ uint32_t plat_cpu_peak_pct(void)
  * LOOM_WORK_LOG=FILE every block: s, load %, core 1's job %, voices, the sixteenth (step_tick), then the stages % (seq synth0 synth1 drum fx mst
  * mix prep note out step comp locks notes fire fxj), then each voice's % and synth_vinfo (VOICE%:INFO), then | and each kit key's rendering and
  * hits % (R/H) */
-#if defined(__APPLE__) && !defined(PLAT_WEB)
-#include <libproc.h>
-#include <unistd.h>
-#include <sys/resource.h>
-static uint64_t host_instr_raw(void)
-{
-    struct rusage_info_v4 r;
-    return proc_pid_rusage(getpid(), RUSAGE_INFO_V4, (rusage_info_t *)&r) ? 0 : r.ri_instructions;
-}
+#if !defined(PLAT_WEB)
+#include "../tests/host/instr_count.h"          /* instr_now: macOS's count of executed instructions */
+static uint64_t host_instr_raw(void) { return instr_now(); }
 #else
 static uint64_t host_instr_raw(void) { return 0; }
 #endif
@@ -1344,11 +1338,11 @@ int app_host_cmd(const char *cmd, const char *a, const char *b, const char *c, c
             uint32_t want = nb - off < SB_READ_MAX ? nb - off : SB_READ_MAX;
             uint8_t fr[10] = {SB_HDR0, SB_HDR1, SB_HDR2, SB_READ, 0, (uint8_t)(off & 127u), (uint8_t)(off >> 7 & 127u),
                               (uint8_t)(off >> 14 & 127u), (uint8_t)(want & 127u), (uint8_t)(want >> 7)};
-            if (!smp_frame(fr, sizeof fr) || sb_out[4] != SB_READ || sb_out[9]) {
+            if (!smp_frame(fr, sizeof fr) || rp.b[4] != SB_READ || rp.b[9]) {
                 printf("readback: read at %u not answered or failed\n", (unsigned)off);
                 exit(2);
             }
-            if (sb_unpack7(sb_out + 10, sb_n - 11u, got + off, want) != want) {
+            if (rp_unpack(rp.b + 10, rp.n - 11u, got + off, want) != want) {
                 printf("readback: read at %u short\n", (unsigned)off);
                 exit(2);
             }
@@ -1382,23 +1376,23 @@ int app_host_cmd(const char *cmd, const char *a, const char *b, const char *c, c
                     fr[n++] = (uint8_t)c;
                 continue;
             }
-            if (!smp_frame(fr, n) || sb_n < 7u || sb_out[4] != fr[3]) {
+            if (!smp_frame(fr, n) || rp.n < 7u || rp.b[4] != fr[3]) {
                 printf("upload: frame %d (command %d) not answered\n", nf, n > 3 ? fr[3] : -1);
                 exit(2);
             }
-            if (fr[3] >= SB_BEGIN && fr[3] <= SB_HDR && fr[3] != SB_SINFO && sb_out[sb_n - 2u]) {
-                printf("upload: frame %d (command %d) failed, rc %d\n", nf, fr[3], sb_out[sb_n - 2u]);
+            if (fr[3] >= SB_BEGIN && fr[3] <= SB_HDR && fr[3] != SB_SINFO && rp.b[rp.n - 2u]) {
+                printf("upload: frame %d (command %d) failed, rc %d\n", nf, fr[3], rp.b[rp.n - 2u]);
                 exit(2);
             }
             if (fr[3] == SB_SINFO) {                /* the info's answer: size, used, count, names, rates, lengths */
                 uint32_t i = 13, k;
-                printf("info: version %d, %d KB, %d KB used, %d samples from %d:", sb_out[5], sb_out[6] | sb_out[7] << 7,
-                       sb_out[8] | sb_out[9] << 7, sb_out[10], sb_out[11]);
-                for (k = 0; k < sb_out[12] && i < sb_n; k++) {
-                    printf(" %s", (const char *)sb_out + i);
-                    i += (uint32_t)strlen((const char *)sb_out + i) + 1u;
-                    printf(" %u Hz %u", (unsigned)(sb_out[i] | sb_out[i + 1] << 7 | sb_out[i + 2] << 14),
-                           (unsigned)(sb_out[i + 3] | sb_out[i + 4] << 7 | sb_out[i + 5] << 14));
+                printf("info: version %d, %d KB, %d KB used, %d samples from %d:", rp.b[5], rp.b[6] | rp.b[7] << 7,
+                       rp.b[8] | rp.b[9] << 7, rp.b[10], rp.b[11]);
+                for (k = 0; k < rp.b[12] && i < rp.n; k++) {
+                    printf(" %s", (const char *)rp.b + i);
+                    i += (uint32_t)strlen((const char *)rp.b + i) + 1u;
+                    printf(" %u Hz %u", (unsigned)(rp.b[i] | rp.b[i + 1] << 7 | rp.b[i + 2] << 14),
+                           (unsigned)(rp.b[i + 3] | rp.b[i + 4] << 7 | rp.b[i + 5] << 14));
                     i += 6;
                 }
                 printf("\n");

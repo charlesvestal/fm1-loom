@@ -13,20 +13,7 @@
 #include "synth.h"
 #include "drumline.h"
 #include "fastmath.h"
-#ifdef __APPLE__
-#include <unistd.h>
-#include <libproc.h>
-#include <sys/resource.h>
-static uint64_t instr_now(void)
-{
-    struct rusage_info_v4 ri;
-    if (!proc_pid_rusage(getpid(), RUSAGE_INFO_V4, (rusage_info_t *)&ri))
-        return ri.ri_instructions;
-    return 0;
-}
-#else
-static uint64_t instr_now(void) { return 0; }
-#endif
+#include "instr_count.h"                       /* instr_now, ns_now */
 
 #define N 128
 static uint8_t par[NTRK + 1][NTP];          /* (+ the conductor's row: the shared LFO, off) */

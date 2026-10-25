@@ -72,12 +72,15 @@ LOOP_ROOT = 53                                      # a loop's slice 1: F3, the 
 
 
 def pack7(b):
-    """groups of up to 7 bytes, each preceded by their top bits"""
+    """bytes -> 7-bit MIDI data: each run of up to seven bytes after a byte holding their eighth bits (bit k: byte k)"""
     out = []
-    for i in range(0, len(b), 7):
-        g = b[i:i + 7]
-        out.append(sum(((x >> 7) & 1) << j for j, x in enumerate(g)))
-        out += [x & 0x7F for x in g]
+    for start in range(0, len(b), 7):
+        run = bytes(b[start:start + 7])
+        high = 0
+        for k, x in enumerate(run):
+            high |= (x >> 7) << k
+        out.append(high)
+        out.extend(x & 0x7F for x in run)
     return out
 
 
@@ -275,37 +278,33 @@ def frames(image):
 
 
 class Link:
+    """the FM-1 running LOOM-8 over USB-MIDI (its ports found by fm1-base's tools/fm1_remote.py), asked in the
+    samples protocol (app/samples.c): req sends a command and waits for its answer"""
     def __init__(self):
+        sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "base" / "tools"))
         try:
-            import mido
+            import fm1_remote
         except ImportError:
             sys.exit("needs mido: pip install mido python-rtmidi")
-        self.mido = mido
-        outs = [n for n in mido.get_output_names() if "LOOM" in n]
-        ins = [n for n in mido.get_input_names() if "LOOM" in n]
-        if not outs or not ins:                     # (macOS may keep an earlier firmware's name for the port)
-            outs = [n for n in mido.get_output_names() if "FM-1" in n]
-            ins = [n for n in mido.get_input_names() if "FM-1" in n]
-        if not outs or not ins:
-            sys.exit("no MIDI port named LOOM: connect the FM-1 (running LOOM-8) by USB")
-        self.o = mido.open_output(outs[0])
-        self.i = mido.open_input(ins[0])
-        for _ in range(3):                          # the first frame after opening the port can be lost
+        self.dev = fm1_remote.FM1()               # (the first port named FM-1: LOOM-8's, as USB names it)
+        self.o, self.i = self.dev.out, self.dev.inp
+        for _ in range(3):                         # (a port just opened can miss its first frame: PING until heard)
             try:
                 self.req(25, [], 1.0)
-                break
+                return
             except TimeoutError:
                 pass
 
     def req(self, cmd, args, timeout=3.0):
-        for _ in self.i.iter_pending():
+        for _ in self.i.iter_pending():            # (what came before is not this command's answer)
             pass
-        self.o.send(self.mido.Message("sysex", data=HDR + [cmd] + list(args)))
-        t0 = time.time()
-        while time.time() - t0 < timeout:
+        self.dev.sysex(HDR + [cmd] + list(args))
+        end = time.time() + timeout
+        while time.time() < end:
             for m in self.i.iter_pending():
-                if m.type == "sysex" and list(m.data[:4]) == HDR + [cmd]:
-                    return list(m.data[4:])
+                d = list(m.data) if m.type == "sysex" else []
+                if d[:4] == HDR + [cmd]:
+                    return d[4:]
             time.sleep(0.002)
         raise TimeoutError(f"no reply to command {cmd}")
 
@@ -360,17 +359,11 @@ def info(link):
 
 
 def unpack7(a):
-    """pack7 undone"""
-    out = []
-    i = 0
-    while i < len(a):
-        m = a[i]
-        i += 1
-        for j in range(7):
-            if i >= len(a):
-                break
-            out.append(a[i] | ((m >> j) & 1) << 7)
-            i += 1
+    """pack7 undone: runs of up to eight values, the first holding the others' eighth bits"""
+    out = bytearray()
+    for start in range(0, len(a), 8):
+        high, run = a[start], a[start + 1:start + 8]
+        out.extend(x | (high >> k & 1) << 7 for k, x in enumerate(run))
     return bytes(out)
 
 

@@ -73,21 +73,35 @@ DEF = re.compile(r"^(?:static\s+|inline\s+|const\s+|unsigned\s+|signed\s+|struct
 IR_DEF = re.compile(r"^define [^\n]*?@\"?([\w.]+)\"?\(", re.M)
 
 
-def definitions(text):
-    """the names of the functions a C file defines (a signature at column 0 whose ')' is followed by '{')"""
-    text = re.sub(r"/\*.*?\*/|//[^\n]*", " ", text, flags=re.S)
-    names = []
-    for m in DEF.finditer(text):
-        i, depth = m.end() - 1, 0
-        while i < len(text):
-            depth += {"(": 1, ")": -1}.get(text[i], 0)
-            i += 1
+ATTRS = re.compile(r"(?:__attribute__\s*\(\(.*?\)\)\s*)+")
+
+
+def _past_parens(text, at):
+    """the index just past the ')' matching the '(' at text[at]"""
+    depth = 0
+    for j in range(at, len(text)):
+        if text[j] == "(":
+            depth += 1
+        elif text[j] == ")":
+            depth -= 1
             if depth == 0:
-                break
-        rest = re.sub(r"^(__attribute__\s*\(\(.*?\)\)\s*)+", "", text[i:i + 200].lstrip())
-        if rest.startswith("{"):
-            names.append(m.group(1))
-    return names
+                return j + 1
+    return len(text)
+
+
+def definitions(text):
+    """the names of the functions a C file defines: a signature at column 0 (DEF) whose parameter list is followed,
+    past any attributes, by a body ('{'), not by ';' (a declaration)"""
+    code = re.sub(r"/\*.*?\*/|//[^\n]*", " ", text, flags=re.S)   # (comments out: a '(' in one would count)
+    found = []
+    for m in DEF.finditer(code):
+        tail = code[_past_parens(code, m.end() - 1):][:200].lstrip()
+        attrs = ATTRS.match(tail)
+        if attrs:
+            tail = tail[attrs.end():]
+        if tail.startswith("{"):
+            found.append(m.group(1))
+    return found
 
 
 def ir_bodies(ir):
@@ -161,9 +175,7 @@ def main(src, dst, unit=None):
             raise SystemExit(f"size_fns: {unit} defines no {sorted(missing)}")
     else:
         hot = reachable(funcs, glob)
-        names = set()
-        for f in SIZE_FILES:
-            names.update(definitions((SRC / f).read_text()))
+        names = {fn for rel in SIZE_FILES for fn in definitions((SRC / rel).read_text())}
     pick = {n for n in names & set(funcs) if n not in hot and " section " not in funcs[n][0]}
 
     # each picked definition gets its own attribute group: the old one plus minsize

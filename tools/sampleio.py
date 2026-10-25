@@ -54,76 +54,72 @@ BANK_MAGIC = 0x504D534C         # "LSMP"
 NAME_LEN = 12
 BARS_MAX = 16                   # (dsp/sample.h SMP_BARS_MAX)
 
-IMA_STEP = [7, 8, 9, 10, 11, 12, 13, 14, 16, 17, 19, 21, 23, 25, 28, 31, 34, 37, 41, 45, 50, 55, 60, 66, 73, 80, 88,
-            97, 107, 118, 130, 143, 157, 173, 190, 209, 230, 253, 279, 307, 337, 371, 408, 449, 494, 544, 598, 658,
-            724, 796, 876, 963, 1060, 1166, 1282, 1411, 1552, 1707, 1878, 2066, 2272, 2499, 2749, 3024, 3327, 3660,
-            4026, 4428, 4871, 5358, 5894, 6484, 7132, 7845, 8630, 9493, 10442, 11487, 12635, 13899, 15289, 16818,
-            18500, 20350, 22385, 24623, 27086, 29794, 32767]
-IMA_IDX = [-1, -1, -1, -1, 2, 4, 6, 8]
+# IMA ADPCM's step sizes and index changes: the standard's tables (IMA Digital Audio Focus and Technical Working
+# Groups, "Recommended Practices for Enhancing Digital Audio Compatibility in Multimedia Systems", 1992)
+IMA_STEP = [
+    7, 8, 9, 10, 11, 12, 13, 14, 16, 17,
+    19, 21, 23, 25, 28, 31, 34, 37, 41, 45,
+    50, 55, 60, 66, 73, 80, 88, 97, 107, 118,
+    130, 143, 157, 173, 190, 209, 230, 253, 279, 307,
+    337, 371, 408, 449, 494, 544, 598, 658, 724, 796,
+    876, 963, 1060, 1166, 1282, 1411, 1552, 1707, 1878, 2066,
+    2272, 2499, 2749, 3024, 3327, 3660, 4026, 4428, 4871, 5358,
+    5894, 6484, 7132, 7845, 8630, 9493, 10442, 11487, 12635, 13899,
+    15289, 16818, 18500, 20350, 22385, 24623, 27086, 29794, 32767]
+IMA_IDX = [-1] * 4 + [2, 4, 6, 8]          # by a code's magnitude bits (0..7)
 
 
-# ---- WAV in (X0X's sampleio.py)
+# ---- WAV in
 
-def wav_chunks(d):
-    """RIFF/WAVE chunks -> {id: (offset of the body, declared length)}; the first of each id wins"""
-    if len(d) < 12 or d[:4] != b"RIFF" or d[8:12] != b"WAVE":
+def _riff(d):
+    """a RIFF/WAVE file's chunks in order, as (four-letter id, body)"""
+    if len(d) < 12 or bytes(d[0:4]) != b"RIFF" or bytes(d[8:12]) != b"WAVE":
         raise ValueError("not a WAV file")
-    out, i = {}, 12
-    while i + 8 <= len(d):
-        cid, n = d[i:i + 4], struct.unpack_from("<I", d, i + 4)[0]
-        out.setdefault(cid, (i + 8, n))
-        i += 8 + n + (n & 1)
-    return out
+    pos = 12
+    while pos + 8 <= len(d):
+        size = int.from_bytes(d[pos + 4:pos + 8], "little")
+        yield bytes(d[pos:pos + 4]), d[pos + 8:pos + 8 + size]
+        pos += 8 + size + (size & 1)          # (a chunk of odd size is padded to even)
 
 
-def wav_format(d, ch):
-    """-> (tag, channels, rate, bits); WAVE_FORMAT_EXTENSIBLE resolved to its subformat"""
-    if b"fmt " not in ch:
-        raise ValueError("WAV without a fmt chunk")
-    o = ch[b"fmt "][0]
-    tag, nch, sr = struct.unpack_from("<HHI", d, o)
-    bits = struct.unpack_from("<H", d, o + 14)[0]
-    if tag == 0xFFFE:
-        tag = struct.unpack_from("<H", d, o + 24)[0]
-    return tag, nch, sr, bits
-
-
-def _channel_values(tag, bps, raw):
-    n = len(raw) // bps
-    if tag == 3:
-        return list(struct.unpack("<%d%s" % (n, "f" if bps == 4 else "d"), raw))
-    if bps == 2:
-        return [v / 32768 for v in struct.unpack("<%dh" % n, raw)]
-    if bps == 3:
-        w = bytearray(4 * n)
-        w[1::4], w[2::4], w[3::4] = raw[0::3], raw[1::3], raw[2::3]
-        return [v / 2147483648 for v in struct.unpack("<%di" % n, w)]
-    if bps == 4:
-        return [v / 2147483648 for v in struct.unpack("<%di" % n, raw)]
-    return [(b - 128) / 128 for b in raw]
+def _samples(raw, width, floating):
+    """interleaved little-endian PCM (or IEEE float) of width bytes a value -> floats, full scale 1.0"""
+    raw = raw[:len(raw) - len(raw) % width]
+    if floating:
+        return list(memoryview(raw).cast("f" if width == 4 else "d"))
+    if width == 1:                            # (8-bit WAV is unsigned, 128 the middle)
+        return [(b - 128) / 128 for b in raw]
+    if width == 3:
+        return [int.from_bytes(raw[i:i + 3], "little", signed=True) / 8388608 for i in range(0, len(raw), 3)]
+    scale = {2: 32768, 4: 2147483648}[width]
+    return [v / scale for v in memoryview(raw).cast("h" if width == 2 else "i")]
 
 
 def read_any_wav(path):
     """PCM 8/16/24/32 or float, any channel count, mixed to mono -> (rate, [float], loop or None).
     The loop: the first 'smpl' loop (start, end) in samples of the file's rate."""
-    d = path.read_bytes()
-    ch = wav_chunks(d)
-    tag, nch, sr, bits = wav_format(d, ch)
-    bps = bits // 8
-    if tag not in (1, 3) or not bps or not nch:
-        raise ValueError(f"{path}: unsupported WAV format (tag {tag}, {bits} bit)")
-    o, n = ch.get(b"data", (0, 0))
-    frame = bps * nch
-    nfr = min(n, len(d) - o) // frame
-    v = _channel_values(tag, bps, d[o:o + nfr * frame])
-    if nch > 1:
-        v = [sum(v[f:f + nch]) / nch for f in range(0, len(v), nch)]
-    loop = None
-    if b"smpl" in ch:
-        so = ch[b"smpl"][0]
-        if struct.unpack_from("<I", d, so + 28)[0]:
-            loop = struct.unpack_from("<II", d, so + 36 + 8)
-    return sr, v, loop
+    found = {}
+    for cid, body in _riff(memoryview(path.read_bytes())):
+        found.setdefault(cid, body)           # (the first of each kind)
+    fmt = found.get(b"fmt ")
+    if fmt is None:
+        raise ValueError("WAV without a fmt chunk")
+    word = lambda b, at, n: int.from_bytes(b[at:at + n], "little")
+    kind, channels, rate, bits = word(fmt, 0, 2), word(fmt, 2, 2), word(fmt, 4, 4), word(fmt, 14, 2)
+    if kind == 0xFFFE and len(fmt) >= 26:     # WAVE_FORMAT_EXTENSIBLE: the real format leads its sub-format GUID
+        kind = word(fmt, 24, 2)
+    width = bits // 8
+    if kind not in (1, 3) or not width or not channels:
+        raise ValueError(f"{path}: unsupported WAV format (tag {kind}, {bits} bit)")
+    data = found.get(b"data", b"")
+    data = data[:len(data) // (width * channels) * width * channels]
+    v = _samples(bytes(data), width, kind == 3)
+    if channels > 1:
+        v = [sum(v[f:f + channels]) / channels for f in range(0, len(v), channels)]
+    loop, smpl = None, found.get(b"smpl")
+    if smpl is not None and len(smpl) >= 52 and word(smpl, 28, 4):   # (its loop count, then the first loop's record)
+        loop = (word(smpl, 44, 4), word(smpl, 48, 4))
+    return rate, v, loop
 
 
 def _fir(x, h):
@@ -196,66 +192,62 @@ def to_int16(x, peak_to=30000):
 
 
 def note_from_name(name, default=60):
-    """"C4" / "F#3" / "Bb2" in a file name, C4 = 60, clamped to 0..127"""
-    m = re.search(r"(?<![A-Za-z])([A-G])([#b]?)(-?\d)(?!\d)", name)
-    if not m:
-        return default
-    pc = "C D EF G A B".index(m.group(1)) + {"#": 1, "b": -1, "": 0}[m.group(2)]
-    return max(0, min(127, (int(m.group(3)) + 1) * 12 + pc))
+    """"C4" / "F#3" / "Bb2" in a file name, C4 = 60, clamped to 0..127: a note letter not inside a word, an optional
+    sharp or flat, an octave of one digit (maybe negative) not followed by another"""
+    for m in re.finditer(r"[A-G][#b]?-?[0-9]", name):
+        i, j = m.start(), m.end()
+        if (i and name[i - 1].isalpha()) or (j < len(name) and name[j].isdigit()):
+            continue
+        tok = m.group(0)
+        semis = {"C": 0, "D": 2, "E": 4, "F": 5, "G": 7, "A": 9, "B": 11}[tok[0]]
+        semis += 1 if "#" in tok else -1 if tok[1] == "b" else 0
+        octave = int(tok[-2:]) if tok[-2] == "-" else int(tok[-1])
+        return max(0, min(127, 12 * (octave + 1) + semis))
+    return default
 
 
 # ---- IMA ADPCM with checkpoints
 
+def _ima_delta(step, code):
+    """the difference a code's three magnitude bits stand for (the standard's: step/8 + step·bits/4, by shifts)"""
+    d = step >> 3
+    for bit, shift in ((4, 0), (2, 1), (1, 2)):
+        if code & bit:
+            d += step >> shift
+    return d
+
+
+def _ima_next(pred, idx, code):
+    """the decoder's state after one code"""
+    d = _ima_delta(IMA_STEP[idx], code)
+    pred = max(-32768, min(32767, pred - d if code & 8 else pred + d))
+    return pred, max(0, min(88, idx + IMA_IDX[code & 7]))
+
+
 def ima_encode(samples):
     """int16 samples -> (ADPCM bytes, checkpoints): the decoder's state before every BLK-th sample,
     (pred & 0xFFFF) | idx << 16. The encoder runs the decoder's own state, so the two agree exactly."""
-    pred, idx, nib, ck = 0, 0, bytearray(), []
+    pred, idx, codes, ck = 0, 0, [], []
     for n, x in enumerate(samples):
         if n % BLK == 0:
             ck.append((pred & 0xFFFF) | idx << 16)
-        step = IMA_STEP[idx]
-        diff = x - pred
-        code = 0
-        if diff < 0:
-            code = 8
-            diff = -diff
-        vd = step >> 3
-        if diff >= step:
-            code |= 4
-            diff -= step
-            vd += step
-        if diff >= step >> 1:
-            code |= 2
-            diff -= step >> 1
-            vd += step >> 1
-        if diff >= step >> 2:
-            code |= 1
-            vd += step >> 2
-        pred = pred - vd if code & 8 else pred + vd
-        pred = max(-32768, min(32767, pred))
-        idx = max(0, min(88, idx + IMA_IDX[code & 7]))
-        nib.append(code)
-    if len(nib) & 1:
-        nib.append(0)
-    return bytes(a | (b << 4) for a, b in zip(nib[0::2], nib[1::2])), ck
+        step, left = IMA_STEP[idx], abs(x - pred)
+        code = 8 if x < pred else 0
+        for bit, shift in ((4, 0), (2, 1), (1, 2)):   # the magnitude, a bit at a time from the largest share
+            if left >= step >> shift:
+                code |= bit
+                left -= step >> shift
+        codes.append(code)
+        pred, idx = _ima_next(pred, idx, code)
+    codes += [0] * (len(codes) & 1)
+    return bytes(codes[k] | codes[k + 1] << 4 for k in range(0, len(codes), 2)), ck
 
 
 def ima_decode(adp, n):
     """the firmware's decoder (dsp/sample.c), for the tests"""
     pred, idx, out = 0, 0, []
     for i in range(n):
-        code = (adp[i >> 1] >> ((i & 1) * 4)) & 15
-        step = IMA_STEP[idx]
-        vd = step >> 3
-        if code & 4:
-            vd += step
-        if code & 2:
-            vd += step >> 1
-        if code & 1:
-            vd += step >> 2
-        pred = pred - vd if code & 8 else pred + vd
-        pred = max(-32768, min(32767, pred))
-        idx = max(0, min(88, idx + IMA_IDX[code & 7]))
+        pred, idx = _ima_next(pred, idx, adp[i >> 1] >> 4 * (i & 1) & 15)
         out.append(pred)
     return out
 

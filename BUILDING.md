@@ -31,12 +31,13 @@ The build (fm1-base's `tools/build.py`, run by `./build.sh`, driven by `app/fm1.
   base/tools/get_toolchain.sh       # installs to ~/.jieli/toolchain
   ```
 
-- The JieLi AC79 SDK (Apache-2.0). The package uses three of its files
-  (`cpu/wl82/tools/uboot.boot`, `cfg_tool.bin`, `cfg/eq_cfg_hw.bin`); they are not part of this tree.
+- The JieLi AC79 SDK (Apache-2.0), for three files the package carries (its boot stage `uboot.boot` from
+  `cpu/wl82/tools/`, with `cfg_tool.bin` and `cfg/eq_cfg_hw.bin` beside it), and for Bluetooth its libraries.
+  None of it is in this tree. Its release tag `AC79NN_SDK_V1.2.1_2023-12-13`, from JieLi's repository on Gitee,
+  into `~/fw-AC79_AIoT_SDK` (where the build looks unless `AC79_SDK` says otherwise):
 
   ```
-  git clone --depth 1 --branch AC79NN_SDK_V1.2.1_2023-12-13 \
-      https://gitee.com/Jieli-Tech/fw-AC79_AIoT_SDK.git ~/fw-AC79_AIoT_SDK
+  git clone https://gitee.com/Jieli-Tech/fw-AC79_AIoT_SDK.git -b AC79NN_SDK_V1.2.1_2023-12-13 --depth 1 ~/fw-AC79_AIoT_SDK
   ```
 
 - Emscripten and Node.js (optional: the browser emulator and its test).
