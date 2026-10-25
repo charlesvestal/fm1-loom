@@ -198,5 +198,34 @@ img = Path("${join(dir, "web.bin")}").read_bytes()
 print(json.dumps([[c, a] for c, a, _, _ in ls.frames(img)]))`));
   check(`the upload's frames: as loom_samples.py sends them (${fr.length})`, JSON.stringify(fr) === JSON.stringify(pyFr));
 }
+// findLink: the FM-1's ports as each system names them (a fake FM-1 answers PING; other gear never probed)
+{
+  const fm1 = (names, opts = {}) => {
+    const probed = [];
+    const ins = [], outs = [];
+    for (const [inName, outName, isFm1] of names) {
+      const input = { name: inName, state: "connected", onmidimessage: null, open: async () => { if (opts.busy) throw new Error("busy"); } };
+      const output = { name: outName, state: "connected", open: async () => {},
+        send: (d) => { probed.push(outName); if (isFm1 && d[4] === 25) setTimeout(() => input.onmidimessage({ data: [0xF0, 0x7D, 0x46, 0x4C, 25, 0, 0xF7] }), 1); } };
+      ins.push(input); outs.push(output);
+    }
+    return { midi: { inputs: new Map(ins.map((p, i) => [i, p])), outputs: new Map(outs.map((p, i) => [i, p])) }, probed };
+  };
+  const cases = [
+    ["macOS: an earlier firmware's name", [["IAC Driver Bus 1", "IAC Driver Bus 1"], ["X0X FM-1", "X0X FM-1", 1]], true],
+    ["Windows: the ends named apart", [["LOOM-8 FM-1", "MIDIOUT2 (LOOM-8 FM-1)", 1], ["loopMIDI", "loopMIDI"]], true],
+    ["Windows: numbered", [["LOOM-8 FM-1 0", "LOOM-8 FM-1 1", 1], ["Digital Piano", "Digital Piano"]], true],
+    ["Windows: USB-MIDI", [["USB-MIDI", "USB-MIDI", 1]], true],
+    ["other gear only", [["Digital Piano", "Digital Piano"]], false],
+  ];
+  for (const [what, names, found] of cases) {
+    const { midi, probed } = fm1(names);
+    const l = await L.findLink(midi, 50);
+    check(`findLink: ${what}`, !!l === found && !probed.some((n) => /IAC|Piano|loopMIDI/.test(n)));
+    if (l) l.close();
+  }
+  const { midi } = fm1([["LOOM-8 FM-1", "LOOM-8 FM-1", 1]], { busy: true });
+  check("findLink: a port another app holds is passed over", (await L.findLink(midi, 50)) === null);
+}
 console.log(bad ? "SAMPLES WEB FAILED" : "samples web: as loom_samples.py");
 process.exit(bad ? 1 : 0);

@@ -476,14 +476,19 @@ export class Link {
 }
 // the FM-1 running LOOM-8 among midi's ports (it answers SB_SINFO); null: none
 export async function findLink(midi, wait = 1000) {
-  const outs = [...midi.outputs.values()];
-  const ins = [...midi.inputs.values()].filter((i) => i.state !== "disconnected" && /loom|fm-1/i.test(i.name || ""))
+  // the names the backup page and the installer take (Windows may call the port "USB-MIDI", or keep an earlier name,
+  // and names the two ends apart: "LOOM-8 FM-1" in, "MIDIOUT2 (LOOM-8 FM-1)" out); never probe other gear
+  const outs = [...midi.outputs.values()].filter((o) => o.state !== "disconnected");
+  const ins = [...midi.inputs.values()].filter((i) => i.state !== "disconnected" &&
+    /loom|fm-?1|felucca|composite|sinco|usb-midi/i.test(i.name || ""))
     .sort((a, b) => /loom/i.test(b.name) - /loom/i.test(a.name));
+  const base = (s) => (s || "").replace(/\s+\d+$/, "").replace(/^MIDI(?:IN|OUT)\d*\s*\((.*)\)$/i, "$1");
   for (const input of ins) {
-    const output = outs.find((o) => o.name === input.name);
+    const same = outs.filter((o) => base(o.name) === base(input.name));
+    const output = outs.find((o) => o.name === input.name) || (same.length === 1 ? same[0] : null) ||
+      (outs.length === 1 ? outs[0] : null);
     if (!output) continue;
-    await input.open();
-    await output.open();
+    try { await input.open(); await output.open(); } catch (_) { continue; }   // another app holds it: the next
     const l = new Link(input, output);
     try { await l.retry(25, [], wait); return l; } catch (_) { l.close(); }
   }
