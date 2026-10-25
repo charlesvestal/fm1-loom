@@ -254,7 +254,7 @@ wait 40
 expect kvel1.1.1.2 50
 expect kvel1.1.1.1 0
 expect note 1 1 1 1
-# SEQ held on Steps: OCT moves the keyboard's octave (not the bar), PRESETS the track's sound (not its pattern)
+# SEQ held on Steps: OCT moves the pattern an octave (not the bar), PRESETS the track's sound (not its pattern)
 projnew
 turn ALGO 1
 expect trk 2
@@ -271,8 +271,9 @@ turn PRESET 1
 release SEQ
 tapkey w1
 wait 40
-expect note 2 1 1 53
-expect note 2 1 2 65
+# (SEQ held, OCT+ moves the pattern an octave: step 1 up to 65; the keys still at their own octave, step 2 53)
+expect note 2 1 1 65
+expect note 2 1 2 53
 expect pat2 1
 # a kit track's MIDI OUT: on its Engine page's list too (the last row)
 projnew

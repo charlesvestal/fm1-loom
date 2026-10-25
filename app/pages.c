@@ -1659,7 +1659,7 @@ static void page_footer(char *t)
         else if (ui.btn >> B_SEQ & 1u && ui.page == P_BAR)
             s_cat(t, "BLACK 1-4 jump to a bar|two: loop|twice: loop one");
         else if (ui.btn >> B_SEQ & 1u)
-            s_cat(t, is_drum(trk) ? "KEYS pick a sound" : "KEYS the notes a step writes");
+            s_cat(t, is_drum(trk) ? "KEYS pick a sound" : "KEYS the notes a step writes|OCT pattern octave");
         else if (is_drum(trk))
             s_cat(t, ui.page == P_BAR ? "WHITE steps|BLACK sound|SEQ held: bars" : "WHITE steps|BLACK sound|SEQ held: pick a sound");
         else
