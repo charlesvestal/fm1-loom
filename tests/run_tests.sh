@@ -37,7 +37,7 @@ run sample-bank sh -c "'$PY' tools/loom_samples.py build build/gen/user_bank.bin
     'piano two=build/gen/wav/piano.wav:60%16k' 'sweep two=build/gen/wav/sweep.wav:57'"
 run bank-tool "$PY" tests/host/bank_test.py
 # the units' own tests, written beside them (their WAVs in build/host/)
-for t in synth braids drumline fx seq factory lookahead; do
+for t in synth braids drumline fx seq factory; do
     run "$t" sh "tests/host/${t}_test.sh"
 done
 if command -v node >/dev/null 2>&1; then           # the samples page's bank against loom_samples.py's
@@ -64,6 +64,7 @@ else
     echo "  skip update path (no $B/loom.fwsc: ./build.sh)"
 fi
 run host-build sh build.sh --host
+run lookahead sh tests/host/lookahead_test.sh    # (needs the simulator just built)
 # a bank image larger than the bank's windows is refused by the simulator's loader (as the tool and the FM-1 refuse it)
 run bank-too-big sh -c "mkdir -p $OUT/big && head -c 221185 /dev/zero > $OUT/big.bin && \
     printf 'samples $OUT/big.bin\n' > $OUT/big.xy && ! $B/host/loom_host $OUT/big.xy $OUT/big > $OUT/big.out 2>&1 && \
