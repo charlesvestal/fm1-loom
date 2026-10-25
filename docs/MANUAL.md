@@ -1294,6 +1294,7 @@ it uses are published with this site, so every version reads its own screen corr
 LOOM-8's way of working owes a great deal to teenage engineering's OP-XY; LOOM-8 is not affiliated with
 teenage engineering. Built on fm1-base and felucca-bsp, from Felucca by Leo Kuroshita (Hügelton Instruments),
 with Polly's menus and X0X's sequencer discipline. Cane and voile are Mutable Instruments Braids by Émilie Gillet
-(MIT); the reverb's PlayStation modes are PSXVerb's. The factory breaks are free loops by u/FCTRYBEATS, the 909
-drums are renders of 9W9, and the recorded instruments come from the Versilian Studios Chamber Orchestra 2
+(MIT); the plate reverb is after 9W9 by athousanddetails, and its PlayStation modes are
+PSXVerb's. The factory breaks are free loops by u/FCTRYBEATS, the 909
+kick, snare and clap are renders of 9W9 by athousanddetails, and the recorded instruments come from the Versilian Studios Chamber Orchestra 2
 Community Edition (CC0).

@@ -30,7 +30,7 @@ endorsed by or derived from teenage engineering; the name is only used descripti
 | The DSP (`app/dsp/`, but the third-party parts below), the sequencer (`app/seq/`), the engine (`app/engine.c`), the project (`app/project.c`, `app/lz.c`), the pages and the input (`app/pages.c`, `app/ui.c`), the samples protocol (`app/samples.c`), the glue to fm1-base (`app/app.h`, `app/app.c`, `app/plat_loom.c`), the simulator's part (`app/host.c`), the emulator page (`app/web/emu/`), the web pages (`app/web/`), the words (`app/words.tsv`, `app/web/words/`), the tools (`tools/`), the tests (`tests/`), the docs (`docs/`) | Charles Vestal, Copyright (C) 2026: LOOM-8's own, including what it took from his own firmwares X0X (the engine's command queue, the overload guard, `lz.c` and the project's stream, the sequencer's discipline, the master compressor, PUMP and limiter), Polly (the menus) and NuSaw | MPL-2.0 |
 | `app/gfx_loom.c`, `tools/gen_font.py`: the text drawing and the faces' rendering | fm1-base's `device/gfx.c` and `tools/gen_font.py` (Leo Kuroshita's code there, felucca-bsp#4), with LOOM-8's own compact fonts, anti-aliased drawing and layout audit | MPL-2.0 |
 | The IMA ADPCM codec (`app/dsp/sample.c`, `tools/sampleio.py`, `app/web/samples/loom_samples.js`) | the IMA standard (IMA Digital Audio Focus and Technical Working Groups, "Recommended Practices for Enhancing Digital Audio Compatibility in Multimedia Systems", 1992): its tables and algorithm | MPL-2.0 (the code) |
-| The plate reverb in `app/dsp/fx.c` (`do_reverb`) and the delay's time slew | after [9W9](https://github.com/athousanddetails/schwung-9W9)'s reverb (`er99_verb_tick`), by athousanddetails, through X0X's port; LOOM-8 adds the modulated taps and the stereo | MPL-2.0, with the permission of 9W9's author (link to follow: TODO before release) |
+| The plate reverb in `app/dsp/fx.c` (`do_reverb`) and the delay's time slew | after [9W9](https://github.com/athousanddetails/schwung-9W9)'s reverb (`er99_verb_tick`), by athousanddetails, through X0X's port; LOOM-8 adds the modulated taps and the stereo | MPL-2.0, with the permission of 9W9's author, athousanddetails (below) |
 | The screen reader's words (`app/words.tsv`, `app/web/words/`) | [fm1-reader](https://github.com/charlesvestal/fm1-reader)'s protocol (fm1-base's `device/announce.c`, `tools/gen_words.py`) | MPL-2.0 |
 | The idea of a browser emulator for FM-1 firmware (`app/web/emu/`) | [Groove OS](https://www.groove-os.com/) by Peter Gombos, whose site runs its firmware in the browser; no code from it | credit only |
 | The idea of building the code that never runs per sample for size (`tools/size_fns.py`) | Melodee's (`tools/size_fns.py` there); no code from it | credit only |
@@ -55,10 +55,13 @@ endorsed by or derived from teenage engineering; the name is only used descripti
   "The Classic", "Heat", "Choke" and "Ecstasy", cut and resampled) are free loops by u/FCTRYBEATS, shared on Reddit,
   who wrote: "You have my full permission to use these loops in commercial or personal projects."
   (https://www.reddit.com/r/Drumkits/comments/ovkpgs/comment/h7db0wl/)
-- The factory drum samples (`app/samples/909_kick.wav`, `909_snare.wav`, `909_hat.wav`, `909_clap.wav`) are renders
-  of [9W9](https://github.com/athousanddetails/schwung-9W9), a TR-909 model by athousanddetails (its engine and its
-  hat samples), cut by `tools/prep_909.py`, used in LOOM-8 with its author's permission (link to follow: TODO before
-  release; and whether its hat samples, which 9W9 took from ER-99, need ER-99's author's too).
+- The factory kick, snare and clap (`app/samples/909_kick.wav`, `909_snare.wav`, `909_clap.wav`) are renders of
+  [9W9](https://github.com/athousanddetails/schwung-9W9), a TR-909 model by athousanddetails (its circuit models),
+  cut by `tools/prep_909.py`. 9W9 is GPL-3.0; the renders, and the plate reverb above, are in LOOM-8 under MPL-2.0
+  with his permission, on the condition that they are credited to athousanddetails: athousanddetails, asked whether the plate reverb's code and the samples could be used in this firmware relicensed under MPL-2.0, answered (Discord, 2026-10-25): "Yeah, as long as it's stated it's athousanddetails on it, yes".
+- The factory closed hat (`app/samples/hat.wav`) is LOOM-8's own, made by `tools/make_hat.py`. (0.5 to 0.7 had
+  9W9's hat in its place, a sample 9W9 takes from [ER-99](https://github.com/matthewcieplak/er-99), GPL-3.0, by
+  Matthew Cieplak: not athousanddetails's to relicense, so it was replaced.)
 - The recorded instruments (`app/samples/piano.wav`, `upright.wav`, `strings.wav`, `brass.wav`, `flute.wav`,
   `orch_hit.wav`) are cut from the Versilian Studios Chamber Orchestra 2 Community Edition (VSCO 2 CE,
   github.com/sgossner/VSCO-2-CE), CC0 1.0, by `tools/prep_recordings.py`.
