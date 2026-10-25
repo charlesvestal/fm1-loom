@@ -16,7 +16,8 @@ It is built on [fm1-base](https://github.com/charlesvestal/fm1-base) and
 [felucca-bsp](https://github.com/hugelton/felucca-bsp), in `base/` (a git submodule; felucca-bsp is `base/bsp`),
 MPL-2.0 file by file. They come from [Felucca](https://github.com/hugelton/Felucca) by Leo Kuroshita
 (@kurogedelic, Hügelton Instruments), whose code is in them under MPL-2.0 with his permission
-(hugelton/felucca-bsp#4), from keremimo's dual-core audio (felucca-bsp#5) and from Charles Vestal's platform layer of
+(hugelton/felucca-bsp#4), from keremimo's dual-core audio (felucca-bsp#5), from Melodee's USB MIDI host by Adrien
+Tibi and Kerem Kilic (felucca-bsp#7, `base/bsp/NOTICE`) and from Charles Vestal's platform layer of
 the FM-1 firmwares; see `base/LICENSING.md` and `base/CREDITS.md`.
 
 LOOM-8 is inspired by the teenage engineering OP-XY's way of working. It is not affiliated with,

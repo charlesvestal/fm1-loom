@@ -5,7 +5,8 @@ ten engines (six synths: knit, rayon, jacquard, bellows, cane and voile; a sampl
 strum, hold); weave, which crosses two patterns (bar by bar, step by step, or one's rhythm with the other's
 notes); throws (momentary effects); a conductor track that moves the song through a progression; two
 send-effect tracks (the reverb with the PlayStation's reverbs among its modes), a mixer with EQ
-and a compressor on the master, scenes and a song. Built on
+and a compressor on the master, scenes and a song. MIDI over USB, Bluetooth and the TRS jack, and as a USB MIDI host
+for a keyboard or synth (through a powered hub). Built on
 [fm1-base](https://github.com/charlesvestal/fm1-base) and [felucca-bsp](https://github.com/hugelton/felucca-bsp),
 from [Felucca](https://github.com/hugelton/Felucca) by Leo Kuroshita (Hügelton Instruments), with X0X's sequencer
 discipline and Polly's menu paradigm.
@@ -34,7 +35,7 @@ where the code comes from.
 The platform: fm1-base and felucca-bsp (MPL-2.0), from Felucca by Leo Kuroshita (Hügelton Instruments), with his
 permission (felucca-bsp#4). cane and voile: Mutable Instruments Braids by Emilie Gillet (MIT). The reverb's PlayStation modes: PSXVerb (MIT). The x drums: after MACHINEDRUM by Omodaka9375 (MIT); sophie: Sophie by Matt Estela (MIT); clang: digisophie (MIT). The factory breaks: free loops by u/FCTRYBEATS,
 with their permission; the plate reverb and the 909 kick, snare and clap: 9W9 by athousanddetails, under MPL-2.0 with his permission; the 909 hat: ER-99's sample by Matthew Cieplak, through 9W9 (GPL-3.0, in the sound bank only); the recorded instruments: Versilian Studios Chamber
-Orchestra 2 Community Edition (CC0). The fonts: Barlow and Terminus (SIL OFL 1.1). The second core's lessons: Melodee (keremimo) and Jangada (zednaked).
+Orchestra 2 Community Edition (CC0). The fonts: Barlow and Terminus (SIL OFL 1.1). The second core's lessons: Melodee (keremimo) and Jangada (zednaked). The USB MIDI host: Melodee's, by Adrien Tibi and Kerem Kilic (MPL-2.0, in felucca-bsp).
 The idea of a browser emulator: Groove OS.
 
 LOOM-8's way of working owes a great deal to teenage engineering's OP-XY; LOOM-8 is not affiliated with
