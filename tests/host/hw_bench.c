@@ -7,26 +7,7 @@
 #include "../../app/dsp/bench.c"
 #include <stdio.h>
 #include <time.h>
-#ifdef __APPLE__
-#include <unistd.h>
-#include <libproc.h>
-#include <sys/resource.h>
-static uint64_t instr_now(void)
-{
-    struct rusage_info_v4 ri;
-    if (!proc_pid_rusage(getpid(), RUSAGE_INFO_V4, (rusage_info_t *)&ri))
-        return ri.ri_instructions;
-    return 0;
-}
-#else
-static uint64_t instr_now(void) { return 0; }
-#endif
-static uint64_t ns_now(void)
-{
-    struct timespec t;
-    clock_gettime(CLOCK_MONOTONIC, &t);
-    return (uint64_t)t.tv_sec * 1000000000u + (uint64_t)t.tv_nsec;
-}
+#include "instr_count.h"                       /* instr_now, ns_now */
 
 int main(void)
 {

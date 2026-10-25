@@ -23,12 +23,29 @@ export const HDR_USED = ENT0 + NENT * ENT;    // the header's bytes the FM-1 kee
 export const PART = 320, NPART = Math.ceil(HDR_USED / PART);
 export const READ_MAX = 224;                  // samples.c SB_READ_MAX
 
-const IMA_STEP = [7, 8, 9, 10, 11, 12, 13, 14, 16, 17, 19, 21, 23, 25, 28, 31, 34, 37, 41, 45, 50, 55, 60, 66, 73, 80, 88,
-  97, 107, 118, 130, 143, 157, 173, 190, 209, 230, 253, 279, 307, 337, 371, 408, 449, 494, 544, 598, 658,
-  724, 796, 876, 963, 1060, 1166, 1282, 1411, 1552, 1707, 1878, 2066, 2272, 2499, 2749, 3024, 3327, 3660,
-  4026, 4428, 4871, 5358, 5894, 6484, 7132, 7845, 8630, 9493, 10442, 11487, 12635, 13899, 15289, 16818,
-  18500, 20350, 22385, 24623, 27086, 29794, 32767];
-const IMA_IDX = [-1, -1, -1, -1, 2, 4, 6, 8];
+// IMA ADPCM's step sizes and index changes: the standard's tables (IMA Digital Audio Focus and Technical Working
+// Groups, "Recommended Practices for Enhancing Digital Audio Compatibility in Multimedia Systems", 1992)
+const IMA_STEP = [
+  7, 8, 9, 10, 11, 12, 13, 14, 16, 17,
+  19, 21, 23, 25, 28, 31, 34, 37, 41, 45,
+  50, 55, 60, 66, 73, 80, 88, 97, 107, 118,
+  130, 143, 157, 173, 190, 209, 230, 253, 279, 307,
+  337, 371, 408, 449, 494, 544, 598, 658, 724, 796,
+  876, 963, 1060, 1166, 1282, 1411, 1552, 1707, 1878, 2066,
+  2272, 2499, 2749, 3024, 3327, 3660, 4026, 4428, 4871, 5358,
+  5894, 6484, 7132, 7845, 8630, 9493, 10442, 11487, 12635, 13899,
+  15289, 16818, 18500, 20350, 22385, 24623, 27086, 29794, 32767];
+const IMA_IDX = [...Array(4).fill(-1), 2, 4, 6, 8];   // by a code's magnitude bits (0..7)
+const IMA_BITS = [[4, 0], [2, 1], [1, 2]];            // a code's magnitude bits and the shift of the step each stands for
+
+// the decoder's state after one code: [pred, idx] (sampleio._ima_next)
+function imaNext(pred, idx, code) {
+  const step = IMA_STEP[idx];
+  let d = step >> 3;
+  for (const [bit, shift] of IMA_BITS) if (code & bit) d += step >> shift;
+  pred = Math.max(-32768, Math.min(32767, code & 8 ? pred - d : pred + d));
+  return [pred, Math.max(0, Math.min(88, idx + IMA_IDX[code & 7]))];
+}
 
 // ---- WAV in (sampleio.read_any_wav): -> {rate, x: mono floats, loop: [start, end] or null}
 export function readWav(buf) {
@@ -158,39 +175,25 @@ export function noteName(n) { return NOTE[n % 12] + (Math.floor(n / 12) - 1); }
 export function imaEncode(s) {
   let pred = 0, idx = 0;
   const adpcm = new Uint8Array(((s.length + 1) >> 1)), ck = new Uint32Array(Math.ceil(s.length / BLK));
-  for (let n = 0; n < s.length; n++) {
+  s.forEach((x, n) => {
     if (n % BLK === 0) ck[n / BLK] = ((pred & 0xFFFF) | idx << 16) >>> 0;
     const step = IMA_STEP[idx];
-    let diff = s[n] - pred, code = 0;
-    if (diff < 0) { code = 8; diff = -diff; }
-    let vd = step >> 3;
-    if (diff >= step) { code |= 4; diff -= step; vd += step; }
-    if (diff >= step >> 1) { code |= 2; diff -= step >> 1; vd += step >> 1; }
-    if (diff >= step >> 2) { code |= 1; vd += step >> 2; }
-    pred = code & 8 ? pred - vd : pred + vd;
-    if (pred > 32767) pred = 32767; else if (pred < -32768) pred = -32768;
-    idx += IMA_IDX[code & 7];
-    if (idx < 0) idx = 0; else if (idx > 88) idx = 88;
-    adpcm[n >> 1] |= n & 1 ? code << 4 : code;
-  }
+    let left = Math.abs(x - pred), code = x < pred ? 8 : 0;
+    for (const [bit, shift] of IMA_BITS)               // the magnitude, a bit at a time from the largest share
+      if (left >= step >> shift) { code |= bit; left -= step >> shift; }
+    adpcm[n >> 1] |= code << 4 * (n & 1);
+    [pred, idx] = imaNext(pred, idx, code);
+  });
   return { adpcm, ck };
 }
 
 // the firmware's decoder (dsp/sample.c): for the pictures of samples read back
 export function imaDecode(b, n) {
-  let pred = 0, idx = 0;
   const out = new Int16Array(n);
+  let st = [0, 0];
   for (let i = 0; i < n; i++) {
-    const code = (b[i >> 1] >> (i & 1 ? 4 : 0)) & 15, step = IMA_STEP[idx];
-    let vd = step >> 3;
-    if (code & 4) vd += step;
-    if (code & 2) vd += step >> 1;
-    if (code & 1) vd += step >> 2;
-    pred = code & 8 ? pred - vd : pred + vd;
-    if (pred > 32767) pred = 32767; else if (pred < -32768) pred = -32768;
-    idx += IMA_IDX[code & 7];
-    if (idx < 0) idx = 0; else if (idx > 88) idx = 88;
-    out[i] = pred;
+    st = imaNext(st[0], st[1], b[i >> 1] >> 4 * (i & 1) & 15);
+    out[i] = st[0];
   }
   return out;
 }

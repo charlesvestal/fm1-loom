@@ -54,51 +54,69 @@ enum { SB_INFO = 1, SB_BEGIN = 11, SB_WRITE, SB_END, SB_ERASE, SB_SINFO, SB_HDR,
 #define SB_INFO_K 12u                                /* SMP_INFO: samples a reply (12 x 18 bytes at most) */
 #define SB_READ_MAX 224u                             /* SMP_READ: bytes a reply (256 packed) */
 
-static uint8_t sb_out[320];
-static uint32_t sb_n;
+/* the reply being made: F0 7D 46 4C cmd, then 7-bit bytes (rp_*), F7 added as it goes out */
+static struct { uint8_t b[320]; uint32_t n; } rp;
 /* the staged header (1344 bytes used) and a page of data live in project.c's io_buf (3840 B): a project is
  * never loaded or saved between the frames of an upload (a save in the middle spoils the staged header: the
  * END then fails and the tool says so) */
 #define sb_hdr io_buf
 #define sb_buf (io_buf + SMP_BANK_HDR)
 typedef char sb_fits[(SMP_BANK_HDR + 256u <= sizeof io_buf && SB_NPART * SB_PART <= SMP_BANK_HDR &&
-                      SB_INFO_K * (SMP_NAME + 6u) + 16u <= sizeof sb_out &&
-                      10u + (SB_READ_MAX + 6u) / 7u * 8u <= sizeof sb_out) ? 1 : -1];
+                      SB_INFO_K * (SMP_NAME + 6u) + 16u <= sizeof rp.b &&
+                      10u + (SB_READ_MAX + 6u) / 7u * 8u <= sizeof rp.b) ? 1 : -1];
 #if XY_BENCH
 typedef char sb_bench_fits[BENCH_RAM_BYTES <= sizeof io_buf ? 1 : -1];
 #endif
 static uint8_t sb_open;                              /* begun: the bank is being written */
 
-static void sb_begin_reply(uint32_t cmd)
+static void rp_start(uint32_t cmd)
 {
-    sb_out[0] = 0xF0;
-    sb_out[1] = SB_HDR0;
-    sb_out[2] = SB_HDR1;
-    sb_out[3] = SB_HDR2;
-    sb_out[4] = (uint8_t)cmd;
-    sb_n = 5;
+    static const uint8_t head[5] = {0xF0, SB_HDR0, SB_HDR1, SB_HDR2};
+    memcpy(rp.b, head, 4);
+    rp.b[4] = (uint8_t)cmd;
+    rp.n = sizeof head;
 }
-static void sb_b(uint32_t v)
+static void rp_byte(uint32_t v)                      /* one data byte (its low seven bits); room kept for the F7 */
 {
-    if (sb_n < sizeof sb_out - 1u)
-        sb_out[sb_n++] = (uint8_t)(v & 0x7Fu);
+    if (rp.n + 1u < sizeof rp.b)
+        rp.b[rp.n++] = (uint8_t)(v & 0x7Fu);
 }
-static void sb_str(const char *s)
+static void rp_num(uint32_t v, uint32_t groups)      /* v in groups of seven bits, the lowest first */
 {
-    for (uint32_t i = 0; s && s[i] && i < SMP_NAME; i++)
-        sb_b((uint8_t)s[i] & 0x7Fu);
-    sb_b(0);
-}
-static uint32_t sb_unpack7(const uint8_t *a, uint32_t na, uint8_t *out, uint32_t max)
-{
-    uint32_t n = 0;
-    while (na && n < max) {
-        uint32_t m = *a++, j;
-        na--;
-        for (j = 0; j < 7u && na && n < max; j++, na--)
-            out[n++] = (uint8_t)(*a++ | ((m >> j) & 1u) << 7);
+    while (groups--) {
+        rp_byte(v);
+        v >>= 7;
     }
-    return n;
+}
+static void rp_text(const char *s, uint32_t max)     /* up to max characters, then a 0 */
+{
+    while (s && *s && max--)
+        rp_byte((uint8_t)*s++);
+    rp_byte(0);
+}
+static void rp_end(void)
+{
+    rp.b[rp.n++] = 0xF7;
+    plat_sysex_send(rp.b, rp.n);
+}
+/* packed data: groups of up to eight bytes, the first carrying the eighth bits of the rest (bit k: its byte k);
+ * returns the bytes made (at most cap) */
+static uint32_t rp_unpack(const uint8_t *in, uint32_t nin, uint8_t *out, uint32_t cap)
+{
+    uint32_t made = 0;
+    for (uint32_t g = 0; g < nin && made < cap; g += 8u) {
+        uint32_t last = nin - g < 8u ? nin - g : 8u;
+        for (uint32_t k = 1; k < last && made < cap; k++)
+            out[made++] = (uint8_t)(in[g + k] | (in[g] >> (k - 1u) & 1u) << 7);
+    }
+    return made;
+}
+static uint32_t rp_arg(const uint8_t *a, uint32_t groups)   /* a number in groups of seven bits, the lowest first */
+{
+    uint32_t v = 0;
+    for (uint32_t k = groups; k--;)
+        v = v << 7 | a[k];
+    return v;
 }
 static int sb_flash(void)                            /* the flash is there (fm1-base's data area and its windows) */
 {
@@ -151,29 +169,43 @@ static uint32_t sb_end(void)
     return smp_user_scan() == (int)cnt ? 0u : 7u;
 }
 
+/* SMP_WRITE's work: 256 bytes (fewer at the end) at virtual offset off of an open bank -> its rc */
+static uint32_t sb_page(uint32_t off, uint32_t len)
+{
+    if (!len || (off & 0xFFu) || off < SMP_BANK_HDR || off + len > SMP_BANK_SIZE)
+        return 1;                                    /* (pages are 256-aligned, after the header, in the bank) */
+    if (!sb_open || smp_user_count())
+        return 4;                                    /* (not begun: the bank is live) */
+    if (!sb_flash())
+        return 3;
+    if ((off & 0xFFFu) == 0u && sb_erase(off))      /* a sector's first page: the sector goes first. (A page
+                                                      * never crosses a window: they are 4 KB aligned) */
+        return 2;
+    return sb_write(off, sb_buf, len) ? 3u : 0u;
+}
+
 /* a frame (between F0 and F7): 1 = ours, answered */
 static int smp_frame(const uint8_t *p, uint32_t n)
 {
-    uint32_t cmd, na, rc = 0, i;
+    static const uint8_t ours[3] = {SB_HDR0, SB_HDR1, SB_HDR2};
+    uint32_t rc = 0, i, cmd, na;
     const uint8_t *a;
-    if (n < 4u || p[0] != SB_HDR0 || p[1] != SB_HDR1 || p[2] != SB_HDR2)
+    if (n < 4u || memcmp(p, ours, sizeof ours))
         return 0;
-    cmd = p[3];
-    a = p + 4;
-    na = n - 4u;
-    sb_begin_reply(cmd);
+    cmd = p[3], a = p + 4, na = n - 4u;              /* the command, its arguments */
+    rp_start(cmd);
     switch (cmd) {
     case SB_INFO: {
         const char *nm = "LOOM-8 " APP_VERSION;
         for (i = 0; nm[i] && i < 24u; i++)
-            sb_b((uint8_t)nm[i]);
-        sb_b(0);
+            rp_byte((uint8_t)nm[i]);
+        rp_byte(0);
         for (i = 0; i < 6u; i++)
-            sb_b(0);
+            rp_byte(0);
         break;
     }
     case SB_PING:
-        sb_b(0);
+        rp_byte(0);
         break;
     case SB_PROF: {
         uint32_t part = na ? a[0] & 63u : 0u, v[2 + 2 * ENG_PROF_N + 7], nv = 0;
@@ -208,37 +240,35 @@ static int smp_frame(const uint8_t *p, uint32_t n)
             for (i = 0; i < TRACE_N * TRACE_K / 2u; i++)
                 v[nv++] = (uint32_t)trace_worst[0][2u * i] | (uint32_t)trace_worst[0][2u * i + 1u] << 16;
         }
-        sb_b(part);
-        sb_b(nv);
+        rp_byte(part);
+        rp_byte(nv);
         for (i = 0; i < nv; i++)
-            for (uint32_t b = 0; b < 35u; b += 7u)
-                sb_b(v[i] >> b);
+            rp_num(v[i], 5);
         if (na && (a[0] & 64u))
             eng_prof_reset = 1;
         break;
     }
     case SB_SOUND: {
         uint32_t t = na ? a[0] : 0u, k = na > 2u ? (uint32_t)a[1] | (uint32_t)a[2] << 7 : 0x3FFFu;
-        sb_b(t);
-        sb_b((uint32_t)NPRESETS & 127u);
-        sb_b((uint32_t)NPRESETS >> 7);
+        rp_byte(t);
+        rp_num((uint32_t)NPRESETS, 2);
         if (t >= NTRK || k >= (uint32_t)NPRESETS) {
-            sb_b(127);
-            sb_b(0);
+            rp_byte(127);
+            rp_byte(0);
             break;
         }
         load_preset((int)t, &PRESETS[k]);
         proj.trk_sel = (uint8_t)t;
-        sb_b(PRESETS[k].par[TP_ENGINE]);
-        sb_str(PRESETS[k].name);
+        rp_byte(PRESETS[k].par[TP_ENGINE]);
+        rp_text(PRESETS[k].name, SMP_NAME);
         break;
     }
 #if XY_BENCH
     case SB_BENCH: {   /* (io_buf lent to the kernels: free between frames, as the upload's staging) */
         uint32_t k = na ? a[0] : 127u, reps = na > 1u ? a[1] : 16u, t[64], nr = 0, start, v[4], j;
         volatile float sink;
-        sb_b(k);
-        sb_b((uint32_t)bench_count());
+        rp_byte(k);
+        rp_byte((uint32_t)bench_count());
         if (k >= (uint32_t)bench_count())
             break;
         reps = reps < 1u ? 1u : reps > 64u ? 64u : reps;
@@ -258,11 +288,10 @@ static int smp_frame(const uint8_t *p, uint32_t n)
                 t[j - 1u] = x;
             }
         v[0] = t[0], v[1] = t[nr / 2u], v[2] = t[nr - 1u], v[3] = BENCH_N;
-        sb_str(bench_name((int)k));
-        sb_b(nr);
+        rp_text(bench_name((int)k), SMP_NAME);
+        rp_byte(nr);
         for (i = 0; i < 4u; i++)
-            for (uint32_t b = 0; b < 35u; b += 7u)
-                sb_b(v[i] >> b);
+            rp_num(v[i], 5);
         break;
     }
 #endif
@@ -270,85 +299,62 @@ static int smp_frame(const uint8_t *p, uint32_t n)
         uint32_t from = na ? a[0] : 0u, used = (smp_user_bytes() + 1023u) / 1024u, cnt = (uint32_t)smp_user_count(), k;
         k = from < cnt ? cnt - from : 0u;
         k = k > SB_INFO_K ? SB_INFO_K : k;
-        sb_b(2);
-        sb_b(SMP_BANK_SIZE / 1024u);
-        sb_b(SMP_BANK_SIZE / 1024u >> 7);
-        sb_b(used);
-        sb_b(used >> 7);
-        sb_b(cnt);
-        sb_b(from);
-        sb_b(k);
+        rp_byte(2);
+        rp_num(SMP_BANK_SIZE / 1024u, 2);
+        rp_num(used, 2);
+        rp_byte(cnt);
+        rp_byte(from);
+        rp_byte(k);
         for (i = from; i < from + k; i++) {
             const smp_t *sm = smp_entry((int)i);     /* (every entry: the factory set's too) */
-            sb_str(sm->name);
-            sb_b(sm->rate);
-            sb_b(sm->rate >> 7u);
-            sb_b(sm->rate >> 14u);
-            sb_b(sm->n);
-            sb_b(sm->n >> 7);
-            sb_b(sm->n >> 14);
+            rp_text(sm->name, SMP_NAME);
+            rp_num(sm->rate, 3);
+            rp_num(sm->n, 3);
         }
         break;
     }
     case SB_BEGIN: case SB_ERASE:
         if (na < 1u || a[0] != 0u)
             return 1;
-        sb_b(a[0]);
+        rp_byte(a[0]);
         if (!sb_flash()) {
-            sb_b(2);
+            rp_byte(2);
             break;
         }
         smp_user_drop();                             /* nothing may read the bank from here */
         sb_open = 1;
-        for (i = 0; i < (cmd == SB_ERASE ? SMP_BANK_SIZE / 0x1000u : 1u) && !rc; i++)
-            rc = sb_erase(i * 0x1000u) ? 2u : 0u;
+        {
+            uint32_t sectors = cmd == SB_ERASE ? SMP_BANK_SIZE / 0x1000u : 1u;   /* (BEGIN: the header's) */
+            for (uint32_t sec = 0; sec < sectors && rc == 0u; sec++)
+                if (sb_erase(sec * 0x1000u))
+                    rc = 2;
+        }
         if (cmd == SB_ERASE) {
             sb_open = 0;
             ui_say("SAMPLES", "user bank erased");
         }
-        sb_b(rc);
+        rp_byte(rc);
         break;
-    case SB_WRITE: {
-        uint32_t off, len;
+    case SB_WRITE:
         if (na < 5u || a[0] != 0u)
             return 1;
-        off = (uint32_t)a[1] | (uint32_t)a[2] << 7 | (uint32_t)a[3] << 14;
-        len = sb_unpack7(a + 4, na - 4u, sb_buf, 256u);
-        if (off < SMP_BANK_HDR || (off & 0xFFu) || !len || off + len > SMP_BANK_SIZE)
-            rc = 1;
-        else if (!sb_open || smp_user_count())
-            rc = 4;
-        else if (!sb_flash())
-            rc = 3;
-        else {                                       /* (a 256-byte page never crosses a window: they are 4 KB
-                                                      * aligned) */
-            if (!(off & 0xFFFu) && sb_erase(off))
-                rc = 2;
-            if (!rc && sb_write(off, sb_buf, len))
-                rc = 3;
-        }
-        sb_b(a[0]);
-        sb_b(off);
-        sb_b(off >> 7);
-        sb_b(off >> 14);
-        sb_b(rc);
+        rp_byte(a[0]);
+        rp_num(rp_arg(a + 1, 3), 3);                 /* (the offset, back as it came) */
+        rp_byte(sb_page(rp_arg(a + 1, 3), rp_unpack(a + 4, na - 4u, sb_buf, 256u)));
         break;
-    }
     case SB_READ: {
         uint32_t off, len, j;
         if (na < 6u || a[0] != 0u)
             return 1;
-        off = (uint32_t)a[1] | (uint32_t)a[2] << 7 | (uint32_t)a[3] << 14;
-        len = (uint32_t)a[4] | (uint32_t)a[5] << 7;
-        sb_b(a[0]);
-        sb_b(off);
-        sb_b(off >> 7);
-        sb_b(off >> 14);
+        off = rp_arg(a + 1, 3);
+        len = rp_arg(a + 4, 2);
+        rp_byte(a[0]);
+        rp_num(off, 3);
         if (!len || len > SB_READ_MAX || off >= SMP_BANK_SIZE || !sb_flash())
             rc = 1;
         else if (sb_open)
             rc = 4;
-        sb_b(rc);
+        rp_byte(rc);
         if (rc)
             break;
         if (len > SMP_BANK_SIZE - off)
@@ -362,9 +368,9 @@ static int smp_frame(const uint8_t *p, uint32_t n)
                 g[j] = p ? *p : 0xFFu;
                 m |= (uint8_t)((g[j] >> 7) << j);
             }
-            sb_b(m);
+            rp_byte(m);
             for (uint32_t k = 0; k < j; k++)
-                sb_b(g[k]);
+                rp_byte(g[k]);
         }
         break;
     }
@@ -376,18 +382,18 @@ static int smp_frame(const uint8_t *p, uint32_t n)
         if (part == 0u)
             for (i = 0; i < SB_NPART * SB_PART; i++)
                 sb_hdr[i] = 0;
-        sb_unpack7(a + 2, na - 2u, sb_hdr + part * SB_PART, SB_PART);
-        sb_b(a[0]);
-        sb_b(part);
-        sb_b(0);
+        rp_unpack(a + 2, na - 2u, sb_hdr + part * SB_PART, SB_PART);
+        rp_byte(a[0]);
+        rp_byte(part);
+        rp_byte(0);
         break;
     }
     case SB_END:
         if (na < 1u || a[0] != 0u)
             return 1;
-        sb_b(a[0]);
+        rp_byte(a[0]);
         rc = !sb_flash() ? 3u : !sb_open ? 4u : sb_end();
-        sb_b(rc);
+        rp_byte(rc);
         if (!rc) {
             char t[16];
             char *e = t;
@@ -404,7 +410,6 @@ static int smp_frame(const uint8_t *p, uint32_t n)
     default:
         return 0;                                    /* not ours */
     }
-    sb_out[sb_n++] = 0xF7;
-    plat_sysex_send(sb_out, sb_n);
+    rp_end();
     return 1;
 }
