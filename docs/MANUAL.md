@@ -1296,5 +1296,5 @@ teenage engineering. Built on fm1-base and felucca-bsp, from Felucca by Leo Kuro
 with Polly's menus and X0X's sequencer discipline. Cane and voile are Mutable Instruments Braids by Émilie Gillet
 (MIT); the plate reverb is after 9W9 by athousanddetails, and its PlayStation modes are
 PSXVerb's. The factory breaks are free loops by u/FCTRYBEATS, the 909
-kick, snare and clap are renders of 9W9 by athousanddetails, and the recorded instruments come from the Versilian Studios Chamber Orchestra 2
+kick, snare and clap are renders of 9W9 by athousanddetails (the hat is ER-99's, by Matthew Cieplak), and the recorded instruments come from the Versilian Studios Chamber Orchestra 2
 Community Edition (CC0).
