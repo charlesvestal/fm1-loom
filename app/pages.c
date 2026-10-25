@@ -3339,7 +3339,7 @@ static void pic_midi(int32_t x0, int32_t y0, const uint8_t *p, int second, int h
     char t[8];
     for (int k = 0; k < 8; k++) {
         int v = p[k < 4 ? TP_E1 + k : TP_X1 + k - 4], hb = 1 + v * 55 / 127, on = (k >= 4) == (second != 0);
-        int32_t x = k < 4 ? x0 + k * 20 : 156 + (k - 4) * 20;
+        int32_t x = k < 4 ? x0 + k * 20 : 2 * cx - 4 - x0 - (7 - k) * 20;   /* (the right four: the left's mirror) */
         cv_round(x, y0, 4, 56, 2, K_LINE);
         cv_round(x, y0 + 56 - hb, 4, hb, 2, on ? K_NOW : K_FAINT);
         num_s(p[midi_cc_par(k)] % NMIDI_CC, t);
