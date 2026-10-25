@@ -1160,6 +1160,9 @@ the scenes on 11. Notes on channels 12 to 16 play whichever instrument track is 
 throws track is selected, the last instrument track you had). LOOM-8 never sends on 12 to 16. Notes on 9 and 10
 do nothing.
 
+The TRS jack is MIDI in. Everything that comes in over USB works from it too (notes, CCs, Program Change, and
+MIDI clock with start and stop), except SysEx. The FM-1 has no MIDI out jack, so LOOM-8 sends only over USB.
+
 Each track's **SEL** list on its sound pages has MIDI OUT. With it on, the track's notes go out on its own
 channel, as long as Setup's NOTES is on too. MIDI OUT is on in a new project, and a project from an older version
 that had a MIDI channel number set opens with MIDI OUT on.
