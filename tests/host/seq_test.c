@@ -464,6 +464,24 @@ static void t_multiply(void)
     printf("ok %s\n", cur);
 }
 
+/* flam: a grace hit on the step, a little over half its velocity, then the step's own 4/32 of a step later */
+static void t_flam(void)
+{
+    cur = "flam";
+    reset();
+    note(0, 0, 60, 100);
+    st(0, 0)->comp = SC_FLAM;
+    st(0, 0)->cval = 3;               /* 4/32 of a step */
+    note(0, 1, 62, 100);
+    start();
+    run(2 * L16);
+    CHECK(count(E_ON, 0) == 3);
+    CHECK(near(on_n(0)->t, 0, 2) && on_n(0)->b == 55 && on_n(0)->a == 60);
+    CHECK(near(on_n(1)->t, L16 / 8, 2) && on_n(1)->b == 100 && on_n(1)->a == 60);
+    CHECK(on_n(2)->a == 62 && near(on_n(2)->t, L16, 2));
+    printf("ok %s\n", cur);
+}
+
 static void t_velocity(void)
 {
     cur = "velocity";
@@ -2823,6 +2841,7 @@ int main(void)
     t_pattern_helpers();
     t_phase();
     t_cue_bar();
+    t_flam();
     t_cue_scene();
     t_weave();
     t_timing();

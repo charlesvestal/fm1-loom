@@ -1084,7 +1084,7 @@ static int song_cmd(const char *cmd)
     } else if (!strcmp(cmd, "trick")) {             /* trick T PAT S NAME VAL[:MODE] */
         static const char *const TN[NSC] = {"none", "pulse", "hold", "multiply", "velocity", "rampup", "rampdown",
                                             "random", "porta", "bend", "tonality", "jump", "skiplock", "skiptrick",
-                                            "skip"};
+                                            "skip", "flam"};
         step_t *st = step_or_die(pat_or_die(w[1], w[2]), w[3]);
         int v;
         if (n < 6)
@@ -1096,7 +1096,7 @@ static int song_cmd(const char *cmd)
         v = atoi(w[5]) - 1;
         if (v < 0 || v > (k == SC_JUMP ? JUMP_LAST : SC_RANDOM_VAL))
             host_die("a trick's value is 1..10 (a jump's 1..22)", w[5]);
-        if (k >= SC_SKIP_LOCK)
+        if (sc_is_skip(k))
             v = SK_VAL(v, strchr(w[5], ':') ? atoi(strchr(w[5], ':') + 1) : 0);
         if (!st->comp || st->comp == k) {
             st->comp = (uint8_t)k;

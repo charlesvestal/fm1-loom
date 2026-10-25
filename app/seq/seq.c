@@ -740,10 +740,14 @@ static void fire_notes(seq_t *s, int t, const step_t *st, int p, uint32_t L, int
             return;                   /* velocity 0: a silent step */
     }
     vel = echo_vel(s, t, vel);
+    if (tr->flam_gap && !ratchet)                 /* a flam's grace: a little over half, short */
+        vel = vel * 11 / 20 > 0 ? vel * 11 / 20 : 1;
     if (st->len)
         len_q8 = len_of(L, st->len);
     else
         len_q8 = L / 100u * (tp->nlen > 100 ? 100u : tp->nlen);
+    if (tr->flam_gap && !ratchet && len_q8 > L / 32u * tr->flam_gap)
+        len_q8 = L / 32u * tr->flam_gap;
     if (is_drum(s, t)) {
         int semi = step_tune(s->P->lane, t, s->ppat[t], p);
         if (act[SC_HOLD])             /* (a gated sound rings over the steps it covers) */
@@ -916,7 +920,7 @@ static void resolve_comps(seq_t *s, int t, const step_t *st, int *trig_ok, int *
             other_ok[1 - k] &= skip_plays(s, t, v[k]);
     }
     for (k = 0; k < 2; k++)
-        if (c[k] > SC_NONE && c[k] < SC_SKIP_LOCK && other_ok[k])
+        if (c[k] > SC_NONE && !sc_is_skip(c[k]) && c[k] < NSC && other_ok[k])
             tr->act[c[k]] = (uint8_t)(v[k] + 1);
 }
 
@@ -1440,6 +1444,7 @@ static void fire_step(seq_t *s, int t, const seq_sink_t *o)
     tr->step_q8 = L;
     tr->ratchet = 0;
     tr->ratchets = 1;
+    tr->flam_gap = 0;
     tr->sub_to_next = NEVER;
     {
         SQ_T(qa);
@@ -1480,6 +1485,11 @@ static void fire_step(seq_t *s, int t, const seq_sink_t *o)
             tr->ratchets = (uint8_t)(cv == SC_RANDOM_VAL ? 1 + (int)(rng_next(&tr->rng) % 9u) : cv + 1);
             if (tr->ratchets > 1)
                 tr->sub_to_next = carry + L / tr->ratchets;
+        } else if (tr->act[SC_FLAM]) {        /* the grace now, the step's own hit a little later */
+            int cv = tr->act[SC_FLAM] - 1;
+            tr->flam_gap = (uint8_t)(cv >= SC_RANDOM_VAL ? 1 + (int)(rng_next(&tr->rng) % 9u) : cv + 1);
+            tr->ratchets = 2;
+            tr->sub_to_next = carry + L / 32u * tr->flam_gap;
         }
         if (tr->act[SC_RAMP_UP])
             tr->ramp_deg = (int16_t)ramp_degree(s, t, tr->act[SC_RAMP_UP] - 1, SC_RAMP_UP);
@@ -1539,9 +1549,9 @@ static void fire_sub(seq_t *s, int t, const seq_sink_t *o)
     const step_t *st = tr->wv_on ? &tr->wv_st : &tpat(s, t)->st[tr->pos];
     uint32_t carry = tr->sub_to_next < SEQ_DUE ? tr->sub_to_next : 0;
     tr->ratchet++;
-    if (t < NTRK && tr->act[SC_MULTIPLY])
+    if (t < NTRK && (tr->act[SC_MULTIPLY] || tr->flam_gap))
         fire_notes(s, t, st, tr->pos, tr->step_q8, tr->ratchet, o);
-    tr->sub_to_next = tr->ratchet + 1 < tr->ratchets ? carry + tr->step_q8 / tr->ratchets : NEVER;
+    tr->sub_to_next = !tr->flam_gap && tr->ratchet + 1 < tr->ratchets ? carry + tr->step_q8 / tr->ratchets : NEVER;
 }
 
 /* ----------------------------------------------------------- the fills --- */

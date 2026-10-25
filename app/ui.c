@@ -758,7 +758,7 @@ static void trick_knob(int k, int32_t e)
                 *kind = SC_NONE;
                 *val = n ? SC_DEFAULT[n] : 0;
                 *kind = (uint8_t)n;
-            } else if (c >= SC_SKIP_LOCK) {      /* the cycle and its mode as one turn: 1..9, random, in each mode */
+            } else if (sc_is_skip(c)) {         /* the cycle and its mode as one turn: 1..9, random, in each mode */
                 int pos = clampi((int)SK_MODE(*val) * 10 + (int)SK_N(*val) + d, 0, 29);
                 uint8_t v = SK_VAL((uint32_t)(pos % 10), (uint32_t)(pos / 10));
                 *kind = SC_NONE;
@@ -3939,14 +3939,14 @@ static void speak_dump(void)
         for (int v = 0; v < 10; v++) {
             char vt[16];
             sp_n = 0;
-            const char *val = comp_val_text(c, c >= SC_SKIP_LOCK ? (int)SK_VAL((uint32_t)v, 0) : v, vt);
+            const char *val = comp_val_text(c, sc_is_skip(c) ? (int)SK_VAL((uint32_t)v, 0) : v, vt);
             sp_text(COMP_NAME[c]);
             sp_cat(" ");
             sp_text(s_eq(val, COMP_NAME[c]) ? "any" : val);
             sp_print("MSG", sp_buf);
         }
     }
-    for (int c = SC_SKIP_LOCK; c < NSC; c++)
+    for (int c = SC_SKIP_LOCK; c <= SC_SKIP; c++)
         for (int m = 1; m < 3; m++) {
             char vt[16];
             sp_n = 0;

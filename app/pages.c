@@ -130,8 +130,9 @@ static const char *const NOTE_NAME[12] = {"C", "C#", "D", "Eb", "E", "F", "F#", 
  * the grid and their name */
 static const char *const COMP_NAME[NSC] = {"none", "pulse", "hold", "multiply", "velocity", "ramp up", "ramp down",
                                            "random", "glide", "bend", "tonality", "jump", "skip lock",
-                                           "skip trick", "skip trig"};
-static const char *const COMP_GLYPH[NSC] = {"", "P", "H", "M", "V", "^", "v", "?", "~", "B", "T", "J", "L", "C", "S"};
+                                           "skip trick", "skip trig", "flam"};
+static const char *const COMP_GLYPH[NSC] = {"", "P", "H", "M", "V", "^", "v", "?", "~", "B", "T", "J", "L", "C", "S",
+                                           "F"};
 static const char *const VEL_VAL[10] = {"4", "8", "16", "32", "64", "100", "112", "127", "0", "random"};
 static const char *const RAMP_VAL[10] = {"2 in 1", "3 in 1", "4 in 1", "5 in 1", "6 in 1", "2 in 3", "3 in 3", "4 in 3",
                                          "5 in 3", "random"};   /* steps over one / three octaves */

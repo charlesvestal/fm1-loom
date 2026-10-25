@@ -123,6 +123,7 @@ typedef struct {                      /* one track's runtime (interrupt only) */
     uint32_t origin_h8;               /* when its step 1 began: half-sixteenths since start, Q8 (the phase) */
     uint8_t stall;                    /* pulse / hold: steps it still covers (the playhead goes on, in time) */
     uint8_t ratchet, ratchets;        /* multiply: hits done, hits wanted */
+    uint8_t flam_gap;                 /* flam: 32nds of a step to the step's own hit after the grace (0 none) */
     uint16_t pass;                    /* passes of the pattern since start (conditions, skips, ramps) */
     uint32_t to_next;                 /* samples to the next step, Q8 */
     uint32_t step_q8;                 /* the current step's length (ratchets, bends) */
