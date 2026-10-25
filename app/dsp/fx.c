@@ -122,8 +122,8 @@ struct fxslot {
     int32_t cw;
     float cph, cs1, cs2, chl, chr, cfbz;
     /* delay */
-    int32_t dw, dquiet;
-    float dcur, dlpl, dlpr;
+    int32_t dw, dquiet, dph;                  /* (the line at half rate: dph, the pair's second frame) */
+    float dcur, dlpl, dlpr, dal, dar;         /* (the pair being summed into the slot at dw) */
     /* lofi */
     float lph, lhold, lin1, lout1, lwph;
     /* phaser */
@@ -159,7 +159,8 @@ static void fx_states(fxslot_t *f)              /* a fresh effect: its states at
     int i;
     zero16(f->cho, CHO_N);
     f->cw = 0; f->cph = 0.0f; f->cs1 = f->cs2 = f->chl = f->chr = f->cfbz = 0.0f;
-    f->dw = 0; f->dquiet = FX_DLY_LEN; f->dlpl = f->dlpr = 0.0f;
+    f->dw = 0; f->dquiet = 2 * FX_DLY_LEN; f->dlpl = f->dlpr = 0.0f;
+    f->dph = 0; f->dal = f->dar = 0.0f;
     f->dcur = f->pt[0];                       /* a new delay starts on time (the slew is for changes) */
     f->lph = f->lhold = f->lin1 = f->lout1 = f->lwph = 0.0f;
     for (i = 0; i < 4; i++) {
@@ -189,7 +190,7 @@ static void delay_time(fxslot_t *f)
 {
     float bpm = f->bpm > 20.0f ? f->bpm : 120.0f;
     float t = DL_DIV[(f->knob[0] * 8) >> 7] * 15.0f / bpm;           /* sixteenths: 60 / (bpm * 4) */
-    float max_s = (float)(FX_DLY_LEN - 256) / SR;
+    float max_s = (float)(FX_DLY_LEN - 128) * 2.0f / SR;            /* (the line at half rate) */
     t *= 1.0f + ((float)f->knob[1] - 64.0f) * (0.25f / 64.0f);        /* fine: +-25 % */
     while (t > max_s)                                                 /* too long for the line: half, */
         t *= 0.5f;                                                    /* still on the beat */
@@ -411,21 +412,26 @@ static inline float tap16(const int16_t *b, float rp)
     return a + (c - a) * fr;
 }
 
+/* the delay: its lines at half rate (22.05 kHz: a slot a pair of frames, their mean; the repeats low-passed by the
+ * tone, at 4 kHz by default, so the 11 kHz the line keeps is enough), read at the frame's own place between slots */
 static void do_delay(fxslot_t *f, const float *x, float *ol, float *orr, int m, int any, int lag)
 {
     const float target = f->pt[0], fb = f->pc[2], tc = f->pc[3];
-    float dcur = f->dcur, lpl = f->dlpl, lpr = f->dlpr;
-    int32_t w = f->dw, quiet = f->dquiet;
+    float dcur = f->dcur, lpl = f->dlpl, lpr = f->dlpr, al = f->dal, ar = f->dar;
+    int32_t w = f->dw, quiet = f->dquiet, ph = f->dph;
     int i;
-    if (!any && quiet >= FX_DLY_LEN) {        /* silent in, an empty line: time moves on, nothing to read */
-        f->dw = (w + m) % FX_DLY_LEN;
+    if (!any && quiet >= 2 * FX_DLY_LEN) {    /* silent in, an empty line: time moves on, nothing to read */
+        w += (ph + m) >> 1;
+        f->dph = (ph + m) & 1;
+        f->dw = w % FX_DLY_LEN;
+        f->dal = f->dar = 0.0f;
         f->dcur += (target - dcur) * (1.0f - fm_expf(-0.0008f * (float)m));
         return;
     }
     for (i = 0; i < m; i++) {
         float rp, tl, tr, a, b;
         dcur += (target - dcur) * 0.0008f;
-        rp = (float)w - dcur;
+        rp = (float)w + 0.5f * (float)ph - 0.5f * dcur;
         if (rp < 0.0f)
             rp += (float)FX_DLY_LEN;
         tl = tap16(f->dl, rp);
@@ -436,24 +442,34 @@ static void do_delay(fxslot_t *f, const float *x, float *ol, float *orr, int m, 
         b = lpl * fb;                         /* the left into the right */
         if (a > 1.0f || a < -1.0f) a = fm_tanhf(a);
         if (b > 1.0f || b < -1.0f) b = fm_tanhf(b);
-        {
-            int16_t ka = f16(a), kb = f16(b);
+        al += a;
+        ar += b;
+        if (lag) {                            /* the send into the line's past (not read yet: the time is longer) */
+            int32_t p = w - ((lag + 1) >> 1);
+            float v;
+            if (p < 0)
+                p += FX_DLY_LEN;
+            v = s16f(f->dl[p]) + 0.5f * x[i];
+            if (v > 1.0f || v < -1.0f) v = fm_tanhf(v);
+            f->dl[p] = f16(v);
+        }
+        if (ph) {                             /* the pair's second frame: its mean into the slot */
+            int16_t ka = f16(0.5f * al), kb = f16(0.5f * ar);
             f->dl[w] = ka;
             f->dr[w] = kb;
-            if (lag) {                        /* the send into the line's past (not read yet: the time is longer) */
-                int32_t p = w - lag < 0 ? w - lag + FX_DLY_LEN : w - lag;
-                float v = s16f(f->dl[p]) + x[i];
-                if (v > 1.0f || v < -1.0f) v = fm_tanhf(v);
-                f->dl[p] = f16(v);
-            }
-            quiet = (ka == 0 && kb == 0 && x[i] == 0.0f) ? quiet + 1 : 0;
+            quiet = (ka == 0 && kb == 0 && x[i] == 0.0f) ? quiet + 2 : 0;
+            al = ar = 0.0f;
+            if (++w >= FX_DLY_LEN)
+                w = 0;
         }
-        if (++w >= FX_DLY_LEN)
-            w = 0;
+        ph ^= 1;
         ol[i] += tl;
         orr[i] += tr;
     }
     f->dw = w;
+    f->dph = ph;
+    f->dal = al;
+    f->dar = ar;
     f->dcur = dcur;
     f->dlpl = fm_flush(lpl);
     f->dlpr = fm_flush(lpr);
@@ -895,7 +911,7 @@ void fx_process_lag(fxslot_t *f, const float *in, float *out_l, float *out_r, ui
 int fx_awake(const fxslot_t *f)
 {
     switch (f->type) {
-    case FXT_DELAY: return f->dquiet < FX_DLY_LEN;
+    case FXT_DELAY: return f->dquiet < 2 * FX_DLY_LEN;
     case FXT_REVERB:
         return f->mode == RV_PLATE ? f->rquiet < FX_RV_LEN
              : f->mode == RV_LUSH ? f->lu.clear > 0 || f->lu.quiet < FX_RV_LEN * 2

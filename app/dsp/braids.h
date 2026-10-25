@@ -69,7 +69,11 @@ enum { CN_PLUCK, CN_BOW, CN_REED, CN_FLUTE, CN_BELL, CN_DRUM };
 #define CN_BORE 1152                     /* flute: the bore; the jet after it */
 #define CN_PLK 1024                      /* pluck: the longest string line (+1 guard) */
 typedef union { int16_t s[CN_LEN]; float f[CN_LEN / 2]; } cn_slot_t;
+#ifdef PLAT_HOST
 static cn_slot_t cn_mem[CN_SLOTS];
+#else
+static cn_slot_t cn_mem[CN_SLOTS] __attribute__((section(".pool")));   /* the pool (zeroed at start, as .bss) */
+#endif
 
 /* the bell's and the drum's partials: offsets (1/128 semitone), strike amplitudes, decays per 1/4000 s
  * (Braids' render block), long and short (timbre between) */

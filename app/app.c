@@ -23,7 +23,7 @@ static int work_end(uint32_t n);
 static int load_force = -1;             /* the script's "load N": the guard sees N %, -1 measured (host.c) */
 #endif
 
-_Static_assert(OBJ_NOBJ == 23 && OBJ_PROJ0 == 2, "the store map lists every object (APP_STORE_MAP)");
+_Static_assert(OBJ_NOBJ == 24 && OBJ_PROJ0 == 2, "the store map lists every object (APP_STORE_MAP)");
 _Static_assert(SMP_REG0 >= 0xC1000u && SMP_REG0 + SMP_REG0_SIZE <= 0xDC000u && SMP_REG0 >= PLAT_DATA_LO,
                "the user sample bank's first window between the project slots and the panel calibration");
 _Static_assert(SMP_REG1 == PLAT_XDATA1_LO && SMP_REG1 + SMP_REG1_SIZE == PLAT_XDATA1_HI &&
