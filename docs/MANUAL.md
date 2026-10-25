@@ -1094,8 +1094,8 @@ Turn **SELECT** for more pages:
 
 On Setup, the knobs are the lights, the MIDI clock (internal, receive or send: see MIDI below), sending MIDI
 notes (on in a new project) and the theme (tape deck, blueprint or b/w). The page also shows where the tempo comes from (LOOM-8, or a MIDI clock coming
-in), the USB audio level, the autosave and the version. **GLO**'s **SEL** list sets the USB audio level, LOOP
-THROWS, AUTOSAVE, CC OUT and SCENES OUT. On every page, the header shows the scene playing ("S3") before the
+in), the USB audio level, the autosave and the version. **GLO**'s **SEL** list sets the USB audio level, USB
+PORT, LOOP THROWS, AUTOSAVE, CC OUT and SCENES OUT. On every page, the header shows the scene playing ("S3") before the
 tempo. You'll find the projects on **HOME**'s **SEL** list and the count-in on **REC**'s knobs.
 
 **LFO** (after Master out) is the shared LFO. The project has one, and it moves the tracks you give it, so a
@@ -1172,6 +1172,16 @@ Each track has its own channel: T1 to T8 on channels 1 to 8, FX I on 9, FX II on
 the scenes on 11. Notes on channels 12 to 16 play whichever instrument track is selected (if the conductor or
 throws track is selected, the last instrument track you had). LOOM-8 never sends on 12 to 16. Notes on 9 and 10
 do nothing.
+
+**USB keyboards and synths.** LOOM-8 can host a USB MIDI keyboard, controller or synth itself, with no
+computer around. On **GLO**'s **SEL** list (Setup), set USB PORT to **MIDI host**, then plug the device in through
+a powered USB hub or a powered USB-C adapter: the FM-1 gives its USB port no power. One device at a time, directly
+or behind one hub. Its notes and CCs play LOOM-8 as a computer's would (by channel, as above), and what LOOM-8 sends
+(the tracks' MIDI OUT, the midi engine, the clock on send) goes to it, so LOOM-8 can play a hardware synth. The
+header says when a device connects, has no MIDI, or is lost; if it is lost, the notes it held are let go.
+Connecting freezes the screen for a moment (longer behind a hub); the sound plays on. While USB PORT is MIDI host
+there's no computer link (no USB audio, backup or samples page), and Bluetooth MIDI works as before. USB PORT goes
+back to **computer** at every start, so updating always works.
 
 The TRS jack is MIDI in. Everything that comes in over USB works from it too (notes, CCs, Program Change, and
 MIDI clock with start and stop), except SysEx. The FM-1 has no MIDI out jack, so LOOM-8 sends only over USB and
@@ -1309,7 +1319,7 @@ On a sound page, hold **SAVE** and press white key 1 to 16 to keep the track's s
 | GLO, SELECT | Master color | color | amount | tone | mix | |
 | GLO, SELECT | Master out | drums | melodic | comp | pump | SEL: pump by, release, accent, level |
 | GLO, SELECT | LFO | shape | rate | amount | dest | black: the tracks it moves; white 1-11: a kit's sound, 12 all |
-| GLO, SELECT | Setup | lights | clock | notes | theme | SEL: USB audio, loop throws, autosave, CC out, scenes out |
+| GLO, SELECT | Setup | lights | clock | notes | theme | SEL: USB audio, USB port, loop throws, autosave, CC out, scenes out |
 
 The aux tracks' **EDIT** pages:
 

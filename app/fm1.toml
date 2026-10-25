@@ -10,6 +10,7 @@ ble_stack_kb = 3               # its three tasks' stacks at 3 KB, not 8 (1.3 KB 
 ble_heap_kb = 12               # its heap at 12 KB, not 24 (7.1 KB at most: a link, MIDI both ways, a flood of 300 messages a second)
 usb_audio_in = true            # the master output recordable over USB (Setup's USB AUDIO: follows the knob, or full)
 usb_audio_out = false
+usb_host = true                # the USB port as a MIDI host (Setup's USB PORT): a controller or a synth, through a powered hub
 backup = true                  # projects and presets over USB (base/tools/fm1_backup.py); the page adds the samples (app/web/backup/extras.js)
 backup_ext = "loom8"           # the backup page's files: NAME.loom8
 backup_holds = "the three projects, the user presets and the samples"
