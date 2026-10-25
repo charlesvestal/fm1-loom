@@ -46,7 +46,8 @@ extern const uint8_t FXT_DEFAULT[NFXT][4];      /* the reverb's row: the plate's
 extern const uint8_t RV_SPU_DEFAULT[4];         /* the SPU modes' */
 extern const uint8_t RV_LUSH_DEFAULT[4];        /* lush's */
 
-#define FX_DLY_LEN 22400              /* int16 samples a side: 0.5 s plus the line's 256-sample margin (the pool's budget) */
+#define FX_DLY_LEN 11200              /* int16 samples a side, at half rate (22.05 kHz): 0.5 s plus a 128-sample margin
+                                       * (the second core's lag, 256 frames at most; the pool's budget) */
 #define FX_RV_LEN 32768               /* int16 samples: the reverb's lines (the plate uses 11.4 k of them; an SPU mode at
                                        * x4 up to 32766: the chaos echo's and the delay's 1FFFh x 4) */
 typedef struct fxslot fxslot_t;

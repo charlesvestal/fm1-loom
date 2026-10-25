@@ -160,7 +160,7 @@ static void cc_out(int st, int d1, int d2)   /* a channel message out over USB (
 {
     cc_out_last = (uint32_t)st << 16 | (uint32_t)d1 << 8 | (uint32_t)d2;
     cc_out_n++;
-    plat_midi_out((uint32_t)st >> 4 | (uint32_t)st << 8 | (uint32_t)d1 << 16 | (uint32_t)d2 << 24);
+    plat_midi_send((uint32_t)st >> 4 | (uint32_t)st << 8 | (uint32_t)d1 << 16 | (uint32_t)d2 << 24, TO_USB | TO_BLE);
 }
 static void cc_send(int st, int d1, int d2)  /* a CC out, with CC OUT on (st: 0xB0 | channel) */
 {

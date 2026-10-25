@@ -616,7 +616,8 @@ static void s_punch(void *x, uint32_t drum_mask, uint32_t mel_mask)
 static void host_midi_out(uint32_t pkt);                  /* (host.c: the simulator's log of it not counted as work) */
 #define ENG_MIDI_OUT host_midi_out
 #else
-#define ENG_MIDI_OUT plat_midi_out
+static void eng_midi_out(uint32_t pkt) { plat_midi_send(pkt, TO_USB | TO_BLE); }   /* USB and Bluetooth */
+#define ENG_MIDI_OUT eng_midi_out
 #endif
 static void s_midi(void *x, uint8_t st, uint8_t d1, uint8_t d2)
 {
@@ -795,11 +796,14 @@ static void drain(void)
 
 /* the mix of one stretch between two events: the percussion group, the melodic group, the two
  * sends; the second core's own; the drumlines' and the FX returns' scratch. In .bss, not the pool
- * (the pool is for the lines). 256 frames each: the most one render asks for. */
-static float perc_l[256], perc_r[256], mel_l[256], mel_r[256], s1[256], s2[256];
-static float c2_l[256], c2_r[256], c2_s1[256], c2_s2[256];
-static float tl[256], tr[256], ts1[256], ts2[256];
-static float mix_l[256], mix_r[256];
+ * (the pool is for the lines). STRETCH_MAX frames each: a block's stretches are cut to it (ble-spike: 128, not
+ * the block's 256, for the RAM Bluetooth takes); mix_l / mix_r are the whole block's. */
+#define STRETCH_MAX 128u
+static float perc_l[STRETCH_MAX] POOL, perc_r[STRETCH_MAX] POOL, mel_l[STRETCH_MAX] POOL, mel_r[STRETCH_MAX] POOL;
+static float s1[STRETCH_MAX] POOL, s2[STRETCH_MAX] POOL;
+static float c2_l[STRETCH_MAX] POOL, c2_r[STRETCH_MAX] POOL, c2_s1[STRETCH_MAX] POOL, c2_s2[STRETCH_MAX] POOL;
+static float tl[STRETCH_MAX] POOL, tr[STRETCH_MAX] POOL, ts1[STRETCH_MAX] POOL, ts2[STRETCH_MAX] POOL;
+static float mix_l[256] POOL, mix_r[256] POOL;
 
 __attribute__((noinline)) static void zerof(float *b, uint32_t n)
 {
@@ -1276,6 +1280,8 @@ void engine_render(int32_t *out_lr, uint32_t n, uint32_t gain_q12)
         uint32_t k = seq_until_event(&seq, n - done);
         if (k > n - done)
             k = n - done;
+        if (k > STRETCH_MAX)
+            k = STRETCH_MAX;
         if (!k)
             k = 1;
         mst_finish();                                     /* (the last stretch's master: done before this one renders

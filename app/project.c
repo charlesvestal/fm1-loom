@@ -22,8 +22,8 @@
 #include "dsp/drumline.h"
 #include "lz.c"
 
-settings_t proj;
-uint8_t proj_par[NALLTRK][NTP];
+settings_t proj PLAT_POOL;
+uint8_t proj_par[NALLTRK][NTP] PLAT_POOL;
 patterns_t pats PLAT_POOL;
 user_preset_t user_presets[NUSER_PRESETS];
 char user_kit_name[NUSER_KITS][NAME_LEN];
@@ -402,7 +402,7 @@ static void patterns_clamp(void)
 
 /* ---- objects -------------------------------------------------------------------------------- */
 
-static uint8_t io_buf[PLAT_STORE_MAX] __attribute__((aligned(4)));
+static uint8_t io_buf[PLAT_STORE_MAX] PLAT_POOL __attribute__((aligned(4)));
 
 /* what each object last held on the flash (a hash of its payload), so a save writes only the
  * objects that changed: a save of a tweaked pattern usually erases one or two sectors, not seven */

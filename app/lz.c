@@ -14,6 +14,7 @@
  * a byte at a time from a source and writes into place. No allocation; inputs up to 16 MB (a match
  * reaches at most 64 KB back: the distance is a u16; a farther candidate is passed over). */
 #include <stdint.h>
+#include "plat.h"
 
 #define LZ_MIN 3u
 #define LZ_MAXLEN (0x7Fu + LZ_MIN)
@@ -32,7 +33,18 @@ typedef struct {
     void *ctx;
 } lz_src_t;
 
-static uint16_t lz_head[1u << LZ_HBITS];   /* a position's low 16 bits: a match reaches 64 KB back at most */
+/* a position's low 16 bits: a match reaches 64 KB back at most. On the FM-1 in the screen's canvas (gfx.c cv_px,
+ * 57 KB), which nothing reads between frames: every page fills it (cv_begin) before it sends it, and the
+ * compressor runs in the main loop, never in a page's drawing, after the last transfer (lcd_sync). 4 KB of the
+ * pool for Bluetooth's (ble-spike) */
+#ifdef PLAT_HOST
+static uint16_t lz_head[1u << LZ_HBITS];
+#define lz_head_ready()
+#else
+_Static_assert(CV_MAX * sizeof cv_px[0] >= (1u << LZ_HBITS) * sizeof(uint16_t), "lz_head fits the canvas");
+#define lz_head ((uint16_t *)(void *)cv_px)
+#define lz_head_ready() lcd_sync()
+#endif
 
 static uint32_t lz_cand(uint32_t i, uint32_t h)   /* the last position of hash h before i, LZ_NONE none (a stale one
                                                    * is only a poorer candidate: lz_match_len compares the bytes) */
@@ -75,6 +87,7 @@ static int lz_compress(const uint8_t *in, uint32_t n, lz_sink_t *o)
     uint32_t i = 0, lit = 0, k;
     if (n >= 0x1000000u)
         return -1;
+    lz_head_ready();                          /* (the canvas: the screen's last transfer done) */
     for (k = 0; k < (1u << LZ_HBITS); k++)
         lz_head[k] = 0xFFFFu;                 /* (before 64 KB: none; after, a candidate the bytes check) */
     while (i < n) {
