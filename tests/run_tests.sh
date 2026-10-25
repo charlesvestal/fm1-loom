@@ -37,7 +37,7 @@ run sample-bank sh -c "'$PY' tools/loom_samples.py build build/gen/user_bank.bin
     'piano two=build/gen/wav/piano.wav:60%16k' 'sweep two=build/gen/wav/sweep.wav:57'"
 run bank-tool "$PY" tests/host/bank_test.py
 # the units' own tests, written beside them (their WAVs in build/host/)
-for t in synth braids drumline fx seq factory; do
+for t in synth braids drumline fx seq factory lookahead; do
     run "$t" sh "tests/host/${t}_test.sh"
 done
 if command -v node >/dev/null 2>&1; then           # the samples page's bank against loom_samples.py's

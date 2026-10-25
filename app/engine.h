@@ -14,7 +14,12 @@
 #include "dsp/drumline.h"
 #include "dsp/fx.h"
 
-extern seq_t seq;                      /* the sequencer (its pattern pointer is the project's) */
+extern seq_t seq;
+#ifdef PLAT_HOST
+void engine_lookahead(int on);                   /* the look-ahead on (the default) or off: LOOM_LOOKAHEAD=0 */
+uint32_t engine_lookahead_most(void);            /* the most calls a block queued */
+uint32_t engine_lookahead_lost(void);            /* calls that found the queue full */
+#endif                      /* the sequencer (its pattern pointer is the project's) */
 /* the profiler's stages (samples.c SB_PROF, tools/perf_read.py), in plat_cycles() units: the sequencer and the queue,
  * the synth's voices on the first core and the second core's job (timed where it ran), the drum tracks, FX I, FX II
  * (with the returns), the master, the first core waiting for the second, a stretch's set-up (the buffers, the
