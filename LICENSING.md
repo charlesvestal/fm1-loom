@@ -59,9 +59,13 @@ endorsed by or derived from teenage engineering; the name is only used descripti
   [9W9](https://github.com/athousanddetails/schwung-9W9), a TR-909 model by athousanddetails (its circuit models),
   cut by `tools/prep_909.py`. 9W9 is GPL-3.0; the renders, and the plate reverb above, are in LOOM-8 under MPL-2.0
   with his permission, on the condition that they are credited to athousanddetails: athousanddetails, asked whether the plate reverb's code and the samples could be used in this firmware relicensed under MPL-2.0, answered (Discord, 2026-10-25): "Yeah, as long as it's stated it's athousanddetails on it, yes".
-- The factory closed hat (`app/samples/hat.wav`) is LOOM-8's own, made by `tools/make_hat.py`. (0.5 to 0.7 had
-  9W9's hat in its place, a sample 9W9 takes from [ER-99](https://github.com/matthewcieplak/er-99), GPL-3.0, by
-  Matthew Cieplak: not athousanddetails's to relicense, so it was replaced.)
+- The factory closed hat (`app/samples/909_hat.wav`) is 9W9's hat, a sample 9W9 takes from
+  [ER-99](https://github.com/matthewcieplak/er-99) by Matthew Cieplak, cut by `tools/prep_909.py`. It stays under
+  **GPL-3.0** (ER-99's and 9W9's licence; not athousanddetails's to relicense). It is not part of the firmware: on
+  the FM-1 it lives in the sample bank, a separate file the installer or the samples page writes beside the
+  firmware (`samples/factory.bin` on the site), aggregated with it, not linked into it; the firmware image has no
+  copy (its factory rows are empty there). The browser emulator builds it in; the emulator links nothing of
+  JieLi's, and its MPL-2.0 parts may be combined with GPL-3.0 (MPL-2.0 section 3.3).
 - The recorded instruments (`app/samples/piano.wav`, `upright.wav`, `strings.wav`, `brass.wav`, `flute.wav`,
   `orch_hit.wav`) are cut from the Versilian Studios Chamber Orchestra 2 Community Edition (VSCO 2 CE,
   github.com/sgossner/VSCO-2-CE), CC0 1.0, by `tools/prep_recordings.py`.
