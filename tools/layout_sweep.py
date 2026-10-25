@@ -17,7 +17,7 @@ def visit(btns, pages=6):
             L.extend(["turn SELECT 1", "wait 40"])
 
 
-for e in range(9):                                   # each engine on T2, a note played (the pages' live parts)
+for e in range(10):                                   # each engine on T2, a note played (the pages' live parts)
     L += [f"knob 2 engine {e}", "wait 60"]
     visit(["EDIT", "ENV", "FX", "LFO", "ARP"])
     L += ["tapkey w4", "wait 100"]

@@ -79,6 +79,12 @@ static void cc_kit_send(int t, int which, int v)   /* every sound's send moved b
 static void cc_track(int t, int cc, int v)
 {
     int kit = is_drum(t);
+    if (proj.trk[t].par[TP_ENGINE] == EG_MIDI) {  /* a MIDI track: no sound to set (its knobs' CC numbers sit where an
+                                                   * envelope would): only its mute */
+        if (cc == 9)
+            cc_mute(t, v >= 64);
+        return;
+    }
     if (kit && cc >= CC_KMUTE && cc < CC_KMUTE + DL_NSOUND) {
         cc_kmute(t, cc - CC_KMUTE, v >= 64);
         return;
@@ -175,8 +181,8 @@ static int cc_of(int t, int p)                /* the CC a track's parameter has,
                 return CC_FX[i].cc;
         return -1;
     }
-    if (t >= NTRK)
-        return -1;
+    if (t >= NTRK || proj.trk[t].par[TP_ENGINE] == EG_MIDI)
+        return -1;                               /* (a MIDI track's knobs send their own CCs: engine.c midi_knob_cc) */
     if (is_drum(t) && tp_is_dkey(p)) {          /* (a key's knob 5..8: no CC) */
         int k = (p - TP_DRUM0) / DP_N, q = (p - TP_DRUM0) % DP_N;
         return q == DP_PAN ? CC_KPAN + k : q == DP_VOLUME ? CC_KLEVEL + k : -1;

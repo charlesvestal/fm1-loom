@@ -164,7 +164,7 @@ uninstalls the way every fm1-base firmware does, and the installer can put M-VAV
 
 <h2>What's in it</h2>
 <ul class="feat">
-  <li><b>Eight tracks</b>, each with eight patterns of up to 64 steps: knit (the everyday subtractive voice, with a supersaw unison), rayon (two-operator FM), jacquard (wavetables), bellows (an organ), and cane and voile (physical models and voices from Mutable Instruments Braids) synths; sample and slice, which play the sample bank and chop breaks; or the kit, eleven drum voices on the black keys. 85 factory presets, and 16 of your own.</li>
+  <li><b>Eight tracks</b>, each with eight patterns of up to 64 steps: knit (the everyday subtractive voice, with a supersaw unison), rayon (two-operator FM), jacquard (wavetables), bellows (an organ), and cane and voile (physical models and voices from Mutable Instruments Braids) synths; sample and slice, which play the sample bank and chop breaks; the kit, eleven drum voices on the black keys; or midi, which plays another synth over USB or Bluetooth, eight knobs sending its CCs. 85 factory presets, and 16 of your own.</li>
   <li><b>Tricks</b> on any step: pulse, hold, multiply, ramps, bends, jumps, skips and more; <b>locks</b> for any knob on any step.</li>
   <li><b>Weave</b> a pattern with a copied one: bars or steps in turn, or one's rhythm playing the other's notes.</li>
   <li><b>Players</b>: arp, strum (one key plays a recorded chord) and hold.</li>

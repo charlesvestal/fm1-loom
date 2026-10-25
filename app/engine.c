@@ -416,11 +416,17 @@ static void aux_changed(int trk, int param)
             fx_set(FXS(trk - AUX_FX1), fx_type[trk - AUX_FX1], p + TP_E1);
     }
 }
+static void midi_knob_cc(int trk, int param, int val);
+static void midi_cc_forget(int trk);
 static void apply_param(int trk, int param, int val)       /* ISR: C_PARAM */
 {
     int locked = (lock_on[trk][param >> 3] >> (param & 7)) & 1;
     if (!locked)
         epar[trk][param] = (uint8_t)val;
+    if (trk < NTRK && epar[trk][TP_ENGINE] == EG_MIDI && synth_lock_value(SY, trk, param) < 0)
+        midi_knob_cc(trk, param, val);                      /* (a MIDI track's knob: its CC, unless a lock holds it) */
+    if (trk < NTRK && (param == TP_ENGINE || (epar[trk][TP_ENGINE] == EG_MIDI && midi_cc_of(param) >= 0)))
+        midi_cc_forget(trk);                                /* (a new engine, a knob's new CC: its next move goes out) */
     if (trk < NTRK && param == TP_ENGINE) {
         int drum = val == EG_DRUMLINE;
         if (drum != eng_drum[trk]) {                        /* the track changes kind: silence, then a fresh unit */
@@ -449,6 +455,8 @@ static void apply_all(int trk)                             /* ISR: C_ALL (a load
         lock_on[trk][p >> 3] = 0;                          /* fresh values: no lock survives */
     for (p = 0; p < NTP; p++)
         epar[trk][p] = ppar[trk][p];
+    if (trk < NTRK)
+        midi_cc_forget(trk);
     if (trk < NTRK) {
         int drum = ppar[trk][TP_ENGINE] == EG_DRUMLINE;
         synth_all_off(SY, trk);
@@ -569,6 +577,8 @@ static void s_lock(void *x, int trk, int param, int val)
         return;
     if (trk < NTRK && !eng_drum[trk]) {
         synth_lock(SY, trk, param, val);               /* the synth reads the project's par: it overlays itself */
+        if (epar[trk][TP_ENGINE] == EG_MIDI)           /* a MIDI track's knob: the lock's value out, or its own again */
+            midi_knob_cc(trk, param, val == LOCK_NONE ? epar[trk][param] : val);
         PROF_ADD(PR_NOTE, pn);
         return;
     }
@@ -622,6 +632,24 @@ static void host_midi_out(uint32_t pkt);                  /* (host.c: the simula
 static void eng_midi_out(uint32_t pkt) { plat_midi_send(pkt, TO_USB | TO_BLE); }   /* USB and Bluetooth */
 #define ENG_MIDI_OUT eng_midi_out
 #endif
+/* a MIDI track's knob (synth.h EG_MIDI) moved: its CC on the track's channel, if not the value it sent last */
+static uint8_t midi_cc_sent[NTRK][8];                    /* the value each knob sent last, 0x80 + : none yet */
+static void midi_knob_cc(int trk, int param, int val)
+{
+    int k = midi_knob(param);
+    if (k < 0)
+        return;
+    if (midi_cc_sent[trk][k] == (uint8_t)(val > 127 ? 127 : val))
+        return;
+    midi_cc_sent[trk][k] = (uint8_t)(val > 127 ? 127 : val);
+    ENG_MIDI_OUT(0x0Bu | (uint32_t)(0xB0 | trk) << 8 | (uint32_t)(epar[trk][midi_cc_par(k)] % NMIDI_CC) << 16 |
+                 (uint32_t)midi_cc_sent[trk][k] << 24);
+}
+static void midi_cc_forget(int trk)                      /* (a load, an engine change: the next move always goes out) */
+{
+    for (int k = 0; k < 8; k++)
+        midi_cc_sent[trk][k] = 0xFF;
+}
 static void s_midi(void *x, uint8_t st, uint8_t d1, uint8_t d2)
 {
     uint32_t cin = st >= 0xF0 ? 0x0Fu : (uint32_t)(st >> 4);
@@ -1622,6 +1650,7 @@ void engine_init(patterns_t *P, uint8_t (*par)[NTP])
             trk_glide[t][k].tgt = 0.0f;
         }
         bend_c[t] = 0;
+        midi_cc_forget(t);
     }
     for (k = 0; k < 2; k++)
         ret_glide[k][0].cur = ret_glide[k][1].cur = -1.0f;

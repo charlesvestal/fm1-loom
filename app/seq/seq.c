@@ -394,12 +394,13 @@ static int groove_vel(seq_t *s, int t, int p, int vel)
 }
 
 /* ------------------------------------------------------------ MIDI notes --- */
-/* a note on out on the track's channel, with MIDI OUT on (NOTES and the track's), unless a key from MIDI in (or its
- * player) is playing it: s->quiet */
+/* a note on out on the track's channel, with MIDI OUT on (NOTES and the track's; a MIDI track's always: its notes
+ * sound nowhere else), unless a key from MIDI in (or its player) is playing it: s->quiet */
 static void midi_on(seq_t *s, int t, int note, int vel, const seq_sink_t *o)
 {
     uint32_t *w, b = 1u << (note & 31);
-    if (t >= NTRK || !s->send_notes || !s->par[t][TP_CHAN] || s->quiet)
+    if (t >= NTRK || s->quiet ||
+        (s->par[t][TP_ENGINE] != EG_MIDI && (!s->send_notes || !s->par[t][TP_CHAN])))
         return;
     for (int i = 0; i < SEQ_PENDING; i++) {      /* the same note's off pending: it no longer ends the new one */
         seq_off_t *e = &s->t[t].off[i];
