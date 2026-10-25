@@ -1,14 +1,14 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: MPL-2.0 */
 /* LOOM-8 drumline (drumline.h): the kit engine's eleven drum models on NDVOICE voices, each key through
  * its own envelope and filter.
  *
  * Ten models are analytic: a few oscillators, a noise source and a filter or two, shaped by exponential
  * envelopes (env *= k a sample): no tables, so they cost nothing in flash and a voice stays well under 80
  * instructions a sample. The eleventh, sample, plays a sample of the bank (dsp/sample.h: IMA ADPCM read in
- * place, a block of 65 decoded into the voice's cache at a time). The kick, snare, hat, clap, conga and tom descend
- * from X0X's 909 / 808 ports (drum909.c, drum808.c): the kick's pitch drop and click, the snare's two
- * detuned sines over band-passed noise, the hat's six square waves through high-passes, the clap's
- * four bursts; the shaker, tambourine, string (Karplus-Strong) and fm are our own.
+ * place, a block of 65 decoded into the voice's cache at a time). The kick, snare, hat, clap, conga and tom are
+ * simple models after the analogue instruments: the kick's pitch drop and click, the snare's two detuned sines
+ * over band-passed noise, the hat's six square waves (at the 808's published oscillator frequencies) through
+ * high-passes, the clap's four bursts; the shaker, tambourine, string (Karplus-Strong) and fm the same.
  *
  * Each key of the kit is a model instance: par[TP_DRUM(key, DP_MODEL)] picks the model, DP_K1..K4
  * are the model's own four knobs (drumline.h DM_KNOB, read at the hit), DP_RANDOM varies those four

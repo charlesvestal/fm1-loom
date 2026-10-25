@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: MPL-2.0
 // app/web/samples/loom_samples.js against tools/loom_samples.py (and sampleio.py): the samples page builds the bank
 // the command line builds.
 //   1. the same int16 samples -> the same bank image, byte for byte (layout, the update record's marks, header, CRC)

@@ -1,5 +1,5 @@
 #!/bin/sh
-# SPDX-License-Identifier: GPL-3.0-only
+# SPDX-License-Identifier: MPL-2.0
 # Renders of the reverb's modes, for listening: build/fx_renders/*.wav and index.txt
 # (tests/host/fx_render.c; nothing is played).
 #   tools/fx_renders.sh

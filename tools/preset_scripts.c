@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: MPL-2.0 */
 /* The factory presets for tools/render_presets.sh: for each preset a script for app/build/host/loom_host that
  * loads it onto track 2 of a new project (the default FX I delay and FX II reverb) and plays a short phrase: three notes, then a four-note chord held, then its
  * tail; basses an octave down. And the same phrase through the voices alone (dsp/synth.c, dry, the

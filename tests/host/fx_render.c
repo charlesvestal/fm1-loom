@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: MPL-2.0 */
 /* Renders for listening (nothing here plays audio): every reverb mode (the plate, the PlayStation's SPU modes) on a short dry phrase, as
  * 16-bit stereo WAVs in build/fx_renders/, with an index (index.txt) of what each file is.
  *   tools/fx_renders.sh */

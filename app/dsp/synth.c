@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: MPL-2.0 */
 /* LOOM-8 voices: sixteen voices playing fourteen engines (synth.h), each with two ADSRs, a filter (six
  * types), a character stage (five types: drive, fold, crush, ring, tilt), a steal fade and sends; per track an LFO, a mono stack, parameter locks and
  * performance offsets.

@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: GPL-3.0-only
+# SPDX-License-Identifier: MPL-2.0
 """rayon's presets (2026-10-19): two-operator FM the DX's way. knobs: bright (the index; velocity sets how much of it a
 note gets), ratio (ratio(): the modulator's), edge (feedback), tine (a 14:1 partial dying in ~0.25 s, by velocity).
 x = (fall, floor, keyscale, -): the index falling from the note's start (0 held; 20 ms .. 4 s), what remains, and

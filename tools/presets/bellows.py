@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: GPL-3.0-only
+# SPDX-License-Identifier: MPL-2.0
 """bellows' presets (2026-10-19): the organ, six drawbars as rotating sines. knobs, each 1..8: stops (1 transistor,
 2 combo, 3 jazz, 4 gospel, 5 rock, 6 theatre, 7 pipe, 8 church), pedal (the 16' bar: 1 none), rotor (its depth:
 1 none), rate (0.5 .. 8 Hz). The amp envelope makes the percussive ones (an organ bass, a stab)."""

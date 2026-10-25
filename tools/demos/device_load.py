@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# SPDX-License-Identifier: GPL-3.0-only
+# SPDX-License-Identifier: MPL-2.0
 """The six demo songs played on an attached FM-1, their audio load read from the Debug page while they play.
 
   tools/demos/device_load.py --devtest PKG [--normal PKG] [--groups A,B] [--no-flash] [--no-keep] [--every S]

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# SPDX-License-Identifier: GPL-3.0-only
+# SPDX-License-Identifier: MPL-2.0
 """A listening check by numbers for the demo mixdowns:
   tools/demos/analyze.py WAV ...                 the numbers
   tools/demos/analyze.py --master IN.wav OUT.wav  the simulator's output made a mixdown: +6 dB (the FM-1's codec

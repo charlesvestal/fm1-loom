@@ -5,9 +5,9 @@
 #pragma once
 #include <stdint.h>
 #include <time.h>
-#ifdef __APPLE__
-#include <libproc.h>
-#include <unistd.h>
+#if defined(__APPLE__)
+#include <unistd.h>       /* getpid */
+#include <libproc.h>      /* proc_pid_rusage */
 #endif
 
 static inline uint64_t instr_now(void)

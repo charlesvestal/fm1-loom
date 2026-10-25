@@ -1,5 +1,5 @@
 #!/bin/sh
-# SPDX-License-Identifier: GPL-3.0-only
+# SPDX-License-Identifier: MPL-2.0
 # Measure LOOM-8's audio load on an attached FM-1, as the Status page reads it (GLO, SELECT to Status; the screen
 # reader says "audio load N percent, voices N[ of M][, saws N], peak N percent, guard trips N, dropouts N"),
 # driving the FM-1 over USB-MIDI with fm1-base's tools/fm1_remote.py (its remote control and the screen reader's

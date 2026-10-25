@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# SPDX-License-Identifier: GPL-3.0-only
+# SPDX-License-Identifier: MPL-2.0
 """Render docs/MANUAL.md as one HTML page (the site's manual, and a page to read beside the FM-1).
 
   tools/make_manual.py docs/MANUAL.md OUT.html [--fragment]

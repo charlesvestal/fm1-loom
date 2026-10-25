@@ -1,5 +1,5 @@
 #!/bin/sh
-# SPDX-License-Identifier: GPL-3.0-only
+# SPDX-License-Identifier: MPL-2.0
 # The manual's screenshots: tools/manual_screens.xy run in the host simulator (the whole app on the computer),
 # each shot saved at twice its size (nearest neighbour, so the pixels stay sharp) as docs/img/screen-NAME.png.
 #   tools/gen_screens.sh

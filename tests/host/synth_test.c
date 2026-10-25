@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: MPL-2.0 */
 /* The voices (dsp/synth.c) on their own: the parameter tables and their texts (the engines' plain
  * defaults, "2:1", "809Hz", the organ's eight models, the nine tables, the LFO's knobs per type, the
  * names of the filters, the LFO types and the arp); every engine and preset renders a note that stays

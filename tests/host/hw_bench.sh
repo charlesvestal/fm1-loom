@@ -1,5 +1,5 @@
 #!/bin/sh
-# SPDX-License-Identifier: GPL-3.0-only
+# SPDX-License-Identifier: MPL-2.0
 # The hardware profiler's kernels on the host (tests/host/hw_bench.c): a line each, name, ns and instructions a sample.
 #   tests/host/hw_bench.sh
 set -eu

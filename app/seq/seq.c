@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: MPL-2.0 */
 /* LOOM-8 sequencer; see seq.h for the model.
  *
  * Time. Every timer is a count of samples left in Q8 (a 24.8 fixed point: the fraction keeps the

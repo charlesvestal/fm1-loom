@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: MPL-2.0
 // The installer's steps for LOOM-8 (app/web/install_app.js on app/web/samples/loom_samples.js, assembled as
 // tools/make_pages.py assembles them for fm1-base's web/installer.html APP) against a simulated FM-1 on a Web MIDI
 // shaped port, speaking app/samples.c's commands (PING 25, SINFO 15, READ 17, BEGIN 11, WRITE 12, HDR 16, END 13):

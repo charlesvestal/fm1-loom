@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# SPDX-License-Identifier: GPL-3.0-only
+# SPDX-License-Identifier: MPL-2.0
 """The presets' dry phrases (tools/render_presets.sh writes OUTDIR/dry/*.wav through tools/preset_scripts.c:
 the voices alone, no FX, no master) measured for how they differ: per preset the peak and RMS (dBFS), the
 spectral centroid (Hz, energy-weighted over the frames that sound) and a noisiness (the spectral flatness,

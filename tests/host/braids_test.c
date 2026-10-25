@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: MPL-2.0 */
 /* The Braids engines (dsp/braids.h: cane, voile, after Mutable Instruments Braids, MIT) on their own:
  * every model bounded and finite at its knobs' corners and across the notes; each model sounds (and the knobs
  * change it); the waveguides and the oscillators in tune (the measured pitch against the note's); the models'

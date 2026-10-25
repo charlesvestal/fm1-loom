@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
-# SPDX-License-Identifier: GPL-3.0-only
-# Adapted from X0X's tools/fm1_sample_upload.py, Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton
-# Instruments (Felucca's sample upload).
+# SPDX-License-Identifier: MPL-2.0
+# Copyright (C) 2026 Charles Vestal
 """LOOM-8's user sample bank: WAV files into the FM-1's flash over USB-MIDI, beside the factory samples.
 
   loom_samples.py info                          what the bank holds now

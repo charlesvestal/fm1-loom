@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: GPL-3.0-only
+# SPDX-License-Identifier: MPL-2.0
 """jacquard's presets (2026-10-19): the digital voice, a frame of a table scanned. knobs: table (0 shapes, 1 nasal,
 2 grit, 3 vocal, 4 spiral, 5 fold, 6 octaves, 7 glass, 8 chirp), scan (the frame), bend (the phase bent), ripple
 (the phase modulated by a second oscillator, slow wobble up to the note's rate). The tables are bright (40

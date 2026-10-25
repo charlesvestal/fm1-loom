@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: GPL-3.0-only
+# SPDX-License-Identifier: MPL-2.0
 """knit's presets, the first set (2026-10-19): the everyday subtractive voice. wave 0 saw, 64 square, 127 a narrow
 pulse; detune (one voice: a drift); voices 1..7; width. x = (osc 2 interval, 64 unison; its level; sub; noise).
 The rules (docs/superpowers/specs/2026-10-19-sound-redesign.md): no resonant peak parked in 2-5 kHz unless it moves,

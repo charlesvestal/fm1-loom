@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: MPL-2.0 */
 /* LOOM-8's hardware profiler (a dev build only: XY_BENCH=1 ./build.sh; tools/hw_bench.py): small kernels, the
  * building blocks of a voice or an effect (oscillators, filters, curves, delay lines, a reverb), each run over a
  * block of samples on the FM-1 and on the host, so a new engine or effect can be costed from its parts before it

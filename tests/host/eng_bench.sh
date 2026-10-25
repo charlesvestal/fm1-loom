@@ -1,5 +1,5 @@
 #!/bin/sh
-# SPDX-License-Identifier: GPL-3.0-only
+# SPDX-License-Identifier: MPL-2.0
 # An engine's cost on the host, a preset at a time (tests/host/eng_bench.c): the full voice path and the engine alone.
 #   tests/host/eng_bench.sh [engine ...]      (default: knit rayon jacquard)
 set -eu

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: MPL-2.0
 // LOOM-8's steps around an install (fm1-base's web/installer.html APP): since 0.8 LOOM-8's own sounds (the kits'
 // drums, the instruments, the sweep, the vinyl) live in the user sample bank, marked as the factory set's, after the
 // user's samples. Before writing: the bank read from the LOOM-8 running (if one is), and whether the factory set fits

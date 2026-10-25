@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: MPL-2.0 */
 /* A small LZ77 for the project's patterns, song and motion (project.c), which are mostly empty
  * steps and repeats: 64 steps x 88 patterns plus the lanes are ~75 KB raw and a few KB packed.
  *

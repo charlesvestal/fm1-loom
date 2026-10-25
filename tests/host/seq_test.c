@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: MPL-2.0 */
 /* LOOM-8 sequencer tests: a recording sink logs every event with its sample time; each test builds a
  * pattern, runs the sequencer the way the engine does (seq_until_event / seq_advance) and checks the
  * log. Prints "ok name" per test; exits 1 on the first failure. */

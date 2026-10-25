@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: GPL-3.0-only
+# SPDX-License-Identifier: MPL-2.0
 """LOOM-8's factory presets as recipes: each file in tools/presets/ calls P() once a preset; tools/gen_presets.py
 turns them into app/build/gen/presets.h (the PRESETS table synth.c includes). A preset is a track's sound
 (synth.h par[0..TP_PLAYER)): every value 0..127 as the FM-1's knob holds it, the switches by name.

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# SPDX-License-Identifier: GPL-3.0-only
+# SPDX-License-Identifier: MPL-2.0
 """tests/fixtures/presets_v8.bkp: a backup (fm1-base's backup format, as the simulator's sim_backup writes it) whose
 only object is a presets object of PRESETS_FORMAT 8 as breaks-out's development builds saved it (the user presets
 without osc 2's fine, then the four user kits): U1 a knit sound (osc 2 at 75, its level 90), K1 "oldkit" (keys 1

@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: MPL-2.0 */
 /* LOOM-8 drumline: the kit engine, a drum synth with eleven keys on the black keys, each a model
  * instance with the model's own four knobs, random, pan, volume and a play mode, its own envelope
  * (attack, hold, decay, lag) and its own filter (low-pass, high-pass or band-pass, cutoff, resonance,

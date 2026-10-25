@@ -1,8 +1,8 @@
-/* SPDX-License-Identifier: GPL-3.0-only
- * Sample-bank commands adapted from X0X's editor.c (itself Felucca's editor protocol), Copyright (C) 2026
- * Leo Kuroshita (@kurogedelic), Hugelton Instruments. */
+/* SPDX-License-Identifier: MPL-2.0
+ * Copyright (C) 2026 Charles Vestal */
 /* LOOM-8's user sample bank over USB-MIDI SysEx (tools/loom_samples.py): F0 7D 46 4C cmd args.. F7, the
- * Felucca editor's framing, 7-bit bytes, data packed 7 to 8 (a byte of high bits, then up to seven bytes).
+ * the framing X0X's and Felucca's editors also speak, 7-bit bytes, data packed 7 to 8 (a byte of high bits, then up
+ * to seven bytes).
  * One bank (slot 0), 216 KB over three flash windows (dsp/sample.h SMP_REG*); an offset is virtual, through the
  * windows end to end: a 2048-byte header (at 0xC1000), then the data.
  *   INFO        1                    -> "LOOM-8 <version>", 0 0 0 0 0 0

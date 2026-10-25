@@ -1,5 +1,5 @@
 #!/bin/sh
-# SPDX-License-Identifier: GPL-3.0-only
+# SPDX-License-Identifier: MPL-2.0
 # The look-ahead (engine.c: the sequencer a block ahead of the sound) against the sequencer live, in the host
 # simulator: tests/host/lookahead_rec.xy (keys recorded at every offset across the step boundaries, a knob recorded)
 # with it off and on, the projects saved: the same bytes; and the MIDI each sends: the same messages at the same

@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: MPL-2.0 */
 /* LOOM-8's pages: the state the input layer (ui.c) and the screen share, and the drawing. Part of the unity
  * build, after project.c and before ui.c; the host simulator includes it too. Polly's framework: a header
  * (the page, the tempo, REC, unsaved; messages and questions in an alert box), the main band (the page's

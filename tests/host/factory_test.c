@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: MPL-2.0 */
 /* The factory set in the user bank (0.8), as the FM-1 has it: sample.c built with SMP_FACT_MOVED (no factory samples
  * in the image), a bank of two user samples and the factory set after them (build/gen/factory_bank.bin:
  * tools/loom_samples.py build, its default). Each factory row plays its entry, the same bytes as the image's until

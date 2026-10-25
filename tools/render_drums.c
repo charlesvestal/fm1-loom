@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: MPL-2.0 */
 /* Listening renders for the kit's per-key envelopes and filters, the sample model and the sample engine
  * (tools/render_drums.sh): each a short phrase straight from the units (dsp/drumline.c, dsp/synth.c, dry: no
  * FX, no master), 16-bit stereo WAVs into OUTDIR, and OUTDIR/index.txt (name, what it is). Silent: nothing

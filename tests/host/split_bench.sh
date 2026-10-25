@@ -1,5 +1,5 @@
 #!/bin/sh
-# SPDX-License-Identifier: GPL-3.0-only
+# SPDX-License-Identifier: MPL-2.0
 # The two cores' split of the voice pool on the host (tests/host/split_bench.c): the critical path with
 # the old fixed split and with app/engine.c split_at's.
 set -eu

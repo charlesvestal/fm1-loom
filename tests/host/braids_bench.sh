@@ -1,5 +1,5 @@
 #!/bin/sh
-# SPDX-License-Identifier: GPL-3.0-only
+# SPDX-License-Identifier: MPL-2.0
 # The Braids engines' cost a sample and their sound against a saved reference (tests/host/braids_bench.c).
 #   tests/host/braids_bench.sh save     before a change: build/host/braids_bench.ref
 #   tests/host/braids_bench.sh          after it: the cost, and how far the sound moved

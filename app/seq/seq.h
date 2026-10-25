@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: MPL-2.0 */
 /* LOOM-8 sequencer: runs in the audio interrupt, sample accurate (X0X's shape):
  *
  *     while (n) {

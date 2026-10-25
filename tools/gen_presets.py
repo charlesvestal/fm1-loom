@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# SPDX-License-Identifier: GPL-3.0-only
+# SPDX-License-Identifier: MPL-2.0
 """LOOM-8's factory presets: the recipes in tools/presets/*.py (tools/presets/lib.py says how one is written) into
 the PRESETS table app/dsp/synth.c includes, each value by its parameter's name (synth.h TP_*), so a change of the
 layout cannot shift them. The presets go in the engines' order (synth.h EG_*: an engine's first is its sound in a

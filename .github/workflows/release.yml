@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: GPL-3.0-only
+# SPDX-License-Identifier: MPL-2.0
 # LOOM-8's release: built from source on GitHub by the shared FM-1 builder, its packages signed with build
 # provenance (BUILDING.md, Publishing a release). After X0X's (charlesvestal/fm1-x0x#25, by Kerem Kilic) and
 # Melodee's (keremimo/melodee 4f5fb6d).

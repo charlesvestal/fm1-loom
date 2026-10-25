@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# SPDX-License-Identifier: GPL-3.0-only
+# SPDX-License-Identifier: MPL-2.0
 """Build the unity build's main-loop code for size (fm1-base's tools/build.py runs it: app/fm1.toml ir_pass): the
 functions defined in SIZE_FILES (the UI, the pages, the drawing, the stores, the update, the backup, the screen
 reader) get LLVM's `minsize` (about -Oz) while the rest of fm1-base's device/unity.c (the audio and timer

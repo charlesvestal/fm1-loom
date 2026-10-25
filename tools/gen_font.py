@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
-# SPDX-License-Identifier: GPL-3.0-only
-# Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments
+# SPDX-License-Identifier: MPL-2.0
+# Copyright (C) 2026 Charles Vestal. The rendering of the faces (FONTSETS, upscale, render_bdf, render, the header) is
+# fm1-base's tools/gen_font.py, Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments, under MPL-2.0
+# as there (felucca-bsp#4)
 """LOOM-8's fonts as a C header (its own compact format: fm1-base's faces, in base/assets/fonts), the app's drawing's
 (app/gfx_loom.c; fm1-base's own screens keep fm1-base's fonts):
   tools/gen_font.py OUT.h        LFONT_XS .. LFONT_L, of type loom_font_t

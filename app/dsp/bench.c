@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: MPL-2.0 */
 /* LOOM-8's hardware profiler's kernels: see bench.h. Each kernel is the per-sample code of one building block, written
  * as synth.c and fx.c write theirs (the TPT state-variable filter, the PolyBLEP, soft3, int16 delay lines in the
  * pool), so its cost is what that block costs in a voice or an effect. The reverb is a Dattorro plate (Dattorro,

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: MPL-2.0
 // LOOM-8 in an AudioWorklet: app.wasm is the whole FM-1 app (fm1-base's web/emu/emu_web.c). Each render
 // quantum asks it for 128 frames, which runs the device's clock forward; between quanta the page's
 // input goes in and, about 30 times a second, the screen, the lights and any saved objects go out.

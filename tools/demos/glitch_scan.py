@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# SPDX-License-Identifier: GPL-3.0-only
+# SPDX-License-Identifier: MPL-2.0
 """Breaks in a recording of the FM-1 (its USB audio, tools/demos/device_load.py --record), and where they are.
 
   glitch_scan.py REC.wav [--block 256]

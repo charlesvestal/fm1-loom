@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# SPDX-License-Identifier: GPL-3.0-only
+# SPDX-License-Identifier: MPL-2.0
 """LOOM-8's profiler on an attached FM-1: where the audio render's time goes, stage by stage (app/samples.c SB_PROF,
 app/engine.h PR_*, app/dsp/synth.h synth_prof), as shares of the render's budget (the time its frames last).
 

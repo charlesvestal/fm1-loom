@@ -1,5 +1,5 @@
 #!/bin/sh
-# SPDX-License-Identifier: GPL-3.0-only
+# SPDX-License-Identifier: MPL-2.0
 # Build LOOM-8 with fm1-base (base/, a git submodule) (see BUILDING.md).
 #   ./build.sh [--demo | --release X.Y] [--host | --web]   (--demo: with screen mirroring, for demos)
 #   JIELI_TOOLCHAIN  JieLi Linux toolchain (default: ~/.jieli/toolchain)

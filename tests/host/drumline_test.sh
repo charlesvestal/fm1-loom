@@ -1,5 +1,5 @@
 #!/bin/sh
-# SPDX-License-Identifier: GPL-3.0-only
+# SPDX-License-Identifier: MPL-2.0
 # Build and run the drumline's host test (tests/host/drumline_test.c): WAVs in build/host/drum_*.wav
 # (each key, and drum_beat.wav).
 set -eu
