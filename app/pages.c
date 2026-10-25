@@ -3330,19 +3330,26 @@ static const uint8_t *par_now(int trk)
     }
     return now;
 }
-/* the MIDI engine: its eight knobs' values as bars, each with its CC; the page's four bright */
-static void pic_midi(int32_t x0, int32_t y0, const uint8_t *p, int second)
+/* the MIDI engine: a MIDI port in the middle, lit as a note goes out; its eight knobs' values as thin bars either
+ * side, four and four, each with its CC under it, the page's four bright */
+static void pic_midi(int32_t x0, int32_t y0, const uint8_t *p, int second, int hit)
 {
+    static const int8_t PIN[5][2] = {{-13, 0}, {-9, -9}, {0, -13}, {9, -9}, {13, 0}};   /* DIN-5, 180 degrees */
+    int32_t cx = 120, cy = y0 + 30;
     char t[8];
     for (int k = 0; k < 8; k++) {
-        int v = p[k < 4 ? TP_E1 + k : TP_X1 + k - 4], hb = 2 + v * 58 / 127;
-        int32_t x = x0 + k * 25;
-        uint16_t c = (k >= 4) == (second != 0) ? K_NOW : K_FAINT;
-        cv_round(x, y0, 18, 60, 3, K_LINE);
-        cv_round(x, y0 + 60 - hb, 18, hb, 3, c);
+        int v = p[k < 4 ? TP_E1 + k : TP_X1 + k - 4], hb = 1 + v * 55 / 127, on = (k >= 4) == (second != 0);
+        int32_t x = k < 4 ? x0 + k * 20 : 156 + (k - 4) * 20;
+        cv_round(x, y0, 4, 56, 2, K_LINE);
+        cv_round(x, y0 + 56 - hb, 4, hb, 2, on ? K_NOW : K_FAINT);
         num_s(p[midi_cc_par(k)] % NMIDI_CC, t);
-        text_c(x + 9, y0 + 64, &FONT_XS, t, (k >= 4) == (second != 0) ? K_TEXT : K_DIM);
+        text_c(x + 2, y0 + 62, &FONT_XS, t, on ? K_TEXT : K_DIM);
     }
+    cv_round(cx - 25, cy - 25, 50, 50, 25, hit > 40 ? K_NOW : K_LINE);
+    cv_round(cx - 21, cy - 21, 42, 42, 21, hit > 40 ? K_NOW : K_BG);
+    cv_round(cx - 3, cy + 18, 6, 5, 1, hit > 40 ? K_BG : K_LINE);   /* the key */
+    for (int i = 0; i < 5; i++)
+        cv_round(cx + PIN[i][0] - 2, cy + PIN[i][1] - 2, 5, 5, 2, hit > 40 ? K_BG : K_TEXT);
 }
 static void draw_engine(void)
 {
@@ -3355,7 +3362,12 @@ static void draw_engine(void)
     h = hash_u(h, (uint32_t)(pic_lvl * 32.0f));
     for (int i = 0; i < 4; i++)
         h = hash_u(h, p[TP_E1 + i]);
-    if (eg == EG_MIDI)                               /* (the second page's values, the eight CCs, which page) */
+    if (eg == EG_MIDI) {                             /* (the second page's values, the eight CCs, which page; a note
+                                                      * out: the port lit, easing out) */
+        eng_midi_hit[trk] = (uint8_t)(eng_midi_hit[trk] > 20 ? eng_midi_hit[trk] - 20 : 0);
+        h = hash_u(h, eng_midi_hit[trk] > 40);
+    }
+    if (eg == EG_MIDI)
         for (int k = 0; k < 8; k++)
             h = hash_u(h, (uint32_t)p[k < 4 ? TP_E1 + k : TP_X1 + k - 4] | (uint32_t)p[midi_cc_par(k)] << 8 |
                               (uint32_t)ui.page << 16);
@@ -3401,7 +3413,7 @@ static void draw_engine(void)
     case EG_CANE: pic_cane(20, 24, 200, 88, p, pic_f); break;
     case EG_VOILE: pic_voile(20, 24, 200, 88, p, pic_f); break;
     case EG_KNIT: pic_knit(20, 24, 200, 88, p, pic_f); break;
-    case EG_MIDI: pic_midi(24, 30, p, ui.page == P_SUB); break;
+    case EG_MIDI: pic_midi(24, 30, p, ui.page == P_SUB, eng_midi_hit[trk]); break;
     default: pic_drumline(10, 26, 220, 90, p, pic_f); break;
     }
     cv_blit(0, MAIN_Y);
