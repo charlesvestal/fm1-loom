@@ -145,6 +145,11 @@ static const char *const JUMP_MOVE[6] = {"forward", "back", "fwd/back", "stay", 
 static const char *const TS_NAME[NTS] = {"1/2", "1", "2", "3", "4", "5", "6", "8", "16"};
 static const uint8_t BAR_SCALE_KEY[9] = {TS_1, TS_2, TS_3, TS_4, TS_5, TS_6, TS_8, TS_16, TS_HALF};   /* Bar's black keys */
 static const char *const LIGHTS_NAME[3] = {"off", "on", "keys"};
+/* Setup's CLOCK: the knob's order (internal, receive, send) and the stored SEQ_CLK_* (0, 1 were off, on) */
+static const char *const CLOCK_NAME[SEQ_NCLK] = {"internal", "receive", "send"};
+static const uint8_t CLOCK_POS[SEQ_NCLK] = {0, 2, 1};                  /* SEQ_CLK_* -> the knob's position */
+static const uint8_t CLOCK_AT[SEQ_NCLK] = {SEQ_CLK_INTERNAL, SEQ_CLK_RECEIVE, SEQ_CLK_SEND};
+static const char *const CLOCK_ROW[SEQ_NCLK] = {"internal", "sends", "receives"};
 static const char *const METRO_NAME[3] = {"off", "rec", "on"};
 static const char *const ONOFF[2] = {"off", "on"};
 static const char *const LINK_NAME[9] = {"off", "T1", "T2", "T3", "T4", "T5", "T6", "T7", "T8"};
@@ -1397,7 +1402,7 @@ static void page_knobs(knob_t *k)
     }
     case P_SETUP:
         kname(&k[0], "LIGHTS", LIGHTS_NAME, proj.lights, 3);
-        kname(&k[1], "CLOCK", ONOFF, proj.send_clock != 0, 2);
+        kname(&k[1], "CLOCK", CLOCK_NAME, CLOCK_POS[proj.clock % SEQ_NCLK], SEQ_NCLK);
         kname(&k[2], "NOTES", ONOFF, proj.send_notes != 0, 2);
         kv(&k[3], "THEME", THEME_OF_PROJ()->name, 0, 0);
         break;
@@ -4446,14 +4451,14 @@ static void draw_glfo(void)
 static void draw_setup(void)
 {
     char t[24];
-    uint32_t h = hash_u(2166136261u, 0x5E700u | (uint32_t)proj_slot | (uint32_t)proj.usb_full << 4 | (uint32_t)seq.ext << 8 |
-                                          (uint32_t)proj.rsv[0] << 12 | (uint32_t)proj.send_clock << 16 | (uint32_t)proj.send_notes << 17 |
+    uint32_t h = hash_u(2166136261u + proj.clock, 0x5E700u | (uint32_t)proj_slot | (uint32_t)proj.usb_full << 4 | (uint32_t)seq.ext << 8 |
+                                          (uint32_t)proj.rsv[0] << 12 | (uint32_t)proj.send_notes << 17 |
                                           (uint32_t)proj.rsv[1] << 20 | (uint32_t)(proj.rsv[2] & AUTOSAVE_OFF) << 26);
     if (!begin_main(h))
         return;
     (void)t;
     setup_row(2, "tempo from", seq.ext ? "MIDI clock in" : "LOOM-8");
-    setup_row(18, "sends clock", proj.send_clock ? "yes" : "no");
+    setup_row(18, "clock", CLOCK_ROW[proj.clock % SEQ_NCLK]);
     setup_row(34, "sends notes", proj.send_notes ? "yes" : "no");
     setup_row(50, "USB audio", USBA_NAME[proj.usb_full & 1u]);
     setup_row(66, "autosave", proj.rsv[2] & AUTOSAVE_OFF ? "off: SAVE saves" : "on");

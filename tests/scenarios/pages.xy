@@ -132,6 +132,20 @@ turn SELECT 1
 expect page Setup
 wait 40
 shot setup.png
+# CLOCK: internal, receive (a new project's), send; the knob stops at either end
+expect clock 2
+turn K2 1
+expect clock 1
+turn K2 1
+expect clock 1
+turn K2 -1
+turn K2 -1
+expect clock 0
+turn K2 -1
+expect clock 0
+turn K2 1
+expect clock 2
+wait 40
 turn SELECT 1
 expect page Debug
 wait 40

@@ -28,7 +28,8 @@
  * octave, chop, ring) and hands the engine the masks for the rest (warble, pan).
  *
  * Clock: internal (BPM) or MIDI clock in (24 ppqn, seq_ext_clock); clock and transport out through
- * the sink. Everything the main loop changes is a flag or a byte, picked up at the next block. */
+ * the sink. SEQ_CLK_* (the project's byte: 0 and 1 were off and on): internal neither follows nor sends, send sends
+ * and ignores a clock in, receive follows one (its own tempo when none comes) and sends none. Everything the main loop changes is a flag or a byte, picked up at the next block. */
 #pragma once
 #include <stdint.h>
 #include "pattern.h"
@@ -36,6 +37,7 @@
 #define NTP_ALL NTP                   /* aux tracks use the same parameter array as the instrument tracks */
 
 #define SEQ_FS 44100u
+enum { SEQ_CLK_INTERNAL, SEQ_CLK_SEND, SEQ_CLK_RECEIVE, SEQ_NCLK };
 /* throws (punch-in FX): twelve, the same in both octaves. White keys 1..7 of an octave: mute, stutter (a
  * two-sixteenth loop), repeat (a four-sixteenth loop), echo (a fading loop), build, floor, jumble (fills); its
  * black keys 1..5: warble (a vibrato; on drums a high-pass too), pan (an auto-pan), octave (drums up, melodic
@@ -220,7 +222,7 @@ typedef struct {
     volatile uint8_t song_pos, song_rep;
     volatile uint8_t ppat[NSEQT];     /* each track's pattern (the scene's, or cued per track) */
     volatile uint16_t mute;           /* bit t */
-    volatile uint8_t ext, send_clock, send_notes;
+    volatile uint8_t ext, clock, send_notes;   /* clock: SEQ_CLK_* */
     volatile uint8_t metronome;       /* 0 off, 1 while recording, 2 on */
     volatile uint8_t rec;             /* live recording: the keys write steps */
     volatile uint8_t rec_wait;        /* seq_rec(2): the transport waits for the first key, which lands on step 1 */

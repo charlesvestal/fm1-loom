@@ -76,7 +76,7 @@ static void reset(void)
     for (t = 0; t < NTRK; t++)
         par[t][TP_ENGINE] = EG_KNIT;
     seq_init(&S, &P, par);
-    S.send_clock = 0;
+    S.clock = SEQ_CLK_INTERNAL;
     nev = 0;
     now = 0;
 }
@@ -2313,6 +2313,11 @@ static void t_ext_clock(void)
     int i;
     cur = "ext-clock";
     reset();
+    seq_ext_clock(&S);                /* internal (and send): a clock in is not followed */
+    seq_advance(&S, 64, &sink);
+    CHECK(S.ext == 0 && S.ext_pending == 0);
+    reset();
+    S.clock = SEQ_CLK_RECEIVE;
     note(0, 0, 60, 100);
     note(0, 1, 62, 100);
     seq_ext_clock(&S);
@@ -2327,6 +2332,12 @@ static void t_ext_clock(void)
     CHECK(seq_tempo(&S) > 95.0f && seq_tempo(&S) < 105.0f);
     run(SEQ_FS);                      /* the clock stops: internal again after half a second */
     CHECK(S.ext == 0 && count(E_STEP, 0) >= 3 && nth(E_STEP, 0, 2)->a == 2);
+    seq_ext_clock(&S);                /* following, then set to send: its own tempo at once */
+    seq_advance(&S, 64, &sink);
+    CHECK(S.ext == 1);
+    S.clock = SEQ_CLK_SEND;
+    seq_advance(&S, 64, &sink);
+    CHECK(S.ext == 0);
     printf("ok %s\n", cur);
 }
 
@@ -2335,7 +2346,7 @@ static void t_midi_out(void)
     int i, clocks = 0, starts = 0, ons = 0;
     cur = "midi-out";
     reset();
-    S.send_clock = 1;
+    S.clock = SEQ_CLK_SEND;
     S.send_notes = 1;
     par[2][TP_CHAN] = 1;              /* MIDI OUT on; the note goes out on the track's own channel (2 for T3) */
     note(2, 0, 60, 100);

@@ -898,6 +898,8 @@ static void midi_in(uint32_t pkt)
 {
     uint8_t st = (uint8_t)(pkt >> 8), d1 = (uint8_t)(pkt >> 16) & 0x7F, d2 = (uint8_t)(pkt >> 24) & 0x7F;
     uint8_t ch = st & 0x0F, ty = st & 0xF0;
+    if (st >= 0xF8 && seq.clock != SEQ_CLK_RECEIVE)   /* clock and transport only when Setup's CLOCK receives */
+        return;
     switch (st) {
     case 0xF8: seq_ext_clock(&seq); return;
     case 0xFA: seq_start(&seq, 1); return;

@@ -2302,7 +2302,7 @@ static void rec_go(seq_t *s, int t, int note, int vel, const seq_sink_t *o)
     s->step_tick = 0;
     origins_zero(s);
     rec_step1(s, t, note, vel, 0);
-    if (!s->ext && s->send_clock)
+    if (!s->ext && s->clock == SEQ_CLK_SEND)
         midi(o, 0xFA, 0, 0);
 }
 
@@ -2636,7 +2636,7 @@ static void do_start(seq_t *s, int from_top, const seq_sink_t *o)
             s->six_to_next = NEVER;
     } else {
         tracks_go(s);
-        if (!s->ext && s->send_clock)
+        if (!s->ext && s->clock == SEQ_CLK_SEND)
             midi(o, from_top ? 0xFA : 0xFB, 0, 0);
     }
 }
@@ -2670,7 +2670,7 @@ static void do_stop(seq_t *s, const seq_sink_t *o)
     punch_update(s, o);
     locks_release(s, o);
     s->six_to_next = NEVER;
-    if (!s->ext && s->send_clock)
+    if (!s->ext && s->clock == SEQ_CLK_SEND)
         midi(o, 0xFC, 0, 0);
 }
 
@@ -2735,7 +2735,7 @@ static void six_tick(seq_t *s, const seq_sink_t *o)
         s->bar_fresh = 1;
         s->step_tick = 0;
         origins_zero(s);
-        if (!s->ext && s->send_clock)
+        if (!s->ext && s->clock == SEQ_CLK_SEND)
             midi(o, 0xFA, 0, 0);
     }
     if (s->bar_six >= s->bar_len)
@@ -2819,7 +2819,7 @@ void seq_init(seq_t *s, patterns_t *P, uint8_t (*par)[NTP_ALL])
     s->par = par;
     s->bpm = 120.0f;
     s->ext_bpm = 120.0f;
-    s->send_clock = 1;
+    s->clock = SEQ_CLK_RECEIVE;
     s->cue = 0xFF;
     s->req_scene = 0xFF;
     s->rng = 0x2545F491u;
@@ -2918,7 +2918,8 @@ void seq_advance(seq_t *s, uint32_t k, const seq_sink_t *o)
     s->ext_since += k;
     if (s->ext_pending)
         s->ext = 1;
-    else if (s->ext && s->ext_since > SEQ_FS / 2u) {   /* the clock gone for 0.5 s: back to internal */
+    else if (s->ext && (s->ext_since > SEQ_FS / 2u || s->clock != SEQ_CLK_RECEIVE)) {   /* the clock gone for 0.5 s
+                                                                                          (or not followed): internal */
         s->ext = 0;
         if (s->playing && !s->rec_wait) {
             for (t = 0; t < NSEQT; t++)
@@ -2999,7 +3000,7 @@ void seq_advance(seq_t *s, uint32_t k, const seq_sink_t *o)
         if (s->rec_note[i])
             s->rec_age[i] += dq;
     dec(&s->six_to_next, dq);
-    if (!s->ext && s->send_clock)     /* the clock waits for a stretch's end (its byte leaves after the render anyway):
+    if (!s->ext && s->clock == SEQ_CLK_SEND)     /* the clock waits for a stretch's end (its byte leaves after the render anyway):
                                        * not clamped, so a late tick keeps its lateness and the next is on time */
         s->clk_to_next -= (int32_t)dq;
     /* fire what is due */
@@ -3073,7 +3074,7 @@ void seq_advance(seq_t *s, uint32_t k, const seq_sink_t *o)
             break;
     }
     SQ_ADD(6, qf);
-    if (s->playing && !s->ext && s->send_clock && s->clk_to_next < (int32_t)SEQ_DUE) {
+    if (s->playing && !s->ext && s->clock == SEQ_CLK_SEND && s->clk_to_next < (int32_t)SEQ_DUE) {
         midi(o, 0xF8, 0, 0);
         s->clk_to_next += (int32_t)(six_q8(s) / 6u);   /* 24 ppqn */
     }
@@ -3134,7 +3135,11 @@ void seq_start(seq_t *s, int from_start)
 }
 void seq_stop(seq_t *s) { s->req_stop = 1; }
 void seq_continue(seq_t *s) { s->req_cont = 1; }
-void seq_ext_clock(seq_t *s) { s->ext_pending++; }
+void seq_ext_clock(seq_t *s)
+{
+    if (s->clock == SEQ_CLK_RECEIVE)
+        s->ext_pending++;
+}
 
 void seq_cue_scene(seq_t *s, int scene, int at_end)
 {

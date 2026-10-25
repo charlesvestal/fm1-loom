@@ -224,7 +224,7 @@ void project_defaults(void)
     proj.groove = GR_SWING;                               /* the project's groove type; each track's amount is 0 */
     proj.metronome = 1;                                   /* while recording */
     proj.lights = 1;
-    proj.send_clock = 1;
+    proj.clock = SEQ_CLK_RECEIVE;                         /* follows a MIDI clock in (0.7: sent clock, followed one) */
     proj.send_notes = 1;                                  /* MIDI notes out (each track on its channel: below) */
     proj.one_core = 0;
     proj.usb_full = 0;
@@ -777,7 +777,7 @@ int project_save(int slot)
     proj_slot = (uint8_t)slot;
     slot_objects(slot);
     proj.tempo_x10 = (uint16_t)(seq_tempo(&seq) * 10.0f + 0.5f);
-    proj.send_clock = seq.send_clock;
+    proj.clock = seq.clock;
     proj.send_notes = seq.send_notes;
     proj.metronome = seq.metronome;
     proj.scene = seq.scene;
@@ -982,7 +982,7 @@ void project_apply(void)
     seq.bpm = (float)proj.tempo_x10 * 0.1f;               /* at once (a save right after reads it back) */
     engine_tempo(proj.tempo_x10);
     engine_groove(proj.groove);
-    seq.send_clock = proj.send_clock;
+    seq.clock = proj.clock < SEQ_NCLK ? proj.clock : SEQ_CLK_RECEIVE;
     seq.send_notes = proj.send_notes;
     seq.loop_free = (uint8_t)((proj.rsv[2] & 8u) != 0);   /* (pages.c LOOP_FREE: a loop throw let go drifts) */
     seq.metronome = proj.metronome;

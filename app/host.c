@@ -430,6 +430,8 @@ int app_expect(const char *what, int *got)
         *got = epar[t][p];
     } else if (!strcmp(what, "sendnotes"))            /* Setup's NOTES: MIDI notes out */
         *got = seq.send_notes;
+    else if (!strcmp(what, "clock"))                /* Setup's CLOCK: SEQ_CLK_* (0 internal, 1 send, 2 receive) */
+        *got = seq.clock;
     else if (!strcmp(what, "pat2"))                 /* track 2's pattern in the scene playing, from 1 */
         *got = pats.scene[seq.scene % NSCENE].pat[1] + 1;
     else if (!strncmp(what, "kvel", 4)) {          /* kvelT.PAT.S.K: kit sound K's own velocity on that step (0 none) */
