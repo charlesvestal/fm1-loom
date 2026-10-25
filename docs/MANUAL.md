@@ -89,8 +89,8 @@ and turn **KNOB 4** (the pump) while it plays. Hold any button for a second and 
 - **Pattern** (P1 to P8): a track's steps, up to 64 of them in four bars. Each track has eight patterns.
 - **Step**: one cell of a pattern. It holds up to four notes (on a drum track, any of the eleven sounds), two
   tricks, a chance and parameter locks.
-- **Trick**: something a step does as it plays, such as pulse, hold, multiply or jump. There are fourteen. Hold
-  a step and press ARP to give it two.
+- **Trick**: something a step does as it plays, such as pulse, hold, multiply, flam or jump. There are fifteen.
+  Hold a step and press ARP to give it two.
 - **Lock**: a knob value that a step sets as it plays.
 - **Scene** (S1 to S32): which pattern each track plays, plus the mutes (a kit's individual sounds too) and the
   conductor's key.
@@ -129,12 +129,13 @@ press…" means keep **HOME** down while you press the next thing.
 | put a second sound on a drum step | Hold the step and press the sound's black key. <!-- hint: black 2; white 5 --> |
 | take one note off a step | Hold the step, press **SEL**, pick the note and press **SEL**. <!-- hint: press SEL; white 5 --> |
 | change a step's chord | Hold the step and tap **SEQ**, then play the chord (you can let go of the step). Tap **SEQ** again when you're done. <!-- hint: press SEQ; white 5 --> |
-| add a trick | Hold the step and press **ARP**. **KNOB 1** picks the first trick (pulse, hold, multiply, velocity, ramp up, ramp down, random, glide, bend, tonality, jump, skip lock, skip trick, skip trigger) and **KNOB 2** sets its value. **KNOB 3** and **KNOB 4** do the same for the second trick. Turn a trick back to "-" to remove it. <!-- hint: press ARP; turn KNOB 1, KNOB 2; white 5 --> |
+| add a trick | Hold the step and press **ARP**. **KNOB 1** picks the first trick (pulse, hold, multiply, velocity, ramp up, ramp down, random, glide, bend, tonality, jump, skip lock, skip trick, skip trigger, flam) and **KNOB 2** sets its value. **KNOB 3** and **KNOB 4** do the same for the second trick. Turn a trick back to "-" to remove it. <!-- hint: press ARP; turn KNOB 1, KNOB 2; white 5 --> |
 | set a skip's pattern | Keep turning its value past "random". The same cycles come round again, first as "not on the last pass", then as "only the first". |
 | give a step a chance | Hold the step and turn **KNOB 3**. Past 99 %, the A:B cycles come next. <!-- hint: turn KNOB 3; white 5 --> |
 | lock a knob on a step | Hold the step, press **EDIT**, **ENV**, **FX** or **LFO**, and turn a knob. To clear a lock, hold **SEL** and turn that knob. The step's **SEL** list also has CLEAR LOCKS. <!-- hint: press EDIT; turn KNOB 1; white 5 --> |
 | clear a knob's automation | Hold **SEL** and turn the knob. This clears its motion and locks in the pattern (or, with steps held, only theirs). <!-- hint: hold SEL; turn KNOB 1 --> |
-| see the next bar | Press **OCT+** on Steps. (While **SEQ** is held, **OCT** sets the keys' octave and **PRESETS** the track's sound, so you can try notes before you write them.) <!-- hint: press OCT+ --> |
+| see the next bar | Press **OCT+** on Steps. (While **SEQ** is held, **PRESETS** sets the track's sound, so you can try notes before you write them; the keys play at the octave **OCT** set on the sound pages.) <!-- hint: press OCT+ --> |
+| move a whole pattern an octave | On Steps, hold **SEQ** and press **OCT−** or **OCT+**. Hold **HOME** and press **REC** to undo it. <!-- hint: hold SEQ; press OCT+ --> |
 | play one bar of a long pattern, or jump about in it | Press **SEQ** and turn **SELECT** to the Bar page. Hold **SEQ** and press black key 1 to 4 to jump to that bar. Hold two of them to loop those bars, or tap one twice to loop that bar. <!-- hint: hold SEQ; black 1,2,3,4 --> |
 | set the track scale | On Steps, turn **KNOB 3**. Or, on the Bar page of a synth track, press a black key: 1, 2, 3, 4, 5, 6, 8, 16 sixteenths a step, or black key 9 for half a sixteenth. <!-- hint: turn KNOB 3 --> |
 | change the pattern | On Steps, turn **KNOB 1**. While it plays, the new pattern comes in at the next bar line. Until then, the knob reads NEXT 1>2 and the tag line says "next P2". |
@@ -180,7 +181,7 @@ press…" means keep **HOME** down while you press the next thing.
 | **REC** | While playing, hold it to record for as long as you hold it. While stopped, tap it to arm step record. Hold it while playing on a sound page to record the knobs you turn. Hold it while stopped (or on Steps) and the knobs become the record settings (click, count-in, quantise, mode). |
 | **SEL** | Opens a list of this page's settings and actions. With a step held, it lists the step's notes. When LOOM-8 asks a question, **SEL** means yes. |
 | **HOME** | Opens Arrange. On Arrange, it opens the Song page. Hold it as a shift key for buttons and knobs: undo and redo, fine tempo, and the scenes on **PRESETS**. When LOOM-8 asks a question, **HOME** means no. |
-| **SEQ** | Opens Steps; page 2 is Bar. Hold it on Steps and the keys play the track and set what a step writes (**OCT** sets their octave, **PRESETS** the track's sound). Hold it on Bar and black keys 1 to 4 jump to a bar or loop bars. |
+| **SEQ** | Opens Steps; page 2 is Bar. Hold it on Steps and the keys play the track and set what a step writes (**PRESETS** sets the track's sound, and **OCT** moves the whole pattern an octave). Hold it on Bar and black keys 1 to 4 jump to a bar or loop bars. |
 | **EDIT** | Opens Engine. Page 2 is Play and page 3 is Play 2 (the octave). The knit and rayon engines have a page 4, Sub, with the engine's second set of knobs. A sample track in a loop mode has its Loop page second. On a drum track, page 2 holds the key's model, random, pan and volume, and page 3 its sends. On the conductor, the pages are its key, the routing and Follow. |
 | **ENV** | Opens Envelope (on a drum track: lag, attack, random, length), then Filter, then the filter's envelope. |
 | **FX** | Opens Character, the track's own effect. Next come Sends, the track's sends to FX I and FX II, and then FX I and FX II, the two effects. |
@@ -188,7 +189,7 @@ press…" means keep **HOME** down while you press the next thing.
 | **ARP** | Opens Players. With the arp, page 2 has its second set of knobs and page 3 is hold. |
 | **GLO** | Opens Mix. Turn **SELECT** for Master EQ, Master color, Master out, LFO (the shared LFO) and Setup. |
 | **SAVE** | Saves. Hold it and press a white key to save to a slot, or to keep a sound. |
-| **OCT−** / **OCT+** | Move the keys an octave. On Steps, they show the bar before or after (with **SEQ** held, they set the keys' octave), and with a step held, they nudge it. In step record, they move the cursor. On Arrange and Song, they put scenes 1 to 16 or 17 to 32 on the white keys. |
+| **OCT−** / **OCT+** | Move the keys an octave. On Steps, they show the bar before or after (with **SEQ** held, they move the pattern an octave), and with a step held, they nudge it. In step record, they move the cursor. On Arrange and Song, they put scenes 1 to 16 or 17 to 32 on the white keys. |
 | **SELECT** | Turns to a button's next page. In a list, it moves up and down. |
 | **ALGORITHM** | Picks the track. In a list, it changes the row's value. |
 | **PRESETS** | Steps to the next item of whatever the page shows: a preset, a drum key, an effect, a pattern, a drum sound, a scene. |
@@ -308,11 +309,12 @@ done.
 | 12 | skip lock: the locks play every Nth pass | a cycle of 1 to 9 |
 | 13 | skip trick: the other trick plays every Nth pass | a cycle of 1 to 9 |
 | 14 | skip trigger: the step plays every Nth pass | a cycle of 1 to 9 |
+| 15 | flam: a soft grace hit, then the step's own a moment later | 1 to 9 32nds of a step apart |
 
 For the three skips, the value continues past random: the same cycles come round again, first playing every pass
 but the last, then playing only the first. A new trick starts at its default: pulse and hold 4, multiply 2,
-velocity 64, the ramps and random 4, glide 40 %, bend down-up, tonality fifth up, jump forward, and the skips a
-cycle of 2.
+velocity 64, the ramps and random 4, glide 40 %, bend down-up, tonality fifth up, jump forward, the skips a
+cycle of 2, and flam 4 32nds.
 
 Pulse and hold keep time. The playhead keeps moving, the steps they cover give way to them, and the track carries
 on where it would have been. On a drum track, only the sounds on the trick's step give way. The other sounds play

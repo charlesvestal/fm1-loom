@@ -1315,6 +1315,7 @@ static void ask_end(int yes);
 static void act_clear_scene(void);
 static void act_save_slot(int slot);
 static void weave_set(int t, int from, int pat, int rule);   /* (below: the weave) */
+static void pattern_octave(int t, int d);          /* (below) */
 static void key_down(int k)
 {
     int trk = sel_trk(), w = ordinal(WHITE_K, 16, k), b = ordinal(BLACK_K, 11, k), p = ui.page;
@@ -1748,6 +1749,10 @@ static void button_up(int b)
             say(d > 0 ? "REST" : "BACK", t);
             break;
         }
+        if (steps_page(ui.page) && (ui.btn >> B_SEQ & 1u) && !home_held()) {
+            pattern_octave(sel_trk(), d);           /* SEQ held: the pattern's notes an octave down or up */
+            break;
+        }
         if ((ui.page == P_ARRANGE || ui.page == P_SONG) && !home_held()) {   /* the white keys' scenes: 1-16, 17-32 */
             ui.scene_pg = (uint8_t)(d > 0);
             say("SCENES", ui.scene_pg ? "17 to 32" : "1 to 16");
@@ -1868,6 +1873,33 @@ static void pattern_pick(int trk, int p)
         seq_cue_pattern(&seq, trk, p);
     ui.bar = 0;
     mark_dirty();
+}
+/* the pattern's notes an octave up (d 1) or down (-1): one undo; a kit's (its sounds) and THROW's (effects) not, and
+ * nothing when a note would leave MIDI's range */
+static void pattern_octave(int t, int d)
+{
+    int pt = cur_pat(t);
+    tpat_t *tp;
+    char a[16];
+    if (!is_seqt(t) || is_drum(t) || t == AUX_PUNCH) {
+        say_no("NO OCTAVES", is_drum(t) ? "on a kit" : "on this track");
+        return;
+    }
+    tp = &pats.pat[t][pt];
+    for (int s = 0; s < NSTEP; s++)
+        for (int k = 0; k < SN; k++)
+            if (tp->st[s].note[k] && (tp->st[s].note[k] + 12 * d < 1 || tp->st[s].note[k] + 12 * d > 127)) {
+                say_no("OUT OF RANGE", d > 0 ? "a note is too high" : "a note is too low");
+                return;
+            }
+    undo_pat(t, pt, 0);
+    for (int s = 0; s < NSTEP; s++)
+        for (int k = 0; k < SN; k++)
+            if (tp->st[s].note[k])
+                tp->st[s].note[k] = (uint8_t)(tp->st[s].note[k] + 12 * d);
+    mark_dirty();
+    num_s((uint32_t)pt + 1u, s_cat(s_cat(a, TRACK_NAME[t]), " P"));
+    say(d > 0 ? "OCTAVE UP" : "OCTAVE DOWN", a);
 }
 static void steps_knob(int k, int32_t e)
 {

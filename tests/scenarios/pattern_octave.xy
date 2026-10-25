@@ -1,0 +1,31 @@
+# hold SEQ and press OCT+ / OCT- on Steps: the pattern's notes an octave up or down; one undo; not a kit
+wait 300
+notes 2 1 1 1 100 C3 E3 G3
+notes 2 1 9 1 90 G2
+turn ALGO 1
+expect trk 2
+tap SEQ
+expect page Steps
+press SEQ
+tap OCT+
+release SEQ
+expect note 2 1 1 60
+expect note 2 1 9 55
+expect page Steps
+press SEQ
+tap OCT-
+tap OCT-
+release SEQ
+expect note 2 1 1 36
+press HOME
+tap REC
+release HOME
+expect note 2 1 1 48
+# a kit: nothing moves
+turn ALGO -1
+expect trk 1
+listen
+press SEQ
+tap OCT+
+release SEQ
+said NO OCTAVES
