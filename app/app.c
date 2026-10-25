@@ -125,9 +125,27 @@ void app_panic(void)
     engine_panic();
 }
 void app_ui_init(void) { ui_init(); }               /* boot; again after an update that did not happen, a restore */
+/* the USB MIDI host (Setup's USB PORT): what changed, said; a session's end releases the notes its keys held */
+static void usb_host_poll(void)
+{
+    static const char *const MSG[][2] = {{0, 0}, {"USB MIDI HOST", "plug in a powered hub"}, {"USB", "to a computer"},
+                                         {"USB MIDI", "connected"}, {"NO USB MIDI", "on that device"},
+                                         {"NOT SUPPORTED", "a low-speed device"}, {"USB MIDI", "lost"}};
+    int m = plat_usb_host_msg();
+    if (plat_usb_lost())
+        for (int t = 0; t < NTRK; t++)
+            engine_keys_off(t);
+    if (m > USBH_MSG_NONE && m <= USBH_MSG_LOST) {
+        if (m == USBH_MSG_NOMIDI || m == USBH_MSG_LOW || m == USBH_MSG_LOST)
+            say_no(MSG[m][0], MSG[m][1]);
+        else
+            say(MSG[m][0], MSG[m][1]);
+    }
+}
 void app_frame(void)
 {
     plat_usb_audio_full(proj.usb_full);             /* Setup's USB AUDIO: follows the knob, or full */
+    usb_host_poll();
     ui_frame();
 }
 void app_input_only(void) { ui_input_only(); }

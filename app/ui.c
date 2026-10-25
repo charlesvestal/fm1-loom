@@ -2325,6 +2325,9 @@ static void list_change_do(int32_t e)
                 mark_dirty();
             }
             break;
+        case A_USB_HOST:                         /* (not saved: every start is the computer's, as the update needs) */
+            plat_usb_host(d > 0);
+            break;
         case A_AUTOSAVE:                         /* (saved at once when stopped: off, nothing would save it) */
             proj.rsv[2] = (uint8_t)(d > 0 ? proj.rsv[2] & ~AUTOSAVE_OFF : proj.rsv[2] | AUTOSAVE_OFF);
             mark_dirty();
@@ -3103,7 +3106,7 @@ static void action_run(int a)
         break;
     case A_FOLLOW: case A_USB_AUDIO: case A_COUNT_IN: case A_THEME: case A_PLAYMODE: case A_FTYPE: case A_FX_HP: case A_FX_LP:
     case A_FX_SEND: case A_PUMP_BY: case A_PUMP_REL: case A_PUMP_ACC: case A_LEVEL: case A_SCENE_AT: case A_AUTOSAVE:
-    case A_MIDI_OUT: case A_LOOP_FREE: case A_CC_OUT: case A_SCENES_OUT: case A_MIDI_CC: return;   /* (ALGORITHM sets them; SEL
+    case A_MIDI_OUT: case A_LOOP_FREE: case A_CC_OUT: case A_SCENES_OUT: case A_MIDI_CC: case A_USB_HOST: return;   /* (ALGORITHM sets them; SEL
                                                                                     * leaves the list) */
     case A_REMOVE_NOTE: act_remove_note(lst.sel); break;
     case A_INSERT_SLOT:

@@ -292,11 +292,12 @@ turn K4 1
 wait 20
 expect ccst 186
 expect ccd1 27
-# the SEL list's LEVEL row (A_LEVEL), turned by hand: its CC too (six up: SCENES OUT and CC OUT come after it now)
+# the SEL list's LEVEL row (A_LEVEL), turned by hand: its CC too (seven up: USB PORT, SCENES OUT and CC OUT come
+# after it now)
 ccreset
 tap SEL
 turn SELECT 40
-turn SELECT -6
+turn SELECT -7
 expect ccouts 0
 ccreset
 turn ALGO 1
