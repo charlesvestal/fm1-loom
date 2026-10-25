@@ -31,19 +31,21 @@ run() {
 # through samples.c); the bank tool's own tests (layout over the windows, rates, bounds)
 "$PY" tools/gen_samples.py build/gen/samples.h build/gen/wav >/dev/null
 # the break pack (the four breaks, out of the image since 0.7): the DSP tests' user bank (tests/host/breaks.h)
-"$PY" tools/loom_samples.py build build/gen/breaks.bin breaks >/dev/null
+"$PY" tools/loom_samples.py build --no-factory build/gen/breaks.bin breaks >/dev/null
 run sample-bank sh -c "'$PY' tools/loom_samples.py build build/gen/user_bank.bin 'piano two=build/gen/wav/piano.wav:60%16k' \
     'sweep two=build/gen/wav/sweep.wav:57' && '$PY' tools/loom_samples.py syx build/gen/user_bank.syx \
     'piano two=build/gen/wav/piano.wav:60%16k' 'sweep two=build/gen/wav/sweep.wav:57'"
 run bank-tool "$PY" tests/host/bank_test.py
 # the units' own tests, written beside them (their WAVs in build/host/)
-for t in synth braids drumline fx seq; do
+for t in synth braids drumline fx seq factory; do
     run "$t" sh "tests/host/${t}_test.sh"
 done
 if command -v node >/dev/null 2>&1; then           # the samples page's bank against loom_samples.py's
     run samples-web node tests/host/samples_web.mjs "$PY"
     # the backup page's sample section (app/web/backup/extras.js) against a simulated FM-1 and the command line
     run backup-web node tests/host/backup_web.mjs "$PY"
+    # the installer's steps (app/web/install_app.js: LOOM-8's sounds into the bank) against a simulated FM-1
+    run install-web node tests/host/install_web.mjs "$PY"
 else
     echo "  skip samples-web (no node)"
 fi

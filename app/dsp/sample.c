@@ -3,8 +3,16 @@
  * standard IMA one (as X0X's breaks.c, adapted from Felucca's eng_sample.c), run a block at a time from
  * the block's checkpoint. */
 #include "sample.h"
+/* the factory set built in: the host simulator, the DSP tests and the emulator (no flash to fit); on the FM-1 its
+ * rows are empty since 0.8 and play the bank's entries of the factory set (the installer puts them there) */
+#if defined(PLAT_HOST) && !defined(SMP_FACT_MOVED)
+#define SMP_FACT_BUILTIN 1
+#else
+#define SMP_FACT_BUILTIN 0
+#endif
 #include "samples.h"                      /* build/gen: tools/gen_samples.py */
 _Static_assert(SMP_FACT_BREAK == SMP_BREAK, "the break's place in the factory bank (sample.h SMP_BREAK)");
+_Static_assert(SMP_FACT_NSET == SMP_NFENT && SMP_FACT_NSET == SMP_BREAK, "the factory set: the rows before the breaks, its entries in the bank (sample.h SMP_NFENT)");
 
 static const int16_t IMA_STEP[89] = {
     7, 8, 9, 10, 11, 12, 13, 14, 16, 17, 19, 21, 23, 25, 28, 31, 34, 37, 41, 45, 50, 55, 60, 66, 73, 80, 88, 97,
@@ -16,13 +24,17 @@ static const int8_t IMA_IDX[8] = {-1, -1, -1, -1, 2, 4, 6, 8};
 
 static smp_t fact[SMP_NFACT];
 static uint8_t fact_ready;
-static smp_t user[SMP_NUSER];
-static volatile uint8_t user_n;
+static smp_t user[SMP_NENT];              /* the bank's entries, in its order */
+static volatile uint8_t user_n;           /* how many */
+static uint8_t vis[SMP_NUSER];            /* user slot j -> its entry (the factory set's entries are no slots) */
+static volatile uint8_t vis_n;
 static uint32_t user_bytes;
+static uint32_t user_blk = SMP_BLK;       /* the bank's checkpoints: every SMP_BLK, or SMP_BLK_V2 (a version 2 bank) */
 static const uint8_t *user_reg[SMP_NREG];
 static char empty_name[SMP_NUSER][SMP_NAME];
-/* a moved factory sample (its row empty, n 0: the breaks since 0.7) -> the user sample of its name, -1 none; set by
- * smp_user_scan before user_n, read beside it */
+/* a moved factory sample (its row empty, n 0: the breaks since 0.7, the rest on the FM-1 since 0.8) -> its entry in
+ * the bank (the factory set's entry of its name, else the first entry of its name), -1 none; set by smp_user_scan
+ * before user_n, read beside it */
 static int8_t moved[SMP_NFACT];
 
 static void fact_init(void)
@@ -30,10 +42,16 @@ static void fact_init(void)
     int i, k;
     for (i = 0; i < SMP_NFACT; i++) {
         smp_t *s = &fact[i];
+#if SMP_FACT_BUILTIN
         s->adp = SMP_FACT_ADP + SMP_FACT[i].adp;
-        s->adp2 = 0;
         s->ck = SMP_FACT_CK + SMP_FACT[i].ck;
         s->n = SMP_FACT[i].n;
+#else
+        s->adp = 0;
+        s->ck = 0;
+        s->n = 0;                             /* (in the bank) */
+#endif
+        s->adp2 = 0;
         s->split = s->n;
         s->rate = SMP_FACT[i].rate;
         s->ls = SMP_FACT[i].ls;
@@ -68,6 +86,8 @@ static void fact_init(void)
 const uint16_t smp_nslots = SMP_NFACT + SMP_NUSER;
 int smp_factory(void) { return SMP_NFACT; }
 int smp_user_count(void) { return user_n; }
+int smp_user_slots(void) { return vis_n; }
+const smp_t *smp_entry(int i) { return i >= 0 && i < (int)user_n ? &user[i] : 0; }
 uint32_t smp_user_bytes(void) { return user_n ? user_bytes : 0u; }
 
 const smp_t *smp_get(int i)
@@ -81,8 +101,8 @@ const smp_t *smp_get(int i)
         return i >= 0 && i < (int)user_n ? &user[i] : 0;
     }
     i -= SMP_NFACT;
-    if (i >= 0 && i < (int)user_n)
-        return &user[i];
+    if (i >= 0 && i < (int)vis_n)
+        return &user[vis[i]];
     return 0;
 }
 
@@ -154,7 +174,8 @@ void smp_fill(smp_cache_t *c, const smp_t *s, int32_t w)
         c->b[0] = c->b[SMP_WIN];
         ima_span(s, (uint32_t)w + 1u, n - 1u, &pred, &idx, c->b + 1);
     } else {                                         /* from the checkpoint before it */
-        uint32_t ck = s->ck[(uint32_t)w / SMP_BLK], skip = (uint32_t)w % SMP_BLK;
+        uint32_t blk = s >= user && s < user + SMP_NENT ? user_blk : SMP_BLK;   /* (a user sample: its bank's) */
+        uint32_t ck = s->ck[(uint32_t)w / blk], skip = (uint32_t)w % blk;
         pred = (int16_t)(ck & 0xFFFFu);
         idx = (int32_t)(ck >> 16);
         if (idx > 88)
@@ -254,7 +275,7 @@ void smp_user_attach(const uint8_t *const *reg)
     for (int r = 0; r < SMP_NREG; r++)
         user_reg[r] = reg ? reg[r] : 0;
 }
-void smp_user_drop(void) { user_n = 0; }
+void smp_user_drop(void) { vis_n = 0; user_n = 0; }
 
 /* bank bytes from virtual offset v: where they are and how many follow in v's window (0: past the bank, or the
  * window not attached) */
@@ -290,24 +311,27 @@ int smp_bank_crc(uint32_t len, uint32_t *crc)
 }
 
 /* the header (tools/sampleio.py user_bank): magic, version 2, count, data length, CRC, the bank's size it was
- * made for, then up to 32 entries of 40 bytes from byte 64: name (12), ADPCM, checkpoints (virtual offsets in
- * the bank), samples, loop start, loop end, root, flags, bars, a spare, rate (Hz, 16 bits), two spare. Each entry
+ * made for, then up to 44 entries of 40 bytes from byte 64: name (12), ADPCM, checkpoints (virtual offsets in
+ * the bank), samples, loop start, loop end, root, flags (SMP_E_FACTORY), bars, a spare, rate (Hz, 16 bits), two spare. Each entry
  * checked against the data (its checkpoints in one window, its ADPCM in one or running on into the next), the
  * data against its CRC */
 int smp_user_scan(void)
 {
     const uint8_t *h;
-    uint32_t cnt, len, i, room, crc, end;
+    uint32_t cnt, len, i, room, crc, end, blk;
+    vis_n = 0;
     user_n = 0;
     if (!fact_ready)
         fact_init();
     h = vptr(0, &room);
-    if (!h || room < SMP_BANK_HDR || rd32(h) != SMP_BANK_MAGIC || h[4] != SMP_BANK_VER || h[5] != 0 ||
+    if (!h || room < SMP_BANK_HDR || rd32(h) != SMP_BANK_MAGIC || !SMP_BANK_VER_OK(h[4]) || h[5] != 0 ||
         rd32(h + 16) != SMP_BANK_SIZE)
         return 0;
+    blk = h[4] == 2u ? SMP_BLK_V2 : SMP_BLK;
+    user_blk = blk;                           /* (no user sample plays meanwhile: user_n is 0) */
     cnt = h[6];
     len = rd32(h + 8);
-    if (!cnt || cnt > SMP_NUSER || len > SMP_BANK_SIZE - SMP_BANK_HDR)
+    if (!cnt || cnt > SMP_NENT || len > SMP_BANK_SIZE - SMP_BANK_HDR)
         return 0;
     if (smp_bank_crc(len, &crc) || crc != rd32(h + 12))
         return 0;
@@ -316,7 +340,7 @@ int smp_user_scan(void)
         const uint8_t *e = h + SMP_ENT0 + i * SMP_ENT;
         smp_t *s = &user[i];
         uint32_t adp = rd32(e + 12), ck = rd32(e + 16), n = rd32(e + 20), ls = rd32(e + 24), le = rd32(e + 28), k;
-        uint32_t nb = (n + 1u) / 2u, nck = ((n + SMP_BLK - 1u) / SMP_BLK) * 4u;
+        uint32_t nb = (n + 1u) / 2u, nck = ((n + blk - 1u) / blk) * 4u;
         uint32_t rate = (uint32_t)e[36] | (uint32_t)e[37] << 8;
         if (!n || n > 2u * len || adp < SMP_BANK_HDR || adp > end || nb > end - adp || (ck & 3u) ||
             ck < SMP_BANK_HDR || ck > end || nck > end - ck || le > n || ls > le || e[32] > 127u ||
@@ -351,17 +375,31 @@ int smp_user_scan(void)
             s->name[1] = 0;
         }
     }
-    for (i = 0; i < SMP_NFACT; i++) {         /* the moved factory samples: the first user sample of each one's name */
-        int8_t m = -1;
-        if (!fact[i].n)
-            for (uint32_t u = 0; u < cnt && m < 0; u++) {
-                int k = 0;
-                while (k < SMP_NAME && user[u].name[k] == fact[i].name[k] && fact[i].name[k])
-                    k++;
-                if (k < SMP_NAME && user[u].name[k] == fact[i].name[k])
-                    m = (int8_t)u;
+    {
+        uint32_t nv = 0;
+        for (i = 0; i < cnt; i++)             /* the user slots: the entries that are not the factory set's */
+            if (!(h[SMP_ENT0 + i * SMP_ENT + 33u] & SMP_E_FACTORY)) {
+                if (nv >= SMP_NUSER)
+                    return 0;
+                vis[nv++] = (uint8_t)i;
             }
-        moved[i] = m;
+        for (i = 0; i < SMP_NFACT; i++) {     /* the moved factory samples: the factory set's entry of each one's
+                                               * name, else (the breaks) the first entry of it */
+            int8_t m = -1;
+            if (!fact[i].n)
+                for (int pass = 0; pass < 2 && m < 0; pass++)
+                    for (uint32_t u = 0; u < cnt && m < 0; u++) {
+                        int k = 0;
+                        if (!pass && !(h[SMP_ENT0 + u * SMP_ENT + 33u] & SMP_E_FACTORY))
+                            continue;
+                        while (k < SMP_NAME && user[u].name[k] == fact[i].name[k] && fact[i].name[k])
+                            k++;
+                        if (k < SMP_NAME && user[u].name[k] == fact[i].name[k])
+                            m = (int8_t)u;
+                    }
+            moved[i] = m;
+        }
+        vis_n = (uint8_t)nv;
     }
     user_bytes = len;
     user_n = (uint8_t)cnt;

@@ -3123,10 +3123,12 @@ static void smp_columns(int idx, const smp_t *sm, int w)
         smp_col_hi[x] = (int8_t)(hi * 127.0f);
     }
 }
-/* what an empty sample's picture says: a moved factory sample (a break, since 0.7) is installed from the samples page */
+/* what an empty sample's picture says: a moved factory sample (a break since 0.7, the rest on the FM-1 since 0.8:
+ * the installer puts them in the bank) is installed from the samples page */
 static const char *smp_missing(int idx)
 {
-    return idx < smp_factory() ? "install the breaks: samples page" : "empty: the samples page fills it";
+    return idx >= smp_factory() ? "empty: the samples page fills it"
+         : idx >= SMP_BREAK ? "install the breaks: samples page" : "install the sounds: samples page";
 }
 static void pic_sample(int32_t x0, int32_t y0, int32_t w, int32_t h, const uint8_t *p)
 {

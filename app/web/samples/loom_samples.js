@@ -9,14 +9,17 @@
 
 export const RATES = [11025, 16000, 22050, 32000];
 export const AUTO = [22050, 16000, 11025];
-export const BLK = 64;
+export const BLK = 128, BLK_V2 = 64;          // a checkpoint every BLK samples: version 3 banks (0.8); 64 in version 2
 export const REGIONS = [[0xC1000, 0x1B000], [0xE5000, 0x17000], [0x93000, 0x4000]];
 const XDATA = [1, 2], REC_MARK = 0xF06;
 export const BANK_SIZE = REGIONS.reduce((a, r) => a + r[1], 0);
-export const BANK_HDR = 2048, BANK_MAX_DATA = BANK_SIZE - BANK_HDR, BANK_N = 32, BANK_VER = 2;
+export const BANK_HDR = 2048, BANK_MAX_DATA = BANK_SIZE - BANK_HDR, BANK_N = 32, BANK_VER = 3;
+// since 0.8 the factory set (the kits' drums, the instruments, the sweep, the vinyl) lives in the bank too: 12 entries
+// marked E_FACTORY (an entry's flags, byte 33), which its factory rows play and which are no user slots (sample.h)
+export const NFENT = 12, NENT = BANK_N + NFENT, E_FACTORY = 0x01;
 export const ENT0 = 64, ENT = 40, BANK_MAGIC = 0x504D534C, NAME_LEN = 12, BARS_MAX = 16;
 export const LOOP_ROOT = 53;                  // a loop's slice 1: F3, the lowest key
-export const HDR_USED = ENT0 + BANK_N * ENT;  // the header's bytes the FM-1 keeps (1344)
+export const HDR_USED = ENT0 + NENT * ENT;    // the header's bytes the FM-1 keeps (1824)
 export const PART = 320, NPART = Math.ceil(HDR_USED / PART);
 export const READ_MAX = 224;                  // samples.c SB_READ_MAX
 
@@ -276,8 +279,11 @@ function blobOf(smp) {
 }
 
 // sampleio.user_bank: -> the bank's image (header + data, without the padding to BANK_SIZE); throws "too long ..."
+export const isFactory = (smp) => !!((smp.flags || 0) & E_FACTORY);
 export function userBank(samples) {
-  if (samples.length < 1 || samples.length > BANK_N) throw new Error(`1..${BANK_N} samples in the bank`);
+  const own = samples.filter((smp) => !isFactory(smp)).length;
+  if (samples.length < 1 || own > BANK_N || samples.length - own > NFENT)
+    throw new Error(`1..${BANK_N} samples in the bank (and the factory set's ${NFENT})`);
   const blobs = [], meta = [];
   for (const smp of samples) {
     const n = smp.adpcm ? smp.n : smp.s.length;
@@ -288,7 +294,8 @@ export function userBank(samples) {
     let [ls, le] = smp.loop || [0, 0];
     le = Math.min(le, n);
     if (le <= ls) ls = le = 0;
-    meta.push({ nm: cleanName(smp.name), n, ls, le, root: Math.max(0, Math.min(127, smp.root)), bars: smp.bars, rate: smp.rate });
+    meta.push({ nm: cleanName(smp.name), n, ls, le, root: Math.max(0, Math.min(127, smp.root)), flags: smp.flags || 0,
+      bars: smp.bars, rate: smp.rate });
   }
   const pad = new Array(blobs.length).fill(0);
   let where, end, img = null;
@@ -327,6 +334,7 @@ export function userBank(samples) {
     v.setUint32(o + 24, m.ls, true);
     v.setUint32(o + 28, m.le, true);
     hdr[o + 32] = m.root;
+    hdr[o + 33] = m.flags;
     hdr[o + 34] = m.bars;
     v.setUint16(o + 36, m.rate, true);
   });
@@ -339,18 +347,19 @@ export function userBank(samples) {
 // a bank's header -> its samples' entries (null: not a bank)
 export function parseHeader(hdr) {
   const v = new DataView(hdr.buffer, hdr.byteOffset, hdr.byteLength);
-  if (hdr.length < ENT0 || v.getUint32(0, true) !== BANK_MAGIC || v.getUint16(4, true) !== BANK_VER) return null;
+  const ver = hdr.length >= ENT0 ? v.getUint16(4, true) : 0;
+  if (hdr.length < ENT0 || v.getUint32(0, true) !== BANK_MAGIC || (ver !== 2 && ver !== 3)) return null;
   const count = hdr[6], out = [];
-  if (count > BANK_N || hdr.length < ENT0 + count * ENT) return null;
+  if (count > NENT || hdr.length < ENT0 + count * ENT) return null;
   for (let k = 0; k < count; k++) {
     const o = ENT0 + k * ENT;
     let name = "";
     for (let i = 0; i < NAME_LEN && hdr[o + i]; i++) name += String.fromCharCode(hdr[o + i]);
     out.push({ name, adpOff: v.getUint32(o + 12, true), ckOff: v.getUint32(o + 16, true), n: v.getUint32(o + 20, true),
-      ls: v.getUint32(o + 24, true), le: v.getUint32(o + 28, true), root: hdr[o + 32], bars: hdr[o + 34],
-      rate: v.getUint16(o + 36, true) });
+      ls: v.getUint32(o + 24, true), le: v.getUint32(o + 28, true), root: hdr[o + 32], flags: hdr[o + 33],
+      bars: hdr[o + 34], rate: v.getUint16(o + 36, true) });
   }
-  return { count, dataLen: v.getUint32(8, true), crc: v.getUint32(12, true), entries: out };
+  return { count, ver, dataLen: v.getUint32(8, true), crc: v.getUint32(12, true), entries: out };
 }
 
 // loom_samples.pack7: groups of up to 7 bytes, each preceded by their top bits; and back
@@ -389,13 +398,14 @@ export function* frames(image) {
 // did not choose (null: auto, the highest of AUTO at which all fits). -> {img, chose}; throws TooLong.
 // cache (a Map) keeps each new item's samples at a rate between calls.
 export function build(items, rate = null, cache = new Map()) {
-  if (items.length < 1 || items.length > BANK_N) throw new Error(`1..${BANK_N} samples in the bank`);
+  const own = items.filter((it) => !isFactory(it)).length;
+  if (items.length < 1 || own > BANK_N) throw new Error(`1..${BANK_N} samples in the bank`);
   const tries = rate ? [rate] : AUTO;
   for (const r of tries) {
-    const est = items.reduce((a, it) => a + sampleBytes(it.adpcm ? it.n : lengthAt(it.x.length, it.sr, it.rate || r)), 0);
+    const est = items.reduce((a, it) => a + sampleBytes(it.adpcm ? it.n : it.s ? it.s.length : lengthAt(it.x.length, it.sr, it.rate || r)), 0);
     if (est > BANK_MAX_DATA) continue;
     const smps = items.map((it) => {
-      if (it.adpcm) return it;
+      if (it.adpcm || it.s) return it;            // (kept as stored; or already at its rate: makeRoom's)
       const rr = it.rate || r, key = rr;
       let c = cache.get(it);
       if (!c) cache.set(it, c = new Map());
@@ -406,7 +416,7 @@ export function build(items, rate = null, cache = new Map()) {
     try { return { img: userBank(smps), chose: r }; } catch (e) { if (!(e instanceof TooLong)) throw e; }
   }
   const last = tries[tries.length - 1];
-  const need = items.reduce((a, it) => a + sampleBytes(it.adpcm ? it.n : lengthAt(it.x.length, it.sr, it.rate || last)), 0);
+  const need = items.reduce((a, it) => a + sampleBytes(it.adpcm ? it.n : it.s ? it.s.length : lengthAt(it.x.length, it.sr, it.rate || last)), 0);
   throw new TooLong(`too long: ${(need / 1024).toFixed(1)} KB at ${last} Hz, the bank holds ${(BANK_MAX_DATA / 1024).toFixed(1)} KB`);
 }
 
@@ -414,8 +424,147 @@ export function build(items, rate = null, cache = new Map()) {
 export function keptOf(img) {
   const h = parseHeader(img.subarray(0, Math.min(BANK_HDR, img.length)));
   if (!h) return [];
-  return h.entries.map((e) => ({
-    name: e.name, n: e.n, root: e.root, loop: e.le > e.ls ? [e.ls, e.le] : null, bars: e.bars, rate: e.rate,
-    ckb: img.slice(e.ckOff, e.ckOff + Math.ceil(e.n / BLK) * 4), adpcm: img.slice(e.adpOff, e.adpOff + ((e.n + 1) >> 1)),
-  }));
+  const blk = h.ver === 2 ? BLK_V2 : BLK;
+  return h.entries.map((e) => {
+    let ckb = img.slice(e.ckOff, e.ckOff + Math.ceil(e.n / blk) * 4);
+    if (blk !== BLK) {                        // a version 2 bank's: every other checkpoint (the same states, none lost)
+      const step = BLK / blk, out = new Uint8Array(Math.ceil(e.n / BLK) * 4);
+      for (let i = 0; i < out.length / 4; i++) out.set(ckb.subarray(i * step * 4, i * step * 4 + 4), i * 4);
+      ckb = out;
+    }
+    return { name: e.name, n: e.n, root: e.root, loop: e.le > e.ls ? [e.ls, e.le] : null, bars: e.bars, rate: e.rate,
+      flags: e.flags, ckb, adpcm: img.slice(e.adpOff, e.adpOff + ((e.n + 1) >> 1)) };
+  });
+}
+
+// the factory set (tools/gen_samples.py --factory-bank: factory.bin beside the page) as kept items, ready to add to a
+// bank after its samples: the same bytes the firmware built in until 0.8
+export function factoryOf(img) { return keptOf(img).filter(isFactory); }
+// the factory set's items missing from a bank's items (by name, among the factory set's entries)
+export function factoryMissing(items, factory) {
+  return factory.filter((f) => !items.some((it) => isFactory(it) && it.name === f.name));
+}
+
+// ---- the FM-1 over USB-MIDI (app/samples.c: F0 7D 46 4C cmd ... F7): shared by the samples page and the installer
+export const HDR = [0x7D, 0x46, 0x4C];
+export const RC = { 1: "a size or offset", 2: "erasing", 3: "writing", 4: "the bank not begun", 5: "the header",
+  6: "the data's check", 7: "no samples", 8: "a reserved mark" };
+export class Link {
+  constructor(input, output) {
+    this.input = input; this.output = output; this.wait = null;
+    input.onmidimessage = (ev) => {
+      const d = ev.data;
+      if (d[0] !== 0xF0 || d[1] !== HDR[0] || d[2] !== HDR[1] || d[3] !== HDR[2] || !this.wait || d[4] !== this.wait.cmd) return;
+      const w = this.wait;
+      this.wait = null;
+      clearTimeout(w.timer);
+      w.resolve([...d.slice(5, d.length - 1)]);
+    };
+  }
+  req(cmd, args, ms = 3000) {
+    return new Promise((resolve, reject) => {
+      this.wait = { cmd, resolve, timer: setTimeout(() => { this.wait = null; reject(new Error("The FM-1 stopped answering.")); }, ms) };
+      this.output.send([0xF0, ...HDR, cmd, ...args, 0xF7]);
+    });
+  }
+  async retry(cmd, args, ms, tries = 3) {
+    for (let k = 1; ; k++) { try { return await this.req(cmd, args, ms); } catch (e) { if (k >= tries) throw e; } }
+  }
+  close() { this.input.onmidimessage = null; }
+}
+// the FM-1 running LOOM-8 among midi's ports (it answers SB_SINFO); null: none
+export async function findLink(midi, wait = 1000) {
+  const outs = [...midi.outputs.values()];
+  const ins = [...midi.inputs.values()].filter((i) => i.state !== "disconnected" && /loom|fm-1/i.test(i.name || ""))
+    .sort((a, b) => /loom/i.test(b.name) - /loom/i.test(a.name));
+  for (const input of ins) {
+    const output = outs.find((o) => o.name === input.name);
+    if (!output) continue;
+    await input.open();
+    await output.open();
+    const l = new Link(input, output);
+    try { await l.retry(25, [], wait); return l; } catch (_) { l.close(); }
+  }
+  return null;
+}
+// SMP_READ, 224 bytes a request
+export async function readBytes(link, off, n, onPart) {
+  const out = new Uint8Array(n);
+  for (let at = 0; at < n;) {
+    const want = Math.min(READ_MAX, n - at), adr = off + at;
+    const r = await link.retry(17, [0, adr & 0x7F, (adr >> 7) & 0x7F, (adr >> 14) & 0x7F, want & 0x7F, want >> 7], 3000);
+    if (r[4]) throw new Error(r[4] === 4 ? "The FM-1 is in the middle of writing its samples." : "The FM-1 couldn't read its samples.");
+    const b = unpack7(r.slice(5));
+    if (b.length < want) throw new Error("short read");
+    out.set(b.subarray(0, want), at);
+    at += want;
+    if (onPart) onPart(at / n);
+  }
+  return out;
+}
+// the bank's image as the FM-1 holds it (header + data), or null when it holds none; throws on an old LOOM-8
+export async function readBank(link, onPart) {
+  const info = await link.req(15, [0]);
+  if (info[0] !== 2) throw new Error("This LOOM-8 is too old for this page. Update it from the install page, then connect again.");
+  if (!info[5]) return null;
+  let hdr;
+  try { hdr = await readBytes(link, 0, HDR_USED); } catch (e) {
+    if (/stopped answering/.test(e.message))
+      throw new Error("This LOOM-8 can't send its samples back to the page. Update it from the install page (0.5-beta or later), then connect again.");
+    throw e;
+  }
+  const h = parseHeader(hdr);
+  if (!h || !h.count) return null;
+  const data = await readBytes(link, BANK_HDR, h.dataLen, onPart);
+  const img = new Uint8Array(BANK_HDR + h.dataLen);
+  img.set(hdr);
+  img.set(data, BANK_HDR);
+  return img;
+}
+// the bank sent (img null: erased); onPart(done fraction)
+export async function sendBank(link, img, onPart) {
+  if (!img) {
+    const r = await link.req(14, [0], 60000);
+    if (r[1]) throw new Error(`The FM-1 couldn't erase its samples (${RC[r[1]] || r[1]}).`);
+    return;
+  }
+  const total = img.length - BANK_HDR;
+  for (const [cmd, args, ms, what] of frames(img)) {
+    let r;
+    for (let k = 1; ; k++) {                         // a write again when its answer is lost (the same bytes)
+      try { r = await link.req(cmd, args, ms); break; } catch (e) { if (cmd !== 12 || k >= 4) throw e; }
+    }
+    const rc = r.length ? r[r.length - 1] : 99;
+    if (rc) throw new Error(`The FM-1 didn't take the samples (${RC[rc] || rc}${cmd === 12 ? ` at ${what}` : ""}).`);
+    if (cmd === 12 && onPart) onPart((Math.min(what + 256, img.length) - BANK_HDR) / total);
+  }
+}
+
+// ---- room for the factory set (0.8): a bank's items and the factory set's missing ones, in that order; if they do
+// not fit, the user's samples above a rate put at it (decoded, resampled, encoded again: one generation of ADPCM
+// more; their level kept), the highest of AUTO that makes it fit. -> {items, cap (0: nothing changed), changed: the
+// names resampled, need: bytes} or null when even 11025 Hz is not enough (then some must go, or some of the factory set)
+const itemBytes = (it) => sampleBytes(it.adpcm ? it.n : it.s ? it.s.length : 0);
+export function atRateKept(it, rate) {               // a kept item at a lower rate: a new item, encoded at build
+  const x = Float64Array.from(imaDecode(it.adpcm, it.n));
+  const y = resample(x, it.rate, rate), s = new Int16Array(y.length);
+  for (let i = 0; i < y.length; i++) s[i] = Math.max(-32768, Math.min(32767, Math.round(y[i])));
+  const loop = it.loop ? [Math.trunc(it.loop[0] * rate / it.rate), Math.min(s.length, Math.trunc(it.loop[1] * rate / it.rate))] : null;
+  return { name: it.name, s, root: it.root, loop, bars: it.bars, rate, flags: it.flags || 0 };
+}
+export function makeRoom(items, factory) {
+  const missing = factoryMissing(items, factory), all = [...items, ...missing];
+  const need = all.reduce((a, it) => a + itemBytes(it), 0);
+  const fits = (list) => { try { userBank(list); return true; } catch (e) { if (e instanceof TooLong) return false; throw e; } };
+  if (fits(all)) return { items: all, cap: 0, changed: [], need };   // (the layout's own answer: its seams counted)
+  for (const cap of AUTO) {
+    const changed = [];
+    const next = all.map((it) => {
+      if (isFactory(it) || !it.adpcm || it.rate <= cap) return it;
+      changed.push(it.name);
+      return atRateKept(it, cap);
+    });
+    if (changed.length && fits(next)) return { items: next, cap, changed, need };
+  }
+  return null;
 }
