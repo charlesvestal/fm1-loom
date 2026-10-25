@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
-# SPDX-License-Identifier: GPL-3.0-only
+# SPDX-License-Identifier: MPL-2.0
 """LOOM-8's factory drum samples (kick, snare, hat, clap): renders of 9W9, the TR-909 model of the schwung family
-(github.com/athousanddetails/schwung-9W9, GPL-3.0: its ER-99 engine and its hat samples), each cut where it has
+(github.com/athousanddetails/schwung-9W9, GPL-3.0: its ER-99 engine and its hat samples; the renders MPL-2.0 by its
+author's permission: LICENSING.md), each cut where it has
 fallen 60 dB under its peak, its last 10 ms faded (a sample that ends while it still sounds clicks), into
 app/samples/909_*.wav at the rate the bank keeps it at. tools/gen_samples.py reads them in place of the made drums
 it had (same names, same places in the bank). Run once, by hand; the results are committed.

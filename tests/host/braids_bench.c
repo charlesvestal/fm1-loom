@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: MPL-2.0 */
 /* The Braids engines' cost and sound on their own (dsp/braids.h through synth.c's eng_* hooks): each cane and
  * voile model rendered as the voice path calls it (a prep when the knobs or the pitch move, eng_chunk every
  * 64 samples, eng_run SUB samples at a time), at three notes and two knob settings, with a slow vibrato so the

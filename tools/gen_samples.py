@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# SPDX-License-Identifier: GPL-3.0-only
+# SPDX-License-Identifier: MPL-2.0
 """LOOM-8's factory samples: 9W9's 909 drums (app/samples/909_*, tools/prep_909.py) and a noise sweep made here
 (mono at 22050 Hz); the
 recorded instruments (app/samples/, tools/prep_recordings.py: VSCO 2 CE, CC0); a vinyl loop made here; the four
@@ -94,7 +94,8 @@ BREAK_ROOT = 53                                      # F3, the lowest key: slice
 
 
 # the drums first (their places in the bank as the made ones had: projects name samples by number): renders of 9W9,
-# the TR-909 model (GPL-3.0), cut where they fall silent (tools/prep_909.py): name, file, rate
+# the TR-909 model (GPL-3.0; these renders MPL-2.0 by its author's permission: LICENSING.md), cut where they fall
+# silent (tools/prep_909.py): name, file, rate
 DRUMS = [("kick", "909_kick.wav", 16000), ("snare", "909_snare.wav", 22050), ("hat", "909_hat.wav", 22050),
          ("clap", "909_clap.wav", 22050)]
 SAMPLES = [("sweep", sweep)]

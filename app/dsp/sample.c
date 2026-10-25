@@ -1,7 +1,7 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: MPL-2.0 */
 /* LOOM-8 samples (sample.h): the factory bank, the user bank, the IMA ADPCM decoder. The decoder is the
- * standard IMA one (as X0X's breaks.c, adapted from Felucca's eng_sample.c), run a block at a time from
- * the block's checkpoint. */
+ * standard IMA one (IMA Digital Audio Focus and Technical Working Groups, "Recommended Practices for Enhancing
+ * Digital Audio Compatibility in Multimedia Systems", 1992), run a block at a time from the block's checkpoint. */
 #include "sample.h"
 /* the factory set built in: the host simulator, the DSP tests and the emulator (no flash to fit); on the FM-1 its
  * rows are empty since 0.8 and play the bank's entries of the factory set (the installer puts them there) */

@@ -1,5 +1,5 @@
 #!/bin/sh
-# SPDX-License-Identifier: GPL-3.0-only
+# SPDX-License-Identifier: MPL-2.0
 # Audition the factory presets: each one plays a short phrase (three notes, then a chord held) on
 # track 2 of a new project in the host simulator, through the default FX I delay and FX II reverb
 # and the master, into build/presets/NN-engine-name.wav; then their levels (peak, RMS, the loudest

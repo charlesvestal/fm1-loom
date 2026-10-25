@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: GPL-3.0-only
+# SPDX-License-Identifier: MPL-2.0
 """sample's presets, the first set (2026-10-19): the recorded instruments (VSCO 2 CE: upright piano, contrabass
 pizzicato, a string section, a brass section (trumpet over trombone), a flute, an orchestra hit), the vinyl and the made drums.
 knobs: sample (by name), start, length, mode (0 one-shot, 1 loop, 2 reverse, 3 ping-pong); a sustained recording

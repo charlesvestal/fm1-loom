@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: MPL-2.0 */
 /* LOOM-8 on fm1-base: the app's unity build (compiled into fm1-base's device/unity.c after the platform, and into its
  * simulator host/plat_host.c) and the glue between fm1-base's contract (app.h) and LOOM-8's parts: its drawing
  * (gfx_loom.c), the engine (engine.c; the DSP and the sequencer in dsp/ and seq/, their own -O2 units), the project

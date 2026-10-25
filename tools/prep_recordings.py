@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# SPDX-License-Identifier: GPL-3.0-only
+# SPDX-License-Identifier: MPL-2.0
 """LOOM-8's recorded instruments: cut from the Versilian Studios Chamber Orchestra 2 Community Edition (VSCO 2 CE,
 CC0, github.com/sgossner/VSCO-2-CE) into app/samples/, mono 16-bit at the rate the bank keeps each at, a sustained
 one's loop found (the end where the waveform best matches the start) and crossfaded into the file, stated in its

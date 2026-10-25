@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: MPL-2.0 */
 /* A user sample bank built in RAM for the host tests, in tools/sampleio.py's format (version 3, app/dsp/sample.h; or 2,
  * bank_blk = SMP_BLK_V2: a checkpoint every 64 samples, as before 0.8):
  * the image in one virtual space (bank[]), each window then copied into a buffer of its own (bank_attach), so a

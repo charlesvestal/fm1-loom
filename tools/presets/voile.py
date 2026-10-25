@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: GPL-3.0-only
+# SPDX-License-Identifier: MPL-2.0
 """voile's presets (2026-10-19): Braids' voices. knobs: model (0 vosim, 1 vowel, 2 choir, 3 whisper), timbre,
 color, breath; per model (dsp/braids.h): vosim timbre and color the two formants; vowel (Braids' speech) timbre the
 vowel, color the formants' shift, breath the consonant's length; choir timbre the vowel (a e i o u), color the voice

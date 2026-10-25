@@ -1,5 +1,5 @@
 #!/bin/sh
-# SPDX-License-Identifier: GPL-3.0-only
+# SPDX-License-Identifier: MPL-2.0
 # The factory set in the user bank, as on the FM-1 (tests/host/factory_test.c): sample.c without the factory samples
 # built in (SMP_FACT_MOVED), against a bank with them and one without.
 set -eu

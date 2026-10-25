@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# SPDX-License-Identifier: GPL-3.0-only
+# SPDX-License-Identifier: MPL-2.0
 """Checks the factory presets against the sound rules (docs/superpowers/specs/2026-10-19-sound-redesign.md 3.2), on
 their role renders (tools/render_presets.sh --roles: each preset played as its role is used, through the default
 chain: FX I delay, FX II lush, the master) and on their recipes (tools/gen_presets.py --json):

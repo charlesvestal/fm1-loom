@@ -1,5 +1,7 @@
-/* SPDX-License-Identifier: GPL-3.0-only
- * Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments */
+/* SPDX-License-Identifier: MPL-2.0
+ * Copyright (C) 2026 Charles Vestal. Its text drawing (loom_glyph, loom_text_w, loom_text_box, loom_text's blending)
+ * is fm1-base's device/gfx.c, Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments, under MPL-2.0
+ * as there (felucca-bsp#4) */
 /* LOOM-8's drawing over fm1-base's canvas (base/device/gfx.c: cv_px, cv_begin, cv_rect, cv_blit, the palette):
  * its own fonts in a compact format (each glyph its ink box only, the big faces run-length coded: tools/gen_font.py,
  * a third of fm1-base's), anti-aliased lines and dots, and on the host the layout audit (GFX_AUDIT). Included first by

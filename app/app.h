@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: MPL-2.0 */
 /* LOOM-8: the project (everything that is saved), the app's entry points and its half of the contract with fm1-base
  * (base/device/unity.c, base/host/plat_host.c). Included first by fm1-base's unity build and by its simulator. */
 #pragma once

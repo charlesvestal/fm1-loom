@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: MPL-2.0 */
 /* LOOM-8 samples: the factory bank compiled into the image (build/gen/samples.h, tools/gen_samples.py, mono IMA
  * ADPCM at 22050 Hz) and the user bank in flash (216 KB over three windows, uploaded over USB with
  * tools/loom_samples.py), mono IMA ADPCM at each sample's own rate (4000..48000 Hz: the tool offers 11025, 16000,

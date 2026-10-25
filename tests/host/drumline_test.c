@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: MPL-2.0 */
 /* The drumline (dsp/drumline.c) on its own: every key of the default kit hits, stays finite, peaks in
  * -20..0 dBFS at volume 0 dB and velocity 127, falls to silence within its length; every model with
  * its four knobs at their ends stays finite and in range; the play modes (gated stops on release,

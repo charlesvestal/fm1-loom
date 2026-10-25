@@ -1,5 +1,5 @@
 #!/bin/sh
-# SPDX-License-Identifier: GPL-3.0-only
+# SPDX-License-Identifier: MPL-2.0
 # Listening renders of the kit's per-key envelopes and filters, the sample model and the sample engine
 # (tools/render_drums.c: the units dry) and of the sample engine's eight presets through the FX and the master
 # (tools/render_presets.sh's), into build/drum_renders/ with index.html (a player for each) and index.txt.

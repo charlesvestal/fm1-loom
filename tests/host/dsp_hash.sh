@@ -1,5 +1,5 @@
 #!/bin/sh
-# SPDX-License-Identifier: GPL-3.0-only
+# SPDX-License-Identifier: MPL-2.0
 # Fingerprints of the DSP's output (tests/host/dsp_hash.c), for changes that must not move a sample:
 #   tests/host/dsp_hash.sh save     before the change: build/host/dsp_hash.ref
 #   tests/host/dsp_hash.sh          after it: compare with the reference (exit 1 on a difference)

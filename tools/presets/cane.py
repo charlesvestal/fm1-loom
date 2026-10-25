@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: GPL-3.0-only
+# SPDX-License-Identifier: MPL-2.0
 """cane's presets (2026-10-19): Braids' physical models. knobs: model (0 pluck, 1 bow, 2 reed, 3 flute, 4 bell,
 5 drum), timbre, color, damp; per model (dsp/braids.h): pluck timbre the decay, color the pluck's width, damp
 softens it; bow timbre the pressure, color its place, damp the bridge's losses; reed timbre the breath's steadiness,

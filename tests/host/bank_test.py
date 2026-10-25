@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# SPDX-License-Identifier: GPL-3.0-only
+# SPDX-License-Identifier: MPL-2.0
 """The user bank's builder (tools/sampleio.py user_bank, tools/loom_samples.py build): the layout over the three
 windows (each sample's checkpoints in one window, its ADPCM read back across a seam exactly as encoded), the rates
 (each sample's own, auto choosing the highest that fits), the bounds (a bank larger than the windows refused, 33

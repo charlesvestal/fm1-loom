@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: MPL-2.0 */
 /* LOOM-8 on the FM-1: its platform extras beyond fm1-base's plat.h (app.h), on felucca-bsp's helpers (the second
  * core is fm1-base's: fm1.toml cpu2 = true, plat_cpu2_*). Part
  * of the app's unity build (app.c), compiled inside fm1-base's (device/unity.c: after the platform, before its

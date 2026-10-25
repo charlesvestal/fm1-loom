@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: MPL-2.0 */
 /* Fingerprints of the DSP's output, for refactors that must not change a sample: every synth engine through
  * every filter type and character type, every factory preset, every drum model through every key filter and
  * the dynamic filter, every send effect and reverb mode, the master at its EQ / compressor's

@@ -1,5 +1,5 @@
 #!/bin/sh
-# SPDX-License-Identifier: GPL-3.0-only
+# SPDX-License-Identifier: MPL-2.0
 # LOOM-8's tests: the units' own (the synth, the Braids engines, the drumline, the FX, the sequencer: tests/host/*_test.sh; the DSP's
 # fingerprints when a reference was saved: tests/host/dsp_hash.sh save), the user sample bank's tool, the update path
 # against LOOM-8's package (./build.sh first), the whole app in fm1-base's simulator (tests/scenarios/*.xy: UI,

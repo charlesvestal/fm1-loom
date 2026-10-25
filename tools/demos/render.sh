@@ -1,5 +1,5 @@
 #!/bin/sh
-# SPDX-License-Identifier: GPL-3.0-only
+# SPDX-License-Identifier: MPL-2.0
 # LOOM-8's demo songs, rendered in the host simulator: each tools/demos/<song>.xy played from its song page, as a
 # player would make it on the FM-1 (its own sample bank, its tracks, scenes, song, locks and throws), to a WAV, then
 # AAC (.m4a). For private listening: the banks hold classic breaks and must never be committed, published or put on

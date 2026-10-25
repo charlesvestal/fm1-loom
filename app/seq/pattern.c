@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: MPL-2.0 */
 /* LOOM-8 pattern store: the plain-data helpers of pattern.h (main loop side; the sequencer only reads). */
 #include "pattern.h"
 

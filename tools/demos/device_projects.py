@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# SPDX-License-Identifier: GPL-3.0-only
+# SPDX-License-Identifier: MPL-2.0
 """The six demo songs as projects for the FM-1 (for tools/demos/device_load.py, the load test on the device).
 
   device_projects.py BREAKS_DIR [OUT_DIR]          (OUT_DIR default build/demos/device)

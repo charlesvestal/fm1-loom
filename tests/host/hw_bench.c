@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: MPL-2.0 */
 /* The hardware profiler's kernels (app/dsp/bench.c) on the host: each kernel's fastest batch of 64 runs of BENCH_N
  * samples (of 30; the host's clock is too coarse for one run) in nanoseconds and instructions a sample, a line each (name, ns, instructions; tab-separated), for
  * tools/hw_bench.py to set beside the FM-1's. Instructions need macOS (proc_pid_rusage); elsewhere 0.

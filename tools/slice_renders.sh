@@ -1,5 +1,5 @@
 #!/bin/sh
-# SPDX-License-Identifier: GPL-3.0-only
+# SPDX-License-Identifier: MPL-2.0
 # Listen to the slice engine: the factory break as made (tools/gen_samples.py), then tests/scenarios/slice.xy
 # in the host simulator (the break played straight from the steps, re-sequenced, the same at 90 BPM, "chop"
 # on sixteenths, the keys by hand) into build/slice_renders/, with its screens and a page to listen through,

@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: MPL-2.0 */
 /* LOOM-8's MIDI CC map: a CC on channel 1-8 (a track), 12-16 (the instrument track selected, inst_trk), 9 / 10
  * (FX I / II) or 11 (the master) sets a parameter as its knob would, scaled onto the parameter's range; a track's CC
  * is also recorded into its own lane while recording. Channel 11's Program Change and notes 36-67 pick scenes 1-32.

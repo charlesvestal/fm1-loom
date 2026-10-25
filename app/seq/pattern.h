@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: MPL-2.0 */
 /* LOOM-8 data model: tracks, patterns, steps, lanes (parameter locks), scenes and the song.
  *
  * Plain data, no pointers, so a pattern copies with an assignment and the project stores the bytes

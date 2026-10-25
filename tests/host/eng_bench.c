@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: MPL-2.0 */
 /* An engine's cost on the host: for each preset of the engines named (or knit, rayon and jacquard), a chord of four
  * held through synth_render (the full voice path: engine, filter, character, outputs), and the engine's run
  * alone (eng_run on a copy of a sounding voice, its chunk configuration fixed). Instructions a voice-sample

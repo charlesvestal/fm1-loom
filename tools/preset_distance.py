@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# SPDX-License-Identifier: GPL-3.0-only
+# SPDX-License-Identifier: MPL-2.0
 """How alike the presets' renders (tools/render_presets.sh) sound: per render (mono sum, frames 2048, hop
 1024) a spectral shape (24 log bands 60 Hz .. 16 kHz, averaged over time, in dB normalised to the loudest
 band) and an envelope (frame energy in dB normalised to the loudest frame, floor -60). The distance of two

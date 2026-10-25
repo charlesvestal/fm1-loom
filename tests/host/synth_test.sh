@@ -1,5 +1,5 @@
 #!/bin/sh
-# SPDX-License-Identifier: GPL-3.0-only
+# SPDX-License-Identifier: MPL-2.0
 # The voices' host test: generate the wavetables, build dsp/synth.c with the device's rules (C99, float
 # only, no libm, no fused multiply-add), run the checks and the benchmark.
 #   tests/host/synth_test.sh

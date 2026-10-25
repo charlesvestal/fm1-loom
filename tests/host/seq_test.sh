@@ -1,5 +1,5 @@
 #!/bin/sh
-# SPDX-License-Identifier: GPL-3.0-only
+# SPDX-License-Identifier: MPL-2.0
 # LOOM-8 sequencer tests: build and run tests/host/seq_test.c against seq.c and pattern.c (no libm,
 # no synth: the sequencer only needs synth.h's enums).
 #   sh tests/host/seq_test.sh

@@ -1,5 +1,5 @@
 #!/bin/sh
-# SPDX-License-Identifier: GPL-3.0-only
+# SPDX-License-Identifier: MPL-2.0
 # Build the GitHub Pages site for release VERSION (tools/make_pages.py) and push it to the gh-pages
 # branch of origin, replacing what was there (the branch holds only the generated site).
 #   tools/publish_pages.sh 0.1-beta          (after ./build.sh --release 0.1-beta; PYTHON: one with Pillow)

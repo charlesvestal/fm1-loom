@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# SPDX-License-Identifier: GPL-3.0-only
+# SPDX-License-Identifier: MPL-2.0
 """The presets' renders (tools/render_presets.sh) measured: per preset the voices' dry peak and RMS
 (OUTDIR/dry.txt, from tools/preset_scripts.c: the levels to balance by) and its deviation from the mean,
 then the WAV's (through the FX and the master's compressor and limiter) peak, the RMS of the phrase (the

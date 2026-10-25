@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: MPL-2.0 */
 /* LOOM-8's input: the panel's buttons, keys and encoders, what they do on each page, and the screen reader.
  * Part of the unity build, after pages.c; the host simulator includes it too. The gestures are the OP-XY
  * notebook's, with HOME as shift and a held step as "what is on it":

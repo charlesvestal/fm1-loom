@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: MPL-2.0
 // The backup page's sample section (app/web/backup/extras.js on app/web/samples/loom_samples.js, assembled as
 // tools/make_pages.py assembles it) against a simulated FM-1 speaking app/samples.c's commands (INFO 15, READ 17,
 // BEGIN 11, WRITE 12, HDR 16, END 13, ERASE 14), and against the command line (tools/loom_samples.py, fm1_backup.py):

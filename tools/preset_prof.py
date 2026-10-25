@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# SPDX-License-Identifier: GPL-3.0-only
+# SPDX-License-Identifier: MPL-2.0
 """The presets' cost: every factory preset (or an engine's) held as a chord of 1, 4, 8 .. notes, its load measured,
 on an attached FM-1 (the profiler: tools/perf_read.py) and in the host's load model (app/host.c meter), side by side.
 

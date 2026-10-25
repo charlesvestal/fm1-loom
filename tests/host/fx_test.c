@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: MPL-2.0 */
 /* The effects (dsp/fx.c) on their own: every send effect (and every reverb mode) takes an impulse and a
  * noise burst without NaN and stays bounded, at its defaults and at mid knobs; the delay's first echo lands
  * on the beat at 120 BPM (time 1/4 = 0.5 s, dotted 1/8 = 0.375 s) and ping-pongs; the delay and the reverb

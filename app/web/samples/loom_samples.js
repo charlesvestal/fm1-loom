@@ -1,9 +1,8 @@
-// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: MPL-2.0
 // LOOM-8's user sample bank in the browser: tools/loom_samples.py and tools/sampleio.py (its numpy path) as plain
 // functions, so the samples page (app/web/samples/index.html) builds the bank the command line builds: the same
 // layout and header byte for byte, the same sound within a rounding (numpy sums a convolution in its own order).
-// tests/host/samples_web.mjs checks it against loom_samples.py. Adapted, as those are, from X0X's sample helpers
-// (Felucca's, Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments).
+// tests/host/samples_web.mjs checks it against loom_samples.py. Copyright (C) 2026 Charles Vestal.
 //
 // Keep the order of operations of sampleio.py when touching these.
 

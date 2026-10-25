@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: MPL-2.0 */
 /* The break pack as the host tests' user bank: build/gen/breaks.bin (tools/loom_samples.py build ... breaks, made by
  * the tests' scripts), its windows apart as on the FM-1. Since 0.7 the four breaks are not in the image: the factory
  * rows SMP_BREAK.. are found in the user bank by name (dsp/sample.c), so a test that plays them attaches the pack,

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# SPDX-License-Identifier: GPL-3.0-only
+# SPDX-License-Identifier: MPL-2.0
 """This build's sources as a number (LOOM_BUILD, app/plat_loom.c): a hash of the app's and fm1-base's sources, so a
 new build is told apart from the one that ran before it (the second core's bar, kept across an update in .noinit,
 is the old build's: a new build starts with two cores again). The same sources give the same number (and image).

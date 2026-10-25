@@ -390,7 +390,7 @@ int engine_cc_take(uint32_t *pkt);                       /* the main loop: the n
 - [ ] **Step 4: midicc.c, the map in.** Create `app/midicc.c`:
 
 ```c
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: MPL-2.0 */
 /* LOOM-8's MIDI map (docs/superpowers/specs/2026-10-21-midi-cc-map-design.md): CCs in, as the knob or key would set
  * them (recorded with REC on, playing); CCs out for a knob turned by hand; the scenes by Program Change or notes on the
  * master's channel. Part of app.c's unity build, after ui.c: set_tp, set_mute, kit_sound_mute, scene_go. */

@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: MPL-2.0 */
 /* LOOM-8 audio engine: the sequencer, the voices (synth + drumline per track), the sends, the two FX
  * tracks, the master; the two cores and the overload guard. engine_render() runs in the
  * audio interrupt; everything else is called from the main loop and reaches the interrupt through

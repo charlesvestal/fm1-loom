@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: MPL-2.0
 // LOOM-8's sample bank as a section of the backup file (fm1-base's web/backup page, EXTRAS; tag "LSMP"): read back
 // through SMP_READ (17), written as the samples page writes it (BEGIN 11, WRITE 12, HDR 16, END 13; ERASE 14 for a
 // bank with no samples), app/samples.c. The section is the bank's image as tools/loom_samples.py backup / extract

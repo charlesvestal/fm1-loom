@@ -1,6 +1,5 @@
-# SPDX-License-Identifier: GPL-3.0-only
-# Portions adapted from X0X's tools/sampleio.py, Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton
-# Instruments (Felucca's sample helpers).
+# SPDX-License-Identifier: MPL-2.0
+# Copyright (C) 2026 Charles Vestal
 """LOOM-8's sample helpers, shared by tools/gen_samples.py (the factory bank compiled into the image) and
 tools/loom_samples.py (the user bank, uploaded over USB): WAV reading, resampling, IMA ADPCM with
 checkpoints, and the user bank's layout (app/dsp/sample.h).

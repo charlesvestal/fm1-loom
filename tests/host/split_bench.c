@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: MPL-2.0 */
 /* The two cores' split of the voice pool (app/engine.c split_at), measured on the host: a stretch's
  * critical path is the longer of the second core's voices [0, k) and the first core's voices [k, NVOICE)
  * plus its drum tracks. For a few loads (N synth voices, with and without a kit playing), the mean

@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: MPL-2.0 */
 /* LOOM-8 effects (fx.h): the send slots and the master section.
  *
  * Send slots: each takes a mono send and adds a stereo return. The reverb is 9W9's (X0X's fxbus.c):

@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: MPL-2.0 */
 /* LOOM-8 effects: the two send-effect tracks (fx I, fx II: one of chorus, delay, lofi, phaser, reverb each,
  * four knobs of its own; the reverb in one of eleven modes: the plate, or one of the PlayStation's SPU
  * reverbs) and the master section (3-band EQ with blend, compressor, limiter, group

@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
+/* SPDX-License-Identifier: MPL-2.0 */
 /* LOOM-8 audio engine; see engine.h. The shape is X0X's: a command queue from the main loop, the
  * sequencer stepped sample-accurately between renders, one stretch of frames rendered as the first
  * core's part plus the second core's job, summed in one fixed order so a device with one core and a

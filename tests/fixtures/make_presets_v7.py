@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# SPDX-License-Identifier: GPL-3.0-only
+# SPDX-License-Identifier: MPL-2.0
 """tests/fixtures/presets_v7.bkp: a backup (fm1-base's backup format, as the simulator's sim_backup writes it) whose
 only object is a presets object of PRESETS_FORMAT 7 (before the user kits): user preset U1 "oldpad", a knit sound.
 tests/scenarios/kits.xy restores it: the preset loads, the kits are empty, and a kit saved keeps the preset."""
