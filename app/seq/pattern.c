@@ -5,7 +5,7 @@
 /* the value a component starts with (the notebook p. 139, 0-based): pulse 4, hold 4, multiply 2, velocity 64,
  * ramps 4 iterations, random 4, portamento 40 %, bend down-up, tonality 4 (fifth up), jump to 13, skips: a
  * cycle of 2 (mode 0: the step plays on the cycle's last pass) */
-const uint8_t SC_DEFAULT[NSC] = {0, 3, 3, 1, 4, 3, 3, 3, 3, 0, 3, 3, SK_VAL(1, 0), SK_VAL(1, 0), SK_VAL(1, 0)};
+const uint8_t SC_DEFAULT[NSC] = {0, 3, 3, 1, 4, 3, 3, 3, 3, 0, 3, 3, SK_VAL(1, 0), SK_VAL(1, 0), SK_VAL(1, 0), 3};
 const char *const GR_NAME[NGROOVE] = {"swing", "lilt", "weave", "stretch", "drunk", "jitter", "accent", "lazy",
                                       "push pull", "sway", "swell"};
 

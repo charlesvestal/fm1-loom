@@ -25,15 +25,19 @@ enum { AUX_BRAIN = NTRK, AUX_PUNCH, AUX_FX1, AUX_FX2, AUX_WEAVE, NALLTRK };   /*
 #define NDRUM 11                      /* drumline keys: the black keys (a model instance each) */
 #define PPS 24                        /* ticks a step (a sixteenth at scale 1): nudge and lengths count in these */
 
-/* step components: the OP-XY's 14, in the cheat sheet's order (the white keys 1..14 with HOME and a step held);
- * 0 = none. Values 0..8 = the black keys 1-9, 9 = black key 10 (random, where the OP-XY prints rnd). A step
+/* step components: the OP-XY's 14, in the cheat sheet's order, then LOOM-8's flam (append only: saved with the
+ * project); 0 = none. Values 0..8 = the black keys 1-9, 9 = black key 10 (random, where the OP-XY prints rnd). A step
  * carries up to two (comp / comp2). Defaults when a component is added (the notebook p. 139): SC_DEFAULT[]. */
 enum { SC_NONE, SC_PULSE, SC_HOLD, SC_MULTIPLY, SC_VELOCITY, SC_RAMP_UP, SC_RAMP_DOWN, SC_RANDOM,
-       SC_PORTAMENTO, SC_BEND, SC_TONALITY, SC_JUMP, SC_SKIP_LOCK, SC_SKIP_COMP, SC_SKIP, NSC };
+       SC_PORTAMENTO, SC_BEND, SC_TONALITY, SC_JUMP, SC_SKIP_LOCK, SC_SKIP_COMP, SC_SKIP, SC_FLAM, NSC };
+static inline int sc_is_skip(int c) { return c >= SC_SKIP_LOCK && c <= SC_SKIP; }   /* (the flam is after them) */
 #define SC_RANDOM_VAL 9
 #define JUMP_LAST 21                       /* SC_JUMP's values run 0..21 (see below) */
 extern const uint8_t SC_DEFAULT[NSC];      /* pulse 3 (= 4), hold 3, multiply 1, velocity 4, ramps 3, random 3,
-                                            * portamento 3, bend 0, tonality 3, jump 3, skips 1 (0-based values) */
+                                            * portamento 3, bend 0, tonality 3, jump 3, skips 1, flam 3 (0-based
+                                            * values) */
+/* SC_FLAM: a grace hit on the step (a little over half its velocity, short), then the step's own hit 1..9 32nds of
+ * a step later (values 0..8), random */
 /* SC_PULSE / SC_HOLD: 1..9 repeats (the total count includes the original trigger), random
  * SC_MULTIPLY: 1..9 ratchets within the step, random
  * SC_VELOCITY: 4 8 16 32 64 100 112 127 0, random
