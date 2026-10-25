@@ -36,6 +36,7 @@ seq_t seq;
 volatile uint8_t eng_step[NSEQT];
 volatile uint16_t eng_peak[NALLTRK];
 volatile uint8_t eng_drum_hit[NDRUM];
+volatile uint8_t eng_midi_hit[NTRK];
 volatile uint8_t eng_voices, eng_voices_max = NVOICE;
 volatile uint32_t eng_guard_count;
 volatile uint32_t eng_punch_drum, eng_punch_mel;
@@ -654,6 +655,8 @@ static void s_midi(void *x, uint8_t st, uint8_t d1, uint8_t d2)
 {
     uint32_t cin = st >= 0xF0 ? 0x0Fu : (uint32_t)(st >> 4);
     (void)x;
+    if ((st & 0xF0) == 0x90 && d2 && (st & 15) < NTRK)
+        eng_midi_hit[st & 15] = 255;                  /* (a MIDI track's picture: its port lights) */
     ENG_MIDI_OUT(cin | ((uint32_t)st << 8) | ((uint32_t)d1 << 16) | ((uint32_t)d2 << 24));
 }
 static void s_step(void *x, int trk, int step)
