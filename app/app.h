@@ -64,6 +64,7 @@ void app_ui_init(void);
 void app_frame(void);
 void app_input_only(void);
 void app_say(const char *a, const char *b);
+#define APP_BTDEV                       /* Bluetooth MIDI devices (fm1-base lib/btdev.h): GLO's BT DEVICE list (bt.c) */
 #define APP_SPLASH                      /* the name over the eight tracks' inks woven as threads */
 void app_splash(void);
 #define APP_REDRAW                      /* the screen mirror lost a part (or a viewer came): every band again */
@@ -147,7 +148,7 @@ typedef struct {
     uint8_t trk_sel;                    /* the track selected */
     uint8_t rsv[10];                    /* (format 4 had 14: its last four are master[0..3] now); rsv[0] the count-in,
                                          * [1] the theme, [2] bits (pages.c): 1 REC's mode, 2 SCENES SWITCH
-                                         * (SCENES_AT_END), 4 AUTOSAVE_OFF, 8 LOOP_FREE, 16 CC_OUT_OFF, 32 SCENES_OUT;
+                                         * (SCENES_AT_END), 4 AUTOSAVE_OFF, 8 LOOP_FREE, 16 CC_OUT_OFF, 32 SCENES_OUT, 64 BT_AUDIO_ON (bt.c);
                                          * [4..7] the save count (project.c: the slot saved or loaded last opens at
                                          * power-on) */
     uint8_t master[NMS];                /* fx.h MS_*: format 4's twelve end where these sixteen end */

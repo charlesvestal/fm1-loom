@@ -1655,6 +1655,7 @@ static void key_up(int k)
 
 /* --------------------------------------------------------- buttons --- */
 static void list_open(void);
+static void bt_audio_set(int on);
 static void list_sel(void);
 static int save_project(int slot);
 static void save_user_preset(int slot);
@@ -1723,6 +1724,10 @@ static void button_up(int b)
             page_button(B_HOME);
         break;
     case B_SAVE:
+        if (lst.open && lst.bt && !ui.ask && lst.n && lst.row[lst.sel].id == A_BT_DEV) {   /* (a device: connect) */
+            list_sel();
+            break;
+        }
         if (proj_slot >= NPROJ)                  /* no slot yet: the one SAVE TO shows (asked if it holds another) */
             act_save_slot(ui.pick_save % NPROJ);
         else if (save_project(proj_slot) == 0)
@@ -2245,6 +2250,7 @@ static void list_open(void)
 {
     int a;
     lst.open = 1;
+    lst.bt = 0;
     lst.sel = lst.top = 0;
     ui.pick_engine = proj.trk[sel_trk()].par[TP_ENGINE] % NENGINE;
     if (is_fx(sel_trk()))
@@ -2263,6 +2269,12 @@ static void list_open(void)
         ;
     if (a >= lst.n)
         return;
+    if (ui.page == P_SETUP)                      /* Setup: its Bluetooth rows first */
+        for (int r = a; r < lst.n; r++)
+            if (lst.row[r].id == A_BT_AUDIO && lst.row[r].kind == LK_PICK) {
+                a = r;
+                break;
+            }
     lst.sel = (uint8_t)a;
     lst.top = (uint8_t)(lst.n - a >= LIST_SHOWN ? a : lst.n > LIST_SHOWN ? lst.n - LIST_SHOWN : 0);
 }
@@ -2325,6 +2337,17 @@ static void list_change_do(int32_t e)
                 mark_dirty();
             }
             break;
+        case A_BT_AUDIO:
+            if (bt.want != (uint8_t)(d > 0))
+                bt_audio_set(d > 0);
+            break;
+        case A_BT_FORGET: {
+            int n = 0;
+            while (n < 4 && BTA(known)(n, 0))
+                n++;
+            ui.pick_bt = (uint8_t)(n ? (ui.pick_bt + d + n) % n : 0);
+            break;
+        }
         case A_USB_HOST:                         /* (not saved: every start is the computer's, as the update needs) */
             plat_usb_host(d > 0);
             break;
@@ -2943,6 +2966,7 @@ static void act_save_slot(int slot)
 }
 static void after_load(void)
 {
+    bt_keep(bt.want);                            /* (Bluetooth audio stays as it is, whichever project) */
     project_apply();
     apply_brain();
     for (int t = 0; t < NSEQT; t++)
@@ -3031,6 +3055,132 @@ static void act_remove_note(int row)             /* a step held: the row's note 
     mark_dirty();
     say("REMOVED", 0);
 }
+/* ---- Bluetooth (bt.c): audio on or off, the lists' rows, and every frame what changed */
+static void bt_audio_set(int on)                 /* GLO's BT AUDIO: on connects the last device */
+{
+    bt_keep(on);
+    mark_dirty();
+    BTA(on)(on);
+    if (on && BTA(known)(0, 0) && !bt_linking(BTA(state)()) && BTA(state)() != PLAT_BTA_STREAMING) {
+        bt.cur = 0;
+        BTA(reconnect)(0);
+    }
+}
+static void bt_list(int which)                   /* GLO's BT AUDIO or BT DEVICE, SEL: its list of devices */
+{
+    if (which == 2 && plat_ble_linked() && !btdev_busy()) {   /* (one Bluetooth MIDI link at a time) */
+        say_no("NO DEVICE", "computer connected");
+        return;
+    }
+    lst.bt = (uint8_t)which;
+    lst.sel = lst.top = 0;
+    ui.pick_bt = 0;
+    list_build();
+    if (which == 1 && lst.n > 1)                 /* (on the first device, past on / off) */
+        lst.sel = 1;
+}
+static void do_bt_forget(void)
+{
+    int i = ui.ask_arg;
+    char nm[17];
+    if (!BTA(known)(i, nm))
+        return;
+    if (i == bt.cur && BTA(state)() != PLAT_BTA_OFF)
+        BTA(hangup)();                           /* (the device forgotten plays no more) */
+    BTA(forget)(i);
+    bt.cur = (uint8_t)(i < bt.cur ? bt.cur - 1 : i == bt.cur ? 0 : bt.cur);
+    say("FORGOTTEN", nm);
+}
+static void bt_row(void)                         /* a device's row, SEL (or SAVE): connect it */
+{
+    const char *nm = lst.row[lst.sel].name;
+    int j = (int)((nm - bt_nm[0]) / (int)sizeof bt_nm[0]);
+    if (j < 0 || j >= BT_ROWS)
+        return;
+    if (lst.bt == 2) {
+        btdev_choose(j);
+        if (btdev_save() == BTDEV_CONNECTING)
+            say("CONNECTING", btdev_name());
+        else
+            say_no("NO DEVICE", "look again");
+        return;
+    }
+    bt_keep(1);
+    mark_dirty();
+    BTA(on)(1);
+    if (bt_ix[j] & 0x80) {
+        bt.cur = (uint8_t)(bt_ix[j] & 0x7F);
+        BTA(reconnect)(bt.cur);
+    } else {
+        bt.cur = 0;                              /* (a new one becomes the last one) */
+        BTA(pick)(bt_ix[j]);
+    }
+    say("CONNECTING", bt_nm[j]);
+}
+static void bt_poll(void)
+{
+    int st, pk, up, ev;
+    if (!lst.open)
+        lst.bt = 0;
+    up = lst.open ? lst.bt : 0;
+    if (bt.boot && plat_ble_state() == BLE_READY) {   /* power-on: the last device again, if audio was on */
+        bt.boot = 0;
+        if (bt.want) {
+            BTA(on)(1);
+            if (BTA(known)(0, 0)) {
+                bt.cur = 0;
+                BTA(reconnect)(0);
+            }
+        }
+    }
+    if (up == 1 && bt.list != 1) {               /* the audio list opened: look (not while a device is linked) */
+        BTA(on)(1);
+        st = BTA(state)();
+        if (!bt_linking(st) && st != PLAT_BTA_STREAMING)
+            BTA(scan)(1);
+    } else if (up != 1 && bt.list == 1) {        /* and closed: stop looking; off again if it was off */
+        if (BTA(state)() == PLAT_BTA_SCANNING)
+            BTA(scan)(0);
+        if (!bt.want)
+            BTA(on)(0);
+    }
+    bt.list = (uint8_t)up;
+    st = BTA(state)();
+    if (st != bt.was) {
+        char nm[17];
+        if (!BTA(known)(bt.cur, nm))
+            nm[0] = 0;
+        if (st == PLAT_BTA_STREAMING)
+            say("BT AUDIO", nm);
+        else if (st == PLAT_BTA_REFUSED)
+            say_no("BT AUDIO", "refused");
+        else if (st == PLAT_BTA_FAILED && (bt_linking(bt.was) || bt.was == PLAT_BTA_STREAMING))
+            say_no("BT AUDIO", bt.was == PLAT_BTA_STREAMING ? "lost" : "no answer");
+        bt.was = (uint8_t)st;
+    }
+    btdev_page(up == 2);                         /* the MIDI devices: looked for while their list is up */
+    while ((ev = btdev_event()) != BTDEV_NONE)
+        if (ev == BTDEV_CONNECTED)
+            say("CONNECTED", btdev_name());
+        else if (ev == BTDEV_NO_ANSWER || ev == BTDEV_LOST)
+            say_no(btdev_word(ev), btdev_name());
+    if (up == 2 && plat_ble_linked() && !btdev_busy()) {   /* a computer connected meanwhile: no devices */
+        lst.open = 0;
+        say_no("NO DEVICE", "computer connected");
+    }
+    pk = BT_PASSKEY();
+    if (pk != bt.pin) {                          /* the pairing code, said digit by digit (the header shows it) */
+        bt.pin = pk;
+        if (pk >= 0) {
+            char t[12];
+            for (int i = 5, v = pk; i >= 0; i--, v /= 10)
+                t[2 * i] = (char)('0' + v % 10), t[2 * i + 1] = ' ';
+            t[11] = 0;
+            sp_msg("PIN", t, ANN_NOW);
+        }
+    }
+}
+
 static void action_run(int a)
 {
     song_t *sg = &pats.song;
@@ -3160,6 +3310,38 @@ static void action_run(int a)
     case A_SAVE_TO: act_save_slot(ui.pick_save % NPROJ); break;
     case A_CLEAR_SCENE: act_clear_scene_ask(); return;
     case A_PANIC: engine_panic(); say("ALL NOTES OFF", 0); break;
+    case A_BT_AUDIO:                             /* (ALGORITHM switches it; SEL on GLO's row: its devices, on its
+                                                  * list's: on or off) */
+        if (!lst.bt)
+            bt_list(1);
+        else {
+            bt_audio_set(!bt.want);
+            say("BT AUDIO", bt.want ? "on" : "off");
+        }
+        return;
+    case A_BT_DEVICE: bt_list(2); return;
+    case A_BT_DEV: bt_row(); break;
+    case A_BT_LOOK:
+        if (bt_linking(BTA(state)()) || BTA(state)() == PLAT_BTA_STREAMING)
+            BTA(hangup)();                       /* (looking ends the link: the radio does one or the other) */
+        BTA(on)(1);
+        BTA(scan)(1);
+        say("LOOKING", "for headphones, speakers");
+        return;
+    case A_BT_FORGET: {
+        char q[32], nm[17];
+        if (!BTA(known)(ui.pick_bt, nm))
+            return;
+        ui.ask_arg = ui.pick_bt;
+        s_cat(s_cat(s_cat(q, "FORGET "), nm), "?");
+        ask(q, do_bt_forget);
+        return;
+    }
+    case A_BT_DISCONNECT:
+        if (btdev_save() == BTDEV_LET_GO)
+            say("DISCONNECTED", btdev_name());
+        break;
+    case A_BT_WAIT: say("LOOKING", "for MIDI devices"); return;
     default: break;
     }
     lst.open = 0;
@@ -3644,6 +3826,17 @@ static void sp_main(void)
     } else if (ui.page == P_ENGINE && !is_aux(trk)) {
         sp_cat("engine ");
         sp_cat(EG_NAME[proj.trk[trk].par[TP_ENGINE] % NENGINE]);
+    } else if (ui.page == P_SETUP) {
+        char t[24];
+        bt_audio_text(t);
+        sp_text("BT audio");
+        sp_cat(" ");
+        sp_text(t);
+        bt_dev_text(t);
+        sp_cat(", ");
+        sp_text("BT device");
+        sp_cat(" ");
+        sp_text(t);
     } else if (ui.page == P_STATUS) {
         sp_cat("audio load ");
         sp_int((int)plat_cpu_pct());
@@ -3710,7 +3903,7 @@ static void sp_front(int all)
             }
         }
     } else if (sp_list()) {
-        sp_cat(page_name_of(ui.page, sel_trk()));
+        sp_text(lst.bt ? (lst.bt == 1 ? "BT audio" : "BT devices") : page_name_of(ui.page, sel_trk()));
         sp_cat(" list. ");
         sp_row();
         return;
@@ -3749,7 +3942,7 @@ static uint32_t sp_page_sig(void)
 {
     uint32_t h = hash_u(2166136261u, ui.page);
     h = hash_u(h, (uint32_t)sp_list() | (uint32_t)ui.card << 3 | (uint32_t)ui.ask << 8 | (uint32_t)ui.lockpg << 12 |
-                      (uint32_t)(ui.held != 0) << 16 | (uint32_t)(ui.trickpg != 0) << 17);
+                      (uint32_t)(ui.held != 0) << 16 | (uint32_t)(ui.trickpg != 0) << 17 | (uint32_t)lst.bt << 18);
     return ui.ask ? hash_s(h, ui.ask_q) : h;
 }
 static uint32_t sp_trk_sig(void) { return ui.page >= P_STEPS && ui.page <= P_MIX ? hash_u(2166136261u, (uint32_t)sel_trk()) : 0u; }
@@ -3903,10 +4096,14 @@ static void speak_dump(void)
         {"NEW PROJECT", "unsaved"}, {"RANDOMIZED", "T2 to T8"}, {"SCENE IN USE", "pick another first"}, {"ALL NOTES OFF", 0},
         {"STOP FIRST", "to change slots"}, {"THREE SLOTS", "white keys 1 to 3"}, {"ENGINE", "jacquard"}, {"LIST", "nothing here"},
         {"DELETED", "slot"}, {"REMOVED", 0}, {"NO EFFECT YET", "play a key on EDIT"}, {"NO SEGMENT YET", "play a key on EDIT"},
-        {"snare", "on the step"}, {"snare", "off the step"}, {"T2", "follows"}, {"T2", "on its own"}};
+        {"snare", "on the step"}, {"snare", "off the step"}, {"T2", "follows"}, {"T2", "on its own"},
+        {"BT AUDIO", "refused"}, {"BT AUDIO", "lost"}, {"BT AUDIO", "no answer"}, {"CONNECTING", "Speaker"},
+        {"CONNECTED", 0}, {"NO ANSWER", 0}, {"DEVICE LOST", 0}, {"DISCONNECTED", 0}, {"FORGOTTEN", "Speaker"},
+        {"NO DEVICE", "computer connected"}, {"NO DEVICE", "look again"}, {"LOOKING", "for headphones, speakers"},
+        {"LOOKING", "for MIDI devices"}, {"PIN", "0 4 2 6 1 3"}};
     static const char *const ASK[] = {"CLEAR SCENE 3?", "REPLACE USER PRESET 2?", "REPLACE PROJECT 2?", "REPLACE KIT K2?",
                                       "LOSE UNSAVED CHANGES?", "NEW PROJECT?", "CLEAR THE SONG?",
-                                      "NEW SOUNDS ON T2 TO T8?"};
+                                      "NEW SOUNDS ON T2 TO T8?", "FORGET Speaker?"};
     uint8_t keep_page = ui.page, keep_trk = proj.trk_sel, keep_lst = lst.open, keep_card = ui.card;
     knob_t k[4];
     char t[64];
@@ -4008,6 +4205,13 @@ void ui_init(void)
     memset(&ui, 0, sizeof ui);
     memset(&lst, 0, sizeof lst);
     ui.touched = -1;
+    bt.want = (uint8_t)((proj.rsv[2] & BT_AUDIO_ON) != 0);   /* (Bluetooth audio as it was: on, the last device) */
+    bt.boot = 1;
+    bt.pin = -1;
+#if !FM1B_BT_AUDIO
+    sb.on = 0;                                   /* (the stand-in's radio starts off, as the FM-1's at power-on) */
+    sb.st = PLAT_BTA_OFF;
+#endif
 #if defined(PLAT_HOST) && !defined(PLAT_WEB)
     cards_audit();
 #endif
@@ -4050,6 +4254,7 @@ static void autosave(void)
 void ui_frame(void)
 {
     input();
+    bt_poll();
     if (ui.chordmode && (ui.page != P_STEPS || !is_seqt(sel_trk()) || is_drum(sel_trk())))
         ui.chordmode = 0;                        /* (chord mode lives on a melodic track's Steps page only: any way off
                                                   * it, SELECT to Bar, an engine turned kit, ends it) */

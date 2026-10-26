@@ -172,6 +172,7 @@ press…" means keep **HOME** down while you press the next thing.
 | save | LOOM-8 saves by itself when it is stopped and quiet. **SAVE** saves at once. Hold **SAVE** and press white key 1 to 3 to save to that slot. <!-- hint: press SAVE --> |
 | keep a sound | On a sound page, hold **SAVE** and press a white key. The sound becomes that user preset. <!-- hint: hold SAVE; white 1 --> |
 | load a project | Press **HOME** and press **SEL**. On LOAD PROJECT, turn **ALGORITHM** to pick the slot, then press **SEL**. NEW PROJECT starts an empty project in a free slot, with its sounds picked at random (new ones, as RANDOMIZE PRESETS gives). <!-- hint: press HOME, SEL; turn ALGORITHM --> |
+| listen on Bluetooth headphones | Put them in pairing mode. Press **GLO**, turn **SELECT** to Setup and press **SEL** twice. Turn **SELECT** to the headphones and press **SEL**. |
 
 ### The buttons
 
@@ -1094,7 +1095,8 @@ Turn **SELECT** for more pages:
 
 On Setup, the knobs are the lights, the MIDI clock (internal, receive or send: see MIDI below), sending MIDI
 notes (on in a new project) and the theme (tape deck, blueprint or b/w). The page also shows where the tempo comes from (LOOM-8, or a MIDI clock coming
-in), the USB audio level, the autosave and the version. **GLO**'s **SEL** list sets the USB audio level, USB
+in), the USB audio level, the autosave, Bluetooth audio and the Bluetooth MIDI device (see Bluetooth below). The
+version is on the next page, Debug. **GLO**'s **SEL** list sets BT AUDIO, BT DEVICE, the USB audio level, USB
 PORT, LOOP THROWS, AUTOSAVE, CC OUT and SCENES OUT. On every page, the header shows the scene playing ("S3") before the
 tempo. You'll find the projects on **HOME**'s **SEL** list and the count-in on **REC**'s knobs.
 
@@ -1144,6 +1146,35 @@ This pump works on the whole mix. A track's own pump LFO (above) still ducks jus
 gets out of the kick's way while the rest plays on.
 
 <img src="img/screen-mix.png" width="240" alt="Mix: a meter for each track while playing; knobs fx I, fx II, pan and level" title="The mixer"> <img src="img/screen-sends.png" width="240" alt="FX&#x27;s Sends page: the track&#x27;s sends to FX I (delay) and FX II (reverb lush), its pan and level" title="The sends"> <img src="img/screen-master.png" width="240" alt="Master EQ: low, mid and high, flat at 64" title="Master EQ"> <img src="img/screen-master-out.png" width="240" alt="Master out: bars for drums, melodic, comp and pump; knobs drums 100, melodic 100, comp 30, pump 4.0 dB" title="Master out">
+
+### Bluetooth
+
+LOOM-8 can play through Bluetooth headphones or a Bluetooth speaker, and it can connect to a Bluetooth MIDI keyboard
+or controller. Setup shows both: **BT audio** is off, the device playing, or what it is doing, and **BT device** is
+the MIDI device connected, or none. Press **SEL** on Setup: the list opens on BT AUDIO, with BT DEVICE below it.
+
+**Headphones and speakers.** Put the headphones or speaker in pairing mode, then press **SEL** on BT AUDIO. Its list
+has BT AUDIO (on or off) at the top, then the devices you have used before, then the ones LOOM-8 finds while the list
+is open (marked "new"). Turn **SELECT** to one and press **SEL** to connect. A new one is paired and remembered, and
+LOOM-8 remembers four. While Bluetooth audio plays, the FM-1's own speaker and headphone jack are silent. The sound
+reaches your ears 150 to 300 ms after you play, so it's for listening, not for playing in time.
+
+- **BT AUDIO**: **ALGORITHM** turns it on or off. On connects the device you used last.
+- **LOOK AGAIN**: looks for devices again. Looking ends the sound for a moment, because the radio can't look and
+  play at once.
+- **FORGET**: **ALGORITHM** picks a remembered device, and **SEL** forgets it, after asking.
+
+When BT AUDIO is on, LOOM-8 connects the device you used last again at the next start. A new project, and every
+project you load, keeps it as it is.
+
+**MIDI devices.** Switch the keyboard or controller on, then press **SEL** on BT DEVICE. LOOM-8 looks for Bluetooth
+MIDI devices while the list is open. Turn **SELECT** to one and press **SEL** to connect. Its notes and CCs play
+LOOM-8 as a computer's would, and what LOOM-8 sends goes to it too. To let it go, press **SEL** on BT DEVICE again,
+then on DISCONNECT. LOOM-8 has one Bluetooth MIDI link at a time: while a computer or a phone is connected to the
+FM-1, it can't connect to a device.
+
+**Pairing codes.** When a phone or an app asks for a code to pair with the FM-1, the header shows it on every page
+("PIN 042613"), and the screen reader says it. Type it on the phone.
 
 ### MIDI
 
@@ -1320,7 +1351,7 @@ On a sound page, hold **SAVE** and press white key 1 to 16 to keep the track's s
 | GLO, SELECT | Master color | color | amount | tone | mix | |
 | GLO, SELECT | Master out | drums | melodic | comp | pump | SEL: pump by, release, accent, level |
 | GLO, SELECT | LFO | shape | rate | amount | dest | black: the tracks it moves; white 1-11: a kit's sound, 12 all |
-| GLO, SELECT | Setup | lights | clock | notes | theme | SEL: USB audio, USB port, loop throws, autosave, CC out, scenes out |
+| GLO, SELECT | Setup | lights | clock | notes | theme | SEL: Bluetooth audio and MIDI devices, USB audio, USB port, loop throws, autosave, CC out, scenes out |
 
 The aux tracks' **EDIT** pages:
 

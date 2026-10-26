@@ -78,6 +78,8 @@ SEND2	send to effects 2
 updown	up and down
 S&H	sample and hold
 EXT	external clock
+BT	Bluetooth
+PIN	pairing code
 ext	external clock
 usb	U S B
 USB	U S B
