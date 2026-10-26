@@ -1150,8 +1150,9 @@ gets out of the kick's way while the rest plays on.
 LOOM-8 speaks MIDI over USB and over Bluetooth, the same on both: what comes in from either plays, and what it
 sends goes out on both.
 
-**Bluetooth.** The FM-1 shows up as "FM-1", a Bluetooth MIDI device, while LOOM-8 runs. On a Mac, open Audio MIDI
-Setup, choose Window, Show MIDI Studio, click the Bluetooth button, and press Connect next to FM-1. On an iPhone
+**Bluetooth.** The FM-1 shows up as a Bluetooth MIDI device while LOOM-8 runs, named "FM-1" and four letters and
+digits of its own ("FM-1 5132"), the same every time, so two FM-1s are told apart. On a Mac, open Audio MIDI
+Setup, choose Window, Show MIDI Studio, click the Bluetooth button, and press Connect next to your FM-1. On an iPhone
 or iPad, connect from the app you play with (most have a Bluetooth MIDI button in their MIDI settings). Bluetooth
 bunches messages together, so LOOM-8 plays a clock that comes over Bluetooth by the times the sender stamped on
 it: the tempo is as steady as over USB, but about 75 ms late. Set your DAW's clock delay (or MIDI sync offset) to
