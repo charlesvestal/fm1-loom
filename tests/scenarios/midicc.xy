@@ -292,12 +292,12 @@ turn K4 1
 wait 20
 expect ccst 186
 expect ccd1 27
-# the SEL list's LEVEL row (A_LEVEL), turned by hand: its CC too (nine up: BT AUDIO, BT DEVICE, USB PORT, SCENES OUT
+# the SEL list's LEVEL row (A_LEVEL), turned by hand: its CC too (ten up: BT AUDIO, AUDIO DEVICE, MIDI DEVICE, USB PORT, SCENES OUT
 # and CC OUT come after it now)
 ccreset
 tap SEL
 turn SELECT 40
-turn SELECT -9
+turn SELECT -10
 expect ccouts 0
 ccreset
 turn ALGO 1

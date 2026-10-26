@@ -172,7 +172,7 @@ press…" means keep **HOME** down while you press the next thing.
 | save | LOOM-8 saves by itself when it is stopped and quiet. **SAVE** saves at once. Hold **SAVE** and press white key 1 to 3 to save to that slot. <!-- hint: press SAVE --> |
 | keep a sound | On a sound page, hold **SAVE** and press a white key. The sound becomes that user preset. <!-- hint: hold SAVE; white 1 --> |
 | load a project | Press **HOME** and press **SEL**. On LOAD PROJECT, turn **ALGORITHM** to pick the slot, then press **SEL**. NEW PROJECT starts an empty project in a free slot, with its sounds picked at random (new ones, as RANDOMIZE PRESETS gives). <!-- hint: press HOME, SEL; turn ALGORITHM --> |
-| listen on Bluetooth headphones | Put them in pairing mode. Press **GLO**, turn **SELECT** to Setup and press **SEL** twice. Turn **SELECT** to the headphones and press **SEL**. |
+| listen on Bluetooth headphones | Put them in pairing mode. Press **GLO**, turn **SELECT** to Setup and press **SEL**. Turn **SELECT** to AUDIO DEVICE and press **SEL**. Turn **SELECT** to the headphones and press **SEL**. |
 
 ### The buttons
 
@@ -1096,7 +1096,7 @@ Turn **SELECT** for more pages:
 On Setup, the knobs are the lights, the MIDI clock (internal, receive or send: see MIDI below), sending MIDI
 notes (on in a new project) and the theme (tape deck, blueprint or b/w). The page also shows where the tempo comes from (LOOM-8, or a MIDI clock coming
 in), the USB audio level, the autosave, Bluetooth audio and the Bluetooth MIDI device (see Bluetooth below). The
-version is on the next page, Debug. **GLO**'s **SEL** list sets BT AUDIO, BT DEVICE, the USB audio level, USB
+version is on the next page, Debug. **GLO**'s **SEL** list sets BT AUDIO, AUDIO DEVICE, MIDI DEVICE, the USB audio level, USB
 PORT, LOOP THROWS, AUTOSAVE, CC OUT and SCENES OUT. On every page, the header shows the scene playing ("S3") before the
 tempo. You'll find the projects on **HOME**'s **SEL** list and the count-in on **REC**'s knobs.
 
@@ -1150,16 +1150,22 @@ gets out of the kick's way while the rest plays on.
 ### Bluetooth
 
 LOOM-8 can play through Bluetooth headphones or a Bluetooth speaker, and it can connect to a Bluetooth MIDI keyboard
-or controller. Setup shows both: **BT audio** is off, the device playing, or what it is doing, and **BT device** is
-the MIDI device connected, or none. Press **SEL** on Setup: the list opens on BT AUDIO, with BT DEVICE below it.
+or controller. Setup shows both: **BT audio** is off, the device playing, or what it is doing, and **BT MIDI** is
+the MIDI device connected, or none. Press **SEL** on Setup: the list opens on BT AUDIO, with AUDIO DEVICE and MIDI
+DEVICE below it.
 
-**Headphones and speakers.** Put the headphones or speaker in pairing mode, then press **SEL** on BT AUDIO. Its list
-has BT AUDIO (on or off) at the top, then the devices you have used before, then the ones LOOM-8 finds while the list
-is open (marked "new"). Turn **SELECT** to one and press **SEL** to connect. A new one is paired and remembered, and
-LOOM-8 remembers four. While Bluetooth audio plays, the FM-1's own speaker and headphone jack are silent. The sound
-reaches your ears 150 to 300 ms after you play, so it's for listening, not for playing in time.
+- **BT AUDIO**: on or off. Turn **ALGORITHM**, or press **SEL**. On connects the device you used last.
+- **AUDIO DEVICE**: the headphones or speaker playing, or "choose". Press **SEL** to choose one.
+- **MIDI DEVICE**: the MIDI device connected, or "choose". Press **SEL** to choose one.
 
-- **BT AUDIO**: **ALGORITHM** turns it on or off. On connects the device you used last.
+**Headphones and speakers.** Put the headphones or speaker in pairing mode, then press **SEL** on AUDIO DEVICE. The
+list's first line says what to do: "looking for devices..." while LOOM-8 looks, "pick a device. SEL connects" once
+it has found some, or "none found. In pairing mode?". The devices you have used before come first, marked
+"remembered" (the one in use says "playing" or "connecting"), then the ones it found, marked "new". Turn **SELECT**
+to one and press **SEL** to connect. A new one is paired and remembered, and LOOM-8 remembers four. While Bluetooth
+audio plays, the FM-1's own speaker and headphone jack are silent. The sound reaches your ears 150 to 300 ms after
+you play, so it's for listening, not for playing in time.
+
 - **LOOK AGAIN**: looks for devices again. Looking ends the sound for a moment, because the radio can't look and
   play at once.
 - **FORGET**: **ALGORITHM** picks a remembered device, and **SEL** forgets it, after asking.
@@ -1167,11 +1173,13 @@ reaches your ears 150 to 300 ms after you play, so it's for listening, not for p
 When BT AUDIO is on, LOOM-8 connects the device you used last again at the next start. A new project, and every
 project you load, keeps it as it is.
 
-**MIDI devices.** Switch the keyboard or controller on, then press **SEL** on BT DEVICE. LOOM-8 looks for Bluetooth
-MIDI devices while the list is open. Turn **SELECT** to one and press **SEL** to connect. Its notes and CCs play
-LOOM-8 as a computer's would, and what LOOM-8 sends goes to it too. To let it go, press **SEL** on BT DEVICE again,
-then on DISCONNECT. LOOM-8 has one Bluetooth MIDI link at a time: while a computer or a phone is connected to the
-FM-1, it can't connect to a device.
+**MIDI devices.** Switch the keyboard or controller on, then press **SEL** on MIDI DEVICE. LOOM-8 looks for
+Bluetooth MIDI devices while the list is open, and its first line says so. The ones it finds are marked "found". Turn
+**SELECT** to one and press **SEL** to connect. Its notes and CCs play LOOM-8 as a computer's would, and what LOOM-8
+sends goes to it too. To let it go, press **SEL** on MIDI DEVICE again, then on DISCONNECT. LOOM-8 has one
+Bluetooth MIDI link at a time: while a computer or a phone is connected to the FM-1, it can't connect to a device.
+
+In both lists, **SAVE** connects the device picked, as **SEL** does, and **HOME** goes back.
 
 **Pairing codes.** When a phone or an app asks for a code to pair with the FM-1, the header shows it on every page
 ("PIN 042613"), and the screen reader says it. Type it on the phone.

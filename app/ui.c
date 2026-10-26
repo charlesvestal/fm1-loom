@@ -2283,6 +2283,8 @@ static void list_move(int d)
     int s = lst.sel;
     list_build();
     s = clampi(s + d, 0, lst.n ? lst.n - 1 : 0);
+    if (lst.n > 1 && lst.row[s].kind == LK_NOTE)   /* (a Bluetooth list's first line: never picked) */
+        s = 1;
     lst.sel = (uint8_t)s;
     if (lst.sel < lst.top)
         lst.top = lst.sel;
@@ -3066,7 +3068,7 @@ static void bt_audio_set(int on)                 /* GLO's BT AUDIO: on connects 
         BTA(reconnect)(0);
     }
 }
-static void bt_list(int which)                   /* GLO's BT AUDIO or BT DEVICE, SEL: its list of devices */
+static void bt_list(int which)                   /* GLO's AUDIO DEVICE or MIDI DEVICE, SEL: its list */
 {
     if (which == 2 && plat_ble_linked() && !btdev_busy()) {   /* (one Bluetooth MIDI link at a time) */
         say_no("NO DEVICE", "computer connected");
@@ -3075,9 +3077,8 @@ static void bt_list(int which)                   /* GLO's BT AUDIO or BT DEVICE,
     lst.bt = (uint8_t)which;
     lst.sel = lst.top = 0;
     ui.pick_bt = 0;
-    list_build();
-    if (which == 1 && lst.n > 1)                 /* (on the first device, past on / off) */
-        lst.sel = 1;
+    bt.t0 = plat_ms();
+    list_build();                                /* (on the first row past the note) */
 }
 static void do_bt_forget(void)
 {
@@ -3310,15 +3311,11 @@ static void action_run(int a)
     case A_SAVE_TO: act_save_slot(ui.pick_save % NPROJ); break;
     case A_CLEAR_SCENE: act_clear_scene_ask(); return;
     case A_PANIC: engine_panic(); say("ALL NOTES OFF", 0); break;
-    case A_BT_AUDIO:                             /* (ALGORITHM switches it; SEL on GLO's row: its devices, on its
-                                                  * list's: on or off) */
-        if (!lst.bt)
-            bt_list(1);
-        else {
-            bt_audio_set(!bt.want);
-            say("BT AUDIO", bt.want ? "on" : "off");
-        }
+    case A_BT_AUDIO:                             /* (ALGORITHM or SEL: on or off) */
+        bt_audio_set(!bt.want);
+        say("BT AUDIO", bt.want ? "on" : "off");
         return;
+    case A_BT_ADEV: bt_list(1); return;
     case A_BT_DEVICE: bt_list(2); return;
     case A_BT_DEV: bt_row(); break;
     case A_BT_LOOK:
@@ -3341,7 +3338,6 @@ static void action_run(int a)
         if (btdev_save() == BTDEV_LET_GO)
             say("DISCONNECTED", btdev_name());
         break;
-    case A_BT_WAIT: say("LOOKING", "for MIDI devices"); return;
     default: break;
     }
     lst.open = 0;
@@ -3619,7 +3615,7 @@ static void leds(void)
 /* ------------------------------------------------------ screen reader --- */
 #define SP_IN_MS 400u
 static struct {
-    uint32_t page, trk, kh[4], lh;
+    uint32_t page, trk, kh[4], lh, nh;
     int16_t tempo;
     int8_t playing;
     uint8_t started, step, scene;
@@ -3832,9 +3828,9 @@ static void sp_main(void)
         sp_text("BT audio");
         sp_cat(" ");
         sp_text(t);
-        bt_dev_text(t);
+        bt_dev_text(t, "none");
         sp_cat(", ");
-        sp_text("BT device");
+        sp_text("BT MIDI");
         sp_cat(" ");
         sp_text(t);
     } else if (ui.page == P_STATUS) {
@@ -3903,8 +3899,14 @@ static void sp_front(int all)
             }
         }
     } else if (sp_list()) {
-        sp_text(lst.bt ? (lst.bt == 1 ? "BT audio" : "BT devices") : page_name_of(ui.page, sel_trk()));
+        sp_text(lst.bt ? (lst.bt == 1 ? "Audio devices" : "MIDI devices") : page_name_of(ui.page, sel_trk()));
         sp_cat(" list. ");
+        if (lst.bt && lst.row[0].kind == LK_NOTE) {   /* (what to do first) */
+            sp_text(lst.row[0].name);
+            sp_end(". ");
+            if (lst.sel == 0)
+                return;
+        }
         sp_row();
         return;
     } else {
@@ -3953,6 +3955,10 @@ static uint32_t sp_row_sig(void)
         return 0;
     return hash_s(hash_s(hash_u(2166136261u, lst.sel), lst.row[lst.sel].name), lst.row[lst.sel].val);
 }
+static uint32_t sp_note_sig(void)                /* a Bluetooth list's first line (it changes as the scan goes) */
+{
+    return lst.open && lst.bt && lst.n && lst.row[0].kind == LK_NOTE ? hash_s(2166136261u, lst.row[0].name) : 0u;
+}
 static void sp_snap(void)
 {
     knob_t k[4];
@@ -3962,6 +3968,7 @@ static void sp_snap(void)
     if (lst.open)
         list_build();
     sp.lh = sp_row_sig();
+    sp.nh = sp_note_sig();
     sp.page = sp_page_sig();
     sp.trk = sp_trk_sig();
     sp.tempo = (int16_t)(proj.tempo_x10 / 10u);
@@ -4064,12 +4071,19 @@ static void speak(void)
     if (sp_list()) {
         uint32_t h;
         list_build();
+        uint32_t nh = sp_note_sig();
         h = sp_row_sig();
-        if (h != sp.lh) {
-            sp.lh = h;
+        if (h != sp.lh || nh != sp.nh) {         /* the row picked, and a Bluetooth list's first line as it changes */
             sp_n = 0;
             sp_buf[0] = 0;
-            sp_row();
+            if (nh != sp.nh && nh) {
+                sp_text(lst.row[0].name);
+                sp_end(". ");
+            }
+            if (h != sp.lh && lst.row[lst.sel].kind != LK_NOTE)
+                sp_row();
+            sp.lh = h;
+            sp.nh = nh;
             ann_later(sp_buf, ANN_NOW, 120u, now);
         }
         return;
@@ -4100,7 +4114,9 @@ static void speak_dump(void)
         {"BT AUDIO", "refused"}, {"BT AUDIO", "lost"}, {"BT AUDIO", "no answer"}, {"CONNECTING", "Speaker"},
         {"CONNECTED", 0}, {"NO ANSWER", 0}, {"DEVICE LOST", 0}, {"DISCONNECTED", 0}, {"FORGOTTEN", "Speaker"},
         {"NO DEVICE", "computer connected"}, {"NO DEVICE", "look again"}, {"LOOKING", "for headphones, speakers"},
-        {"LOOKING", "for MIDI devices"}, {"PIN", "0 4 2 6 1 3"}};
+        {"PIN", "0 4 2 6 1 3"}, {"looking for devices...", 0}, {"still looking. SEL connects", 0},
+        {"pick a device. SEL connects", 0}, {"none found. In pairing mode?", 0}, {"connected. SEL lets it go", 0},
+        {"connecting...", 0}, {"looking for MIDI devices...", 0}, {"none found yet. Is it on?", 0}};
     static const char *const ASK[] = {"CLEAR SCENE 3?", "REPLACE USER PRESET 2?", "REPLACE PROJECT 2?", "REPLACE KIT K2?",
                                       "LOSE UNSAVED CHANGES?", "NEW PROJECT?", "CLEAR THE SONG?",
                                       "NEW SOUNDS ON T2 TO T8?", "FORGET Speaker?"};
