@@ -9,6 +9,7 @@ ble_pairing = true
 ble_central = true
 bt_audio = true
 usb_audio_in = true            # the master output recordable over USB (Setup's USB AUDIO: follows the knob, or full)
+usb_audio_first = true         # the audio streaming interface listed first (macOS shows the audio device: felucca-bsp #10)
 usb_audio_out = false
 usb_host = true                # the USB port as a MIDI host (Setup's USB PORT): a controller or a synth, through a powered hub
 backup = true                  # projects and presets over USB (base/tools/fm1_backup.py); the page adds the samples (app/web/backup/extras.js)
