@@ -1096,7 +1096,7 @@ Turn **SELECT** for more pages:
 On Setup, the knobs are the lights, the MIDI clock (internal, receive or send: see MIDI below), sending MIDI
 notes (on in a new project) and the theme (tape deck, blueprint or b/w). The page also shows where the tempo comes from (LOOM-8, or a MIDI clock coming
 in), the USB audio level, the autosave, Bluetooth audio and the Bluetooth MIDI device (see Bluetooth below). The
-version is on the next page, Debug. **GLO**'s **SEL** list sets BT AUDIO, AUDIO DEVICE, MIDI DEVICE, the USB audio level, USB
+version is on the next page, Debug. **GLO**'s **SEL** list sets BT MIDI, MIDI DEVICE, BT AUDIO, AUDIO DEVICE, the USB audio level, USB
 PORT, LOOP THROWS, AUTOSAVE, CC OUT and SCENES OUT. On every page, the header shows the scene playing ("S3") before the
 tempo. You'll find the projects on **HOME**'s **SEL** list and the count-in on **REC**'s knobs.
 
@@ -1151,12 +1151,16 @@ gets out of the kick's way while the rest plays on.
 
 LOOM-8 can play through Bluetooth headphones or a Bluetooth speaker, and it can connect to a Bluetooth MIDI keyboard
 or controller. Setup shows both: **BT audio** is off, the device playing, or what it is doing, and **BT MIDI** is
-the MIDI device connected, or none. Press **SEL** on Setup: the list opens on BT AUDIO, with AUDIO DEVICE and MIDI
-DEVICE below it.
+off, on, or the MIDI device connected. Press **SEL** on Setup: the list opens on BT MIDI, and its Bluetooth rows come
+in two pairs.
 
+- **BT MIDI**: on or off. Turn **ALGORITHM**, or press **SEL**. Off, the FM-1 stops showing up as a Bluetooth MIDI
+  device and lets go of any computer, phone or MIDI device connected. Bluetooth audio keeps working. It is on in a new
+  project.
+- **MIDI DEVICE**: the MIDI device connected, "choose", or "BT MIDI off". Press **SEL** to choose one. While BT MIDI
+  is off, turn it on first.
 - **BT AUDIO**: on or off. Turn **ALGORITHM**, or press **SEL**. On connects the device you used last.
 - **AUDIO DEVICE**: the headphones or speaker playing, or "choose". Press **SEL** to choose one.
-- **MIDI DEVICE**: the MIDI device connected, or "choose". Press **SEL** to choose one.
 
 **Headphones and speakers.** Put the headphones or speaker in pairing mode, then press **SEL** on AUDIO DEVICE. The
 list's first line says what to do: "looking for devices..." while LOOM-8 looks, "pick a device. SEL connects" once
@@ -1170,8 +1174,8 @@ you play, so it's for listening, not for playing in time.
   play at once.
 - **FORGET**: **ALGORITHM** picks a remembered device, and **SEL** forgets it, after asking.
 
-When BT AUDIO is on, LOOM-8 connects the device you used last again at the next start. A new project, and every
-project you load, keeps it as it is.
+LOOM-8 keeps both settings over a restart: BT MIDI stays off if you switched it off, and when BT AUDIO is on, LOOM-8
+connects the device you used last again. A new project, and every project you load, keeps them as they are.
 
 **MIDI devices.** Switch the keyboard or controller on, then press **SEL** on MIDI DEVICE. LOOM-8 looks for
 Bluetooth MIDI devices while the list is open, and its first line says so. The ones it finds are marked "found". Turn
@@ -1189,7 +1193,7 @@ In both lists, **SAVE** connects the device picked, as **SEL** does, and **HOME*
 LOOM-8 speaks MIDI over USB and over Bluetooth, the same on both: what comes in from either plays, and what it
 sends goes out on both.
 
-**Bluetooth.** The FM-1 shows up as a Bluetooth MIDI device while LOOM-8 runs, named "FM-1" and four letters and
+**Bluetooth.** The FM-1 shows up as a Bluetooth MIDI device while LOOM-8 runs (unless BT MIDI is off), named "FM-1" and four letters and
 digits of its own ("FM-1 5132"), the same every time, so two FM-1s are told apart. On a Mac, open Audio MIDI
 Setup, choose Window, Show MIDI Studio, click the Bluetooth button, and press Connect next to your FM-1. On an iPhone
 or iPad, connect from the app you play with (most have a Bluetooth MIDI button in their MIDI settings). Bluetooth
@@ -1359,7 +1363,7 @@ On a sound page, hold **SAVE** and press white key 1 to 16 to keep the track's s
 | GLO, SELECT | Master color | color | amount | tone | mix | |
 | GLO, SELECT | Master out | drums | melodic | comp | pump | SEL: pump by, release, accent, level |
 | GLO, SELECT | LFO | shape | rate | amount | dest | black: the tracks it moves; white 1-11: a kit's sound, 12 all |
-| GLO, SELECT | Setup | lights | clock | notes | theme | SEL: Bluetooth audio and MIDI devices, USB audio, USB port, loop throws, autosave, CC out, scenes out |
+| GLO, SELECT | Setup | lights | clock | notes | theme | SEL: Bluetooth MIDI and audio, their devices, USB audio, USB port, loop throws, autosave, CC out, scenes out |
 
 The aux tracks' **EDIT** pages:
 

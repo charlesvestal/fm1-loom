@@ -1656,6 +1656,7 @@ static void key_up(int k)
 /* --------------------------------------------------------- buttons --- */
 static void list_open(void);
 static void bt_audio_set(int on);
+static void bt_midi_set(int on);
 static void list_sel(void);
 static int save_project(int slot);
 static void save_user_preset(int slot);
@@ -2271,7 +2272,7 @@ static void list_open(void)
         return;
     if (ui.page == P_SETUP)                      /* Setup: its Bluetooth rows first */
         for (int r = a; r < lst.n; r++)
-            if (lst.row[r].id == A_BT_AUDIO && lst.row[r].kind == LK_PICK) {
+            if (lst.row[r].id == A_BT_MIDI && lst.row[r].kind == LK_PICK) {
                 a = r;
                 break;
             }
@@ -2342,6 +2343,10 @@ static void list_change_do(int32_t e)
         case A_BT_AUDIO:
             if (bt.want != (uint8_t)(d > 0))
                 bt_audio_set(d > 0);
+            break;
+        case A_BT_MIDI:
+            if (bt.midi != (uint8_t)(d > 0))
+                bt_midi_set(d > 0);
             break;
         case A_BT_FORGET: {
             int n = 0;
@@ -2968,7 +2973,7 @@ static void act_save_slot(int slot)
 }
 static void after_load(void)
 {
-    bt_keep(bt.want);                            /* (Bluetooth audio stays as it is, whichever project) */
+    bt_keep(bt.want);                            /* (Bluetooth stays as it is, whichever project) */
     project_apply();
     apply_brain();
     for (int t = 0; t < NSEQT; t++)
@@ -3068,6 +3073,16 @@ static void bt_audio_set(int on)                 /* GLO's BT AUDIO: on connects 
         BTA(reconnect)(0);
     }
 }
+static void bt_midi_set(int on)                  /* GLO's BT MIDI: off ends its links and stops advertising (the audio
+                                                  * goes on: the radio stays up for it) */
+{
+    bt.midi = (uint8_t)(on != 0);
+    bt_keep(bt.want);
+    mark_dirty();
+    if (!on && lst.bt == 2)
+        lst.open = 0;
+    plat_ble_enable(on);
+}
 static void bt_list(int which)                   /* GLO's AUDIO DEVICE or MIDI DEVICE, SEL: its list */
 {
     if (which == 2 && plat_ble_linked() && !btdev_busy()) {   /* (one Bluetooth MIDI link at a time) */
@@ -3133,6 +3148,9 @@ static void bt_poll(void)
                 BTA(reconnect)(0);
             }
         }
+        if (!bt.midi)                            /* Bluetooth MIDI was off: off again (fm1-base starts it at every
+                                                  * power-on; the radio stays up for the audio) */
+            plat_ble_enable(0);
     }
     if (up == 1 && bt.list != 1) {               /* the audio list opened: look (not while a device is linked) */
         BTA(on)(1);
@@ -3316,7 +3334,17 @@ static void action_run(int a)
         say("BT AUDIO", bt.want ? "on" : "off");
         return;
     case A_BT_ADEV: bt_list(1); return;
-    case A_BT_DEVICE: bt_list(2); return;
+    case A_BT_MIDI:                              /* (ALGORITHM or SEL: on or off) */
+        bt_midi_set(!bt.midi);
+        say("BT MIDI", bt.midi ? "on" : "off");
+        return;
+    case A_BT_DEVICE:
+        if (!bt.midi) {
+            say_no("BT MIDI OFF", "turn it on first");
+            return;
+        }
+        bt_list(2);
+        return;
     case A_BT_DEV: bt_row(); break;
     case A_BT_LOOK:
         if (bt_linking(BTA(state)()) || BTA(state)() == PLAT_BTA_STREAMING)
@@ -3828,7 +3856,7 @@ static void sp_main(void)
         sp_text("BT audio");
         sp_cat(" ");
         sp_text(t);
-        bt_dev_text(t, "none");
+        bt_dev_text(t, "on", "off");
         sp_cat(", ");
         sp_text("BT MIDI");
         sp_cat(" ");
@@ -4114,7 +4142,7 @@ static void speak_dump(void)
         {"BT AUDIO", "refused"}, {"BT AUDIO", "lost"}, {"BT AUDIO", "no answer"}, {"CONNECTING", "Speaker"},
         {"CONNECTED", 0}, {"NO ANSWER", 0}, {"DEVICE LOST", 0}, {"DISCONNECTED", 0}, {"FORGOTTEN", "Speaker"},
         {"NO DEVICE", "computer connected"}, {"NO DEVICE", "look again"}, {"LOOKING", "for headphones, speakers"},
-        {"PIN", "0 4 2 6 1 3"}, {"looking for devices...", 0}, {"still looking. SEL connects", 0},
+        {"PIN", "0 4 2 6 1 3"}, {"BT MIDI", "on"}, {"BT MIDI", "off"}, {"BT MIDI OFF", "turn it on first"}, {"looking for devices...", 0}, {"still looking. SEL connects", 0},
         {"pick a device. SEL connects", 0}, {"none found. In pairing mode?", 0}, {"connected. SEL lets it go", 0},
         {"connecting...", 0}, {"looking for MIDI devices...", 0}, {"none found yet. Is it on?", 0}};
     static const char *const ASK[] = {"CLEAR SCENE 3?", "REPLACE USER PRESET 2?", "REPLACE PROJECT 2?", "REPLACE KIT K2?",
@@ -4222,6 +4250,7 @@ void ui_init(void)
     memset(&lst, 0, sizeof lst);
     ui.touched = -1;
     bt.want = (uint8_t)((proj.rsv[2] & BT_AUDIO_ON) != 0);   /* (Bluetooth audio as it was: on, the last device) */
+    bt.midi = (uint8_t)((proj.rsv[2] & BT_MIDI_OFF) == 0);   /* (Bluetooth MIDI as it was: on unless switched off) */
     bt.boot = 1;
     bt.pin = -1;
 #if !FM1B_BT_AUDIO
