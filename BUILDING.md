@@ -32,8 +32,8 @@ The build (fm1-base's `tools/build.py`, run by `./build.sh`, driven by `app/fm1.
   ```
 
 - The JieLi AC79 SDK (Apache-2.0), for three files the package carries (its boot stage `uboot.boot` from
-  `cpu/wl82/tools/`, with `cfg_tool.bin` and `cfg/eq_cfg_hw.bin` beside it), and for Bluetooth its libraries.
-  None of it is in this tree. Its release tag `AC79NN_SDK_V1.2.1_2023-12-13`, from JieLi's repository on Gitee,
+  `cpu/wl82/tools/`, with `cfg_tool.bin` and `cfg/eq_cfg_hw.bin` beside it). Bluetooth links none of its
+  libraries (fm1-base's own stack). None of it is in this tree. Its release tag `AC79NN_SDK_V1.2.1_2023-12-13`, from JieLi's repository on Gitee,
   into `~/fw-AC79_AIoT_SDK` (where the build looks unless `AC79_SDK` says otherwise):
 
   ```

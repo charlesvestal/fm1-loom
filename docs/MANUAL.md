@@ -1387,4 +1387,5 @@ with Polly's menus and X0X's sequencer discipline. Cane and voile are Mutable In
 (MIT); the plate reverb is after 9W9 by athousanddetails, and its PlayStation modes are
 PSXVerb's. The factory breaks are free loops by u/FCTRYBEATS, the 909
 kick, snare and clap are renders of 9W9 by athousanddetails (the hat is ER-99's, by Matthew Cieplak), and the recorded instruments come from the Versilian Studios Chamber Orchestra 2
-Community Edition (CC0).
+Community Edition (CC0). Bluetooth runs on Optimist's own stack by Henri David (MPL-2.0), with Android's SBC encoder
+(Apache-2.0), micro-ecc by Kenneth MacKay (BSD-2-Clause) and the radio's set-up after JieLi's AC79 SDK (Apache-2.0).
