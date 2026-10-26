@@ -202,6 +202,8 @@ def main(pkg, version, out):
     boot_name = f"m-bootloader-{base_site.MBOOT_VERSION}.fwsc"
     shutil.copy(boot, out / "firmware" / boot_name)
     shutil.copy(SRC / "base" / "web" / "m-bootloader" / "LICENSE", out / "firmware" / "m-bootloader-LICENSE.txt")
+    for lic in sorted((SRC / "base" / "LICENSES").glob("*.txt")):   # fm1-base's parts under other licences (the JieLi
+        shutil.copy(lic, out / "firmware" / lic.name)               # SDK files, the Bluetooth stack's Apache / BSD parts)
     page = (SRC / "base" / "web" / "installer.html").read_text(encoding="utf-8")
     lib = strip_module((SRC / "base" / "web" / "fm1pkg.js").read_text(encoding="utf-8")) + "\n" + \
         strip_module((SRC / "base" / "web" / "fm1ota.js").read_text(encoding="utf-8"))
