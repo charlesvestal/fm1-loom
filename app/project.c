@@ -207,8 +207,9 @@ void project_defaults(void)
     static const uint8_t ORDER[NTRK] = {EG_DRUMLINE, EG_KNIT, EG_RAYON, EG_JACQUARD, EG_KNIT, EG_BELLOWS, EG_CANE,
                                         EG_VOILE};
     int t, k;
-    uint8_t *z = (uint8_t *)&proj, theme = proj.rsv[1], aoff = proj.rsv[2] & 4u;   /* a new project keeps the theme
-                                                                                    * and the autosave (pages.c AUTOSAVE_OFF) */
+    uint8_t *z = (uint8_t *)&proj, theme = proj.rsv[1], aoff = proj.rsv[2] & (4u | 64u);   /* a new project keeps the
+                                                                    * theme, the autosave and Bluetooth audio (pages.c
+                                                                    * AUTOSAVE_OFF, bt.c BT_AUDIO_ON) */
     for (k = 0; k < (int)sizeof proj; k++)
         z[k] = 0;
     proj.rsv[1] = theme;

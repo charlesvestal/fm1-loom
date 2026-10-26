@@ -18,6 +18,7 @@
  *   projsave SLOT [NAME]         the project saved into slot SLOT (1..3), named NAME ('_' for a space) if given
  *   storesave FILE, storeload FILE   the simulated flash's store to a file, and back (an old build's projects)
  *   cores N                      the second core on (1) or off (0): its job then runs in place
+ *   passkey N                    a Bluetooth pairing waits for code N (the header shows it; -1 none)
  *   samples FILE                 the user sample bank from FILE (an image from tools/loom_samples.py build), as an
  *                                upload would leave it (empty at boot)
  *   upload FILE                  an upload's SysEx frames (tools/loom_samples.py syx), each through samples.c as from
@@ -1290,7 +1291,10 @@ int app_host_cmd(const char *cmd, const char *a, const char *b, const char *c, c
         return 1;
     if (!strcmp(cmd, "expect"))
         return expect_more(a, b, c, d);
-    if (!strcmp(cmd, "param")) {                    /* param T P V */
+    if (!strcmp(cmd, "passkey")) {                  /* passkey N: a pairing waits for code N to be typed (-1 none) */
+        sim_passkey = atoi(a);
+        run_ms(1);
+    } else if (!strcmp(cmd, "param")) {             /* param T P V */
         int t = atoi(a) - 1, p = param_of(b), v = atoi(c);
         if (t < 0 || t >= NALLTRK || p < 0 || p >= NTP) {
             printf("no param %s %s\n", a, b);
