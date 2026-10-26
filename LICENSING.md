@@ -5,7 +5,8 @@ file: each file says its licence in its first lines (`SPDX-License-Identifier`).
 firmware made from it, the MPL-2.0 files' source (with your changes to them) must be available under MPL-2.0.
 
 LOOM-8 was GPL-3.0-only up to 0.7. Its author relicensed it to MPL-2.0 for 0.8, so that it can link JieLi's
-Bluetooth libraries (binary only), as fm1-base allows a firmware to. Before that, every part that was not his own
+Bluetooth libraries (binary only), as fm1-base allows a firmware to. It now runs Bluetooth on fm1-base's own stack
+instead, and links nothing of JieLi's. Before that, every part that was not his own
 was checked (fm1-base's `skill/felucca-to-fm1-base/RULES.md`): fm1-base's `tools/provenance.py` finds no lines of
 Felucca, Melodee or Jangada outside `base/`; the files that said they were adapted were compared function by
 function; what had been taken over was written again from what it does (the sample tools' WAV reading and IMA
@@ -17,8 +18,8 @@ It is built on [fm1-base](https://github.com/charlesvestal/fm1-base) and
 MPL-2.0 file by file. They come from [Felucca](https://github.com/hugelton/Felucca) by Leo Kuroshita
 (@kurogedelic, Hügelton Instruments), whose code is in them under MPL-2.0 with his permission
 (hugelton/felucca-bsp#4), from keremimo's dual-core audio (felucca-bsp#5), from Melodee's USB MIDI host by Adrien
-Tibi and Kerem Kilic (felucca-bsp#7, `base/bsp/NOTICE`) and from Charles Vestal's platform layer of
-the FM-1 firmwares; see `base/LICENSING.md` and `base/CREDITS.md`.
+Tibi and Kerem Kilic (felucca-bsp#7, `base/bsp/NOTICE`), from Henri David's Bluetooth stack (Optimist, below) and
+from Charles Vestal's platform layer of the FM-1 firmwares; see `base/LICENSING.md` and `base/CREDITS.md`.
 
 LOOM-8 is inspired by the teenage engineering OP-XY's way of working. It is not affiliated with,
 endorsed by or derived from teenage engineering; the name is only used descriptively.
@@ -27,7 +28,11 @@ endorsed by or derived from teenage engineering; the name is only used descripti
 
 | What | Origin | Licence |
 | --- | --- | --- |
-| The platform: the FM-1's hardware, the loader and the update, USB, the store, the screen and its fonts, the installer, the host simulator and the browser emulator's core, Bluetooth MIDI | fm1-base and felucca-bsp (`base/`) | MPL-2.0 |
+| The platform: the FM-1's hardware, the loader and the update, USB, the store, the screen and its fonts, the installer, the host simulator and the browser emulator's core, the Bluetooth glue (`base/device/bt_own*.c`) | fm1-base and felucca-bsp (`base/`) | MPL-2.0 |
+| Bluetooth MIDI, pairing, MIDI devices and Bluetooth audio (`base/bt/`) and the radio drivers (`base/bsp/chip/fm1_ble.h`, `fm1_ble_rf.h`, `fm1_bredr.h`), except the parts in the next three rows | [Optimist](https://github.com/w0ts/optimist)'s own Bluetooth stack, Copyright (C) 2026 Henri David (hdavid), offered under GPL-3.0-only or MPL-2.0 ([w0ts/optimist#55](https://github.com/w0ts/optimist/issues/55)) | MPL-2.0 (taken under it) |
+| The SBC encoder Bluetooth audio sends (`base/bt/br/sbc/`) | Android's Bluetooth stack (AOSP), Copyright 1999-2012 Broadcom Corporation, two files changed and marked so | Apache-2.0 (`base/LICENSES/Apache-2.0.txt`) |
+| The elliptic-curve keys of Bluetooth pairing (`base/bt/br/uECC*`, `types.h`, the `.inc` files) | [micro-ecc](https://github.com/kmackay/micro-ecc) by Kenneth MacKay | BSD-2-Clause (below) |
+| The radio's start-up tables (`base/bsp/chip/ble_rf_tables_v15.h`) and its calibration at every start (`base/bsp/chip/fm1_rf_cal.h`) | JieLi's AC79 SDK (Copyright (c) 2024-2026 Zhuhai Jieli Technology Co., Ltd.): the tables as M-VAVE's stock V15 firmware runs them (Copyright (c) 2026 Zhuhai Shengke / M-VAVE, `fm1_open`), the calibration rewritten in C by Charles Vestal; each header states the changes (`base/bsp/NOTICE`) | Apache-2.0 (`base/LICENSES/Apache-2.0.txt`) |
 | The DSP (`app/dsp/`, but the third-party parts below), the sequencer (`app/seq/`), the engine (`app/engine.c`), the project (`app/project.c`, `app/lz.c`), the pages and the input (`app/pages.c`, `app/ui.c`), the samples protocol (`app/samples.c`), the glue to fm1-base (`app/app.h`, `app/app.c`, `app/plat_loom.c`), the simulator's part (`app/host.c`), the emulator page (`app/web/emu/`), the web pages (`app/web/`), the words (`app/words.tsv`, `app/web/words/`), the tools (`tools/`), the tests (`tests/`), the docs (`docs/`) | Charles Vestal, Copyright (C) 2026: LOOM-8's own, including what it took from his own firmwares X0X (the engine's command queue, the overload guard, `lz.c` and the project's stream, the sequencer's discipline, the master compressor, PUMP and limiter), Polly (the menus) and NuSaw | MPL-2.0 |
 | `app/gfx_loom.c`, `tools/gen_font.py`: the text drawing and the faces' rendering | fm1-base's `device/gfx.c` and `tools/gen_font.py` (Leo Kuroshita's code there, felucca-bsp#4), with LOOM-8's own compact fonts, anti-aliased drawing and layout audit | MPL-2.0 |
 | The IMA ADPCM codec (`app/dsp/sample.c`, `tools/sampleio.py`, `app/web/samples/loom_samples.js`) | the IMA standard (IMA Digital Audio Focus and Technical Working Groups, "Recommended Practices for Enhancing Digital Audio Compatibility in Multimedia Systems", 1992): its tables and algorithm | MPL-2.0 (the code) |
@@ -48,10 +53,36 @@ endorsed by or derived from teenage engineering; the name is only used descripti
 - The fonts LOOM-8 draws with (`base/assets/fonts/`, rendered by `tools/gen_font.py`): Barlow Semi Condensed
   (SIL Open Font License 1.1, `base/assets/fonts/Barlow-OFL.txt`) and Terminus (SIL Open Font License 1.1,
   `base/assets/fonts/Terminus-LICENSE.txt`).
-- JieLi's AC79 SDK (Apache-2.0, binary libraries and a few sources; not part of this tree: see `BUILDING.md`): the
-  package tool (fm1-base's `tools/fm1pkg_make.py`) uses three of its files, and the Bluetooth build (fm1.toml
-  `ble`) links its Bluetooth controller and stack (`btctrler.a`, `btstack.a` and their companions), cut to a MIDI
-  peripheral (`ble_trim`). `./build.sh --no-ble` builds LOOM-8 without them.
+- JieLi's AC79 SDK (Apache-2.0; not part of this tree: see `BUILDING.md`): the package tool (fm1-base's
+  `tools/fm1pkg_make.py`) uses three of its files. No JieLi library is linked: Bluetooth runs on fm1-base's own
+  stack (fm1.toml `ble_stack = "own"`), and the build checks that nothing of JieLi's is in. The radio's tables and
+  calibration above are JieLi's code under Apache-2.0, in felucca-bsp's source.
+- micro-ecc, in the Bluetooth stack, is under the BSD 2-Clause License (also in `base/LICENSES/BSD-2-Clause-micro-ecc.txt`):
+
+```
+Copyright (c) 2014, Kenneth MacKay
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without modification,
+are permitted provided that the following conditions are met:
+ * Redistributions of source code must retain the above copyright notice, this
+   list of conditions and the following disclaimer.
+ * Redistributions in binary form must reproduce the above copyright notice,
+   this list of conditions and the following disclaimer in the documentation
+   and/or other materials provided with the distribution.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
+ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR
+ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+(INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON
+ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+```
+
 - The four factory breaks (`app/samples/classic.wav`, `heat.wav`, `choke.wav`, `ecstasy.wav`: a bar each, as labelled, of
   "The Classic", "Heat", "Choke" and "Ecstasy", cut and resampled) are free loops by u/FCTRYBEATS, shared on Reddit,
   who wrote: "You have my full permission to use these loops in commercial or personal projects."
