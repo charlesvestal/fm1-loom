@@ -234,15 +234,15 @@ static struct {
 } ui;
 
 /* SEL: the screen as a list: the page's knobs, then its actions */
-enum { LK_KNOB, LK_MORE, LK_ACTION, LK_PICK };
+enum { LK_KNOB, LK_MORE, LK_ACTION, LK_PICK, LK_NOTE };   /* LK_NOTE: a line that says what to do (never picked) */
 enum { A_CLEAR_NOTES, A_CLEAR_LOCKS, A_CLEAR_BOTH, A_COPY_PAT, A_PASTE_PAT, A_ROT_FWD, A_ROT_BACK, A_DUP_BAR,
        A_ENGINE, A_PRESET, A_SCRAMBLE, A_SAVE_PRESET, A_INIT, A_FOLLOW, A_INSERT_SLOT, A_DELETE_SLOT, A_CLEAR_SONG,
        A_PLAY_SONG, A_LOAD_PROJ, A_NEW_PROJ, A_USB_AUDIO, A_CLEAR_SCENE, A_PANIC, A_EFFECT, A_REMOVE_NOTE,
        A_COUNT_IN, A_PLAYMODE, A_FTYPE, A_FX_HP, A_FX_LP, A_FX_SEND, A_WEAVE, A_THEME, A_PUMP_BY, A_PUMP_REL,
        A_PUMP_ACC, A_LEVEL, A_SCENE_AT, A_SAVE_TO, A_AUTOSAVE, A_RANDOM_SOUNDS, A_MIDI_OUT, A_LOOP_FREE, A_COPY_BAR,
        A_COPY_STEP, A_PASTE_BAR, A_PASTE_STEP, A_PASTE_LOCKS, A_DOUBLE, A_CLEAR_STEP_LOCKS, A_CC_OUT, A_SCENES_OUT,
-       A_KIT, A_SAVE_KIT, A_MIDI_CC, A_USB_HOST, A_BT_AUDIO, A_BT_DEVICE, A_BT_DEV, A_BT_LOOK, A_BT_FORGET,
-       A_BT_DISCONNECT, A_BT_WAIT, NACTIONS };
+       A_KIT, A_SAVE_KIT, A_MIDI_CC, A_USB_HOST, A_BT_AUDIO, A_BT_ADEV, A_BT_DEVICE, A_BT_DEV, A_BT_LOOK,
+       A_BT_FORGET, A_BT_DISCONNECT, NACTIONS };
 static const char *const ACTION_NAME[NACTIONS] = {
     "CLEAR NOTES", "CLEAR LOCKS", "CLEAR NOTES AND LOCKS", "COPY PATTERN", "PASTE PATTERN", "ROTATE FORWARD",
     "ROTATE BACK", "DUPLICATE BAR", "ENGINE", "PRESET", "SCRAMBLE", "SAVE AS PRESET", "RESET SOUND", "FOLLOWS CONDUCTOR",
@@ -251,13 +251,13 @@ static const char *const ACTION_NAME[NACTIONS] = {
     "TO FX II", "KEEP AS PATTERN", "THEME", "PUMP BY", "RELEASE", "ACCENT", "LEVEL", "SCENES SWITCH", "SAVE TO", "AUTOSAVE",
     "RANDOMIZE PRESETS", "MIDI OUT", "LOOP THROWS", "COPY BAR", "COPY STEP", "PASTE BAR", "PASTE STEP",
     "PASTE LOCKS ONLY", "DOUBLE PATTERN", "CLEAR LOCKS", "CC OUT", "SCENES OUT", "KIT", "SAVE KIT", "KNOB CC",
-    "USB PORT", "BT AUDIO", "BT DEVICE", "DEVICE", "LOOK AGAIN", "FORGET", "DISCONNECT", "LOOKING"};
+    "USB PORT", "BT AUDIO", "AUDIO DEVICE", "MIDI DEVICE", "DEVICE", "LOOK AGAIN", "FORGET", "DISCONNECT"};
 /* a MIDI track's eight rows of A_MIDI_CC: each knob's CC (ui.c list_midi_knob reads the digit back) */
 static const char *const MIDI_CC_ROW[8] = {"KNOB 1 CC", "KNOB 2 CC", "KNOB 3 CC", "KNOB 4 CC", "KNOB 5 CC",
                                            "KNOB 6 CC", "KNOB 7 CC", "KNOB 8 CC"};
 /* the weave's ways (pattern.h WV_*): what this pattern keeps of itself */
 static const char *const WEAVE_NAME[NWV] = {"bars", "steps", "rhythm", "pitch"};
-#define LIST_ROWS 38                  /* (GLO's: its seven pages' knobs and its actions) */
+#define LIST_ROWS 39                  /* (GLO's: its seven pages' knobs and its actions) */
 #define LIST_SHOWN 10
 static struct {
     uint8_t open, n, sel, top;
@@ -908,7 +908,7 @@ static void draw_header(void)
     } else {
         int32_t r = 232, x = 8;
         const char *bn = BTN_LABEL[PAGE_BTN[page_group(ui.page)].btn];
-        const char *pn = lst.open && lst.bt ? (lst.bt == 1 ? "BT audio" : "BT devices") : page_name_of(ui.page, sel_trk());
+        const char *pn = lst.open && lst.bt ? (lst.bt == 1 ? "Audio devices" : "MIDI devices") : page_name_of(ui.page, sel_trk());
         int32_t w = text_w(&FONT_XS, bn) + 6;
         if (((ui.page >= P_STEPS && ui.page <= P_PLAYERS3) || ui.page == P_WEAVE) && ui.page != P_THROWS) {   /* a track's page */
             int pt = page_trk(ui.page);
@@ -1631,6 +1631,14 @@ static void page_footer(char *t)
     }
     if (lst.open && lst.n) {
         int k = lst.row[lst.sel].kind;
+        if (lst.bt && k == LK_ACTION && lst.row[lst.sel].id == A_BT_DEV) {
+            s_cat(t, "SEL connect|HOME back");
+            return;
+        }
+        if (k == LK_NOTE) {
+            s_cat(t, "HOME back");
+            return;
+        }
         s_cat(t, k == LK_ACTION ? "SELECT move|SEL do it|HOME back"
                : k == LK_PICK ? "ALGO pick|SEL do it|HOME back" : "SELECT move|ALGO set|HOME back");
         return;
@@ -2127,16 +2135,23 @@ static void list_clip_step(void)                   /* a held step's list, after 
     }
     list_add(ACTION_NAME[A_CLEAR_STEP_LOCKS], 0, LK_ACTION, A_CLEAR_STEP_LOCKS);
 }
-/* Bluetooth audio's list (GLO's BT AUDIO, SEL): on or off, the remembered devices (the one asked last with its
- * state), then those the scan finds, LOOK AGAIN, and FORGET (asked first) */
+/* the Bluetooth lists (GLO's AUDIO DEVICE and MIDI DEVICE, SEL): a first line that says what to do, then the
+ * devices (audio: the remembered ones first), each labelled */
+static char bt_note[32];
+static void list_note(const char *t)
+{
+    bt_note[0] = 0;
+    s_cat(bt_note, t);
+    list_add(bt_note, 0, LK_NOTE, 0);
+}
 static void list_bt_audio(void)
 {
-    int st = BTA(state)(), n = 0, i, k;
-    list_add(ACTION_NAME[A_BT_AUDIO], bt.want ? "on" : "off", LK_PICK, A_BT_AUDIO);
+    int st = BTA(state)(), n = 0, i, k, look = st == PLAT_BTA_SCANNING;
+    list_note("");
     for (i = 0; n < BT_ROWS && BTA(known)(i, bt_nm[n]); i++, n++) {
         bt_ix[n] = (uint8_t)(0x80 | i);
         list_add(bt_nm[n], i == bt.cur && st != PLAT_BTA_OFF && st != PLAT_BTA_SCANNING && st != PLAT_BTA_NONE &&
-                           st != PLAT_BTA_FOUND ? bt_state_word(st) : "", LK_ACTION, A_BT_DEV);
+                           st != PLAT_BTA_FOUND ? bt_state_word(st) : "remembered", LK_ACTION, A_BT_DEV);
     }
     k = n;
     for (i = 0; n < BT_ROWS && BTA(found)(i, bt_nm[n]); i++) {
@@ -2148,7 +2163,9 @@ static void list_bt_audio(void)
         bt_ix[n] = (uint8_t)i;
         list_add(bt_nm[n++], "new", LK_ACTION, A_BT_DEV);
     }
-    list_add(ACTION_NAME[A_BT_LOOK], st == PLAT_BTA_SCANNING ? "looking" : "", LK_ACTION, A_BT_LOOK);
+    s_cat(bt_note, look ? (n ? "still looking. SEL connects" : "looking for devices...")
+                        : n ? "pick a device. SEL connects" : "none found. In pairing mode?");
+    list_add(ACTION_NAME[A_BT_LOOK], look ? "looking" : "", LK_ACTION, A_BT_LOOK);
     if (k) {
         char nm[17];
         if (ui.pick_bt >= k)
@@ -2157,18 +2174,19 @@ static void list_bt_audio(void)
         list_add(ACTION_NAME[A_BT_FORGET], nm, LK_PICK, A_BT_FORGET);
     }
 }
-/* Bluetooth MIDI devices' list (GLO's BT DEVICE, SEL): the one connected (DISCONNECT), else those found */
 static void list_bt_dev(void)
 {
     int n;
     if (btdev_busy()) {
+        list_note(btdev_ready() ? "connected. SEL lets it go" : "connecting...");
         list_add(ACTION_NAME[A_BT_DISCONNECT], btdev_name(), LK_ACTION, A_BT_DISCONNECT);
         return;
     }
+    list_note("");
     for (n = 0; n < BT_ROWS && btdev_found(n, bt_nm[n], 0); n++)
-        list_add(bt_nm[n], 0, LK_ACTION, A_BT_DEV);
-    if (!n)
-        list_add(ACTION_NAME[A_BT_WAIT], "for MIDI devices", LK_ACTION, A_BT_WAIT);
+        list_add(bt_nm[n], "found", LK_ACTION, A_BT_DEV);
+    s_cat(bt_note, n ? "pick a device. SEL connects" : plat_ms() - bt.t0 < 8000u ? "looking for MIDI devices..."
+                                                     : "none found yet. Is it on?");
 }
 static void list_build(void)
 {
@@ -2183,6 +2201,8 @@ static void list_build(void)
             list_bt_dev();
         if (lst.sel >= lst.n)
             lst.sel = (uint8_t)(lst.n ? lst.n - 1 : 0);
+        if (lst.row[lst.sel].kind == LK_NOTE && lst.n > 1)
+            lst.sel = 1;                             /* (the note is never picked) */
         return;
     }
     if (steps_page(keep) && ui.held && is_seqt(trk)) {   /* a step held + SEL: its notes, to remove */
@@ -2331,9 +2351,10 @@ static void list_build(void)
         list_add(ACTION_NAME[A_PUMP_REL], rel, LK_PICK, A_PUMP_REL);
         list_add(ACTION_NAME[A_PUMP_ACC], proj.master[MS_PUMP_ACC] ? "on" : "off", LK_PICK, A_PUMP_ACC);
         list_add(ACTION_NAME[A_LEVEL], lev, LK_PICK, A_LEVEL);
-        bt_audio_text(bta_t);
-        list_add(ACTION_NAME[A_BT_AUDIO], bta_t, LK_PICK, A_BT_AUDIO);
-        bt_dev_text(bta_t);
+        list_add(ACTION_NAME[A_BT_AUDIO], bt.want ? "on" : "off", LK_PICK, A_BT_AUDIO);
+        bt_adev_text(bta_t);
+        list_add(ACTION_NAME[A_BT_ADEV], bta_t, LK_ACTION, A_BT_ADEV);
+        bt_dev_text(bta_t, "choose");
         list_add(ACTION_NAME[A_BT_DEVICE], bta_t, LK_ACTION, A_BT_DEVICE);
         list_add(ACTION_NAME[A_USB_AUDIO], USBA_NAME[proj.usb_full & 1u], LK_PICK, A_USB_AUDIO);
 #if FM1B_USB_HOST
@@ -2372,6 +2393,10 @@ static void list_paint(int32_t oy)
         int on = i == lst.sel, k = lst.row[i].kind;
         uint16_t fg = on ? K_BG : K_TEXT, dim = on ? K_PANEL2 : K_DIM;
         const char *v = lst.row[i].val;
+        if (k == LK_NOTE) {
+            cv_text(14, ty, &FONT_S, lst.row[i].name, K_DIM);
+            continue;
+        }
         cv_round(6, y, 222, LIST_RH - 1, 5, on ? K_TEXT : K_PANEL);
         if (k == LK_KNOB) {
             cv_text(14, ty, &FONT_S, lst.row[i].name, dim);
@@ -4531,7 +4556,7 @@ static void draw_setup(void)
                                           (uint32_t)proj.rsv[0] << 12 | (uint32_t)proj.send_notes << 17 |
                                           (uint32_t)proj.rsv[1] << 20 | (uint32_t)(proj.rsv[2] & AUTOSAVE_OFF) << 26);
     bt_audio_text(ta);
-    bt_dev_text(td);
+    bt_dev_text(td, "none");
     h = hash_s(hash_s(h, ta), td);
     if (!begin_main(h))
         return;
@@ -4542,7 +4567,7 @@ static void draw_setup(void)
     setup_row(58, "autosave", proj.rsv[2] & AUTOSAVE_OFF ? "off: SAVE saves" : "on");
     setup_row(72, "theme", THEME_OF_PROJ()->name);
     setup_row(86, "BT audio", ta);
-    setup_row(100, "BT device", td);
+    setup_row(100, "BT MIDI", td);
     cv_blit(0, MAIN_Y);
 }
 static uint32_t status_peak;                          /* the highest peak shown since the screen reader said it (ui.c) */

@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: MPL-2.0 */
 /* LOOM-8's Bluetooth: audio out to headphones and speakers (plat_bta_*), and the Bluetooth MIDI device it connects
- * to (fm1-base's lib/btdev.h). Setup shows both; GLO's SEL list has their rows, and each row's SEL opens its list
- * of devices (pages.c list_bt_audio, list_bt_dev; ui.c bt_poll scans while a list is up and says what happened).
+ * to (fm1-base's lib/btdev.h). Setup shows both; GLO's SEL list has BT AUDIO (on or off) and AUDIO DEVICE and MIDI
+ * DEVICE, whose SEL opens the list of devices (pages.c list_bt_audio, list_bt_dev; ui.c bt_poll scans while a list is up and says what happened).
  * Whether audio is on is the project's BT_AUDIO_ON bit, carried from project to project as the theme is: at power-on
  * LOOM-8 connects the last device again when it was on. Included by pages.c, after its string helpers. */
 
@@ -14,6 +14,7 @@ static struct {
     uint8_t cur;                                     /* the remembered device asked last (its row shows the state) */
     uint8_t was;                                     /* the audio's state last frame (what changed is said) */
     uint8_t list;                                    /* the list up last frame: 0, 1 audio, 2 MIDI devices */
+    uint32_t t0;                                     /* when the list opened (MIDI: "none found yet" after 8 s) */
     int32_t pin;                                     /* the pairing code said last (-1 none) */
 } bt;
 static char bt_nm[BT_ROWS][21];                      /* the list's devices' names (its rows point here) */
@@ -138,13 +139,23 @@ static void bt_audio_text(char *t)
     }
     s_cat(t, !bt.want && st != PLAT_BTA_OFF && !bt_linking(st) ? "off" : bt_state_word(st));
 }
-/* Setup's "BT device": the MIDI device connected, connecting, or none (a computer's link leaves no room for one) */
-static void bt_dev_text(char *t)
+/* GLO's AUDIO DEVICE: the device playing, connecting, or "choose" (SEL opens the list) */
+static void bt_adev_text(char *t)
+{
+    int st = BTA(state)();
+    *t = 0;
+    if (st == PLAT_BTA_STREAMING && BTA(known)(bt.cur, t))
+        return;
+    s_cat(t, bt_linking(st) || (bt.want && bt.boot) ? "connecting" : "choose");
+}
+/* the Bluetooth MIDI device: connected, connecting, or idle (Setup "none", GLO's list "choose"); a computer's link
+ * leaves no room for one */
+static void bt_dev_text(char *t, const char *idle)
 {
     int d = plat_ble_device();
     *t = 0;
     s_cat(t, d == BLE_DEV_READY ? btdev_name() : d == BLE_DEV_CONNECTING || d == BLE_DEV_SEARCHING ? "connecting"
-             : plat_ble_linked() ? "computer connected" : "none");
+             : plat_ble_linked() ? "computer connected" : idle);
 }
 static void bt_keep(int on)                          /* the setting, into the project (saved as any change) */
 {

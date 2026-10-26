@@ -1,7 +1,8 @@
-# Bluetooth (app/bt.c): Setup's two rows, GLO's SEL list (BT AUDIO, BT DEVICE), the audio list with the simulator's
-# stand-in ("Speaker": found half a second into a scan, playing 0.3 s after a connect), FORGET asked first, the
-# MIDI devices' list with fm1-base's stand-in ("BLE MIDI"), a computer's link refusing devices, and audio on kept
-# over a restart (the last device connected again)
+# Bluetooth (app/bt.c): Setup's two rows; GLO's SEL list: BT AUDIO (on or off), AUDIO DEVICE and MIDI DEVICE (SEL:
+# their lists, each with a first line that says what to do). The audio list with the simulator's stand-in
+# ("Speaker": found half a second into a scan, playing 0.3 s after a connect), FORGET asked first; the MIDI devices'
+# list with fm1-base's stand-in ("BLE MIDI"); a computer's link refusing devices; audio on kept over a restart (the
+# last device connected again); a pairing's code in the header
 wait 1500
 tap GLO
 turn SELECT -2
@@ -9,15 +10,20 @@ wait 100
 expect page Setup
 shot bt_setup.png
 listen
-# SEL on Setup: GLO's list, on BT AUDIO
+# SEL on Setup: GLO's list, on BT AUDIO; AUDIO DEVICE below it says what SEL does
 tap SEL
 wait 300
 said BT AUDIO off
+turn SELECT 1
+wait 300
+said AUDIO DEVICE choose, action
 shot bt_glo_list.png
-# SEL again: the audio list; it looks for devices while it is up
+# SEL: the audio devices, looked for while the list is up
 tap SEL
-wait 900
-said Speaker new
+wait 300
+said Audio devices list. looking for devices...
+wait 600
+said still looking. SEL connects. Speaker new
 shot bt_audio_list.png
 # SEL: connect it (audio turns on, kept in the project)
 tap SEL
@@ -26,11 +32,12 @@ said BT AUDIO Speaker
 expect dirty 1
 wait 100
 shot bt_setup_playing.png
-# the audio list again: Speaker remembered and playing, no scan while it plays
+# the list again: Speaker remembered and playing, no scan while it plays
 tap SEL
+turn SELECT 1
 tap SEL
 wait 300
-said Speaker playing
+said pick a device. SEL connects. Speaker playing
 turn SELECT 9
 wait 100
 said FORGET Speaker
@@ -42,24 +49,15 @@ expect ask 1
 tap HOME
 wait 100
 expect ask 0
-# ALGORITHM on the top row: off; SEL there: on again (the last device), and ALGORITHM off
-turn SELECT -9
+tap HOME
+# BT AUDIO: ALGORITHM off, SEL on again (the last device)
+tap SEL
 turn ALGO -1
 wait 200
 said BT AUDIO off
 tap SEL
 wait 600
 said BT AUDIO Speaker
-turn ALGO -1
-wait 100
-tap HOME
-wait 100
-# on again from GLO's list: the last device again
-tap SEL
-turn ALGO 1
-wait 600
-said BT AUDIO Speaker
-tap HOME
 # saved, then a restart: audio was on, so Speaker connects again once the radio is up
 tap SAVE
 wait 100
@@ -72,14 +70,16 @@ shot bt_after_reboot.png
 listen
 where
 said BT audio Speaker
-# the MIDI devices: BT DEVICE's list looks while it is up
+# the MIDI devices: MIDI DEVICE's list looks while it is up
 tap SEL
-turn SELECT 1
+turn SELECT 2
 wait 100
-said BT DEVICE none
+said MIDI DEVICE choose
 tap SEL
-wait 900
-said BLE MIDI
+wait 200
+said MIDI devices list. looking for MIDI devices...
+wait 700
+said pick a device. SEL connects. BLE MIDI found
 shot bt_dev_list.png
 tap SEL
 wait 600
@@ -88,10 +88,10 @@ expect ble_dev 4
 wait 100
 shot bt_setup_device.png
 tap SEL
-turn SELECT 1
+turn SELECT 2
 tap SEL
 wait 200
-said DISCONNECT BLE MIDI
+said connected. SEL lets it go. DISCONNECT BLE MIDI
 tap SEL
 wait 200
 said DISCONNECTED
@@ -100,9 +100,9 @@ expect ble_dev 0
 ble connect
 wait 100
 tap SEL
-turn SELECT 1
+turn SELECT 2
 wait 100
-said BT DEVICE computer connected
+said MIDI DEVICE computer connected
 tap SEL
 wait 200
 said NO DEVICE computer connected
