@@ -2,14 +2,17 @@
 /* LOOM-8's Bluetooth: audio out to headphones and speakers (plat_bta_*), and the Bluetooth MIDI device it connects
  * to (fm1-base's lib/btdev.h). Setup shows both; GLO's SEL list has BT AUDIO (on or off) and AUDIO DEVICE and MIDI
  * DEVICE, whose SEL opens the list of devices (pages.c list_bt_audio, list_bt_dev; ui.c bt_poll scans while a list is up and says what happened).
- * Whether audio is on is the project's BT_AUDIO_ON bit, carried from project to project as the theme is: at power-on
- * LOOM-8 connects the last device again when it was on. Included by pages.c, after its string helpers. */
+ * Whether MIDI and audio are on are the project's BT_MIDI_OFF and BT_AUDIO_ON bits, carried from project to project as the theme is: at power-on
+ * LOOM-8 switches Bluetooth MIDI off again (once the radio is up) when it was off, and connects the last audio
+ * device again when audio was on. Included by pages.c, after its string helpers. */
 
 #define BT_AUDIO_ON 64u                              /* proj.rsv[2]: Bluetooth audio on (the last device at power-on) */
+#define BT_MIDI_OFF 128u                             /* proj.rsv[2]: Bluetooth MIDI off (no advertising, no links) */
 #define BT_ROWS 8                                    /* the devices a list shows (remembered first, for audio) */
 
 static struct {
     uint8_t want;                                    /* Bluetooth audio on, as the player set it */
+    uint8_t midi;                                    /* Bluetooth MIDI on, as the player set it */
     uint8_t boot;                                    /* power-on: connect the last device once the radio is up */
     uint8_t cur;                                     /* the remembered device asked last (its row shows the state) */
     uint8_t was;                                     /* the audio's state last frame (what changed is said) */
@@ -150,15 +153,16 @@ static void bt_adev_text(char *t)
 }
 /* the Bluetooth MIDI device: connected, connecting, or idle (Setup "none", GLO's list "choose"); a computer's link
  * leaves no room for one */
-static void bt_dev_text(char *t, const char *idle)
+static void bt_dev_text(char *t, const char *idle, const char *off)
 {
     int d = plat_ble_device();
     *t = 0;
-    s_cat(t, d == BLE_DEV_READY ? btdev_name() : d == BLE_DEV_CONNECTING || d == BLE_DEV_SEARCHING ? "connecting"
+    s_cat(t, !bt.midi ? off : d == BLE_DEV_READY ? btdev_name() : d == BLE_DEV_CONNECTING || d == BLE_DEV_SEARCHING ? "connecting"
              : plat_ble_linked() ? "computer connected" : idle);
 }
-static void bt_keep(int on)                          /* the setting, into the project (saved as any change) */
+static void bt_keep(int on)                          /* the settings, into the project (saved as any change) */
 {
     bt.want = (uint8_t)(on != 0);
     proj.rsv[2] = (uint8_t)(on ? proj.rsv[2] | BT_AUDIO_ON : proj.rsv[2] & ~BT_AUDIO_ON);
+    proj.rsv[2] = (uint8_t)(bt.midi ? proj.rsv[2] & ~BT_MIDI_OFF : proj.rsv[2] | BT_MIDI_OFF);
 }

@@ -241,7 +241,7 @@ enum { A_CLEAR_NOTES, A_CLEAR_LOCKS, A_CLEAR_BOTH, A_COPY_PAT, A_PASTE_PAT, A_RO
        A_COUNT_IN, A_PLAYMODE, A_FTYPE, A_FX_HP, A_FX_LP, A_FX_SEND, A_WEAVE, A_THEME, A_PUMP_BY, A_PUMP_REL,
        A_PUMP_ACC, A_LEVEL, A_SCENE_AT, A_SAVE_TO, A_AUTOSAVE, A_RANDOM_SOUNDS, A_MIDI_OUT, A_LOOP_FREE, A_COPY_BAR,
        A_COPY_STEP, A_PASTE_BAR, A_PASTE_STEP, A_PASTE_LOCKS, A_DOUBLE, A_CLEAR_STEP_LOCKS, A_CC_OUT, A_SCENES_OUT,
-       A_KIT, A_SAVE_KIT, A_MIDI_CC, A_USB_HOST, A_BT_AUDIO, A_BT_ADEV, A_BT_DEVICE, A_BT_DEV, A_BT_LOOK,
+       A_KIT, A_SAVE_KIT, A_MIDI_CC, A_USB_HOST, A_BT_MIDI, A_BT_AUDIO, A_BT_ADEV, A_BT_DEVICE, A_BT_DEV, A_BT_LOOK,
        A_BT_FORGET, A_BT_DISCONNECT, NACTIONS };
 static const char *const ACTION_NAME[NACTIONS] = {
     "CLEAR NOTES", "CLEAR LOCKS", "CLEAR NOTES AND LOCKS", "COPY PATTERN", "PASTE PATTERN", "ROTATE FORWARD",
@@ -251,13 +251,13 @@ static const char *const ACTION_NAME[NACTIONS] = {
     "TO FX II", "KEEP AS PATTERN", "THEME", "PUMP BY", "RELEASE", "ACCENT", "LEVEL", "SCENES SWITCH", "SAVE TO", "AUTOSAVE",
     "RANDOMIZE PRESETS", "MIDI OUT", "LOOP THROWS", "COPY BAR", "COPY STEP", "PASTE BAR", "PASTE STEP",
     "PASTE LOCKS ONLY", "DOUBLE PATTERN", "CLEAR LOCKS", "CC OUT", "SCENES OUT", "KIT", "SAVE KIT", "KNOB CC",
-    "USB PORT", "BT AUDIO", "AUDIO DEVICE", "MIDI DEVICE", "DEVICE", "LOOK AGAIN", "FORGET", "DISCONNECT"};
+    "USB PORT", "BT MIDI", "BT AUDIO", "AUDIO DEVICE", "MIDI DEVICE", "DEVICE", "LOOK AGAIN", "FORGET", "DISCONNECT"};
 /* a MIDI track's eight rows of A_MIDI_CC: each knob's CC (ui.c list_midi_knob reads the digit back) */
 static const char *const MIDI_CC_ROW[8] = {"KNOB 1 CC", "KNOB 2 CC", "KNOB 3 CC", "KNOB 4 CC", "KNOB 5 CC",
                                            "KNOB 6 CC", "KNOB 7 CC", "KNOB 8 CC"};
 /* the weave's ways (pattern.h WV_*): what this pattern keeps of itself */
 static const char *const WEAVE_NAME[NWV] = {"bars", "steps", "rhythm", "pitch"};
-#define LIST_ROWS 39                  /* (GLO's: its seven pages' knobs and its actions) */
+#define LIST_ROWS 40                  /* (GLO's: its seven pages' knobs and its actions) */
 #define LIST_SHOWN 10
 static struct {
     uint8_t open, n, sel, top;
@@ -2351,11 +2351,13 @@ static void list_build(void)
         list_add(ACTION_NAME[A_PUMP_REL], rel, LK_PICK, A_PUMP_REL);
         list_add(ACTION_NAME[A_PUMP_ACC], proj.master[MS_PUMP_ACC] ? "on" : "off", LK_PICK, A_PUMP_ACC);
         list_add(ACTION_NAME[A_LEVEL], lev, LK_PICK, A_LEVEL);
+        list_add(ACTION_NAME[A_BT_MIDI], bt.midi ? "on" : "off", LK_PICK, A_BT_MIDI);   /* (two pairs: on / off,
+                                                                                      * then where devices are chosen) */
+        bt_dev_text(bta_t, "choose", "BT MIDI off");
+        list_add(ACTION_NAME[A_BT_DEVICE], bta_t, LK_ACTION, A_BT_DEVICE);
         list_add(ACTION_NAME[A_BT_AUDIO], bt.want ? "on" : "off", LK_PICK, A_BT_AUDIO);
         bt_adev_text(bta_t);
         list_add(ACTION_NAME[A_BT_ADEV], bta_t, LK_ACTION, A_BT_ADEV);
-        bt_dev_text(bta_t, "choose");
-        list_add(ACTION_NAME[A_BT_DEVICE], bta_t, LK_ACTION, A_BT_DEVICE);
         list_add(ACTION_NAME[A_USB_AUDIO], USBA_NAME[proj.usb_full & 1u], LK_PICK, A_USB_AUDIO);
 #if FM1B_USB_HOST
         list_add(ACTION_NAME[A_USB_HOST], plat_usb_host_state() ? "MIDI host" : "computer", LK_PICK, A_USB_HOST);
@@ -4556,7 +4558,7 @@ static void draw_setup(void)
                                           (uint32_t)proj.rsv[0] << 12 | (uint32_t)proj.send_notes << 17 |
                                           (uint32_t)proj.rsv[1] << 20 | (uint32_t)(proj.rsv[2] & AUTOSAVE_OFF) << 26);
     bt_audio_text(ta);
-    bt_dev_text(td, "none");
+    bt_dev_text(td, "on", "off");
     h = hash_s(hash_s(h, ta), td);
     if (!begin_main(h))
         return;
