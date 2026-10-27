@@ -10,7 +10,7 @@ tap EDIT
 expect page Engine
 # K1 (from Loom backward: -8): its key on sophie stays sophie (a format 10 kit: no development build's numbers)
 tap SEL
-turn SELECT 2
+row KIT
 turn ALGO -8
 tap SEL
 wait 40
@@ -18,7 +18,7 @@ said K1 first
 expect par1.d1.model 20
 # K4 (three on)
 tap SEL
-turn SELECT 2
+row KIT
 turn ALGO 3
 tap SEL
 wait 40
@@ -26,7 +26,7 @@ said K4 fourth
 expect par1.d1.model 11
 # K5: empty
 tap SEL
-turn SELECT 2
+row KIT
 turn ALGO 1
 tap SEL
 wait 40
@@ -34,7 +34,7 @@ said NO KIT
 # into K8 (SAVE KIT: seven on from K1; empty, no question)
 param 1 d2.model 12
 tap SEL
-turn SELECT 3
+row SAVE KIT
 turn ALGO 7
 wait 300
 said K8 (empty)
@@ -47,7 +47,7 @@ wait 400
 tap EDIT
 # K8 (its name the track's, as loaded from K4) (from Loom backward: -1), then K1 and K4 still there
 tap SEL
-turn SELECT 2
+row KIT
 turn ALGO -1
 tap SEL
 wait 40
@@ -55,14 +55,14 @@ said K8 fourth
 expect par1.d1.model 11
 expect par1.d2.model 12
 tap SEL
-turn SELECT 2
+row KIT
 turn ALGO -7
 tap SEL
 wait 40
 said K1 first
 expect par1.d1.model 20
 tap SEL
-turn SELECT 2
+row KIT
 turn ALGO 3
 tap SEL
 wait 40

@@ -76,7 +76,7 @@ param 1 fine 77
 tap EDIT
 expect page Engine
 tap SEL
-turn SELECT 2
+row KIT
 turn ALGO -8
 tap SEL
 wait 40
@@ -90,19 +90,19 @@ expect par1.fine 77
 param 1 d3.model 4
 param 1 d5.model 20
 tap SEL
-turn SELECT 3
+row SAVE KIT
 turn ALGO 1
 tap SEL
 wait 40
 expect ask 0
 tap SEL
-turn SELECT 2
+row KIT
 turn ALGO 8
 tap SEL
 wait 40
 expect par1.d3.model 2
 tap SEL
-turn SELECT 2
+row KIT
 turn ALGO -7
 tap SEL
 wait 40

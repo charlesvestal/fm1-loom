@@ -1,0 +1,148 @@
+# the Steps list (2026-10-26): COPY TO EMPTY (the pattern with its locks into the track's first empty pattern, which
+# the scene then plays; the scene it was copied from keeps the original), CLEAR BAR (undone), CLEAR's choices, ROTATE
+# leaving the list up, each list opening on the row used last; the theme the FM-1's, kept when a project loads
+wait 300
+projnew
+pat 2 1 32
+step 2 1 1 60 100
+step 2 1 17 64 100
+lock 2 1 1 e1 30
+turn ALGO 1
+expect trk 2
+# scene 2: a copy of scene 1, the same patterns
+tap HOME
+tapkey w1
+wait 100
+expect scene 2
+tap SEQ
+expect pat2 1
+listen
+tap SEL
+wait 200
+said COPY TO EMPTY P2
+shot copy_list.png
+tap SEL
+wait 100
+expect listopen 0
+expect pat2 2
+expect spat1.2 1
+expect spat2.2 2
+expect note 2 2 1 60
+expect note 2 2 17 64
+expect lane 2 2 e1 1
+# the list opens on the row used last, now pointing at P3
+tap SEL
+wait 200
+said COPY TO EMPTY P3
+tap HOME
+# CLEAR BAR on the copy's bar 2: its note goes, bar 1 stays, the original keeps both; undone
+tap OCT+
+tap SEL
+row CLEAR BAR
+wait 200
+said bar 2. CLEAR BAR
+tap SEL
+wait 50
+expect note 2 2 17 0
+expect note 2 2 1 60
+expect note 2 1 17 64
+press HOME
+tap REC
+release HOME
+expect note 2 2 17 64
+tap OCT-
+# opens on CLEAR BAR again
+tap SEL
+wait 200
+said CLEAR BAR
+# ROTATE: R1 to start with; the list closes, and opens on ROTATE again
+row ROTATE
+tap SEL
+wait 50
+expect listopen 0
+expect note 2 2 2 60
+tap SEL
+wait 200
+said ROTATE R1
+tap SEL
+wait 50
+expect note 2 2 3 60
+# how far: ALGORITHM sets it (never 0), L2 moves two steps left
+tap SEL
+turn ALGO -2
+wait 200
+said ROTATE L2
+tap SEL
+wait 50
+expect note 2 2 1 60
+# SHIFT NOTES: +4 semitones, again (+8), then down 12; each its own undo
+tap SEL
+row SHIFT NOTES
+turn ALGO 3
+wait 200
+said SHIFT NOTES +4
+tap SEL
+wait 50
+expect listopen 0
+expect note 2 2 1 64
+tap SEL
+tap SEL
+wait 50
+expect note 2 2 1 68
+tap SEL
+turn ALGO -15
+wait 200
+said SHIFT NOTES -12
+tap SEL
+wait 50
+expect note 2 2 1 56
+expect note 2 2 17 60
+press HOME
+tap REC
+release HOME
+expect note 2 2 1 68
+tap SEL
+# CLEAR, its choice "locks": the notes stay
+row CLEAR
+turn ALGO -2
+turn ALGO 1
+wait 200
+said CLEAR locks
+tap SEL
+wait 50
+expect listopen 0
+expect lane 2 2 e1 0
+expect note 2 2 1 68
+# the FM-1's settings (the theme, Setup's list: NOTES here): set on Setup's list, kept when project 1 loads (and over
+# a restart: the load writes them into the slot), and by a new project
+projsave 1
+expect theme 0
+tap GLO
+turn SELECT 5
+expect page Setup
+tap SEL
+row THEME
+turn ALGO 1
+row NOTES
+turn ALGO -1
+tap HOME
+expect theme 1
+expect sendnotes 0
+tap HOME
+tap SEL
+row LOAD PROJECT
+tap SEL
+wait 100
+tap SEL
+wait 300
+expect ask 0
+expect spat2.2 2
+expect theme 1
+expect sendnotes 0
+reboot
+wait 400
+expect theme 1
+expect sendnotes 0
+projnew
+expect theme 1
+expect sendnotes 0

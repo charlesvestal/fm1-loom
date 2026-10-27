@@ -1,0 +1,91 @@
+# the lists' copies (2026-10-26): COPY SOUND / PASTE SOUND (EDIT: a synth's onto a synth, a kit's onto a kit),
+# COPY KEY / PASTE KEY (a kit's key onto another key), COPY SCENE / PASTE SCENE and DUPLICATE SLOT (HOME), KEY FILTER
+# and KIT FILTER (a kit's ENV list, on all four pages)
+wait 300
+projnew
+# T2's sound onto T3 (its cutoff and name with it), undone
+param 2 cut 20
+turn ALGO 1
+expect trk 2
+tap EDIT
+tap SEL
+row COPY SOUND
+tap SEL
+turn ALGO 1
+expect trk 3
+listen
+tap SEL
+row PASTE SOUND
+wait 200
+said PASTE SOUND from T2
+tap SEL
+wait 50
+expect par3.cut 20
+press HOME
+tap REC
+release HOME
+expect par3.cut 88
+# T1's kick onto its snare
+param 1 d1.model 5
+param 1 d1.decay 40
+turn ALGO -2
+expect trk 1
+tapkey b0
+tap SEL
+row COPY KEY
+tap SEL
+tapkey b1
+tap SEL
+row PASTE KEY
+wait 200
+said PASTE KEY from kick
+tap SEL
+wait 50
+expect par1.d2.model 5
+expect par1.d2.decay 40
+# KEY FILTER and KIT FILTER on every ENV page of a kit
+tap ENV
+tap SEL
+row KEY FILTER
+turn ALGO -5
+turn ALGO 1
+expect par1.d2.ftype 1
+row KIT FILTER
+tap HOME
+turn SELECT 3
+tap SEL
+row KEY FILTER
+row KIT FILTER
+tap HOME
+# scene 1 copied, scene 2 (a copy, T2 on P3) gets scene 1 back
+scenedef 1 1 1
+scenedef 2 1 3
+tap HOME
+tapkey w0
+wait 50
+tap SEL
+row COPY SCENE
+tap SEL
+tapkey w1
+wait 50
+expect scene 2
+expect spat2.2 3
+tap SEL
+row PASTE SCENE
+tap SEL
+wait 50
+expect spat2.2 1
+expect spat1.2 1
+# a song slot duplicated after itself
+song 1:2 2:1
+turn SELECT 1
+expect page Song
+expect songlen 2
+tap SEL
+row DUPLICATE SLOT
+tap SEL
+wait 50
+expect songlen 3
+expect slotsc1 1
+expect slotsc2 1
+expect slotsc3 2

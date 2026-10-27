@@ -435,6 +435,20 @@ int app_expect(const char *what, int *got)
         *got = seq.clock;
     else if (!strcmp(what, "pat2"))                 /* track 2's pattern in the scene playing, from 1 */
         *got = pats.scene[seq.scene % NSCENE].pat[1] + 1;
+    else if (!strncmp(what, "spat", 4) && strchr(what, '.')) {   /* spatS.T: scene S's pattern for track T, both
+                                                     * from 1 */
+        int sc = atoi(what + 4) - 1, t = atoi(strchr(what, '.') + 1) - 1;
+        if (sc < 0 || sc >= NSCENE || t < 0 || t >= NSEQT)
+            return 0;
+        *got = pats.scene[sc].pat[t] + 1;
+    } else if (!strcmp(what, "songlen"))            /* the song's slots */
+        *got = pats.song.len;
+    else if (!strncmp(what, "slotsc", 6))          /* slotscN: song slot N's scene, both from 1 */
+        *got = pats.song.slot[(atoi(what + 6) - 1) & (NSONG - 1)].scene + 1;
+    else if (!strcmp(what, "theme"))              /* the theme (THEME_*) */
+        *got = proj.rsv[1];
+    else if (!strcmp(what, "listopen"))             /* a SEL list up */
+        *got = lst.open;
     else if (!strncmp(what, "kvel", 4)) {          /* kvelT.PAT.S.K: kit sound K's own velocity on that step (0 none) */
         int t, pt, st, k;
         if (sscanf(what + 4, "%d.%d.%d.%d", &t, &pt, &st, &k) != 4)
@@ -1291,6 +1305,27 @@ int app_host_cmd(const char *cmd, const char *a, const char *b, const char *c, c
         return 1;
     if (!strcmp(cmd, "expect"))
         return expect_more(a, b, c, d);
+    if (!strcmp(cmd, "row")) {                      /* row NAME: the open list's row of that name picked (as SELECT
+                                                     * would: remembered), whatever the order; none: a failure */
+        const char *nm = plat_host_line + 3;
+        size_t l;
+        while (*nm == ' ')
+            nm++;
+        l = strcspn(nm, "\r\n");
+        while (l && nm[l - 1] == ' ')
+            l--;
+        list_build();
+        for (int r = 0; r < lst.n; r++)
+            if (list_pickable(r) && strlen(lst.row[r].name) == l && !strncmp(lst.row[r].name, nm, l)) {
+                list_move(r - lst.sel);
+                sp_in_t = plat_ms();                 /* (as a turn of SELECT: the reader says the row) */
+                run_ms(80);
+                return 1;
+            }
+        printf("  FAIL row %.*s: not in the list%s\n", (int)l, nm, lst.open ? "" : " (no list open)");
+        host_fails++;
+        return 1;
+    }
     if (!strcmp(cmd, "passkey")) {                  /* passkey N: a pairing waits for code N to be typed (-1 none) */
         sim_passkey = atoi(a);
         run_ms(1);

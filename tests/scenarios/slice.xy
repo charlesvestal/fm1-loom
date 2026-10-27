@@ -9,6 +9,7 @@ expect trk 3
 tap EDIT
 expect page Engine
 tap SEL
+row ENGINE
 turn ALGO 6 30
 tap SEL
 expect par3.0 7

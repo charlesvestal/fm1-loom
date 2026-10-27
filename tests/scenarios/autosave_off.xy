@@ -1,16 +1,16 @@
 # AUTOSAVE off (GLO's list): saved at once, then a change waits for SAVE; the setting kept over a restart
 wait 300
 tap GLO
+turn SELECT 5
+expect page Setup
 tap SEL
-turn SELECT 30
-# AUTOSAVE: three up from the last row, now CC OUT and SCENES OUT come before ALL NOTES OFF
-turn SELECT -3
+# AUTOSAVE: on Setup's own list
+row AUTOSAVE
 wait 50
 turn ALGO -1
 wait 100
 shot aoff_list.png
 tap HOME
-turn SELECT 4
 wait 100
 shot aoff_setup.png
 expect dirty 0
@@ -21,6 +21,6 @@ expect dirty 1
 reboot
 wait 400
 tap GLO
-turn SELECT 4
+turn SELECT 5
 wait 100
 shot aoff_after_reboot.png

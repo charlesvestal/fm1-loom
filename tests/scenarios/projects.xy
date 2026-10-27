@@ -5,37 +5,18 @@ tapkey w0
 expect dirty 1
 wait 3500
 expect dirty 0
-# rename: HOME, SEL, RENAME (two rows down from LOAD PROJECT)
+# HOME's list: the projects (a project is its slot: no names)
 tap HOME
 tap SEL
-turn SELECT 2
+row LOAD PROJECT
 wait 100
 shot proj_list.png
-tap SEL
+tap HOME
 wait 100
 expect page Arrange
-press OCT-
-tapkey 1
-release OCT-
-tapkey 4
-tapkey 4
-tapkey 15
-wait 50
-press OCT+
-tapkey 1
-release OCT+
-wait 50
-shot proj_typing.png
-tapkey 26
-tapkey 4
+# new project: slot 2 (slot 1 is taken), asked first
 tap SEL
-wait 100
-shot proj_named.png
-wait 3500
-expect dirty 0
-# new project: slot 2 (slot 1 is taken)
-tap SEL
-turn SELECT 3
+row NEW PROJECT
 tap SEL
 wait 100
 tap SEL
@@ -50,7 +31,7 @@ wait 50
 shot proj_song.png
 # RANDOMIZE PRESETS (after NEW PROJECT on HOME's list), asked first: T2 a bass, mono; T3 polyphonic; T5 a mono lead
 tap SEL
-turn SELECT 4
+row RANDOMIZE PRESETS
 tap SEL
 wait 100
 shot proj_random_ask.png
