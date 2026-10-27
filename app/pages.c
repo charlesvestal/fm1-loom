@@ -259,7 +259,7 @@ static const char *const ACTION_NAME[NACTIONS] = {
     "RANDOMIZE PRESETS", "MIDI OUT", "LOOP THROWS", "COPY BAR", "COPY STEP", "PASTE BAR", "PASTE STEP",
     "PASTE LOCKS ONLY", "DOUBLE PATTERN", "CLEAR LOCKS", "CC OUT", "SCENES OUT", "KIT", "SAVE KIT", "KNOB CC",
     "USB PORT", "BT MIDI", "BT AUDIO", "AUDIO DEVICE", "MIDI DEVICE", "DEVICE", "LOOK AGAIN", "FORGET", "DISCONNECT",
-    "CLEAR", "ROTATE", "PASTE", "COPY TO EMPTY", "CLEAR BAR", "COPY SOUND", "PASTE SOUND", "COPY KEY", "PASTE KEY",
+    "CLEAR", "ROTATE", "PASTE", "COPY TO EMPTY", "CLEAR BAR", "COPY SOUND", "PASTE SOUND", "COPY DRUM", "PASTE DRUM",
     "COPY SCENE", "PASTE SCENE", "DUPLICATE SLOT", "KIT FILTER", "SHIFT NOTES"};
 static const char *const CLEAR_WHAT[3] = {"notes", "locks", "notes and locks"};
 /* a MIDI track's eight rows of A_MIDI_CC: each knob's CC (ui.c list_midi_knob reads the digit back) */
@@ -295,7 +295,7 @@ enum { CK_PAT, CK_BAR, CK_STEP };
 static uint8_t clip_ok, clip_trk, clip_pat, clip_kind, clip_from;   /* COPY PATTERN / BAR / STEP: which (CK_*: the
                                                  * bar's or the step's first step), read at PASTE (no copy kept: the
                                                  * pool is short) */
-static uint8_t snd_clip, key_clip, key_clip_k, scene_clip;   /* COPY SOUND (the track + 1), COPY KEY (the kit track + 1,
+static uint8_t snd_clip, key_clip, key_clip_k, scene_clip;   /* COPY SOUND (the track + 1), COPY DRUM (the kit track + 1,
                                                  * its key), COPY SCENE (the scene + 1): read at PASTE, as above */
 
 /* ---------------------------------------------------------- helpers --- */
