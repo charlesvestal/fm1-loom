@@ -132,7 +132,7 @@ static void apply_brain(void)
     seq.brain_scale = p[TP_E3] % NBS;
     seq.brain_link = p[TP_E4] % 9u;
     for (int t = 0; t < NTRK; t++)
-        if (proj.trk[t].par[TP_BRAIN] % 3u && t + 1 != seq.brain_src)
+        if (proj.trk[t].par[TP_BRAIN] % NBM && t + 1 != seq.brain_src)
             route |= (uint16_t)(1u << t);
     seq.brain_route = route;
     pats.scene[cur_scene()].brain_key = seq.brain_key;
@@ -2523,7 +2523,7 @@ static void list_change_do(int32_t e)
         }
         case A_FOLLOW: {
             int t = list_follow_trk();
-            set_tp(t, TP_BRAIN, (proj.trk[t].par[TP_BRAIN] % 3 + d + 3) % 3);
+            set_tp(t, TP_BRAIN, (proj.trk[t].par[TP_BRAIN] % NBM + d + NBM) % NBM);
             break;
         }
         case A_PUMP_BY: case A_PUMP_REL: case A_PUMP_ACC: case A_LEVEL: {   /* the master out page's list */

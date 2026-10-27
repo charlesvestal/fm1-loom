@@ -1211,6 +1211,99 @@ static void t_follow(void)             /* the conductor's FOLLOW track: its lowe
     printf("ok %s\n", cur);
 }
 
+static void t_harmony(void)            /* harmony: the conductor's chord sets the followers' pitches */
+{
+    cur = "harmony";
+    /* the conductor's step holds a C major triad; "harmony" takes each note to the nearest tone */
+    reset();
+    P.pat[AUX_BRAIN][0].st[0].note[0] = 60;
+    P.pat[AUX_BRAIN][0].st[0].note[1] = 64;
+    P.pat[AUX_BRAIN][0].st[0].note[2] = 67;
+    P.pat[AUX_BRAIN][0].st[0].vel = 100;
+    par[0][TP_BRAIN] = BM_HARMONY;
+    note(0, 0, 61, 100);              /* C#: up to C */
+    note(0, 1, 62, 100);              /* D: a tie between C and E, down */
+    note(0, 2, 66, 100);              /* F#: up to G */
+    note(0, 3, 72, 100);              /* C5: already a tone, its register kept */
+    start();
+    run(4 * L16 + 40);
+    CHECK(on_n(0) && on_n(0)->a == 60);
+    CHECK(on_n(1) && on_n(1)->a == 60);
+    CHECK(on_n(2) && on_n(2)->a == 67);
+    CHECK(on_n(3) && on_n(3)->a == 72);
+    stop();
+    /* "chord deg": the note's place in the scale picks a chord tone (C E G, cycled) */
+    reset();
+    P.pat[AUX_BRAIN][0].st[0].note[0] = 60;
+    P.pat[AUX_BRAIN][0].st[0].note[1] = 64;
+    P.pat[AUX_BRAIN][0].st[0].note[2] = 67;
+    P.pat[AUX_BRAIN][0].st[0].vel = 100;
+    par[0][TP_BRAIN] = BM_DEGREE;
+    note(0, 0, 60, 100);              /* C: the root */
+    note(0, 1, 62, 100);              /* D: the third */
+    note(0, 2, 64, 100);              /* E: the fifth */
+    note(0, 3, 65, 100);              /* F: back to the root */
+    note(0, 4, 67, 100);              /* G: the third */
+    note(0, 5, 69, 100);              /* A: the fifth */
+    note(0, 6, 71, 100);              /* B: the root, an octave up */
+    start();
+    run(7 * L16 + 40);
+    CHECK(on_n(0)->a == 60 && on_n(1)->a == 64 && on_n(2)->a == 67 && on_n(3)->a == 60);
+    CHECK(on_n(4)->a == 64 && on_n(5)->a == 67 && on_n(6)->a == 72);
+    stop();
+    /* a lone conductor note is its diatonic triad (G: G B D) */
+    reset();
+    P.pat[AUX_BRAIN][0].st[0].note[0] = 67;
+    P.pat[AUX_BRAIN][0].st[0].vel = 100;
+    par[0][TP_BRAIN] = BM_HARMONY;
+    note(0, 0, 62, 100);              /* D: the triad's fifth an octave down */
+    start();
+    run(L16 + 40);
+    CHECK(on_n(0)->a == 62);
+    stop();
+    /* the FOLLOW track's step: all of its notes are the chord */
+    reset();
+    par[AUX_BRAIN][TP_E1] = 3;        /* T3 */
+    st(2, 0)->note[0] = 60;           /* C E G, not just the C */
+    st(2, 0)->note[1] = 64;
+    st(2, 0)->note[2] = 67;
+    st(2, 0)->vel = 100;
+    par[0][TP_BRAIN] = BM_HARMONY;
+    note(0, 0, 61, 100);              /* C#: to C, not to the scale's D */
+    start();
+    run(L16 + 40);
+    CHECK(on_n(0)->a == 60);
+    stop();
+    /* the FOLLOW track's held keys are the chord too */
+    reset();
+    par[AUX_BRAIN][TP_E1] = 3;
+    par[0][TP_BRAIN] = BM_HARMONY;
+    note(0, 0, 61, 100);
+    seq_key(&S, 2, 60, 1, 100);
+    seq_key(&S, 2, 64, 1, 100);
+    seq_key(&S, 2, 67, 1, 100);
+    run(10);
+    start();
+    run(L16 + 40);
+    CHECK(on_n(0)->a == 60);
+    seq_key(&S, 2, 60, 0, 0);
+    seq_key(&S, 2, 64, 0, 0);
+    seq_key(&S, 2, 67, 0, 0);
+    stop();
+    /* no chord at all: mode 3 falls back to diatonic (a degree of 0 leaves the note) */
+    reset();
+    par[0][TP_BRAIN] = BM_HARMONY;
+    start();
+    S.brain_chord = 0;                /* (an empty chord: as before harmony) */
+    seq_key(&S, 0, 62, 1, 100);       /* D: C E G would take it down to C */
+    seq_keys_live(&S, 0, &sink);
+    CHECK(on_n(0) && on_n(0)->a == 62);
+    seq_key(&S, 0, 62, 0, 0);
+    seq_keys_live(&S, 0, &sink);
+    stop();
+    printf("ok %s\n", cur);
+}
+
 static void t_arp(void)
 {
     cur = "arp";
@@ -3082,6 +3175,7 @@ int main(void)
     t_pulse();
     t_pulse_kit();
     t_follow();
+    t_harmony();
     t_hold();
     t_multiply();
     t_velocity();

@@ -153,7 +153,7 @@ static const char *const CLOCK_ROW[SEQ_NCLK] = {"internal", "sends", "receives"}
 static const char *const METRO_NAME[3] = {"off", "rec", "on"};
 static const char *const ONOFF[2] = {"off", "on"};
 static const char *const LINK_NAME[9] = {"off", "T1", "T2", "T3", "T4", "T5", "T6", "T7", "T8"};
-static const char *const FOLLOW_NAME[3] = {"no", "diatonic", "transpose"};
+static const char *const FOLLOW_NAME[NBM] = {"no", "diatonic", "transpose", "harmony", "ch. deg"};
 static const char *const CORE2_NAME[4] = {"one core", "two cores", "lost", "barred"};
 static const char *const USBA_NAME[2] = {"follows knob", "full"};
 static const char *const BRAIN_KNOB[3] = {"key", "scale", "link"};
@@ -2483,7 +2483,7 @@ static void list_sound(int trk)
         list_head("follow");
         for (int t = 0; t < NTRK; t++) {
             s_cat(num_s((uint32_t)t + 1u, s_cat(nm[t], "T")), " FOLLOWS");
-            list_add(nm[t], FOLLOW_NAME[proj.trk[t].par[TP_BRAIN] % 3], LK_PICK, A_FOLLOW);
+            list_add(nm[t], FOLLOW_NAME[proj.trk[t].par[TP_BRAIN] % NBM], LK_PICK, A_FOLLOW);
         }
     } else if (is_fx(trk)) {
         list_add(ACTION_NAME[A_EFFECT], fx_label(ui.pick_fx % NFXPICK), LK_PICK, A_EFFECT);
@@ -2527,7 +2527,7 @@ static void list_sound(int trk)
             num_s((uint32_t)sc + 1u, s_cat(from_t, "from T"));
             list_add(ACTION_NAME[A_PASTE_SOUND], from_t, LK_ACTION, A_PASTE_SOUND);
         }
-        s_cat(fol_t, FOLLOW_NAME[proj.trk[trk].par[TP_BRAIN] % 3]);
+        s_cat(fol_t, FOLLOW_NAME[proj.trk[trk].par[TP_BRAIN] % NBM]);
         list_add(ACTION_NAME[A_FOLLOW], fol_t, LK_PICK, A_FOLLOW);
         if (is_midi(trk)) {                          /* its knobs' CCs (its notes always go out: no MIDI OUT) */
             list_head("MIDI");
@@ -3898,8 +3898,10 @@ static void draw_brain(void)
 {
     const uint8_t *p = proj.trk[AUX_BRAIN].par;
     int key = seq.brain_key % 12, sc = seq.brain_scale % NBS, deg = (int8_t)seq.brain_deg, src = p[TP_E1] % 9u;
-    uint32_t h = hash_u(hash_u(2166136261u, 0xB0u), (uint32_t)key | (uint32_t)sc << 4 | (uint32_t)(deg + 64) << 8 |
-                                          (uint32_t)src << 16 | (uint32_t)ui.page << 20 | (uint32_t)p[TP_E4] << 26);
+    uint32_t chord = seq.brain_chord;
+    uint32_t h = hash_u(hash_u(hash_u(2166136261u, 0xB0u), (uint32_t)key | (uint32_t)sc << 4 |
+                                          (uint32_t)(deg + 64) << 8 | (uint32_t)src << 16 | (uint32_t)ui.page << 20 |
+                                          (uint32_t)p[TP_E4] << 26), chord);
     char t[48], *e;
     for (int i = 0; i < NTRK; i++)
         h = hash_u(h, proj.trk[i].par[TP_BRAIN] | (uint32_t)is_drum(i) << 4);
@@ -3921,7 +3923,7 @@ static void draw_brain(void)
             s_cat(s_cat(t, TRACK_NAME[src - 1]), " is a kit: it has no notes");
             cv_text(12, 40, &FONT_XS, t, K_REC);
         } else {
-            s_cat(s_cat(t, TRACK_NAME[src - 1]), "'s lowest note sets the chord:");
+            s_cat(s_cat(t, TRACK_NAME[src - 1]), "'s notes set the chord:");
             cv_text(12, 34, &FONT_XS, t, K_DIM);
             cv_text(12, 48, &FONT_XS, "chords, a bass line; it follows nothing", K_DIM);
         }
@@ -3931,26 +3933,42 @@ static void draw_brain(void)
             e = s_cat(e, "+");
         num_i(deg, e);
         cv_text(12, 44, &FONT_B, t, deg ? K_NOW : K_DIM);
+        if (chord) {                         /* the active chord: the tones harmony plays */
+            char cb[24];
+            char *q = cb;
+            *q = 0;
+            for (int i = 0; i < SN; i++) {
+                int v = (int)(chord >> (8 * i) & 0xFFu);
+                if (!v)
+                    continue;
+                if (q != cb)
+                    q = s_cat(q, " ");
+                q = s_cat(q, NOTE_NAME[v % 12]);
+            }
+            text_r(230, 44, &FONT_XS, cb, K_FAINT);
+        }
         if (p[TP_E4])
             text_r(230, 48, &FONT_XS, LINK_NAME[p[TP_E4] % 9], K_DIM), text_r(230 - text_w(&FONT_XS, LINK_NAME[p[TP_E4] % 9]) - 4, 48, &FONT_XS, "link", K_FAINT);
     }
     cv_text(12, 70, &FONT_XS, src ? "tracks that follow; the chords' in its colour" : "tracks that follow", K_DIM);
     for (int i = 0; i < NTRK; i++) {
         int32_t x = 12 + i * 27;
-        int m = proj.trk[i].par[TP_BRAIN] % 3;
+        int m = proj.trk[i].par[TP_BRAIN] % NBM;
         num_s((uint32_t)i + 1u, t);
         if (src == i + 1) {                          /* the FOLLOW track: the chords come from it */
             cv_round(x, 86, 22, 22, 5, trk_ink(i));
             text_c(x + 11, 90, &FONT_B, t, K_BG);
             continue;
         }
-        if (m == 1)
+        if (m == BM_DIATONIC || m == BM_HARMONY)
             cv_round(x, 86, 22, 22, 5, K_TEXT);
-        else if (m == 2)
+        else if (m == BM_TRANSPOSE || m == BM_DEGREE)
             cv_frame(x, 86, 22, 22, 5, K_TEXT, K_BG);
         else
             cv_frame(x, 86, 22, 22, 5, K_LINE, K_BG);
-        text_c(x + 11, 90, &FONT_B, t, m == 1 ? K_BG : m == 2 ? K_TEXT : K_FAINT);
+        if (m >= BM_HARMONY)                          /* the harmony modes: a bar under the number */
+            cv_rect(x + 6, 104, 10, 2, m == BM_HARMONY ? K_BG : K_TEXT);
+        text_c(x + 11, 90, &FONT_B, t, m == BM_DIATONIC || m == BM_HARMONY ? K_BG : m ? K_TEXT : K_FAINT);
     }
     cv_blit(0, MAIN_Y);
 }

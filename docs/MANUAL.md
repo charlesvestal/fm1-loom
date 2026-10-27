@@ -60,9 +60,11 @@ black keys 1 to 11.
    melodic track follows it. While it plays, play an F, then a G, then a C: everything moves with you, in the
    scale. Press **SEQ**, turn **SELECT** to the Bar page and press black key 4 so that a step is a beat. Back on
    Steps, hold **SEQ** and play a chord, let go and press a step, and so on: four steps make one bar of the
-   progression. Or let T3's chords lead: press **EDIT**, turn **SELECT** to Follow and press black key 3.
+   progression. Or let T3's chords lead: press **EDIT**, turn **SELECT** to Follow and press black key 3. A track
+   can also take its pitches from the chord itself: press its **SEL** and set FOLLOWS CONDUCTOR to **harmony** (the
+   nearest chord tone to each note) or **ch. deg** (the note's scale degree picks the chord tone).
 
-   <img src="img/screen-conductor.png" width="240" alt="The conductor&#x27;s Engine page: C major, degree 0, the tracks that follow lit; knobs key, scale, link" title="The conductor"> <img src="img/screen-conductor-follow.png" width="240" alt="The conductor&#x27;s Follow page: chords from T3, its box in its colour among the tracks that follow; T3&#x27;s lowest note sets the chord" title="Chords from a track">
+   <img src="img/screen-conductor.png" width="240" alt="The conductor&#x27;s Engine page: C major, degree 0, the tracks that follow lit; knobs key, scale, link" title="The conductor"> <img src="img/screen-conductor-follow.png" width="240" alt="The conductor&#x27;s Follow page: chords from T3, its box in its colour among the tracks that follow; T3&#x27;s notes set the chord" title="Chords from a track">
 6. **Throws.** Press **FX** and turn **SELECT** to its last page, Throws. Hold a low key: F3 mutes the
    drums, G3 stutters them, A3 repeats, B3 echoes, C4 builds, D4 plays four on the floor and E4 jumbles them. A
    high key does the same to the melodic tracks. Let go and the pattern comes back.
@@ -169,7 +171,8 @@ press…" means keep **HOME** down while you press the next thing.
 | solo a track | On Mix, hold its black key (hold several to solo them together). Let go and the mutes come back. <!-- hint: black 1 --> |
 | sweep a few tracks together | Press **GLO** and turn **SELECT** to LFO, the shared LFO. The black keys pick the tracks, and **KNOB 4** picks what it moves. <!-- hint: press GLO; turn SELECT, KNOB 4; black 1,2,3 --> |
 | play a progression | Turn **ALGORITHM** to COND (the conductor). Press **EDIT** and play a chord: it moves the tracks that follow. Press **SEQ** and press a step to put the chord on it. Set the scale to 4 on the Bar page so that a step is a beat. <!-- hint: turn ALGORITHM; press EDIT; white 1,3,5 --> |
-| let a track lead the chords | On COND, press **EDIT** and turn **SELECT** to Follow. Press the track's black key, and its lowest note sets the chord for the others (use a chord part or a bass line). Press the same key again to turn it off. <!-- hint: press EDIT; turn SELECT; black 3 --> |
+| let a track lead the chords | On COND, press **EDIT** and turn **SELECT** to Follow. Press the track's black key, and its notes set the chord for the others (use a chord part or a bass line). Press the same key again to turn it off. <!-- hint: press EDIT; turn SELECT; black 3 --> |
+| harmonize a track to the chords | On COND, press **EDIT** and turn **SELECT** to Follow if a track leads (or play chords on COND's keys). Press that track's **SEL** and set FOLLOWS CONDUCTOR to harmony: each of its notes snaps to the nearest tone of the chord the conductor plays. **ch. deg** takes the note's place in the scale to pick a chord tone instead. <!-- hint: press EDIT; press SEL; turn ALGORITHM --> |
 | get new sounds for the band | Press **HOME**, press **SEL** and pick RANDOMIZE PRESETS: T2 to T8 each get a random preset for their part. Press **SEL** for yes. |
 | save | LOOM-8 saves by itself when it is stopped and quiet. **SAVE** saves at once. Hold **SAVE** and press white key 1 to 3 to save to that slot. <!-- hint: press SAVE --> |
 | keep a sound | On a sound page, hold **SAVE** and press a white key. The sound becomes that user preset. <!-- hint: hold SAVE; white 1 --> |
@@ -329,7 +332,8 @@ again, it starts plain.
 | 14 | skip trigger: the step plays every Nth pass | a cycle of 1 to 9 |
 | 15 | flam: a soft grace hit, then the step's own a moment later | 1 to 9 32nds of a step apart |
 
-For the three skips, the value continues past random: the same cycles come round again, first playing every pass
+A step whose tonality is **ignore** follows nothing: the conductor's chord, harmony's included, leaves its
+notes as they are. For the three skips, the value continues past random: the same cycles come round again, first playing every pass
 but the last, then playing only the first. A new trick starts at its default: pulse and hold 4, multiply 2,
 velocity 64, the ramps and random 4, glide 40 %, bend down-up, tonality fifth up, jump forward, the skips a
 cycle of 2, and flam 4 32nds.
@@ -513,7 +517,34 @@ delay. Press **SEL** for the list:
 - COPY SOUND, then PASTE SOUND on another track, puts the same sound there, as a preset would: the track keeps its
   own level, pan, player and MIDI OUT. A synth's sound pastes onto a synth track, a kit onto a kit track. Undo takes
   it back.
-- FOLLOWS CONDUCTOR sets whether the track follows the conductor.
+- FOLLOWS CONDUCTOR sets whether and how the track follows the conductor: no, diatonic, transpose, harmony or
+  ch. deg. [Following the conductor](#following-the-conductor) shows what each one does to the same notes.
+
+### Following the conductor
+
+The conductor holds a key, a scale and a chord. A track that follows it has its notes moved to match, and
+FOLLOWS CONDUCTOR (on the track's **SEL** list) decides how. Here the conductor is in C major and plays a D minor
+chord (D F A). The track plays C E G. The keyboard in each row shows the notes that sound.
+
+| Mode | What it does | C E G sounds as |
+| --- | --- | --- |
+| no | The track plays its own notes. | C E G <!-- roll: 0,4,7 --> |
+| diatonic | Moves each note by the chord's degree (here 1) in scale steps. The notes stay in the scale. | D F A <!-- roll: 2,5,9 --> |
+| transpose | Moves each note by the same number of semitones (here 2), whatever the scale. | D F♯ A <!-- roll: 2,6,9 --> |
+| harmony | Snaps each note to the nearest tone of the chord. A tie goes down. | D F F <!-- roll: 2,5,5 --> |
+| ch. deg | The note's place in the scale picks the chord tone: the 1st degree gets the 1st tone, the 2nd the 2nd, and so on, cycled. The tone is taken in the octave nearest the note. | D A F <!-- roll: 2,9,5 --> |
+
+A note that is not in the scale shows the difference between the modes. Take C♯ in C major, with the same chord:
+
+| Mode | What it does with C♯ | C♯ sounds as |
+| --- | --- | --- |
+| diatonic | Snaps to C (a tie goes down), then moves one scale step. | D <!-- roll: 2 --> |
+| transpose | Just moves it up two semitones, so the result can be out of the scale. | D♯ <!-- roll: 3 --> |
+| harmony | Snaps to the nearest chord tone. | D <!-- roll: 2 --> |
+| ch. deg | Snaps to C, the 1st degree, so it gets the chord's 1st tone. | D <!-- roll: 2 --> |
+
+Harmony and ch. deg need a chord. Until the conductor has played one, they act like diatonic. A step whose
+tonality is **ignore** follows nothing.
 
 <img src="img/screen-engine.png" width="240" alt="The Engine page on T2: the engine, its picture, the preset name, and its four knobs from 00 to 99" title="The Engine page"> <img src="img/screen-play.png" width="240" alt="Play: voice mode, portamento, bend range and volume" title="The Play page">
 
@@ -1054,16 +1085,20 @@ Turn **ALGORITHM** past T8. Each aux track has its own page under **EDIT** and i
 - **COND** (the conductor) has key, scale and link (an instrument track that also plays the conductor's keys).
   Play a chord on its keys and the tracks that follow move to it. Its steps hold the chords you played: press
   **SEQ** and a white key. Set the track scale to 4 so each step is a beat, or to 16 for a bar. Page 2 is the
-  routing: black keys 1 to 8 toggle a track. Its **SEL** list sets how each track follows, diatonic or transpose
-  only. Drum tracks never follow.
+  routing: black keys 1 to 8 toggle a track. Its **SEL** list sets how each track follows: **no**, **diatonic**
+  (moves by the chord's scale degree), **transpose** (the same distance in semitones), **harmony** (each note snaps
+  to the nearest tone of the chord itself) or **ch. deg** (the note's place in the scale picks a chord tone:
+  root, third, fifth, ... cycled, kept in the note's octave). The last two are harmony. The conductor's
+  Engine page shows the chord it hears beside the degree. Drum tracks never follow.
 
   Page 3, **Follow**, takes the chords from a track instead. Press that track's black key (press it again to turn
-  it off), or turn **KNOB 1**. Each note the track plays sets the chord (its lowest note on a step, or the lowest
-  of the keys held), so a chord part or a bass line can lead the others. The note's place in the scale counts, not
-  its octave, and the other tracks move the nearer way: in C major, a G takes them down a fourth and an F takes
-  them up a fourth. The leading track plays as written and follows nothing, and it still leads when muted. While a
-  track leads, the conductor's own steps rest, but its keys still change the chord until the leading track's next
-  note. A kit has no notes, so it can't lead.
+  it off), or turn **KNOB 1**. Each note the track plays sets the chord (all its notes on a step, or the keys
+  held, so a chord part sets the whole chord and a single note sets its triad), so a chord part or a bass line can
+  lead the others. The note's place in the scale counts for the degree, not its octave, and the other tracks move
+  the nearer way: in C major, a G takes them down a fourth and an F takes them up a fourth. A single leading note
+  is taken as the root of its diatonic triad (in C major, C gives C E G, G gives G B D). The leading track plays as
+  written and follows nothing, and it still leads when muted. While a track leads, the conductor's own steps rest,
+  but its keys still change the chord until the leading track's next note. A kit has no notes, so it can't lead.
 - **WEAVE** (the weaves): hold its white keys 1 to 10 to weave T1 to T8, COND and THROW. With latch, a tap turns a
   weave on and another tap turns it off. Each track weaves as its ARP's Weave page sets it, and REC records the
   weaves onto the WEAVE steps. See Weave, above.

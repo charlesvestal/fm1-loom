@@ -91,7 +91,7 @@ static const char *const ARPSTY_N[6] = {"off", "pedal", "thirds", "double", "ski
 static const char *const ARPGLD_N[3] = {"off", "low", "high"};
 static const char *const ARPSTE_N[3] = {"mono", "narrow", "wide"};
 static const char *const MPAT_N[4] = {"up", "down", "updown", "random"};
-static const char *const BRAIN_N[3] = {"no", "diatonic", "transp"};
+static const char *const BRAIN_N[NBM] = {"no", "diatonic", "transp", "harmony", "ch. deg"};
 static const char *const BEND_N[9] = {"off", "1", "2", "3", "4", "5", "6", "7", "octave"};
 static const char *const WTNAME_N[WT_NTABLE] = {"shapes", "nasal", "grit", "vocal", "spiral", "fold", "octaves",
                                                 "glass", "chirp"};
@@ -3014,7 +3014,7 @@ static const tp_info_t FIXED[NTP_SOUND + 13] = {
     {"hold", 0, 1, 0, PK_SWITCH, 0},                    {"length", 0, 2, 1, PK_NAMES, ARPLEN_N},
     {"style", 0, 5, 0, PK_NAMES, ARPSTY_N},             {"glide", 0, 2, 0, PK_NAMES, ARPGLD_N},
     {"stereo", 0, 2, 0, PK_NAMES, ARPSTE_N},            {"level", 0, 127, 100, PK_FADER, 0},
-    {"pan", 0, 127, 64, PK_BIP, 0},                     {"follow", 0, 2, 1, PK_NAMES, BRAIN_N},
+    {"pan", 0, 127, 64, PK_BIP, 0},                     {"follow", 0, NBM - 1, 1, PK_NAMES, BRAIN_N},
     {"midi out", 0, 1, 1, PK_SWITCH, 0}};
 /* a drumline key's values (synth.h DP_*); its model's knobs take their names and defaults from drumline.c
  * (tp_info_par). The key's envelope and filter: its Envelope and Filter pages */
