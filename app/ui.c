@@ -1458,27 +1458,39 @@ static void key_down(int k)
             return;
         }
         if (w >= 0) {
-            if (ui.held) {
-                ui.kmode[k] = KM_LENGTH;
-                step_length_to(w);
+            ui.kmode[k] = KM_STEP;
+            ui.touched = -1;
+            if (ui.held) {                       /* another step: held with the others (an edit now is on them
+                                                  * all). The one held alone, a later key let go with nothing
+                                                  * edited meanwhile was its length instead (key_up): len_key */
+                int alone = !(ui.held & (ui.held - 1u));
+                ui.len_key = (uint8_t)(alone && !ui.len_key && w > ui.held_first ? w + 1 : 0);
+                if (ui.len_key)
+                    ui.held_used = 0;            /* (what is edited from here decides it) */
+                ui.held |= (uint16_t)(1u << w);
+                ui.held_multi = 1;
                 return;
             }
-            ui.kmode[k] = KM_STEP;
             ui.held = (uint16_t)(1u << w);
             ui.held_first = (uint8_t)w;
             ui.held_used = 0;
-            ui.touched = -1;
+            ui.held_multi = 0;
+            ui.len_key = 0;
             return;
         }
-        if (b >= 0 && ui.held && is_drum(trk)) {
-            int s = step_shown(ui.held_first), on = 0;
-            step_t *st = &tpat(trk)->st[s];
+        if (b >= 0 && ui.held && is_drum(trk)) {   /* the sound on the held steps, or off them (as on the first) */
+            int on = !kit_has(&tpat(trk)->st[step_shown(ui.held_first)], b + 1);
             undo_keep();
-            kit_toggle(st, b + 1);
-            on = kit_has(st, b + 1);
+            for (int i = 0; i < 16; i++)
+                if (ui.held >> i & 1u) {
+                    step_t *st = &tpat(trk)->st[step_shown(i)];
+                    if (kit_has(st, b + 1) != on)
+                        kit_toggle(st, b + 1);
+                }
             ui.kmode[k] = KM_STEPSOUND;
             ui.held_used = 1;
-            say(DL_SOUND_NAME[b], on ? "on the step" : "off the step");
+            say(DL_SOUND_NAME[b], ui.held & (ui.held - 1u) ? (on ? "on the steps" : "off the steps")
+                                                              : on ? "on the step" : "off the step");
             mark_dirty();
             return;
         }
@@ -1603,7 +1615,14 @@ static void key_up(int k)
                 ui.wv_step = 0xFF;
             break;
         }
-        if (!ui.held_used && plat_ms() - ui.key_t[k] < STEP_TAP_MS)
+        if (ui.len_key && (ui.held >> (ui.len_key - 1) & 1u) && (w == ui.len_key - 1 || w == ui.held_first)) {
+            if (!ui.held_used)                   /* a later step let go (or the first) with nothing edited: the
+                                                  * first's length to it; else both were edited, as a pair */
+                step_length_to(ui.len_key - 1);
+            ui.held_used = 1;
+            ui.len_key = 0;
+        }
+        if (!ui.held_used && !ui.held_multi && plat_ms() - ui.key_t[k] < STEP_TAP_MS)
             step_toggle(w);                      /* a tap; a longer hold only looked at the step */
         ui.held &= (uint16_t)~(1u << w);
         if (!ui.held)                            /* (chord mode stays on past the step's own release) */

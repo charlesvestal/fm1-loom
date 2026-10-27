@@ -163,7 +163,7 @@ static const uint8_t WHITE_K[16] = {0, 2, 4, 6, 7, 9, 11, 12, 14, 16, 18, 19, 21
 static const uint8_t BLACK_K[11] = {1, 3, 5, 8, 10, 13, 15, 17, 20, 22, 25};
 #define KEY_BASE 53                                  /* F3 at octave 0 */
 enum { KM_NONE, KM_PLAY, KM_STEP, KM_SCENE, KM_MUTE, KM_PUNCH, KM_BRAIN, KM_SOUND,
-       KM_TRACK, KM_SAVE, KM_LENGTH, KM_SOLO, KM_SCALE, KM_ROUTE, KM_STEPSOUND, KM_IDLE, KM_WEAVE, KM_BARK,
+       KM_TRACK, KM_SAVE, KM_SOLO, KM_SCALE, KM_ROUTE, KM_STEPSOUND, KM_IDLE, KM_WEAVE, KM_BARK,
        KM_STEPCHORD };   /* KM_IDLE: does nothing */   /* what a held key does */
 
 /* the input's and the screen's state */
@@ -195,6 +195,10 @@ static struct {
     uint16_t held;                                   /* Steps: the white keys down as steps (bit = cell) */
     uint8_t held_first;                              /* the first held step (the one edited) */
     uint8_t held_used;                               /* a held step was edited: its release toggles nothing */
+    uint8_t held_multi;                              /* more than one step has been held since the first: no release
+                                                      * toggles a step */
+    uint8_t len_key;                                 /* a later step held with the first alone, + 1: let go with
+                                                      * nothing edited, the first's length to it (0 none) */
     uint8_t trickpg;                                 /* a step held + ARP: its tricks on the knobs */
     uint8_t chordmode;                               /* a step held, SEQ tapped: the keys write its chord, and stay
                                                       * doing so even if the step is let go (chord_held is who they
@@ -1552,7 +1556,9 @@ static void page_tag(char *t)
             if (is_drum(sel_trk()) && (lp == P_ENGINE || lp == P_PLAY || lp == P_ENV || lp == P_FILTER))
                 e = s_cat(s_cat(e, ">"), DL_SOUND_NAME[ui.dsound % DL_NSOUND]);   /* the key the locks reach */
             s_cat(s_cat(e, ">"), page_name_of(lp, sel_trk()));
-        } else if (ui.held)
+        } else if (ui.held & (ui.held - 1u))     /* several held: how many (the knobs show the first's values) */
+            s_cat(num_s((uint32_t)__builtin_popcount(ui.held), s_cat(t + s_len(t), ">")), " steps");
+        else if (ui.held)
             num_s((uint32_t)step_shown(ui.held_first) + 1u, s_cat(t + s_len(t), ">step "));
         break;
     case P_ENGINE: case P_PLAY: case P_PLAY2: case P_SUB: case P_ENV: case P_FILTER: case P_ENV2: case P_KITF: case P_LFO:
@@ -1689,8 +1695,12 @@ static void page_footer(char *t)
             s_cat(t, "KNOB 1 3 trick|KNOB 2 4 value");
         else if (ui.chordmode && ui.page == P_STEPS)
             s_cat(t, "KEYS the chord|SEQ exit");
+        else if (ui.len_key && (ui.held >> (ui.len_key - 1) & 1u))
+            s_cat(t, "let go: length|KNOBS both steps");
         else if (ui.held && is_drum(trk))
             s_cat(t, "BLACK sounds|ARP tricks|EDIT ENV FX LFO lock");
+        else if (ui.held & (ui.held - 1u))
+            s_cat(t, "WHITE more steps|ARP tricks|EDIT ENV FX LFO lock|SEQ notes");
         else if (ui.held)
             s_cat(t, "WHITE length|ARP tricks|EDIT ENV FX LFO lock|SEQ notes");
         else if (ui.rec_armed)
@@ -1997,7 +2007,7 @@ static const struct { uint8_t btn; uint32_t pages; const char *title, *l1, *l2; 
     {B_SEQ, PG(P_BAR), "Bars", "Hold SEQ, black keys 1-4: jump to a bar at the next bar line.",
      "Two held: loop them. One twice: loop it."},
     {B_SEQ, PG_ANY, "Steps", "The bar's 16 steps on the white keys. Hold SEQ and play the notes,",
-     "then press steps to write them. A step held + ARP: its tricks."},
+     "then press steps to write them. Hold several to edit them all."},
     {B_EDIT, PG_STEPS, "Lock", "With a step held, EDIT, ENV, FX or LFO show their knobs.",
      "Turn one to lock it. SELECT: pages. SEL held + knob: clear."},
     {B_EDIT, PG_ANY, "Engine", "The engine's four knobs. PRESETS: its next sound.",

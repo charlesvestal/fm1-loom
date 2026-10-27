@@ -1,0 +1,87 @@
+# several steps held: an edit is on them all. A later step held with the first alone and let go with nothing
+# edited is the first's length (as before); turn a knob meanwhile and it was a pair instead, and no release
+# toggles a step. An earlier step, or a third, is always held with the others
+wait 300
+turn ALGO 1
+expect trk 2
+notes 2 1 1 1 100 60
+notes 2 1 5 1 100 62
+notes 2 1 9 1 100 64
+# the length gesture, unchanged: hold step 1, tap step 4
+key w0 down
+wait 60
+tapkey w3
+key w0 up
+expect slen 2 1 16
+expect note 2 1 4 0
+expect note 2 1 1 60
+# a pair: hold 1 and 5, turn LENGTH: both change; neither is toggled, and 5 is no length
+key w0 down
+wait 30
+key w4 down
+wait 30
+spin K2 2
+wait 30
+key w4 up
+key w0 up
+expect slen 2 1 18
+expect slen 2 5 6
+expect note 2 1 1 60
+expect note 2 1 5 62
+# an earlier step joins (5 held, then 1): no length, the knob moves both
+key w4 down
+wait 30
+key w0 down
+wait 30
+spin K2 1
+key w0 up
+key w4 up
+expect slen 2 1 19
+expect slen 2 5 7
+expect note 2 1 1 60
+# three: 1, 5, 9 held; let go with nothing edited: no length, no toggle
+key w0 down
+wait 30
+key w4 down
+wait 30
+key w8 down
+wait 30
+key w8 up
+key w4 up
+key w0 up
+expect slen 2 1 19
+expect note 2 1 1 60
+expect note 2 1 5 62
+expect note 2 1 9 64
+# three, with the pitch knob: all three up a semitone
+key w0 down
+key w4 down
+key w8 down
+wait 30
+spin K4 1
+key w0 up
+key w4 up
+key w8 up
+expect note 2 1 1 61
+expect note 2 1 5 63
+expect note 2 1 9 65
+# the first let go before the later one, nothing edited: still the length
+key w0 down
+wait 30
+key w2 down
+wait 30
+key w0 up
+key w2 up
+expect slen 2 1 12
+expect note 2 1 3 0
+# a kit: a black key with two steps held puts the sound on both
+turn ALGO -1
+expect trk 1
+key w0 down
+key w6 down
+wait 30
+tapkey b2
+key w6 up
+key w0 up
+expect note 1 1 1 3
+expect note 1 1 7 3
