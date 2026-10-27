@@ -649,7 +649,7 @@ much. Even with a kit made of them, the busiest demo stays well within what the 
 On every sound page of a drum track, a black key picks the key the knobs edit. Turn **SELECT** for the Key page:
 the model, random (a variation on every hit), pan, and volume in dB. Its **SEL** list sets the play mode: one-shot,
 gated, loop, or choke group 1 to 3. When you change a key's model, the new model starts from its own knob settings.
-COPY KEY copies the key shown, and PASTE KEY puts it on another key (of this kit or another): its model, knobs,
+COPY DRUM copies the drum on the key shown, and PASTE DRUM puts it on another key (of this kit or another): its model, knobs,
 envelope, filter and sends. Two snares tuned apart start this way. On **ENV**, the list has the key's filter type
 (KEY FILTER) and the kit's bus filter (KIT FILTER, on or off) on all four pages.
 

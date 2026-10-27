@@ -2787,7 +2787,7 @@ static void act_paste_sound(void)
     num_s((uint32_t)src + 1u, s_cat(t, "T"));
     say("PASTED", t);
 }
-/* PASTE KEY: a kit key's sound (its model, knobs, envelope, filter, sends) onto the key shown */
+/* PASTE DRUM: a kit key's sound (its model, knobs, envelope, filter, sends) onto the key shown */
 static void act_paste_key(void)
 {
     int trk = sel_trk(), src = key_clip - 1, k = ui.dsound % DL_NSOUND, sk = key_clip_k % DL_NSOUND;

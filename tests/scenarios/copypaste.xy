@@ -1,5 +1,5 @@
 # the lists' copies (2026-10-26): COPY SOUND / PASTE SOUND (EDIT: a synth's onto a synth, a kit's onto a kit),
-# COPY KEY / PASTE KEY (a kit's key onto another key), COPY SCENE / PASTE SCENE and DUPLICATE SLOT (HOME), KEY FILTER
+# COPY DRUM / PASTE DRUM (a kit's drum onto another key), COPY SCENE / PASTE SCENE and DUPLICATE SLOT (HOME), KEY FILTER
 # and KIT FILTER (a kit's ENV list, on all four pages)
 wait 300
 projnew
@@ -32,13 +32,13 @@ turn ALGO -2
 expect trk 1
 tapkey b0
 tap SEL
-row COPY KEY
+row COPY DRUM
 tap SEL
 tapkey b1
 tap SEL
-row PASTE KEY
+row PASTE DRUM
 wait 200
-said PASTE KEY from kick
+said PASTE DRUM from kick
 tap SEL
 wait 50
 expect par1.d2.model 5
