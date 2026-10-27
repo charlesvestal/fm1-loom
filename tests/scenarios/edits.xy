@@ -52,7 +52,7 @@ expect scene 3
 turn K1 -5
 turn K1 3
 tap SEL
-turn SELECT 6
+row DELETE SLOT
 shot song_del.png
 tap SEL
 wait 40
@@ -62,7 +62,7 @@ expect scene 1
 # the song is S1 S3 S2: slot 1 playing, deleted: S3 (now slot 1) next, then S2
 turn K1 -5
 tap SEL
-turn SELECT 6
+row DELETE SLOT
 tap SEL
 wait 40
 expect scene 1
@@ -81,7 +81,9 @@ turn ALGO 1
 expect trk 2
 tap SEQ
 tap SEL
-turn SELECT 1
+row CLEAR
+turn ALGO -2
+turn ALGO 1
 tap SEL
 expect lane 2 1 e1 0
 press HOME
@@ -89,12 +91,13 @@ tap REC
 release HOME
 expect lane 2 1 e1 1
 tap SEL
-turn SELECT 3
+row COPY PATTERN
 tap SEL
 turn K1 1
 wait 40
 tap SEL
-turn SELECT 5
+row PASTE
+turn ALGO -1
 shot paste_list.png
 tap SEL
 expect note 2 2 1 60
@@ -102,7 +105,8 @@ expect lane 2 2 e1 1
 turn ALGO -1
 expect trk 1
 tap SEL
-turn SELECT 4
+row PASTE
+turn ALGO -1
 tap SEL
 wait 40
 expect note 1 1 1 0
@@ -129,7 +133,7 @@ expect dirty 0
 turn ALGO 1
 tap EDIT
 tap SEL
-turn SELECT 20
+row MIDI OUT
 turn ALGO -1
 wait 40
 expect par2.51 0
@@ -152,11 +156,12 @@ turn ALGO 1
 expect trk 2
 tap SEQ
 tap SEL
-turn SELECT 4
+row COPY BAR
 tap SEL
 tap OCT+
 tap SEL
-turn SELECT 5
+row PASTE
+turn ALGO -1
 tap SEL
 wait 40
 expect note 2 1 17 60
@@ -208,7 +213,7 @@ lock 2 1 1 e1 30
 turn ALGO 1
 tap SEQ
 tap SEL
-turn SELECT 20
+row DOUBLE PATTERN
 tap SEL
 wait 40
 expect note 2 1 17 60
@@ -280,7 +285,7 @@ projnew
 expect trk 1
 tap EDIT
 tap SEL
-turn SELECT 30
+row MIDI OUT
 turn ALGO -1
 wait 40
 expect par1.51 0

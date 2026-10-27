@@ -224,6 +224,10 @@ static struct {
     uint8_t pick_engine, pick_slot, pick_fx, pick_weave, pick_save;   /* (pick_save: SAVE TO's slot) */
     uint8_t pick_kit, pick_kslot;                    /* a kit track's KIT (0..3 factory, 4.. user) and SAVE KIT */
     uint8_t pick_bt;                                 /* Bluetooth audio's FORGET: the remembered device */
+    uint8_t pick_clear, pick_paste;
+    int8_t pick_shift, pick_rot;                     /* SHIFT NOTES' semitones (-24..24) and ROTATE's steps (-16 left ..
+                                                      * 16 right), never 0 (0: the first's, 1) */        /* Steps' CLEAR (notes, locks, both), ROTATE (forward, back),
+                                                      * PASTE (the copy, its locks only): kept from list to list */
     uint8_t name_slot;
     uint8_t playing;
     uint8_t scene_seen;
@@ -234,7 +238,8 @@ static struct {
 } ui;
 
 /* SEL: the screen as a list: the page's knobs, then its actions */
-enum { LK_KNOB, LK_MORE, LK_ACTION, LK_PICK, LK_NOTE };   /* LK_NOTE: a line that says what to do (never picked) */
+enum { LK_KNOB, LK_MORE, LK_ACTION, LK_PICK, LK_NOTE, LK_HEAD };   /* LK_NOTE: a line that says what to do; LK_HEAD:
+                                                                    * a section's name (neither ever picked) */
 enum { A_CLEAR_NOTES, A_CLEAR_LOCKS, A_CLEAR_BOTH, A_COPY_PAT, A_PASTE_PAT, A_ROT_FWD, A_ROT_BACK, A_DUP_BAR,
        A_ENGINE, A_PRESET, A_SCRAMBLE, A_SAVE_PRESET, A_INIT, A_FOLLOW, A_INSERT_SLOT, A_DELETE_SLOT, A_CLEAR_SONG,
        A_PLAY_SONG, A_LOAD_PROJ, A_NEW_PROJ, A_USB_AUDIO, A_CLEAR_SCENE, A_PANIC, A_EFFECT, A_REMOVE_NOTE,
@@ -242,23 +247,30 @@ enum { A_CLEAR_NOTES, A_CLEAR_LOCKS, A_CLEAR_BOTH, A_COPY_PAT, A_PASTE_PAT, A_RO
        A_PUMP_ACC, A_LEVEL, A_SCENE_AT, A_SAVE_TO, A_AUTOSAVE, A_RANDOM_SOUNDS, A_MIDI_OUT, A_LOOP_FREE, A_COPY_BAR,
        A_COPY_STEP, A_PASTE_BAR, A_PASTE_STEP, A_PASTE_LOCKS, A_DOUBLE, A_CLEAR_STEP_LOCKS, A_CC_OUT, A_SCENES_OUT,
        A_KIT, A_SAVE_KIT, A_MIDI_CC, A_USB_HOST, A_BT_MIDI, A_BT_AUDIO, A_BT_ADEV, A_BT_DEVICE, A_BT_DEV, A_BT_LOOK,
-       A_BT_FORGET, A_BT_DISCONNECT, NACTIONS };
+       A_BT_FORGET, A_BT_DISCONNECT, A_CLEAR, A_ROTATE, A_PASTE, A_COPY_EMPTY, A_CLEAR_BAR,
+       A_COPY_SOUND, A_PASTE_SOUND, A_COPY_KEY, A_PASTE_KEY, A_COPY_SCENE, A_PASTE_SCENE, A_DUP_SLOT, A_KIT_FILTER,
+       A_SHIFT, NACTIONS };
 static const char *const ACTION_NAME[NACTIONS] = {
     "CLEAR NOTES", "CLEAR LOCKS", "CLEAR NOTES AND LOCKS", "COPY PATTERN", "PASTE PATTERN", "ROTATE FORWARD",
     "ROTATE BACK", "DUPLICATE BAR", "ENGINE", "PRESET", "SCRAMBLE", "SAVE AS PRESET", "RESET SOUND", "FOLLOWS CONDUCTOR",
-    "INSERT SCENE", "DELETE SLOT", "CLEAR SONG", "PLAY SONG", "LOAD PROJECT", "NEW PROJECT", "USB AUDIO", "CLEAR SCENE",
+    "INSERT SLOT", "DELETE SLOT", "CLEAR SONG", "PLAY SONG", "LOAD PROJECT", "NEW PROJECT", "USB AUDIO", "CLEAR SCENE",
     "ALL NOTES OFF", "EFFECT", "REMOVE", "COUNT-IN", "PLAY MODE", "FILTER TYPE", "HIGH-PASS", "LOW-PASS",
-    "TO FX II", "KEEP AS PATTERN", "THEME", "PUMP BY", "RELEASE", "ACCENT", "LEVEL", "SCENES SWITCH", "SAVE TO", "AUTOSAVE",
+    "TO FX II", "KEEP AS PATTERN", "THEME", "PUMP BY", "RELEASE", "ACCENT", "MASTER LEVEL", "SCENES SWITCH", "SAVE TO", "AUTOSAVE",
     "RANDOMIZE PRESETS", "MIDI OUT", "LOOP THROWS", "COPY BAR", "COPY STEP", "PASTE BAR", "PASTE STEP",
     "PASTE LOCKS ONLY", "DOUBLE PATTERN", "CLEAR LOCKS", "CC OUT", "SCENES OUT", "KIT", "SAVE KIT", "KNOB CC",
-    "USB PORT", "BT MIDI", "BT AUDIO", "AUDIO DEVICE", "MIDI DEVICE", "DEVICE", "LOOK AGAIN", "FORGET", "DISCONNECT"};
+    "USB PORT", "BT MIDI", "BT AUDIO", "AUDIO DEVICE", "MIDI DEVICE", "DEVICE", "LOOK AGAIN", "FORGET", "DISCONNECT",
+    "CLEAR", "ROTATE", "PASTE", "COPY TO EMPTY", "CLEAR BAR", "COPY SOUND", "PASTE SOUND", "COPY KEY", "PASTE KEY",
+    "COPY SCENE", "PASTE SCENE", "DUPLICATE SLOT", "KIT FILTER", "SHIFT NOTES"};
+static const char *const CLEAR_WHAT[3] = {"notes", "locks", "notes and locks"};
 /* a MIDI track's eight rows of A_MIDI_CC: each knob's CC (ui.c list_midi_knob reads the digit back) */
 static const char *const MIDI_CC_ROW[8] = {"KNOB 1 CC", "KNOB 2 CC", "KNOB 3 CC", "KNOB 4 CC", "KNOB 5 CC",
                                            "KNOB 6 CC", "KNOB 7 CC", "KNOB 8 CC"};
 /* the weave's ways (pattern.h WV_*): what this pattern keeps of itself */
 static const char *const WEAVE_NAME[NWV] = {"bars", "steps", "rhythm", "pitch"};
-#define LIST_ROWS 40                  /* (GLO's: its seven pages' knobs and its actions) */
-#define LIST_SHOWN 10
+#define LIST_ROWS 40                  /* (HOME's, EDIT's: their pages' knobs, their actions, the sections' names) */
+#define LIST_SHOWN 10                 /* rows of LIST_RH on the screen (a section's name is LIST_HH) */
+#define LIST_RH 20
+#define LIST_HH 14
 static struct {
     uint8_t open, n, sel, top;
     uint8_t bt;                                      /* a Bluetooth list instead of the page's: 1 audio, 2 MIDI devices */
@@ -283,6 +295,8 @@ enum { CK_PAT, CK_BAR, CK_STEP };
 static uint8_t clip_ok, clip_trk, clip_pat, clip_kind, clip_from;   /* COPY PATTERN / BAR / STEP: which (CK_*: the
                                                  * bar's or the step's first step), read at PASTE (no copy kept: the
                                                  * pool is short) */
+static uint8_t snd_clip, key_clip, key_clip_k, scene_clip;   /* COPY SOUND (the track + 1), COPY KEY (the kit track + 1,
+                                                 * its key), COPY SCENE (the scene + 1): read at PASTE, as above */
 
 /* ---------------------------------------------------------- helpers --- */
 static char *num_s(uint32_t v, char *b)
@@ -2001,7 +2015,7 @@ static const struct { uint8_t btn; uint32_t pages; const char *title, *l1, *l2; 
      "SELECT: Master EQ, out, Setup. HOME's SEL: projects."},
     {B_HOME, PG_ANY, "Arrange", "Each track's pattern in the scene. White: scenes, black: mutes.",
      "SEL: projects, scene timing. + REC undoes, + PLAY redoes."},
-    {B_SEL, PG_ANY, "Lists", "The page's knobs, then its actions. SEL runs the one picked.",
+    {B_SEL, PG_ANY, "Lists", "The page's actions, then its knobs. SEL runs the one picked.",
      "SELECT moves, ALGORITHM changes, HOME goes back."},
     {B_SAVE, PG_STEPS, "Save", "Tap to save the project. A held step's SEL list clears locks.",
      "Hold SAVE and press white key 1 to 3 to save to that slot."},
@@ -2188,11 +2202,232 @@ static void list_bt_dev(void)
     s_cat(bt_note, n ? "pick a device. SEL connects" : plat_ms() - bt.t0 < 8000u ? "looking for MIDI devices..."
                                                      : "none found yet. Is it on?");
 }
+/* the first empty pattern of a track (its steps all empty), not the one shown; -1 none */
+static int pat_first_empty(int trk)
+{
+    for (int p = 0; p < NPATT; p++) {
+        int empty = p != cur_pat(trk);
+        for (int i = 0; i < NSTEP && empty; i++)
+            empty = step_empty(&pats.pat[trk][p].st[i]);
+        if (empty)
+            return p;
+    }
+    return -1;
+}
+static void list_head(const char *t) { list_add(t, 0, LK_HEAD, 0); }
+static void list_page_knobs(int p, uint32_t mask)  /* page P's knobs (bit i: knob i) not listed yet */
+{
+    knob_t k[4];
+    uint8_t keep = ui.page;
+    ui.page = (uint8_t)p;
+    page_knobs(k);
+    ui.page = keep;
+    for (int i = 0; i < 4; i++) {
+        int seen = 0;
+        if (!(mask >> i & 1u) || !k[i].name)
+            continue;
+        for (int j = 0; j < lst.n; j++)          /* (a knob twice on a page, or on Steps and Bar: GROOVE; on two
+                                                  * pages of one name, two things: the filter envelope's attack) */
+            seen |= lst.row[j].kind == LK_KNOB && ((lst.row[j].id >> 2) == p || (steps_page(lst.row[j].id >> 2) &&
+                    steps_page(p))) && s_eq(lst.row[j].name, k[i].name) && s_eq(lst.row[j].val, k[i].val);
+        if (!seen)
+            list_add(k[i].name, k[i].val, LK_KNOB, p << 2 | i);
+    }
+}
+static void list_page_section(int p)              /* a page's knobs under its name (none new: no name) */
+{
+    int n = lst.n;
+    list_head(page_name_of(p, sel_trk()));
+    list_page_knobs(p, 15u);
+    if (lst.n == n + 1)
+        lst.n = (uint8_t)n;
+}
+static int pick_amount(int v) { return v ? v : 1; }   /* SHIFT NOTES', ROTATE's amount (never 0) */
+/* Steps and Bar: the pattern's actions, then the bar's */
+static void list_steps(int trk)
+{
+    static char empty_t[16], bar_t[8], rot_t[8], sh_t[8];
+    int to = pat_first_empty(trk), paste = clip_ok && clip_kind != CK_STEP;   /* (a step pastes onto steps held) */
+    list_head("pattern");
+    if (to >= 0)
+        num_s((uint32_t)to + 1u, s_cat(empty_t, "P"));
+    else
+        s_cat(empty_t, "none empty");
+    list_add(ACTION_NAME[A_COPY_EMPTY], empty_t, LK_ACTION, A_COPY_EMPTY);
+    list_add(ACTION_NAME[A_COPY_PAT], 0, LK_ACTION, A_COPY_PAT);
+    if (paste && clip_kind == CK_PAT)
+        list_add(ACTION_NAME[A_PASTE], ui.pick_paste & 1u ? "locks only" : "pattern", LK_PICK, A_PASTE);
+    list_add(ACTION_NAME[A_CLEAR], CLEAR_WHAT[ui.pick_clear % 3u], LK_PICK, A_CLEAR);
+    {
+        int r = pick_amount(ui.pick_rot);
+        num_s((uint32_t)(r < 0 ? -r : r), s_cat(rot_t, r < 0 ? "L" : "R"));
+        list_add(ACTION_NAME[A_ROTATE], rot_t, LK_PICK, A_ROTATE);
+    }
+    if (!is_drum(trk) && trk != AUX_PUNCH) {         /* (a kit's notes are its sounds, THROW's its effects) */
+        int v = pick_amount(ui.pick_shift);
+        num_s((uint32_t)(v < 0 ? -v : v), s_cat(sh_t, v < 0 ? "-" : "+"));
+        list_add(ACTION_NAME[A_SHIFT], sh_t, LK_PICK, A_SHIFT);
+    }
+    list_add(ACTION_NAME[A_DOUBLE], 0, LK_ACTION, A_DOUBLE);
+    num_s((uint32_t)ui.bar + 1u, s_cat(bar_t, "bar "));
+    list_head(bar_t);
+    list_add(ACTION_NAME[A_COPY_BAR], 0, LK_ACTION, A_COPY_BAR);
+    if (paste && clip_kind == CK_BAR)
+        list_add(ACTION_NAME[A_PASTE], ui.pick_paste & 1u ? "locks only" : "bar", LK_PICK, A_PASTE);
+    list_add(ACTION_NAME[A_CLEAR_BAR], 0, LK_ACTION, A_CLEAR_BAR);
+    list_add(ACTION_NAME[A_DUP_BAR], 0, LK_ACTION, A_DUP_BAR);
+}
+/* HOME: the page's own first (Song: the song; Arrange: the scenes), then the projects */
+static void list_home(int keep)
+{
+    static char slot_t[24], save_t[24], scl_t[12];
+    for (int i = 0; i < 2; i++)
+        if ((i == 0) == (keep == P_SONG)) {
+            list_head("song");
+            list_add(ACTION_NAME[A_PLAY_SONG], 0, LK_ACTION, A_PLAY_SONG);
+            list_add(ACTION_NAME[A_INSERT_SLOT], 0, LK_ACTION, A_INSERT_SLOT);
+            list_add(ACTION_NAME[A_DUP_SLOT], 0, LK_ACTION, A_DUP_SLOT);
+            list_add(ACTION_NAME[A_DELETE_SLOT], 0, LK_ACTION, A_DELETE_SLOT);
+            list_add(ACTION_NAME[A_CLEAR_SONG], 0, LK_ACTION, A_CLEAR_SONG);
+        } else {
+            list_head("scenes");
+            list_add(ACTION_NAME[A_SCENE_AT], proj.rsv[2] & SCENES_AT_END ? "pattern end" : "next bar", LK_PICK,
+                     A_SCENE_AT);
+            list_add(ACTION_NAME[A_COPY_SCENE], 0, LK_ACTION, A_COPY_SCENE);
+            if (scene_clip && scene_clip - 1 != cur_scene() && pats.scene[scene_clip - 1].used) {
+                num_s((uint32_t)scene_clip, s_cat(scl_t, "from S"));
+                list_add(ACTION_NAME[A_PASTE_SCENE], scl_t, LK_ACTION, A_PASTE_SCENE);
+            }
+            list_add(ACTION_NAME[A_CLEAR_SCENE], 0, LK_ACTION, A_CLEAR_SCENE);
+        }
+    list_head("project");
+    proj_slot_text(ui.pick_slot % NPROJ, slot_t);
+    list_add(ACTION_NAME[A_LOAD_PROJ], slot_t, LK_PICK, A_LOAD_PROJ);
+    proj_slot_text(ui.pick_save % NPROJ, save_t);
+    list_add(ACTION_NAME[A_SAVE_TO], save_t, LK_PICK, A_SAVE_TO);
+    list_add(ACTION_NAME[A_NEW_PROJ], 0, LK_ACTION, A_NEW_PROJ);
+    list_add(ACTION_NAME[A_RANDOM_SOUNDS], 0, LK_ACTION, A_RANDOM_SOUNDS);
+    list_add(ACTION_NAME[A_PANIC], 0, LK_ACTION, A_PANIC);
+}
+/* EDIT: the sound's actions (EDIT only: the other buttons' lists are their knobs) */
+static void list_sound(int trk)
+{
+    static char slot_t[24], fol_t[24], kit_t[24], nm[NTRK][16], from_t[24], key_t[24];
+    int sc = snd_clip ? snd_clip - 1 : -1, paste = sc >= 0 && sc != trk && sc < NTRK && is_drum(sc) == is_drum(trk);
+    if (trk == AUX_BRAIN) {
+        list_head("follow");
+        for (int t = 0; t < NTRK; t++) {
+            s_cat(num_s((uint32_t)t + 1u, s_cat(nm[t], "T")), " FOLLOWS");
+            list_add(nm[t], FOLLOW_NAME[proj.trk[t].par[TP_BRAIN] % 3], LK_PICK, A_FOLLOW);
+        }
+    } else if (is_fx(trk)) {
+        list_add(ACTION_NAME[A_EFFECT], fx_label(ui.pick_fx % NFXPICK), LK_PICK, A_EFFECT);
+    } else if (is_drum(trk)) {                     /* the key's play mode, then the kit's */
+        list_head("key");
+        list_add(ACTION_NAME[A_PLAYMODE], PM_NAME[proj.trk[trk].par[TP_DRUM(ui.dsound % DL_NSOUND, DP_MODE)] % NPM],
+                 LK_PICK, A_PLAYMODE);
+        list_add(ACTION_NAME[A_COPY_KEY], DL_SOUND_NAME[ui.dsound % DL_NSOUND], LK_ACTION, A_COPY_KEY);
+        if (key_clip && key_clip - 1 < NTRK && is_drum(key_clip - 1) &&
+            (key_clip - 1 != trk || key_clip_k != ui.dsound % DL_NSOUND)) {
+            char *e = s_cat(key_t, "from ");
+            if (key_clip - 1 != trk)
+                e = s_cat(num_s((uint32_t)key_clip, s_cat(e, "T")), " ");
+            s_cat(e, DL_SOUND_NAME[key_clip_k % DL_NSOUND]);
+            list_add(ACTION_NAME[A_PASTE_KEY], key_t, LK_ACTION, A_PASTE_KEY);
+        }
+        list_head("kit");
+        kit_label(ui.pick_kit % NKITS, kit_t);
+        list_add(ACTION_NAME[A_KIT], kit_t, LK_PICK, A_KIT);
+        kit_label(NFKITS + ui.pick_kslot % NUSER_KITS, slot_t);
+        list_add(ACTION_NAME[A_SAVE_KIT], slot_t, LK_PICK, A_SAVE_KIT);
+        list_add(ACTION_NAME[A_SCRAMBLE], 0, LK_ACTION, A_SCRAMBLE);
+        list_add(ACTION_NAME[A_COPY_SOUND], 0, LK_ACTION, A_COPY_SOUND);
+        if (paste) {
+            num_s((uint32_t)sc + 1u, s_cat(from_t, "from T"));
+            list_add(ACTION_NAME[A_PASTE_SOUND], from_t, LK_ACTION, A_PASTE_SOUND);
+        }
+        list_add(ACTION_NAME[A_ENGINE], EG_NAME[ui.pick_engine % NENGINE], LK_PICK, A_ENGINE);
+        list_midi_out(trk);
+    } else if (!is_aux(trk)) {
+        list_head("sound");
+        if (NPRESETS > 0)
+            list_add(ACTION_NAME[A_PRESET], PRESETS[ui.pick_preset % NPRESETS].name, LK_PICK, A_PRESET);
+        list_add(ACTION_NAME[A_ENGINE], EG_NAME[ui.pick_engine % NENGINE], LK_PICK, A_ENGINE);
+        list_add(ACTION_NAME[A_SCRAMBLE], 0, LK_ACTION, A_SCRAMBLE);
+        num_s((uint32_t)ui.pick_slot % NUSER_PRESETS + 1u, s_cat(slot_t, "U"));
+        list_add(ACTION_NAME[A_SAVE_PRESET], slot_t, LK_PICK, A_SAVE_PRESET);
+        list_add(ACTION_NAME[A_INIT], 0, LK_ACTION, A_INIT);
+        list_add(ACTION_NAME[A_COPY_SOUND], 0, LK_ACTION, A_COPY_SOUND);
+        if (paste) {
+            num_s((uint32_t)sc + 1u, s_cat(from_t, "from T"));
+            list_add(ACTION_NAME[A_PASTE_SOUND], from_t, LK_ACTION, A_PASTE_SOUND);
+        }
+        s_cat(fol_t, FOLLOW_NAME[proj.trk[trk].par[TP_BRAIN] % 3]);
+        list_add(ACTION_NAME[A_FOLLOW], fol_t, LK_PICK, A_FOLLOW);
+        if (is_midi(trk)) {                          /* its knobs' CCs (its notes always go out: no MIDI OUT) */
+            list_head("MIDI");
+            for (int k = 0; k < 8; k++) {
+                static char v[8][4];
+                num_s(proj.trk[trk].par[midi_cc_par(k)] % NMIDI_CC, v[k]);
+                list_add(MIDI_CC_ROW[k], v[k], LK_PICK, A_MIDI_CC);
+            }
+        } else
+            list_midi_out(trk);
+    }
+}
+/* GLO's pages but Setup: their knobs, page by page; Master out's settings with its knobs */
+static void list_mix(int g)
+{
+    static char by[8], rel[12], lev[8];
+    for (int gi = 0; gi < group_n(g); gi++) {
+        int p = grp_page(g, gi);
+        if (p == P_SETUP || p == P_STATUS)
+            continue;
+        list_page_section(p);
+        if (p == P_MASTER3) {
+            char *e = num_i((int32_t)(master_pump_ms(proj.master[MS_PUMP_REL]) + 0.5f), rel);
+            s_cat(e, " ms");
+            num_i(proj.master[MS_LEVEL], lev);
+            list_add(ACTION_NAME[A_PUMP_BY], pump_by_text(proj.master[MS_PUMP_BY], by), LK_PICK, A_PUMP_BY);
+            list_add(ACTION_NAME[A_PUMP_REL], rel, LK_PICK, A_PUMP_REL);
+            list_add(ACTION_NAME[A_PUMP_ACC], proj.master[MS_PUMP_ACC] ? "on" : "off", LK_PICK, A_PUMP_ACC);
+            list_add(ACTION_NAME[A_LEVEL], lev, LK_PICK, A_LEVEL);
+        }
+    }
+}
+/* GLO's Setup and Debug: the FM-1's own settings, Bluetooth first */
+static void list_setup(int g)
+{
+    static char bmid_t[24], baud_t[24];
+    list_head("Bluetooth");
+    list_add(ACTION_NAME[A_BT_MIDI], bt.midi ? "on" : "off", LK_PICK, A_BT_MIDI);   /* (two pairs: on / off, then
+                                                                                  * where devices are chosen) */
+    bt_dev_text(bmid_t, "choose", "BT MIDI off");
+    list_add(ACTION_NAME[A_BT_DEVICE], bmid_t, LK_ACTION, A_BT_DEVICE);
+    list_add(ACTION_NAME[A_BT_AUDIO], bt.want ? "on" : "off", LK_PICK, A_BT_AUDIO);
+    bt_adev_text(baud_t);
+    list_add(ACTION_NAME[A_BT_ADEV], baud_t, LK_ACTION, A_BT_ADEV);
+    list_head("USB and MIDI");
+    list_add(ACTION_NAME[A_USB_AUDIO], USBA_NAME[proj.usb_full & 1u], LK_PICK, A_USB_AUDIO);
+#if FM1B_USB_HOST
+    list_add(ACTION_NAME[A_USB_HOST], plat_usb_host_state() ? "MIDI host" : "computer", LK_PICK, A_USB_HOST);
+#endif
+    list_page_knobs(P_SETUP, 6u);                    /* CLOCK, NOTES */
+    list_add(ACTION_NAME[A_CC_OUT], proj.rsv[2] & CC_OUT_OFF ? "off" : "on", LK_PICK, A_CC_OUT);
+    list_add(ACTION_NAME[A_SCENES_OUT], proj.rsv[2] & SCENES_OUT ? "on" : "off", LK_PICK, A_SCENES_OUT);
+    list_head("LOOM-8");
+    list_page_knobs(P_SETUP, 9u);                    /* LIGHTS, THEME */
+    list_add(ACTION_NAME[A_AUTOSAVE], proj.rsv[2] & AUTOSAVE_OFF ? "off" : "on", LK_PICK, A_AUTOSAVE);
+    list_add(ACTION_NAME[A_LOOP_FREE], proj.rsv[2] & LOOP_FREE ? "drift" : "in time", LK_PICK, A_LOOP_FREE);
+    if (group_n(g) > 6)
+        list_page_knobs(P_STATUS, 15u);
+    list_add(ACTION_NAME[A_PANIC], 0, LK_ACTION, A_PANIC);
+}
+static int list_is_setup(int p) { return p == P_SETUP || p == P_STATUS; }
 static void list_build(void)
 {
-    int keep = ui.page, g = page_group(keep), f = PAGE_BTN[g].first, n = group_n(g), trk = sel_trk();
-    knob_t k[4];
-    static char slot_t[24], fol_t[24], nm[NTRK][16], rm[NDRUM][16];
+    int keep = ui.page, g = page_group(keep), trk = sel_trk(), b = PAGE_BTN[g].btn, knobs = 1, heads, i, j;
+    static char rm[NDRUM][16], keep_t[12];
     lst.n = 0;
     if (lst.bt) {
         if (lst.bt == 1)
@@ -2229,58 +2464,22 @@ static void list_build(void)
         list_clip_step();
         return;
     }
-    if (PAGE_BTN[g].btn == B_FX)                     /* (FX I and FX II each their own effect: the page's list) */
-        f = keep, n = 1;
-    for (int gi = 0; gi < n; gi++) {
-        int p = PAGE_BTN[g].btn == B_FX ? f : grp_page(g, gi);
-        ui.page = (uint8_t)p;
-        page_knobs(k);
-        for (int i = 0; i < 4; i++) {
-            int seen = 0;
-            for (int j = 0; j < lst.n; j++)
-                seen |= k[i].name && s_eq(lst.row[j].name, k[i].name) && s_eq(lst.row[j].val, k[i].val);
-            if (k[i].name && !seen)
-                list_add(k[i].name, k[i].val, LK_KNOB, p << 2 | i);
-        }
-    }
-    ui.page = (uint8_t)keep;
     if (keep == P_STEPS && trk == AUX_WEAVE) {     /* WEAVE: its pattern cleared */
         list_add(ACTION_NAME[A_CLEAR_NOTES], 0, LK_ACTION, A_CLEAR_NOTES);
     } else if (steps_page(keep)) {
-        if (is_seqt(trk)) {
-            list_add(ACTION_NAME[A_CLEAR_NOTES], 0, LK_ACTION, A_CLEAR_NOTES);
-            list_add(ACTION_NAME[A_CLEAR_LOCKS], 0, LK_ACTION, A_CLEAR_LOCKS);
-            list_add(ACTION_NAME[A_CLEAR_BOTH], 0, LK_ACTION, A_CLEAR_BOTH);
-            list_add(ACTION_NAME[A_COPY_PAT], 0, LK_ACTION, A_COPY_PAT);
-            list_add(ACTION_NAME[A_COPY_BAR], 0, LK_ACTION, A_COPY_BAR);
-            if (clip_ok && clip_kind != CK_STEP) {    /* (a step pastes onto steps held: their list) */
-                list_add(ACTION_NAME[clip_kind == CK_BAR ? A_PASTE_BAR : A_PASTE_PAT], 0, LK_ACTION,
-                         clip_kind == CK_BAR ? A_PASTE_BAR : A_PASTE_PAT);
-                list_add(ACTION_NAME[A_PASTE_LOCKS], 0, LK_ACTION, A_PASTE_LOCKS);
-            }
-            list_add(ACTION_NAME[A_ROT_FWD], 0, LK_ACTION, A_ROT_FWD);
-            list_add(ACTION_NAME[A_ROT_BACK], 0, LK_ACTION, A_ROT_BACK);
-            list_add(ACTION_NAME[A_DUP_BAR], 0, LK_ACTION, A_DUP_BAR);
-            list_add(ACTION_NAME[A_DOUBLE], 0, LK_ACTION, A_DOUBLE);
-        }
+        if (is_seqt(trk))
+            list_steps(trk);
     } else if (keep == P_WEAVE) {
-        if (wv_from(trk))
-            list_add(ACTION_NAME[A_WEAVE], 0, LK_ACTION, A_WEAVE);
-    } else if (keep == P_ARRANGE || keep == P_SONG) {   /* HOME's one list: the projects, the song, the scenes */
-        static char save_t[24];
-        proj_slot_text(ui.pick_slot % NPROJ, slot_t);
-        list_add(ACTION_NAME[A_LOAD_PROJ], slot_t, LK_PICK, A_LOAD_PROJ);
-        proj_slot_text(ui.pick_save % NPROJ, save_t);
-        list_add(ACTION_NAME[A_SAVE_TO], save_t, LK_PICK, A_SAVE_TO);
-        list_add(ACTION_NAME[A_NEW_PROJ], 0, LK_ACTION, A_NEW_PROJ);
-        list_add(ACTION_NAME[A_RANDOM_SOUNDS], 0, LK_ACTION, A_RANDOM_SOUNDS);
-        list_add(ACTION_NAME[A_PLAY_SONG], 0, LK_ACTION, A_PLAY_SONG);
-        list_add(ACTION_NAME[A_INSERT_SLOT], 0, LK_ACTION, A_INSERT_SLOT);
-        list_add(ACTION_NAME[A_DELETE_SLOT], 0, LK_ACTION, A_DELETE_SLOT);
-        list_add(ACTION_NAME[A_CLEAR_SONG], 0, LK_ACTION, A_CLEAR_SONG);
-        list_add(ACTION_NAME[A_SCENE_AT], proj.rsv[2] & SCENES_AT_END ? "pattern end" : "next bar", LK_PICK, A_SCENE_AT);
-        list_add(ACTION_NAME[A_CLEAR_SCENE], 0, LK_ACTION, A_CLEAR_SCENE);
-        list_add(ACTION_NAME[A_PANIC], 0, LK_ACTION, A_PANIC);
+        if (wv_from(trk)) {
+            int to = pat_first_empty(trk);
+            if (to >= 0)
+                num_s((uint32_t)to + 1u, s_cat(keep_t, "P"));
+            else
+                s_cat(keep_t, "none empty");
+            list_add(ACTION_NAME[A_WEAVE], keep_t, LK_ACTION, A_WEAVE);
+        }
+    } else if (keep == P_ARRANGE || keep == P_SONG) {
+        list_home(keep);
     } else if (fx_page(keep)) {                     /* an effect: the type, its filter, the feed into FX II */
         int ft = keep == P_FX1 ? AUX_FX1 : AUX_FX2;
         static char hp[8], lp[8], fd[8];
@@ -2293,81 +2492,42 @@ static void list_build(void)
             num_s(proj.trk[ft].par[TP_SEND2], fd);
             list_add(ACTION_NAME[A_FX_SEND], fd, LK_PICK, A_FX_SEND);
         }
-    } else if (keep == P_SENDS) {
-        list_add(ACTION_NAME[A_PANIC], 0, LK_ACTION, A_PANIC);
-    } else if (keep == P_CHARACTER) {
-        ;                                            /* (its four knobs) */
     } else if ((keep == P_ENV || keep == P_FILTER || keep == P_ENV2 || keep == P_KITF) && !is_aux(trk)) {
         int fq = ftype_param(trk, keep);
         const tp_info_t *fi = tp_info_par(fq, proj.trk[trk].par);
-        if (is_drum(trk) && fq == TP_FTYPE)          /* the kit's bus filter: on (dynamic) or off */
-            list_add(ACTION_NAME[A_FTYPE], proj.trk[trk].par[TP_FTYPE] == FT_DYNAMIC ? "on" : "off", LK_PICK, A_FTYPE);
-        else
+        if (is_drum(trk)) {                          /* the key's filter and the kit's bus (on: dynamic, or off), on
+                                                      * all four pages */
+            fq = TP_DRUM(ui.dsound % DL_NSOUND, DP_FTYPE);
+            fi = tp_info_par(fq, proj.trk[trk].par);
+            list_add("KEY FILTER", fi->names[proj.trk[trk].par[fq] % (fi->hi + 1u)], LK_PICK, A_FTYPE);
+            list_add(ACTION_NAME[A_KIT_FILTER], proj.trk[trk].par[TP_FTYPE] == FT_DYNAMIC ? "on" : "off", LK_PICK,
+                     A_KIT_FILTER);
+        } else
             list_add(ACTION_NAME[A_FTYPE], fi->names[proj.trk[trk].par[fq] % (fi->hi + 1u)], LK_PICK, A_FTYPE);
-    } else if ((keep == P_ENGINE || keep == P_PLAY) && is_drum(trk)) {   /* the key's play mode, then the sound's */
-        list_add(ACTION_NAME[A_PLAYMODE], PM_NAME[proj.trk[trk].par[TP_DRUM(ui.dsound % DL_NSOUND, DP_MODE)] % NPM],
-                 LK_PICK, A_PLAYMODE);
-        static char kit_t[24];
-        list_add(ACTION_NAME[A_SCRAMBLE], 0, LK_ACTION, A_SCRAMBLE);
-        kit_label(ui.pick_kit % NKITS, kit_t);
-        list_add(ACTION_NAME[A_KIT], kit_t, LK_PICK, A_KIT);
-        kit_label(NFKITS + ui.pick_kslot % NUSER_KITS, slot_t);
-        list_add(ACTION_NAME[A_SAVE_KIT], slot_t, LK_PICK, A_SAVE_KIT);
-        list_add(ACTION_NAME[A_ENGINE], EG_NAME[ui.pick_engine % NENGINE], LK_PICK, A_ENGINE);
-        list_midi_out(trk);
-    } else if (keep >= P_ENGINE && keep <= P_PLAYERS3 && keep != P_THROWS) {
-        if (trk == AUX_BRAIN) {
-            for (int t = 0; t < NTRK; t++) {
-                s_cat(num_s((uint32_t)t + 1u, s_cat(nm[t], "T")), " FOLLOWS");
-                list_add(nm[t], FOLLOW_NAME[proj.trk[t].par[TP_BRAIN] % 3], LK_PICK, A_FOLLOW);
-            }
-        } else if (is_fx(trk)) {
-            list_add(ACTION_NAME[A_EFFECT], fx_label(ui.pick_fx % NFXPICK), LK_PICK, A_EFFECT);
-        } else if (!is_aux(trk)) {
-            list_add(ACTION_NAME[A_ENGINE], EG_NAME[ui.pick_engine % NENGINE], LK_PICK, A_ENGINE);
-            if (is_midi(trk))                        /* its knobs' CCs (its notes always go out: no MIDI OUT) */
-                for (int k = 0; k < 8; k++) {
-                    char v[4];
-                    num_s(proj.trk[trk].par[midi_cc_par(k)] % NMIDI_CC, v);
-                    list_add(MIDI_CC_ROW[k], v, LK_PICK, A_MIDI_CC);
-                }
-            if (NPRESETS > 0)
-                list_add(ACTION_NAME[A_PRESET], PRESETS[ui.pick_preset % NPRESETS].name, LK_PICK, A_PRESET);
-            list_add(ACTION_NAME[A_SCRAMBLE], 0, LK_ACTION, A_SCRAMBLE);
-            num_s((uint32_t)ui.pick_slot % NUSER_PRESETS + 1u, s_cat(slot_t, "U"));
-            list_add(ACTION_NAME[A_SAVE_PRESET], slot_t, LK_PICK, A_SAVE_PRESET);
-            list_add(ACTION_NAME[A_INIT], 0, LK_ACTION, A_INIT);
-            s_cat(fol_t, FOLLOW_NAME[proj.trk[trk].par[TP_BRAIN] % 3]);
-            list_add(ACTION_NAME[A_FOLLOW], fol_t, LK_PICK, A_FOLLOW);
-            if (!is_midi(trk))
-                list_midi_out(trk);
-        }
-    } else if (keep >= P_MIX) {                     /* GLO's one list: the pump's settings, the level, USB audio */
-        static char by[8], rel[12], lev[8];
-        char bta_t[24], *e = num_i((int32_t)(master_pump_ms(proj.master[MS_PUMP_REL]) + 0.5f), rel);
-        s_cat(e, " ms");
-        num_i(proj.master[MS_LEVEL], lev);
-        list_add(ACTION_NAME[A_PUMP_BY], pump_by_text(proj.master[MS_PUMP_BY], by), LK_PICK, A_PUMP_BY);
-        list_add(ACTION_NAME[A_PUMP_REL], rel, LK_PICK, A_PUMP_REL);
-        list_add(ACTION_NAME[A_PUMP_ACC], proj.master[MS_PUMP_ACC] ? "on" : "off", LK_PICK, A_PUMP_ACC);
-        list_add(ACTION_NAME[A_LEVEL], lev, LK_PICK, A_LEVEL);
-        list_add(ACTION_NAME[A_BT_MIDI], bt.midi ? "on" : "off", LK_PICK, A_BT_MIDI);   /* (two pairs: on / off,
-                                                                                      * then where devices are chosen) */
-        bt_dev_text(bta_t, "choose", "BT MIDI off");
-        list_add(ACTION_NAME[A_BT_DEVICE], bta_t, LK_ACTION, A_BT_DEVICE);
-        list_add(ACTION_NAME[A_BT_AUDIO], bt.want ? "on" : "off", LK_PICK, A_BT_AUDIO);
-        bt_adev_text(bta_t);
-        list_add(ACTION_NAME[A_BT_ADEV], bta_t, LK_ACTION, A_BT_ADEV);
-        list_add(ACTION_NAME[A_USB_AUDIO], USBA_NAME[proj.usb_full & 1u], LK_PICK, A_USB_AUDIO);
-#if FM1B_USB_HOST
-        list_add(ACTION_NAME[A_USB_HOST], plat_usb_host_state() ? "MIDI host" : "computer", LK_PICK, A_USB_HOST);
-#endif
-        list_add(ACTION_NAME[A_LOOP_FREE], proj.rsv[2] & LOOP_FREE ? "drift" : "in time", LK_PICK, A_LOOP_FREE);
-        list_add(ACTION_NAME[A_AUTOSAVE], proj.rsv[2] & AUTOSAVE_OFF ? "off" : "on", LK_PICK, A_AUTOSAVE);
-        list_add(ACTION_NAME[A_CC_OUT], proj.rsv[2] & CC_OUT_OFF ? "off" : "on", LK_PICK, A_CC_OUT);
-        list_add(ACTION_NAME[A_SCENES_OUT], proj.rsv[2] & SCENES_OUT ? "on" : "off", LK_PICK, A_SCENES_OUT);
-        list_add(ACTION_NAME[A_PANIC], 0, LK_ACTION, A_PANIC);
+    } else if (b == B_EDIT) {
+        list_sound(trk);
+    } else if (b == B_GLO) {
+        if (list_is_setup(keep))
+            list_setup(g);
+        else
+            list_mix(g);
+        knobs = 0;
     }
+    if (knobs) {                                     /* the button's knobs, page by page (FX: the page's own) */
+        if (b == B_FX)
+            list_page_section(keep);
+        else
+            for (int gi = 0; gi < group_n(g); gi++)
+                list_page_section(grp_page(g, gi));
+    }
+    for (i = j = 0; i < lst.n; i++)
+        j += lst.row[i].kind != LK_HEAD;
+    heads = j > LIST_SHOWN;                          /* the sections' names only where the list is longer than the
+                                                      * screen (and none with nothing under it) */
+    for (i = j = 0; i < lst.n; i++)
+        if (lst.row[i].kind != LK_HEAD || (heads && i + 1 < lst.n && lst.row[i + 1].kind != LK_HEAD))
+            lst.row[j++] = lst.row[i];
+    lst.n = (uint8_t)j;
     if (lst.sel >= lst.n)
         lst.sel = (uint8_t)(lst.n ? lst.n - 1 : 0);
 }
@@ -2384,17 +2544,47 @@ static void glyph_pick(int32_t x, int32_t y, uint16_t c)
     for (int j = 0; j < 4; j++)
         cv_rect(x + j, y + j, 1, 9 - 2 * j, c);
 }
-#define LIST_RH 20
 #define LIST_Y 24
 #define LIST_H (FOOT_Y - LIST_Y)
+#define LIST_VIS (LIST_SHOWN * LIST_RH)
+static int list_rh(int i) { return lst.row[i].kind == LK_HEAD ? LIST_HH : LIST_RH; }
+static int list_span(int a, int b)                /* rows a..b's height */
+{
+    int h = 0;
+    for (int i = a; i <= b && i < lst.n; i++)
+        h += list_rh(i);
+    return h;
+}
+/* the row picked in view, with its section's name when it is the first of a section; open: from its section's
+ * name, the list filling the screen (as far up as there is room) */
+static void list_scroll(int open)
+{
+    int s = lst.sel, t = lst.top;
+    if (open || t > s)
+        t = s;
+    if (t == s && s && lst.row[s - 1].kind == LK_HEAD)
+        t--;
+    if (open)
+        while (t > 0 && list_span(t - 1, lst.n - 1) <= LIST_VIS)
+            t--;
+    while (t < s && list_span(t, s) > LIST_VIS)
+        t++;
+    lst.top = (uint8_t)t;
+}
 static void list_paint(int32_t oy)
 {
-    uint32_t i;
-    for (i = lst.top; i < lst.n && i < lst.top + LIST_SHOWN; i++) {
-        int32_t y = 1 + (int32_t)(i - lst.top) * LIST_RH - oy, ty = cap_y(y, LIST_RH - 1, &FONT_S) - 1;   /* (descenders clear the foot) */
+    int32_t y = 1 - oy;
+    for (int i = lst.top; i < lst.n && y + oy - 1 + list_rh(i) <= LIST_VIS; y += list_rh(i), i++) {
+        int32_t ty = cap_y(y, LIST_RH - 1, &FONT_S) - 1;   /* (descenders clear the foot) */
         int on = i == lst.sel, k = lst.row[i].kind;
         uint16_t fg = on ? K_BG : K_TEXT, dim = on ? K_PANEL2 : K_DIM;
         const char *v = lst.row[i].val;
+        if (k == LK_HEAD) {                          /* a section's name: small, a rule after it */
+            int32_t e = cv_text(10, cap_y(y, LIST_HH, &FONT_XS) - 1, &FONT_XS, lst.row[i].name, K_DIM);
+            if (e + 6 < 226)
+                cv_rect(e + 6, y + LIST_HH / 2, 226 - (e + 6), 1, K_FAINT);
+            continue;
+        }
         if (k == LK_NOTE) {
             cv_text(14, ty, &FONT_S, lst.row[i].name, K_DIM);
             continue;
@@ -2416,10 +2606,13 @@ static void list_paint(int32_t oy)
             }
         }
     }
-    if (lst.n > LIST_SHOWN) {
-        int32_t th = LIST_SHOWN * LIST_RH - 2, bh = th * LIST_SHOWN / lst.n, by = th * lst.top / lst.n;
-        cv_round(232, 1 - oy, 4, th, 2, K_PANEL);
-        cv_round(232, 1 + by - oy, 4, bh, 2, K_FAINT);
+    {
+        int32_t all = list_span(0, lst.n - 1);
+        if (all > LIST_VIS) {
+            int32_t th = LIST_VIS - 2, bh = th * LIST_VIS / all, by = lst.top ? th * list_span(0, lst.top - 1) / all : 0;
+            cv_round(232, 1 - oy, 4, th, 2, K_PANEL);
+            cv_round(232, 1 + by - oy, 4, bh, 2, K_FAINT);
+        }
     }
 }
 static void draw_list(void)
@@ -2436,12 +2629,17 @@ static void draw_list(void)
     if (h == ui.sig[1])
         return;
     ui.sig[1] = h;
-    cv_begin(240, MAIN_H, K_BG);
-    list_paint(0);
-    cv_blit(0, LIST_Y);
-    cv_begin(240, LIST_H - MAIN_H, K_BG);
-    list_paint(MAIN_H);
-    cv_blit(0, LIST_Y + MAIN_H);
+    {                                            /* two bands, split between rows (MAIN_H at most each) */
+        int32_t h1 = 1;
+        for (int i = lst.top; i < lst.n && h1 + list_rh(i) <= MAIN_H; i++)
+            h1 += list_rh(i);
+        cv_begin(240, h1, K_BG);
+        list_paint(0);
+        cv_blit(0, LIST_Y);
+        cv_begin(240, LIST_H - h1, K_BG);
+        list_paint(h1);
+        cv_blit(0, LIST_Y + h1);
+    }
 }
 
 /* ------------------------------------------------------- the pages --- */

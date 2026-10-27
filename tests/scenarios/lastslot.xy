@@ -6,7 +6,7 @@ spin K1 -30
 wait 50
 expect tempo 90
 tap SEL
-turn SELECT 1
+row SAVE TO
 turn ALGO 1
 wait 50
 tap SEL
@@ -19,7 +19,7 @@ expect tempo 90
 tap HOME
 spin K1 10
 tap SEL
-turn SELECT 1
+row SAVE TO
 turn ALGO -1
 wait 50
 tap SEL
@@ -33,6 +33,7 @@ expect tempo 100
 # slot 2 loaded (not changed): a restart opens slot 2
 tap HOME
 tap SEL
+row LOAD PROJECT
 turn ALGO 1
 wait 50
 tap SEL

@@ -16,6 +16,7 @@ wait 40
 shot master_out.png
 # the list: pump by, release, accent, level
 tap SEL
+row PUMP BY
 wait 40
 shot master_out_list.png
 turn ALGO 3

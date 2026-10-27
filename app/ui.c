@@ -1880,31 +1880,38 @@ static void pattern_pick(int trk, int p)
     ui.bar = 0;
     mark_dirty();
 }
-/* the pattern's notes an octave up (d 1) or down (-1): one undo; a kit's (its sounds) and THROW's (effects) not, and
- * nothing when a note would leave MIDI's range */
-static void pattern_octave(int t, int d)
+/* the pattern's notes N semitones up or down: a kit's (its sounds) and THROW's (effects) not, and nothing when a note
+ * would leave MIDI's range. 1: moved. ms: the undo's run (0: a stage of its own) */
+static int pattern_shift(int t, int n, uint32_t ms)
 {
     int pt = cur_pat(t);
     tpat_t *tp;
-    char a[16];
     if (!is_seqt(t) || is_drum(t) || t == AUX_PUNCH) {
-        say_no("NO OCTAVES", is_drum(t) ? "on a kit" : "on this track");
-        return;
+        say_no(n % 12 ? "NO TRANSPOSE" : "NO OCTAVES", is_drum(t) ? "on a kit" : "on this track");
+        return 0;
     }
     tp = &pats.pat[t][pt];
     for (int s = 0; s < NSTEP; s++)
         for (int k = 0; k < SN; k++)
-            if (tp->st[s].note[k] && (tp->st[s].note[k] + 12 * d < 1 || tp->st[s].note[k] + 12 * d > 127)) {
-                say_no("OUT OF RANGE", d > 0 ? "a note is too high" : "a note is too low");
-                return;
+            if (tp->st[s].note[k] && (tp->st[s].note[k] + n < 1 || tp->st[s].note[k] + n > 127)) {
+                say_no("OUT OF RANGE", n > 0 ? "a note is too high" : "a note is too low");
+                return 0;
             }
-    undo_pat(t, pt, 0);
+    undo_pat(t, pt, ms);
     for (int s = 0; s < NSTEP; s++)
         for (int k = 0; k < SN; k++)
             if (tp->st[s].note[k])
-                tp->st[s].note[k] = (uint8_t)(tp->st[s].note[k] + 12 * d);
+                tp->st[s].note[k] = (uint8_t)(tp->st[s].note[k] + n);
     mark_dirty();
-    num_s((uint32_t)pt + 1u, s_cat(s_cat(a, TRACK_NAME[t]), " P"));
+    return 1;
+}
+/* the pattern's notes an octave up (d 1) or down (-1): one undo */
+static void pattern_octave(int t, int d)
+{
+    char a[16];
+    if (!pattern_shift(t, 12 * d, 0))
+        return;
+    num_s((uint32_t)cur_pat(t) + 1u, s_cat(s_cat(a, TRACK_NAME[t]), " P"));
     say(d > 0 ? "OCTAVE UP" : "OCTAVE DOWN", a);
 }
 static void steps_knob(int k, int32_t e)
@@ -2247,12 +2254,35 @@ static void ask_end(int yes)
     } else if (n)
         n();
 }
+/* each button's list (GLO's Setup its own) opens on the row used last: the row itself, found again by what it is
+ * (rows come and go: PASTE after a COPY), until the FM-1 is switched off */
+static struct { const char *name; uint8_t kind, id, ok; } lst_mem[NPAGE_BTN + 1];
+static const char *list_sec;                    /* the reader: the section it named last (said again on entering
+                                                 * another) */
+static int list_key(void)                         /* -1: not kept (a held step's list, a Bluetooth list) */
+{
+    if (lst.bt || (steps_page(ui.page) && ui.held && is_seqt(sel_trk())))
+        return -1;
+    return list_is_setup(ui.page) ? (int)NPAGE_BTN : page_group(ui.page);
+}
+static void list_mark(void)
+{
+    int k = list_key();
+    if (k < 0 || !lst.n)
+        return;
+    lst_mem[k].name = lst.row[lst.sel].name;
+    lst_mem[k].kind = lst.row[lst.sel].kind;
+    lst_mem[k].id = lst.row[lst.sel].id;
+    lst_mem[k].ok = 1;
+}
+static int list_pickable(int r) { return lst.row[r].kind != LK_NOTE && lst.row[r].kind != LK_HEAD; }
 static void list_open(void)
 {
-    int a;
+    int a = -1, k;
     lst.open = 1;
     lst.bt = 0;
     lst.sel = lst.top = 0;
+    list_sec = 0;
     ui.pick_engine = proj.trk[sel_trk()].par[TP_ENGINE] % NENGINE;
     if (is_fx(sel_trk()))
         ui.pick_fx = proj.trk[sel_trk()].par[TP_ENGINE] % NFXPICK;
@@ -2266,31 +2296,36 @@ static void list_open(void)
         say_no("LIST", "nothing here");
         return;
     }
-    for (a = 0; a < lst.n && lst.row[a].kind != LK_ACTION && lst.row[a].kind != LK_PICK; a++)
-        ;
-    if (a >= lst.n)
-        return;
-    if (ui.page == P_SETUP)                      /* Setup: its Bluetooth rows first */
-        for (int r = a; r < lst.n; r++)
-            if (lst.row[r].id == A_BT_MIDI && lst.row[r].kind == LK_PICK) {
+    k = list_key();
+    if (k >= 0 && lst_mem[k].ok)                 /* the row used last */
+        for (int r = 0; r < lst.n && a < 0; r++)
+            if (lst.row[r].kind == lst_mem[k].kind && lst.row[r].id == lst_mem[k].id &&
+                (lst.row[r].name == lst_mem[k].name || s_eq(lst.row[r].name, lst_mem[k].name)))
                 a = r;
-                break;
-            }
-    lst.sel = (uint8_t)a;
-    lst.top = (uint8_t)(lst.n - a >= LIST_SHOWN ? a : lst.n > LIST_SHOWN ? lst.n - LIST_SHOWN : 0);
+    for (int r = 0; r < lst.n && a < 0; r++)     /* or the first row (the actions first, the knobs after) */
+        if (list_pickable(r))
+            a = r;
+    lst.sel = (uint8_t)(a < 0 ? 0 : a);
+    list_scroll(1);
 }
 static void list_move(int d)
 {
-    int s = lst.sel;
+    int s = lst.sel, t, dir = d > 0 ? 1 : -1;
     list_build();
-    s = clampi(s + d, 0, lst.n ? lst.n - 1 : 0);
-    if (lst.n > 1 && lst.row[s].kind == LK_NOTE)   /* (a Bluetooth list's first line: never picked) */
-        s = 1;
-    lst.sel = (uint8_t)s;
-    if (lst.sel < lst.top)
-        lst.top = lst.sel;
-    if (lst.sel >= lst.top + LIST_SHOWN)
-        lst.top = (uint8_t)(lst.sel - LIST_SHOWN + 1);
+    if (!lst.n)
+        return;
+    t = clampi(s + d, 0, lst.n - 1);
+    while (t > 0 && t < lst.n - 1 && !list_pickable(t))   /* (a section's name, a Bluetooth list's first line: never
+                                                         * picked) */
+        t += dir;
+    if (!list_pickable(t))
+        t = s < lst.n ? s : lst.n - 1;
+    for (int r = 0; r < lst.n && !list_pickable(t); r++)
+        if (list_pickable(r))
+            t = r;
+    lst.sel = (uint8_t)t;
+    list_scroll(0);
+    list_mark();
 }
 static int list_follow_trk(void)
 {
@@ -2317,6 +2352,16 @@ static void list_change_do(int32_t e)
     case LK_PICK:
         switch (lst.row[lst.sel].id) {
         case A_ENGINE: ui.pick_engine = (uint8_t)clampi(ui.pick_engine + d, 0, NENGINE - 1); break;
+        case A_CLEAR: ui.pick_clear = (uint8_t)clampi(ui.pick_clear % 3u + d, 0, 2); break;
+        case A_ROTATE: case A_SHIFT: {           /* how far: never 0 (left / down past 1 goes to -1) */
+            int8_t *v = lst.row[lst.sel].id == A_ROTATE ? &ui.pick_rot : &ui.pick_shift;
+            int m = lst.row[lst.sel].id == A_ROTATE ? 16 : 24, n = pick_amount(*v) + d;
+            if (n == 0)
+                n = d;
+            *v = (int8_t)clampi(n, -m, m);
+            break;
+        }
+        case A_PASTE: ui.pick_paste = (uint8_t)(d > 0); break;
         case A_EFFECT: {
             int t = ui.pick_fx, trk = fx_page(ui.page) ? (ui.page == P_FX1 ? AUX_FX1 : AUX_FX2) : sel_trk();
             for (int tries = 0; tries < NFXPICK; tries++) {
@@ -2386,14 +2431,14 @@ static void list_change_do(int32_t e)
             set_tp(t, q, clampi(proj.trk[t].par[q] + d, 0, NPM - 1));
             break;
         }
-        case A_FTYPE: {
-            int t = sel_trk(), q = ftype_param(t, ui.page);
-            if (is_drum(t) && q == TP_FTYPE)          /* the kit's bus: on (dynamic) / off */
-                set_tp(t, TP_FTYPE, d > 0 ? FT_DYNAMIC : FT_LP24);
-            else
-                set_tp(t, q, clampi(proj.trk[t].par[q] + d, 0, tp_info_par(q, proj.trk[t].par)->hi));
+        case A_FTYPE: {                          /* (a kit: the key's, KEY FILTER) */
+            int t = sel_trk(), q = is_drum(t) ? TP_DRUM(ui.dsound % DL_NSOUND, DP_FTYPE) : ftype_param(t, ui.page);
+            set_tp(t, q, clampi(proj.trk[t].par[q] + d, 0, tp_info_par(q, proj.trk[t].par)->hi));
             break;
         }
+        case A_KIT_FILTER:                       /* the kit's bus: on (dynamic) / off */
+            set_tp(sel_trk(), TP_FTYPE, d > 0 ? FT_DYNAMIC : FT_LP24);
+            break;
         case A_FX_HP: case A_FX_LP: case A_FX_SEND: {
             int ft = ui.page == P_FX2 ? AUX_FX2 : AUX_FX1, id = lst.row[lst.sel].id;
             int q = id == A_FX_HP ? TP_FENV : id == A_FX_LP ? TP_CUT : TP_SEND2;
@@ -2651,17 +2696,10 @@ static void weave_set(int t, int from, int pat, int rule)
 static void act_keep_weave(void)
 {
     static tpat_t out PLAT_POOL;
-    int trk = sel_trk(), f = wv_from(trk), to = -1;
+    int trk = sel_trk(), f = wv_from(trk), to = pat_first_empty(trk);
     char t[8];
     if (!f)
         return;
-    for (int p = 0; p < NPATT && to < 0; p++) {
-        int empty = 1;
-        for (int i = 0; i < NSTEP && empty; i++)
-            empty = step_empty(&pats.pat[trk][p].st[i]);
-        if (empty && p != cur_pat(trk))
-            to = p;
-    }
     if (to < 0) {
         say_no("NO EMPTY PATTERN", "clear one first");
         return;
@@ -2672,6 +2710,112 @@ static void act_keep_weave(void)
     mark_dirty();
     num_s((uint32_t)to + 1u, s_cat(t, "P"));
     say("KEPT AS", t);
+}
+/* COPY TO EMPTY: the pattern shown, with its locks, motion and loop, into the track's first empty pattern, which the
+ * scene then plays (at the next bar while playing, as KNOB 1's pick): a variation to edit, the original kept. The
+ * undo puts the scene back on the original */
+static void act_copy_empty(void)
+{
+    int trk = sel_trk(), from = cur_pat(trk), to = pat_first_empty(trk), full = 0;
+    char t[8];
+    if (to < 0) {
+        say_no("NO EMPTY PATTERN", "clear one first");
+        return;
+    }
+    undo_arr();
+    pats.pat[trk][to] = pats.pat[trk][from];
+    for (int k = 0; k < NLANE; k++)
+        if (pats.lane[k].used && pats.lane[k].trk == trk && pats.lane[k].pat == to)
+            lane_clear(pats.lane, k);
+    for (int k = 0; k < NLANE; k++)
+        if (pats.lane[k].used && pats.lane[k].trk == trk && pats.lane[k].pat == from) {
+            int d = lane_alloc(pats.lane, trk, to, pats.lane[k].param);
+            if (d >= 0)
+                memcpy(pats.lane[d].val, pats.lane[k].val, NSTEP);
+            else
+                full = 1;
+        }
+    pattern_pick(trk, to);
+    num_s((uint32_t)to + 1u, s_cat(t, "P"));
+    if (full)
+        say_no("COPIED, LOCKS FULL", "some locks left out");
+    else
+        say("COPIED TO", t);
+}
+/* CLEAR BAR: the bar shown, its notes and locks (the pattern keeps its length) */
+static void act_clear_bar(void)
+{
+    int trk = sel_trk(), pt = cur_pat(trk), b = ui.bar % NBAR;
+    tpat_t *tp = tpat(trk);
+    char t[8];
+    undo_keep();
+    for (int i = b * 16; i < b * 16 + 16; i++) {
+        memset(&tp->st[i], 0, sizeof tp->st[i]);
+        tp->st[i].vel = 100;
+    }
+    for (int k = 0; k < NLANE; k++)
+        if (pats.lane[k].used && pats.lane[k].trk == trk && pats.lane[k].pat == pt)
+            for (int i = b * 16; i < b * 16 + 16; i++)
+                pats.lane[k].val[i] = LOCK_NONE;
+    mark_dirty();
+    num_s((uint32_t)b + 1u, s_cat(t, "bar "));
+    say("CLEARED", t);
+}
+static void kit_pack(const uint8_t *par, const char *name, uint8_t *img);
+static void kit_apply(int trk, const uint8_t *img, int dev);
+/* PASTE SOUND: the track copied's sound onto this one, as a preset or a kit loads (the mix, players, MIDI OUT stay):
+ * synth onto synth, kit onto kit */
+static void act_paste_sound(void)
+{
+    int trk = sel_trk(), src = snd_clip - 1;
+    char t[8];
+    if (src < 0 || src >= NTRK || src == trk || is_drum(src) != is_drum(trk))
+        return;
+    if (is_drum(trk)) {
+        uint8_t img[KIT_LEN];
+        kit_pack(proj.trk[src].par, proj.trk[src].name, img);
+        kit_apply(trk, img, 0);
+    } else {
+        uint8_t *par = proj.trk[trk].par;
+        undo_sound(trk);
+        memcpy(par, proj.trk[src].par, NTP_SOUND);
+        par[TP_O2FINE] = proj.trk[src].par[TP_O2FINE];
+        memcpy(proj.trk[trk].name, proj.trk[src].name, NAME_LEN);
+        engine_set_all(trk);
+        mark_dirty();
+    }
+    num_s((uint32_t)src + 1u, s_cat(t, "T"));
+    say("PASTED", t);
+}
+/* PASTE KEY: a kit key's sound (its model, knobs, envelope, filter, sends) onto the key shown */
+static void act_paste_key(void)
+{
+    int trk = sel_trk(), src = key_clip - 1, k = ui.dsound % DL_NSOUND, sk = key_clip_k % DL_NSOUND;
+    uint8_t *par = proj.trk[trk].par;
+    if (src < 0 || src >= NTRK || !is_drum(src) || !is_drum(trk) || (src == trk && sk == k))
+        return;
+    undo_sound(trk);
+    memcpy(par + TP_DRUM(k, 0), proj.trk[src].par + TP_DRUM(sk, 0), DP_N);
+    memcpy(par + TP_DRUMX(k, 0), proj.trk[src].par + TP_DRUMX(sk, 0), DPX_N);
+    engine_set_all(trk);
+    mark_dirty();
+    say("PASTED", DL_SOUND_NAME[sk]);
+}
+/* PASTE SCENE: the scene copied (its patterns, mutes, the conductor's key, the weave) onto the scene playing, heard at
+ * the next bar while playing */
+static void act_paste_scene(void)
+{
+    int n = cur_scene(), src = scene_clip - 1;
+    char t[8];
+    if (src < 0 || src >= NSCENE || src == n || !pats.scene[src].used)
+        return;
+    undo_arr();
+    pats.scene[n] = pats.scene[src];
+    pats.scene[n].used = 1;
+    engine_scene(n, playing() ? SCENE_BAR : SCENE_NOW);
+    mark_dirty();
+    num_s((uint32_t)src + 1u, s_cat(t, "S"));
+    say("PASTED", t);
 }
 static void act_dup_bar(void)
 {
@@ -2993,9 +3137,14 @@ static void do_load_proj(void)
     char t[16];
     engine_transport(0);
     engine_panic();
-    if (project_load(slot) != 0)
+    project_device_get();                        /* (Setup's settings and the theme are the FM-1's, not the project's:
+                                                  * they stay, and the touch below keeps them in the slot that opens
+                                                  * at power-on) */
+    if (project_load(slot) != 0) {
+        project_device_put();
         say_no(proj_slot >= NPROJ ? "OLD FORMAT" : "EMPTY SLOT", "defaults loaded");
-    else {
+    } else {
+        project_device_put();
         num_s((uint32_t)slot + 1u, s_cat(t, "slot "));
         say("LOADED", t);
         project_touch(slot);                     /* (the slot loaded last opens at power-on) */
@@ -3233,6 +3382,73 @@ static void action_run(int a)
     case A_PASTE_BAR: case A_PASTE_STEP: case A_PASTE_LOCKS: act_paste(a == A_PASTE_LOCKS); break;
     case A_WEAVE: act_keep_weave(); break;
     case A_ROT_FWD: act_rotate(1); say("ROTATED", "forward"); break;
+    case A_CLEAR:
+        action_run(ui.pick_clear % 3u == 0 ? A_CLEAR_NOTES : ui.pick_clear % 3u == 1 ? A_CLEAR_LOCKS : A_CLEAR_BOTH);
+        return;
+    case A_ROTATE: {                             /* (its steps one undo) */
+        int r = pick_amount(ui.pick_rot);
+        char t[12];
+        undo_pat(sel_trk(), cur_pat(sel_trk()), 0);
+        for (int i = 0; i < (r < 0 ? -r : r); i++)
+            act_rotate(r < 0 ? -1 : 1);
+        num_s((uint32_t)(r < 0 ? -r : r), s_cat(t, r < 0 ? "left " : "right "));
+        say("ROTATED", t);
+        break;
+    }
+    case A_SHIFT: {
+        int v = pick_amount(ui.pick_shift);
+        char t[12];
+        if (pattern_shift(sel_trk(), v, 0)) {
+            num_s((uint32_t)(v < 0 ? -v : v), s_cat(t, v < 0 ? "-" : "+"));
+            say("SHIFTED", t);
+        }
+        break;
+    }
+    case A_PASTE:
+        if (ui.pick_paste & 1u)
+            act_paste(1);
+        else if (clip_kind == CK_BAR)
+            act_paste(0);
+        else
+            act_paste_pat();
+        break;
+    case A_COPY_EMPTY: act_copy_empty(); break;
+    case A_COPY_SOUND: snd_clip = (uint8_t)(sel_trk() + 1); say("COPIED", "sound"); break;
+    case A_PASTE_SOUND: act_paste_sound(); break;
+    case A_COPY_KEY:
+        key_clip = (uint8_t)(sel_trk() + 1);
+        key_clip_k = (uint8_t)(ui.dsound % DL_NSOUND);
+        say("COPIED", DL_SOUND_NAME[key_clip_k]);
+        break;
+    case A_PASTE_KEY: act_paste_key(); break;
+    case A_COPY_SCENE: {
+        char t[8];
+        scene_clip = (uint8_t)(cur_scene() + 1);
+        num_s((uint32_t)scene_clip, s_cat(t, "S"));
+        say("COPIED", t);
+        break;
+    }
+    case A_PASTE_SCENE: act_paste_scene(); break;
+    case A_DUP_SLOT:
+        if (cur >= sg->len) {
+            say_no("NO SLOT HERE", 0);
+            return;
+        }
+        if (sg->len >= NSONG) {
+            say_no("SONG FULL", "64 slots");
+            return;
+        }
+        undo_arr();
+        for (int i = sg->len; i > cur + 1; i--)
+            sg->slot[i] = sg->slot[i - 1];
+        sg->slot[cur + 1] = sg->slot[cur];
+        sg->len++;
+        song_edited(cur + 1, 1);
+        ui.name_slot = (uint8_t)(cur + 1);
+        mark_dirty();
+        say("DUPLICATED", "slot");
+        break;
+    case A_CLEAR_BAR: act_clear_bar(); break;
     case A_ROT_BACK: act_rotate(-1); say("ROTATED", "back"); break;
     case A_DUP_BAR: act_dup_bar(); break;
     case A_DOUBLE: act_double(); break;
@@ -3275,7 +3491,8 @@ static void action_run(int a)
         break;
     case A_FOLLOW: case A_USB_AUDIO: case A_COUNT_IN: case A_THEME: case A_PLAYMODE: case A_FTYPE: case A_FX_HP: case A_FX_LP:
     case A_FX_SEND: case A_PUMP_BY: case A_PUMP_REL: case A_PUMP_ACC: case A_LEVEL: case A_SCENE_AT: case A_AUTOSAVE:
-    case A_MIDI_OUT: case A_LOOP_FREE: case A_CC_OUT: case A_SCENES_OUT: case A_MIDI_CC: case A_USB_HOST: return;   /* (ALGORITHM sets them; SEL
+    case A_MIDI_OUT: case A_LOOP_FREE: case A_CC_OUT: case A_SCENES_OUT: case A_MIDI_CC: case A_USB_HOST: case A_KIT_FILTER:
+        return;   /* (ALGORITHM sets them; SEL
                                                                                     * leaves the list) */
     case A_REMOVE_NOTE: act_remove_note(lst.sel); break;
     case A_INSERT_SLOT:
@@ -3882,8 +4099,19 @@ static void sp_main(void)
 static int sp_list(void) { return lst.open && lst.n && !ui.card; }
 static void sp_row(void)
 {
-    int i = lst.sel, n = lst.n;
-    const char *v = lst.row[i].val;
+    int i = lst.sel, n = 0, at = 0;
+    const char *v = lst.row[i].val, *sec = 0;
+    for (int r = 0; r < lst.n; r++)              /* N of M: the rows, not the sections' names */
+        if (lst.row[r].kind != LK_HEAD) {
+            n++;
+            at += r <= i;
+        } else if (r < i)
+            sec = lst.row[r].name;
+    if (sec && sec != list_sec) {                /* a section entered: its name first */
+        sp_text(sec);
+        sp_end(". ");
+    }
+    list_sec = sec;
     if (lst.row[i].kind == LK_KNOB) {
         knob_t kb;
         memset(&kb, 0, sizeof kb);
@@ -3900,7 +4128,7 @@ static void sp_row(void)
             sp_cat(", action");
     }
     sp_cat(", ");
-    sp_int(i + 1);
+    sp_int(at);
     sp_cat(" of ");
     sp_int(n);
 }
@@ -4174,7 +4402,10 @@ static void speak_dump(void)
             }
             lst.open = 1;
             list_build();
+            list_sec = 0;
             for (int r = 0; r < lst.n; r++) {
+                if (lst.row[r].kind == LK_HEAD)
+                    continue;
                 lst.sel = (uint8_t)r;
                 sp_n = 0;
                 sp_row();

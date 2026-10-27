@@ -292,12 +292,10 @@ turn K4 1
 wait 20
 expect ccst 186
 expect ccd1 27
-# the SEL list's LEVEL row (A_LEVEL), turned by hand: its CC too (eleven up: BT MIDI, MIDI DEVICE, BT AUDIO, AUDIO DEVICE, USB PORT, SCENES OUT
-# and CC OUT come after it now)
+# the SEL list's MASTER LEVEL row (A_LEVEL), turned by hand: its CC too
 ccreset
 tap SEL
-turn SELECT 40
-turn SELECT -11
+row MASTER LEVEL
 expect ccouts 0
 ccreset
 turn ALGO 1
@@ -307,17 +305,32 @@ expect ccd1 7
 # tap HOME closes the list (SEL on a PICK row doesn't: list_sel's A_LEVEL is a no-op)
 tap HOME
 expect page Master_out
-# CC OUT off (GLO's SEL list: two up from the last row, SCENES OUT now sitting between it and ALL NOTES OFF): nothing sent
+# CC OUT off (Setup's SEL list): nothing sent
+turn SELECT 2
+expect page Setup
 tap SEL
-turn SELECT 40
-turn SELECT -2
+row CC OUT
 turn ALGO -1
 tap HOME
+turn SELECT -2
 expect page Master_out
 ccreset
 turn K4 1
 wait 20
 expect ccouts 0
+# CC OUT is the FM-1's, not the project's: a new project keeps it off; on again (Setup's list)
+projnew
+ccreset
+turn K4 1
+wait 20
+expect ccouts 0
+tap GLO
+turn SELECT 5
+expect page Setup
+tap SEL
+row CC OUT
+turn ALGO 1
+tap HOME
 
 # FX I's and FX II's knobs by hand: on channels 9 and 10 (0xB8 = 184, 0xB9 = 185), the first knob CC 16
 projnew
@@ -409,14 +422,16 @@ wait 40
 expect scene 2                 # scene 2
 expect ccouts 0                # SCENES OUT off: nothing sent either way
 
-# turn SCENES OUT on (GLO's SEL list, the row after CC OUT; tap HOME closes the list, tap SEL would not)
+# turn SCENES OUT on (Setup's SEL list; tap HOME closes the list, tap SEL would not)
 tap GLO
 expect page Mix
+turn SELECT 5
+expect page Setup
 tap SEL
-turn SELECT 40
-turn SELECT -1
+row SCENES OUT
 turn ALGO 1
 tap HOME
+turn SELECT -5
 expect page Mix
 
 # playing: cued for the next bar (SCENES SWITCH next bar); its landing stays quiet (came in over MIDI, SCENES OUT on)
@@ -445,11 +460,13 @@ expect ccd1 0
 # the two switches are independent: CC OUT off, SCENES OUT still on, a hand pick still sends its Program Change
 tap GLO
 expect page Mix
+turn SELECT 5
+expect page Setup
 tap SEL
-turn SELECT 40
-turn SELECT -2
+row CC OUT
 turn ALGO -1
 tap HOME
+turn SELECT -5
 expect page Mix
 ccreset
 tap HOME

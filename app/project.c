@@ -202,18 +202,42 @@ void project_random_sounds(uint32_t seed)
     }
 }
 
+/* the FM-1's own settings, not a project's: Setup's list (the lights, the clock, MIDI notes, USB audio, the autosave,
+ * loop throws, CC OUT, SCENES OUT, Bluetooth) and the theme. A new project starts with them and a project loaded
+ * takes them (app.h project_device_get / put around the load) */
+#define DEV_BITS (4u | 8u | 16u | 32u | 64u | 128u)   /* rsv[2]: pages.c AUTOSAVE_OFF, LOOP_FREE, CC_OUT_OFF, SCENES_OUT,
+                                                        * bt.c BT_AUDIO_ON, BT_MIDI_OFF */
+static struct { uint8_t theme, bits, lights, clock, notes, usb; } dev;
+void project_device_get(void)
+{
+    dev.theme = proj.rsv[1];
+    dev.bits = (uint8_t)(proj.rsv[2] & DEV_BITS);
+    dev.lights = proj.lights;
+    dev.clock = proj.clock;                               /* (Setup sets them and seq's together) */
+    dev.notes = proj.send_notes;
+    dev.usb = proj.usb_full;
+}
+void project_device_put(void)
+{
+    proj.rsv[1] = dev.theme;
+    proj.rsv[2] = (uint8_t)((proj.rsv[2] & ~DEV_BITS) | dev.bits);
+    proj.lights = dev.lights;
+    proj.clock = dev.clock;
+    proj.send_notes = dev.notes;
+    proj.usb_full = dev.usb;
+}
+
 void project_defaults(void)
 {
     static const uint8_t ORDER[NTRK] = {EG_DRUMLINE, EG_KNIT, EG_RAYON, EG_JACQUARD, EG_KNIT, EG_BELLOWS, EG_CANE,
                                         EG_VOILE};
     int t, k;
-    uint8_t *z = (uint8_t *)&proj, theme = proj.rsv[1], aoff = proj.rsv[2] & (4u | 64u | 128u);   /* a new project keeps
-                                                                    * the theme, the autosave and Bluetooth (pages.c
-                                                                    * AUTOSAVE_OFF, bt.c BT_AUDIO_ON, BT_MIDI_OFF) */
+    uint8_t *z = (uint8_t *)&proj, keep = proj.magic == PROJ_MAGIC;   /* (a project before it: the FM-1's settings
+                                                                     * carried over; at the first start, none) */
+    if (keep)
+        project_device_get();
     for (k = 0; k < (int)sizeof proj; k++)
         z[k] = 0;
-    proj.rsv[1] = theme;
-    proj.rsv[2] = aoff;
     proj.magic = PROJ_MAGIC;
     proj.format = PROJ_FORMAT;
     proj.name[0] = 'N';
@@ -229,6 +253,8 @@ void project_defaults(void)
     proj.send_notes = 1;                                  /* MIDI notes out (each track on its channel: below) */
     proj.one_core = 0;
     proj.usb_full = 0;
+    if (keep)
+        project_device_put();
     proj.scene = 0;
     proj.trk_sel = 0;
     for (t = 0; t < NTRK; t++) {

@@ -10,11 +10,11 @@ wait 100
 expect page Setup
 shot bt_setup.png
 listen
-# SEL on Setup: GLO's list, on BT MIDI; AUDIO DEVICE three below says what SEL does
+# SEL on Setup: Setup's own list, on BT MIDI; AUDIO DEVICE three below says what SEL does
 tap SEL
 wait 300
 said BT MIDI on
-turn SELECT 3
+row AUDIO DEVICE
 wait 300
 said AUDIO DEVICE choose, action
 shot bt_glo_list.png
@@ -34,11 +34,11 @@ wait 100
 shot bt_setup_playing.png
 # the list again: Speaker remembered and playing, no scan while it plays
 tap SEL
-turn SELECT 3
+row AUDIO DEVICE
 tap SEL
 wait 300
 said pick a device. SEL connects. Speaker playing
-turn SELECT 9
+row FORGET
 wait 100
 said FORGET Speaker
 shot bt_audio_forget.png
@@ -52,7 +52,7 @@ expect ask 0
 tap HOME
 # BT AUDIO: ALGORITHM off, SEL on again (the last device)
 tap SEL
-turn SELECT 2
+row BT AUDIO
 turn ALGO -1
 wait 200
 said BT AUDIO off
@@ -62,11 +62,12 @@ said BT AUDIO Speaker
 tap HOME
 # BT MIDI off: no advertising, MIDI DEVICE says so and SEL there does nothing
 tap SEL
+row BT MIDI
 turn ALGO -1
 wait 200
 said BT MIDI off
 expect ble 0
-turn SELECT 1
+row MIDI DEVICE
 wait 100
 said MIDI DEVICE BT MIDI off
 tap SEL
@@ -90,12 +91,13 @@ where
 said BT audio Speaker, BT MIDI off
 # BT MIDI on again (SEL toggles it too)
 tap SEL
+row BT MIDI
 tap SEL
 wait 1200
 said BT MIDI on
 expect ble 2
 # the MIDI devices: MIDI DEVICE's list looks while it is up
-turn SELECT 1
+row MIDI DEVICE
 wait 100
 said MIDI DEVICE choose
 tap SEL
@@ -111,7 +113,7 @@ expect ble_dev 4
 wait 100
 shot bt_setup_device.png
 tap SEL
-turn SELECT 1
+row MIDI DEVICE
 tap SEL
 wait 200
 said connected. SEL lets it go. DISCONNECT BLE MIDI
@@ -123,7 +125,7 @@ expect ble_dev 0
 ble connect
 wait 100
 tap SEL
-turn SELECT 1
+row MIDI DEVICE
 wait 100
 said MIDI DEVICE computer connected
 tap SEL

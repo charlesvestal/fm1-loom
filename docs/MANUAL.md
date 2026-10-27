@@ -136,6 +136,7 @@ press…" means keep **HOME** down while you press the next thing.
 | clear a knob's automation | Hold **SEL** and turn the knob. This clears its motion and locks in the pattern (or, with steps held, only theirs). <!-- hint: hold SEL; turn KNOB 1 --> |
 | see the next bar | Press **OCT+** on Steps. (While **SEQ** is held, **PRESETS** sets the track's sound, so you can try notes before you write them; the keys play at the octave **OCT** set on the sound pages.) <!-- hint: press OCT+ --> |
 | move a whole pattern an octave | On Steps, hold **SEQ** and press **OCT−** or **OCT+**. Hold **HOME** and press **REC** to undo it. <!-- hint: hold SEQ; press OCT+ --> |
+| transpose a pattern, or rotate it | On Steps, press **SEL** and pick SHIFT NOTES (semitones) or ROTATE (steps). Turn **ALGORITHM** for how far, such as +4 or L2, and press **SEL**. |
 | play one bar of a long pattern, or jump about in it | Press **SEQ** and turn **SELECT** to the Bar page. Hold **SEQ** and press black key 1 to 4 to jump to that bar. Hold two of them to loop those bars, or tap one twice to loop that bar. <!-- hint: hold SEQ; black 1,2,3,4 --> |
 | set the track scale | On Steps, turn **KNOB 3**. Or, on the Bar page of a synth track, press a black key: 1, 2, 3, 4, 5, 6, 8, 16 sixteenths a step, or black key 9 for half a sixteenth. <!-- hint: turn KNOB 3 --> |
 | change the pattern | On Steps, turn **KNOB 1**. While it plays, the new pattern comes in at the next bar line. Until then, the knob reads NEXT 1>2 and the tag line says "next P2". |
@@ -355,7 +356,7 @@ it.
 With no step held, **KNOB 1** picks the pattern (P1 to P8), **KNOB 2** sets the length in steps, **KNOB 3** the
 track scale (how many sixteenths a step takes, from 1/2 to 16) and **KNOB 4** the track's groove amount.
 
-<img src="img/screen-list.png" width="240" alt="SEL on Steps: quantise, note length and shape, then clear notes, clear locks, copy, rotate and duplicate" title="The Steps list">
+<img src="img/screen-list.png" width="240" alt="SEL on Steps: the pattern's actions (copy to empty, copy, clear, rotate, shift notes, double), then the bar's (copy, clear, duplicate)" title="The Steps list">
 
 Turn **SELECT** for the Bar page. Its knobs are quantise for live recording, the note length of new steps (as a
 percentage of a step), the groove amount and the shape. The keys write steps just as on Steps: hold a step for its
@@ -363,16 +364,27 @@ knobs, tricks and locks, and on a kit the black keys pick and place its sounds. 
 to is outlined, and **OCT-** and **OCT+** move it. On a synth track, the black keys set the track scale: black keys
 1 to 8 give 1, 2, 3, 4, 5, 6, 8 and 16 sixteenths a step, and black key 9 gives half a sixteenth.
 
-Press **SEL** on either page for the actions:
+Press **SEL** on either page for the actions. The pattern's come first, then the bar's, then the two pages'
+knobs. A row with a ▸ is a choice: **ALGORITHM** picks it and **SEL** does it.
 
-- clear notes, clear locks, or clear both
-- copy the pattern or the bar shown
-- paste it, or only its locks. A bar pastes onto the bar shown. The copy is read when you paste, and a kit's
-  steps paste only onto a kit.
-- rotate it a step forward or back
-- duplicate the bar into the next one
-- double the pattern: it becomes twice as long and plays itself twice, locks included. A 16-step pattern becomes
+- **COPY TO EMPTY** copies the pattern, with its locks, motion and loop, into the track's first empty pattern (the
+  row shows which, such as P3) and switches the track to it, in the scene playing. While playing, it comes in at the
+  next bar. This is how you make a variation: press an empty scene key on **HOME** (the new scene plays the same
+  patterns), then COPY TO EMPTY on the tracks you want to change. The scene you started from keeps the original.
+  Undo puts the scene back on the original.
+- **COPY PATTERN** copies it, and **PASTE** (pattern, or locks only) pastes it where you want it. The copy is read
+  when you paste, and a kit's steps paste only onto a kit.
+- **CLEAR**: notes, locks, or notes and locks.
+- **ROTATE** moves every step (its notes and locks) along: **ALGORITHM** sets how far, from L16 (16 steps to the
+  left) to R16, and **SEL** does it. **SHIFT NOTES** moves every note up or down, from -24 to +24 semitones (on a
+  kit or THROW it isn't there). Both keep the amount you set, and the list reopens on the row you used, so doing it
+  again is **SEL**, **SEL**.
+- **DOUBLE PATTERN**: it becomes twice as long and plays itself twice, locks included. A 16-step pattern becomes
   32, so you can vary its second half.
+- For the bar shown: **COPY BAR**, **PASTE** (the bar, or locks only), **CLEAR BAR** (its notes and locks) and
+  **DUPLICATE BAR** (into the next one).
+
+Every list opens on the row you used last, until you switch the FM-1 off.
 
 On the Bar page, hold **SEQ** and press black keys 1 to 4, which stand for the pattern's bars. Press one key to
 jump to that bar at the next bar line and play on from there; any loop you had is released. Hold two keys to loop
@@ -472,9 +484,12 @@ bass, lead, keys, pluck, bell, stab, brass, strings, pad, voice, chord, fx, drum
 pads. Most are dry. Pads, strings, voices and bells send to the reverb, and some plucks and leads send to the
 delay. Press **SEL** for the list:
 
-- ENGINE changes the engine and loads its first sound; then you pick a preset.
+- PRESET picks a preset by name, and ENGINE changes the engine and loads its first sound.
 - SCRAMBLE gives you a random sound.
 - SAVE AS PRESET and RESET SOUND.
+- COPY SOUND, then PASTE SOUND on another track, puts the same sound there, as a preset would: the track keeps its
+  own level, pan, player and MIDI OUT. A synth's sound pastes onto a synth track, a kit onto a kit track. Undo takes
+  it back.
 - FOLLOWS CONDUCTOR sets whether the track follows the conductor.
 
 <img src="img/screen-engine.png" width="240" alt="The Engine page on T2: the engine, its picture, the preset name, and its four knobs from 00 to 99" title="The Engine page"> <img src="img/screen-play.png" width="240" alt="Play: voice mode, portamento, bend range and volume" title="The Play page">
@@ -634,8 +649,11 @@ much. Even with a kit made of them, the busiest demo stays well within what the 
 On every sound page of a drum track, a black key picks the key the knobs edit. Turn **SELECT** for the Key page:
 the model, random (a variation on every hit), pan, and volume in dB. Its **SEL** list sets the play mode: one-shot,
 gated, loop, or choke group 1 to 3. When you change a key's model, the new model starts from its own knob settings.
+COPY KEY copies the key shown, and PASTE KEY puts it on another key (of this kit or another): its model, knobs,
+envelope, filter and sends. Two snares tuned apart start this way. On **ENV**, the list has the key's filter type
+(KEY FILTER) and the kit's bus filter (KIT FILTER, on or off) on all four pages.
 
-**Kits.** On a kit track, the Engine page's **SEL** list has **KIT** and **SAVE KIT**. KIT loads a whole kit onto
+**Kits.** On a kit track, **EDIT**'s **SEL** list has **KIT** and **SAVE KIT**. KIT loads a whole kit onto
 the track: its eleven keys with all their settings, plus the kit's envelope, filter, LFO and character. The track's
 level, pan, player and MIDI OUT stay as they are. LOOM-8 comes with ten kits, named for fibers and cloth:
 
@@ -962,6 +980,8 @@ playing.
 - Set **SEL**'s SCENES SWITCH to "pattern end" to make a key wait for the end of T1's pattern instead. The tracks
   can have different lengths and drift apart, so T1's pattern sets the scene's length (up to four bars on a
   64-step T1).
+- **SEL**'s COPY SCENE copies the scene playing. Switch to another scene and PASTE SCENE makes it the same again:
+  its patterns, mutes, the conductor's key and the weave. While playing, it is heard at the next bar.
 - Turning **PRESETS** cues the next scene for the next bar in the same way.
 - Pressing an empty scene's key turns it into a copy of the scene playing.
 - Hold a white key for a second to clear that scene. The playing scene keeps going while LOOM-8 asks you to
@@ -999,7 +1019,8 @@ plays four).
 
 Press **PLAY** on the Song page to play the song from the selected slot; **SEL**'s PLAY SONG plays it from the
 top. As the song plays, a bar along the bottom of the playing slot fills up over its bars. **SEL** can also insert
-the scene playing, delete a slot or clear the song.
+the scene playing (INSERT SLOT), repeat the selected slot right after itself (DUPLICATE SLOT), delete a slot or
+clear the song.
 
 ## The aux tracks
 
@@ -1044,7 +1065,7 @@ Turn **ALGORITHM** past T8. Each aux track has its own page under **EDIT** and i
 | black 5 | ring: long notes |
 
   When you let go of a loop throw (stutter, repeat, echo), the track comes back in time, at the step it would have
-  reached if it had never looped. Set LOOP THROWS to "drift" in **GLO**'s **SEL** list and the track stays where
+  reached if it had never looped. Set LOOP THROWS to "drift" in Setup's **SEL** list (**GLO**) and the track stays where
   the loop left it instead, out of step with the others until a scene or the transport sets it straight.
 
   You can also throw from any track: the last page of **FX**, Throws, has the same keys and the latch.
@@ -1090,14 +1111,17 @@ Turn **SELECT** for more pages:
 
 - Master EQ: low, mid and high (64 is flat).
 - Master color (see below).
-- Master out: the drums' level, the melodic tracks' level, the compressor and the pump. Its **SEL** list has what
-  the pump follows, its release and accent, and the output level.
+- Master out: the drums' level, the melodic tracks' level, the compressor and the pump. **SEL** on these pages lists
+  their knobs, page by page, with what the pump follows, its release and accent, and the master level.
 
 On Setup, the knobs are the lights, the MIDI clock (internal, receive or send: see MIDI below), sending MIDI
-notes (on in a new project) and the theme (tape deck, blueprint or b/w). The page also shows where the tempo comes from (LOOM-8, or a MIDI clock coming
+notes (on to start with) and the theme (tape deck, blueprint or b/w). The page also shows where the tempo comes from (LOOM-8, or a MIDI clock coming
 in), the USB audio level, the autosave, Bluetooth audio and the Bluetooth MIDI device (see Bluetooth below). The
-version is on the next page, Debug. **GLO**'s **SEL** list sets BT MIDI, MIDI DEVICE, BT AUDIO, AUDIO DEVICE, the USB audio level, USB
-PORT, LOOP THROWS, AUTOSAVE, CC OUT and SCENES OUT. On every page, the header shows the scene playing ("S3") before the
+version is on the next page, Debug. **SEL** on Setup has the FM-1's own settings, in three groups: Bluetooth (BT
+MIDI, MIDI DEVICE, BT AUDIO, AUDIO DEVICE), USB and MIDI (the USB audio level, USB PORT, CLOCK, NOTES, CC OUT,
+SCENES OUT), and LOOM-8 (LIGHTS, THEME, AUTOSAVE, LOOP THROWS). The theme belongs to the FM-1, not the project:
+loading a project keeps it. So do all of Setup's settings: they belong to the FM-1, and every project you load
+or start keeps them as you left them. On every page, the header shows the scene playing ("S3") before the
 tempo. You'll find the projects on **HOME**'s **SEL** list and the count-in on **REC**'s knobs.
 
 **LFO** (after Master out) is the shared LFO. The project has one, and it moves the tracks you give it, so a
@@ -1140,7 +1164,7 @@ mix breathes to a beat nobody hears. At 0 (where a new project starts) it is off
   across the beat; short ones only nick the kick's tail.
 - **accent**: when on, each hit pumps by its velocity (a soft hit about half as deep as a full one). When off,
   every hit pumps fully.
-- **level**: the output level, which is the drive into the limiter (100 is unity).
+- **master level**: the output level, which is the drive into the limiter (100 is unity).
 
 This pump works on the whole mix. A track's own pump LFO (above) still ducks just that track, for a bass that
 gets out of the kick's way while the rest plays on.
@@ -1155,8 +1179,8 @@ off, on, or the MIDI device connected. Press **SEL** on Setup: the list opens on
 in two pairs.
 
 - **BT MIDI**: on or off. Turn **ALGORITHM**, or press **SEL**. Off, the FM-1 stops showing up as a Bluetooth MIDI
-  device and lets go of any computer, phone or MIDI device connected. Bluetooth audio keeps working. It is on in a new
-  project.
+  device and lets go of any computer, phone or MIDI device connected. Bluetooth audio keeps working. It is on to start
+  with.
 - **MIDI DEVICE**: the MIDI device connected, "choose", or "BT MIDI off". Press **SEL** to choose one. While BT MIDI
   is off, turn it on first.
 - **BT AUDIO**: on or off. Turn **ALGORITHM**, or press **SEL**. On connects the device you used last.
@@ -1203,7 +1227,7 @@ send the clock about 75 ms early to line LOOM-8 up with it. Notes and CCs play a
 
 **Clock.** Setup's **CLOCK** knob decides who keeps time:
 
-- **receive** (a new project's setting): LOOM-8 follows a MIDI clock coming in, and its Start, Continue and Stop,
+- **receive** (the setting to start with): LOOM-8 follows a MIDI clock coming in, and its Start, Continue and Stop,
   and sends no clock. With no clock coming in, it plays at its own tempo; half a second after a clock stops, it
   goes back to its own tempo.
 - **send**: LOOM-8 keeps time and sends its clock, with Start, Continue and Stop, over USB and Bluetooth. It
@@ -1218,7 +1242,7 @@ throws track is selected, the last instrument track you had). LOOM-8 never sends
 do nothing.
 
 **USB keyboards and synths.** LOOM-8 can host a USB MIDI keyboard, controller or synth itself, with no
-computer around. On **GLO**'s **SEL** list (Setup), set USB PORT to **MIDI host**, then plug the device in through
+computer around. On Setup's **SEL** list (**GLO**), set USB PORT to **MIDI host**, then plug the device in through
 a powered USB hub or a powered USB-C adapter: the FM-1 gives its USB port no power. One device at a time, directly
 or behind one hub. Its notes and CCs play LOOM-8 as a computer's would (by channel, as above), and what LOOM-8 sends
 (the tracks' MIDI OUT, the midi engine, the clock on send) goes to it, so LOOM-8 can play a hardware synth. The
@@ -1231,7 +1255,7 @@ The TRS jack is MIDI in. Everything that comes in over USB works from it too (no
 MIDI clock with start and stop), except SysEx. The FM-1 has no MIDI out jack, so LOOM-8 sends only over USB and
 Bluetooth.
 
-Each track's **SEL** list on its sound pages has MIDI OUT. With it on, the track's notes go out on its own
+Each track's **SEL** list on **EDIT** has MIDI OUT. With it on, the track's notes go out on its own
 channel, as long as Setup's NOTES is on too. MIDI OUT is on in a new project, and a project from an older version
 that had a MIDI channel number set opens with MIDI OUT on.
 
@@ -1278,12 +1302,12 @@ automation.
 To pick scenes 1 to 32 over MIDI, send Program Change 0 to 31 on channel 11, or notes 36 to 67 (C1 up) on that
 channel. This works like Arrange's white keys, and SCENES SWITCH decides when the change happens.
 
-CC OUT is in **GLO**'s **SEL** list and is on in a new project. With it on, turning a mapped knob or **SEL** row
+CC OUT is in Setup's **SEL** list (**GLO**) and is on to start with. With it on, turning a mapped knob or **SEL** row
 by hand sends its CC on its channel, if the track's MIDI OUT is on (FX and the master always send). LOOM-8 never
 sends back what comes in, and it never sends locks, automation, presets or a kit's 91 / 93 (each sound's own send
 is a separate parameter, and unmapped).
 
-SCENES OUT comes after CC OUT in **GLO**'s **SEL** list and is off in a new project. With it on, changing the
+SCENES OUT comes after CC OUT in Setup's **SEL** list and is off to start with. With it on, changing the
 scene on LOOM-8, or by loading a project, sends that scene's Program Change on channel 11. A scene change that
 came in over MIDI isn't sent back.
 
@@ -1296,7 +1320,7 @@ says "unsaved" and **SAVE** lights. Press **SAVE** to save at once.
 To save to another slot, hold **SAVE** and press white key 1 to 3, or use SAVE TO on **HOME**'s **SEL** list and
 turn **ALGORITHM** to the slot. LOOM-8 asks first if the slot holds another project. NEW PROJECT starts in the
 first empty slot. If all three are taken, it has no slot and waits for SAVE TO before it saves. To save only when
-you press **SAVE**, set AUTOSAVE to off in **GLO**'s **SEL** list (Setup shows it). A new project keeps that
+you press **SAVE**, set AUTOSAVE to off in Setup's **SEL** list (**GLO**). Every project keeps that
 choice.
 
 A new project starts with a band picked at random from the factory presets: the kit on T1, then on T2 to T8 a bass

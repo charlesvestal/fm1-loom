@@ -10,7 +10,7 @@ expect page Engine
 param 1 level 90
 # Nylon: the x models (x kick, x clap, x tom)
 tap SEL
-turn SELECT 2
+row KIT
 turn ALGO 1
 tap SEL
 wait 40
@@ -23,20 +23,20 @@ expect par1.level 90
 expect par1.engine 8
 # into K1 (empty: no question)
 tap SEL
-turn SELECT 3
+row SAVE KIT
 tap SEL
 wait 40
 said KIT SAVED
 expect ask 0
 # Loom, then K1 back
 tap SEL
-turn SELECT 2
+row KIT
 turn ALGO -1
 tap SEL
 wait 40
 expect par1.d1.model 0
 tap SEL
-turn SELECT 2
+row KIT
 turn ALGO -8
 tap SEL
 wait 40
@@ -48,7 +48,7 @@ wait 300
 expect par1.d1.model 0
 tap EDIT
 tap SEL
-turn SELECT 2
+row KIT
 turn ALGO -8
 tap SEL
 wait 40
@@ -56,7 +56,7 @@ expect par1.d1.model 11
 # changed and saved over K1: asked first
 param 1 d1.model 0
 tap SEL
-turn SELECT 3
+row SAVE KIT
 tap SEL
 wait 40
 expect ask 1
@@ -76,7 +76,7 @@ expect restore_rc 0
 wait 300
 tap EDIT
 tap SEL
-turn SELECT 3
+row SAVE KIT
 wait 300
 said K1 (empty)
 tap SEL

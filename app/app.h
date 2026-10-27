@@ -182,6 +182,8 @@ int kit_save(int slot, const uint8_t *img);   /* 0 = saved (the user presets wit
 extern uint8_t proj_slot;               /* the slot loaded */
 
 void project_defaults(void);
+void project_device_get(void);         /* the FM-1's own settings (Setup's, the theme) noted, and put back */
+void project_device_put(void);         /* into proj: a project loaded keeps them */
 void project_random_sounds(uint32_t seed);   /* T2-T8: a random preset each of a part (bass, poly, pad, lead, keys, fx, pluck) */
 int project_mem_pct(void);              /* how full the patterns' room in flash is, % (the last save or load) */
 int project_load(int slot);             /* 0 = loaded; else defaults are in place */
