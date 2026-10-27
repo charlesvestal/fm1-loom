@@ -274,11 +274,18 @@ squares on the right are the bars. **OCT−** and **OCT+** show the previous or 
   track its notes move by semitones, a chord all together. On a drum track the step's hits play up to 24 semitones
   from their key's pitch. This is the step's own note, separate from the key's pitch knob and its locks. **OCT−**
   and **OCT+** nudge the step earlier or later.
-- **Hold a step and press a later white key** to stretch its note to that step. **KNOB 2** takes it further, up
+- **Hold a step and tap a later white key** to stretch its note to that step (the length is set when you let
+  go of that key). **KNOB 2** takes it further, up
   to the pattern's whole length: in quarter steps up to 16 steps, then in whole steps. A note held past the end of
   the pattern wraps around to the start. The bar under the cells shows how far the note reaches, with an arrow
   where it carries on into another bar or comes in from one.
-- **Hold a step and press a black key** on a drum track to put that sound on the step, or take it off.
+- **Hold several steps** to edit them all at once: hold one, then press the others. Turn a knob, press a black
+  key, or open a lock page or the tricks, and every held step changes. Each knob moves each step from its own
+  value; the knob strip shows the first step's. Holding two steps and letting go without editing anything is the
+  stretch above, so to edit a pair, turn a knob before you let go. A step earlier than the first, or a third
+  step, is always added to the steps held.
+- **Hold a step and press a black key** on a drum track to put that sound on the step, or take it off (on
+  several steps held: on all of them, or off all of them).
 - **Hold a step and press SEL** for a list of its notes. Pick one and press **SEL** to remove it. The list also
   has COPY STEP. Then hold another step (or several), and its list has PASTE STEP, which pastes the notes and
   locks, and PASTE LOCKS ONLY, which pastes just the locks onto the notes already there.
@@ -1356,7 +1363,7 @@ On a sound page, hold **SAVE** and press white key 1 to 16 to keep the track's s
 | HOME | Arrange | tempo | groove | amount | the track's pattern | white: scenes (OCT: 17 to 32), black: mutes (hold a kit's: white 1-11 are its sounds); SEL: load, save to, new project, randomize presets, the song, when scenes switch |
 | HOME, SELECT | Song | slot | scene | bars | at end | white: add a scene (OCT: 17 to 32) |
 | SEQ | Steps | pattern | length | scale | groove | white: steps, black: sound (drums); SEQ held: a keyboard |
-| SEQ, a step held | Steps | velocity | length | chance | pitch | white: length, black: sounds |
+| SEQ, a step held | Steps | velocity | length | chance | pitch | white: length or more steps, black: sounds |
 | SEQ, a step held + ARP | Steps | trick 1 | its value | trick 2 | its value | |
 | SEQ, SELECT | Bar | quant | note | groove | shape | black: scale; SEQ held, black 1-4: jump or loop bars |
 | EDIT | Engine | the engine's four | | | | play |
