@@ -126,12 +126,19 @@ static inline void pat_loop(const tpat_t *p, int *from, int *to)
  * project's hit settings (patterns_t hit[]) for each step; none (LOCK_NONE): the step's own cond and tricks. A sound
  * with its own plays by them alone; the step's sounds without their own play by the step's, together, as before */
 #define LANE_HIT0 0xFF10u
-static inline int lane_is_note(unsigned param)   /* a lane of notes (a kit's tunes, its sounds' velocities and hit
-                                                  * settings), not locks */
+#define LANE_POOL 0xFFFDu                     /* a random track's pattern: its pitch-class pool, val[0] | val[1] << 8
+                                               * (12 bits), one lane for the whole pattern (seq.c rand_pool) */
+static inline int lane_is_step_note(unsigned param)   /* a lane of a step's notes (a kit's tunes, its sounds' velocities
+                                                       * and hit settings) */
 {
     return param == LANE_TUNE || (param >= LANE_VEL0 && param < LANE_VEL0 + 32u);
 }
 static inline int lane_is_hit(unsigned param) { return param >= LANE_HIT0 && param < LANE_HIT0 + NDRUM; }
+static inline int lane_is_pool(unsigned param) { return param == LANE_POOL; }
+static inline int lane_is_note(unsigned param)   /* a lane of notes, not locks (project keeps these) */
+{
+    return lane_is_step_note(param) || lane_is_pool(param);
+}
 #define TUNE_0 64
 #define TUNE_MAX 24
 typedef struct {
@@ -223,6 +230,9 @@ int step_tune(const lane_t *L, int trk, int pat, int step);       /* a drum step
 int step_vel(const lane_t *L, int trk, int pat, int step, int sound);   /* a kit step's sound's own velocity, 0 = none */
 /* a kit step's sound (0..10)'s own hit settings, 0 = none (it plays by the step's) */
 const hit_t *step_hit(const patterns_t *P, int trk, int pat, int step, int sound);
+uint16_t lane_pool_get(const lane_t *L, int trk, int pat);              /* a random pattern's pool mask, 0 none */
+int lane_pool_set(lane_t *L, int trk, int pat, uint16_t mask);          /* -1 = no lane free */
+extern volatile uint16_t lane_epoch;     /* bumped when a lane is allocated or freed (the ISR's pool cache) */
 void pattern_clear_locks(lane_t *L, int trk, int pat);   /* (not the kit tune lane: that is notes) */
 void cond_ab(int k, int *a, int *b);  /* COND_AB + k -> A:B */
 /* a weave: pattern a (the track's) crossed with b (WITH). weave_step: the step the weave plays at pos, the track's

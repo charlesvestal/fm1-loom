@@ -56,6 +56,8 @@ int lane_find(const lane_t *L, int trk, int pat, int param)
     return -1;
 }
 
+volatile uint16_t lane_epoch;
+
 int lane_alloc(lane_t *L, int trk, int pat, int param)
 {
     int k, i;
@@ -75,13 +77,16 @@ int lane_alloc(lane_t *L, int trk, int pat, int param)
     L[k].gen++;                       /* the interrupt sees a new generation: a fresh runtime */
     __asm__ volatile("" ::: "memory");
     L[k].used = 1;
+    lane_epoch++;
     return k;
 }
 
 void lane_clear(lane_t *L, int k)
 {
-    if (k >= 0 && k < NLANE)
+    if (k >= 0 && k < NLANE) {
         L[k].used = 0;
+        lane_epoch++;
+    }
 }
 
 int lane_count(const lane_t *L)
@@ -135,6 +140,30 @@ const hit_t *step_hit(const patterns_t *P, int trk, int pat, int step, int sound
         if (l->used && l->param == LANE_HIT0 + (unsigned)sound && l->trk == trk && l->pat == pat)
             return l->val[step] < NHIT && !hit_plain(&P->hit[l->val[step]]) ? &P->hit[l->val[step]] : 0;
     }
+    return 0;
+}
+
+/* a random pattern's pitch-class pool: val[0] the low eight bits, val[1] the top four (one lane for the
+ * pattern, not a per-step lane) */
+uint16_t lane_pool_get(const lane_t *L, int trk, int pat)
+{
+    int k = lane_find(L, trk, pat, LANE_POOL);
+    return k < 0 ? 0u : (uint16_t)(L[k].val[0] | (uint16_t)(L[k].val[1] & 0x0Fu) << 8);
+}
+
+int lane_pool_set(lane_t *L, int trk, int pat, uint16_t mask)
+{
+    int k = lane_find(L, trk, pat, LANE_POOL);
+    mask &= 0x0FFFu;
+    if (!mask) {                      /* an empty pool: no lane at all */
+        if (k >= 0)
+            lane_clear(L, k);
+        return 0;
+    }
+    if (k < 0 && (k = lane_alloc(L, trk, pat, LANE_POOL)) < 0)
+        return -1;
+    L[k].val[0] = (uint8_t)mask;
+    L[k].val[1] = (uint8_t)(mask >> 8);
     return 0;
 }
 

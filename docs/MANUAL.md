@@ -100,7 +100,7 @@ and turn **KNOB 4** (the pump) while it plays. Hold any button for a second and 
 - **Engine**: the way a track makes its sound. There are seven synths (knit, rayon, jacquard, bellows, cane, voile
   and acid), two sample engines (sample and slice) and the kit, a drum synth.
 - **Preset**: a sound to load. 93 come with LOOM-8, from seven to eighteen for each engine, and 16 are your own.
-- **Player**: what the keys do on a track: arp, strum or hold.
+- **Player**: what the keys do on a track: arp, strum, hold or random.
 - **Conductor**: the aux track that moves the other tracks through a key and scale, either from its own chords
   or from a track's notes.
 - **Throw**: a momentary effect on the drums or the melodic tracks, played from a key on FX's Throws page.
@@ -1049,7 +1049,7 @@ tape has no wow.
 
 ## Players
 
-Press **ARP**. **KNOB 1** picks the player: off, arp, strum or hold.
+Press **ARP**. **KNOB 1** picks the player: off, arp, strum, hold or random.
 
 <img src="img/screen-players.png" width="240" alt="Players: the arp at 1/16, up, one octave, with C4 E4 G4 held" title="The arp">
 
@@ -1063,6 +1063,29 @@ Press **ARP**. **KNOB 1** picks the player: off, arp, strum or hold.
   A key outside the scale plays the chord exactly as you held it, moved to that key. Roll strums the chord, up to
   one note per step.
 - **hold** keeps the notes you play until you play the next ones.
+- **random** generates each step's note from a pool of pitch classes. The steps are its active slots: tap a step to
+  switch it on, and with no step set every step plays (the slots show dim). A step's note only sets the register
+  (C4 for a plain tap): the pool gives the pitches, and the pattern's length and scale give the grid. Pick the pool
+  on Steps: hold a step and press **SEQ** (as for a chord), and the keys toggle the current pattern's notes. With no
+  pool picked, every pitch class is used. The pool is per pattern. A dot under a key marks a note your follow mode
+  allows: the conductor's scale, or the chord tones for **harmony** and **chord deg**. A track that follows the
+  conductor still harmonises its generated notes. The player's parameters are spread over three pages:
+  - **note %** is the chance a step sounds.
+  - **pitch %** is the chance the pitches re-roll when a generator cycle ends. At 0 % the phrase repeats exactly, at
+    100 % it changes every cycle.
+  - **rhythm %** is the same for the rhythm: which steps sound, and their timing, velocity and length.
+  - **time %** is the chance a step comes late, by a random amount up to half a step. At 0 % every step is on the
+    grid, at 100 % every step is late, by anything from nothing to half a step.
+  - **length** is the generator cycle, in steps (1 to 64). It counts the track's steps, so it need not match the
+    pattern. With pitch % and rhythm % at 0 %, 16 steps and a length of 32 make a phrase that takes two passes
+    through the pattern before it repeats, and 32 steps and a length of 16 play the same phrase twice in one pass.
+  - **vel %** is the chance a step's velocity changes, to anything from half to one and a half times its own.
+  - **gate %** is the chance a step's note length changes, to anything from a tenth to twice its own.
+  - **octave** is how far a note may stray from the step's own octave: how many octaves below and above it, up to
+    three each way. In the middle it reads **0** and every note stays in the step's octave. Turn it right to allow
+    octaves above (**0/+1** to **0/+3**), left to allow octaves below (**-1/0** to **-3/0**); further out it widens
+    the other side too, and **-1/+1** spreads over three octaves around the step's. A step's own octave is its note's
+    (hold **SEQ** and press **OCT-** or **OCT+** to move a pattern's notes), and C4 for a step with no note set.
 
 The arp and the strum play the track's steps too. A step's notes are arpeggiated for as long as the step lasts
 (give it a longer **LENGTH** for more notes), together with any keys you hold. A step with a chord is strummed in
@@ -1493,7 +1516,7 @@ On a sound page, hold **SAVE** and press white key 1 to 16 to keep the track's s
 | FX, SELECT four times | Throws | latch | | | | low: drum throws, high: melodic throws |
 | LFO | LFO | type | the type's three | | | play |
 | LFO, SELECT | LFO 2 | the type's fourth and fifth | | | | play |
-| ARP | Players | player | its first | its second | its third | play, through the player |
+| ARP | Players | player | its first | its second | its third | play, through the player (random: Players 2 its randomization, Players 3 the octave) |
 | ARP, SELECT | Players 2, Hold | the arp's length, style, glide, stereo; hold | | | | play |
 | ARP, SELECT (last) | Weave | with | pattern | rule | plays | black: the track woven in, white: its pattern; SEL: KEEP AS PATTERN |
 | GLO | Mix | FX I | FX II | pan | level | black: tap to mute, hold to solo (several together) |

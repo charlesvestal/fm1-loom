@@ -287,11 +287,18 @@ def render(md):
         if m:
             flush()
             ordered = m.group(2)[0].isdigit()
-            items = []
+            items, subs = [], []                                 # (a "  - " bullet under an item is a sub-bullet)
             while i < len(lines):
                 m = re.match(r"^(\s*)([-*]|\d+\.)\s+(.*)", lines[i])
                 if m and len(m.group(1)) == 0:
                     items.append(m.group(3))
+                    subs.append([])
+                    i += 1
+                elif m and items and len(m.group(1)) == 2 and not ordered:
+                    subs[-1].append(m.group(3))
+                    i += 1
+                elif lines[i].startswith("    ") and subs and subs[-1] and lines[i].strip():
+                    subs[-1][-1] += " " + lines[i].strip()
                     i += 1
                 elif lines[i].startswith("  ") and items and lines[i].strip():
                     items[-1] += " " + lines[i].strip()
@@ -305,9 +312,10 @@ def render(md):
             cls = ' class="toc"' if toc else (' class="steps"' if ordered else "")
             tag = "ol" if ordered else "ul"
             lis = []
-            for it in items:
+            for it, sub in zip(items, subs):
                 text, shots = figures(it)
-                lis.append(f"<li>{inline(text)}{shots}</li>")
+                more = "<ul>" + "".join(f"<li>{inline(x)}</li>" for x in sub) + "</ul>" if sub else ""
+                lis.append(f"<li>{inline(text)}{shots}{more}</li>")
             out.append(f"<{tag}{cls}>" + "".join(lis) + f"</{tag}>")
             continue
         if not ln.strip():

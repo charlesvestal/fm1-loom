@@ -225,6 +225,13 @@ static void set_tp(int trk, int p, int v)
         }
     } else
         engine_set(trk, p, v);
+    if (p == TP_PLAYER && !is_aux(trk) && !is_drum(trk) && v == PL_RAND) {
+        static const uint8_t SD[8] = {64, 32, 32, RAND_OCT_CENTRE, 0, 16, 0, 0};   /* note, pitch, rhythm, octave, time, length, vel, gate */
+        for (int i = 0; i < 8; i++) {                                /* a new random track makes a phrase at once */
+            par[TP_P1 + i] = SD[i];
+            engine_set(trk, TP_P1 + i, SD[i]);
+        }
+    }
     if (is_aux(trk))
         apply_aux(trk);
     if (p == TP_BRAIN)
@@ -720,7 +727,8 @@ static void step_toggle(int i)
                 return;
             }
             one = ui.rem_fx;
-        }
+        } else if (pl_type(trk) == PL_RAND)
+            one = ui.nrem ? ui.rem[0] : 60;      /* (a random slot's note only sets its register: the pitch is drawn) */
         if (one)
             step_set_notes(st, &one, 1, 100);
         else
@@ -1082,6 +1090,20 @@ static void step_chord_key_up(void)
 {
     if (ui.chord_down)
         ui.chord_down--;
+}
+
+/* the random pool picker's key: a pitch class of the current pattern's pool (pattern.h LANE_POOL) */
+static void pool_toggle(int trk, int pat, int pc)
+{
+    uint16_t m;
+    if (!is_seqt(trk) || is_drum(trk))
+        return;
+    m = lane_pool_get(pats.lane, trk, pat) ^ (uint16_t)(1u << pc);
+    undo_pat(trk, pat, UNDO_RUN_MS);
+    if (lane_pool_set(pats.lane, trk, pat, m) < 0)
+        say_no("NO LANE LEFT", "clear locks first");
+    else
+        mark_dirty();
 }
 
 /* ------------------------------------------------------------- keys --- */
@@ -1509,7 +1531,10 @@ static void key_down(int k)
             ui.kmode[k] = KM_STEPCHORD;
             ui.knote[k] = (uint8_t)note;
             engine_key(trk, note, 1, 127);
-            step_chord_key(note);
+            if (ui.chord_pool)
+                pool_toggle(trk, ui.chord_pat % NPATT, note % 12);
+            else
+                step_chord_key(note);
             return;
         }
         if ((ui.btn >> B_SEQ & 1u) || ui.rec_armed || seq.rec || seq.rec_wait) {   /* a keyboard: SEQ held, recording */
@@ -1654,7 +1679,8 @@ static void key_up(int k)
         break;
     case KM_STEPCHORD:
         engine_key(trk, ui.knote[k], 0, 0);
-        step_chord_key_up();
+        if (!ui.chord_pool)
+            step_chord_key_up();
         break;
     case KM_STEP: {
         int w = ordinal(WHITE_K, 16, k);
@@ -2675,7 +2701,8 @@ static int paste_steps(int trk, int pt, int at, int from, int n, int locks_only)
     int ok = 1;
     for (int k = 0; k < NLANE; k++) {
         lane_t *l = &pats.lane[k];
-        if (l->used && l->trk == trk && l->pat == pt && !(locks_only && lane_is_note(l->param)))
+        if (l->used && l->trk == trk && l->pat == pt && !lane_is_pool(l->param) &&
+            !(locks_only && lane_is_note(l->param)))
             for (int i = 0; i < n && at + i < NSTEP; i++)
                 if (!(clip_trk == trk && clip_pat == pt && at + i >= from && at + i < from + n))
                     l->val[at + i] = LOCK_NONE;
@@ -2683,7 +2710,8 @@ static int paste_steps(int trk, int pt, int at, int from, int n, int locks_only)
     for (int k = 0; k < NLANE; k++) {
         const lane_t *l = &pats.lane[k];
         int d;
-        if (!l->used || l->trk != clip_trk || l->pat != clip_pat || (locks_only && lane_is_note(l->param)))
+        if (!l->used || l->trk != clip_trk || l->pat != clip_pat || lane_is_pool(l->param) ||
+            (locks_only && lane_is_note(l->param)))
             continue;
         d = lane_alloc(pats.lane, trk, pt, l->param);
         if (d < 0) {
@@ -2747,7 +2775,7 @@ static void act_rotate(int d)
         tp->st[n - 1] = keep;
     }
     for (int l = 0; l < NLANE; l++)
-        if (pats.lane[l].used && pats.lane[l].trk == trk && pats.lane[l].pat == pt) {
+        if (pats.lane[l].used && pats.lane[l].trk == trk && pats.lane[l].pat == pt && !lane_is_pool(pats.lane[l].param)) {
             uint8_t *v = pats.lane[l].val, k;
             if (d > 0) {
                 k = v[n - 1];
@@ -2872,7 +2900,7 @@ static void act_clear_bar(void)
         tp->st[i].vel = 100;
     }
     for (int k = 0; k < NLANE; k++)
-        if (pats.lane[k].used && pats.lane[k].trk == trk && pats.lane[k].pat == pt)
+        if (pats.lane[k].used && pats.lane[k].trk == trk && pats.lane[k].pat == pt && !lane_is_pool(pats.lane[k].param))
             for (int i = b * 16; i < b * 16 + 16; i++)
                 pats.lane[k].val[i] = LOCK_NONE;
     mark_dirty();
@@ -2965,7 +2993,7 @@ static void act_double(void)                     /* the pattern twice as long, p
     for (int i = 0; i < n; i++)
         tp->st[n + i] = tp->st[i];
     for (int k = 0; k < NLANE; k++)
-        if (pats.lane[k].used && pats.lane[k].trk == trk && pats.lane[k].pat == pt)
+        if (pats.lane[k].used && pats.lane[k].trk == trk && pats.lane[k].pat == pt && !lane_is_pool(pats.lane[k].param))
             for (int i = 0; i < n; i++)
                 pats.lane[k].val[n + i] = pats.lane[k].val[i];
     tp->len = (uint8_t)(n * 2);
@@ -3792,10 +3820,13 @@ static void input(void)
                     ui.chord_held = ui.held;
                     ui.chord_bar = ui.bar;
                     ui.chord_pat = (uint8_t)cur_pat(sel_trk());
+                    ui.chord_pool = (uint8_t)(pl_type(sel_trk()) == PL_RAND);
                 }
                 ui.chordmode = (uint8_t)!ui.chordmode;
+                if (!ui.chordmode)
+                    ui.chord_pool = 0;
                 ui.chord_down = 0;
-                say("CHORD", ui.chordmode ? "on" : "off");
+                say(ui.chord_pool ? "POOL" : "CHORD", ui.chordmode ? "on" : "off");
                 ui.held_used = 1;
                 ui.touched = -1;
                 ui.btn_used |= m;
@@ -4652,9 +4683,12 @@ void ui_frame(void)
 {
     input();
     bt_poll();
-    if (ui.chordmode && (ui.page != P_STEPS || !is_seqt(sel_trk()) || is_drum(sel_trk())))
+    if (ui.chordmode && (ui.page != P_STEPS || !is_seqt(sel_trk()) || is_drum(sel_trk()) ||
+                         (pl_type(sel_trk()) == PL_RAND) != ui.chord_pool)) {
         ui.chordmode = 0;                        /* (chord mode lives on a melodic track's Steps page only: any way off
                                                   * it, SELECT to Bar, an engine turned kit, ends it) */
+        ui.chord_pool = 0;
+    }
     if (playing() != ui.playing) {
         ui.playing = (uint8_t)playing();
         if (!ui.playing)
