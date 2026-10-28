@@ -35,10 +35,13 @@ a { color: var(--accent); }
 .lit .btnface { fill: #e6b432; }
 .lit text.btn { fill: #18120e; }
 .held .btnface, .held .keyface { stroke: #e6b432; stroke-width: 3; }
-.latched .btnface { stroke: #6fc3ff; stroke-width: 3; }
+.latched .btnface, .latched .keyface { stroke: #6fc3ff; stroke-width: 3; }
 .keyface { transition: fill .06s; }
 .lit .keyface.white { fill: #f0d58a; }
 .lit .keyface.black { fill: #46aaa0; }
+.dim .btnface { fill: #6b5a2e; }                /* the dim lights: set steps, the buttons' glow */
+.dim .keyface.white { fill: #e4d8b4; }
+.dim .keyface.black { fill: #8fbdb7; }
 .start { position: absolute; inset: 0; display: grid; place-items: center; background: rgba(10, 11, 13, .55); border-radius: 4.4% / 6.9%; }
 .start button { font: 600 1.25rem "Barlow Semi Condensed", "Barlow", sans-serif; letter-spacing: .04em; padding: .7em 1.6em;
                 border-radius: 999px; border: 0; background: #e6b432; color: #18120e; cursor: pointer; }
@@ -95,15 +98,15 @@ kbd { font: 600 .85em ui-monospace, Menlo, monospace; background: var(--card); b
     <ul>
       <li>Drag a knob up or down, or use the scroll wheel over it.</li>
       <li>Click or touch buttons and keys. Several fingers at once work on a touch screen.</li>
-      <li>Combinations with a mouse: <kbd>Shift</kbd>-click (or right-click) a button to hold it down, click again to let go.</li>
+      <li>Combinations with a mouse: <kbd>Shift</kbd>-click (or right-click) a button or key to hold it down, click again to let go. A step held this way takes its locks from the knobs.</li>
     </ul>
   </div>
   <div>
     <h2>Keyboard</h2>
     <ul>
       <li>White keys 1–8: <kbd>Q</kbd>–<kbd>I</kbd>, 9–16: <kbd>A</kbd>–<kbd>K</kbd>. Black keys 1–11: <kbd>1</kbd>–<kbd>0</kbd>, <kbd>-</kbd>.</li>
-      <li>Hold <kbd>Shift</kbd> for HOME (the shift key), <kbd>/</kbd> for SEQ (held: play the notes a step will take).</li>
-      <li><kbd>Space</kbd> PLAY, <kbd>Enter</kbd> REC, <kbd>Esc</kbd> HOME, <kbd>Z</kbd> / <kbd>X</kbd> OCT− / OCT+.</li>
+      <li>Hold <kbd>Esc</kbd> for HOME (the shift key), <kbd>/</kbd> for SEQ (held: play the notes a step will take).</li>
+      <li><kbd>Space</kbd> PLAY, <kbd>Enter</kbd> REC, <kbd>Z</kbd> / <kbd>X</kbd> OCT− / OCT+.</li>
       <li><kbd>↑</kbd> <kbd>↓</kbd> turn SELECT.</li>
     </ul>
   </div>
@@ -226,7 +229,7 @@ for (const b of Object.values(buttons)) hit(b);
 keys.forEach((k) => hit(k));
 
 // ---------------------------------------------------------------- state and input
-let node = null, btnMask = 0, keyMask = 0, latched = 0, master = 2800;
+let node = null, btnMask = 0, keyMask = 0, latched = 0, keyLatched = 0, master = 2800;   // latched: held until clicked again
 const btnHeldBy = new Map(), keyHeldBy = new Map();      // pointer / key id -> bit
 function send(m) { if (node) node.port.postMessage(m); }
 function syncButtons() {
@@ -241,10 +244,13 @@ function syncButtons() {
   }
 }
 function syncKeys() {
-  let m = 0;
+  let m = keyLatched;
   for (const k of keyHeldBy.values()) m |= 1 << k;
   if (m !== keyMask) { keyMask = m; send({ type: "keys", mask: m }); }
-  keys.forEach((k, i) => k.g.classList.toggle("held", !!(m & (1 << i))));
+  keys.forEach((k, i) => {
+    k.g.classList.toggle("held", !!(m & (1 << i)));
+    k.g.classList.toggle("latched", !!(keyLatched & (1 << i)));
+  });
 }
 
 for (const b of Object.values(buttons)) {
@@ -259,8 +265,12 @@ for (const b of Object.values(buttons)) {
   });
 }
 keys.forEach((k, i) => {
+  k.hit.addEventListener("contextmenu", (e) => e.preventDefault());
   k.hit.addEventListener("pointerdown", (e) => {
     e.preventDefault();
+    // Shift-click or right-click holds a key down until it is clicked again: a step held for its locks, chords
+    if (e.shiftKey || e.button === 2) { keyLatched ^= 1 << i; syncKeys(); return; }
+    if (keyLatched & (1 << i)) { keyLatched &= ~(1 << i); syncKeys(); return; }
     k.hit.setPointerCapture(e.pointerId);
     keyHeldBy.set("p" + e.pointerId, i);
     syncKeys();
@@ -340,7 +350,7 @@ const KEYMAP = {};
 "asdfghjk".split("").forEach((c, i) => KEYMAP["Key" + c.toUpperCase()] = { key: WHITE_K[8 + i] });
 "1234567890".split("").forEach((c, i) => KEYMAP["Digit" + c] = { key: BLACK_K[i] });
 KEYMAP.Minus = { key: BLACK_K[10] };
-Object.assign(KEYMAP, { Space: { btn: BTN.PLAY }, Enter: { btn: BTN.REC }, ShiftLeft: { btn: BTN.HOME }, ShiftRight: { btn: BTN.HOME }, Slash: { btn: BTN.SEQ },
+Object.assign(KEYMAP, { Space: { btn: BTN.PLAY }, Enter: { btn: BTN.REC }, Slash: { btn: BTN.SEQ },
                         Escape: { btn: BTN.HOME }, KeyZ: { btn: BTN["OCT-"] }, KeyX: { btn: BTN["OCT+"] } });
 addEventListener("keydown", (e) => {
   if (!node || e.metaKey || e.ctrlKey || e.altKey) return;
@@ -377,9 +387,15 @@ function drawScreen(fb) {
   }
   ctx.putImageData(img, 0, 0);
 }
-function drawLights(b, k) {
-  for (const x of Object.values(buttons)) x.g.classList.toggle("lit", !!(b & (1 << x.bit)));
-  keys.forEach((x, i) => x.g.classList.toggle("lit", !!(k & (1 << i))));
+function drawLights(b, k, db, dk) {
+  for (const x of Object.values(buttons)) {
+    x.g.classList.toggle("lit", !!(b & (1 << x.bit)));
+    x.g.classList.toggle("dim", !!(db & ~b & (1 << x.bit)));
+  }
+  keys.forEach((x, i) => {
+    x.g.classList.toggle("lit", !!(k & (1 << i)));
+    x.g.classList.toggle("dim", !!(dk & ~k & (1 << i)));
+  });
 }
 
 // ---------------------------------------------------------------- storage
@@ -416,7 +432,7 @@ async function switchOn() {
         if (m.type === "ready") res();
         else if (m.type === "frame") {
           if (m.fb) drawScreen(m.fb);
-          drawLights(m.buttons, m.keys);
+          drawLights(m.buttons, m.keys, m.dimButtons, m.dimKeys);
           window.xyLast = m;
           if (m.load !== undefined) cpu.textContent = `LOOM-8 uses ${m.load}% of this computer's time`;
           if (m.store) saveStore(m.store);
