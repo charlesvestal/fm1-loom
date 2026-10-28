@@ -1,0 +1,65 @@
+# random: eight knobs, a per-pattern note pool picked on the piano, in-scale dots; steps as active slots; no format bump
+wait 300
+turn ALGO 1
+expect trk 2
+knob 2 player rand
+expect par2.player 4
+tap ARP
+expect page Players
+shot random_players.png
+turn SELECT 1
+expect page Players_2
+shot random_players2.png
+turn SELECT 1
+expect page Players_3
+# the octave knob at 0/+2: the step's own octave and up to two above (the knob's value 14: right of the centre, 12)
+knob 2 p4 14
+expect par2.p4 14
+wait 40
+shot random_players3.png
+# the pool picker: hold a step, SEQ; the keys toggle C and E
+tap SEQ
+key w0 down
+tap SEQ
+key w0 up
+tapkey w4
+tapkey w6
+expect pool 2 1 0x11
+shot random_pool.png
+tap SEQ
+# the follow mode's notes are dotted under their keys, whether or not the pool holds them (C major here)
+knob 2 brain diatonic
+tap SEQ
+key w0 down
+tap SEQ
+key w0 up
+shot random_pool_dots.png
+tap SEQ
+# harmony: the dots shrink to the conductor's chord (D minor: D F A), held on its keys
+knob 2 brain harmony
+play 9 62 on
+play 9 65 on
+play 9 69 on
+tap SEQ
+key w0 down
+tap SEQ
+key w0 up
+shot random_pool_chord.png
+tap SEQ
+play 9 62 off
+play 9 65 off
+play 9 69 off
+knob 2 brain diatonic
+# steps as active slots: tap two on (with none set, every step plays)
+tapkey w0
+tapkey w2
+shot random_slots.png
+# play a phrase and save it (the pool lives in a lane: no project format change)
+tap PLAY
+wait 1200
+shot random_playing.png
+tap PLAY
+projsave 1
+reboot
+wait 400
+expect pool 2 1 0x11
