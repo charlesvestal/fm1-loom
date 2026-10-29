@@ -748,33 +748,6 @@ static void fire_notes(seq_t *s, int t, const step_t *st, int p, uint32_t L, int
         len_q8 = L / 100u * (tp->nlen > 100 ? 100u : tp->nlen);
     if (tr->flam_gap && !ratchet && len_q8 > L / 32u * tr->flam_gap)
         len_q8 = L / 32u * tr->flam_gap;
-    if (is_drum(s, t)) {
-        int semi = step_tune(s->P->lane, t, s->ppat[t], p);
-        if (act[SC_HOLD])             /* (a gated sound rings over the steps it covers) */
-            len_q8 = len_q8 > L * (tr->stall + 1u) ? len_q8 : L * (tr->stall + 1u);
-        if (act[SC_MULTIPLY] && tr->ratchets > 1 && len_q8 > L / tr->ratchets)
-            len_q8 = L / tr->ratchets;
-        int8_t vl[NDRUM];             /* the sounds' own velocity lanes (-1 none), found in one pass */
-        int base = st->vel ? st->vel : 100;
-        for (i = 0; i < NDRUM; i++)
-            vl[i] = -1;
-        if (!lane_masks_ok)
-            lane_masks_make(s);
-        for (i = lane_next(t, 0); i >= 0; i = lane_next(t, i + 1)) {   /* (the track's lanes: lane_mask) */
-            const lane_t *l = &s->P->lane[i];
-            if (l->used && l->trk == t && l->pat == s->ppat[t] && l->param >= LANE_VEL0 && l->param < LANE_VEL0 + NDRUM)
-                vl[l->param - LANE_VEL0] = (int8_t)i;
-        }
-        tr->last_vel = (uint8_t)vel;
-        for (i = 1; i <= NDRUM; i++)
-            if (kit_has(st, i) && !(tr->skip_pos == p && (tr->skip_kit >> (i - 1) & 1u))) {
-                int own = vl[i - 1] >= 0 ? s->P->lane[vl[i - 1]].val[p] : LOCK_NONE, v = vel;
-                if (own != LOCK_NONE)         /* its own velocity: the step's groove, tricks and echo scale it alike */
-                    v = vel * own / base;
-                emit_drum(s, t, i - 1, v < 1 ? 1 : v > 127 ? 127 : v, semi, TAG_STEP | (uint32_t)(ratchet * 1024), len_q8, o);
-            }
-        return;
-    }
     if (fx_on(s, t, PX_CHOP))
         len_q8 = L / 4u;
     else if (fx_on(s, t, PX_RING))
@@ -866,11 +839,10 @@ static void fire_aux(seq_t *s, int t, const step_t *st, int p, uint32_t L, const
     }
 }
 
-/* the step's condition: does it play on this pass? */
-static int cond_plays(seq_t *s, int t, const step_t *st)
+/* a step's (or a kit hit's) condition c: does it play on this pass? */
+static int cond_plays(seq_t *s, int t, int c)
 {
     seq_trk_t *tr = &s->t[t];
-    int c = st->cond;
     if (c > 0 && c < COND_AB) {
         if (rng_next(&tr->rng) % 100u >= (uint32_t)c)
             return 0;
@@ -898,19 +870,14 @@ static int skip_plays(seq_t *s, int t, int v)
     }
 }
 
-/* the components in force on a fresh step: tr->act[SC_x] = value + 1; the skips are applied here (SC_SKIP_COMP
- * gates the step's other component), their own verdicts come back as flags */
-static void resolve_comps(seq_t *s, int t, const step_t *st, int *trig_ok, int *lock_ok)
+/* the components in force on a fresh step (or a kit hit: c0 / v0, c1 / v1): act[SC_x] = value + 1; the skips are
+ * applied here (SC_SKIP_COMP gates the other component), their own verdicts come back as flags */
+static void resolve_set(seq_t *s, int t, int c0, int v0, int c1, int v1, uint8_t *act, int *trig_ok, int *lock_ok)
 {
-    seq_trk_t *tr = &s->t[t];
-    int k, c[2], v[2], other_ok[2] = {1, 1};
-    c[0] = st->comp;
-    v[0] = st->cval;
-    c[1] = st->comp2;
-    v[1] = st->cval2;
+    int k, c[2] = {c0, c1}, v[2] = {v0, v1}, other_ok[2] = {1, 1};
     *trig_ok = *lock_ok = 1;
     for (k = 0; k < NSC; k++)
-        tr->act[k] = 0;
+        act[k] = 0;
     for (k = 0; k < 2; k++) {
         if (c[k] == SC_SKIP)
             *trig_ok &= skip_plays(s, t, v[k]);
@@ -921,7 +888,11 @@ static void resolve_comps(seq_t *s, int t, const step_t *st, int *trig_ok, int *
     }
     for (k = 0; k < 2; k++)
         if (c[k] > SC_NONE && !sc_is_skip(c[k]) && c[k] < NSC && other_ok[k])
-            tr->act[c[k]] = (uint8_t)(v[k] + 1);
+            act[c[k]] = (uint8_t)(v[k] + 1);
+}
+static void resolve_comps(seq_t *s, int t, const step_t *st, int *trig_ok, int *lock_ok)
+{
+    resolve_set(s, t, st->comp, st->cval, st->comp2, st->cval2, s->t[t].act, trig_ok, lock_ok);
 }
 
 /* ramps and random: the degree offset for this pass. N = 2..6 iterations spread evenly over an octave (values
@@ -1226,6 +1197,17 @@ static void origins_zero(seq_t *s)                       /* the transport (re)st
         s->t[t].origin_h8 = 0;
 }
 
+static void kit_rt_clear(seq_t *s, int t)    /* no pulse, hold or ratchet running (a stop, a reset) */
+{
+    if (t >= NTRK)
+        return;
+    for (int i = 0; i < NDRUM; i++) {
+        s->krt[t][i].stall = 0;
+        s->krt[t][i].n = 0;
+        s->krt[t][i].flam = 0;
+    }
+    s->ksub[t] = 0;
+}
 /* the scale or the length changed under a running track: put it where it would be had it always run so since
  * its step 1. On that grid now: that step plays now; between two of its steps: the next one, on time. */
 static void resync(seq_t *s, int t)
@@ -1244,6 +1226,7 @@ static void resync(seq_t *s, int t)
     rem = e - g * d;
     k = rem < 16u ? g : g + 1u;              /* (just past one of its steps, by a block or so: that step, now) */
     tr->stall = 0;
+    kit_rt_clear(s, t);
     tr->loop_on = 0;
     tr->off_q8 = 0;
     tr->jump_to = (uint8_t)(loop_from(tp) + k % len);
@@ -1269,6 +1252,7 @@ static void track_reset(seq_t *s, int t)
     tr->pass = 0;
     tr->stall = 0;
     tr->ratchet = tr->ratchets = 0;
+    kit_rt_clear(s, t);
     tr->jump_to = 0xFF;
     tr->bq_go = 0xFF;
     tr->loop_on = 0;
@@ -1368,16 +1352,233 @@ static void jump_set(seq_t *s, int t, int cv, int p)
     tr->jump_to = (uint8_t)(from + (((n - from) % len) + len) % len);
 }
 
-/* a kit's pulse repeat: the sounds of the trick's step at its velocity (its tricks ran on it, not on these) */
-static void pulse_hits(seq_t *s, int t, uint32_t L, const seq_sink_t *o)
+/* a sound recorded onto a kit step it was not on: none of the settings it had there before it was taken off (its own
+ * hit settings, its own velocity: it plays as played, by the step's). A byte a lane, written whole */
+static void kit_rec_fresh(seq_t *s, int t, int p, int sound)
+{
+    for (int k = 0; k < NLANE; k++) {
+        lane_t *l = &s->P->lane[k];
+        if (l->used && l->trk == t && l->pat == s->ppat[t] &&
+            (l->param == LANE_HIT0 + (unsigned)(sound - 1) || l->param == LANE_VEL0 + (unsigned)(sound - 1)))
+            l->val[p] = LOCK_NONE;
+    }
+}
+
+/* ------------------------------------------------------------ a kit's hits --- */
+/* Each sound of a kit plays by its own condition and tricks when it has hit settings of its own (a LANE_HIT0 lane);
+ * the step's sounds without them play by the step's, rolled once for them all (as one hit: together). A sound's
+ * ratchets, flam, pulse or hold and velocity trick run in s->krt; a jump moves the track, a bend bends the kit (the
+ * first of the step's to play has them); ramps, random, glide and tonality do nothing on a kit */
+typedef struct { uint8_t ok, pulse, hold, mul, vel, bend, jump, flam; } kit_g_t;   /* a hit's tricks: value + 1 */
+static void kit_g_of(const uint8_t *act, int ok, kit_g_t *g)
+{
+    g->ok = (uint8_t)ok;
+    g->pulse = act[SC_PULSE];
+    g->hold = act[SC_HOLD];
+    g->mul = act[SC_MULTIPLY];
+    g->vel = act[SC_VELOCITY];
+    g->bend = act[SC_BEND];
+    g->jump = act[SC_JUMP];
+    g->flam = act[SC_FLAM];
+}
+/* the track's kit lanes on its pattern: each sound's own velocity lane (vl, -1 none) and hit settings at step p (hs,
+ * 0 none), found in one pass (lane_mask) */
+static void kit_lanes(seq_t *s, int t, int p, int8_t *vl, const hit_t **hs)
+{
+    int i;
+    for (i = 0; i < NDRUM; i++) {
+        vl[i] = -1;
+        if (hs)
+            hs[i] = 0;
+    }
+    if (!lane_masks_ok)
+        lane_masks_make(s);
+    for (i = lane_next(t, 0); i >= 0; i = lane_next(t, i + 1)) {
+        const lane_t *l = &s->P->lane[i];
+        if (!l->used || l->trk != t || l->pat != s->ppat[t])
+            continue;
+        if (l->param >= LANE_VEL0 && l->param < LANE_VEL0 + NDRUM)
+            vl[l->param - LANE_VEL0] = (int8_t)i;
+        else if (hs && lane_is_hit(l->param) && l->val[p] < NHIT && !hit_plain(&s->P->hit[l->val[p]]))
+            hs[l->param - LANE_HIT0] = &s->P->hit[l->val[p]];
+    }
+}
+/* the hits of the sounds in m on step p, each with its tricks in krt (its ratchet krt.i: 0 the step's own) */
+static void kit_emit(seq_t *s, int t, const step_t *st, int p, uint32_t L, uint32_t m, const seq_sink_t *o)
 {
     seq_trk_t *tr = &s->t[t];
     const tpat_t *tp = tpat(s, t);
-    int semi = step_tune(s->P->lane, t, s->ppat[t], tr->stall_p), i;
-    uint32_t len_q8 = L / 100u * (tp->nlen > 100 ? 100u : tp->nlen);
+    kit_rt_t *R = s->krt[t];
+    int base = st->vel ? st->vel : 100, g = groove_vel(s, t, p, base), semi = step_tune(s->P->lane, t, s->ppat[t], p);
+    int rv = -1, i;
+    int8_t vl[NDRUM];
+    uint32_t len0 = st->len ? len_of(L, st->len) : L / 100u * (tp->nlen > 100 ? 100u : tp->nlen);
+    kit_lanes(s, t, p, vl, 0);
+    for (; m; m &= m - 1u) {
+        kit_rt_t *r;
+        int v = g, own;
+        uint32_t len_q8 = len0;
+        i = __builtin_ctz(m);
+        r = &R[i];
+        if (tr->skip_pos == p && (tr->skip_kit >> i & 1u))
+            continue;                 /* (live recording just sounded it) */
+        if (r->velk) {
+            int k = r->velk - 1;
+            if (k == SC_RANDOM_VAL) {
+                if (rv < 0)
+                    rv = (int)(rng_next(&tr->rng) % 9u);
+                k = rv;
+            }
+            v = SC_VEL[k < 9 ? k : 8];
+            if (!v) {                 /* velocity 0: a silent hit */
+                if (!r->i)
+                    r->svel = 0;
+                continue;
+            }
+        }
+        v = echo_vel(s, t, v);
+        if (r->flam && !r->i) {       /* a flam's grace: a little over half, short */
+            v = v * 11 / 20 > 0 ? v * 11 / 20 : 1;
+            if (len_q8 > L / 32u * r->flam)
+                len_q8 = L / 32u * r->flam;
+        }
+        if (r->kind == SC_HOLD && r->stall && r->sp == p)   /* (a gated sound rings over the steps it covers) */
+            len_q8 = len_q8 > L * (r->stall + 1u) ? len_q8 : L * (r->stall + 1u);
+        if (r->n > 1 && !r->flam && len_q8 > L / r->n)
+            len_q8 = L / r->n;
+        own = vl[i] >= 0 ? s->P->lane[vl[i]].val[p] : LOCK_NONE;
+        if (own != LOCK_NONE)         /* its own velocity: the step's groove, tricks and echo scale it alike */
+            v = v * own / base;
+        v = v < 1 ? 1 : v > 127 ? 127 : v;
+        if (!r->i)
+            r->svel = (uint8_t)v;
+        emit_drum(s, t, i, v, semi, TAG_STEP | (uint32_t)(r->i * 1024), len_q8, o);
+    }
+    tr->last_vel = (uint8_t)g;
+}
+static void kit_sub_next(seq_t *s, int t)   /* the track's next ratchet: the soonest of its sounds' */
+{
+    uint32_t m = s->ksub[t], e = NEVER;
+    for (; m; m &= m - 1u)
+        if (s->krt[t][__builtin_ctz(m)].sub < e)
+            e = s->krt[t][__builtin_ctz(m)].sub;
+    s->t[t].sub_to_next = e;
+}
+/* one hit's sounds m (the step's sounds without settings of their own, or one with its own) by its tricks g, when it
+ * happens; the jump and the bend once a step (*jumped, *bent) */
+static void kit_group(seq_t *s, int t, const step_t *st, int p, uint32_t L, uint32_t carry, uint32_t m,
+                      const kit_g_t *g, int happens, int *jumped, int *bent, const seq_sink_t *o)
+{
+    seq_trk_t *tr = &s->t[t];
+    kit_rt_t *R = s->krt[t];
+    uint32_t b;
+    int n;
+    if (!happens)
+        return;
+    if (g->jump && !*jumped) {        /* (a jump works on an empty or muted step, which happens without playing) */
+        jump_set(s, t, g->jump - 1, p);
+        *jumped = 1;
+    }
+    if (!m || tr->fill_on)
+        return;
+    if ((s->mute >> t & 1u) || punch_muted(s, t)) {
+        if (o->ghost)
+            for (b = m; b; b &= b - 1u)
+                o->ghost(o->ctx, t, __builtin_ctz(b), st->vel ? st->vel : 100);
+        return;
+    }
+    if (g->pulse || g->hold) {        /* the trick's step: it covers the next n steps (these sounds of them) */
+        int kind = g->pulse ? SC_PULSE : SC_HOLD, cv = (g->pulse ? g->pulse : g->hold) - 1;
+        n = cv == SC_RANDOM_VAL ? 1 + (int)(rng_next(&tr->rng) % 9u) : cv + 1;
+        for (b = m; b; b &= b - 1u) {
+            kit_rt_t *r = &R[__builtin_ctz(b)];
+            r->stall = (uint8_t)n;
+            r->kind = (uint8_t)kind;
+            r->sp = (uint8_t)p;
+        }
+    }
+    n = 1;
+    if (g->mul) {
+        int cv = g->mul - 1;
+        n = cv == SC_RANDOM_VAL ? 1 + (int)(rng_next(&tr->rng) % 9u) : cv + 1;
+    }
+    for (b = m; b; b &= b - 1u) {
+        kit_rt_t *r = &R[__builtin_ctz(b)];
+        r->i = 0;
+        r->n = (uint8_t)n;
+        r->flam = 0;
+        r->velk = g->vel;
+        if (n > 1)
+            r->sub = carry + L / (uint32_t)n;
+    }
+    if (n > 1)
+        s->ksub[t] |= (uint16_t)m;
+    else if (g->flam) {               /* the grace now, the sound's own hit a little later */
+        int cv = g->flam - 1, gap = cv >= SC_RANDOM_VAL ? 1 + (int)(rng_next(&tr->rng) % 9u) : cv + 1;
+        for (b = m; b; b &= b - 1u) {
+            kit_rt_t *r = &R[__builtin_ctz(b)];
+            r->flam = (uint8_t)gap;
+            r->n = 2;
+            r->sub = carry + L / 32u * (uint32_t)gap;
+        }
+        s->ksub[t] |= (uint16_t)m;
+    }
+    if (g->bend && !*bent) {
+        bend_start(s, t, g->bend - 1, L);
+        *bent = 1;
+    }
+    kit_emit(s, t, st, p, L, m, o);
+}
+/* a kit track's step: the sounds a pulse or hold of their own covers give way (a pulse plays them again), the others
+ * play by their hits */
+static void kit_step(seq_t *s, int t, const step_t *st, int p, uint32_t L, uint32_t carry, const seq_sink_t *o)
+{
+    seq_trk_t *tr = &s->t[t];
+    kit_rt_t *R = s->krt[t];
+    const hit_t *hs[NDRUM];
+    int8_t vl[NDRUM];
+    kit_g_t gs, gi[NDRUM];
+    uint8_t act[NSC];
+    uint32_t mask = kit_mask(st), cov = 0, mine = 0, b;
+    int i, trig_ok, lock_ok, ok2, lk2, jumped = 0, bent = 0, quiet;
     for (i = 0; i < NDRUM; i++)
-        if (tr->stall_mask >> i & 1u)
-            emit_drum(s, t, i, tr->stall_vel, semi, TAG_STEP, len_q8, o);
+        if (R[i].stall) {
+            R[i].stall--;
+            cov |= 1u << i;
+        }
+    mask &= ~cov;
+    s->ksub[t] = 0;
+    kit_lanes(s, t, p, vl, hs);
+    for (b = mask; b; b &= b - 1u)
+        if (hs[__builtin_ctz(b)])
+            mine |= 1u << __builtin_ctz(b);
+    resolve_comps(s, t, st, &trig_ok, &lock_ok);   /* the step's own (an empty step's too: its jump) */
+    kit_g_of(tr->act, trig_ok, &gs);
+    for (b = mine; b; b &= b - 1u) {
+        const hit_t *h = hs[i = __builtin_ctz(b)];
+        resolve_set(s, t, h->comp, h->cval, h->comp2, h->cval2, act, &ok2, &lk2);
+        kit_g_of(act, ok2, &gi[i]);
+        lock_ok &= lk2;               /* (the locks are the step's: a hit's skip lock skips them) */
+    }
+    if (lock_ok)
+        apply_locks(s, t, p, L, o);
+    if (o->step)
+        o->step(o->ctx, t, p);
+    kit_group(s, t, st, p, L, carry, mask & ~mine, &gs, trig_ok && cond_plays(s, t, st->cond), &jumped, &bent, o);
+    for (b = mine; b; b &= b - 1u) {
+        i = __builtin_ctz(b);
+        kit_group(s, t, st, p, L, carry, 1u << i, &gi[i], gi[i].ok && cond_plays(s, t, hs[i]->cond), &jumped, &bent, o);
+    }
+    tr->ramp_deg = 0;
+    quiet = (s->mute >> t & 1u) || punch_muted(s, t) || tr->fill_on;
+    if (!quiet)                       /* the pulses: their sounds again, on this step */
+        for (b = cov; b; b &= b - 1u) {
+            kit_rt_t *r = &R[i = __builtin_ctz(b)];
+            if (r->kind == SC_PULSE && r->svel)
+                emit_drum(s, t, i, r->svel, step_tune(s->P->lane, t, s->ppat[t], r->sp), TAG_STEP,
+                          L / 100u * (tpat(s, t)->nlen > 100 ? 100u : tpat(s, t)->nlen), o);
+        }
+    kit_sub_next(s, t);
 }
 
 uint32_t (*seq_clock)(void);
@@ -1391,7 +1592,7 @@ static void fire_step(seq_t *s, int t, const seq_sink_t *o)
     const step_t *st;
     uint32_t L, carry = tr->to_next < SEQ_DUE ? tr->to_next : 0, nL;
     int p, wrapped = 0, retrig = 1, happens = 0, plays, np, dummy, trig_ok = 1, lock_ok = 1, kind, cover = 0, rep = 0,
-        fresh = 0, lp, drum = t < NTRK && is_drum(s, t);
+        lp, drum = t < NTRK && is_drum(s, t);
     int32_t off, noff;
     if (!tr->started) {
         tr->started = 1;
@@ -1423,16 +1624,9 @@ static void fire_step(seq_t *s, int t, const seq_sink_t *o)
         retrig = rep;
         lp = tr->stall_p;
         st = weave_at(s, t, tp, lp);
-    } else {
+    } else {                          /* (a kit's pulses and holds are its sounds': kit_step) */
         lp = p;
         st = weave_at(s, t, tp, p);
-        if (cover) {                  /* a kit: only the trick's sounds give way, the others play as written */
-            if (st != &tr->wv_st)
-                tr->wv_st = *st;
-            kit_set(&tr->wv_st, kit_mask(&tr->wv_st) & ~(uint32_t)tr->stall_mask);
-            tr->wv_on = 1;            /* (its ratchets repeat what is left) */
-            st = &tr->wv_st;
-        }
     }
     if (tr->skip_pos != p)
         skip_clear(tr);
@@ -1446,6 +1640,12 @@ static void fire_step(seq_t *s, int t, const seq_sink_t *o)
     tr->ratchets = 1;
     tr->flam_gap = 0;
     tr->sub_to_next = NEVER;
+    if (drum) {
+        SQ_T(qc);
+        kit_step(s, t, st, p, L, carry, o);
+        SQ_ADD(5, qc);
+        goto next;
+    }
     {
         SQ_T(qa);
         if (retrig)
@@ -1463,7 +1663,7 @@ static void fire_step(seq_t *s, int t, const seq_sink_t *o)
     /* the step happens when its chance (or A:B) and its skip trigger say so: then its tricks run, the jump too
      * (a jump works on an empty or muted step, which happens without playing) */
     if (retrig && trig_ok)
-        happens = cond_plays(s, t, st);
+        happens = cond_plays(s, t, st->cond);
     plays = happens && !(s->mute >> t & 1u) && !punch_muted(s, t) && !tr->fill_on && !step_empty(st);
     if (happens && !plays && !drum && t == brain_src(s) && low_note(st->note, SN))
         brain_set_near(s, low_note(st->note, SN));   /* (a FOLLOW track muted still sets the chords) */
@@ -1476,9 +1676,6 @@ static void fire_step(seq_t *s, int t, const seq_sink_t *o)
             tr->stall = (uint8_t)n;
             tr->stall_kind = (uint8_t)kind;
             tr->stall_p = (uint8_t)p;
-            tr->stall_mask = (uint16_t)(drum ? kit_mask(st) : 0u);
-            tr->last_vel = 0;         /* (fire_notes: the hit's velocity, 0 a silent one) */
-            fresh = 1;
         }
         if (tr->act[SC_MULTIPLY]) {
             int cv = tr->act[SC_MULTIPLY] - 1;
@@ -1506,8 +1703,6 @@ static void fire_step(seq_t *s, int t, const seq_sink_t *o)
             fire_notes(s, t, st, p, L, 0, o);
         else
             fire_aux(s, t, st, p, L, o);
-        if (drum && fresh)
-            tr->stall_vel = tr->last_vel;
         SQ_ADD(5, qc);
     } else {
         tr->ramp_deg = 0;
@@ -1515,9 +1710,7 @@ static void fire_step(seq_t *s, int t, const seq_sink_t *o)
             ((s->mute >> t & 1u) || punch_muted(s, t)))
             ghost_notes(s, t, st, o);
     }
-    if (cover && drum && tr->stall_kind == SC_PULSE && tr->stall_vel && !(s->mute >> t & 1u) && !punch_muted(s, t) &&
-        !tr->fill_on)                 /* a kit's pulse: the trick's sounds again, on this step */
-        pulse_hits(s, t, L, o);
+next:
     skip_clear(tr);
     if (!tr->stall)
         tr->stall_kind = 0;
@@ -1548,6 +1741,25 @@ static void fire_sub(seq_t *s, int t, const seq_sink_t *o)
     seq_trk_t *tr = &s->t[t];
     const step_t *st = tr->wv_on ? &tr->wv_st : &tpat(s, t)->st[tr->pos];
     uint32_t carry = tr->sub_to_next < SEQ_DUE ? tr->sub_to_next : 0;
+    if (t < NTRK && is_drum(s, t)) {  /* a kit: the sounds whose ratchet is due, each by its own count */
+        uint32_t due = 0, m;
+        for (m = s->ksub[t]; m; m &= m - 1u)
+            if (s->krt[t][__builtin_ctz(m)].sub < SEQ_DUE) {
+                due |= 1u << __builtin_ctz(m);
+                s->krt[t][__builtin_ctz(m)].i++;
+            }
+        kit_emit(s, t, st, tr->pos, tr->step_q8, due, o);
+        for (m = due; m; m &= m - 1u) {
+            kit_rt_t *r = &s->krt[t][__builtin_ctz(m)];
+            uint32_t c = r->sub < SEQ_DUE ? r->sub : 0;
+            if (!r->flam && r->i + 1 < r->n)
+                r->sub = c + tr->step_q8 / r->n;
+            else
+                s->ksub[t] &= (uint16_t)~(1u << __builtin_ctz(m));
+        }
+        kit_sub_next(s, t);
+        return;
+    }
     tr->ratchet++;
     if (t < NTRK && (tr->act[SC_MULTIPLY] || tr->flam_gap))
         fire_notes(s, t, st, tr->pos, tr->step_q8, tr->ratchet, o);
@@ -2188,7 +2400,8 @@ static void rec_key_on(seq_t *s, int t, int note, int vel)
             st->len = 0;
             st->nudge = (int8_t)ticks;
         }
-        kit_add(st, note);
+        if (kit_add(st, note))
+            kit_rec_fresh(s, t, p, note);
     } else if (step_empty(st)) {
         st->note[0] = (uint8_t)note;
         st->vel = (uint8_t)vel;
@@ -2260,7 +2473,8 @@ static void rec_step1(seq_t *s, int t, int note, int vel, int nudge)   /* the no
             st->len = 0;
             st->nudge = (int8_t)nudge;
         }
-        kit_add(st, note);
+        if (kit_add(st, note))
+            kit_rec_fresh(s, t, 0, note);
     } else if (step_empty(st)) {
         st->note[0] = (uint8_t)note;
         st->vel = (uint8_t)vel;
@@ -2655,6 +2869,7 @@ static void do_stop(seq_t *s, const seq_sink_t *o)
         tr->stall = 0;
         tr->loop_on = 0;
         tr->fill_on = 0;
+        kit_rt_clear(s, t);
         if (tr->bend_on) {
             tr->bend_on = 0;
             if (o->bend)
@@ -2984,6 +3199,9 @@ void seq_advance(seq_t *s, uint32_t k, const seq_sink_t *o)
         seq_trk_t *tr = &s->t[t];
         dec(&tr->to_next, dq);
         dec(&tr->sub_to_next, dq);
+        if (t < NTRK)
+            for (m = s->ksub[t]; m; m &= m - 1u)
+                dec(&s->krt[t][__builtin_ctz(m)].sub, dq);
         tr->age += dq;
         for (m = tr->off_mask; m; m &= m - 1u)   /* (the pending ones: off_mask) */
             dec(&tr->off[__builtin_ctz(m)].off_at, dq);
@@ -3256,7 +3474,10 @@ int seq_step_rec(seq_t *s, int trk, int step, int note, int vel)
             st->vel = (uint8_t)(vel < 1 ? 1 : vel > 127 ? 127 : vel);
             st->len = 0;
         }
-        return kit_add(st, note);
+        if (!kit_add(st, note))
+            return 0;
+        kit_rec_fresh(s, trk, step, note);
+        return 1;
     }
     if (step_empty(st)) {
         st->note[0] = (uint8_t)note;

@@ -125,6 +125,19 @@ int step_vel(const lane_t *L, int trk, int pat, int step, int sound)
     return 0;
 }
 
+const hit_t *step_hit(const patterns_t *P, int trk, int pat, int step, int sound)
+{
+    int k;
+    if (step < 0 || step >= NSTEP || sound < 0 || sound >= NDRUM)
+        return 0;
+    for (k = 0; k < NLANE; k++) {
+        const lane_t *l = &P->lane[k];
+        if (l->used && l->param == LANE_HIT0 + (unsigned)sound && l->trk == trk && l->pat == pat)
+            return l->val[step] < NHIT && !hit_plain(&P->hit[l->val[step]]) ? &P->hit[l->val[step]] : 0;
+    }
+    return 0;
+}
+
 void step_clear_locks(lane_t *L, int trk, int pat, int step)
 {
     int k;

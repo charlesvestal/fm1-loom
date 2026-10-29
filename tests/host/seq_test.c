@@ -2847,6 +2847,224 @@ static void t_cue_scene(void)
     printf("ok %s\n", cur);
 }
 
+
+/* ---------------------------------------------------------------- a kit's hits: each sound its own chance and
+ * tricks (LANE_HIT0 lanes into P.hit[]); the sounds without their own play by the step's, together */
+static int nhit_used;
+static void hit_set(int trk, int step, int sound, int cond, int comp, int cval, int comp2, int cval2)
+{
+    int ln = lane_alloc(P.lane, trk, 0, (int)(LANE_HIT0 + (unsigned)(sound - 1)));
+    hit_t *h = &P.hit[nhit_used];
+    h->cond = (uint8_t)cond;
+    h->comp = (uint8_t)comp;
+    h->cval = (uint8_t)cval;
+    h->comp2 = (uint8_t)comp2;
+    h->cval2 = (uint8_t)cval2;
+    P.lane[ln].val[step] = (uint8_t)nhit_used++;
+}
+static int hits_of(int sound, uint32_t from, uint32_t to)   /* track 1's drum hits of sound (1..) in [from, to) */
+{
+    int i, n = 0;
+    for (i = 0; i < nev; i++)
+        n += ev[i].kind == E_DRUM && ev[i].trk == 0 && ev[i].a == sound - 1 && ev[i].t >= from && ev[i].t < to;
+    return n;
+}
+static ev_t *hit_n(int sound, int k)
+{
+    int i;
+    for (i = 0; i < nev; i++)
+        if (ev[i].kind == E_DRUM && ev[i].trk == 0 && ev[i].a == sound - 1 && k-- == 0)
+            return &ev[i];
+    return 0;
+}
+static void kit_reset(void)
+{
+    reset();
+    nhit_used = 0;
+    par[0][TP_ENGINE] = EG_DRUMLINE;
+}
+
+static void t_hit_cond(void)
+{
+    int i, together = 1;
+    cur = "hit cond";
+    kit_reset();
+    P.pat[0][0].len = 1;
+    note(0, 0, 1, 100);                           /* the kick on 1:2, the hat always */
+    note(0, 0, 3, 100);
+    hit_set(0, 0, 1, COND_AB + 0, 0, 0, 0, 0);
+    start();
+    run(8 * L16 - L16 / 2);
+    CHECK(hits_of(1, 0, ~0u) == 4 && hits_of(3, 0, ~0u) == 8);
+    CHECK(near(hit_n(1, 1)->t, 2 * L16, 2));
+    /* a chance on the hat alone, the kick plain: the kick every pass, the hat about half */
+    stop();
+    kit_reset();
+    P.pat[0][0].len = 1;
+    note(0, 0, 1, 100);
+    note(0, 0, 3, 100);
+    hit_set(0, 0, 3, 50, 0, 0, 0, 0);
+    start();
+    run(400 * L16);
+    CHECK(hits_of(1, 0, ~0u) >= 399 && hits_of(3, 0, ~0u) > 150 && hits_of(3, 0, ~0u) < 250);
+    /* the step's own chance (no hit of its own): its sounds together, as before */
+    stop();
+    kit_reset();
+    P.pat[0][0].len = 1;
+    note(0, 0, 1, 100);
+    note(0, 0, 3, 100);
+    st(0, 0)->cond = 50;
+    start();
+    run(400 * L16);
+    CHECK(hits_of(1, 0, ~0u) > 150 && hits_of(1, 0, ~0u) < 250);
+    for (i = 0; i < 400; i++)
+        together &= hits_of(1, (uint32_t)i * L16 + L16 / 2, (uint32_t)(i + 1) * L16 + L16 / 2) ==
+                    hits_of(3, (uint32_t)i * L16 + L16 / 2, (uint32_t)(i + 1) * L16 + L16 / 2);
+    CHECK(together);
+    /* a sound with its own beside the step's chance: the step's leaves it alone */
+    stop();
+    kit_reset();
+    P.pat[0][0].len = 1;
+    note(0, 0, 1, 100);
+    note(0, 0, 3, 100);
+    st(0, 0)->cond = COND_AB + 1;                 /* 2:2: the hat on the second of two */
+    hit_set(0, 0, 1, COND_AB + 0, 0, 0, 0, 0);    /* the kick on the first */
+    start();
+    run(8 * L16 - L16 / 2);
+    CHECK(hits_of(1, 0, ~0u) == 4 && hits_of(3, 0, ~0u) == 4 && hit_n(1, 0)->t < 4 && near(hit_n(3, 0)->t, L16, 2));
+    /* a skip trigger of its own */
+    stop();
+    kit_reset();
+    P.pat[0][0].len = 1;
+    note(0, 0, 1, 100);
+    note(0, 0, 3, 100);
+    hit_set(0, 0, 3, 0, SC_SKIP, SK_VAL(2, 0), 0, 0);   /* the hat every third pass */
+    start();
+    run(9 * L16 - L16 / 2);
+    CHECK(hits_of(1, 0, ~0u) == 9 && hits_of(3, 0, ~0u) == 3 && near(hit_n(3, 0)->t, 2 * L16 + 1, 2));
+    printf("ok %s\n", cur);
+}
+
+static void t_hit_flam(void)                      /* the snare flams, the kick beside it hits once, on the step */
+{
+    cur = "hit flam";
+    kit_reset();
+    note(0, 0, 1, 100);
+    note(0, 0, 2, 100);
+    hit_set(0, 0, 2, 0, SC_FLAM, 3, 0, 0);        /* 4/32 of a step */
+    start();
+    run(L16 - L16 / 4);
+    CHECK(hits_of(1, 0, ~0u) == 1 && hit_n(1, 0)->t < 4 && hit_n(1, 0)->b == 100);
+    CHECK(hits_of(2, 0, ~0u) == 2 && hit_n(2, 0)->t < 4 && hit_n(2, 0)->b == 55);
+    CHECK(near(hit_n(2, 1)->t, L16 / 8, 2) && hit_n(2, 1)->b == 100);
+    printf("ok %s\n", cur);
+}
+
+static void t_hit_multiply(void)                  /* the hat in four, the snare flams, the kick once: on one step */
+{
+    cur = "hit multiply";
+    kit_reset();
+    note(0, 0, 1, 100);
+    note(0, 0, 2, 100);
+    note(0, 0, 3, 100);
+    hit_set(0, 0, 3, 0, SC_MULTIPLY, 3, 0, 0);
+    hit_set(0, 0, 2, 0, SC_FLAM, 3, 0, 0);
+    note(0, 1, 3, 100);                           /* the next step's hat: once */
+    start();
+    run(2 * L16 - L16 / 4);
+    CHECK(hits_of(1, 0, ~0u) == 1 && hits_of(2, 0, ~0u) == 2);
+    CHECK(hits_of(3, 0, L16 - 4) == 4 && hits_of(3, L16 - 4, ~0u) == 1);
+    CHECK(near(hit_n(3, 1)->t, L16 / 4, 2) && near(hit_n(3, 2)->t, L16 / 2, 2) && near(hit_n(3, 3)->t, 3 * L16 / 4, 2));
+    CHECK(near(hit_n(2, 1)->t, L16 / 8, 2));
+    printf("ok %s\n", cur);
+}
+
+static void t_hit_pulse(void)                     /* the kick's own pulse: it repeats, the hat on the step does not */
+{
+    cur = "hit pulse";
+    kit_reset();
+    note(0, 0, 1, 100);
+    note(0, 0, 3, 80);
+    hit_set(0, 0, 1, 0, SC_PULSE, 1, 0, 0);       /* three: steps 1-3 */
+    note(0, 1, 2, 90);                            /* a snare on step 2: plays */
+    note(0, 2, 1, 100);                           /* a kick on step 3: covered, the pulse's stands for it */
+    note(0, 4, 1, 100);                           /* and on 5: where it was */
+    start();
+    run(5 * L16 + 10);
+    CHECK(hits_of(1, 0, ~0u) == 4 && hits_of(3, 0, ~0u) == 1 && hits_of(2, 0, ~0u) == 1);
+    CHECK(near(hit_n(1, 1)->t, L16, 2) && near(hit_n(1, 2)->t, 2 * L16 + 1, 2) && near(hit_n(1, 3)->t, 4 * L16 + 2, 2));
+    /* a hold of its own: the kick's gate over the steps it covers, the hat's its own */
+    stop();
+    kit_reset();
+    note(0, 0, 1, 100);
+    note(0, 0, 3, 100);
+    hit_set(0, 0, 1, 0, SC_HOLD, 1, 0, 0);
+    note(0, 1, 1, 100);                           /* covered */
+    start();
+    run(4 * L16);
+    CHECK(hits_of(1, 0, ~0u) == 1 && hits_of(3, 0, ~0u) == 1);
+    printf("ok %s\n", cur);
+}
+
+static void t_hit_velocity(void)                  /* a velocity trick on the kick alone */
+{
+    cur = "hit velocity";
+    kit_reset();
+    note(0, 0, 1, 100);
+    note(0, 0, 3, 100);
+    hit_set(0, 0, 1, 0, SC_VELOCITY, 0, 0, 0);    /* 4 */
+    start();
+    run(L16 / 2);
+    CHECK(hit_n(1, 0)->b == 4 && hit_n(3, 0)->b == 100);
+    /* the jump on a hit: when the hit plays (its 1:2), the track jumps */
+    stop();
+    kit_reset();
+    P.pat[0][0].len = 4;
+    note(0, 0, 3, 100);
+    note(0, 1, 1, 100);
+    note(0, 1, 3, 100);
+    note(0, 2, 3, 100);
+    note(0, 3, 3, 100);
+    hit_set(0, 1, 1, COND_AB + 0, SC_JUMP, 5, 0, 0);   /* the kick on step 2 jumps back, on the first of two passes */
+    start();
+    run(10 * L16 - L16 / 2);
+    /* steps 1 2 (jump) 1 2 (no: pass 2) 3 4 | 1 2 (pass 3: jump) 1 2 = kicks on 2 at steps 0..9: the first, the third */
+    CHECK(hits_of(1, 0, ~0u) == 2 && hits_of(3, 0, ~0u) == 10);
+    printf("ok %s\n", cur);
+}
+
+static void t_hit_rec(void)                       /* a sound recorded back onto a step: none of its old settings there */
+{
+    int lh, lv;
+    cur = "hit rec";
+    kit_reset();
+    P.pat[0][0].len = 4;
+    note(0, 0, 3, 100);                           /* the hat on step 1; the kick taken off it, its flam and velocity left */
+    hit_set(0, 0, 1, 0, SC_FLAM, 3, 0, 0);
+    lh = lane_find(P.lane, 0, 0, (int)LANE_HIT0);
+    lv = lane_alloc(P.lane, 0, 0, (int)LANE_VEL0);
+    P.lane[lv].val[0] = 30;
+    hit_set(0, 0, 2, 0, SC_FLAM, 3, 0, 0);        /* the snare's (not on the step either), left alone */
+    S.rec = 1;
+    start();
+    run(4 * L16 + 50);                            /* step 1 again, just past */
+    seq_key(&S, 0, 1, 1, 90);
+    run(10);
+    seq_key(&S, 0, 1, 0, 0);
+    run(10);
+    CHECK(kit_has(st(0, 0), 1) && P.lane[lh].val[0] == LOCK_NONE && P.lane[lv].val[0] == LOCK_NONE);
+    CHECK(step_hit(&P, 0, 0, 0, 1) != 0);
+    /* a sound already on the step keeps its own */
+    hit_set(0, 0, 3, COND_AB, 0, 0, 0, 0);
+    run(4 * L16 - 70);
+    seq_key(&S, 0, 3, 1, 90);
+    run(10);
+    seq_key(&S, 0, 3, 0, 0);
+    run(10);
+    CHECK(step_hit(&P, 0, 0, 0, 2) && step_hit(&P, 0, 0, 0, 2)->cond == COND_AB);
+    printf("ok %s\n", cur);
+}
+
 int main(void)
 {
     t_pattern_helpers();
@@ -2879,6 +3097,12 @@ int main(void)
     t_cond();
     t_locks();
     t_kit11();
+    t_hit_cond();
+    t_hit_flam();
+    t_hit_multiply();
+    t_hit_pulse();
+    t_hit_velocity();
+    t_hit_rec();
     t_weave_live();
     t_scene();
     t_ghost();

@@ -122,10 +122,16 @@ static inline void pat_loop(const tpat_t *p, int *from, int *to)
 #define LANE_TUNE 0xFFFEu                     /* (past every parameter: synth.h NTP) */
 #define LANE_VEL0 0xFF00u                     /* a kit step's own velocity for sound k: lane LANE_VEL0 + k (k 0..10; none:
                                                * the step's velocity), only where a sound of a step has its own */
-static inline int lane_is_note(unsigned param)   /* a lane of notes (a kit's tunes, its sounds' velocities), not locks */
+/* a kit step's sound with its own chance and tricks: lane LANE_HIT0 + k (sound k + 1, k 0..10) holds an index into the
+ * project's hit settings (patterns_t hit[]) for each step; none (LOCK_NONE): the step's own cond and tricks. A sound
+ * with its own plays by them alone; the step's sounds without their own play by the step's, together, as before */
+#define LANE_HIT0 0xFF10u
+static inline int lane_is_note(unsigned param)   /* a lane of notes (a kit's tunes, its sounds' velocities and hit
+                                                  * settings), not locks */
 {
-    return param == LANE_TUNE || (param >= LANE_VEL0 && param < LANE_VEL0 + 16u);
+    return param == LANE_TUNE || (param >= LANE_VEL0 && param < LANE_VEL0 + 32u);
 }
+static inline int lane_is_hit(unsigned param) { return param >= LANE_HIT0 && param < LANE_HIT0 + NDRUM; }
 #define TUNE_0 64
 #define TUNE_MAX 24
 typedef struct {
@@ -186,6 +192,14 @@ typedef struct {
     song_slot_t slot[NSONG];
 } song_t;
 
+/* a kit hit's own condition and tricks (as a step's: cond, comp / cval, comp2 / cval2); the project keeps the distinct
+ * ones (patterns_t hit[]), the LANE_HIT0 lanes point at them. All zero: a free entry (a hit as plain is no entry) */
+typedef struct {
+    uint8_t cond, comp, cval, comp2, cval2;
+} hit_t;                              /* 5 bytes */
+#define NHIT 48
+static inline int hit_plain(const hit_t *h) { return !h->cond && !h->comp && !h->comp2; }
+
 /* the whole pattern store: the project's (in the pool) */
 typedef struct {
     tpat_t pat[NSEQT][NPATT];
@@ -193,6 +207,7 @@ typedef struct {
     lane_t lane[NLANE];
     scene_t scene[NSCENE];
     song_t song;
+    hit_t hit[NHIT];                  /* the kits' hit settings (format 18 on; an older store: none) */
 } patterns_t;
 
 void pattern_init(tpat_t *p);         /* empty, 16 steps, scale 1, no groove, note length half a step */
@@ -206,6 +221,8 @@ int step_has_lock(const lane_t *L, int trk, int pat, int step);
 void step_clear_locks(lane_t *L, int trk, int pat, int step);
 int step_tune(const lane_t *L, int trk, int pat, int step);       /* a drum step's note: semitones, 0 = none */
 int step_vel(const lane_t *L, int trk, int pat, int step, int sound);   /* a kit step's sound's own velocity, 0 = none */
+/* a kit step's sound (0..10)'s own hit settings, 0 = none (it plays by the step's) */
+const hit_t *step_hit(const patterns_t *P, int trk, int pat, int step, int sound);
 void pattern_clear_locks(lane_t *L, int trk, int pat);   /* (not the kit tune lane: that is notes) */
 void cond_ab(int k, int *a, int *b);  /* COND_AB + k -> A:B */
 /* a weave: pattern a (the track's) crossed with b (WITH). weave_step: the step the weave plays at pos, the track's

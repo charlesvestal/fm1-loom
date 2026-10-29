@@ -454,7 +454,18 @@ int app_expect(const char *what, int *got)
         if (sscanf(what + 4, "%d.%d.%d.%d", &t, &pt, &st, &k) != 4)
             return 0;
         *got = step_vel(pats.lane, t - 1, pt - 1, st - 1, k - 1);
-    } else if (!strncmp(what, "kmute", 5))           /* kmute (the first kit's) or kmuteK (kit K's, from 1): the scene's
+    } else if (!strncmp(what, "kcond", 5) || !strncmp(what, "ktrick", 6)) {   /* kcondT.PAT.S.K / ktrickT.PAT.S.K: kit
+                                                     * sound K's condition / first trick (its own, or the step's) */
+        int t, pt, st, k, tr = what[1] == 't';
+        hit_t h;
+        if (sscanf(what + (tr ? 6 : 5), "%d.%d.%d.%d", &t, &pt, &st, &k) != 4 || t < 1 || t > NTRK || pt < 1 ||
+            pt > NPATT || st < 1 || st > NSTEP || k < 1 || k > NDRUM)
+            return 0;
+        hit_get(t - 1, pt - 1, st - 1, k - 1, &h);
+        *got = tr ? h.comp : h.cond;
+    } else if (!strcmp(what, "lanes"))              /* the lanes in use */
+        *got = lane_count(pats.lane);
+    else if (!strncmp(what, "kmute", 5))           /* kmute (the first kit's) or kmuteK (kit K's, from 1): the scene's
                                                      * kit sounds muted (bit k: sound k + 1) */
         *got = seq.kmute[(what[5] ? atoi(what + 5) - 1 : 0) & (NKITM - 1)];
     else if (!strcmp(what, "songpos"))              /* the song slot playing, from 1 */
@@ -661,13 +672,14 @@ static int expect_more(const char *what, const char *a, const char *b, const cha
  *                                (a drum step has one velocity: the loudest written)
  *   notes T PAT S LEN VEL N1 [N2 [N3 [N4]]]   notes on step S, LEN steps long (decimals: 0.25 steps; 0 = the
  *                                pattern's note length); N a number or a name (C4 = 60, F#3, Bb2)
- *   trick T PAT S NAME VAL[:MODE]  a trick (pulse hold multiply velocity rampup rampdown random porta bend tonality
- *                                jump skiplock skiptrick skip) at its value 1..9 (10 random), the black keys';
- *                                skips' MODE 0 last pass, 1 not the last, 2 only the first. A third replaces the second
+ *   trick T PAT S NAME VAL[:MODE] [SOUND]  a trick (pulse hold multiply velocity rampup rampdown random porta bend
+ *                                tonality jump skiplock skiptrick skip flam) at its value 1..9 (10 random), the black
+ *                                keys'; skips' MODE 0 last pass, 1 not the last, 2 only the first. A third replaces the
+ *                                second. SOUND (a kit, 1..11): that sound's own, on the step (as a held step's ARP)
  *   weaveset T FROM PAT RULE     track T's weave (ARP's Weave page): with track FROM's pattern PAT by RULE
  *   weave T DST A B RULE         pattern DST of track T = A woven with B (bars steps rhythm pitch: SEL's WEAVE WITH
  *                                COPIED, A the pattern, B the copy)
- *   chance T PAT S PCT|A:B       the step's condition
+ *   chance T PAT S PCT|A:B [SOUND]   the step's condition; SOUND (a kit, 1..11): that sound's own
  *   nudge T PAT S TICKS          -12..12 (24 a step)
  *   lock T PAT S PARAM VALUE     a parameter lock on the step (PARAM / VALUE as knob)
  *   scenedef N P1 .. P10         scene N's pattern for tracks 1-8, COND, THROW (1-based; 0 = pattern 1); used
@@ -1115,7 +1127,19 @@ static int song_cmd(const char *cmd)
             host_die("a trick's value is 1..10 (a jump's 1..22)", w[5]);
         if (sc_is_skip(k))
             v = SK_VAL(v, strchr(w[5], ':') ? atoi(strchr(w[5], ':') + 1) : 0);
-        if (!st->comp || st->comp == k) {
+        if (n > 6) {                                /* a kit sound's own */
+            int t = atoi(w[1]) - 1, pt = atoi(w[2]) - 1, sn = atoi(w[3]) - 1, snd = atoi(w[6]) - 1;
+            hit_t h;
+            if (!host_kit(t) || snd < 0 || snd >= NDRUM || !kit_has(st, snd + 1))
+                host_die("trick .. SOUND: a sound on a kit's step", w[6]);
+            hit_get(t, pt, sn, snd, &h);
+            if (!h.comp || h.comp == k)
+                h.comp = (uint8_t)k, h.cval = (uint8_t)v;
+            else
+                h.comp2 = (uint8_t)k, h.cval2 = (uint8_t)v;
+            if (hit_put(t, pt, sn, snd, &h) != HIT_OK)
+                host_die("trick: no lane or room", w[6]);
+        } else if (!st->comp || st->comp == k) {
             st->comp = (uint8_t)k;
             st->cval = (uint8_t)v;
         } else {
@@ -1186,9 +1210,20 @@ static int song_cmd(const char *cmd)
             }
             if (k == COND_NAB)
                 host_die("no cycle", w[4]);
-            st->cond = (uint8_t)(COND_AB + k);
+            k += COND_AB;
         } else
-            st->cond = (uint8_t)atoi(w[4]);
+            k = atoi(w[4]);
+        if (n > 5) {                                /* a kit sound's own */
+            int t = atoi(w[1]) - 1, pt = atoi(w[2]) - 1, sn = atoi(w[3]) - 1, snd = atoi(w[5]) - 1;
+            hit_t h;
+            if (!host_kit(t) || snd < 0 || snd >= NDRUM || !kit_has(st, snd + 1))
+                host_die("chance .. SOUND: a sound on a kit's step", w[5]);
+            hit_get(t, pt, sn, snd, &h);
+            h.cond = (uint8_t)k;
+            if (hit_put(t, pt, sn, snd, &h) != HIT_OK)
+                host_die("chance: no lane or room", w[5]);
+        } else
+            st->cond = (uint8_t)k;
     } else if (!strcmp(cmd, "nudge")) {
         step_t *st = step_or_die(pat_or_die(w[1], w[2]), w[3]);
         st->nudge = (int8_t)atoi(w[4]);

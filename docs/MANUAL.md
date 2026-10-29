@@ -132,6 +132,7 @@ press…" means keep **HOME** down while you press the next thing.
 | add a trick | Hold the step and press **ARP**. **KNOB 1** picks the first trick (pulse, hold, multiply, velocity, ramp up, ramp down, random, glide, bend, tonality, jump, skip lock, skip trick, skip trigger, flam) and **KNOB 2** sets its value. **KNOB 3** and **KNOB 4** do the same for the second trick. Turn a trick back to "-" to remove it. <!-- hint: press ARP; turn KNOB 1, KNOB 2; white 5 --> |
 | set a skip's pattern | Keep turning its value past "random". The same cycles come round again, first as "not on the last pass", then as "only the first". |
 | give a step a chance | Hold the step and turn **KNOB 3**. Past 99 %, the A:B cycles come next. <!-- hint: turn KNOB 3; white 5 --> |
+| give one drum sound a chance or a trick | On a drum track, each sound on a step has its own chance and tricks. Hold the step, turn **PRESETS** to the sound (the header names it), then turn **KNOB 3** or press **ARP**. The step's other sounds keep theirs. <!-- hint: turn PRESETS, KNOB 3; white 5 --> |
 | lock a knob on a step | Hold the step, press **EDIT**, **ENV**, **FX** or **LFO**, and turn a knob. To clear a lock, hold **SEL** and turn that knob. The step's **SEL** list also has CLEAR LOCKS. <!-- hint: press EDIT; turn KNOB 1; white 5 --> |
 | clear a knob's automation | Hold **SEL** and turn the knob. This clears its motion and locks in the pattern (or, with steps held, only theirs). <!-- hint: hold SEL; turn KNOB 1 --> |
 | see the next bar | Press **OCT+** on Steps. (While **SEQ** is held, **PRESETS** sets the track's sound, so you can try notes before you write them; the keys play at the octave **OCT** set on the sound pages.) <!-- hint: press OCT+ --> |
@@ -268,9 +269,11 @@ squares on the right are the bars. **OCT−** and **OCT+** show the previous or 
   nothing else changes.
 - **Tap a white key** to put the remembered notes on that step, or to clear the step.
 - **Hold a white key** to see the step. If you hold it longer than a tap, the step stays as it is. **KNOB 1** sets
-  its velocity; on a drum track this is the velocity of the sound shown, since each sound on a step has its own, and
-  the black keys pick the sound. **KNOB 2** sets its length in steps. **KNOB 3** sets its chance: always, a
-  percentage, then the A:B cycles, which play on the A-th of every B passes. **KNOB 4** sets its pitch. On a synth
+  its velocity. **KNOB 2** sets its length in steps. **KNOB 3** sets its chance: always, a percentage, then the A:B
+  cycles, which play on the A-th of every B passes. On a drum track, the velocity, the chance and the tricks are
+  the sound shown's, since each sound on a step has its own (the header names the sound). Pick the sound with
+  its black key before you hold the step, or turn **PRESETS** while you hold it to go through the step's sounds.
+  **KNOB 4** sets its pitch. On a synth
   track its notes move by semitones, a chord all together. On a drum track the step's hits play up to 24 semitones
   from their key's pitch. This is the step's own note, separate from the key's pitch knob and its locks. **OCT−**
   and **OCT+** nudge the step earlier or later.
@@ -302,6 +305,12 @@ Hold a step and press **ARP**. The knob strip shows the step's two tricks: **KNO
 remove it. If you hold several steps, each turn changes them all the same way. Let go of the steps when you are
 done.
 
+On a drum track, the tricks belong to each sound on the step, like its chance: the sound shown's are on the knobs.
+Flam the snare and the kick on the same step still hits once; multiply the hat in fours while the snare flams. On
+an empty drum step, the tricks are the step's own (a jump works there), and a sound you add later plays them. A
+sound you take off a step loses its own velocity, chance and tricks there, so when you put it back, or record it
+again, it starts plain.
+
 | # | Trick | Values: 1 to 9, then random |
 | --- | --- | --- |
 | 1 | pulse: plays the step again on the next steps | 1 to 9 times |
@@ -326,8 +335,14 @@ velocity 64, the ramps and random 4, glide 40 %, bend down-up, tonality fifth up
 cycle of 2, and flam 4 32nds.
 
 Pulse and hold keep time. The playhead keeps moving, the steps they cover give way to them, and the track carries
-on where it would have been. On a drum track, only the sounds on the trick's step give way. The other sounds play
+on where it would have been. On a drum track, only the sound with the trick gives way. The other sounds play
 their steps as written, so a pulsed kick does not stop the hats.
+
+On a drum track, a sound's chance and skip trigger decide whether that sound plays; the others on the step play by
+their own. A few tricks move the whole track, so on a drum track they happen when their sound plays: a jump moves
+the playhead, a bend bends the whole kit, and a skip lock skips the step's locks. Ramp up, ramp down, random,
+glide and tonality change notes, so they do nothing on a drum track. A project saved before each sound had its own
+keeps a drum step's chance and tricks on all its sounds together, until you give one of them its own.
 
 A step's chance and its skip trigger decide whether the step happens at all. When it doesn't, its tricks don't
 happen either, and that includes a jump: a jump with a 25 % chance jumps about one time in four. A jump back, or
@@ -340,7 +355,8 @@ goes above its quality. An effect on the throw track shows three letters (PAN) a
 drum track, every sound on the step has a tick, and the tick of the sound shown is bright, so you can see the
 whole beat while you edit one sound. A bar along the bottom of the cells shows how far a long note reaches; an
 arrow at the end of the bar means it carries on. The tricks' letters sit at the bottom right, a percent sign marks
-a chance, and a red dot marks locks.
+a chance, and a red dot marks locks. On a drum step, the percent sign means any of its sounds has a chance, and the
+letters are the sound shown's tricks, or another sound's when it has none.
 
 ### Locks
 
@@ -1363,8 +1379,8 @@ On a sound page, hold **SAVE** and press white key 1 to 16 to keep the track's s
 | HOME | Arrange | tempo | groove | amount | the track's pattern | white: scenes (OCT: 17 to 32), black: mutes (hold a kit's: white 1-11 are its sounds); SEL: load, save to, new project, randomize presets, the song, when scenes switch |
 | HOME, SELECT | Song | slot | scene | bars | at end | white: add a scene (OCT: 17 to 32) |
 | SEQ | Steps | pattern | length | scale | groove | white: steps, black: sound (drums); SEQ held: a keyboard |
-| SEQ, a step held | Steps | velocity | length | chance | pitch | white: length or more steps, black: sounds |
-| SEQ, a step held + ARP | Steps | trick 1 | its value | trick 2 | its value | |
+| SEQ, a step held | Steps | velocity | length | chance | pitch | white: length or more steps, black: sounds; PRESETS: the step's sound shown (drums: velocity, chance and tricks are its) |
+| SEQ, a step held + ARP | Steps | trick 1 | its value | trick 2 | its value | PRESETS: the step's sound shown (drums) |
 | SEQ, SELECT | Bar | quant | note | groove | shape | black: scale; SEQ held, black 1-4: jump or loop bars |
 | EDIT | Engine | the engine's four | | | | play |
 | EDIT, SELECT | Play | mode | porta | bend | volume | play |

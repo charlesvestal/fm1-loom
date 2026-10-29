@@ -687,6 +687,8 @@ static void step_toggle(int i)
         if (step_empty(st))                      /* (a step added back starts fresh: no length or comps of the one removed) */
             memset(st, 0, sizeof *st);
         kit_toggle(st, ui.dsound + 1);
+        if (!kit_has(st, ui.dsound + 1))
+            hit_sound_off(trk, cur_pat(trk), s, ui.dsound % NDRUM);
         step_fresh_if_empty(st);
         step_say(s, kit_has(st, ui.dsound + 1));
     } else if (step_empty(st)) {
@@ -742,15 +744,32 @@ static int jump_turn(int v, int d, int len)
  * SC_*), KNOB 2 / 4 its value (0..8 = 1..9, 9 = random; the skips: their cycle 1..9 or random, in each of their
  * three modes). The interrupt reads comp then cval as two bytes: the kind goes off before its value changes and on
  * after, so it never pairs a kind with another's value */
+static void hit_said(int r)                      /* hit_put's refusal, said */
+{
+    if (r == HIT_NO_LANE)
+        say_no("NO LANE LEFT", "clear locks first");
+    else if (r == HIT_NO_ROOM)
+        say_no("NO ROOM", "too many different hits");
+}
+/* (on a kit step with the sound shown: that sound's tricks, its own; a step without it keeps its own) */
 static void trick_knob(int k, int32_t e)
 {
-    int trk = sel_trk(), d = e > 0 ? 1 : -1;
+    int trk = sel_trk(), d = e > 0 ? 1 : -1, r = HIT_OK;
     undo_keep();
     for (int i = 0; i < 16; i++)
         if (ui.held >> i & 1u) {
-            step_t *st = &tpat(trk)->st[step_shown(i)];
-            uint8_t *kind = k < 2 ? &st->comp : &st->comp2, *val = k < 2 ? &st->cval : &st->cval2;
-            int c = *kind;
+            int sh = step_shown(i), mine = hit_edits(trk, sh);
+            step_t *st = &tpat(trk)->st[sh];
+            hit_t h;
+            uint8_t *kind, *val;
+            int c;
+            if (is_drum(trk) && !mine && !step_empty(st))
+                continue;
+            if (mine)
+                hit_get(trk, cur_pat(trk), sh, ui.dsound % NDRUM, &h);
+            kind = mine ? (k < 2 ? &h.comp : &h.comp2) : k < 2 ? &st->comp : &st->comp2;
+            val = mine ? (k < 2 ? &h.cval : &h.cval2) : k < 2 ? &st->cval : &st->cval2;
+            c = *kind;
             if (!(k & 1)) {
                 int n = clampi(c + d, SC_NONE, NSC - 1);
                 if (n == c)
@@ -774,10 +793,14 @@ static void trick_knob(int k, int32_t e)
                 *kind = SC_NONE;
                 *val = v;
                 *kind = (uint8_t)c;
-            }
+            } else
+                continue;
+            if (mine && r == HIT_OK)
+                r = hit_put(trk, cur_pat(trk), sh, ui.dsound % NDRUM, &h);
         }
     ui.held_used = 1;
     touch(k);
+    hit_said(r);
     mark_dirty();
 }
 /* KNOB 4 on a held step: its pitch. A synth step's notes move together by semitones (a chord keeps its shape, and
@@ -835,7 +858,7 @@ static void kit_vel(int trk, int s, int e)
 }
 static void step_knob(int k, int32_t e)          /* k 4: the nudge (OCT-/OCT+) */
 {
-    int trk = sel_trk();
+    int trk = sel_trk(), r = HIT_OK;
     undo_keep();
     for (int i = 0; i < 16; i++)
         if (ui.held >> i & 1u) {
@@ -847,8 +870,14 @@ static void step_knob(int k, int32_t e)          /* k 4: the nudge (OCT-/OCT+) *
             else if (k == 1)
                 st->len = (uint8_t)clampi(st->len + e, 0, step_len_code(tpat(trk)->len * 4));   /* (the pattern's
                                                                                                 * length at most) */
-            else if (k == 2) {
-                int c = st->cond;
+            else if (k == 2) {                   /* the chance: a kit's sound shown's own (hit_edits) */
+                int sh = step_shown(i), mine = hit_edits(trk, sh), c;
+                hit_t h;
+                if (is_drum(trk) && !mine && !step_empty(st))
+                    continue;
+                if (mine)
+                    hit_get(trk, cur_pat(trk), sh, ui.dsound % NDRUM, &h);
+                c = mine ? h.cond : st->cond;
                 c = c < COND_AB ? c + (int)e : COND_AB + clampi(c - COND_AB + (int)e, -1, COND_NAB);
                 if (c < 0)
                     c = 0;
@@ -858,7 +887,12 @@ static void step_knob(int k, int32_t e)          /* k 4: the nudge (OCT-/OCT+) *
                     c = 99;
                 if (c >= COND_AB + COND_NAB)
                     c = COND_AB + COND_NAB - 1;
-                st->cond = (uint8_t)c;
+                if (!mine)
+                    st->cond = (uint8_t)c;
+                else if (r == HIT_OK) {
+                    h.cond = (uint8_t)c;
+                    r = hit_put(trk, cur_pat(trk), sh, ui.dsound % NDRUM, &h);
+                }
             } else if (k == 3)
                 step_pitch(trk, step_shown(i), (int)e);
             else
@@ -867,6 +901,7 @@ static void step_knob(int k, int32_t e)          /* k 4: the nudge (OCT-/OCT+) *
     ui.held_used = 1;
     if (k < 4)
         touch(k);
+    hit_said(r);
     mark_dirty();
 }
 static void step_nudge(int d)                    /* a step held + OCT-/OCT+ */
@@ -953,7 +988,8 @@ static void step_rec_key(int v)
         st->vel = 100;
     }
     if (is_drum(trk)) {
-        kit_add(st, v);
+        if (kit_add(st, v))                           /* (a sound new on the step: none of an old one's settings) */
+            hit_sound_off(trk, cur_pat(trk), ui.cursor, v - 1);
         if (!st->vel)
             st->vel = 100;
     } else {
@@ -1484,8 +1520,11 @@ static void key_down(int k)
             for (int i = 0; i < 16; i++)
                 if (ui.held >> i & 1u) {
                     step_t *st = &tpat(trk)->st[step_shown(i)];
-                    if (kit_has(st, b + 1) != on)
+                    if (kit_has(st, b + 1) != on) {
                         kit_toggle(st, b + 1);
+                        if (!on)
+                            hit_sound_off(trk, cur_pat(trk), step_shown(i), b);
+                    }
                 }
             ui.kmode[k] = KM_STEPSOUND;
             ui.held_used = 1;
@@ -2197,7 +2236,17 @@ static void presets(int32_t e)
         song_knob(0, d);
         break;
     case P_STEPS: case P_BAR:
-        if (is_drum(trk)) {
+        if (is_drum(trk) && ui.held && kit_mask(&tpat(trk)->st[step_shown(ui.held_first)])) {
+            uint32_t m = kit_mask(&tpat(trk)->st[step_shown(ui.held_first)]);   /* a step held: its sounds in turn
+                                                                                  * (the knobs reach the one shown) */
+            int n = ui.dsound % NDRUM;
+            do
+                n = (n + d + NDRUM) % NDRUM;
+            while (!(m >> n & 1u));
+            ui.dsound = (uint8_t)n;
+            ui.held_used = 1;
+            say("SOUND", DL_SOUND_NAME[ui.dsound]);
+        } else if (is_drum(trk)) {
             ui.dsound = (uint8_t)((ui.dsound + d + DL_NSOUND) % DL_NSOUND);
             say("SOUND", DL_SOUND_NAME[ui.dsound]);
         } else if ((ui.btn >> B_SEQ & 1u) && !is_aux(trk))   /* SEQ held (the keys a keyboard): the track's sound */
@@ -3215,6 +3264,7 @@ static void act_remove_note(int row)             /* a step held: the row's note 
             return;
         undo_keep();
         kit_toggle(st, snd);
+        hit_sound_off(trk, cur_pat(trk), step_shown(ui.held_first), snd - 1);
         step_fresh_if_empty(st);
         ui.held_used = 1;
         mark_dirty();
