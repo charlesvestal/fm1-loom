@@ -1050,6 +1050,36 @@ static void fx_job_timed(uint32_t arg)                     /* the effects' job (
         }
     }
 }
+/* a NaN or an infinity in the mix (a fault in a voice or an effect: it would stay in their states and silence everything
+ * until a restart): that block silent, then every state that could hold it cleared, the settings kept. eng_heals: how
+ * many times (the Debug page) */
+static uint8_t heal_due;
+volatile uint16_t eng_heals;
+static int finite_bits(float x)
+{
+    union { float f; uint32_t u; } b = {x};
+    return (b.u & 0x7F800000u) != 0x7F800000u;
+}
+static void heal(void)
+{
+    int t, k;
+    heal_due = 0;
+    eng_heals++;
+    synth_cut(SY);
+    for (t = 0; t < NTRK; t++)
+        if (eng_drum[t]) {
+            drumline_init(DL(t), epar[t]);
+            dl_filter_update(t);
+        }
+    for (k = 0; k < 2; k++) {
+        fx_clear(FXS(k));
+        zerof(snd_acc[k], 256);
+        zerof(fx_ret[k][0], 256);
+        zerof(fx_ret[k][1], 256);
+    }
+    snd_n = 0;
+    master_clear(MST);
+}
 /* the effects' job, when it runs on the second core, from the block's start: beside the first core's sequencer.
  * fx_done waits for it (or runs it here, if the second core failed) and sets the knobs locked meanwhile */
 static void fx_done(void)
@@ -1445,6 +1475,8 @@ void engine_render(int32_t *out_lr, uint32_t n, uint32_t gain_q12)
         synth_vinfo[i] = 0;
     }
     guard_apply();
+    if (heal_due)                                        /* (here: the second core is done with the last block) */
+        heal();
     {
         PROF_T(pt);
         float bpm;
@@ -1558,8 +1590,16 @@ void engine_render(int32_t *out_lr, uint32_t n, uint32_t gain_q12)
     eng_scene_cue = seq.cue;
     eng_pump_db = master_pump_db(MST);
     PROF_T(po);
-    float pk = 0.0f;                                     /* (quiet: every sample under -60 dB; the autosave waits for
+    float pk = 0.0f, chk = 0.0f;                         /* (quiet: every sample under -60 dB; the autosave waits for
                                                           * it, a flash write cuts the audio) */
+    for (i = 0; i < n; i++)                              /* a NaN or infinity anywhere: the sum is one too */
+        chk += mix_l[i] + mix_r[i];
+    if (!finite_bits(chk)) {                             /* the block silent; the states that would keep it (the
+                                                          * voices, the effects' lines, the master) cleared next block */
+        zerof(mix_l, n);
+        zerof(mix_r, n);
+        heal_due = 1;
+    }
     for (i = 0; i < n; i++) {                            /* Felucca's -6 dBFS ceiling of the 24-bit codec (2^22) */
         float l, r;
         pk = fm_maxf(pk, fm_maxf(fm_fabsf(mix_l[i]), fm_fabsf(mix_r[i])));

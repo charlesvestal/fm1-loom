@@ -906,6 +906,13 @@ static void smp_prep(voice_t *v)
  * loop's start fades in (read at the same distance into it, a second cache: smp_xc), then the voice goes on from there.
  * o[7] the cache + 1 while crossing (0 none), o[8] / o[9] the start's read position and fraction. Returns the
  * frames written into out (up to m), the crossing done when it reaches the loop's end */
+static void smp_xf_free(voice_t *v)             /* the voice's crossing given up: its cache free */
+{
+    for (int x = 0; x < SMP_NXF; x++)
+        if (smp_xo[x] == v->vi)
+            smp_xo[x] = NVOICE;
+    v->o[7] = 0.0f;
+}
 static int smp_xfade(voice_t *v, const smp_t *sm, int32_t *pos, float *fr, float inc, int32_t ls, int32_t le,
                      int32_t xf, float *out, int m)
 {
@@ -915,7 +922,8 @@ static int smp_xfade(voice_t *v, const smp_t *sm, int32_t *pos, float *fr, float
     int k, j, n = m > SUB * 4 ? SUB * 4 : m;
     smp_cache_t *xc = &smp_xc[(int)v->o[7] - 1];
     k = smp_play(&smp_vc[v->vi % NVOICE], sm, pos, fr, inc, 1, ls, le, out, n);
-    smp_play(xc, sm, &pb, &fb, inc, 1, ls, le, tb, k);
+    for (j = smp_play(xc, sm, &pb, &fb, inc, 1, ls, le, tb, k); j < k; j++)
+        tb[j] = 0.0f;                            /* (the start's side ended first: silence, not the stack's leftovers) */
     for (j = 0; j < k; j++) {                    /* (equal power: the two halves of a loop are not alike) */
         float t = fm_clampf((p0 + (float)j * inc - (float)(le - xf)) / (float)xf, 0.0f, 1.0f);
         out[j] = out[j] * fm_sin_turns(0.25f - t * 0.25f) + tb[j] * fm_sin_turns(t * 0.25f);
@@ -923,8 +931,7 @@ static int smp_xfade(voice_t *v, const smp_t *sm, int32_t *pos, float *fr, float
     if (k < n || *pos >= le) {                   /* the end reached: on from the start's side, the cache free */
         *pos = pb;
         *fr = fb;
-        smp_xo[(int)v->o[7] - 1] = NVOICE;
-        v->o[7] = 0.0f;
+        smp_xf_free(v);
     } else {
         v->o[8] = (float)pb;
         v->o[9] = fb;
@@ -943,10 +950,10 @@ static void smp_run(voice_t *v, float *xl, float *xr, int m)
     int i = 0, done = !sm || inc <= 0.0f || v->o[3] > 0.5f, turns = 0;
     int32_t xf = sm && le - ls >= 64 ? (int32_t)fm_minf((float)sm->rate * SMP_XF_S, (float)(le - ls) * 0.25f) : 0;
     (void)xr;
-    if (!done && v->o[5] > 0.5f && v->o[7] > 0.5f) {   /* (a retrigger during a crossing: the crossing let go) */
-        smp_xo[(int)v->o[7] - 1] = NVOICE;
-        v->o[7] = 0.0f;
-    }
+    if (v->o[7] > 0.5f && (done || v->o[5] > 0.5f || mode != SM_LOOP || xf <= 0 || pos < le - xf || pos >= le ||
+                           v->o[8] < (float)ls || v->o[8] >= (float)le))
+        smp_xf_free(v);                          /* (a retrigger during a crossing, or the sample, its region or its loop
+                                                  * changed under it: the crossing let go, the voice goes on from here) */
     if (!done && v->o[5] > 0.5f) {               /* a mono retrigger: the sound playing fades out over SMP_SWITCH
                                                   * samples, then the note starts (smp_retrigger) */
         float sw = v->o[6];
@@ -1275,6 +1282,8 @@ static void voice_start(synth_t *s, voice_t *v, int note, int vel, int glide_ms,
     if (v->engine == EG_RAYON)                   /* its fall and its tine from the top, every note */
         v->o[5] = v->o[7] = 1.0f;
     if (v->engine == EG_SAMPLE || v->engine == EG_SLICE) {   /* from the region's (the slice's) start again */
+        if (v->engine == EG_SAMPLE)
+            smp_xf_free(v);                      /* (a crossing it was in: its cache free) */
         v->o[3] = v->o[4] = 0.0f;
         v->o[6] = v->o[7] = 0.0f;
     }
@@ -1692,6 +1701,22 @@ void synth_note_off(synth_t *s, int trk, uint32_t tag)
     }
 }
 
+void synth_cut(synth_t *s)
+{
+    int i, j;
+    synth_all_off(s, -1);
+    for (i = 0; i < NVOICE; i++) {
+        voice_t *v = &s->v[i];
+        v->amp.stage = v->flt.stage = ENV_OFF;
+        v->amp.level = v->flt.level = 0.0f;
+        v->steal_phase = 0;
+        v->steal_gain = 1.0f;
+        v->amp_cur = v->amp_step = v->glc = v->grc = v->gl_step = v->gr_step = 0.0f;
+        for (j = 0; j < 8; j++)
+            v->f[j] = v->cz[j] = 0.0f;
+        eng_init(v);                             /* (o[]: the engine's state; a crossfade's cache free) */
+    }
+}
 void synth_all_off(synth_t *s, int trk)
 {
     int i;
