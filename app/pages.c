@@ -1139,6 +1139,153 @@ static const char *comp_val_text(int comp, int v, char *t)
         return t;
     }
 }
+/* ---- a kit's hits: each sound on a step its own chance and tricks (pattern.h LANE_HIT0 lanes into pats.hit) ---- */
+static void hit_of_step(const step_t *st, hit_t *h)
+{
+    h->cond = st->cond;
+    h->comp = st->comp;
+    h->cval = st->cval;
+    h->comp2 = st->comp2;
+    h->cval2 = st->cval2;
+}
+/* sound snd (0..)'s settings on step s of pattern pt, as it plays: its own, or the step's */
+static void hit_get(int trk, int pt, int s, int snd, hit_t *h)
+{
+    const hit_t *o = step_hit(&pats, trk, pt, s, snd);
+    if (o)
+        *h = *o;
+    else
+        hit_of_step(&pats.pat[trk][pt].st[s], h);
+}
+/* a held step's chance and tricks are the sound shown's, on a kit step it is on; else the step's own (a synth's, an
+ * empty kit step's: its jump) */
+static int hit_edits(int trk, int s) { return is_drum(trk) && kit_has(&tpat(trk)->st[s], ui.dsound % NDRUM + 1); }
+static void hit_view(int trk, int s, hit_t *h)   /* what the knobs show for step s */
+{
+    if (hit_edits(trk, s))
+        hit_get(trk, cur_pat(trk), s, ui.dsound % NDRUM, h);
+    else
+        hit_of_step(&tpat(trk)->st[s], h);
+}
+/* what step s's cell marks: a chance on any of its sounds; the tricks of the sound shown, or of the first with any */
+static void hit_marks(int trk, int pt, int s, const step_t *st, hit_t *h)
+{
+    uint32_t m = is_drum(trk) ? kit_mask(st) : 0u;
+    int cond = 0, shown = ui.dsound % NDRUM;
+    hit_t o;
+    hit_of_step(st, h);
+    if (!m)
+        return;
+    h->comp = h->comp2 = 0;
+    if (m >> shown & 1u) {
+        hit_get(trk, pt, s, shown, &o);
+        h->comp = o.comp, h->cval = o.cval, h->comp2 = o.comp2, h->cval2 = o.cval2;
+    }
+    for (; m; m &= m - 1u) {
+        hit_get(trk, pt, s, __builtin_ctz(m), &o);
+        cond |= o.cond;
+        if (!h->comp && !h->comp2)
+            h->comp = o.comp, h->cval = o.cval, h->comp2 = o.comp2, h->cval2 = o.cval2;
+    }
+    h->cond = (uint8_t)(cond ? 1 : 0);
+}
+static int hit_same(const hit_t *a, const hit_t *b)
+{
+    return a->cond == b->cond && a->comp == b->comp && a->cval == b->cval && a->comp2 == b->comp2 && a->cval2 == b->cval2;
+}
+/* the entries no lane points at (the undo's pattern's lanes count: undoing brings them back) are free again */
+static void hits_gc(void)
+{
+    uint64_t used = 0;
+    for (int k = 0; k < NLANE; k++)
+        if (pats.lane[k].used && lane_is_hit(pats.lane[k].param))
+            for (int i = 0; i < NSTEP; i++)
+                if (pats.lane[k].val[i] < NHIT)
+                    used |= 1ull << pats.lane[k].val[i];
+    if (undo.valid && undo.kind == U_PAT && undo.nl != 0xFFu)
+        for (int k = 0; k < undo.nl && k < UNDO_LANES; k++)
+            if (lane_is_hit(undo.u.p.lane[k].param))
+                for (int i = 0; i < NSTEP; i++)
+                    if (undo.u.p.lane[k].val[i] < NHIT)
+                        used |= 1ull << undo.u.p.lane[k].val[i];
+    for (int k = 0; k < NHIT; k++)
+        if (!(used >> k & 1u))
+            memset(&pats.hit[k], 0, sizeof pats.hit[k]);
+}
+/* the entry of these settings (an entry once pointed at never changes: the interrupt may be reading it), -1 none left */
+static int hit_intern(const hit_t *h)
+{
+    int k, f = -1;
+    for (k = 0; k < NHIT; k++) {
+        if (hit_same(&pats.hit[k], h))
+            return k;
+        if (f < 0 && hit_plain(&pats.hit[k]))
+            f = k;
+    }
+    if (f < 0) {
+        hits_gc();
+        for (k = 0; k < NHIT && f < 0; k++)
+            if (hit_plain(&pats.hit[k]))
+                f = k;
+    }
+    if (f >= 0)
+        pats.hit[f] = *h;
+    return f;
+}
+static void lane_drop_empty(int ln)              /* a lane with no step left on it goes (the lanes are few) */
+{
+    for (int i = 0; i < NSTEP; i++)
+        if (pats.lane[ln].val[i] != LOCK_NONE)
+            return;
+    lane_clear(pats.lane, ln);
+}
+enum { HIT_OK, HIT_NO_LANE, HIT_NO_ROOM };
+/* sound snd (0..) on step s of pattern pt gets these settings (plain: none of its own). The step's own settings,
+ * while it still has any, go to each of its sounds first (as their own), so the others keep playing as they did */
+static int hit_put(int trk, int pt, int s, int snd, const hit_t *h)
+{
+    step_t *st = &pats.pat[trk][pt].st[s];
+    hit_t sh;
+    int ln, k;
+    hit_of_step(st, &sh);
+    if (!hit_plain(&sh)) {
+        uint32_t m = kit_mask(st);
+        if ((k = hit_intern(&sh)) < 0)
+            return HIT_NO_ROOM;
+        for (; m; m &= m - 1u)
+            if (!step_hit(&pats, trk, pt, s, __builtin_ctz(m))) {
+                if ((ln = lane_alloc(pats.lane, trk, pt, (int)(LANE_HIT0 + (unsigned)__builtin_ctz(m)))) < 0)
+                    return HIT_NO_LANE;
+                pats.lane[ln].val[s] = (uint8_t)k;
+            }
+        st->comp = st->comp2 = SC_NONE;           /* (every sound has it now: the step's own goes) */
+        st->cval = st->cval2 = 0;
+        st->cond = 0;
+    }
+    ln = lane_find(pats.lane, trk, pt, (int)(LANE_HIT0 + (unsigned)snd));
+    if (hit_plain(h)) {
+        if (ln >= 0) {
+            pats.lane[ln].val[s] = LOCK_NONE;
+            lane_drop_empty(ln);
+        }
+        return HIT_OK;
+    }
+    if ((k = hit_intern(h)) < 0)
+        return HIT_NO_ROOM;
+    if (ln < 0 && (ln = lane_alloc(pats.lane, trk, pt, (int)(LANE_HIT0 + (unsigned)snd))) < 0)
+        return HIT_NO_LANE;
+    pats.lane[ln].val[s] = (uint8_t)k;
+    return HIT_OK;
+}
+static void hit_sound_off(int trk, int pt, int s, int snd)   /* a sound taken off a step: its settings there go */
+{
+    int ln = lane_find(pats.lane, trk, pt, (int)(LANE_HIT0 + (unsigned)snd));
+    if (ln >= 0) {
+        pats.lane[ln].val[s] = LOCK_NONE;
+        lane_drop_empty(ln);
+    }
+}
+
 static void step_knobs(knob_t *k)
 {
     const tpat_t *tp = tpat(sel_trk());
@@ -1154,7 +1301,11 @@ static void step_knobs(knob_t *k)
     step_len_text(st->len, t, tp->nlen);
     kv(&k[1], "LENGTH", t, st->len, step_len_code(tp->len * 4));
     t[0] = 0;
-    cond_text(st->cond, t);
+    {
+        hit_t h;
+        hit_view(sel_trk(), step_shown(ui.held_first), &h);   /* (a kit: the sound shown's) */
+        cond_text(h.cond, t);
+    }
     kv(&k[2], "CHANCE", t, 0, 0);
     if (is_drum(sel_trk())) {                         /* the step's note: semitones from the keys' pitch */
         int semi = step_tune(pats.lane, sel_trk(), cur_pat(sel_trk()), step_shown(ui.held_first));
@@ -1177,8 +1328,9 @@ static void step_knobs(knob_t *k)
 /* HOME + a step held: the strip shows the step's components and their values */
 static void comp_knobs(knob_t *k)
 {
-    const step_t *st = &tpat(sel_trk())->st[step_shown(ui.held_first)];
+    hit_t h, *st = &h;                                /* (a kit: the sound shown's) */
     char t[16];
+    hit_view(sel_trk(), step_shown(ui.held_first), &h);
     kv(&k[0], "TRICK 1", st->comp ? COMP_NAME[st->comp % NSC] : "-", 0, 0);
     kv(&k[1], "VALUE", st->comp ? comp_val_text(st->comp, st->cval, t) : "-", 0, 0);
     kv(&k[2], "TRICK 2", st->comp2 ? COMP_NAME[st->comp2 % NSC] : "-", 0, 0);
@@ -1558,8 +1710,11 @@ static void page_tag(char *t)
             s_cat(s_cat(e, ">"), page_name_of(lp, sel_trk()));
         } else if (ui.held & (ui.held - 1u))     /* several held: how many (the knobs show the first's values) */
             s_cat(num_s((uint32_t)__builtin_popcount(ui.held), s_cat(t + s_len(t), ">")), " steps");
-        else if (ui.held)
-            num_s((uint32_t)step_shown(ui.held_first) + 1u, s_cat(t + s_len(t), ">step "));
+        else if (ui.held) {
+            e = num_s((uint32_t)step_shown(ui.held_first) + 1u, s_cat(t + s_len(t), ">step "));
+            if (hit_edits(sel_trk(), step_shown(ui.held_first)))   /* a kit: the sound its knobs reach */
+                s_cat(s_cat(e, ">"), DL_SOUND_NAME[ui.dsound % DL_NSOUND]);
+        }
         break;
     case P_ENGINE: case P_PLAY: case P_PLAY2: case P_SUB: case P_ENV: case P_FILTER: case P_ENV2: case P_KITF: case P_LFO:
     case P_LFO2:
@@ -3013,6 +3168,7 @@ static void draw_steps(void)
         const step_t *st = &tp->st[s];
         int32_t x = ST_X + (i % 8) * ST_CW, y = ST_Y + (i / 8) * (ST_CH + 4);
         uint16_t bg, fg;
+        hit_t hm;
         on = step_on(st, trk);
         bg = !in ? K_BG : on ? K_TINT : K_PANEL;
         if (playing() && s == ph && in)
@@ -3101,16 +3257,17 @@ static void draw_steps(void)
                     text_c(x + ST_MID, y + ST_L2, &FONT_XS, l2, c2);
             }
         }
-        if (st->comp || st->comp2) {                 /* the tricks' letters, bottom right */
+        hit_marks(trk, pt, s, st, &hm);                  /* (a kit: its sounds' own too) */
+        if (hm.comp || hm.comp2) {                   /* the tricks' letters, bottom right */
             char g[4] = {0};
             char *e = g;
-            if (st->comp)
-                e = s_cat(e, COMP_GLYPH[st->comp % NSC]);
-            if (st->comp2)
-                s_cat(e, COMP_GLYPH[st->comp2 % NSC]);
+            if (hm.comp)
+                e = s_cat(e, COMP_GLYPH[hm.comp % NSC]);
+            if (hm.comp2)
+                s_cat(e, COMP_GLYPH[hm.comp2 % NSC]);
             text_r(x + ST_CW - 6, y + ST_MK, &FONT_XS, g, fg);
         }
-        if (st->cond) {                              /* a small percent sign (5 x 7): the font's is too wide beside two letters */
+        if (hm.cond) {                              /* a small percent sign (5 x 7): the font's is too wide beside two letters */
             static const uint8_t PCT[7] = {0x19, 0x1A, 0x02, 0x04, 0x08, 0x0B, 0x13};
             for (int r = 0; r < 7; r++)
                 for (int b = 0; b < 5; b++)

@@ -1,0 +1,16 @@
+# a format 17 project (no hit settings; tests/fixtures/make_v17.xy): a kit step's own flam and 1:2 stay the step's,
+# its kick and snare playing them together: four hits in two bars (two flams on the first pass, none on the second)
+storeload tests/fixtures/store_v17.bin
+reboot
+wait 400
+expect drumhits 0
+expect tempo 97
+expect comp 1 1 15
+expect kcond1.1.1.1 100
+expect kcond1.1.1.2 100
+expect ktrick1.1.1.2 15
+expect lanes 0
+tap PLAY
+bars 1.75
+tap PLAY
+expect drumhits 4

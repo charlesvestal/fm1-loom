@@ -143,8 +143,6 @@ typedef struct {                      /* one track's runtime (interrupt only) */
     uint16_t echo_gain;               /* the loop's velocity, Q8 (echo: x 0.7 a pass) */
     uint8_t stall_kind;               /* SC_PULSE or SC_HOLD while stall > 0 */
     uint8_t stall_p;                  /* the trick's step (a pulse plays it again) */
-    uint8_t stall_vel;                /* a kit: the hit's velocity, for the pulse's repeats */
-    uint16_t stall_mask;              /* a kit: the sounds covered (the trick's step's; the others play on) */
     uint8_t jump_to;                  /* the jump component's next step, 0xFF none */
     volatile uint8_t bq_go, bq_f, bq_e;   /* a bar jump / loop queued for the next bar line: go to step bq_go (0xFF none), the loop bq_f .. bq_e (0 = all) */
     uint8_t nlast;                    /* notes in last_note[] */
@@ -169,6 +167,17 @@ typedef struct {                      /* one track's runtime (interrupt only) */
     step_t wv_st;                     /* the woven step playing (weave_step), while the track weaves */
     uint8_t wv_on;                    /* 1: the step playing is wv_st (its ratchets repeat it) */
 } seq_trk_t;
+
+/* a kit sound's tricks as it plays (seq.c kit_step): each sound of a kit its own ratchets or flam, its pulse or hold, its
+ * velocity trick (the sounds without hit settings of their own share the step's, rolled once for them all) */
+typedef struct {
+    uint32_t sub;                     /* samples to its next ratchet (or the flam's own hit), Q8 */
+    uint8_t n, i;                     /* ratchets: hits wanted (1 none), done */
+    uint8_t flam;                     /* flam: 32nds of a step from the grace to its own hit (0 none) */
+    uint8_t velk;                     /* its velocity trick's value + 1 (0 none) */
+    uint8_t stall, kind;              /* pulse / hold: steps it still covers, SC_PULSE or SC_HOLD */
+    uint8_t svel, sp;                 /* a pulse's repeats: the hit's velocity (0 a silent one), the trick's step */
+} kit_rt_t;                           /* 12 bytes */
 
 typedef struct {
     uint8_t gen, applied;             /* lane runtime: the value last applied (LOCK_NONE = none) */
@@ -242,6 +251,8 @@ typedef struct {
     uint32_t punch_seq;               /* from the punch track's steps */
     /* runtime */
     seq_trk_t t[NSEQT];
+    kit_rt_t krt[NTRK][NDRUM];        /* the kit tracks' sounds' tricks (seq.c kit_step) */
+    uint16_t ksub[NTRK];              /* bit i: sound i of track t has ratchets to come (krt[t][i].sub) */
     lane_rt_t lrt[NLANE];
     player_t player[NTRK];
     uint32_t bar_to_next;             /* Q8 */

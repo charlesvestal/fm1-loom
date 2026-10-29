@@ -34,10 +34,12 @@ uint8_t proj_slot;
 #define STREAM_HDR 16u                  /* in the first object: format, raw length, raw CRC, packed length */
 #define STREAM_CAP ((uint32_t)NSTREAM * (PLAT_STORE_MAX - 4u) - (STREAM_HDR - 4u))
 #define RAW_LEN sizeof(patterns_t)
+/* formats 12..17: the store without the kits' hit settings (pats.hit, last: none then) */
+#define RAW_LEN17 (sizeof(patterns_t) - sizeof pats.hit)
 /* format 10 (0.5-beta): the same store but 16 scenes of scene10_t, the song after them */
-#define RAW_LEN10 (sizeof(patterns_t) - sizeof pats.scene + NSCENE10 * sizeof(scene10_t))
+#define RAW_LEN10 (RAW_LEN17 - sizeof pats.scene + NSCENE10 * sizeof(scene10_t))
 /* format 11: 32 scenes of scene11_t (one kit mute mask for every kit) */
-#define RAW_LEN11 (sizeof(patterns_t) - sizeof pats.scene + NSCENE * sizeof(scene11_t))
+#define RAW_LEN11 (RAW_LEN17 - sizeof pats.scene + NSCENE * sizeof(scene11_t))
 typedef char scene_sizes[(sizeof(scene10_t) == 18 && sizeof(scene11_t) == 20 && sizeof(scene_t) == 26) ? 1 : -1];
 typedef char songs_apart[(NSCENE10 * sizeof(scene10_t) + sizeof(song_t) <= NSCENE * sizeof(scene_t) &&
                           NSCENE * sizeof(scene11_t) + sizeof(song_t) <= NSCENE * sizeof(scene_t)) ? 1 : -1];   /* (an
@@ -396,6 +398,10 @@ static void patterns_clamp(void)
         lane_t *l = &pats.lane[k];
         if (l->used && (l->trk >= NALLTRK || l->pat >= NPATT || (l->param >= NTP && !lane_is_note(l->param))))
             l->used = 0;                  /* (a drum step's tune lane is no parameter: kept; it was dropped before 10) */
+        if (l->used && lane_is_hit(l->param))                   /* a kit hit's settings: an index into pats.hit */
+            for (int st = 0; st < NSTEP; st++)
+                if (l->val[st] >= NHIT)
+                    l->val[st] = LOCK_NONE;
         if (l->used && !lane_is_note(l->param)) {                /* a value past the parameter's range would reach the voices unclamped */
             const tp_info_t *i = tp_info_par(l->param, proj.trk[l->trk].par);
             int st;
@@ -404,6 +410,15 @@ static void patterns_clamp(void)
                     if (l->val[st] != LOCK_NONE && l->val[st] > i->hi)
                         l->val[st] = i->hi;
         }
+    }
+    for (k = 0; k < NHIT; k++) {
+        hit_t *h = &pats.hit[k];
+        if (h->comp >= NSC)
+            h->comp = SC_NONE;
+        if (h->comp2 >= NSC)
+            h->comp2 = SC_NONE;
+        if (h->cond >= COND_AB + COND_NAB)
+            h->cond = 0;
     }
     for (k = 0; k < NSCENE; k++) {
         scene_t *sc = &pats.scene[k];
@@ -612,14 +627,19 @@ static int load_stream(int n, uint32_t prev)
     uint32_t crc = get32(io_buf + 8), plen = get32(io_buf + 12), len = get32(io_buf + 4);
     st_in_t s = {0, n, STREAM_HDR, plen, prev};
     lz_src_t src = {st_get, &s};
-    if (n < (int)STREAM_HDR || (len != RAW_LEN && len != RAW_LEN10 && len != RAW_LEN11) || plen > STREAM_CAP)
+    if (n < (int)STREAM_HDR || (len != RAW_LEN && len != RAW_LEN17 && len != RAW_LEN10 && len != RAW_LEN11) ||
+        plen > STREAM_CAP)
         return -1;                                /* (its own length says its format: settings saved alone, as
                                                    * this format's, before a power cut beside format 10's patterns) */
     stored_known[stream_obj[0]] = !(prev & 1u);
     stored_hash[stream_obj[0]] = hash_of(io_buf, (uint32_t)n);
     if (lz_decompress(&src, raw, len) || crc32_of(raw, len) != crc)
         return -1;
-    if (len != RAW_LEN) {
+    if (len != RAW_LEN)                           /* (an older store: no hit settings) */
+        memset(pats.hit, 0, sizeof pats.hit);
+    if (len == RAW_LEN17 && load_format > 17u)
+        load_format = 17u;
+    else if (len == RAW_LEN10 || len == RAW_LEN11) {
         load_format = len == RAW_LEN10 ? 10u : 11u;
         migrate_old(load_format);
     }
