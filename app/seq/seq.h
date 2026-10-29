@@ -144,6 +144,7 @@ typedef struct {                      /* one track's runtime (interrupt only) */
     uint8_t stall_kind;               /* SC_PULSE or SC_HOLD while stall > 0 */
     uint8_t stall_p;                  /* the trick's step (a pulse plays it again) */
     uint8_t jump_to;                  /* the jump component's next step, 0xFF none */
+    uint8_t start_at;                 /* the first step after a start from a page (seq_start_at): step + 1, 0 none */
     volatile uint8_t bq_go, bq_f, bq_e;   /* a bar jump / loop queued for the next bar line: go to step bq_go (0xFF none), the loop bq_f .. bq_e (0 = all) */
     uint8_t nlast;                    /* notes in last_note[] */
     uint8_t last_step;                /* the step last_note[] came from */
@@ -260,6 +261,8 @@ typedef struct {
     uint32_t ext_since, ext_period;
     volatile uint32_t ext_pending;
     volatile uint8_t req_start, req_stop, req_cont, req_from_start;
+    volatile int16_t req_at;          /* seq_start_at: the step the start is from (0: step 1) */
+    volatile uint8_t req_at_trk;      /* and the track whose step it is (its scale: the others' steps at that time) */
     uint32_t rng;
     uint32_t step_tick;               /* sixteenths since start (the metronome, the arp grid) */
     uint8_t metro_beat;
@@ -314,6 +317,8 @@ void seq_keys_live(seq_t *s, uint32_t lead, const seq_sink_t *o);
 
 /* main loop / MIDI side (flag writes, picked up at the next block) */
 void seq_start(seq_t *s, int from_start);
+void seq_start_at(seq_t *s, int trk, int step);   /* from the top, but from track trk's step (0..): every track from
+                                                  * the step it would be on then, in its loop */
 void seq_stop(seq_t *s);
 void seq_continue(seq_t *s);
 void seq_ext_clock(seq_t *s);                  /* one 24-ppqn tick */

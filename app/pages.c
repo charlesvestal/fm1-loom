@@ -224,6 +224,10 @@ static struct {
     uint8_t last_inst;                               /* the instrument track selected last (the FX pages audition it) */
     uint16_t solo;                                   /* the black keys held on Mix: the tracks soloed (bit t) */
     uint16_t solo_mute;                              /* the mutes before the solo */
+    uint16_t solo_lat;                               /* the tracks a double tap soloed: they stay soloed, let go */
+    uint8_t solo_tap_trk, solo_tap_mut;              /* Mix: the last tap's track, whether it muted, and when it was
+                                                      * let go (a double tap) */
+    uint32_t solo_tap_t;
     uint16_t preset_i, pick_preset;               /* (more than 255 presets and user slots) */
     uint8_t pick_engine, pick_slot, pick_fx, pick_weave, pick_save;   /* (pick_save: SAVE TO's slot) */
     uint8_t pick_kit, pick_kslot;                    /* a kit track's KIT (0..3 factory, 4.. user) and SAVE KIT */
@@ -575,6 +579,8 @@ static int cur_scene(void) { return seq.scene < NSCENE ? seq.scene : 0; }
 static int cur_pat(int t) { return is_seqt(t) ? seq.ppat[t] % NPATT : 0; }
 static tpat_t *tpat(int t) { return &pats.pat[is_seqt(t) ? t : 0][cur_pat(t)]; }
 static int playing(void) { return seq.playing; }
+#define NCIN 4                                       /* the count-in's choices (proj.rsv[0]): off, 1 bar, 2 bars, on note */
+#define CIN_NOTE 3
 static int recording(void) { return seq.rec || seq.rec_wait || ui.rec_armed; }
 static int step_shown(int i) { return ui.bar * 16 + i; }
 static step_t *chord_step(int t, int i)              /* chord mode's held cell i: in the bar and pattern it began in */
@@ -815,11 +821,16 @@ static void tempo_text(char *t)                      /* "120.0" */
 /* the engine's meters (eng_peak, the loudest since the last look), taken once a frame for everything that reads them:
  * the header's meter, the Mix page, the engine pictures */
 static uint16_t ui_peak[NALLTRK];
+static uint8_t ui_ghost[NTRK];                   /* (eng_ghost, taken with the meters) */
 static void meters_take(void)
 {
     for (int t = 0; t < NALLTRK; t++) {
         ui_peak[t] = eng_peak[t];
         eng_peak[t] = 0;
+    }
+    for (int t = 0; t < NTRK; t++) {
+        ui_ghost[t] = eng_ghost[t];
+        eng_ghost[t] = 0;
     }
 }
 static float lin_db(float g);
@@ -878,7 +889,7 @@ static void draw_header(void)
     h = hash_u(h, (uint32_t)(plat_battery() + 1));
     h = hash_u(h, (uint32_t)cnt | (uint32_t)playing() << 8 | (uint32_t)is_drum(sel_trk()) << 9 |
                       (uint32_t)page_trk(ui.page) << 10 | (uint32_t)trk_ink(page_trk(ui.page)) << 16);
-    h = hash_u(h, (uint32_t)cur_scene());
+    h = hash_u(h, (uint32_t)cur_scene() | (uint32_t)seq.rec_wait << 8);
     if (msg)
         h = hash_u(h, ui.msg_until ^ (uint32_t)ui.msg_no << 31);
     if (ask)
@@ -923,6 +934,9 @@ static void draw_header(void)
                                     : text_w(&FONT_S, ui.msg[1]) <= room ? &FONT_S : &FONT_XS;
             text_fit(x + 8, f == &FONT_XS ? 6 : 4, f, ui.msg[1], room, K_DIM);
         }
+    } else if (seq.rec_wait && playing()) {      /* recording on the first note: waiting for it */
+        cv_text(8, 4, &FONT_B, "Play a note", K_TEXT);
+        cv_round(222, 8, 9, 9, 4, K_REC);
     } else {
         int32_t r = 232, x = 8;
         const char *bn = BTN_LABEL[PAGE_BTN[page_group(ui.page)].btn];
@@ -1388,10 +1402,10 @@ static void page_knobs(knob_t *k)
     for (int i = 0; i < 4; i++)
         k[i].live = -1;
     if (rec_settings()) {                            /* REC held: the record settings */
-        static const char *const CIN[3] = {"off", "1 bar", "2 bars"};
+        static const char *const CIN[NCIN] = {"off", "1 bar", "2 bars", "on note"};
         static const char *const MODE[2] = {"overdub", "replace"};
         kname(&k[0], "CLICK", METRO_NAME, proj.metronome, 3);
-        kname(&k[1], "COUNT", CIN, proj.rsv[0] % 3u, 3);
+        kname(&k[1], "COUNT", CIN, proj.rsv[0] < NCIN ? proj.rsv[0] : 0, NCIN);
         if (is_seqt(trk))
             kn(&k[2], "QUANT", tp->quant, 100);
         kname(&k[3], "MODE", MODE, proj.rsv[2] & 1u, 2);
@@ -2176,7 +2190,7 @@ static const struct { uint8_t btn; uint32_t pages; const char *title, *l1, *l2; 
      "Strum: a key strums its chord; keys held together set it."},
     {B_ARP, PG_STEPS, "Tricks", "With a step held, ARP: KNOB 1 and 3 pick its two tricks,",
      "KNOB 2 and 4 their values. Let go of the step when done."},
-    {B_GLO, PG_ANY, "Mix", "Sends, pan, level. Black: tap mutes, hold solos (more: more).",
+    {B_GLO, PG_ANY, "Mix", "Sends, pan, level. Black: tap mute, hold solo, 2 taps: stays.",
      "SELECT: Master EQ, out, Setup. HOME's SEL: projects."},
     {B_HOME, PG_ANY, "Arrange", "Each track's pattern in the scene. White: scenes, black: mutes.",
      "SEL: projects, scene timing. + REC undoes, + PLAY redoes."},
@@ -4738,11 +4752,14 @@ static void draw_mix(void)
                                                                               * throws make no sound: none) */
     uint32_t now = plat_ms(), dt = now - m_last;
     int sel = sel_trk();
-    uint32_t h = hash_u(hash_u(hash_u(2166136261u, 0x3Cu), (uint32_t)sel | (uint32_t)seq.mute << 4), ui.solo);
+    uint32_t h = hash_u(hash_u(hash_u(2166136261u, 0x3Cu), (uint32_t)sel | (uint32_t)seq.mute << 4), ui.solo | (uint32_t)ui.solo_lat << 16);
     float fall = (float)(dt > 1000u ? 1000u : dt) * 0.024f;
     m_last = now;
     for (int t = 0; t < NALLTRK; t++) {          /* the engine's loudest since the last look, then the fall */
         float db = lin_db((float)ui_peak[t] * (1.0f / 16383.5f));   /* (meters_take's) */
+        if (t < NTRK && ui_ghost[t] && lev_now(t))   /* a muted track's steps: a meter in grey all the same (at its
+                                                      * fader, less for a softer step), an empty track's none */
+            db = fm_maxf(db, lin_db(tp_level_gain(lev_now(t)) * (float)ui_ghost[t] * (1.0f / 127.0f)) - 6.0f);
         if (dt > 250u)                           /* (back on the page: what piled up meanwhile is old) */
             m_db[t] = m_hold[t] = MIX_DB_LO - 1.0f;
         m_db[t] = fm_maxf(db, m_db[t] - fall);
@@ -4767,7 +4784,7 @@ static void draw_mix(void)
             continue;
         int32_t x = 4 + COL[t] * 18 + (COL[t] >= 8 ? 14 : 0);
         int muted = t < NSEQT && (seq.mute >> t & 1u), sound = t < NTRK || is_fx(t);
-        uint16_t ink = muted ? K_LINE : trk_ink(t);
+        uint16_t ink = muted ? K_FAINT : trk_ink(t);      /* (muted: its steps, grey) */
         text_c(x + 7, 94, &FONT_XS, SHORT_NM[t], t == sel ? K_TEXT : muted || !sound ? K_FAINT : K_DIM);
         if (muted)
             cv_rect(x + 2, 108, 10, 2, K_FAINT);
@@ -4789,7 +4806,7 @@ static void draw_mix(void)
         cv_rect(x + 1, y0 - fy, 12, 1, K_BG);
     }
     if (ui.solo)
-        text_r(236, 108, &FONT_XS, "solo", K_TEXT);
+        text_r(236, 108, &FONT_XS, ui.solo_lat ? "SOLO" : "solo", ui.solo_lat ? K_SEL : K_TEXT);
     cv_blit(0, MAIN_Y);
 }
 /* Master color: the type and what it does, and the Character page's picture of it (synth.c char_picture, through a

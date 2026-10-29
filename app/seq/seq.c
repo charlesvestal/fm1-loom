@@ -1246,6 +1246,7 @@ static void track_reset(seq_t *s, int t)
     seq_trk_t *tr = &s->t[t];
     int k;
     tr->started = 0;
+    tr->start_at = 0;
     tr->pos = 0;
     tr->grid_h = tr->grid_len = 0;
     tr->origin_h8 = now_h8(s);
@@ -1596,7 +1597,8 @@ static void fire_step(seq_t *s, int t, const seq_sink_t *o)
     int32_t off, noff;
     if (!tr->started) {
         tr->started = 1;
-        p = loop_from(tpat(s, t));
+        p = tr->start_at ? tr->start_at - 1 : loop_from(tpat(s, t));
+        tr->start_at = 0;
         tr->stall = 0;
     } else {
         p = next_pos(s, t, &wrapped, 1);
@@ -2822,9 +2824,23 @@ static void do_start(seq_t *s, int from_top, const seq_sink_t *o)
 {
     int t;
     if (from_top) {
+        int at = s->req_at;
         bar_end(s, 1, o);
         for (t = 0; t < NSEQT; t++)
             track_reset(s, t);
+        s->req_at = 0;
+        if (at > 0) {                 /* from a page: each track from the step it would be on, that many steps of the
+                                       * track asked for in (its scale: others at other speeds, at the same time) */
+            int32_t h = (int32_t)at * ts_halves(tpat(s, s->req_at_trk % NSEQT));
+            for (t = 0; t < NSEQT; t++) {
+                const tpat_t *tp = tpat(s, t);
+                int f, e, p = (int)(h / ts_halves(tp)) % pat_len(tp);
+                pat_loop(tp, &f, &e);
+                if (p < f || p >= e)
+                    p = f + (p - f + (e - f) * NSTEP) % (e - f);
+                s->t[t].start_at = (uint8_t)(p + 1);
+            }
+        }
         s->bar_six = 0;
         s->bar16 = 0;
         s->step_tick = 0;
@@ -3344,8 +3360,15 @@ void seq_keys_live(seq_t *s, uint32_t lead, const seq_sink_t *o)
     s->live_lead = 0;
 }
 
+void seq_start_at(seq_t *s, int trk, int step)
+{
+    s->req_at_trk = (uint8_t)(trk >= 0 && trk < NSEQT ? trk : 0);
+    s->req_at = (int16_t)(step > 0 && step < NSTEP ? step : 0);
+    s->req_start = 1;
+}
 void seq_start(seq_t *s, int from_start)
 {
+    s->req_at = 0;
     if (from_start)
         s->req_start = 1;
     else

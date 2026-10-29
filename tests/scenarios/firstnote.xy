@@ -1,0 +1,24 @@
+# recording on the first note: COUNT (REC held, knob 2) "on note": REC + PLAY waits, nothing moves, until a key;
+# that note lands on step 1 and the transport runs from there
+wait 300
+turn ALGO 1
+expect trk 2
+tap SEQ
+press REC
+turn K2 3
+wait 60
+shot rec_knobs_onnote.png
+release REC
+press REC
+tap PLAY
+release REC
+expect playing 1
+wait 1500
+shot waiting.png
+key 0 down
+wait 120
+key 0 up
+wait 700
+tap PLAY
+expect playing 0
+expect note 2 1 1 53

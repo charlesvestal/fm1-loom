@@ -86,6 +86,8 @@ extern volatile uint16_t eng_peak[NALLTRK];              /* meters after the fad
                                                           * since the UI took it (and set it to 0) */
 extern volatile uint8_t eng_drum_hit[NDRUM];             /* the selected drum track's last hits (255 = full) */
 extern volatile uint8_t eng_midi_hit[NTRK];              /* a note on gone out on track t's channel (255, eased out) */
+extern volatile uint8_t eng_ghost[NTRK];                 /* a muted track's step that would have played: its velocity
+                                                          * (the loudest since the UI took it, and set it to 0) */
 extern volatile uint8_t eng_voices, eng_voices_max;      /* sounding, and the guard's cap */
 extern volatile uint16_t eng_quiet;                      /* blocks in a row the output stayed under -60 dB (to 65535) */
 extern volatile uint32_t eng_guard_count;

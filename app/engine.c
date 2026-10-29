@@ -522,11 +522,14 @@ static void s_note_on(void *x, int trk, int note, int vel, int glide_ms, uint32_
     eng_master_key(PB_T1 + trk, vel, 0);
     PROF_ADD(PR_NOTE, pn);
 }
+volatile uint8_t eng_ghost[NTRK];
 static void s_ghost(void *x, int trk, int sound, int vel)   /* a muted track's step: it keys the pump, silently */
 {
     (void)x;
     if (trk < 0 || trk >= NTRK)
         return;
+    if ((uint8_t)vel > eng_ghost[trk])             /* (Mix: a muted track's meter shows it in grey) */
+        eng_ghost[trk] = (uint8_t)vel;
     if (eng_drum[trk] && sound >= 0 && sound < NDRUM)
         pump_drum(trk, sound, vel);
     else if (!eng_drum[trk])

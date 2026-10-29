@@ -265,9 +265,15 @@ static void kit_sound_mute(int trk, int snd)     /* kit track trk's sound muted 
     mark_dirty();
     say(m >> snd & 1u ? "MUTED" : "UNMUTED", DL_SOUND_NAME[snd]);
 }
+static void solo_end(void);
 static void set_mute(int trk, int on)
 {
-    uint16_t m = seq.mute;
+    uint16_t m;
+    if (ui.solo_lat) {                           /* a mute changed: a double tap's solo ends first */
+        ui.solo_lat = 0;
+        solo_end();
+    }
+    m = seq.mute;
     if (on)
         m |= (uint16_t)(1u << trk);
     else
@@ -537,10 +543,12 @@ static void do_undo(int redo)
 
 /* -------------------------------------------------------- transport --- */
 #define PLAY_TWICE_MS 400u
+/* the count-in: REC's knobs; 0, 1 or 2 bars, or CIN_NOTE: the transport waits for the first note, which lands on step 1 */
+static int count_in(void) { return proj.rsv[0] < NCIN ? proj.rsv[0] : 0; }
 static void rec_begin(void)                      /* a take: one undo for it (and the punches close after it) */
 {
     undo_pat(sel_trk(), cur_pat(sel_trk()), UNDO_REC_MS);
-    seq_rec(&seq, 1);
+    seq_rec(&seq, !playing() && count_in() == CIN_NOTE ? 2 : 1);
 }
 static void rec_end(void)
 {
@@ -587,19 +595,30 @@ static void play_press(void)
         ui.btn_used |= 1u << B_REC;
         ui.rec_armed = 0;
         ui.rec_latched = 1;
-        seq.count_in = (uint8_t)(proj.rsv[0] % 3u);   /* (the count-in: REC's knobs, Setup's list; 0, 1 or 2 bars) */
+        seq.count_in = (uint8_t)(count_in() == CIN_NOTE ? 0 : count_in());
         rec_begin();
-        say(seq.count_in ? "COUNT-IN" : "RECORDING", seq.count_in ? "then recording" : "latched");
+        if (count_in() == CIN_NOTE)
+            say("RECORDING", "on the first note");
+        else
+            say(seq.count_in ? "COUNT-IN" : "RECORDING", seq.count_in ? "then recording" : "latched");
         engine_transport(3);
         return;
     }
     if (ui.rec_armed) {
         ui.rec_armed = 0;
-        if (proj.rsv[0] % 3u) {
-            seq.count_in = (uint8_t)(proj.rsv[0] % 3u);
+        if (count_in()) {
+            seq.count_in = (uint8_t)(count_in() == CIN_NOTE ? 0 : count_in());
             rec_begin();
             ui.rec_latched = 1;
         }
+    }
+    if ((ui.btn >> B_SEQ & 1u) && steps_page(ui.page) && is_seqt(sel_trk()) && ui.bar && !seq.rec && !seq.rec_wait) {
+        char t[8];                               /* SEQ + PLAY: from the bar on screen (each track where it would be) */
+        ui.btn_used |= 1u << B_SEQ;
+        seq_start_at(&seq, sel_trk(), ui.bar * 16);
+        num_s((uint32_t)ui.bar + 1u, t);
+        say("PLAY FROM BAR", t);
+        return;
     }
     engine_transport(3);                         /* from a stop, always from the top: every track's step 1 */
 }
@@ -646,7 +665,7 @@ static void rec_knob(int k, int32_t e)
         proj.metronome = (uint8_t)clampi(proj.metronome + e, 0, 2);
         engine_metronome(proj.metronome);
     } else if (k == 1)
-        proj.rsv[0] = (uint8_t)clampi(proj.rsv[0] % 3u + e, 0, 2);
+        proj.rsv[0] = (uint8_t)clampi(count_in() + e, 0, NCIN - 1);
     else if (k == 2) {
         if (!is_seqt(trk))
             return;
@@ -1229,11 +1248,13 @@ static void solo_begin(int trk)                  /* a track joins the solo (the 
 }
 static void solo_end(void)
 {
+    ui.solo_lat = 0;
     if (!ui.solo)
         return;
     seq.mute = ui.solo_mute;
     ui.solo = 0;
 }
+#define SOLO_TWICE_MS 350u                       /* Mix: a track's key pressed again this soon after a tap: a double tap */
 /* the keys as a keyboard for the selected track (the play pages; Steps with SEQ held or while recording): they
  * play it and set what a step press writes; step record writes the cursor step */
 static void weave_key(int k, int on);           /* (below: the weave) */
@@ -1692,13 +1713,34 @@ static void key_up(int k)
     case KM_SOUND:
         engine_key(trk, ui.knote[k], 0, 0);
         break;
-    case KM_SOLO:
-        if (!ui.solo && plat_ms() - ui.key_t[k] < STEP_TAP_MS && ui.knote[k] < NSEQT) {   /* a tap: mute */
-            int b = ui.knote[k];
-            set_mute(b, !(seq.mute >> b & 1u));
-            say(seq.mute >> b & 1u ? "MUTED" : "UNMUTED", TRACK_NAME[b]);
-        } else if (ui.solo) {                    /* let go: that track leaves the solo; the last, the mutes back */
-            ui.solo &= (uint16_t)~(1u << (ui.knote[k] % NSEQT));
+    case KM_SOLO: {
+        int b = ui.knote[k];
+        uint32_t now = plat_ms();
+        if (b >= NSEQT)
+            break;
+        if (now - ui.key_t[k] < STEP_TAP_MS && (!ui.solo || ui.solo_lat)) {   /* a tap (not while others are held) */
+            int twice = ui.solo_tap_trk == b && ui.key_t[k] - ui.solo_tap_t < SOLO_TWICE_MS, muted = ui.solo_tap_mut;
+            ui.solo_tap_trk = twice ? 0xFF : (uint8_t)b;
+            ui.solo_tap_t = now;
+            ui.solo_tap_mut = (uint8_t)(!twice && !ui.solo_lat);   /* (this tap mutes: a second undoes it) */
+            if (twice) {                         /* a double tap: this track soloed, and it stays (the first tap's
+                                                  * mute undone; a solo it ended is not brought back) */
+                if (muted)
+                    set_mute(b, !(seq.mute >> b & 1u));
+                solo_end();
+                solo_begin(b);
+                ui.solo_lat = (uint16_t)(1u << b);
+                say("SOLO", TRACK_NAME[b]);
+            } else if (ui.solo_lat) {            /* a tap while a solo stays: the solo ends, the mutes back */
+                solo_end();
+                say("SOLO OFF", 0);
+            } else {                             /* a tap: mute */
+                set_mute(b, !(seq.mute >> b & 1u));
+                say(seq.mute >> b & 1u ? "MUTED" : "UNMUTED", TRACK_NAME[b]);
+            }
+        } else if (ui.solo) {                    /* let go: that track leaves the solo (unless a double tap's); the
+                                                  * last, the mutes back */
+            ui.solo &= (uint16_t)~((1u << b) & ~ui.solo_lat);
             if (!ui.solo) {
                 ui.solo = 1;                         /* (solo_end: only while one is on) */
                 solo_end();
@@ -1706,6 +1748,7 @@ static void key_up(int k)
                 seq.mute = (uint16_t)(((1u << NSEQT) - 1u) & ~ui.solo);
         }
         break;
+    }
     default:
         break;
     }
@@ -1853,6 +1896,11 @@ static void holds(void)
         }
     if (home_held() && now - ui.btn_t[B_HOME] >= CARD_MS)
         ui.btn_used |= 1u << B_HOME;
+    if (ui.solo && seq.mute != (uint16_t)(((1u << NSEQT) - 1u) & ~ui.solo)) {   /* a scene changed the mutes under a
+                                                                              * solo: its mutes to go back to, the solo kept */
+        ui.solo_mute = seq.mute;
+        seq.mute = (uint16_t)(((1u << NSEQT) - 1u) & ~ui.solo);
+    }
     for (int k = 0; k < NKEYS; k++)               /* Mix: a track's key held: solo while held */
         if ((ui.keys >> k & 1u) && ui.kmode[k] == KM_SOLO && ui.knote[k] < NSEQT && !(ui.solo >> ui.knote[k] & 1u) &&
             now - ui.key_t[k] >= STEP_TAP_MS)        /* (more held: more soloed) */
@@ -2487,7 +2535,7 @@ static void list_change_do(int32_t e)
             mark_dirty();
             break;
         case A_COUNT_IN:
-            proj.rsv[0] = (uint8_t)clampi(proj.rsv[0] % 3u + d, 0, 2);
+            proj.rsv[0] = (uint8_t)clampi(count_in() + d, 0, NCIN - 1);
             mark_dirty();
             break;
         case A_THEME:
@@ -4423,7 +4471,8 @@ static void speak_dump(void)
 {
     static const char *const MSG[][2] = {
         {"SAVED", 0}, {"NOT SAVED", "flash error"}, {"UNDO", "T1 P1"}, {"REDO", "T1 P1"}, {"NOTHING TO UNDO", 0},
-        {"NOTHING TO REDO", 0}, {"COUNT-IN", "then recording"}, {"RECORDING", "latched"}, {"RECORDING", "play to start"},
+        {"NOTHING TO REDO", 0}, {"COUNT-IN", "then recording"}, {"RECORDING", "latched"}, {"RECORDING", "on the first note"}, {"SOLO", "T1"}, {"PLAY FROM BAR", "2"},
+        {"SOLO OFF", 0}, {"RECORDING", "play to start"},
         {"RECORD OFF", 0}, {"STEP RECORD", "keys write steps"},
         {"LENGTH", "to step 4"}, {"NUDGE", "+2"},
         {"NO LANE LEFT", "clear locks first"}, {"LOCKS CLEARED", 0}, {"NEW", "S3"}, {"MUTED", "T1"}, {"UNMUTED", "T1"},
@@ -4549,6 +4598,7 @@ void ui_init(void)
     memset(&ui, 0, sizeof ui);
     memset(&lst, 0, sizeof lst);
     ui.touched = -1;
+    ui.solo_tap_trk = 0xFF;
     bt.want = (uint8_t)((proj.rsv[2] & BT_AUDIO_ON) != 0);   /* (Bluetooth audio as it was: on, the last device) */
     bt.midi = (uint8_t)((proj.rsv[2] & BT_MIDI_OFF) == 0);   /* (Bluetooth MIDI as it was: on unless switched off) */
     bt.boot = 1;
