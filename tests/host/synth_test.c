@@ -49,6 +49,7 @@ __attribute__((noinline)) static void stack_nan(void)
     volatile float junk[8192];
     for (int i = 0; i < 8192; i++)
         junk[i] = 0.0f / 0.0f;
+    (void)junk[8191];                            /* (read: gcc's set-but-not-used) */
 }
 /* render n frames in one range, return the block's peak and whether all was finite */
 static float block(uint32_t n, int *finite)
