@@ -17,7 +17,7 @@ typedef struct {
     uint16_t ink[NTRK];
     uint8_t tint, mid;                                /* the ink's share over the background, of 16 */
 } theme_t;
-/* the themes (Setup: THEME; the project keeps it in rsv[1]); the first is the default */
+/* the themes (Setup: THEME; the project keeps it in rsv[1]: theme_ix); b/w is the default */
 static const theme_t THEMES[] = {
     {"tape deck", RGB(24, 18, 14), RGB(44, 34, 26), RGB(70, 56, 42), RGB(74, 60, 46), RGB(120, 100, 80),
      RGB(190, 170, 140), RGB(244, 230, 200), RGB(150, 130, 104), RGB(230, 70, 40), RGB(240, 220, 180),
@@ -33,8 +33,17 @@ static const theme_t THEMES[] = {
       RGB(110, 216, 110), RGB(178, 136, 255), RGB(214, 176, 136)}, 6, 9},
 };
 #define NTHEMES (sizeof THEMES / sizeof THEMES[0])
-static const theme_t *theme = &THEMES[0];
-#define THEME_OF_PROJ() (&THEMES[proj.rsv[1] % NTHEMES])
+#define THEME_BW 2
+#define THEME_SET 0x80u                               /* rsv[1]: a theme picked since 0.11 (before: 0 the default, then the
+                                                       * tape deck, now b/w; 1 and 2 as they were) */
+static int theme_ix(void)
+{
+    uint32_t v = proj.rsv[1];
+    return (int)(v & THEME_SET ? (v & 0x7Fu) % NTHEMES : v % NTHEMES ? v % NTHEMES : THEME_BW);
+}
+static void theme_step(int d) { proj.rsv[1] = (uint8_t)(THEME_SET | (uint32_t)(theme_ix() + (int)NTHEMES + d) % NTHEMES); }
+static const theme_t *theme = &THEMES[THEME_BW];
+#define THEME_OF_PROJ() (&THEMES[theme_ix()])
 #define AUTOSAVE_OFF 4u                              /* proj.rsv[2]: LOOM-8 saves only when SAVE is pressed */
 #define LOOP_FREE 8u                                  /* proj.rsv[2]: a loop throw let go drifts (seq.loop_free) */
 #define SCENES_AT_END 2u                              /* proj.rsv[2]: a scene's key waits for T1's pattern's end (bit 0: REC's mode) */

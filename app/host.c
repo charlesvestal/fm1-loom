@@ -446,7 +446,7 @@ int app_expect(const char *what, int *got)
     else if (!strncmp(what, "slotsc", 6))          /* slotscN: song slot N's scene, both from 1 */
         *got = pats.song.slot[(atoi(what + 6) - 1) & (NSONG - 1)].scene + 1;
     else if (!strcmp(what, "theme"))              /* the theme (THEME_*) */
-        *got = proj.rsv[1];
+        *got = theme_ix();
     else if (!strcmp(what, "listopen"))             /* a SEL list up */
         *got = lst.open;
     else if (!strncmp(what, "kvel", 4)) {          /* kvelT.PAT.S.K: kit sound K's own velocity on that step (0 none) */

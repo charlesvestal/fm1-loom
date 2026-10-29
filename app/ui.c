@@ -2107,7 +2107,7 @@ static void setup_knob(int k, int32_t e)
     else if (k == 2)
         seq.send_notes = proj.send_notes = (uint8_t)(e > 0);
     else
-        proj.rsv[1] = (uint8_t)((proj.rsv[1] + NTHEMES + (e > 0 ? 1u : NTHEMES - 1u)) % NTHEMES);   /* the theme */
+        theme_step(e > 0 ? 1 : -1);              /* the theme */
     mark_dirty();
 }
 static void debug_knob(int k, int32_t e)         /* Debug: KNOB 1 the cores */
@@ -2539,7 +2539,7 @@ static void list_change_do(int32_t e)
             mark_dirty();
             break;
         case A_THEME:
-            proj.rsv[1] = (uint8_t)((proj.rsv[1] + NTHEMES + (uint32_t)d) % NTHEMES);
+            theme_step(d);
             mark_dirty();
             break;
         case A_PLAYMODE: {
@@ -4625,7 +4625,7 @@ void ui_init(void)
     engine_groove(proj.groove);
 #if defined(PLAT_HOST) && !defined(PLAT_WEB)
     if (getenv("LOOM_THEME"))                        /* the host's screenshots in another theme */
-        proj.rsv[1] = (uint8_t)((uint32_t)atoi(getenv("LOOM_THEME")) % NTHEMES);
+        proj.rsv[1] = (uint8_t)(THEME_SET | (uint32_t)atoi(getenv("LOOM_THEME")) % NTHEMES);
     theme = THEME_OF_PROJ();
 #endif
     lcd_fill(0, 0, 240, 240, K_BG);

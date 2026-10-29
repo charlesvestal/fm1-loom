@@ -222,9 +222,11 @@ From top to bottom, the screen has five parts.
 - **The two bottom lines** say what the encoders and the keys do here.
 
 The screen comes in three themes, which you pick with Setup's THEME knob: **tape deck**, warm brown-black with
-cream text; **blueprint**, deep blue with white lines; and **b/w**, black with white text and red. In every theme,
-each instrument track has its own colour. In tape deck they are T1 mustard, T2 rust, T3 olive, T4 teal, T5 blue,
-T6 plum, T7 tan and T8 sage. Steps with notes show in the track's colour, dimmed. Whatever is sounding right now
+cream text; **blueprint**, deep blue with white lines; and **b/w**, black with white text and red (the one a new
+FM-1 starts with). In every theme,
+each instrument track has its own colour. In b/w they are T1 pink, T2 teal, T3 yellow, T4 blue, T5 orange,
+T6 green, T7 violet and T8 tan; in tape deck T1 mustard, T2 rust, T3 olive, T4 teal, T5 blue, T6 plum, T7 tan and
+T8 sage. Steps with notes show in the track's colour, dimmed. Whatever is sounding right now
 shows in the track's colour at full brightness: the step playing, the scene playing, a meter. On Arrange and Mix
 every track keeps its colour, so you can tell them apart at a glance. Cream (or white) outlines show what you are
 touching: the held step, the cursor, the knob you turned. Red is used only for recording and for locks.
@@ -1142,7 +1144,7 @@ Turn **SELECT** for more pages:
   their knobs, page by page, with what the pump follows, its release and accent, and the master level.
 
 On Setup, the knobs are the lights, the MIDI clock (internal, receive or send: see MIDI below), sending MIDI
-notes (on to start with) and the theme (tape deck, blueprint or b/w). The page also shows where the tempo comes from (LOOM-8, or a MIDI clock coming
+notes (on to start with) and the theme (b/w to start with, tape deck or blueprint). The page also shows where the tempo comes from (LOOM-8, or a MIDI clock coming
 in), the USB audio level, the autosave, Bluetooth audio and the Bluetooth MIDI device (see Bluetooth below). The
 version is on the next page, Debug. **SEL** on Setup has the FM-1's own settings, in three groups: Bluetooth (BT
 MIDI, MIDI DEVICE, BT AUDIO, AUDIO DEVICE), USB and MIDI (the USB audio level, USB PORT, CLOCK, NOTES, CC OUT,
