@@ -15,7 +15,7 @@ HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE / "presets"))
 import lib  # noqa: E402
 
-FILES = ["knit", "rayon", "jacquard", "bellows", "cane", "voile", "sample", "slice"]
+FILES = ["knit", "rayon", "jacquard", "bellows", "cane", "voile", "sample", "slice", "acid"]
 
 
 def load():

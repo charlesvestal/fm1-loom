@@ -199,7 +199,7 @@ void project_random_sounds(uint32_t seed)
         if (pick < 0)
             continue;
         apply_preset(&proj.trk[t], pick);
-        if (VMODE[t - 1] != 0xFF)
+        if (VMODE[t - 1] != 0xFF && PRESETS[pick].par[TP_ENGINE] != EG_ACID)   /* (acid: its one mode) */
             proj.trk[t].par[TP_VMODE] = VMODE[t - 1];
     }
 }

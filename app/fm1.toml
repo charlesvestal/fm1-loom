@@ -18,7 +18,7 @@ backup_holds = "the three projects, the user presets and the samples"
 words = "words.tsv"
 cpu2 = true                    # the second core: fm1-base's (felucca-bsp's chip/fm1_cpu1.h, Melodee's), plat_cpu2_*
 # the DSP and the sequencer at -O2, apart (as LOOM-8's own build had them); bench.c: the profiler, empty unless XY_BENCH=1
-o2 = ["dsp/synth.c", "dsp/drumline.c", "dsp/digisophie.c", "dsp/sample.c", "dsp/fx.c", "dsp/bench.c", "seq/pattern.c", "seq/seq.c"]
+o2 = ["dsp/synth.c", "dsp/drumline.c", "dsp/digisophie.c", "dsp/sample.c", "dsp/fx.c", "dsp/bass303.c", "dsp/bench.c", "seq/pattern.c", "seq/seq.c"]
 # the code that never runs per sample built for size (LLVM's minsize: Melodee's idea; tools/size_fns.py)
 ir_pass = "../tools/size_fns.py"
 # the generated headers: LOOM-8's fonts, the wavetables, the factory samples, this build's number, the presets
@@ -28,5 +28,5 @@ gen = ["../tools/gen_font.py {gen}/loom_font.h", "../tools/gen_wavetables.py {ge
 # the site
 tagline = "a pocket groovebox"
 repo = "https://github.com/charlesvestal/fm1-loom"
-licence = "MPL-2.0"
-credits = "Built on fm1-base and felucca-bsp, from Felucca by Leo Kuroshita (Hügelton Instruments). Supersaw (brocade): after NuSaw (MIT). Cane, voile and gingham: Mutable Instruments Braids by Emilie Gillet (MIT). Reverb: the plate after 9W9 by athousanddetails (with permission), the PlayStation modes PSXVerb (MIT). The 909 kick, snare and clap: renders of 9W9 by athousanddetails (with permission); the hat: ER-99 by Matthew Cieplak, through 9W9 (GPL-3.0). The x drums: after MACHINEDRUM by Omodaka9375 (MIT); sophie: Sophie by Matt Estela (MIT); clang: digisophie (MIT). USB MIDI host: Melodee's, by Adrien Tibi and Kerem Kilic (MPL-2.0). Bluetooth: Optimist's stack by Henri David (MPL-2.0), with Android's SBC encoder (Apache-2.0), micro-ecc by Kenneth MacKay (BSD-2-Clause) and the radio's set-up after JieLi's AC79 SDK (Apache-2.0). Fonts: Barlow, Terminus (SIL OFL 1.1)."
+licence = "GPL-3.0-only"        # (the acid engine, dsp/bass303.c: the firmware as a whole; most files MPL-2.0: LICENSING.md)
+credits = "Built on fm1-base and felucca-bsp, from Felucca by Leo Kuroshita (Hügelton Instruments). Supersaw (brocade): after NuSaw (MIT). Cane, voile and gingham: Mutable Instruments Braids by Emilie Gillet (MIT). Acid: X0X's 303, from Open303 by Robin Schmidt (MIT), with jc303's Devilfish ranges by midilab and dm-Rat's RAT drive by Dave Mollen (GPL-3.0). Reverb: the plate after 9W9 by athousanddetails (with permission), the PlayStation modes PSXVerb (MIT). The 909 kick, snare and clap: renders of 9W9 by athousanddetails (with permission); the hat: ER-99 by Matthew Cieplak, through 9W9 (GPL-3.0). The x drums: after MACHINEDRUM by Omodaka9375 (MIT); sophie: Sophie by Matt Estela (MIT); clang: digisophie (MIT). USB MIDI host: Melodee's, by Adrien Tibi and Kerem Kilic (MPL-2.0). Bluetooth: Optimist's stack by Henri David (MPL-2.0), with Android's SBC encoder (Apache-2.0), micro-ecc by Kenneth MacKay (BSD-2-Clause) and the radio's set-up after JieLi's AC79 SDK (Apache-2.0). Fonts: Barlow, Terminus (SIL OFL 1.1)."

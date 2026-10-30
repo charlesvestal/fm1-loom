@@ -46,11 +46,14 @@ for _kit in ("Nylon", "Elastane", "Wire"):
     NAMES_EXTRA["house_" + _kit.lower()] = "main_" + _kit.lower()
 GROUPS["K"] = ["house_nylon", "house_elastane", "house_wire"]
 
+SAMPLES_OF = {"house_acid": "house"}                 # a song of its own file playing another's samples (its bank)
+
+
 def root(song):
     """the song a variant is made from (its samples)"""
     while song in VARIANTS:
         song = VARIANTS[song][0]
-    return song
+    return SAMPLES_OF.get(song, song)
 if os.environ.get("DEMO_GROUPS"):                    # e.g. DEMO_GROUPS="C:jungle,garage,house" (any three songs a group)
     GROUPS = {g: songs.split(",") for g, songs in (x.split(":") for x in os.environ["DEMO_GROUPS"].split())}
 ORDER = ["jungle", "garage", "hyperpop", "house", "pop", "hiphop", "stress", "ambient"]   # render.sh's: make_banks'
@@ -58,7 +61,7 @@ ORDER = ["jungle", "garage", "hyperpop", "house", "pop", "hiphop", "stress", "am
 #                                                  (the variants take their song's: not here)
 NAMES = {"jungle": "jungle", "garage": "garage", "hyperpop": "hyperpop", "house": "deep_house", "pop": "pop",
          "hiphop": "boom_bap", "stress": "stress", "ambient": "ambient",
-         "house_m": "house_main"}
+         "house_m": "house_main", "house_acid": "acid_house"}
 NAMES.update(NAMES_EXTRA)
 SKIP = ("master ", "samples ")                       # the setup's lines the group sets once instead
 

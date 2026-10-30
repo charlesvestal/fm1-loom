@@ -39,6 +39,7 @@ volatile uint8_t eng_drum_hit[NDRUM];
 volatile uint8_t eng_midi_hit[NTRK];
 volatile uint8_t eng_voices, eng_voices_max = NVOICE;
 volatile uint32_t eng_guard_count;
+volatile uint32_t eng_acid_lite_count;
 volatile uint32_t eng_punch_drum, eng_punch_mel;
 volatile float eng_pump_db;
 volatile uint8_t eng_scene_now, eng_scene_cue = 0xFF;
@@ -168,6 +169,14 @@ int engine_core2_state(void)
 #define GUARD_VOICES 8
 static uint8_t guard_on, guard_applied, guard_cap = NVOICE, guard_run;
 static uint32_t guard_avg_q8, guard_calm, guard_frames;
+/* before it, the acid engine's 303s (dsp/bass303.c, X0X's guard): a block over ACID_LITE_ON % and they render without
+ * their oversampling from the next block (about half their cost; some aliasing on bright, resonant notes), until a
+ * second has passed with every block under ACID_LITE_OFF %. A single block's spike is enough: the switch costs nothing
+ * and is not heard in a mix, where the voice cap would be */
+#define ACID_LITE_ON 95u
+#define ACID_LITE_OFF 85u
+static uint8_t acid_lite, acid_lite_applied;
+static uint32_t acid_calm;
 static uint32_t la_pct;                                   /* the last block's look-ahead run, % of its time */
 void engine_load(uint32_t pct)
 {
@@ -176,6 +185,16 @@ void engine_load(uint32_t pct)
     /* (the note-start check, synth.c load_over: the last block's load without its look-ahead run, which was the
      * next block's sequencing: else a block before a section change, carrying it, has the chord's notes steal) */
     synth_load_hint(SY, pct > la_pct ? pct - la_pct : 0u);
+    if (pct > ACID_LITE_ON) {
+        if (!acid_lite)
+            eng_acid_lite_count++;
+        acid_lite = 1;
+        acid_calm = 0;
+    } else if (acid_lite && pct >= ACID_LITE_OFF) {
+        acid_calm = 0;
+    } else if (acid_lite && (acid_calm += frames) >= 44100u) {
+        acid_lite = 0;
+    }
     guard_avg_q8 = (guard_avg_q8 * 15u + pct * 256u) / 16u;
     guard_run = pct > GUARD_ON_LAST ? (uint8_t)(guard_run < 255u ? guard_run + 1u : 255u) : 0u;
     if (guard_run >= GUARD_ON_RUN || guard_avg_q8 > GUARD_ON_AVG * 256u) {
@@ -199,6 +218,10 @@ void engine_load(uint32_t pct)
 }
 static void guard_apply(void)
 {
+    if (acid_lite != acid_lite_applied) {
+        acid_lite_applied = acid_lite;
+        synth_acid_lite(SY, acid_lite);
+    }
     {
         uint8_t cap = guard_on ? guard_cap : NVOICE;
         if (cap == guard_applied)

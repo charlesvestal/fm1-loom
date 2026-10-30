@@ -3,7 +3,7 @@
 # and KIT FILTER (a kit's ENV list, on all four pages)
 wait 300
 projnew
-# T2's sound onto T3 (its cutoff and name with it), undone
+# T2's sound onto T3 (its cutoff and name with it), undone: T3's own again (the new band's gospel, cutoff 100)
 param 2 cut 20
 turn ALGO 1
 expect trk 2
@@ -24,7 +24,7 @@ expect par3.cut 20
 press HOME
 tap REC
 release HOME
-expect par3.cut 88
+expect par3.cut 100
 # T1's kick onto its snare
 param 1 d1.model 5
 param 1 d1.decay 40

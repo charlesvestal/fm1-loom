@@ -30,9 +30,19 @@
 /* EG_MIDI plays nothing here: the track's notes go out on its own channel (always: its MIDI OUT does not apply),
  * and its eight knobs (TP_E1..E4, TP_X1..X4) each send a CC on that channel when they move (by hand, a lock,
  * automation); the knobs' CC numbers in TP_A..TP_R and TP_FA..TP_FR (no envelope on such a track): MIDI_CC_P */
+/* EG_ACID (2026-10-30): a TB-303, X0X's (dsp/bass303.c, GPL-3.0-only: Open303 by Robin Schmidt, MIT, with jc303's
+ * Devilfish ranges and dm-Rat's RAT drive), whole: its own oscillator, filter, envelopes, accent and slide. One voice a
+ * track (mono whatever the Play page says), at most NACID of them (each a bass303_t in RAM). Its track's Filter page is
+ * the 303's cutoff, resonance, env mod and decay (TP_CUT, TP_RES, TP_FENV, TP_KTRK), the Engine page wave, accent,
+ * slide time, accent decay, the second page drive and its type (off, soft, rat); the voice's own filter and
+ * envelopes are left out (the character stage, the LFO, the sends and the mix are as on any track). A note of
+ * velocity ACID_ACCENT or more is accented; a note that starts while the last one is still held slides to it, and so
+ * does a note with a glide (a step's glide trick, the arp's glide) after a short one: on the same pitch, a tie. */
 enum { EG_KNIT, EG_RAYON, EG_JACQUARD, EG_BELLOWS, EG_CANE, EG_VOILE, EG_SAMPLE, EG_SLICE, EG_DRUMLINE, EG_MIDI,
-       NENGINE };                                    /* (saved by number: PROJ_FORMAT 10 renumbered them; a new one
+       EG_ACID, NENGINE };                           /* (saved by number: PROJ_FORMAT 10 renumbered them; a new one
                                                       * goes last) */
+#define NACID 2
+#define ACID_ACCENT 112
 /* the Braids engines (dsp/braids.h, after Mutable Instruments Braids, MIT): E1 the model, E2 Braids' timbre, E3 its
  * color, E4 cane's damp, voile's breath. cane: pluck, bow, reed, flute, bell, drum, at most CN_SLOTS of its voices
  * (each a slot of CN_LEN int16 for its lines); voile: vosim, vowel, choir, whisper */
@@ -296,6 +306,7 @@ int synth_voices_used(const synth_t *s);
  * the sample; 0 when none plays. Called from the main loop: a racy read of the voices, for the screen only */
 int synth_slice_now(const synth_t *s, int trk, int *slice, int32_t *pos);
 void synth_limit(synth_t *s, int max_voices);                  /* the overload guard: fewer voices */
+void synth_acid_lite(synth_t *s, int on);                      /* and before it: the 303s without oversampling */
 int synth_lock_value(const synth_t *s, int trk, int param);   /* a lock's value now, -1 none (the UI's dot) */
 void synth_load_hint(synth_t *s, uint32_t pct);              /* the last block's load, %: the note-start check */
 extern uint32_t synth_load_steals;                            /* notes that took a sounding voice by the load check */

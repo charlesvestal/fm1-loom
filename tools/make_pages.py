@@ -159,12 +159,12 @@ uninstalls the way every fm1-base firmware does, and the installer can put M-VAV
   <a href="samples/"><strong>Samples</strong><span>Put your own samples on the FM-1: add, replace, rename, reorder and remove up to 32.</span></a>
   <a href="backup/"><strong>Backup</strong><span>Save your projects, presets and samples to a file, and load them back later.</span></a>
   <a href="firmware/__PKG__"><strong>Download __PKG__</strong><span>For the command-line installer: <code>python3 base/tools/fm1_install.py __PKG__</code></span></a>
-  <a href="__REPO__"><strong>Source</strong><span>GitHub, MPL-2.0. Built on fm1-base and felucca-bsp, from Felucca by Leo Kuroshita (Hügelton Instruments).</span></a>
+  <a href="__REPO__"><strong>Source</strong><span>GitHub, GPL-3.0 (most files MPL-2.0). Built on fm1-base and felucca-bsp, from Felucca by Leo Kuroshita (Hügelton Instruments).</span></a>
 </nav>
 
 <h2>What's in it</h2>
 <ul class="feat">
-  <li><b>Eight tracks</b>, each with eight patterns of up to 64 steps: knit (the everyday subtractive voice, with a supersaw unison), rayon (two-operator FM), jacquard (wavetables), bellows (an organ), and cane and voile (physical models and voices from Mutable Instruments Braids) synths; sample and slice, which play the sample bank and chop breaks; the kit, eleven drum voices on the black keys; or midi, which plays another synth over USB or Bluetooth, eight knobs sending its CCs. 85 factory presets, and 16 of your own.</li>
+  <li><b>Eight tracks</b>, each with eight patterns of up to 64 steps: knit (the everyday subtractive voice, with a supersaw unison), rayon (two-operator FM), jacquard (wavetables), bellows (an organ), cane and voile (physical models and voices from Mutable Instruments Braids) and acid (a TB-303 bass line, with accent and slide) synths; sample and slice, which play the sample bank and chop breaks; the kit, eleven drum voices on the black keys; or midi, which plays another synth over USB or Bluetooth, eight knobs sending its CCs. 93 factory presets, and 16 of your own.</li>
   <li><b>Tricks</b> on any step: pulse, hold, multiply, ramps, bends, jumps, skips and more; <b>locks</b> for any knob on any step.</li>
   <li><b>Weave</b> a pattern with a copied one: bars or steps in turn, or one's rhythm playing the other's notes.</li>
   <li><b>Players</b>: arp, strum (one key plays a recorded chord) and hold.</li>

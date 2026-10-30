@@ -1,7 +1,7 @@
 # LOOM-8 manual
 
 LOOM-8 turns the M-VAVE FM-1 into a pocket groovebox: eight threads of sound on a 64-step loom. You get eight
-tracks with ten engines (six synths, a sample player, a break slicer, a drum kit and MIDI out), a 64-step sequencer with
+tracks with eleven engines (seven synths, a sample player, a break slicer, a drum kit and MIDI out), a 64-step sequencer with
 fourteen step tricks and parameter locks, players, twelve throws (momentary effects) per octave, a conductor that
 moves the song through a progression, two send effects (the reverb includes the PlayStation's own reverbs among
 its modes), a mixer, a master section, thirty-two scenes and a song. You can weave two patterns into a third: bar
@@ -95,9 +95,9 @@ and turn **KNOB 4** (the pump) while it plays. Hold any button for a second and 
 - **Scene** (S1 to S32): which pattern each track plays, plus the mutes (a kit's individual sounds too) and the
   conductor's key.
 - **Song**: a chain of scenes, each played for a number of bars.
-- **Engine**: the way a track makes its sound. There are six synths (knit, rayon, jacquard, bellows, cane and
-  voile), two sample engines (sample and slice) and the kit, a drum synth.
-- **Preset**: a sound to load. 85 come with LOOM-8, from seven to eighteen for each engine, and 16 are your own.
+- **Engine**: the way a track makes its sound. There are seven synths (knit, rayon, jacquard, bellows, cane, voile
+  and acid), two sample engines (sample and slice) and the kit, a drum synth.
+- **Preset**: a sound to load. 93 come with LOOM-8, from seven to eighteen for each engine, and 16 are your own.
 - **Player**: what the keys do on a track: arp, strum or hold.
 - **Conductor**: the aux track that moves the other tracks through a key and scale, either from its own chords
   or from a track's notes.
@@ -185,7 +185,7 @@ press…" means keep **HOME** down while you press the next thing.
 | **SEL** | Opens a list of this page's settings and actions. With a step held, it lists the step's notes. When LOOM-8 asks a question, **SEL** means yes. |
 | **HOME** | Opens Arrange. On Arrange, it opens the Song page. Hold it as a shift key for buttons and knobs: undo and redo, fine tempo, and the scenes on **PRESETS**. When LOOM-8 asks a question, **HOME** means no. |
 | **SEQ** | Opens Steps; page 2 is Bar. Hold it on Steps and the keys play the track and set what a step writes (**PRESETS** sets the track's sound, and **OCT** moves the whole pattern an octave). Hold it on Bar and black keys 1 to 4 jump to a bar or loop bars. Hold it on Steps or Bar and press **PLAY** to start from the bar on screen. |
-| **EDIT** | Opens Engine. Page 2 is Play and page 3 is Play 2 (the octave). The knit and rayon engines have a page 4, Sub, with the engine's second set of knobs. A sample track in a loop mode has its Loop page second. On a drum track, page 2 holds the key's model, random, pan and volume, and page 3 its sends. On the conductor, the pages are its key, the routing and Follow. |
+| **EDIT** | Opens Engine. Page 2 is Play and page 3 is Play 2 (the octave). The knit, rayon and acid engines have a page 4, Sub, with the engine's second set of knobs. A sample track in a loop mode has its Loop page second. On a drum track, page 2 holds the key's model, random, pan and volume, and page 3 its sends. On the conductor, the pages are its key, the routing and Follow. |
 | **ENV** | Opens Envelope (on a drum track: lag, attack, random, length), then Filter, then the filter's envelope. |
 | **FX** | Opens Character, the track's own effect. Next come Sends, the track's sends to FX I and FX II, and then FX I and FX II, the two effects. |
 | **LFO** | Opens LFO. Page 2 has the type's fourth and fifth knobs. |
@@ -530,6 +530,7 @@ delay. Press **SEL** for the list:
 | voile | model, timbre, color, breath | 7 |
 | sample | sample, start, length, mode | 18 |
 | slice | sample, slices, pitch, gate | 11 |
+| acid | wave, accent, slide, tune | 8 |
 | kit | the model knobs of the key shown | |
 | midi | eight knobs, each sending a CC | |
 
@@ -622,6 +623,35 @@ the way up, you get a pure whisper.
 
 Most of these models cost about as much as any other voice, or less. Cane's bell, with its eleven partials, costs
 about a third more.
+
+### Acid
+
+**Acid** is a bass line machine after the TB-303: X0X's 303, which is Open303 with the Devilfish's extra controls.
+It is the whole instrument, with its own filter, envelopes, accent and slide, so on an acid track the pages hold the
+303's knobs. Each Devilfish knob starts at the stock 303's value:
+
+| Page | Knobs |
+| --- | --- |
+| Engine | **wave** (saw or square), **accent** (how hard an accented note hits), **slide** (how long a slide takes, 2 to 360 ms), **tune** (the 303's tuning, about a semitone and a half either way) |
+| Envelope | **attack** (how the filter opens on a plain note: from a snap to a swell, 0.3 ms to 3 s), **decay** (how long the filter takes to close, 0.2 to 2 s), **acc dec** (the same for an accented note, 30 ms to 3 s), **length** (how long a held note takes to fade, 30 ms to 3 s) |
+| Filter | **cutoff** (314 Hz to 2.4 kHz, before the envelope opens it), **reso**, **env mod** (how far each note opens the filter), **low cut** (how much bass stays in the resonance, 350 down to 100 Hz) |
+| Sub | **drive** and its **type**: off, soft or rat (a distortion pedal's clipping); **shaper**: how square the square wave is |
+
+The picture on the Envelope page draws the filter's opening and closing over three seconds, an accented note's
+dimmer, and the held note's level as a line. An acid track has no filter envelope page, its filter type is the 303's
+own, and it plays one note at a time, whatever the Play page's mode.
+
+Accents, slides and ties come from the steps:
+
+- **Accent**: a step with a velocity of 112 or more. Hold the step and turn **KNOB 1**. The "accent" groove adds
+  velocity on the beats, which accents them.
+- **Slide**: a note that is still held when the next one starts slides into it, without a new attack. Make a step
+  long enough to reach the next note (hold it and turn **KNOB 2**), or give the next step the **glide** trick, which
+  slides into it even after a short note. Played live, keys held legato slide.
+- **Tie**: a long step is one long note. A slide onto the same pitch also keeps the note going, so a held step
+  followed by a step on the same note with **glide** sounds as one.
+
+Two acid tracks can play at once. A third takes over the oldest one.
 
 ### Kit
 
@@ -1437,7 +1467,8 @@ it uses are published with this site, so every version reads its own screen corr
 LOOM-8's way of working owes a great deal to teenage engineering's OP-XY; LOOM-8 is not affiliated with
 teenage engineering. Built on fm1-base and felucca-bsp, from Felucca by Leo Kuroshita (Hügelton Instruments),
 with Polly's menus and X0X's sequencer discipline. Cane and voile are Mutable Instruments Braids by Émilie Gillet
-(MIT); the plate reverb is after 9W9 by athousanddetails, and its PlayStation modes are
+(MIT); acid is X0X's 303, from Open303 by Robin Schmidt (MIT), with jc303's Devilfish ranges by midilab and dm-Rat's
+RAT drive by Dave Mollen (GPL-3.0), which makes LOOM-8 GPL-3.0 as a whole; the plate reverb is after 9W9 by athousanddetails, and its PlayStation modes are
 PSXVerb's. The factory breaks are free loops by u/FCTRYBEATS, the 909
 kick, snare and clap are renders of 9W9 by athousanddetails (the hat is ER-99's, by Matthew Cieplak), and the recorded instruments come from the Versilian Studios Chamber Orchestra 2
 Community Edition (CC0). Bluetooth runs on Optimist's own stack by Henri David (MPL-2.0), with Android's SBC encoder

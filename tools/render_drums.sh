@@ -15,7 +15,7 @@ mkdir -p "$OUT" build/gen build/host
 "$PY" tools/gen_presets.py build/gen/presets.h
 [ -f build/gen/wavetables.h ] || "$PY" tools/gen_wavetables.py build/gen/wavetables.h >/dev/null
 $CC -O2 -std=c99 -DPLAT_HOST -Iapp/dsp -Ibase/include -Ibuild/gen -o build/host/render_drums tools/render_drums.c \
-    app/dsp/drumline.c app/dsp/digisophie.c app/dsp/synth.c app/dsp/sample.c -lm
+    app/dsp/drumline.c app/dsp/digisophie.c app/dsp/synth.c app/dsp/sample.c app/dsp/bass303.c -lm
 rm -f "$OUT"/*.wav
 build/host/render_drums "$OUT"
 sh tools/render_presets.sh >/dev/null

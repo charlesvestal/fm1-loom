@@ -42,6 +42,7 @@ static float last_rms;                           /* the last block's RMS (left) 
 static int finite_f(float x) { return x == x && x < 1e30f && x > -1e30f; }
 static float fm_fabs_t(float x) { return x < 0.0f ? -x : x; }
 static float fabs_f(float x) { return x < 0.0f ? -x : x; }
+static float fm_fmaxf_t(float a, float b) { return a > b ? a : b; }
 
 /* the stack below here filled with NaN: what a render leaves unwritten on it then shows */
 __attribute__((noinline)) static void stack_nan(void)
@@ -936,6 +937,266 @@ static void slice_tests(void)
         check(what, ok);
     }
     reset();
+}
+
+
+/* ---------------------------------------------------------------- acid --- */
+/* acid (X0X's 303): one voice a track, at most NACID; accent by velocity, slide by a held note or a glide, a tie on the
+ * same pitch; its voice ends once its 303 has gone quiet */
+static float acid_buf[44100];
+static int acid_render(int n, int *finite)         /* n frames (a multiple of N) into acid_buf */
+{
+    int i;
+    for (i = 0; i + N <= n; i += N) {
+        block(N, finite);
+        memcpy(acid_buf + i, L, sizeof L);
+    }
+    return i;
+}
+static void acid_track(int t, int k)               /* track t plays acid preset k (0: its first), as played (octave 0) */
+{
+    load_preset(t, preset_first(EG_ACID) + k);
+    par[t][TP_OCT] = 2;
+}
+static void acid_quiet(void)
+{
+    int finite = 1, b;
+    synth_all_off(S, -1);
+    for (b = 0; b < 400 && synth_sounding(S, 0, NVOICE); b++)
+        block(N, &finite);
+}
+static void acid_tests(void)
+{
+    int finite = 1, t, n, ok, b, per_slide, per_jump, per_glide, used;
+    float pk100, pk127, steady, dip_tie, dip_gap;
+    char num[16], unit[8];
+    printf("-- acid\n");
+    check("acid is an engine with presets", preset_first(EG_ACID) >= 0 && !strcmp(EG_NAME[EG_ACID], "acid"));
+    tp_text(TP_CUT, 0, EG_ACID, num, unit);
+    check("acid's cutoff 0 shows 314 Hz", !strcmp(num, "314") && !strcmp(unit, "Hz"));
+    tp_text(TP_D, 127, EG_ACID, num, unit);
+    check("acid's decay 127 shows 2.0 s", !strcmp(tp_info(TP_D, EG_ACID)->name, "decay") && !strcmp(num, "2.0") &&
+                                              !strcmp(unit, "s"));
+    tp_text(TP_A, 32, EG_ACID, num, unit);
+    check("acid's attack defaults to the stock 3 ms", tp_info(TP_A, EG_ACID)->def == 32 && !strcmp(num, "3") &&
+                                                          !strcmp(unit, "ms"));
+    tp_text(TP_R, 51, EG_ACID, num, unit);
+    check("acid's length defaults to the stock 1.2 s", !strcmp(tp_info(TP_R, EG_ACID)->name, "length") &&
+                                                           tp_info(TP_R, EG_ACID)->def == 51 && !strcmp(num, "1.2"));
+    tp_text(TP_KTRK, 86, EG_ACID, num, unit);
+    check("acid's low cut defaults to the stock 150 Hz", !strcmp(tp_info(TP_KTRK, EG_ACID)->name, "low cut") &&
+                                                             !strcmp(num, "150") && !strcmp(unit, "Hz"));
+    tp_text(TP_E4, 64, EG_ACID, num, unit);
+    check("acid's tune 64 is 0 cents", !strcmp(num, "0") && !strcmp(unit, "ct"));
+    tp_text(TP_E4, 127, EG_ACID, num, unit);
+    check("acid's tune 127 is +148 cents", !strcmp(num, "+148"));
+    tp_text(TP_E1, 1, EG_ACID, num, unit);
+    check("acid's wave: saw, square", tp_info(TP_E1, EG_ACID)->hi == 1 && !strcmp(num, "square"));
+    tp_text(TP_X2, 2, EG_ACID, num, unit);
+    check("acid's drive types: off, soft, rat", tp_info(TP_X2, EG_ACID)->hi == 2 && !strcmp(num, "rat"));
+    tp_text(TP_FTYPE, 0, EG_ACID, num, unit);
+    check("acid has no filter envelope or glide, its own filter", !strcmp(tp_info(TP_FA, EG_ACID)->name, "-") &&
+                                                                !strcmp(tp_info(TP_PORTA, EG_ACID)->name, "-") &&
+                                                                !strcmp(num, "303") && tp_info(TP_FTYPE, EG_ACID)->hi == 0);
+    {   /* any value a page indexes its names by has one */
+        int v, ok = 1;
+        for (v = 0; v < NFT; v++)
+            ok &= tp_info(TP_FTYPE, EG_ACID)->names[v] != 0;
+        for (v = 0; v < 3; v++)
+            ok &= tp_info(TP_VMODE, EG_ACID)->names[v] != 0;
+        check("acid's mode and filter type are named whatever their value", ok);
+    }
+
+    reset();
+    acid_track(0, 0);
+    acid_quiet();
+    /* a note: sounds, stays in range, ends (its 303 quiet for BASS303_IDLE_HOLD) */
+    synth_note_on(S, 0, 48, 100, 0, 1);
+    acid_render(44100 / 4, &finite);
+    pk100 = peak_of(acid_buf, 44100 / 4);
+    synth_note_off(S, 0, 1);
+    for (b = 0; b < 172 && synth_sounding(S, 0, NVOICE); b++)
+        block(N, &finite);
+    printf("    acid line: a note peaks %.1f dBFS, its voice free after %d ms\n", (double)db(pk100), b * N * 1000 / 44100);
+    check("acid: a note sounds, finite, in range", finite && pk100 > 0.0316f && pk100 <= 1.0f);
+    check("acid: its voice ends within a second of the note's end", !synth_sounding(S, 0, NVOICE));
+    /* accent */
+    synth_note_on(S, 0, 48, 127, 0, 2);
+    acid_render(44100 / 4, &finite);
+    pk127 = peak_of(acid_buf, 44100 / 4);
+    synth_note_off(S, 0, 2);
+    acid_quiet();
+    printf("    accent: %+.1f dB over a plain note\n", (double)(db(pk127) - db(pk100)));
+    check("acid: a note of velocity 112+ is accented (louder)", pk127 > pk100 * 1.25f && pk127 <= 1.0f);
+    /* mono: two notes at once, one voice */
+    synth_note_on(S, 0, 48, 100, 0, 3);
+    synth_note_on(S, 0, 55, 100, 0, 4);
+    block(N, &finite);
+    check("acid: one voice a track (mono whatever the mode)", synth_voices_used(S) == 1);
+    acid_quiet();
+
+    /* slide: 48 held, 60 starts: the pitch still between them 6..17 ms in; after a gap it is at 60 at once (period
+     * 168.6 samples) */
+    synth_note_on(S, 0, 48, 100, 0, 5);
+    acid_render(44100 / 4, &finite);
+    synth_note_on(S, 0, 60, 100, 0, 6);
+    synth_note_off(S, 0, 5);
+    n = acid_render(3 * N, &finite);
+    per_slide = period_of(acid_buf + N, n - N, 150, 360);
+    synth_note_off(S, 0, 6);
+    acid_quiet();
+    synth_note_on(S, 0, 48, 100, 0, 7);
+    acid_render(44100 / 4, &finite);
+    synth_note_off(S, 0, 7);
+    acid_render(4 * N, &finite);
+    synth_note_on(S, 0, 60, 100, 0, 8);
+    n = acid_render(3 * N, &finite);
+    per_jump = period_of(acid_buf + N, n - N, 150, 360);
+    synth_note_off(S, 0, 8);
+    acid_quiet();
+    /* the glide trick after a short note: a slide all the same */
+    synth_note_on(S, 0, 48, 100, 0, 9);
+    acid_render(44100 / 4, &finite);
+    synth_note_off(S, 0, 9);
+    acid_render(4 * N, &finite);
+    synth_note_on(S, 0, 60, 100, 40, 10);
+    n = acid_render(3 * N, &finite);
+    per_glide = period_of(acid_buf + N, n - N, 150, 360);
+    synth_note_off(S, 0, 10);
+    acid_quiet();
+    printf("    the period 6..17 ms into C4 from C3: slid %d, after a gap %d, a glide %d samples\n", per_slide, per_jump,
+           per_glide);
+    check("acid: a note over a held one slides", per_slide > 185);
+    check("acid: a note after a gap starts on its pitch", per_jump >= 160 && per_jump <= 178);
+    check("acid: a glide (the step's trick) slides after a short note", per_glide > 185);
+
+    /* tie: the same pitch over a held note goes on as it was; struck again (let go first) the envelope starts over,
+     * the filter open again: louder than the note had become */
+    synth_note_on(S, 0, 48, 100, 0, 11);
+    acid_render(44100 / 4, &finite);
+    steady = rms_d(acid_buf + 44100 / 4 - 1024 - 674, 674);
+    synth_note_on(S, 0, 48, 100, 0, 12);
+    synth_note_off(S, 0, 11);
+    n = acid_render(8 * N, &finite);
+    dip_tie = 0.0f;
+    for (b = 0; b + 674 <= n; b += 128)                 /* (two periods of C3) */
+        dip_tie = fm_fmaxf_t(dip_tie, rms_d(acid_buf + b, 674));
+    synth_note_off(S, 0, 12);
+    acid_quiet();
+    synth_note_on(S, 0, 48, 100, 0, 13);
+    acid_render(44100 / 4, &finite);
+    synth_note_off(S, 0, 13);
+    synth_note_on(S, 0, 48, 100, 0, 14);
+    n = acid_render(8 * N, &finite);
+    dip_gap = 0.0f;
+    for (b = 0; b + 674 <= n; b += 128)
+        dip_gap = fm_fmaxf_t(dip_gap, rms_d(acid_buf + b, 674));
+    synth_note_off(S, 0, 14);
+    acid_quiet();
+    printf("    the loudest 45 ms after the second note: tied %.2f, struck again %.2f of the level before\n",
+           (double)(dip_tie / steady), (double)(dip_gap / steady));
+    check("acid: the same pitch over a held note is a tie (no new attack)", dip_tie < 1.1f * steady &&
+                                                                               dip_gap > 1.15f * steady);
+
+    {   /* the Devilfish controls each move the sound (attack, length, low cut, the square's shaper): the difference
+         * between two renders, 10 and 120, over the note's first half second, against the first's level */
+        static const int PP[4] = {TP_A, TP_R, TP_KTRK, TP_X3};
+        static const char *const NM[4] = {"attack", "length", "low cut", "shaper"};
+        static float first[44100 / 2];
+        int j, k, i, all = 1;
+        for (j = 0; j < 4; j++) {
+            double dd = 0.0, aa = 0.0;
+            for (k = 0; k < 2; k++) {
+                acid_track(0, 0);
+                par[0][TP_E1] = 1;                       /* (the square: the shaper's) */
+                par[0][PP[j]] = (uint8_t)(k ? 120 : 10);
+                synth_init(S, par);
+                synth_note_on(S, 0, 48, 100, 0, 40);
+                n = acid_render(44100 / 2, &finite);
+                if (!k)
+                    memcpy(first, acid_buf, sizeof first);
+                synth_note_off(S, 0, 40);
+                acid_quiet();
+            }
+            for (i = 0; i < n; i++) {
+                dd += (double)(acid_buf[i] - first[i]) * (double)(acid_buf[i] - first[i]);
+                aa += (double)first[i] * (double)first[i];
+            }
+            printf("    %-8s 10 -> 120: the difference %.2f of the level\n", NM[j], sqrt(dd / (aa > 0.0 ? aa : 1.0)));
+            all &= dd > 0.01 * aa;
+        }
+        check("acid: attack, length, low cut and shaper each change the sound", all && finite);
+        reset();
+        acid_track(0, 0);
+    }
+    {   /* the guard's lite mode (engine.c ACID_LITE_ON): no oversampling, the same note near enough, back again */
+        static float full[44100 / 4];
+        double dd = 0.0, aa = 0.0;
+        int i, ok = 1;
+        acid_track(0, 0);
+        synth_init(S, par);
+        synth_note_on(S, 0, 48, 100, 0, 41);
+        n = acid_render(44100 / 4, &finite);
+        memcpy(full, acid_buf, sizeof full);
+        synth_note_off(S, 0, 41);
+        acid_quiet();
+        synth_init(S, par);
+        synth_acid_lite(S, 1);
+        synth_note_on(S, 0, 48, 100, 0, 42);
+        acid_render(44100 / 8, &finite);
+        synth_acid_lite(S, 0);                   /* (and back mid-note: no jump) */
+        acid_render(44100 / 8, &finite);
+        synth_note_off(S, 0, 42);
+        acid_quiet();
+        acid_track(0, 0);
+        synth_init(S, par);
+        synth_acid_lite(S, 1);
+        synth_note_on(S, 0, 48, 100, 0, 43);
+        acid_render(44100 / 4, &finite);
+        synth_acid_lite(S, 0);
+        for (i = 0; i < n; i++) {
+            dd += (double)(acid_buf[i] - full[i]) * (double)(acid_buf[i] - full[i]);
+            aa += (double)full[i] * (double)full[i];
+        }
+        synth_note_off(S, 0, 43);
+        acid_quiet();
+        ok = finite && dd > 0.0 && dd < 0.1 * aa;
+        printf("    lite against full: the difference %.3f of the level\n", sqrt(dd / (aa > 0.0 ? aa : 1.0)));
+        check("acid: the guard's lite mode plays the same note, cheaper, and switches back", ok);
+        reset();
+        acid_track(0, 0);
+    }
+    /* the cap: three acid tracks at once, two 303s */
+    reset();
+    for (t = 0; t < 3; t++)
+        acid_track(t, t);
+    for (t = 0; t < 3; t++) {
+        synth_note_on(S, t, 48 + t, 100, 0, 20 + (uint32_t)t);
+        acid_render(8 * N, &finite);
+    }
+    used = synth_voices_used(S);
+    ok = finite;
+    printf("    three acid tracks: %d voices sounding, finite %d\n", used, finite);
+    acid_render(44100 / 4, &finite);
+    for (t = 0; t < 3; t++)
+        synth_note_off(S, t, 20 + (uint32_t)t);
+    for (b = 0; b < 800 && synth_sounding(S, 0, NVOICE); b++)
+        block(N, &finite);
+    printf("    three acid tracks let go: quiet after %d blocks (%d sounding)\n", b, synth_voices_used(S));
+    check("acid: three tracks at once play on two 303s, finite", used <= NACID && ok && finite &&
+                                                                    !synth_sounding(S, 0, NVOICE));
+    /* a voice that played acid plays knit after it as knit does */
+    reset();
+    acid_track(0, 0);
+    synth_note_on(S, 0, 48, 100, 0, 30);
+    acid_render(4 * N, &finite);
+    synth_note_off(S, 0, 30);
+    acid_quiet();
+    sound_default(par[0], EG_KNIT);
+    {
+        float pk;
+        check("a voice that played acid plays knit after it", note_test("knit after acid", 0, &pk, 1));
+    }
 }
 
 static void bench(void)
@@ -2331,6 +2592,7 @@ int main(void)
     kit_char_tests();
     sample_tests();
     slice_tests();
+    acid_tests();
     bench();
     bench_char();
     printf("%s\n", bad ? "SYNTH TESTS FAILED" : "all synth tests passed");

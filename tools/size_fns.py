@@ -45,6 +45,7 @@ COLD = {
                  "fx_set", "fx_init"],
     "dsp/sample.c": ["smp_user_scan", "fact_init"],
     "dsp/digisophie.c": [],
+    "dsp/bass303.c": ["bass303_init", "rat_coeffs", "bq_low_shelf", "bq_lowpass"],
     "dsp/bench.c": [],
     "dsp/synth.c": ["tp_text_i", "tp_text_par", "tp_info_par", "tp_text", "char_picture",
                     "synth_note_off", "synth_duck_trigger", "synth_all_off",

@@ -14,5 +14,5 @@ mkdir -p build/gen build/host
 [ -f build/gen/breaks.bin ] || "$PY" tools/loom_samples.py build --no-factory build/gen/breaks.bin breaks >/dev/null
 $CC -O2 -ffp-contract=off -std=c99 -Wall -Wextra -Wdouble-promotion -Werror -DPLAT_HOST -Iapp/dsp -Ibase/include -Ibuild/gen \
     -o build/host/synth_test tests/host/synth_test.c app/dsp/synth.c app/dsp/drumline.c app/dsp/digisophie.c \
-    app/dsp/sample.c -lm
+    app/dsp/sample.c app/dsp/bass303.c -lm
 build/host/synth_test

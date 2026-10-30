@@ -1,8 +1,13 @@
 # LOOM-8 licensing
 
-LOOM-8 is free software under the Mozilla Public License, version 2.0 (`MPL-2.0`, full text in `LICENSE`), file by
-file: each file says its licence in its first lines (`SPDX-License-Identifier`). If you distribute LOOM-8, or
-firmware made from it, the MPL-2.0 files' source (with your changes to them) must be available under MPL-2.0.
+LOOM-8 is free software, file by file: each file says its licence in its first lines (`SPDX-License-Identifier`).
+Most are under the Mozilla Public License, version 2.0 (`MPL-2.0`, full text in `LICENSE`); the acid engine
+(`app/dsp/bass303.c`, `bass303.h`) is under the GNU General Public License, version 3 only (`GPL-3.0-only`, full text
+in `COPYING`). The firmware and the browser emulator are built with it, so each, as a whole, is under **GPL-3.0-only**
+(the MPL-2.0 files may be combined with GPL-3.0 code: MPL-2.0 section 3.3, none of them is marked "Incompatible With
+Secondary Licenses"), and its whole source must be available under it when you distribute it. Each MPL-2.0 file stays
+MPL-2.0 on its own: take it out of LOOM-8 and it is MPL-2.0 again. A build that linked JieLi's binary libraries
+(`ble_stack = "jieli"`, WiFi) could not include the acid engine: it would have to leave it out.
 
 LOOM-8 was GPL-3.0-only up to 0.7. Its author relicensed it to MPL-2.0 for 0.8, so that it can link JieLi's
 Bluetooth libraries (binary only), as fm1-base allows a firmware to. It now runs Bluetooth on fm1-base's own stack
@@ -36,6 +41,7 @@ endorsed by or derived from teenage engineering; the name is only used descripti
 | The DSP (`app/dsp/`, but the third-party parts below), the sequencer (`app/seq/`), the engine (`app/engine.c`), the project (`app/project.c`, `app/lz.c`), the pages and the input (`app/pages.c`, `app/ui.c`), the samples protocol (`app/samples.c`), the glue to fm1-base (`app/app.h`, `app/app.c`, `app/plat_loom.c`), the simulator's part (`app/host.c`), the emulator page (`app/web/emu/`), the web pages (`app/web/`), the words (`app/words.tsv`, `app/web/words/`), the tools (`tools/`), the tests (`tests/`), the docs (`docs/`) | Charles Vestal, Copyright (C) 2026: LOOM-8's own, including what it took from his own firmwares X0X (the engine's command queue, the overload guard, `lz.c` and the project's stream, the sequencer's discipline, the master compressor, PUMP and limiter), Polly (the menus) and NuSaw | MPL-2.0 |
 | `app/gfx_loom.c`, `tools/gen_font.py`: the text drawing and the faces' rendering | fm1-base's `device/gfx.c` and `tools/gen_font.py` (Leo Kuroshita's code there, felucca-bsp#4), with LOOM-8's own compact fonts, anti-aliased drawing and layout audit | MPL-2.0 |
 | The IMA ADPCM codec (`app/dsp/sample.c`, `tools/sampleio.py`, `app/web/samples/loom_samples.js`) | the IMA standard (IMA Digital Audio Focus and Technical Working Groups, "Recommended Practices for Enhancing Digital Audio Compatibility in Multimedia Systems", 1992): its tables and algorithm | MPL-2.0 (the code) |
+| The acid engine (`app/dsp/bass303.c`, `bass303.h`: a TB-303) | X0X's 303 engine ([fm1-x0x](https://github.com/charlesvestal/fm1-x0x), `firmware/src/dsp/bass303.c`), Copyright (C) 2026 Charles Vestal, through [schwung-303](https://github.com/charlesvestal/schwung-303): ported from [Open303](https://github.com/RobinSchmidt/Open303) by Robin Schmidt (MIT), with the Devilfish ranges of [jc303](https://github.com/midilab/jc303) by midilab (GPL-3.0) and the RAT drive ported from [dm-Rat](https://github.com/davemollen/dm-Rat) by Dave Mollen (GPL-3.0) | GPL-3.0-only (`COPYING`); the firmware as a whole with it |
 | The plate reverb in `app/dsp/fx.c` (`do_reverb`) and the delay's time slew | after [9W9](https://github.com/athousanddetails/schwung-9W9)'s reverb (`er99_verb_tick`), by athousanddetails, through X0X's port; LOOM-8 adds the modulated taps and the stereo | MPL-2.0, with the permission of 9W9's author, athousanddetails (below) |
 | The screen reader's words (`app/words.tsv`, `app/web/words/`) | [fm1-reader](https://github.com/charlesvestal/fm1-reader)'s protocol (fm1-base's `device/announce.c`, `tools/gen_words.py`) | MPL-2.0 |
 | The idea of a browser emulator for FM-1 firmware (`app/web/emu/`) | [Groove OS](https://www.groove-os.com/) by Peter Gombos, whose site runs its firmware in the browser; no code from it | credit only |
@@ -150,6 +156,34 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+```
+
+- The acid engine's core is Open303 by Robin Schmidt, under the MIT License (its notice, as Open303 gives it):
+
+```
+The Open303 source code is released under the terms of the MIT license:
+
+The MIT License
+
+Copyright (c) 2009 Robin Schmidt (www.rs-met.com)
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
 ```
 
 - The Braids engines (`app/dsp/braids.h`) are ported from Mutable Instruments Braids, under the MIT License:

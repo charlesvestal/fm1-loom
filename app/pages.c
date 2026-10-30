@@ -556,6 +556,8 @@ static int steps_page(int p) { return p == P_STEPS || p == P_BAR; }   /* SEQ's p
 static int is_drum(int t) { return t < NTRK && proj.trk[t].par[TP_ENGINE] == EG_DRUMLINE; }
 static int is_midi(int t) { return t < NTRK && proj.trk[t].par[TP_ENGINE] == EG_MIDI; }   /* (no sound: notes and CCs
                                                                                          * out, synth.h EG_MIDI) */
+static int is_acid(int t) { return t < NTRK && proj.trk[t].par[TP_ENGINE] == EG_ACID; }   /* (its 303's own envelope:
+                                                                                         * no Filter env page) */
 /* a page's name: a drum track's Play page is its Key page, its Filter env page the kit's envelope */
 static const char *page_name_of(int p, int trk)
 {
@@ -630,7 +632,7 @@ static int kit_x_page(int t)                         /* a kit whose key shown ha
 static int x_page(int t)                             /* the engine has a second page of knobs (TP_X1..X4) */
 {
     int e = t < NTRK ? proj.trk[t].par[TP_ENGINE] : -1, m = t < NTRK ? proj.trk[t].par[TP_E4] % NSM : 0;
-    return e == EG_RAYON || e == EG_KNIT || e == EG_MIDI || (e == EG_SAMPLE && (m == SM_LOOP || m == SM_PINGPONG)) ||   /* (the
+    return e == EG_RAYON || e == EG_KNIT || e == EG_MIDI || e == EG_ACID || (e == EG_SAMPLE && (m == SM_LOOP || m == SM_PINGPONG)) ||   /* (the
                                                                                      * sample's loop page: looping) */
            kit_x_page(t);
 }
@@ -646,8 +648,9 @@ static int group_n(int g)
     if (b == B_ARP)                                  /* (grp_page: Players, Players 2, Hold the arp's, Weave) */
         return is_aux(trk) ? 1 : is_drum(trk) || pl_type(trk) == PL_OFF ? 2 : pl_type(trk) == PL_ARP ? 4 : 3;
     if (b == B_ENV)
-        return is_drum(trk) ? 4 : is_midi(trk) ? 1 : 3;   /* a kit: the key's envelope, filter; the kit's envelope,
-                                                           * filter (a MIDI track: none, page_button stays) */
+        return is_drum(trk) ? 4 : is_midi(trk) ? 1 : is_acid(trk) ? 2 : 3;   /* a kit: the key's envelope, filter; the
+                                                           * kit's envelope, filter (a MIDI track: none, page_button
+                                                           * stays; acid: its 303's envelope and filter) */
     if (b == B_LFO && is_midi(trk))
         return 1;
     if (b == B_FX && is_midi(trk))
@@ -1947,7 +1950,7 @@ static void page_footer(char *t)
             s_cat(t, "BLACK pick a key|KEYS play");
         else if (ui.page == P_ENGINE)
             s_cat(t, "PRESET next sound|SEL engine");
-        else if (ui.page == P_FILTER)
+        else if (ui.page == P_FILTER && !is_acid(trk))
             s_cat(t, "PRESET filter type|KEYS play");
         else if (ui.page == P_ENV)
             s_cat(t, "KEYS play|REC held: record");
@@ -3499,6 +3502,34 @@ static void pic_knit(int32_t x0, int32_t y0, int32_t w, int32_t h, const uint8_t
         }
     }
 }
+/* acid: three cycles of its wave (saw, or the 303's square) through a resonant low-pass at its cutoff, opened by its env
+ * mod as a note's start does: the resonance rings at each edge; the decay's curve dim behind */
+static void pic_acid(int32_t x0, int32_t y0, int32_t w, int32_t h, const uint8_t *p)
+{
+    const int sq = p[TP_E1] & 1;
+    const float cut = (float)p[TP_CUT] / 127.0f, res = (float)p[TP_RES] / 127.0f, env = (float)p[TP_FENV] / 127.0f;
+    const float dec = (float)p[TP_D] / 127.0f, amp = (float)h * 0.28f, cy = (float)(y0 + h / 2);
+    const float g = 0.03f + 0.25f * cut * cut + 0.2f * env, q = 2.0f - 1.85f * res;
+    float lo = 0.0f, bp = 0.0f;
+    pen_t pe = {0}, pn = {0};
+    cv_rect(x0, y0 + h / 2, w, 1, K_LINE);
+    for (int32_t x = 0; x <= w; x++) {               /* the decay: from the top, falling over 0.2 .. 2 s */
+        float t = (float)x / (float)w;
+        pen_to(&pe, (float)(x0 + x), (float)(y0 + 4) + (float)(h - 8) * (1.0f - fm_expf(-t * (5.0f - 4.0f * dec))), K_LINE);
+    }
+    for (int pass = 0; pass < 2; pass++)             /* (the first pass settles the filter: the second is drawn) */
+        for (int32_t x = 0; x <= w; x++) {
+            float ph = (float)x / (float)w * 3.0f, fr = ph - fm_floorf(ph);
+            float in = sq ? (fr < 0.5f ? 1.0f : -1.0f) : 1.0f - 2.0f * fr, hi;
+            for (int k = 0; k < 2; k++) {            /* a state-variable low-pass, twice a pixel */
+                hi = in - lo - q * bp;
+                bp += g * hi;
+                lo += g * bp;
+            }
+            if (pass)
+                pen_to(&pn, (float)(x0 + x), cy - fm_clampf(lo, -1.6f, 1.6f) * amp, K_NOW);
+        }
+}
 /* cane: the model's instrument. pluck: a string bent at color's place, swinging (longer at a higher timbre); bow:
  * the string and the bow across it at color's place, heavier with timbre; reed and flute: the tube and its
  * holes, the breath's specks at the mouth (fewer as timbre steadies it), the flute's embouchure at color; bell:
@@ -3859,6 +3890,8 @@ static void draw_engine(void)
     h = hash_u(h, (uint32_t)(pic_lvl * 32.0f));
     for (int i = 0; i < 4; i++)
         h = hash_u(h, p[TP_E1 + i]);
+    if (eg == EG_ACID)                               /* (its picture draws its filter page too) */
+        h = hash_u(h, (uint32_t)p[TP_CUT] | (uint32_t)p[TP_RES] << 8 | (uint32_t)p[TP_FENV] << 16 | (uint32_t)p[TP_D] << 24);
     if (eg == EG_MIDI) {                             /* (the second page's values, the eight CCs, which page; a note
                                                       * out: the port lit, easing out) */
         eng_midi_hit[trk] = (uint8_t)(eng_midi_hit[trk] > 20 ? eng_midi_hit[trk] - 20 : 0);
@@ -3911,6 +3944,7 @@ static void draw_engine(void)
     case EG_VOILE: pic_voile(20, 24, 200, 88, p, pic_f); break;
     case EG_KNIT: pic_knit(20, 24, 200, 88, p, pic_f); break;
     case EG_MIDI: pic_midi(24, 30, p, ui.page == P_SUB, eng_midi_hit[trk]); break;
+    case EG_ACID: pic_acid(20, 24, 200, 88, p); break;
     default: pic_drumline(10, 26, 220, 90, p, pic_f); break;
     }
     cv_blit(0, MAIN_Y);
@@ -4091,7 +4125,8 @@ static void draw_play(void)
     if (!begin_main(h))
         return;
     cv_text(12, 6, &FONT_B, tp_info_par(TP_VMODE, p)->names[p[TP_VMODE] % 3], K_TEXT);
-    cv_text(12, 26, &FONT_XS, p[TP_VMODE] % 3 == VM_POLY ? "up to 6 voices on the track"
+    cv_text(12, 26, &FONT_XS, p[TP_ENGINE] == EG_ACID ? "one voice, held notes slide"
+                              : p[TP_VMODE] % 3 == VM_POLY ? "up to 6 voices on the track"
                               : p[TP_VMODE] % 3 == VM_MONO ? "one voice, every key restarts it"
                                                             : "one voice, held keys glide", K_DIM);
     for (int v = 0; v < NVOICE; v++)
@@ -4334,6 +4369,27 @@ static void draw_env(int filter)
     int n = 0;
     pen_t pn = {0};
     h = hash_u(h, p[b + 3] | (uint32_t)drum << 8);
+    if (is_acid(trk) && !filter) {                   /* the 303's: over 3 s, the filter's opening (its attack's rise,
+                                                      * its decay), an accented note's dimmer, the held note's level */
+        const float ta = 0.3f * fm_exp2f(p[TP_A] * (13.28771238f / 127.0f)), td = 200.0f * fm_exp2f(p[TP_D] * (3.321928095f / 127.0f));
+        const float tc = 30.0f + p[TP_S] * (2970.0f / 127.0f), tl = 30.0f + p[TP_R] * (2970.0f / 127.0f);
+        pen_t pa = {0}, pc = {0}, pl = {0};
+        if (!begin_main(hash_u(h, 0xAC1Du)))
+            return;
+        cv_rect(16, 16 + 84, 208, 1, K_LINE);
+        for (int32_t xi = 0; xi <= 208; xi++) {
+            float ms = (float)xi * (3000.0f / 208.0f);
+            float rise = 1.0f - fm_expf(-ms / ta), fl = rise * fm_expf(-ms / td), ac = fm_expf(-ms / tc);
+            pen_to(&pl, x0 + (float)xi, base - hh * 0.9f * fm_expf(-ms / tl), K_LINE);
+            pen_to(&pc, x0 + (float)xi, base - hh * ac * (1.0f - fm_expf(-ms / 15.0f)), K_DIM);
+            if (xi)
+                cv_rect((int32_t)x0 + xi, (int32_t)(base - hh * fl + 1.5f), 1, (int32_t)(hh * fl), K_TINT);
+            pen_to(&pa, x0 + (float)xi, base - hh * fl, K_NOW);
+        }
+        cv_text(16, 16 + 84 + 3, &FONT_XS, "filter; dim: accented; line: the note's level", K_DIM);
+        cv_blit(0, MAIN_Y);
+        return;
+    }
     if (!begin_main(h))
         return;
     cv_rect(16, 16 + 84, 208, 1, K_LINE);
@@ -4441,7 +4497,7 @@ static void draw_filter(void)
     }
     cv_rect(fc, y0, 1, hh, K_FAINT);
     cv_text(x0, y0 + hh + 3, &FONT_XS, tp_info_par(TP_FTYPE, p)->names[ft], K_DIM);
-    text_r(x0 + w, y0 + hh + 3, &FONT_XS, p[TP_KTRK] ? "key tracking on" : "", K_DIM);
+    text_r(x0 + w, y0 + hh + 3, &FONT_XS, is_acid(trk) ? "" : p[TP_KTRK] ? "key tracking on" : "", K_DIM);
     cv_blit(0, MAIN_Y);
 }
 /* the instrument's character stage: its type, what it does, and a picture of it (synth.c char_picture: the

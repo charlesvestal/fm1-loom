@@ -18,10 +18,10 @@ import time
 HDR = [0x7D, 0x46, 0x4C]
 CMD = 26
 STAGES = ["seq", "synth0", "synth1", "drum", "fx1", "master", "wait", "fx2", "prep", "mix", "out", "all", "subs", "note", "six", "step", "sub", "comp", "locks", "notes", "fire", "drain", "fxj"]
-ENGINES = ["knit", "rayon", "jacquard", "bellows", "cane", "voile", "sample", "slice", "kit", "midi", "chunk"]
+ENGINES = ["knit", "rayon", "jacquard", "bellows", "cane", "voile", "sample", "slice", "kit", "midi", "acid", "chunk"]
 TICK_HZ = 24e6
 SR = 44100.0
-TRAIL = ["load", "voices", "cap", "saws", "guard", "drops", "steals"]
+TRAIL = ["load", "voices", "cap", "lite", "guard", "drops", "steals"]   # (lite: the 303s' switches, engine.c)
 
 
 class Port:
@@ -152,7 +152,7 @@ def line(d):
     if dr:
         s += " | drums " + " ".join(dr)
     s += " | slowest voice %.0f %% (%s, %d frames)" % d["vworst"]
-    s += f" | load {d['load']} voices {d['voices']}/{d['cap']} saws {d['saws']} guard {d['guard']} drops {d['drops']} steals {d.get('steals', 0)}"
+    s += f" | load {d['load']} voices {d['voices']}/{d['cap']} lite {d['lite']} guard {d['guard']} drops {d['drops']} steals {d.get('steals', 0)}"
     return s
 
 

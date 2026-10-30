@@ -14,7 +14,7 @@ mkdir -p build/gen build/host
 [ -f build/gen/breaks.bin ] || "$PY" tools/loom_samples.py build --no-factory build/gen/breaks.bin breaks >/dev/null
 $CC -O2 -ffp-contract=off -std=c99 -Wall -Wextra -Wdouble-promotion -Werror -DPLAT_HOST -Iapp/dsp -Ibase/include -Ibuild/gen \
     -o build/host/dsp_hash tests/host/dsp_hash.c app/dsp/synth.c app/dsp/drumline.c app/dsp/digisophie.c \
-    app/dsp/sample.c app/dsp/fx.c
+    app/dsp/sample.c app/dsp/bass303.c app/dsp/fx.c
 build/host/dsp_hash > build/host/dsp_hash.txt
 if [ "${1:-}" = save ]; then
     cp build/host/dsp_hash.txt build/host/dsp_hash.ref

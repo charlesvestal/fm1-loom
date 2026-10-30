@@ -1,7 +1,7 @@
 # LOOM-8 for the M-VAVE FM-1
 
 LOOM-8 turns the M-VAVE FM-1 into a pocket groovebox: eight instrument tracks, each in its own colour, on
-ten engines (six synths: knit, rayon, jacquard, bellows, cane and voile; a sample player, a break slicer, a drum kit, and MIDI out to drive another synth), 85 factory presets; a 64-step sequencer with step tricks and parameter locks; players (arp,
+eleven engines (seven synths: knit, rayon, jacquard, bellows, cane, voile and acid, a TB-303; a sample player, a break slicer, a drum kit, and MIDI out to drive another synth), 93 factory presets; a 64-step sequencer with step tricks and parameter locks; players (arp,
 strum, hold); weave, which crosses two patterns (bar by bar, step by step, or one's rhythm with the other's
 notes); throws (momentary effects); a conductor track that moves the song through a progression; two
 send-effect tracks (the reverb with the PlayStation's reverbs among its modes), a mixer with EQ
@@ -28,12 +28,13 @@ samples load from their WAV files with `tools/loom_samples.py` (see the manual).
 
 LOOM-8 is an app (`app/`) on fm1-base, a git submodule (`base/`): clone with `--recursive`. See `BUILDING.md`.
 `tests/run_tests.sh` runs everything on the host, silently (the audio goes to WAV files). `LICENSING.md` says
-where the code comes from.
+where the code comes from. LOOM-8 is GPL-3.0-only as a whole (`COPYING`), for its acid engine; most of its files are
+MPL-2.0 (`LICENSE`), each on its own.
 
 ## Credits
 
 The platform: fm1-base and felucca-bsp (MPL-2.0), from Felucca by Leo Kuroshita (Hügelton Instruments), with his
-permission (felucca-bsp#4). cane and voile: Mutable Instruments Braids by Emilie Gillet (MIT). The reverb's PlayStation modes: PSXVerb (MIT). The x drums: after MACHINEDRUM by Omodaka9375 (MIT); sophie: Sophie by Matt Estela (MIT); clang: digisophie (MIT). The factory breaks: free loops by u/FCTRYBEATS,
+permission (felucca-bsp#4). cane and voile: Mutable Instruments Braids by Emilie Gillet (MIT). acid: X0X's 303, from Open303 by Robin Schmidt (MIT), with jc303's Devilfish ranges by midilab (GPL-3.0) and dm-Rat's RAT drive by Dave Mollen (GPL-3.0). The reverb's PlayStation modes: PSXVerb (MIT). The x drums: after MACHINEDRUM by Omodaka9375 (MIT); sophie: Sophie by Matt Estela (MIT); clang: digisophie (MIT). The factory breaks: free loops by u/FCTRYBEATS,
 with their permission; the plate reverb and the 909 kick, snare and clap: 9W9 by athousanddetails, under MPL-2.0 with his permission; the 909 hat: ER-99's sample by Matthew Cieplak, through 9W9 (GPL-3.0, in the sound bank only); the recorded instruments: Versilian Studios Chamber
 Orchestra 2 Community Edition (CC0). The fonts: Barlow and Terminus (SIL OFL 1.1). The second core's lessons: Melodee (keremimo) and Jangada (zednaked). The USB MIDI host: Melodee's, by Adrien Tibi and Kerem Kilic (MPL-2.0, in felucca-bsp).
 Bluetooth MIDI and Bluetooth audio: Optimist's own stack by Henri David (MPL-2.0, in fm1-base), with Android's SBC
