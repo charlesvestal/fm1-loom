@@ -93,7 +93,8 @@ enum {
     TP_PLAYER, TP_P1, TP_P2, TP_P3, TP_P4,          /* Players: off / arp / strum / hold and its four knobs */
     TP_AP1, TP_AP2, TP_AP3, TP_AP4,                 /* the arp's second page: length, style, glide, stereo */
     TP_LEVEL, TP_PAN,                               /* Mix */
-    TP_BRAIN,                                       /* follows the brain: 0 no, 1 diatonic, 2 transpose only */
+    TP_BRAIN,                                       /* follows the brain: BM_* (0 no, 1 diatonic, 2 transpose only,
+                                                     * 3 harmony, 4 chord degree) */
     TP_CHAN,                                        /* MIDI OUT: 0 off, 1 on (on the track's own channel) */
     TP_DRUM0,                                       /* the drum kit: NDRUM keys * DP_N */
     TP_DRUMX0 = TP_DRUM0 + 11 * DP_N,               /* the keys' second page of model knobs (a model with eight:
@@ -105,6 +106,10 @@ enum {
     NTP
 };
 _Static_assert(NTP <= 511, "a parameter's index: nine bits in the engine's queue (engine.c cq_put); a lane's is 16");
+/* how a track follows the conductor (TP_BRAIN): 0 and 1..2 are saved before harmony and keep their meaning;
+ * 3 and 4 are appended (append only: a project stores the byte). 3 "harmony" takes each note to the nearest tone of
+ * the active chord; 4 "ch. deg" takes the note's place in the scale to pick a chord tone. See seq.c brain_note */
+enum { BM_NO, BM_DIATONIC, BM_TRANSPOSE, BM_HARMONY, BM_DEGREE, NBM };
 #define TP_DRUM(s, k) (TP_DRUM0 + (s) * DP_N + (k))
 #define DPX_N 4                                      /* knobs 5..8 of a key's model */
 #define TP_DRUMX(s, j) (TP_DRUMX0 + (s) * DPX_N + (j))

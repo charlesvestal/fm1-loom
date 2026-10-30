@@ -246,6 +246,8 @@ typedef struct {
     volatile uint8_t brain_link;      /* 0 off, 1..8 = instrument track t + 1 played from the brain's keys too */
     volatile uint16_t brain_route;    /* bit t = track t follows */
     uint32_t brain_phys[4];           /* the brain's keys down (bit note): the lowest is the chord's root */
+    volatile uint32_t brain_chord;    /* the active chord: up to SN (4) MIDI notes in its bytes, ascending, 0 = none.
+                                       * One aligned word, so the interrupt reads it whole (see pattern.h) */
     /* punch-in */
     uint32_t punch_keys;              /* bits NPUNCH_FX: held keys (set from the key ring, in the interrupt) */
     uint8_t punch_tgt[NPUNCH_FX];     /* each held key's target: 0xFF = its octave's group, else one track */
