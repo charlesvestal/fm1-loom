@@ -280,6 +280,8 @@ void synth_tempo(synth_t *s, float bpm);
 void synth_note_on(synth_t *s, int trk, int note, int vel, int glide_ms, uint32_t tag);
 void synth_note_off(synth_t *s, int trk, uint32_t tag);
 void synth_all_off(synth_t *s, int trk);            /* -1: every track (panic) */
+void synth_cut(synth_t *s);                         /* every voice silent at once, its state cleared (the engine's
+                                                     * recovery from a NaN in the mix) */
 void synth_bend(synth_t *s, int trk, int cents);    /* performance bend (the bend component, MIDI) */
 perf_t *synth_perf(synth_t *s, int trk);            /* the track's performance state (write from the interrupt) */
 #ifndef LOCK_NONE

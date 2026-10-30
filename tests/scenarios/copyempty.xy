@@ -116,7 +116,7 @@ expect note 2 2 1 68
 # the FM-1's settings (the theme, Setup's list: NOTES here): set on Setup's list, kept when project 1 loads (and over
 # a restart: the load writes them into the slot), and by a new project
 projsave 1
-expect theme 0
+expect theme 2
 tap GLO
 turn SELECT 5
 expect page Setup
@@ -126,7 +126,7 @@ turn ALGO 1
 row NOTES
 turn ALGO -1
 tap HOME
-expect theme 1
+expect theme 0
 expect sendnotes 0
 tap HOME
 tap SEL
@@ -137,12 +137,12 @@ tap SEL
 wait 300
 expect ask 0
 expect spat2.2 2
-expect theme 1
+expect theme 0
 expect sendnotes 0
 reboot
 wait 400
-expect theme 1
+expect theme 0
 expect sendnotes 0
 projnew
-expect theme 1
+expect theme 0
 expect sendnotes 0

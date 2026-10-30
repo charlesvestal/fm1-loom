@@ -68,6 +68,7 @@ void fx_process(fxslot_t *f, const float *in, float *out_l, float *out_r, uint32
  * those (the lofi and the phaser have no line to hide it in: the engine runs them in time) */
 void fx_process_lag(fxslot_t *f, const float *in, float *out_l, float *out_r, uint32_t n, int lag);
 int fx_lags(const fxslot_t *f);
+void fx_clear(fxslot_t *f);                                 /* its lines and states at rest, its settings kept */
 int fx_has(const fxslot_t *f, int pick);                    /* the slot can do this effect (reverb needs its line) */
 int fx_awake(const fxslot_t *f);                            /* the slot works this block: its input heard, or its line
                                                             * still ringing (a delay or reverb sleeps on silence; the
@@ -99,6 +100,7 @@ extern const char *const MS_NAME[NMS];
 typedef struct master master_t;
 #define MASTER_BYTES 1792
 void master_init(master_t *m);
+void master_clear(master_t *m);                             /* its states at rest, its settings kept */
 void master_set(master_t *m, int p, int v);                 /* 0..127 (EQ 64 = flat; color type 0..NMC-1; pump by
                                                              * 0..NPB-1, accent 0..1; 3 ignored) */
 int master_max(int p);                                      /* a value's top: 127, NPB - 1 or 1 */

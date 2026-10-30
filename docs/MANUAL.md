@@ -154,8 +154,8 @@ press…" means keep **HOME** down while you press the next thing.
 | change the filter | Press **ENV** and turn **SELECT** to Filter. **PRESETS** changes the filter type. |
 | give a sound some character | Press **FX** for the Character page. **PRESETS** changes the type (drive, fold, crush, ring, tilt, tape, sampler), and the knobs set its amount, tone and mix. |
 | use the effects | Press **FX** and turn **SELECT** to Sends, the track's sends. Keep turning to reach FX I and FX II, where **PRESETS** picks the effect. |
-| play | Press **PLAY**: every track starts from step 1. |
-| record live | Hold **REC** and press **PLAY**. Recording starts from step 1 straight away (after the count-in, if you set one). |
+| play | Press **PLAY**: every track starts from step 1. On Steps or Bar, hold **SEQ** and press **PLAY** to start from the bar on screen. |
+| record live | Hold **REC** and press **PLAY**. Recording starts from step 1 straight away (after the count-in, if you set one). With COUNT on "on note", nothing moves until you play: your first note lands on step 1. |
 | record while playing | While it plays, hold **REC** and play: it records for as long as you hold **REC**. Hold **REC** and press **PLAY** to keep recording on. |
 | record a knob's motion | While it plays, on a sound page, hold **REC** and turn the knob. The motion is recorded for as long as you hold **REC**. |
 | set the click, count-in, quantise | While stopped, hold **REC** and turn the knobs: CLICK, COUNT, QUANT and MODE (overdub or replace). |
@@ -168,7 +168,7 @@ press…" means keep **HOME** down while you press the next thing.
 | mute a track | On Arrange or Mix, press its black key. On Mix, hold it to solo the track for as long as you hold it. <!-- hint: black 1 --> |
 | mute one drum sound in a scene | On Arrange, hold the kit track's black key and press white keys 1 to 11. <!-- hint: black 1; white 1-11 --> |
 | make the whole mix pump with the kick | Press **GLO**, turn **SELECT** to Master out and turn **KNOB 4** (pump). **SEL** picks what drives it and how fast it swells back. <!-- hint: press GLO; turn SELECT, KNOB 4 --> |
-| solo a track | On Mix, hold its black key (hold several to solo them together). Let go and the mutes come back. <!-- hint: black 1 --> |
+| solo a track | On Mix, hold its black key (hold several to solo them together). Let go and the mutes come back. Tap it twice and the solo stays when you let go (also on other pages); tap any track's black key on Mix to end it. <!-- hint: black 1 --> |
 | sweep a few tracks together | Press **GLO** and turn **SELECT** to LFO, the shared LFO. The black keys pick the tracks, and **KNOB 4** picks what it moves. <!-- hint: press GLO; turn SELECT, KNOB 4; black 1,2,3 --> |
 | play a progression | Turn **ALGORITHM** to COND (the conductor). Press **EDIT** and play a chord: it moves the tracks that follow. Press **SEQ** and press a step to put the chord on it. Set the scale to 4 on the Bar page so that a step is a beat. <!-- hint: turn ALGORITHM; press EDIT; white 1,3,5 --> |
 | let a track lead the chords | On COND, press **EDIT** and turn **SELECT** to Follow. Press the track's black key, and its notes set the chord for the others (use a chord part or a bass line). Press the same key again to turn it off. <!-- hint: press EDIT; turn SELECT; black 3 --> |
@@ -183,11 +183,11 @@ press…" means keep **HOME** down while you press the next thing.
 
 | Control | What it does |
 | --- | --- |
-| **PLAY** | Starts and stops. Every track starts from step 1. If you change a track's scale or length, it stays in phase with the rest. On the Song page, it plays the song from the selected slot. With **REC** held, it starts live recording. |
+| **PLAY** | Starts and stops. Every track starts from step 1 (with **SEQ** held on Steps or Bar: from the bar on screen, each track where it would be then). If you change a track's scale or length, it stays in phase with the rest. On the Song page, it plays the song from the selected slot. With **REC** held, it starts live recording. |
 | **REC** | While playing, hold it to record for as long as you hold it. While stopped, tap it to arm step record. Hold it while playing on a sound page to record the knobs you turn. Hold it while stopped (or on Steps) and the knobs become the record settings (click, count-in, quantise, mode). |
 | **SEL** | Opens a list of this page's settings and actions. With a step held, it lists the step's notes. When LOOM-8 asks a question, **SEL** means yes. |
 | **HOME** | Opens Arrange. On Arrange, it opens the Song page. Hold it as a shift key for buttons and knobs: undo and redo, fine tempo, and the scenes on **PRESETS**. When LOOM-8 asks a question, **HOME** means no. |
-| **SEQ** | Opens Steps; page 2 is Bar. Hold it on Steps and the keys play the track and set what a step writes (**PRESETS** sets the track's sound, and **OCT** moves the whole pattern an octave). Hold it on Bar and black keys 1 to 4 jump to a bar or loop bars. |
+| **SEQ** | Opens Steps; page 2 is Bar. Hold it on Steps and the keys play the track and set what a step writes (**PRESETS** sets the track's sound, and **OCT** moves the whole pattern an octave). Hold it on Bar and black keys 1 to 4 jump to a bar or loop bars. Hold it on Steps or Bar and press **PLAY** to start from the bar on screen. |
 | **EDIT** | Opens Engine. Page 2 is Play and page 3 is Play 2 (the octave). The knit and rayon engines have a page 4, Sub, with the engine's second set of knobs. A sample track in a loop mode has its Loop page second. On a drum track, page 2 holds the key's model, random, pan and volume, and page 3 its sends. On the conductor, the pages are its key, the routing and Follow. |
 | **ENV** | Opens Envelope (on a drum track: lag, attack, random, length), then Filter, then the filter's envelope. |
 | **FX** | Opens Character, the track's own effect. Next come Sends, the track's sends to FX I and FX II, and then FX I and FX II, the two effects. |
@@ -225,9 +225,11 @@ From top to bottom, the screen has five parts.
 - **The two bottom lines** say what the encoders and the keys do here.
 
 The screen comes in three themes, which you pick with Setup's THEME knob: **tape deck**, warm brown-black with
-cream text; **blueprint**, deep blue with white lines; and **b/w**, black with white text and red. In every theme,
-each instrument track has its own colour. In tape deck they are T1 mustard, T2 rust, T3 olive, T4 teal, T5 blue,
-T6 plum, T7 tan and T8 sage. Steps with notes show in the track's colour, dimmed. Whatever is sounding right now
+cream text; **blueprint**, deep blue with white lines; and **b/w**, black with white text and red (the one a new
+FM-1 starts with). In every theme,
+each instrument track has its own colour. In b/w they are T1 pink, T2 teal, T3 yellow, T4 blue, T5 orange,
+T6 green, T7 violet and T8 tan; in tape deck T1 mustard, T2 rust, T3 olive, T4 teal, T5 blue, T6 plum, T7 tan and
+T8 sage. Steps with notes show in the track's colour, dimmed. Whatever is sounding right now
 shows in the track's colour at full brightness: the step playing, the scene playing, a meter. On Arrange and Mix
 every track keeps its colour, so you can tell them apart at a glance. Cream (or white) outlines show what you are
 touching: the held step, the cursor, the knob you turned. Red is used only for recording and for locks.
@@ -474,7 +476,8 @@ FORWARD, then weave it by steps) makes variations. A drum pattern's rhythm with 
 
 - **Live recording**: hold **REC** and press **PLAY**. Every track starts from step 1, and recording starts at
   once (after the count-in, if you set one). The keys write steps as you play, quantised by QUANT, and chords land
-  together on one step. Press **PLAY** to stop.
+  together on one step. Press **PLAY** to stop. With COUNT on "on note", the header shows "Play a note" and nothing
+  moves until you play: that note lands on step 1 and everything runs from there.
 - **While playing**: hold **REC** and play. It records only while you hold **REC**. Hold **REC** and press
   **PLAY** to keep it on; press **REC** again to turn it off.
 - **Motion**: while recording, any knob you turn on a sound page (Engine, Envelope, Filter, Character, Sends,
@@ -484,7 +487,7 @@ FORWARD, then weave it by steps) makes variations. A drum pattern's rhythm with 
   nearest step, and a new chord replaces the one that was there. Set the conductor's scale to 4 on the Bar page,
   so that a step is a beat.
 - **Record settings**: while stopped (or on Steps and Bar), hold **REC** and turn the knobs: CLICK (off, while
-  recording, on), COUNT (a count-in of off, 1 or 2 bars), QUANT (how far notes are pulled onto the steps) and MODE
+  recording, on), COUNT (a count-in of off, 1 or 2 bars, or "on note": waits for your first note), QUANT (how far notes are pulled onto the steps) and MODE
   (overdub adds to the pattern; replace clears the steps the playhead passes as you record over them). Holding
   **REC** to turn them changes nothing else.
 - **Step by step**: while stopped, tap **REC**. On Steps, the keys become a keyboard, and a red cursor marks the
@@ -1185,7 +1188,10 @@ Turn **ALGORITHM** past T8. Each aux track has its own page under **EDIT** and i
 
 Press **GLO**. The Mix page shows a meter for each track. Each black key picks its track: tap it to mute or
 unmute the track, or hold it to solo the track until you let go. Hold several to solo them together. Each one you
-let go leaves the solo, and letting go of the last one brings the mutes back as they were. The knobs are the sends
+let go leaves the solo, and letting go of the last one brings the mutes back as they were. Tap a black key twice
+and its track stays soloed after you let go (**SOLO** at the right of the meters), on every page, until you tap a
+track's black key on Mix again or mute a track elsewhere; then the mutes come back. A muted track's meter still
+moves, in grey, while its steps go by, so you can tell it from an empty track. The knobs are the sends
 to FX I and FX II, the pan and the level. A drum track's sends are set per key, on **FX**, Sends.
 
 Turn **SELECT** for more pages:
@@ -1196,7 +1202,7 @@ Turn **SELECT** for more pages:
   their knobs, page by page, with what the pump follows, its release and accent, and the master level.
 
 On Setup, the knobs are the lights, the MIDI clock (internal, receive or send: see MIDI below), sending MIDI
-notes (on to start with) and the theme (tape deck, blueprint or b/w). The page also shows where the tempo comes from (LOOM-8, or a MIDI clock coming
+notes (on to start with) and the theme (b/w to start with, tape deck or blueprint). The page also shows where the tempo comes from (LOOM-8, or a MIDI clock coming
 in), the USB audio level, the autosave, Bluetooth audio and the Bluetooth MIDI device (see Bluetooth below). The
 version is on the next page, Debug. **SEL** on Setup has the FM-1's own settings, in three groups: Bluetooth (BT
 MIDI, MIDI DEVICE, BT AUDIO, AUDIO DEVICE), USB and MIDI (the USB audio level, USB PORT, CLOCK, NOTES, CC OUT,

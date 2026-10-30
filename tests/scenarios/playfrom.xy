@@ -1,0 +1,29 @@
+# SEQ + PLAY on Steps or Bar: the transport from the bar on screen, every track at the step it would be on then
+# (a 16-step track round its loop, a half-speed track half as far); PLAY alone still from step 1
+wait 300
+pat 2 1 64
+pat 3 1 16
+pat 4 1 64 2
+notes 2 1 33 1 100 60
+turn ALGO 1
+expect trk 2
+tap SEQ
+tap OCT+
+tap OCT+
+press SEQ
+tap PLAY
+release SEQ
+wait 20
+expect playing 1
+expect step 2 32
+expect step 3 0
+expect step 4 16
+shot from_bar3.png
+tap PLAY
+expect playing 0
+wait 100
+tap PLAY
+wait 20
+expect step 2 0
+expect step 4 0
+tap PLAY

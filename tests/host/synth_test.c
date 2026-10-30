@@ -43,6 +43,14 @@ static int finite_f(float x) { return x == x && x < 1e30f && x > -1e30f; }
 static float fm_fabs_t(float x) { return x < 0.0f ? -x : x; }
 static float fabs_f(float x) { return x < 0.0f ? -x : x; }
 
+/* the stack below here filled with NaN: what a render leaves unwritten on it then shows */
+__attribute__((noinline)) static void stack_nan(void)
+{
+    volatile float junk[8192];
+    for (int i = 0; i < 8192; i++)
+        junk[i] = 0.0f / 0.0f;
+    (void)junk[8191];                            /* (read: gcc's set-but-not-used) */
+}
 /* render n frames in one range, return the block's peak and whether all was finite */
 static float block(uint32_t n, int *finite)
 {
@@ -2268,6 +2276,36 @@ int main(void)
             sprintf(what, "the sample's loop page: a loop crossfaded, its worst bend %.4f (typical %.5f)",
                     (double)worst, (double)typ);
             check(what, finite && worst < typ * 40.0f);
+        }
+    }
+    {   /* the sample changed while a loop crosses its point (a tester scrolling the samples: all sound gone until a
+         * restart): the crossing's other half read from where the old loop's start was, maybe outside the new loop;
+         * the stack filled with NaN before each block, so a frame the crossing leaves unwritten shows */
+        int finite = 1, ns = smp_factory(), sw = 0;
+        float worst = 0.0f;
+        reset();
+        sound_default(par[0], EG_SAMPLE);
+        par[0][TP_E4] = SM_LOOP;
+        par[0][TP_A] = 0;
+        par[0][TP_S] = 127;
+        par[0][TP_CUT] = 127;
+        synth_note_on(S, 0, 72, 100, 0, 1);
+        for (int b = 0; b < 6000; b++) {
+            if (b % 7 == 0) {                         /* scrolled: the next sample, its loop page moved too */
+                sw++;
+                par[0][TP_E1] = (uint8_t)(sw % ns);
+                par[0][TP_X1] = (uint8_t)(sw * 37 % 120);
+                par[0][TP_X2] = (uint8_t)(sw * 53 % 128);
+            }
+            stack_nan();
+            float pk = block(32, &finite);
+            worst = pk > worst ? pk : worst;
+        }
+        synth_note_off(S, 0, 1);
+        {
+            char what[128];
+            sprintf(what, "the sample scrolled while it loops: finite (%d), its loudest %.2f", finite, (double)worst);
+            check(what, finite && worst < 8.0f);
         }
     }
     {   /* the shared LFO (GLO's LFO page, the conductor's row): a 4 Hz square on T1's volume swings its level;

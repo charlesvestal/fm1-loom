@@ -290,6 +290,15 @@ void fx_init(fxslot_t *f, int16_t *dly_l, int16_t *dly_r, int16_t *rv)
     fx_states(f);
 }
 
+void fx_clear(fxslot_t *f)
+{
+    if (f->dl) zero16(f->dl, FX_DLY_LEN);
+    if (f->dr) zero16(f->dr, FX_DLY_LEN);
+    if (f->rv) zero16(f->rv, FX_RV_LEN);
+    f->hps = f->lps = 0.0f;
+    fx_states(f);
+}
+
 int fx_has(const fxslot_t *f, int pick)
 {
     int type = fx_pick_type(pick);
@@ -1170,6 +1179,17 @@ void master_init(master_t *m)
     eq_coefs(m);
     comp_coefs(m);
     color_coefs(m);
+}
+
+void master_clear(master_t *m)
+{
+    uint8_t pot[NMS];
+    uint32_t i;
+    for (i = 0; i < NMS; i++)
+        pot[i] = m->pot[i];
+    master_init(m);
+    for (i = 0; i < NMS; i++)
+        master_set(m, (int)i, pot[i]);
 }
 
 void master_set(master_t *m, int p, int v)

@@ -1,0 +1,55 @@
+# Mix: a double tap on a track's black key solos it and the solo stays, let go (any page); a tap ends it and the
+# mutes come back. A hold still adds a track while held; a mute changed elsewhere ends the solo first
+wait 300
+tap GLO
+expect mute 0
+tapkey b2
+wait 100
+tapkey b2
+wait 40
+expect mute 1019
+wait 1200
+expect mute 1019
+shot mix_solo_latched.png
+# a hold adds track 4 while held; let go, track 2 still alone
+key b4 down
+wait 900
+expect mute 1003
+key b4 up
+wait 40
+expect mute 1019
+# a tap: the solo ends
+tapkey b5
+wait 400
+expect mute 0
+# track 1 muted, then track 3 double tapped: the first tap's mute undone, track 1's kept to go back to
+tapkey b1
+wait 400
+expect mute 2
+tapkey b3
+wait 100
+tapkey b3
+wait 40
+expect mute 1015
+# another track double tapped while soloed: it alone
+tapkey b6
+wait 100
+tapkey b6
+wait 40
+expect mute 959
+tapkey b6
+wait 400
+expect mute 2
+# a muted track still shows its steps on its meter, in grey (an empty muted track none)
+notes 2 1 1 1 100 60
+notes 2 1 5 1 100 62
+notes 2 1 9 1 100 64
+notes 2 1 13 1 100 65
+tap PLAY
+wait 600
+expect mute 2
+tapkey b3
+wait 900
+expect mute 10
+shot mix_muted_meter.png
+tap PLAY
