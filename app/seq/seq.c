@@ -503,12 +503,120 @@ static int brain_src(const seq_t *s) { return s->brain_src >= 1 && s->brain_src 
 /* a track follows: routed, and not the track the chords come from (it would move itself) */
 static int brain_follows(const seq_t *s, int t) { return t < NTRK && s->par[t][TP_BRAIN] && t != brain_src(s); }
 
+/* ------------------------------------------------------- the chord --- */
+/* the active chord is up to SN notes packed in one word, ascending, 0 = none (seq.h brain_chord) */
+static int chord_n(uint32_t w)
+{
+    int n = 0;
+    for (int i = 0; i < SN; i++)
+        n += (w >> (8 * i) & 0xFFu) != 0u;
+    return n;
+}
+static uint32_t chord_word(const uint8_t *nt, int n)   /* ascending, no duplicates, packed (a write's whole value) */
+{
+    uint8_t t[SN];
+    int m = 0, k = 0;
+    uint32_t w = 0;
+    for (int i = 0; i < n && m < SN; i++)
+        if (nt[i])
+            t[m++] = nt[i];
+    for (int i = 1; i < m; i++) {
+        uint8_t v = t[i];
+        int j = i;
+        while (j > 0 && t[j - 1] > v)
+            t[j] = t[j - 1], j--;
+        t[j] = v;
+    }
+    for (int i = 0; i < m; i++)
+        if (!k || t[i] != t[k - 1])
+            t[k++] = t[i];
+    for (int i = 0; i < k; i++)
+        w |= (uint32_t)t[i] << (8 * i);
+    return w;
+}
+/* the chord a single root sets: the root and its third and fifth in the conductor's scale (a diatonic triad) */
+static void brain_chord_of_root(seq_t *s, int root)
+{
+    uint8_t t[3];
+    if (root < 1 || root > 127) {
+        s->brain_chord = 0;
+        return;
+    }
+    t[0] = (uint8_t)root;
+    t[1] = (uint8_t)scale_step(root, s->brain_key, s->brain_scale, 2);
+    t[2] = (uint8_t)scale_step(root, s->brain_key, s->brain_scale, 4);
+    s->brain_chord = chord_word(t, 3);
+}
+/* the chord the conductor's own state implies (a scene stores no chord): the triad on its degree */
+static void brain_chord_from_deg(seq_t *s)
+{
+    uint16_t mask = scale_mask(s->brain_scale < NBS ? s->brain_scale : BS_MAJOR);
+    int key = s->brain_key % 12, base = note_to_deg(60 + key, key, mask);
+    brain_chord_of_root(s, deg_to_note(base + brain_deg(s), key, mask));
+}
+/* the chord an event sets: 2..SN notes are the chord as played; one note is its diatonic triad */
+static void brain_set_chord(seq_t *s, const uint8_t *nt, int n)
+{
+    int m = 0, root = 0;
+    for (int i = 0; i < n && i < SN; i++)
+        if (nt[i]) {
+            if (!m)
+                root = nt[i];
+            m++;
+        }
+    if (!m)
+        return;                          /* (a rest keeps the chord it heard: as the degree does) */
+    if (m == 1)
+        brain_chord_of_root(s, root);
+    else
+        s->brain_chord = chord_word(nt, n);
+}
+
+/* harmony: a note onto the active chord */
+static int chord_snap(int note, uint32_t w)          /* the nearest tone, register kept, ties down */
+{
+    int best = note, bd = 128;
+    for (int i = 0; i < SN; i++) {
+        int t = (int)(w >> (8 * i) & 0xFFu), c;
+        if (!t)
+            continue;
+        c = note - ((note - t) % 12 + 12) % 12;      /* the tone at or under the note */
+        for (int k = 0; k < 2; k++, c += 12) {
+            int d = c > note ? c - note : note - c;
+            if (d < bd || (d == bd && c < best))
+                best = c, bd = d;
+        }
+    }
+    return clamp_note(best);
+}
+static int chord_deg(int note, uint32_t w, int key, int scale)   /* the scale's degree picks a chord tone */
+{
+    uint16_t mask = scale_mask(scale);
+    int n = chord_n(w), len = mask_len(mask), idx, tone;
+    if (n < 1)
+        return note;
+    if (len < 1)
+        len = 1;
+    idx = note_to_deg(note, key % 12, mask) % len;
+    if (idx < 0)
+        idx += len;
+    tone = (int)(w >> (8 * (idx % n)) & 0xFFu);
+    return clamp_note(tone + 12 * floor_div(note - tone + 6, 12));   /* the octave nearest the note */
+}
+
 /* a routed track's note through the brain (steps and live keys alike) */
 static int brain_note(const seq_t *s, int t, int note)
 {
     int mode = brain_follows(s, t) ? s->par[t][TP_BRAIN] : 0;
     if (!mode)
         return note;
+    if (mode >= BM_HARMONY) {
+        uint32_t w = s->brain_chord;                  /* (one read: a chord never changes halfway through) */
+        if (w)
+            return mode == BM_HARMONY ? chord_snap(note, w)
+                                      : chord_deg(note, w, s->brain_key, s->brain_scale);
+        mode = BM_DIATONIC;                           /* no chord yet: as before harmony */
+    }
     return brain_shift(note, s->brain_key, s->brain_scale, brain_deg(s), mode);
 }
 
@@ -535,6 +643,35 @@ static void brain_set_near(seq_t *s, int root)
     s->brain_deg = (uint8_t)(int8_t)d;
 }
 
+/* the lowest SN keys of a held set (bit note), ascending: what a held chord plays */
+static int held_notes(const uint32_t *phys, uint8_t *out)
+{
+    int n = 0;
+    for (int w = 0; w < 4 && n < SN; w++)
+        for (int i = 0; i < 32 && n < SN; i++)
+            if (phys[w] >> i & 1u)
+                out[n++] = (uint8_t)(w * 32 + i);
+    return n;
+}
+
+/* an event that sets the chord from a root or from the notes played: the degree stays the lowest note's */
+static void brain_set_root_notes(seq_t *s, const uint8_t *nt, int n)
+{
+    int lo = low_note(nt, n);
+    if (!lo)
+        return;
+    brain_set_root(s, lo);
+    brain_set_chord(s, nt, n);
+}
+static void brain_set_near_notes(seq_t *s, const uint8_t *nt, int n)
+{
+    int lo = low_note(nt, n);
+    if (!lo)
+        return;
+    brain_set_near(s, lo);
+    brain_set_chord(s, nt, n);
+}
+
 /* the BRAIN track's knobs: key / scale taken when they change (a scene may have set the sequencer's own); E1 the
  * FOLLOW track (0 off, 1..8: its notes set the chords), E4 the link track (0 off, 1..8) */
 static void brain_follow_par(seq_t *s)
@@ -548,6 +685,8 @@ static void brain_follow_par(seq_t *s)
         s->brain_key = (uint8_t)(e[1] % 12);
     if (e[2] != s->brain_seen[2])
         s->brain_scale = e[2] < NBS ? e[2] : BS_MAJOR;
+    if (e[1] != s->brain_seen[1] || e[2] != s->brain_seen[2] || !s->brain_chord)
+        brain_chord_from_deg(s);              /* a key or scale change moves the harmony with it */
     for (t = 0; t < 4; t++)
         s->brain_seen[t] = e[t];
     for (t = 0; t < NTRK; t++)
@@ -601,6 +740,146 @@ static void emit_note(seq_t *s, int t, int note, int vel, int glide_ms, uint32_t
         o->note_on(o->ctx, t, note, vel, glide_ms, tag);
     midi_on(s, t, note, vel, o);
     add_off(s, t, tag, OFF_NOTE, note, len_q8, o);
+}
+
+/* ---------------------------------------------------------------- random --- */
+/* a track whose player is PL_RAND (its steps generate notes; seq.c rand_notes) */
+static int rand_track(const seq_t *s, int t) { return t >= 0 && t < NTRK && !is_drum(s, t) && s->par[t][TP_PLAYER] % NPL == PL_RAND; }
+/* streams of a step's draws: independent numbers from the same seed and step */
+enum { ST_NOTE, ST_PITCH, ST_OCT, ST_TIME, ST_TIME2, ST_VEL, ST_VEL2, ST_GATE, ST_GATE2 };
+static uint32_t st_hash(uint32_t x)              /* a 32-bit avalanche (splitmix's) */
+{
+    x ^= x >> 16;
+    x *= 0x7feb352du;
+    x ^= x >> 15;
+    x *= 0x846ca68bu;
+    x ^= x >> 16;
+    return x;
+}
+/* the phrase is a function of the seed and the generator step only: a frozen seed repeats exactly */
+static uint32_t st_rand(uint32_t seed, uint8_t step, int stream)
+{
+    return st_hash(seed ^ st_hash((uint32_t)step * 0x9E3779B9u + (uint32_t)stream * 0x85EBCA6Bu));
+}
+/* a 0..100 chance (the knobs are 0..127: the same reading as PK_PCT's display) */
+static int st_pct(int v) { return (v * 100 + 63) / 127; }
+/* the pool a random track's pattern picks its pitches from (pattern.h LANE_POOL), cached by lane_epoch */
+static uint16_t rand_pool(seq_t *s, int t)
+{
+    seq_trk_t *tr = &s->t[t];
+    int pat = s->ppat[t] < NPATT ? s->ppat[t] : 0;
+    if (tr->st_pool_lane != 0xFF && tr->st_pool_epoch == lane_epoch) {
+        const lane_t *l = &s->P->lane[tr->st_pool_lane];
+        if (l->used && l->param == LANE_POOL && l->trk == t && l->pat == pat)
+            return (uint16_t)(l->val[0] | (uint16_t)(l->val[1] & 0x0Fu) << 8);
+    }
+    {
+        int k = lane_find(s->P->lane, t, pat, LANE_POOL);
+        tr->st_pool_lane = (uint8_t)(k < 0 ? 0xFF : k);
+        tr->st_pool_epoch = lane_epoch;
+        return k < 0 ? 0u : lane_pool_get(s->P->lane, t, pat);
+    }
+}
+/* a generator cycle ends: the phrase seeds move on, each at its knob's chance; 0 % keeps them, so it repeats */
+static void rand_wrap(seq_t *s, int t)
+{
+    seq_trk_t *tr = &s->t[t];
+    tr->st_cyc = 0;
+    tr->st_cycle++;
+    if (st_hash(tr->st_seed_pit + tr->st_cycle * 0x9E3779B9u) % 100u < (uint32_t)st_pct(s->par[t][TP_P2]))
+        tr->st_seed_pit = st_hash(tr->st_seed_pit ^ 0xA5A5A5A5u ^ tr->st_cycle);
+    if (st_hash(tr->st_seed_rh + tr->st_cycle * 0x85EBCA6Bu) % 100u < (uint32_t)st_pct(s->par[t][TP_P3]))
+        tr->st_seed_rh = st_hash(tr->st_seed_rh ^ 0x5A5A5A5Au ^ tr->st_cycle);
+}
+/* the generator's step: begin is before the step fires, end after it (rests and mutes move it too) */
+static void rand_begin(seq_t *s, int t)
+{
+    seq_trk_t *tr = &s->t[t];
+    int len = s->par[t][TP_AP2];
+    if (len < 1) len = 1;
+    if (len > NSTEP) len = NSTEP;
+    if (tr->st_cyc >= len)                    /* (the length may have been turned down while it played) */
+        rand_wrap(s, t);
+    tr->st_step = tr->st_cyc;
+}
+static void rand_end(seq_t *s, int t)
+{
+    seq_trk_t *tr = &s->t[t];
+    int len = s->par[t][TP_AP2];
+    if (len < 1) len = 1;
+    if (len > NSTEP) len = NSTEP;
+    if (++tr->st_cyc >= len)
+        rand_wrap(s, t);
+}
+/* a random step's note: one pitch class from the pool, an octave in the range, the knobs' velocity and gate */
+static void rand_notes(seq_t *s, int t, const step_t *st, int p, int ratchet, int vel, uint32_t len_q8, int glide,
+                        const seq_sink_t *o)
+{
+    seq_trk_t *tr = &s->t[t];
+    const uint8_t *par = s->par[t];
+    int src = st->note[0] ? st->note[0] : 60, pc = -1, lo, oct, note;
+    uint32_t tag;
+    if (tr->st_cover) {                       /* a pulse's covered step: the note that fired stays */
+        if (!tr->st_last_note)
+            return;
+        note = tr->st_last_note;
+        vel = tr->st_last_vel;
+        len_q8 = tr->st_last_len;
+    } else {
+        uint16_t pool = rand_pool(s, t);
+        if (st_hash(tr->st_seed_rh + (uint32_t)tr->st_step * 0x9E3779B9u) % 100u >= (uint32_t)st_pct(par[TP_P1])) {
+            tr->st_last_note = 0;             /* a rest: a pulse over it stays silent */
+            return;
+        }
+        if (!pool)
+            pool = 0x0FFFu;                   /* no pool picked: every pitch class */
+        {
+            int n = __builtin_popcount(pool & 0x0FFFu);
+            uint32_t idx = st_rand(tr->st_seed_pit, tr->st_step, ST_PITCH) % (uint32_t)(n ? n : 1);
+            for (int b = 0; b < 12; b++)
+                if (pool >> b & 1u) {
+                    if (!idx--) {
+                        pc = b;
+                        break;
+                    }
+                }
+        }
+        if (pc < 0)
+            pc = src % 12;
+        lo = rand_oct_lo(par[TP_P4]);
+        oct = (int)(st_rand(tr->st_seed_pit, tr->st_step, ST_OCT) % (uint32_t)(lo + rand_oct_hi(par[TP_P4]) + 1)) - lo;
+        note = clamp_note((src / 12 + oct) * 12 + pc);   /* the slot's note sets the register (C4 for an implicit one) */
+        note = brain_note(s, t, note);        /* one pass, as any note the track plays */
+        if (fx_on(s, t, PX_OCTAVE))
+            note -= 12;
+        note = clamp_note(note);
+        if (vel < 1)
+            vel = 100;
+        if (!len_q8)
+            len_q8 = tr->step_q8 / 2u;
+        if (st_rand(tr->st_seed_rh, tr->st_step, ST_VEL) % 100u < (uint32_t)st_pct(par[TP_AP3])) {
+            vel = vel * (int)(50u + st_rand(tr->st_seed_rh, tr->st_step, ST_VEL2) % 101u) / 100;
+            vel = vel < 1 ? 1 : vel > 127 ? 127 : vel;
+        }
+        if (st_rand(tr->st_seed_rh, tr->st_step, ST_GATE) % 100u < (uint32_t)st_pct(par[TP_AP4])) {
+            len_q8 = len_q8 / 100u * (10u + st_rand(tr->st_seed_rh, tr->st_step, ST_GATE2) % 191u);
+            if (!len_q8)
+                len_q8 = 1;
+        }
+        if (!len_q8)
+            len_q8 = 1;
+        tr->st_last_note = (uint8_t)note;     /* a pulse's covered steps repeat these */
+        tr->st_last_vel = (uint8_t)vel;
+        tr->st_last_len = len_q8;
+    }
+    tag = TAG_STEP | (uint32_t)(p * 16 + ratchet * 1024);
+    emit_note(s, t, note, vel, glide, tag, len_q8, o);
+    tr->last_note[0] = (uint8_t)note;
+    tr->last_step = (uint8_t)p;
+    tr->last_vel = (uint8_t)vel;
+    tr->last_glide = (uint8_t)(glide > 255 ? 255 : glide);
+    if (!ratchet && t == brain_src(s))
+        brain_set_near_notes(s, tr->last_note, 1);   /* a random FOLLOW source still sets the chords */
 }
 
 /* a drum hit semi semitones from its key's pitch (a step's note), through the drum punch-in FX (pitch, short, long); len_q8 > 0 schedules its drum_off (the gated and
@@ -766,6 +1045,10 @@ static void fire_notes(seq_t *s, int t, const step_t *st, int p, uint32_t L, int
         if (pv < 8)                   /* 8 = off */
             glide = (int)((L >> 8) * (uint32_t)(pv * 10 + 10) / 4410u);   /* ms: samples * pct / 100 / 44.1 */
     }
+    if (rand_track(s, t)) {          /* the random player generates the step's note */
+        rand_notes(s, t, st, p, ratchet, vel, len_q8, glide, o);
+        return;
+    }
     for (i = 0; i < SN; i++) {
         int note = st->note[i];
         uint32_t tag;
@@ -788,8 +1071,8 @@ static void fire_notes(seq_t *s, int t, const step_t *st, int p, uint32_t L, int
             emit_note(s, t, note, vel, glide, tag, len_q8, o);
         tr->last_note[n++] = (uint8_t)note;
     }
-    if (n && !ratchet && t == brain_src(s))   /* the FOLLOW track: its lowest note sets the chord */
-        brain_set_near(s, low_note(tr->last_note, n));
+    if (n && !ratchet && t == brain_src(s))   /* the FOLLOW track: its notes set the chord */
+        brain_set_near_notes(s, tr->last_note, n);
     pl = s->par[t][TP_PLAYER];
     if (n && pl == PL_ARP)
         step_arp(s, t, tr->last_note, n, vel, len_q8);
@@ -822,10 +1105,9 @@ static void fire_aux(seq_t *s, int t, const step_t *st, int p, uint32_t L, const
     uint32_t len_q8 = st->len ? len_of(L, st->len) : L / 100u * (tp->nlen > 100 ? 100u : tp->nlen);
     int i;
     (void)p;
-    if (t == AUX_BRAIN) {             /* the chord's lowest note is its root (a FOLLOW track sets them instead) */
-        int root = low_note(st->note, SN);
-        if (root && brain_src(s) < 0)
-            brain_set_root(s, root);
+    if (t == AUX_BRAIN) {             /* the step's notes are the chord; the lowest is its root */
+        if (brain_src(s) < 0)
+            brain_set_root_notes(s, st->note, SN);
         return;
     }
     for (i = 0; i < SN; i++) {
@@ -1103,6 +1385,7 @@ static void scene_read(seq_t *s, int k, uint8_t *next)
     s->brain_key = (uint8_t)(sc->brain_key % 12);
     s->brain_scale = sc->brain_scale < NBS ? sc->brain_scale : BS_MAJOR;
     s->brain_deg = sc->brain_deg;
+    brain_chord_from_deg(s);              /* a scene stores the degree, not the chord: the triad on it */
     s->wv_ppat = (uint8_t)(sc->weave % NPATT);
     s->scene = (uint8_t)k;
 }
@@ -1251,6 +1534,15 @@ static void track_reset(seq_t *s, int t)
     tr->grid_h = tr->grid_len = 0;
     tr->origin_h8 = now_h8(s);
     tr->pass = 0;
+    tr->st_seed_pit = st_hash(0x1234567u ^ (uint32_t)(t + 1) * 0x9E3779B9u);
+    tr->st_seed_rh = st_hash(0x89ABCDEFu ^ (uint32_t)(t + 1) * 0x85EBCA6Bu);
+    tr->st_cycle = 0;
+    tr->st_cyc = 0;
+    tr->st_step = 0;
+    tr->st_pool_epoch = 0;
+    tr->st_pool_lane = 0xFF;
+    tr->st_cover = 0;
+    tr->st_last_note = 0;
     tr->stall = 0;
     tr->ratchet = tr->ratchets = 0;
     kit_rt_clear(s, t);
@@ -1593,7 +1885,7 @@ static void fire_step(seq_t *s, int t, const seq_sink_t *o)
     const step_t *st;
     uint32_t L, carry = tr->to_next < SEQ_DUE ? tr->to_next : 0, nL;
     int p, wrapped = 0, retrig = 1, happens = 0, plays, np, dummy, trig_ok = 1, lock_ok = 1, kind, cover = 0, rep = 0,
-        lp, drum = t < NTRK && is_drum(s, t);
+        lp, drum = t < NTRK && is_drum(s, t), rnd = rand_track(s, t);
     int32_t off, noff;
     if (!tr->started) {
         tr->started = 1;
@@ -1666,12 +1958,17 @@ static void fire_step(seq_t *s, int t, const seq_sink_t *o)
      * (a jump works on an empty or muted step, which happens without playing) */
     if (retrig && trig_ok)
         happens = cond_plays(s, t, st->cond);
-    plays = happens && !(s->mute >> t & 1u) && !punch_muted(s, t) && !tr->fill_on && !step_empty(st);
-    if (happens && !plays && !drum && t == brain_src(s) && low_note(st->note, SN))
-        brain_set_near(s, low_note(st->note, SN));   /* (a FOLLOW track muted still sets the chords) */
+    plays = happens && !(s->mute >> t & 1u) && !punch_muted(s, t) && !tr->fill_on &&
+            (rnd ? step_slot_on(tp, cover ? lp : p) : !step_empty(st));
+    if (happens && !plays && !drum && t == brain_src(s))
+        brain_set_near_notes(s, st->note, SN);   /* (a FOLLOW track muted still sets the chords) */
     if (happens && !rep && tr->act[SC_JUMP])
         jump_set(s, t, tr->act[SC_JUMP] - 1, p);
     kind = tr->act[SC_PULSE] ? SC_PULSE : tr->act[SC_HOLD] ? SC_HOLD : 0;
+    if (rnd) {
+        tr->st_cover = (uint8_t)cover;   /* a pulse's covered steps repeat the note that fired */
+        rand_begin(s, t);               /* the generator's step: the same for its ratchets */
+    }
     if (plays) {
         if (kind && !rep) {           /* the trick's step: it covers the next n steps (a kit: its own sounds) */
             int cv = tr->act[kind] - 1, n = cv == SC_RANDOM_VAL ? 1 + (int)(rng_next(&tr->rng) % 9u) : cv + 1;
@@ -1713,6 +2010,8 @@ static void fire_step(seq_t *s, int t, const seq_sink_t *o)
             ghost_notes(s, t, st, o);
     }
 next:
+    if (rnd)
+        rand_end(s, t);              /* the generator moves on even through a rest or a mute */
     skip_clear(tr);
     if (!tr->stall)
         tr->stall_kind = 0;
@@ -1724,6 +2023,8 @@ next:
         tr->jump_to = save_j;
     }
     noff = step_off(s, t, np, L);
+    if (rnd && st_rand(tr->st_seed_rh, tr->st_step, ST_TIME) % 100u < (uint32_t)st_pct(s->par[t][TP_AP1]))
+        noff += (int32_t)(L / 100u) * (int32_t)(st_rand(tr->st_seed_rh, tr->st_step, ST_TIME2) % 51u);
     tr->off_q8 = noff;
     if (s->ext) {
         tr->to_next = NEVER;          /* the clock arms the next one */
@@ -1880,7 +2181,9 @@ static void fire_fills(seq_t *s, const seq_sink_t *o)
             note = tr->fill_notes[(r >> 2) % tr->nfill];
             vel = 70 + (int)(r >> 10) % 41;
         }
-        note = scale_snap(brain_note(s, t, note), s->brain_key, s->brain_scale);
+        note = brain_note(s, t, note);
+        if (!brain_follows(s, t) || s->par[t][TP_BRAIN] < BM_HARMONY || !s->brain_chord)
+            note = scale_snap(note, s->brain_key, s->brain_scale);   /* (a chord tone is no scale note) */
         if (fx_on(s, t, PX_OCTAVE))
             note -= 12;
         note = clamp_note(note);
@@ -2318,6 +2621,11 @@ static void players_follow_par(seq_t *s, const seq_sink_t *o)
             arp_stop(s, t, o);
             pl->nsroll = 0;
             pl->sroll_to_next = NEVER;
+            s->t[t].st_seed_pit = st_hash(0x1234567u ^ (uint32_t)(t + 1) * 0x9E3779B9u);
+            s->t[t].st_seed_rh = st_hash(0x89ABCDEFu ^ (uint32_t)(t + 1) * 0x85EBCA6Bu);
+            s->t[t].st_cycle = s->t[t].st_cyc = s->t[t].st_step = 0;
+            s->t[t].st_pool_epoch = 0;
+            s->t[t].st_pool_lane = 0xFF;
             pl->type_seen = (uint8_t)ty;
             pl->latch_seen = (uint8_t)la;
         } else if (la != pl->latch_seen) {
@@ -2333,16 +2641,6 @@ static void players_follow_par(seq_t *s, const seq_sink_t *o)
                 sounding_off(s, t, o);
         }
     }
-}
-
-static int phys_lowest(const player_t *pl)   /* the lowest key down, 0 none */
-{
-    for (int w = 0; w < 4; w++)
-        if (pl->phys[w])
-            for (int i = 0; i < 32; i++)
-                if (pl->phys[w] >> i & 1u)
-                    return w * 32 + i;
-    return 0;
 }
 
 static void phys_set(uint32_t *phys, uint8_t *nphys, int note, int on)
@@ -2625,8 +2923,12 @@ static void key_in(seq_t *s, int t, int note, int on, int vel, int raw, const se
             player_note_off(s, t, shifted, TAG_KEY | (uint32_t)note, o);
         break;
     }
-    if (on && t == brain_src(s) && phys_lowest(pl))   /* the FOLLOW track: its lowest key down sets the chord */
-        brain_set_near(s, phys_lowest(pl));
+    if (on && t == brain_src(s)) {                    /* the FOLLOW track: its held keys are the chord */
+        uint8_t nt[SN];
+        int n = held_notes(pl->phys, nt);
+        if (n)
+            brain_set_near_notes(s, nt, n);
+    }
 }
 
 static void keys_all_off(seq_t *s, int t, const seq_sink_t *o)
@@ -2654,10 +2956,10 @@ static void keys_all_off(seq_t *s, int t, const seq_sink_t *o)
     pl->sroll_to_next = NEVER;
 }
 
-/* a key on the BRAIN track: the lowest key held is the chord's root; the link track plays the key as pressed */
+/* a key on the BRAIN track: the keys held are the chord (the lowest its root); the link track plays the key as
+ * pressed */
 static void brain_key_in(seq_t *s, int note, int on, const seq_sink_t *o)
 {
-    int w, i, root = 0;
     if (note < 1 || note > 127)
         return;
     phys_set(s->brain_phys, 0, note, on);
@@ -2668,13 +2970,10 @@ static void brain_key_in(seq_t *s, int note, int on, const seq_sink_t *o)
             rec_key_off(s, AUX_BRAIN, note);
     }
     if (on) {
-        for (w = 0; w < 4 && !root; w++)
-            for (i = 0; i < 32; i++)
-                if (s->brain_phys[w] >> i & 1u) {
-                    root = w * 32 + i;
-                    break;
-                }
-        brain_set_root(s, root ? root : note);
+        uint8_t nt[SN];
+        int n = held_notes(s->brain_phys, nt);
+        brain_set_root(s, n ? nt[0] : note);
+        brain_set_chord(s, nt, n);    /* (one key: its diatonic triad) */
     }
     if (s->brain_link >= 1 && s->brain_link <= NTRK)
         key_in(s, s->brain_link - 1, note, on, 100, 1, o);
@@ -3061,6 +3360,7 @@ void seq_init(seq_t *s, patterns_t *P, uint8_t (*par)[NTP_ALL])
         tr->rng = 0x9E3779B9u * (uint32_t)(t + 1);
         tr->to_next = NEVER;
         tr->sub_to_next = NEVER;
+        tr->st_pool_lane = 0xFF;
         tr->jump_to = 0xFF;
         tr->bq_go = 0xFF;
         s->ppat[t] = P->scene[0].pat[t] < NPATT ? P->scene[0].pat[t] : 0;

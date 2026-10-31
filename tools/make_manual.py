@@ -53,6 +53,9 @@ figcaption { margin-top: 6px; font-size: 13px; line-height: 1.3; color: var(--di
 .video iframe { width: 100%; height: 100%; border: 0; display: block; }
 .hint { display: block; width: 110px; height: auto; margin-top: 8px; }
 .hints td { padding-block: 12px 14px; } .hints td + td { vertical-align: middle; }
+.rolls td:last-child { min-width: 150px; }
+.roll { display: block; width: 132px; max-width: 100%; height: auto; margin: 8px 0; }
+.roll .kw { fill: #a3a3a7; } .roll .kb { fill: #232427; } .roll .on { fill: var(--red); }
 #fm1 .hb { fill: #2c2d31; } #fm1 .hs { fill: #111; } #fm1 .off { fill: #4b4d53; } #fm1 .kw { fill: #a3a3a7; }
 #fm1 .kb, .hint .kb { fill: #232427; } .hint .on, .legend .on { fill: var(--red); }
 .hint .press, .legend .press { fill: #4b4d53; stroke: var(--red); stroke-width: 4; }
@@ -175,6 +178,36 @@ HINT_LEGEND = ('<p class="legend"><svg viewBox="0 0 22 16"><rect x="2" y="2" wid
                'class="on"/></svg> keys</p>')
 HINT_SECTIONS = ("How do I…", "The buttons")
 
+# A row of "Following the conductor" can show the notes a mode plays as a small keyboard, the notes as semitones
+# from C: <!-- roll: 2,6,9 -->
+ROLL_SECTIONS = ("Following the conductor",)
+ROLL_NOTE = re.compile(r"<!--\s*roll:(.*?)-->")
+ANY_NOTE = re.compile(r"<!--\s*(?:hint|roll):.*?-->")
+ROLL_NAMES = ("C", "C♯", "D", "D♯", "E", "F", "F♯", "G", "G♯", "A", "A♯", "B")
+
+
+def roll_parse(cell):
+    """the semitones of a row's roll comment, or None"""
+    m = ROLL_NOTE.search(cell)
+    return [int(n) for n in m.group(1).split(",") if n.strip()] if m else None
+
+
+def roll_svg(cell, label):
+    notes = roll_parse(cell)
+    if notes is None:
+        return ""
+    kw, span = 22, 17                                      # white key width, semitones drawn
+    white = [p for p in range(span) if p % 12 in (0, 2, 4, 5, 7, 9, 11)]
+    s = []
+    for k, p in enumerate(white):
+        s.append(f'<rect x="{k * kw + 1}" y="0" width="{kw - 2}" height="38" rx="2" class="kw{" on" if p in notes else ""}"/>')
+    for p in range(span):
+        if p not in white:
+            s.append(f'<rect x="{(white.index(p - 1) + 1) * kw - 7}" y="0" width="14" height="23" rx="2" '
+                     f'class="kb{" on" if p in notes else ""}"/>')
+    alt = html.escape(f"{label}: " + " ".join(ROLL_NAMES[n % 12] for n in notes))
+    return f'<svg class="roll" viewBox="0 0 {len(white) * kw} 38" role="img" aria-label="{alt}">{"".join(s)}</svg>'
+
 
 IMG = re.compile(r'<img src="([^"]+)"[^>]*?alt="([^"]*)"[^>]*?title="([^"]*)"[^>]*>')   # the manual's images
 
@@ -234,15 +267,18 @@ def render(md):
                 i += 1
             rows = [r for r in rows if not all(re.fullmatch(r"-*", c) for c in r)]
             hints = section in HINT_SECTIONS
+            rolls = section in ROLL_SECTIONS
             t = [HINT_PANEL + HINT_LEGEND if section == HINT_SECTIONS[0] else ""]
             t.append('<div class="wrap" tabindex="0" role="region" aria-label="table">')
-            t[-1] += '<table class="hints">' if hints else "<table>"
+            t[-1] += '<table class="hints">' if hints else '<table class="rolls">' if rolls else "<table>"
             for k, r in enumerate(rows):
                 tag = "th" if k == 0 else "td"
-                cells = [inline(HINT_NOTE.sub("", c).strip()) for c in r]
+                cells = [inline(ANY_NOTE.sub("", c).strip()) for c in r]
                 if hints and k:                                # the hint under the row's first cell
                     label = re.sub(r"\*\*", "", r[0]) + ": the controls it uses"
                     cells[0] += hint_svg(r[0] if section == HINT_SECTIONS[1] else r[1], label)
+                if rolls and k:                                # the keyboards under the row's last cell
+                    cells[-1] += roll_svg(r[-1], re.sub(r"\*\*", "", r[0]))
                 t.append("<tr>" + "".join(f"<{tag}>{c}</{tag}>" for c in cells) + "</tr>")
             t.append("</table></div>")
             out.append("".join(t))
@@ -251,11 +287,18 @@ def render(md):
         if m:
             flush()
             ordered = m.group(2)[0].isdigit()
-            items = []
+            items, subs = [], []                                 # (a "  - " bullet under an item is a sub-bullet)
             while i < len(lines):
                 m = re.match(r"^(\s*)([-*]|\d+\.)\s+(.*)", lines[i])
                 if m and len(m.group(1)) == 0:
                     items.append(m.group(3))
+                    subs.append([])
+                    i += 1
+                elif m and items and len(m.group(1)) == 2 and not ordered:
+                    subs[-1].append(m.group(3))
+                    i += 1
+                elif lines[i].startswith("    ") and subs and subs[-1] and lines[i].strip():
+                    subs[-1][-1] += " " + lines[i].strip()
                     i += 1
                 elif lines[i].startswith("  ") and items and lines[i].strip():
                     items[-1] += " " + lines[i].strip()
@@ -269,9 +312,10 @@ def render(md):
             cls = ' class="toc"' if toc else (' class="steps"' if ordered else "")
             tag = "ol" if ordered else "ul"
             lis = []
-            for it in items:
+            for it, sub in zip(items, subs):
                 text, shots = figures(it)
-                lis.append(f"<li>{inline(text)}{shots}</li>")
+                more = "<ul>" + "".join(f"<li>{inline(x)}</li>" for x in sub) + "</ul>" if sub else ""
+                lis.append(f"<li>{inline(text)}{shots}{more}</li>")
             out.append(f"<{tag}{cls}>" + "".join(lis) + f"</{tag}>")
             continue
         if not ln.strip():

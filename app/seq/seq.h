@@ -127,6 +127,13 @@ typedef struct {                      /* one track's runtime (interrupt only) */
     uint8_t ratchet, ratchets;        /* multiply: hits done, hits wanted */
     uint8_t flam_gap;                 /* flam: 32nds of a step to the step's own hit after the grace (0 none) */
     uint16_t pass;                    /* passes of the pattern since start (conditions, skips, ramps) */
+    /* random (PL_RAND), interrupt only: the phrase seeds, re-rolled at a generator cycle's wrap, and the
+     * pool lane's cache (pattern.h LANE_POOL) */
+    uint32_t st_seed_pit, st_seed_rh;
+    uint16_t st_cycle, st_pool_epoch;
+    uint8_t st_cyc, st_step, st_pool_lane;   /* the generator step, the step firing (ratchets reuse it), cached lane */
+    uint8_t st_cover, st_last_note, st_last_vel;   /* a pulse's covered steps repeat the note that fired */
+    uint32_t st_last_len;
     uint32_t to_next;                 /* samples to the next step, Q8 */
     uint32_t step_q8;                 /* the current step's length (ratchets, bends) */
     uint32_t rng;
@@ -246,6 +253,8 @@ typedef struct {
     volatile uint8_t brain_link;      /* 0 off, 1..8 = instrument track t + 1 played from the brain's keys too */
     volatile uint16_t brain_route;    /* bit t = track t follows */
     uint32_t brain_phys[4];           /* the brain's keys down (bit note): the lowest is the chord's root */
+    volatile uint32_t brain_chord;    /* the active chord: up to SN (4) MIDI notes in its bytes, ascending, 0 = none.
+                                       * One aligned word, so the interrupt reads it whole (see pattern.h) */
     /* punch-in */
     uint32_t punch_keys;              /* bits NPUNCH_FX: held keys (set from the key ring, in the interrupt) */
     uint8_t punch_tgt[NPUNCH_FX];     /* each held key's target: 0xFF = its octave's group, else one track */
@@ -369,3 +378,16 @@ int seq_step_add_notes(seq_t *s, int trk, int step, const uint8_t *notes, int n,
 void step_set_notes(step_t *st, const uint8_t *notes, int n, int vel);
 void step_toggle_note(step_t *st, int note);
 int step_empty(const step_t *st);
+/* a random track's active slots: the steps holding a note or a trick; when none is set, every step plays */
+static inline int step_slot_set(const tpat_t *p, int s)
+{
+    return !step_empty(&p->st[s]) || p->st[s].comp || p->st[s].comp2 || p->st[s].cond;
+}
+static inline int step_slot_on(const tpat_t *p, int s)
+{
+    int from, to, any = 0;
+    pat_loop(p, &from, &to);
+    for (int i = from; i < to && !any; i++)
+        any = step_slot_set(p, i);
+    return !any || step_slot_set(p, s);
+}

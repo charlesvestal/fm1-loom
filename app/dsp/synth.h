@@ -93,7 +93,8 @@ enum {
     TP_PLAYER, TP_P1, TP_P2, TP_P3, TP_P4,          /* Players: off / arp / strum / hold and its four knobs */
     TP_AP1, TP_AP2, TP_AP3, TP_AP4,                 /* the arp's second page: length, style, glide, stereo */
     TP_LEVEL, TP_PAN,                               /* Mix */
-    TP_BRAIN,                                       /* follows the brain: 0 no, 1 diatonic, 2 transpose only */
+    TP_BRAIN,                                       /* follows the brain: BM_* (0 no, 1 diatonic, 2 transpose only,
+                                                     * 3 harmony, 4 chord degree) */
     TP_CHAN,                                        /* MIDI OUT: 0 off, 1 on (on the track's own channel) */
     TP_DRUM0,                                       /* the drum kit: NDRUM keys * DP_N */
     TP_DRUMX0 = TP_DRUM0 + 11 * DP_N,               /* the keys' second page of model knobs (a model with eight:
@@ -105,6 +106,19 @@ enum {
     NTP
 };
 _Static_assert(NTP <= 511, "a parameter's index: nine bits in the engine's queue (engine.c cq_put); a lane's is 16");
+/* the random player's octave range (TP_P4): how many octaves below (lo) and above (hi) the step's own a note may land,
+ * each 0..3. One knob walks the 16 pairs on a path about its centre (12, 0/0: the step's own octave only): turned
+ * right the upper bound grows first (0/+1 .. 0/+3, then -1/+1 .. -3/+3), turned left the lower one (-1/0 .. -3/0, then
+ * -1/+1 .. -3/+3); the pairs with both bounds are on both sides. Indexed by the knob's value 0..24 (left to right) */
+#define RAND_OCT_N 25
+#define RAND_OCT_CENTRE 12
+static const int8_t RAND_OCT[RAND_OCT_N][2] = {{3,3},{2,3},{1,3},{3,2},{2,2},{1,2},{3,1},{2,1},{1,1},{3,0},{2,0},{1,0},{0,0},{0,1},{0,2},{0,3},{1,1},{1,2},{1,3},{2,1},{2,2},{2,3},{3,1},{3,2},{3,3}};
+static inline int rand_oct_lo(int v) { return RAND_OCT[v < 0 ? 0 : v >= RAND_OCT_N ? RAND_OCT_N - 1 : v][0]; }
+static inline int rand_oct_hi(int v) { return RAND_OCT[v < 0 ? 0 : v >= RAND_OCT_N ? RAND_OCT_N - 1 : v][1]; }
+/* how a track follows the conductor (TP_BRAIN): 0 and 1..2 are saved before harmony and keep their meaning;
+ * 3 and 4 are appended (append only: a project stores the byte). 3 "harmony" takes each note to the nearest tone of
+ * the active chord; 4 "ch. deg" takes the note's place in the scale to pick a chord tone. See seq.c brain_note */
+enum { BM_NO, BM_DIATONIC, BM_TRANSPOSE, BM_HARMONY, BM_DEGREE, NBM };
 #define TP_DRUM(s, k) (TP_DRUM0 + (s) * DP_N + (k))
 #define DPX_N 4                                      /* knobs 5..8 of a key's model */
 #define TP_DRUMX(s, j) (TP_DRUMX0 + (s) * DPX_N + (j))
@@ -180,12 +194,13 @@ enum { GD_CUT, GD_RES, GD_PITCH, GD_PAN, GD_VOL, GD_SEND1, GD_SEND2, GD_CHAR, NG
 #define SY_GLFO_TRK NTRK                         /* the track holding its knobs: the conductor (pattern.h AUX_BRAIN) */
 enum { LD_SYNTH, LD_ENV, LD_FILTER, LD_AMP, LD_FREE = 4, NLD = 8 };   /* TP_LDEST: module (LD_AMP: "voice"), + LD_FREE = free-running */
 #define LS_SYNC_N 8                                /* TP_LSPEED values below this are synced divisions */
-enum { PL_OFF, PL_ARP, PL_STRUM, PL_HOLD, NPL };
+enum { PL_OFF, PL_ARP, PL_STRUM, PL_HOLD, PL_RAND, NPL };
 /* arp: P1 speed (1/4 1/4T 1/8 1/8T 1/16 1/16T 1/32 1/32T 1/64), P2 pattern (up, down, bounce (up and down, the
  * ends once), bounce+ (the ends repeated), as played, random), P3 range 1..4 octaves, P4 hold; its page 2 is
  * TP_AP1..AP4 = note length (short medium long), style (off, pedal, thirds, double, skip, swap: seq.c
  * arp_style_pos), glide (off low high), stereo (mono narrow wide). strum: P1 roll 0..63 (63 = a note per sequencer step of the
- * track), P2 pattern (up down up-down random), P3 -, P4 hold */
+ * track), P2 pattern (up down up-down random), P3 -, P4 hold. random: P1 note %, P2 pitch %, P3 rhythm %,
+ * P4 octave span; page 2 is TP_AP1..AP4 = time %, length, vel %, gate % (seq.c rand_notes) */
 
 /* how a value is shown: a number, a percentage, bipolar (64 = 0), a name from the list, semitones, on / off,
  * milliseconds / seconds, the LFO speed (a division or Hz), 00..99 (the engine knobs),

@@ -1,0 +1,31 @@
+# harmony: a follower takes its pitches from the conductor's chord instead of the scale
+wait 200
+turn ALGO 1
+expect trk 2
+knob 2 brain harmony
+expect par2.brain 3
+knob 3 brain ch._deg
+expect par3.brain 4
+# a track's SEL list names the mode
+tap EDIT
+tap SEL
+row FOLLOWS CONDUCTOR
+wait 40
+shot harmony_list.png
+tap HOME
+# the conductor's held keys are its chord (C E G); the Engine page shows it beside the degree
+spin ALGO 7
+expect trk 9
+tap EDIT
+play 9 60 on
+play 9 64 on
+play 9 67 on
+wait 40
+shot harmony_chord.png
+play 9 60 off
+play 9 64 off
+play 9 67 off
+# the routing page: a bar marks the harmony modes
+turn SELECT 1
+wait 40
+shot harmony_routing.png

@@ -29,7 +29,7 @@ for c in range(8):
 for t in range(5):
     L.append(f"knob 2 ltype {t}")
     visit(["LFO"], 3)
-for p in range(4):
+for p in range(5):
     L.append(f"knob 2 player {p}")
     visit(["ARP"], 4)
 for f in range(6):
