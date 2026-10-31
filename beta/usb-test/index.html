@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="robots" content="noindex, nofollow">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LOOM-8 USB test</title>
+<style>
+  :root { --bg: #f6f1e7; --fg: #2b2622; --accent: #a8462a; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg: #1d1a17; --fg: #ece5d8; --accent: #e07a55; } }
+  :root[data-theme="dark"] { --bg: #1d1a17; --fg: #ece5d8; --accent: #e07a55; }
+  body { margin: 0; background: var(--bg); color: var(--fg); font: 16px/1.6 system-ui, sans-serif; }
+  main { max-width: 560px; margin: 0 auto; padding: 40px 16px; }
+  a { color: var(--accent); }
+</style>
+</head>
+<body>
+<main>
+<h1>LOOM-8 USB test (0.11.99)</h1>
+<p>A test build for <a href="https://github.com/charlesvestal/fm1-loom/issues/7">issue #7</a>: the USB audio input not showing up on macOS 13–15. It is LOOM-8's current development version with one change: the USB MIDI interface comes after the audio streaming interface. It is not a release.</p>
+<p>Back up your projects first, on <a href="https://charlesvestal.github.io/fm1-loom/backup/">the backup page</a>: the test build is LOOM-8's development version, with a new way of storing projects.</p>
+<p><a href="install/">Install the test build</a> (Chrome or Edge, over USB).</p>
+<p>Then look for <b>LOOM-8 FM-1</b> as an audio input in System Settings → Sound and in Audio MIDI Setup, try recording from it, and check MIDI still works. Please report on the issue, with your macOS version.</p>
+<p>To go back, install LOOM-8 from <a href="https://charlesvestal.github.io/fm1-loom/install/">the normal install page</a>, then restore your backup. Projects saved with the test build may not load in 0.11.</p>
+</main>
+</body>
+</html>
