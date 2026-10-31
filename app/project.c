@@ -537,16 +537,29 @@ static int st_put(void *ctx, const uint8_t *p, uint32_t n)
     return 0;
 }
 
+/* the packed stream's length (packed_len); -7: over STREAM_CAP */
+static int stream_measure(void)
+{
+    st_out_t o = {1, 0, 0, 0, 0};
+    lz_sink_t sink = {st_put, &o};
+    if (lz_compress((const uint8_t *)&pats, RAW_LEN, &sink))
+        return -7;
+    packed_len = o.total;
+    return 0;
+}
+/* the objects a save of the settings and a stream of packed_len writes: the pool's room it needs */
+static int save_objects(void)
+{
+    uint32_t first = PLAT_STORE_MAX - STREAM_HDR, rest = PLAT_STORE_MAX - 4u;
+    return 2 + (packed_len > first ? (int)((packed_len - first + rest - 1u) / rest) : 0);
+}
+/* the stream written (stream_measure first: packed_len) */
 static int save_stream(void)
 {
     const uint8_t *raw = (const uint8_t *)&pats;
     uint32_t crc = crc32_of(raw, RAW_LEN);
-    st_out_t o = {1, 0, 0, 0, 0};
+    st_out_t o = {0, 0, 0, 0, 0};
     lz_sink_t sink = {st_put, &o};
-    if (lz_compress(raw, RAW_LEN, &sink))
-        return -7;                                    /* would not fit: nothing written (MEMORY FULL) */
-    packed_len = o.total;
-    o.measure = 0;
     o.total = 0;
     o.fill = STREAM_HDR;
     put32(io_buf, PROJ_STREAM);
@@ -555,8 +568,9 @@ static int save_stream(void)
     put32(io_buf + 12, packed_len);
     if (lz_compress(raw, RAW_LEN, &sink) || o.err || st_flush(&o))
         return -3;
-    while (o.k < NSTREAM)                             /* the objects past the stream: empty */
-        if (st_flush(&o))
+    while (o.k < NSTREAM)                             /* the objects past the stream: empty (none: in a pooled store
+                                                       * they take no sector; nothing reads past the packed length) */
+        if (save_buf(stream_obj[o.k++], 0))
             return -3;
     return 0;
 }
@@ -838,6 +852,14 @@ static int project_write(int slot)
     count_next();
     if ((n = settings_pack()) < 0)
         return -1;
+    if (stream_measure())
+        return -7;                                    /* would not fit: nothing written (MEMORY FULL) */
+    {   /* the store's pool (app.h APP_STORE_POOL): room for every object it writes, else nothing written (MEMORY
+         * FULL): the three slots' projects share it */
+        int room = plat_store_room();
+        if (room >= 0 && room < save_objects())
+            return -7;
+    }
     if ((rc = save_buf(OBJ_PROJ(slot, 0), (uint32_t)n)) != 0)
         return rc < 0 ? -1 : rc;
     rc = save_stream();

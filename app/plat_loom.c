@@ -36,24 +36,9 @@ int plat_last_crash(uint32_t v[5])                   /* fm1_crash (.noinit): a w
     return 1;
 }
 
-/* the copy before the current one (storage.c keeps two): a stream torn across objects falls back to the save before
- * (project.c load_stream). On fm1-base's storage.c, compiled before the app in the same unit */
-int plat_store_load_prev(uint32_t obj, void *dst, uint32_t max)
-{
-    uint32_t i;
-    st_hdr_t h;
-    int cur;
-    if (!flash_ok)
-        return -1;
-    cur = st_current(obj, &h);
-    if (cur < 0 || st_head(obj, (uint32_t)!cur, &h) || st_body(obj, (uint32_t)!cur, &h))
-        return -1;
-    if (h.len > max)
-        h.len = max;
-    for (i = 0; i < h.len; i++)
-        ((uint8_t *)dst)[i] = st_buf[i];
-    return (int)h.len;
-}
+/* the copy before the current one (storage.c keeps it while it can: the pool's next older): a stream torn across
+ * objects falls back to the save before (project.c load_stream). fm1-base's storage.c, in the same unit */
+int plat_store_load_prev(uint32_t obj, void *dst, uint32_t max) { return flash_ok ? st_load_prev(obj, dst, max) : -1; }
 int loom_store_save(uint32_t obj, const void *src, uint32_t len) { return plat_store_save(obj, src, len); }
 
 /* boot (app_init): the profiler's clock, the supplies */
