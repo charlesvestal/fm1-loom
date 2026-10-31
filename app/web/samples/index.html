@@ -240,7 +240,8 @@ function render(focus = null) {
   const ok = plan && !plan.err;
   $("fill").style.width = ok ? `${Math.min(100, plan.used / BANK_MAX_DATA * 100)}%` : "100%";
   $("room").className = ok ? "" : "bad";
-  $("room").textContent = !readOk ? "" : !ok ? `Too much for the FM-1: ${plan.err.replace(/^too long: /, "")}. Remove a sample, shorten one, or pick a lower quality.`
+  $("room").textContent = !readOk ? "" : !ok ? `Too much for the FM-1: ${plan.err.replace(/^too long: /, "")}. Remove a sample, shorten one, ` +
+      (fset.length ? "pick a lower quality, or leave out LOOM-8's sounds (86 KB) below." : "or pick a lower quality.")
     : `${items.length} sample${items.length === 1 ? "" : "s"}, ${KB(plan.used)} of ${KB(BANK_MAX_DATA)}` +
       (plan.chose && items.some((it) => !it.adpcm && !it.rate) ? `; new samples at ${(plan.chose / 1000).toFixed(plan.chose % 1000 ? 1 : 0)} kHz.` : ".");
   const ch = readOk && changed();
@@ -249,8 +250,11 @@ function render(focus = null) {
   $("discard").disabled = busy;
   $("add").disabled = busy || !readOk || items.length >= BANK_N;
   const fmiss = factory ? factoryMissing(fset, factory).length : (fset.length < NFENT ? NFENT - fset.length : 0);
-  $("factory").disabled = busy || !readOk || !fmiss;
-  $("factorynote").textContent = roomNote || (readOk && !fmiss ? "LOOM-8's sounds are in the bank." :
+  // one button: Add while any of LOOM-8's sounds is missing, else Leave out (their room for your own samples)
+  $("factory").textContent = readOk && !fmiss ? "Leave out LOOM-8's sounds" : "Add LOOM-8's sounds";
+  $("factory").disabled = busy || !readOk;
+  $("factorynote").textContent = roomNote || (readOk && !fmiss ? "LOOM-8's sounds are in the bank (86 KB). Leave them " +
+    "out for more room of your own: the kits and presets that use them go silent." :
     readOk ? `${fmiss === NFENT ? "LOOM-8's sounds are" : `${fmiss} of LOOM-8's sounds are`} not in the bank: the kits ` +
     "and presets that use them are silent. Add them, then Send." :
     "the kits' drums, the instruments, the sweep and the vinyl (86 KB).");
@@ -353,6 +357,22 @@ async function addFactory() {
   render();
 }
 
+// LOOM-8's sounds out of the bank: their 86 KB for the user's samples (the command line's --no-factory); the kits'
+// sample keys, Twill's and Denim's hats among them, and the sample presets go silent until they are added again
+function leaveOutFactory() {
+  if (busy || !readOk || !fset.length) return;
+  fset = [];
+  roomNote = "LOOM-8's sounds left out: the kits' sample drums and the sample presets that use them are silent " +
+    "until you add them again. Send to apply, or Discard to keep them.";
+  say("LOOM-8's sounds left out: send to the FM-1 to make the room.");
+  render();
+}
+async function factoryButton() {
+  const fmiss = factory ? factoryMissing(fset, factory).length : (fset.length < NFENT ? NFENT - fset.length : 0);
+  if (fmiss) await addFactory();
+  else leaveOutFactory();
+}
+
 async function addBreaks() {
   if (busy || !readOk) return;
   const want = breaksMissing();
@@ -431,7 +451,7 @@ $("send").onclick = () => run(async () => {
 });
 
 $("breaks").onclick = addBreaks;
-$("factory").onclick = addFactory;
+$("factory").onclick = factoryButton;
 $("add").onclick = () => { replaceAt = -1; $("files").multiple = true; $("files").click(); };
 $("files").onchange = (ev) => { addFiles([...ev.target.files], replaceAt); ev.target.value = ""; replaceAt = -1; };
 $("rate").onchange = () => render();
