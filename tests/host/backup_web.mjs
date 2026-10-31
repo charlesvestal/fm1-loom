@@ -128,8 +128,9 @@ console.log("backup page: the samples section");
   // 5. the page's file (fm1-base's join: the backup, then "LSMP", length, the bank, its CRC-32)
   const page = readFileSync("base/web/backup/index.html", "utf8");
   const m = /\/\/ --- backup protocol: begin[^\n]*\n([\s\S]*?)\/\/ --- backup protocol: end/.exec(page);
+  const PORTS_JS = readFileSync("base/web/fm1ports.js", "utf8").replace(/^export\s+/gm, "").replace(/^import .*?;\n/gm, "");
   const proto = m[1].replace(/\{\{[A-Z_]+\}\}/g, (k) => ({ "{{NAME}}": "LOOM-8", "{{ID}}": "FM-1_10", "{{MAGIC}}": "LM8B",
-    "{{BACKUP_VERSION}}": "1", "{{EXT}}": "loom8" })[k] || k);
+    "{{BACKUP_VERSION}}": "1", "{{EXT}}": "loom8", "{{PORTS_JS}}": PORTS_JS })[k] || k);   // (fm1-base make_site's fill)
   const PB = new Function(`"use strict";\n${proto}\nreturn PB;`)();
   py(`import fm1_backup as B\nopen("${dir}/proj.bin","wb").write(B.build([(1, b"p" * 300), (2, b"")], magic=b"LM8B", version=1))`);
   const proj = Uint8Array.from(readFileSync(join(dir, "proj.bin")));
