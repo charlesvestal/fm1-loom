@@ -16,6 +16,7 @@ backup = true                  # projects and presets over USB (base/tools/fm1_b
 backup_ext = "loom8"           # the backup page's files: NAME.loom8
 backup_holds = "the three projects, the user presets and the samples"
 words = "words.tsv"
+boot_pack = true               # .ram_text and .data LZMA-packed in the image, unpacked at boot (Melodee's: ~9 KB of flash)
 cpu2 = true                    # the second core: fm1-base's (felucca-bsp's chip/fm1_cpu1.h, Melodee's), plat_cpu2_*
 # the DSP and the sequencer at -O2, apart (as LOOM-8's own build had them); bench.c: the profiler, empty unless XY_BENCH=1
 o2 = ["dsp/synth.c", "dsp/drumline.c", "dsp/digisophie.c", "dsp/sample.c", "dsp/fx.c", "dsp/bass303.c", "dsp/d909.c", "dsp/bench.c", "seq/pattern.c", "seq/seq.c"]
