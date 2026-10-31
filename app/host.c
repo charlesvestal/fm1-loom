@@ -972,6 +972,10 @@ static void host_env(void)                          /* LOOM_SOLO, LOOM_MST (once
         engine_lookahead(atoi(e) != 0);
     if ((e = getenv("LOOM_LOAD")) && *e)            /* the guard's input fixed (a script's "load N" still wins) */
         load_force = atoi(e);
+#ifdef GFX_AUDIT
+    if ((e = getenv("LOOM_MARGIN")) && *e)          /* the layout audit's margin check: labels N px apart (gfx_loom.c) */
+        ga_margin = atoi(e);
+#endif
     if ((e = getenv("LOOM_MST")) && *e)
         fx_host_stage = !strcmp(e, "raw") ? 0 : !strcmp(e, "eq") ? 1 : !strcmp(e, "comp") ? 3 : 9;
 }
@@ -1016,6 +1020,17 @@ static int song_cmd(const char *cmd)
         } else
             set_tp(t, k, value_of(t, k, w[3]));
         run_ms(1);
+    } else if (!strcmp(cmd, "listdump")) {          /* listdump: the page's SEL list, a row a line (the menu inventory) */
+        static const char *const KIND[] = {"knob", "more", "action", "pick", "note", "head"};
+        list_build();
+        for (uint32_t i = 0; i < lst.n; i++) {
+            int k = lst.row[i].kind, set = k == LK_PICK && pick_sets(lst.row[i].id);
+            printf("LIST\t%s\t%s\t%s\t%s\n", page_name_of(ui.page, sel_trk()), KIND[k % 6],
+                   k == LK_PICK ? (set ? "setting" : "choice") : "", lst.row[i].name);
+        }
+    } else if (!strcmp(cmd, "large")) {             /* large 0|1: large type (Setup > SEL > LARGE TYPE) off or on */
+        large_type_set(n > 1 && atoi(w[1]) != 0);
+        run_ms(40);
     } else if (!strcmp(cmd, "usersave")) {          /* usersave T SLOT: track T's sound as user preset SLOT (1..16) */
         t = atoi(w[1]) - 1;
         k = n > 2 ? atoi(w[2]) - 1 : -1;

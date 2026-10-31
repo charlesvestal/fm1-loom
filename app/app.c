@@ -4,6 +4,7 @@
  * (gfx_loom.c), the engine (engine.c; the DSP and the sequencer in dsp/ and seq/, their own -O2 units), the project
  * (project.c), the pages (pages.c), the input (ui.c), the user sample bank over USB (samples.c), and on the FM-1 its
  * platform extras (plat_loom.c: the second core, the profiler's clock, the supplies). */
+#include "res.c"                                    /* the resource region's sections (fm1-base plat_res) */
 #include "gfx_loom.c"
 #include "engine.c"
 #include "project.c"
@@ -74,7 +75,8 @@ void app_init(void)
 #endif
     }
     smp_user_scan();                                /* (an empty or torn bank: no user samples) */
-    d909_res_get = plat_res;                        /* the 909 cymbals' samples: the resource region (fm1.toml) */
+    d909_res_get = res_samples;                     /* the 909 cymbals' samples: the resource region (fm1.toml) */
+    loom_large_load();                              /* the large type faces, from there too */
     project_load(project_last_slot());              /* the slot used last; defaults when nothing (or another format) is saved */
     presets_load();
     engine_init(&pats, proj_par);

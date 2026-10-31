@@ -25,10 +25,10 @@ static void say_as(const char *a, const char *b, uint32_t flags)
 {
     uint32_t i;
     sp_msg(a, b, flags);
-    for (i = 0; i < 23u && a && a[i]; i++)
+    for (i = 0; i < sizeof ui.msg[0] - 1u && a && a[i]; i++)
         ui.msg[0][i] = a[i];
     ui.msg[0][i] = 0;
-    for (i = 0; i < 23u && b && b[i]; i++)
+    for (i = 0; i < sizeof ui.msg[1] - 1u && b && b[i]; i++)
         ui.msg[1][i] = b[i];
     ui.msg[1][i] = 0;
     upcase(ui.msg[0]);
@@ -2544,6 +2544,10 @@ static void list_change_do(int32_t e)
             theme_step(d);
             mark_dirty();
             break;
+        case A_LARGE_TYPE:                       /* (its faces from the resource region: "on: reinstall" without it) */
+            large_type_set(d > 0);
+            mark_dirty();
+            break;
         case A_PLAYMODE: {
             int t = sel_trk(), q = TP_DRUM(ui.dsound % DL_NSOUND, DP_MODE);
             set_tp(t, q, clampi(proj.trk[t].par[q] + d, 0, NPM - 1));
@@ -3608,7 +3612,7 @@ static void action_run(int a)
         mark_dirty();
         say("RESET", EG_NAME[proj.trk[sel_trk()].par[TP_ENGINE] % NENGINE]);
         break;
-    case A_FOLLOW: case A_USB_AUDIO: case A_COUNT_IN: case A_THEME: case A_PLAYMODE: case A_FTYPE: case A_FX_HP: case A_FX_LP:
+    case A_FOLLOW: case A_USB_AUDIO: case A_COUNT_IN: case A_THEME: case A_LARGE_TYPE: case A_PLAYMODE: case A_FTYPE: case A_FX_HP: case A_FX_LP:
     case A_FX_SEND: case A_PUMP_BY: case A_PUMP_REL: case A_PUMP_ACC: case A_LEVEL: case A_SCENE_AT: case A_AUTOSAVE:
     case A_MIDI_OUT: case A_LOOP_FREE: case A_CC_OUT: case A_SCENES_OUT: case A_MIDI_CC: case A_USB_HOST: case A_KIT_FILTER:
         return;   /* (ALGORITHM sets them; SEL
@@ -3711,6 +3715,10 @@ static void list_sel(void)
     list_build();
     if (!lst.n)
         return;
+    if (lst.row[lst.sel].kind == LK_KNOB || (lst.row[lst.sel].kind == LK_PICK && pick_sets(lst.row[lst.sel].id))) {
+        lst.open = 0;                                /* (a setting or a knob: ALGORITHM changed it; SEL is back) */
+        return;
+    }
     if (lst.row[lst.sel].kind == LK_ACTION || lst.row[lst.sel].kind == LK_PICK)
         action_run(lst.row[lst.sel].id);
 }
@@ -4687,7 +4695,7 @@ void ui_frame(void)
     draw_header();
     draw_page();
     draw_rec_strip();
-    if (!(lst.open && !ui.card)) {
+    if (!(lst.open && !ui.card) && !(ui.card && band != &BANDS[0])) {   /* (large type: a card over them too) */
         draw_tag();
         draw_knobs();
     }

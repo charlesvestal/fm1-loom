@@ -26,12 +26,12 @@ ir_pass = "../tools/size_fns.py"
 gen = ["../tools/gen_font.py {gen}/loom_font.h", "../tools/gen_wavetables.py {gen}/wavetables.h",
        "../tools/gen_samples.py {gen}/samples.h", "../tools/gen_build.py {gen}/loom_build.h",
        "../tools/gen_presets.py {gen}/presets.h", "../tools/gen_kits.py {gen}/kits.h",
-       "../tools/gen_909res.py {gen}/res909.bin"]
-# the 909 cymbals' samples (tools/gen_909res.py, 71 KB) in the resource region, written after an update (fm1-base
-# device/res.c: app.h APP_RES_BASE, the 88 KB the projects' pool freed)
-resources = "{gen}/res909.bin"
-resources_what = "the 909 cymbals"   # (the installer's words for them: "Writing the 909 cymbals")
-resources_what_ja = "909 のシンバル"
+       "../tools/gen_res.py {gen}/res.bin"]
+# the resource region (tools/gen_res.py: the 909 cymbals' samples, 71 KB, and the large type faces, 16 KB), written
+# after an update (fm1-base device/res.c: app.h APP_RES_BASE, the 88 KB the projects' pool freed)
+resources = "{gen}/res.bin"
+resources_what = "the 909 cymbals and the large type"   # (the installer's words: "Writing the 909 cymbals and ...")
+resources_what_ja = "909 のシンバルと大きな文字"
 # the site
 tagline = "a pocket groovebox"
 repo = "https://github.com/charlesvestal/fm1-loom"

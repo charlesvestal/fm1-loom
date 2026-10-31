@@ -83,5 +83,10 @@ done
 "$PY" tools/layout_sweep.py build/gen/layout_sweep.xy
 rm -rf "$B/scenarios/layout_sweep" && mkdir -p "$B/scenarios/layout_sweep"
 run layout-sweep $B/host/loom_host build/gen/layout_sweep.xy "$B/scenarios/layout_sweep"
+# the same in large type (Setup > SEL > LARGE TYPE: its faces from the resource region, built in here)
+"$PY" -c "import sys; s = open(sys.argv[1]).read(); open(sys.argv[2], 'w').write(s.replace('wait 300\\n', 'wait 300\\nlarge 1\\n', 1))" \
+    build/gen/layout_sweep.xy build/gen/layout_sweep_large.xy
+rm -rf "$B/scenarios/layout_sweep_large" && mkdir -p "$B/scenarios/layout_sweep_large"
+run layout-sweep-large $B/host/loom_host build/gen/layout_sweep_large.xy "$B/scenarios/layout_sweep_large"
 [ $FAIL -eq 0 ] && echo "all tests passed" || echo "TESTS FAILED"
 exit $FAIL

@@ -30,6 +30,7 @@ static const char *gfx_audit_where(void);
 typedef struct { int32_t x0, y0, x1, y1; char s[24]; } ga_box_t;
 static ga_box_t ga_txt[96], ga_rnd[160];
 static uint32_t ga_ntxt, ga_nrnd, ga_seen[512], ga_nseen, ga_findings;
+static int32_t ga_margin;                            /* LOOM_MARGIN=N (host.c): labels N px apart, and from boxes' edges */
 static void ga_reset(void) { ga_ntxt = ga_nrnd = 0; }
 static void ga_report(const char *what, const char *a, const char *b, int32_t x, int32_t y)
 {
@@ -61,6 +62,9 @@ static void ga_text(const char *s, int32_t x0, int32_t y0, int32_t x1, int32_t y
         ga_box_t *o = &ga_txt[i];
         if (x0 <= o->x1 && o->x0 <= x1 && y0 <= o->y1 && o->y0 <= y1)
             ga_report("OVERLAP", s, o->s, x0, y0);
+        else if (ga_margin && x0 <= o->x1 + ga_margin && o->x0 <= x1 + ga_margin && y0 <= o->y1 + ga_margin &&
+                 o->y0 <= y1 + ga_margin)
+            ga_report("TOO CLOSE", s, o->s, x0, y0);   /* (LOOM_MARGIN=N: closer than N px to another label) */
     }
     for (i = 0; i < ga_nrnd; i++) {
         ga_box_t *r = &ga_rnd[i];
@@ -90,6 +94,17 @@ static void gfx_audit_box(int32_t x, int32_t y, int32_t w, int32_t h)
     if (ga_nrnd < 160 && w > 0 && h > 0) {
         ga_box_t *r = &ga_rnd[ga_nrnd++];
         r->x0 = x, r->y0 = y + cv_oy, r->x1 = x + w - 1, r->y1 = y + cv_oy + h - 1, r->s[0] = 0;
+        for (uint32_t i = 0; i < ga_ntxt; i++) {     /* a box drawn after a label: over it, or (LOOM_MARGIN) close */
+            const ga_box_t *t = &ga_txt[i];
+            int inside = t->x0 >= r->x0 && t->x1 <= r->x1 && t->y0 >= r->y0 && t->y1 <= r->y1;
+            int apart = t->x1 < r->x0 || t->x0 > r->x1 || t->y1 < r->y0 || t->y0 > r->y1;
+            int near = t->x1 + ga_margin < r->x0 || t->x0 - ga_margin > r->x1 || t->y1 + ga_margin < r->y0 ||
+                       t->y0 - ga_margin > r->y1;
+            if (!inside && !apart)
+                ga_report("BOX OVER A LABEL", t->s, "", t->x0, t->y0);
+            else if (apart && !near && ga_margin && (r->x1 - r->x0 > 3 && r->y1 - r->y0 > 3))
+                ga_report("TOO CLOSE TO A BOX", t->s, "", t->x0, t->y0);
+        }
     }
 }
 #endif
@@ -221,6 +236,7 @@ static uint32_t loom_glyph(const loom_font_t *f, uint32_t ch)
 
 /* text in colour c, each pixel's coverage blended over what is already on the canvas (an
  * anti-aliased face on a coloured box gets no dark fringe); returns the end x */
+static int32_t loom_track;                           /* letters this much closer (a label a few pixels too wide: 1) */
 static int32_t loom_text(int32_t x, int32_t y, const loom_font_t *f, const char *s, uint16_t c)
 {
     uint32_t r = c >> 11, g = (c >> 5) & 63u, b = c & 31u;
@@ -271,7 +287,7 @@ static int32_t loom_text(int32_t x, int32_t y, const loom_font_t *f, const char 
                     cv_px[(uint32_t)py * cv_w + (uint32_t)px] = swap16((nr << 11) | (ng << 5) | nb);
                 }
             }
-        x += f->adv[gi];
+        x += f->adv[gi] - (s[1] ? loom_track : 0);
     }
 #ifdef GFX_AUDIT
     if (shown)                                       /* (wholly outside: a list's hidden rows, not drawn) */
@@ -284,7 +300,7 @@ static int32_t loom_text_w(const loom_font_t *f, const char *s)
 {
     int32_t w = 0;
     for (; *s; s++)
-        w += f->adv[loom_glyph(f, (uint8_t)*s)];
+        w += f->adv[loom_glyph(f, (uint8_t)*s)] - (s[1] ? loom_track : 0);
     return w;
 }
 
@@ -309,13 +325,57 @@ static int32_t app_sys_h(int face) { return SYS_FACE[face]->h; }
 static int32_t app_sys_w(int face, const char *s) { return loom_text_w(SYS_FACE[face], s); }
 static void app_sys_text(int32_t x, int32_t y, int face, const char *s, uint16_t c) { loom_text(x, y, SYS_FACE[face], s, c); }
 
+/* large type (Setup > SEL > LARGE TYPE): the roles' faces one size up or more, the larger ones from the resource region
+ * (tools/gen_font.py LARGE: 18 px semibold for XS's labels, 20 px for S's and B's), the values L's 31 px; without the
+ * region (not yet written after an update) the faces built in. The hints keep the small face (LFONT_XS): they are
+ * hints. loom_type(1) switches every FONT_* below at once */
+static loom_font_t lt_face[3];
+static uint8_t lt_ok, lt_on;
+static uint16_t lt_rd16(const uint8_t *p) { return (uint16_t)(p[0] | p[1] << 8); }
+static void loom_large_load(void)
+{
+    uint32_t n, i, cnt;
+    const uint8_t *p = res_section(RES_TAG('L', 'F', 'T', '1'), &n);
+    lt_ok = 0;
+    if (!p || n < 4u || (cnt = lt_rd16(p)) < 3u || n < 4u + 4u * cnt)
+        return;
+    for (i = 0; i < 3; i++) {
+        uint32_t o = res_rd32(p + 4 + 4 * i);
+        const uint8_t *f = p + o;
+        loom_font_t *t = &lt_face[i];
+        if (o > n - 24u || ((uintptr_t)f & 3u))
+            return;
+        t->h = f[0], t->pad = f[1], t->first = f[2], t->last = f[3], t->rle = f[4];
+        t->adv = f + res_rd32(f + 8);
+        t->box = (const uint8_t (*)[4])(f + res_rd32(f + 12));
+        t->off = (const uint16_t *)(f + res_rd32(f + 16));
+        t->data = f + res_rd32(f + 20);
+        if (t->last < t->first || o + res_rd32(f + 20) > n)
+            return;
+    }
+    lt_ok = 1;
+}
+static const loom_font_t *lt_xs = &LFONT_XS, *lt_s = &LFONT_S, *lt_b = &LFONT_B, *lt_m = &LFONT_M;
+static int loom_type(int large)                      /* -> large type on (the faces there) */
+{
+    if (large && !lt_ok)                             /* (written since the start: the installer after an update) */
+        loom_large_load();
+    lt_on = (uint8_t)(large && lt_ok);
+    lt_xs = lt_on ? &lt_face[0] : &LFONT_XS;
+    lt_s = lt_on ? &lt_face[1] : &LFONT_S;
+    lt_b = lt_on ? &lt_face[2] : &LFONT_B;
+    lt_m = lt_on ? &LFONT_L : &LFONT_M;
+    return lt_on;
+}
+
 /* from here on, the app draws with these */
 #define felucca_font_t loom_font_t
-#define FONT_XS LFONT_XS
-#define FONT_S LFONT_S
-#define FONT_B LFONT_B
-#define FONT_M LFONT_M
+#define FONT_XS (*lt_xs)
+#define FONT_S (*lt_s)
+#define FONT_B (*lt_b)
+#define FONT_M (*lt_m)
 #define FONT_L LFONT_L
+#define FONT_HINT LFONT_XS                           /* (the hints: small in large type too) */
 #define cv_begin loom_begin
 #define cv_line loom_line
 #define cv_text loom_text
