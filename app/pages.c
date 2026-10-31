@@ -5028,25 +5028,26 @@ static void draw_status(void)
     if (peak > status_peak)
         status_peak = peak;
     uint32_t h = hash_u(2166136261u, 0x57A00u | cpu | peak << 8 | (uint32_t)eng_voices << 16 | (uint32_t)eng_voices_max << 24);
-    h = hash_u(h, xr ^ eng_guard_count << 8 ^ (uint32_t)engine_core2_state() << 28);
+    h = hash_u(h, xr ^ eng_guard_count << 8 ^ (uint32_t)engine_core2_state() << 28 ^ (uint32_t)d909_res_ok() << 31);
     if (!begin_main(h))
         return;
     e = num_s(cpu, t);
+    e = s_cat(e, "%, peak ");
+    e = num_s(peak, e);
     s_cat(e, "%");
     setup_row(2, "audio load", t);
-    e = num_s(peak, t);
-    s_cat(e, "%");
-    setup_row(18, "peak", t);
     e = num_s((uint32_t)eng_voices, t);
     e = s_cat(e, " of ");
     e = num_s((uint32_t)eng_voices_max, e);
-    setup_row(34, "voices", t);
-    setup_row(50, "second core", CORE2_NAME[engine_core2_state() & 3]);
+    setup_row(18, "voices", t);
+    setup_row(34, "second core", CORE2_NAME[engine_core2_state() & 3]);
     num_s(eng_guard_count, t);
-    setup_row(66, "guard trips", t);
+    setup_row(50, "guard trips", t);
     num_s(xr, t);
-    setup_row(82, "dropouts", t);
-    setup_row(98, "version", APP_VERSION);
+    setup_row(66, "dropouts", t);
+    setup_row(82, "version", APP_VERSION);
+    setup_row(98, "909 cymbals", d909_res_ok() ? "there" : "missing: reinstall");   /* (the resource region: the
+                                                                                     * installer writes them) */
     cv_blit(0, MAIN_Y);
 }
 

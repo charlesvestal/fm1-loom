@@ -209,6 +209,8 @@ static void set_tp(int trk, int p, int v)
             par[TP_DRUMX(key, k)] = DM_DEFAULT2[v % NDM][k];   /* (knobs 5..8: a model's with eight; else 0) */
             engine_set(trk, TP_DRUMX(key, k), par[TP_DRUMX(key, k)]);
         }
+        if (v % NDM >= DM_909CH && v % NDM <= DM_909CRASH && !d909_res_ok())
+            say_no("NO SAMPLES", "reinstall LOOM-8");   /* (the 909 cymbals: the installer writes them beside it) */
         mark_dirty();
         return;
     }

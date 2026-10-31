@@ -715,8 +715,8 @@ The knobs after the dot are on a second Engine page (turn **SELECT**).
   as 9W9 has them), with 9W9's knobs. pitch plays the sample slower or faster (two octaves each way), decay sets
   how long it rings. Both hats play the same sample, as on the 909: give the hat and the open hat the same choke
   group so that each cuts the other. The samples live beside the firmware, not in it: the installer writes them
-  after an update (about 70 KB, a few seconds). Until it has, these four models are silent; installing again from
-  the site writes them.
+  after an update (about 70 KB, a few seconds). Until it has, these four models are silent, and picking one says
+  NO SAMPLES; installing again from the site writes them.
 
 The x models and clang cost up to twice as much as a voice of a built-in model, and sophie and the 909 models up to
 three times as much. Even with a kit made of them, the busiest demo stays well within what the FM-1 can do.

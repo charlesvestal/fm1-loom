@@ -12,6 +12,7 @@
 #include "seq/seq.h"
 #include "dsp/synth.h"
 #include "dsp/drumline.h"
+#include "dsp/d909.h"                 /* d909_res_get, d909_res_ok: the 909 cymbals' samples (the resource region) */
 #include "dsp/fx.h"
 
 extern seq_t seq;

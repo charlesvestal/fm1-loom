@@ -30,6 +30,8 @@ gen = ["../tools/gen_font.py {gen}/loom_font.h", "../tools/gen_wavetables.py {ge
 # the 909 cymbals' samples (tools/gen_909res.py, 71 KB) in the resource region, written after an update (fm1-base
 # device/res.c: app.h APP_RES_BASE, the 88 KB the projects' pool freed)
 resources = "{gen}/res909.bin"
+resources_what = "the 909 cymbals"   # (the installer's words for them: "Writing the 909 cymbals")
+resources_what_ja = "909 のシンバル"
 # the site
 tagline = "a pocket groovebox"
 repo = "https://github.com/charlesvestal/fm1-loom"

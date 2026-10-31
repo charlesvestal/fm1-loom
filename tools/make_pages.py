@@ -230,7 +230,8 @@ def main(pkg, version, out):
     conf = base_site.read_conf(SRC / "app" / "fm1.toml")
     credits = conf.get("credits", "").replace("Built on fm1-base and felucca-bsp, from Felucca by Leo Kuroshita (Hügelton "
                                               "Instruments). ", "")        # (the page says that part itself)
-    for key, val in (("NAME", "LOOM-8"), ("REPO", REPO), ("REPO_SHORT", REPO.replace("https://", "")),
+    for key, val in (("RES", conf["resources_what"]), ("RES_JA", conf["resources_what_ja"]),   # (fm1.toml)
+                     ("NAME", "LOOM-8"), ("REPO", REPO), ("REPO_SHORT", REPO.replace("https://", "")),
                      ("LICENSE", conf.get("licence", "MPL-2.0")), ("CREDITS", " " + credits if credits else "")):
         page = page.replace("{{" + key + "}}", val)
     # since 0.7 the breaks are a pack for the user bank: say so where the firmware is installed
