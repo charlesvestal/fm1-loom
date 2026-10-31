@@ -88,5 +88,12 @@ run layout-sweep $B/host/loom_host build/gen/layout_sweep.xy "$B/scenarios/layou
     build/gen/layout_sweep.xy build/gen/layout_sweep_large.xy
 rm -rf "$B/scenarios/layout_sweep_large" && mkdir -p "$B/scenarios/layout_sweep_large"
 run layout-sweep-large $B/host/loom_host build/gen/layout_sweep_large.xy "$B/scenarios/layout_sweep_large"
+# the weave pages with weaves set (the sweep sees them empty), in large type: ARP's Weave, the WEAVE track's own
+for sc in weavepage weavetrack; do
+    "$PY" -c "import sys; s = open(sys.argv[1]).read(); open(sys.argv[2], 'w').write(s.replace('wait 300\\n', 'wait 300\\nlarge 1\\n', 1))" \
+        tests/scenarios/$sc.xy build/gen/${sc}_large.xy
+    rm -rf "$B/scenarios/${sc}_large" && mkdir -p "$B/scenarios/${sc}_large"
+    run $sc-large $B/host/loom_host build/gen/${sc}_large.xy "$B/scenarios/${sc}_large"
+done
 [ $FAIL -eq 0 ] && echo "all tests passed" || echo "TESTS FAILED"
 exit $FAIL
