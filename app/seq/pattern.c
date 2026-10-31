@@ -167,6 +167,15 @@ int lane_pool_set(lane_t *L, int trk, int pat, uint16_t mask)
     return 0;
 }
 
+/* a track leaves the random player: its pools (one lane per pattern) go, so no lane stays taken that nothing shows */
+void lane_pool_free(lane_t *L, int trk)
+{
+    int k;
+    for (k = 0; k < NLANE; k++)
+        if (L[k].used && L[k].trk == trk && lane_is_pool(L[k].param))
+            lane_clear(L, k);
+}
+
 void step_clear_locks(lane_t *L, int trk, int pat, int step)
 {
     int k;

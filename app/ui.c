@@ -170,6 +170,7 @@ static void sound_reset(uint8_t *par, int engine)   /* the engine's defaults; MI
 static void set_tp(int trk, int p, int v)
 {
     uint8_t *par = proj.trk[trk].par;
+    int was_rand;
     if (p < 0 || p >= NTP)
         return;
     if (!is_aux(trk)) {
@@ -180,6 +181,7 @@ static void set_tp(int trk, int p, int v)
     if (par[p] == v)
         return;
     undo_sound(trk);
+    was_rand = !is_aux(trk) && !is_drum(trk) && par[TP_PLAYER] % NPL == PL_RAND;
     if (p == TP_LTYPE && !is_aux(trk)) {         /* another LFO type: a knob that means the same there keeps its
                                                   * value (wave and drift share speed, amount, dest, param); one
                                                   * that means another thing starts from its default */
@@ -232,6 +234,8 @@ static void set_tp(int trk, int p, int v)
             engine_set(trk, TP_P1 + i, SD[i]);
         }
     }
+    if (was_rand && (is_drum(trk) || par[TP_PLAYER] % NPL != PL_RAND))
+        lane_pool_free(pats.lane, trk);              /* (another player, or an engine without one) */
     if (is_aux(trk))
         apply_aux(trk);
     if (p == TP_BRAIN)

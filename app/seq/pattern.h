@@ -232,6 +232,7 @@ int step_vel(const lane_t *L, int trk, int pat, int step, int sound);   /* a kit
 const hit_t *step_hit(const patterns_t *P, int trk, int pat, int step, int sound);
 uint16_t lane_pool_get(const lane_t *L, int trk, int pat);              /* a random pattern's pool mask, 0 none */
 int lane_pool_set(lane_t *L, int trk, int pat, uint16_t mask);          /* -1 = no lane free */
+void lane_pool_free(lane_t *L, int trk);
 extern volatile uint16_t lane_epoch;     /* bumped when a lane is allocated or freed (the ISR's pool cache) */
 void pattern_clear_locks(lane_t *L, int trk, int pat);   /* (not the kit tune lane: that is notes) */
 void cond_ab(int k, int *a, int *b);  /* COND_AB + k -> A:B */

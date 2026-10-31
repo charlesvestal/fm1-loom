@@ -63,3 +63,7 @@ projsave 1
 reboot
 wait 400
 expect pool 2 1 0x11
+# leaving random frees the pool's lane (the lanes are shared by the whole project: nothing taken that no page shows)
+knob 2 player arp
+expect par2.player 1
+expect pool 2 1 0x000
