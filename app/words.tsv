@@ -194,3 +194,7 @@ cc	controller
 CC	controller
 acc dec	accent decay
 env mod	envelope mod
+harmony	harmony
+chord deg	chord degree
+ch. deg	chord degree
+rand	random

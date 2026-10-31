@@ -1695,6 +1695,24 @@ int main(void)
         check("arp pattern 2 is bounce", !strcmp(num, "bounce"));
         tp_text_par(TP_P2, 3, p, num, unit);
         check("arp pattern 3 is bounce+", !strcmp(num, "bounce+"));
+        p[TP_PLAYER] = PL_RAND;
+        check("the random knobs follow the player",
+              !strcmp(tp_info_par(TP_P1, p)->name, "note %") && !strcmp(tp_info_par(TP_AP2, p)->name, "length") &&
+                  !strcmp(tp_info_par(TP_P4, p)->name, "octave"));
+        check("the random octave range: 25 values about a centre of 0",
+              tp_info_par(TP_P4, p)->lo == 0 && tp_info_par(TP_P4, p)->hi == 24 && tp_info_par(TP_P4, p)->def == 12);
+        {
+            static const struct { int v; const char *s; int lo, hi; } OC[] = {
+                {12, "0", 0, 0}, {13, "0/+1", 0, 1}, {15, "0/+3", 0, 3}, {16, "-1/+1", 1, 1}, {24, "-3/+3", 3, 3},
+                {11, "-1/0", 1, 0}, {9, "-3/0", 3, 0}, {8, "-1/+1", 1, 1}, {0, "-3/+3", 3, 3}};
+            for (unsigned i = 0; i < sizeof OC / sizeof OC[0]; i++) {
+                tp_text_par(TP_P4, OC[i].v, p, num, unit);
+                check("the random octave knob's path", !strcmp(num, OC[i].s) && rand_oct_lo(OC[i].v) == OC[i].lo &&
+                                                          rand_oct_hi(OC[i].v) == OC[i].hi);
+            }
+        }
+        tp_text_par(TP_P2, 127, p, num, unit);
+        check("random 127 is 100 %", !strcmp(num, "100") && !strcmp(unit, "%"));
         tp_text_par(TP_LTYPE, LT_WAVE, p, num, unit);
         check("LFO types: wave", !strcmp(num, "wave"));
         tp_text_par(TP_LTYPE, LT_WOBBLE, p, num, unit);

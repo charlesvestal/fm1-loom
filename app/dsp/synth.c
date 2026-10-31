@@ -87,7 +87,7 @@ static const char *const LDEST_N[NLD] = {"synth", "envelope", "filter", "voice",
                                          "voice free"};
 static const char *const DUCK_N[11] = {"track 1", "track 2", "track 3", "track 4", "track 5", "track 6", "track 7",
                                        "track 8", "conductor", "throws", "metro"};
-static const char *const PLAYER_N[NPL] = {"off", "arp", "strum", "hold"};
+static const char *const PLAYER_N[NPL] = {"off", "arp", "strum", "hold", "rand"};
 static const char *const ARPSPD_N[9] = {"1/4", "1/4T", "1/8", "1/8T", "1/16", "1/16T", "1/32", "1/32T", "1/64"};
 static const char *const ARPPAT_N[6] = {"up", "down", "bounce", "bounce+", "played", "random"};
 static const char *const ARPLEN_N[3] = {"short", "medium", "long"};
@@ -95,7 +95,7 @@ static const char *const ARPSTY_N[6] = {"off", "pedal", "thirds", "double", "ski
 static const char *const ARPGLD_N[3] = {"off", "low", "high"};
 static const char *const ARPSTE_N[3] = {"mono", "narrow", "wide"};
 static const char *const MPAT_N[4] = {"up", "down", "updown", "random"};
-static const char *const BRAIN_N[3] = {"no", "diatonic", "transp"};
+static const char *const BRAIN_N[NBM] = {"no", "diatonic", "transp", "harmony", "ch. deg"};
 static const char *const BEND_N[9] = {"off", "1", "2", "3", "4", "5", "6", "7", "octave"};
 static const char *const WTNAME_N[WT_NTABLE] = {"shapes", "nasal", "grit", "vocal", "spiral", "fold", "octaves",
                                                 "glass", "chirp"};
@@ -3231,7 +3231,7 @@ static const tp_info_t FIXED[NTP_SOUND + 13] = {
     {"hold", 0, 1, 0, PK_SWITCH, 0},                    {"length", 0, 2, 1, PK_NAMES, ARPLEN_N},
     {"style", 0, 5, 0, PK_NAMES, ARPSTY_N},             {"glide", 0, 2, 0, PK_NAMES, ARPGLD_N},
     {"stereo", 0, 2, 0, PK_NAMES, ARPSTE_N},            {"level", 0, 127, 100, PK_FADER, 0},
-    {"pan", 0, 127, 64, PK_BIP, 0},                     {"follow", 0, 2, 1, PK_NAMES, BRAIN_N},
+    {"pan", 0, 127, 64, PK_BIP, 0},                     {"follow", 0, NBM - 1, 1, PK_NAMES, BRAIN_N},
     {"midi out", 0, 1, 1, PK_SWITCH, 0}};
 /* a drumline key's values (synth.h DP_*); its model's knobs take their names and defaults from drumline.c
  * (tp_info_par). The key's envelope and filter: its Envelope and Filter pages */
@@ -3294,6 +3294,17 @@ static const tp_info_t MIDI_CC_P[8] = {{"knob 1", 0, NMIDI_CC - 1, 74, PK_NUM, 0
 static const char *const MIDI_CC_N[NMIDI_CC] = {"cc 0", "cc 1", "cc 2", "cc 3", "cc 4", "cc 5", "cc 6", "cc 7", "cc 8", "cc 9", "cc 10", "cc 11", "cc 12", "cc 13", "cc 14", "cc 15", "cc 16", "cc 17", "cc 18", "cc 19", "cc 20", "cc 21", "cc 22", "cc 23", "cc 24", "cc 25", "cc 26", "cc 27", "cc 28", "cc 29", "cc 30", "cc 31", "cc 32", "cc 33", "cc 34", "cc 35", "cc 36", "cc 37", "cc 38", "cc 39", "cc 40", "cc 41", "cc 42", "cc 43", "cc 44", "cc 45", "cc 46", "cc 47", "cc 48", "cc 49", "cc 50", "cc 51", "cc 52", "cc 53", "cc 54", "cc 55", "cc 56", "cc 57", "cc 58", "cc 59", "cc 60", "cc 61", "cc 62", "cc 63", "cc 64", "cc 65", "cc 66", "cc 67", "cc 68", "cc 69", "cc 70", "cc 71", "cc 72", "cc 73", "cc 74", "cc 75", "cc 76", "cc 77", "cc 78", "cc 79", "cc 80", "cc 81", "cc 82", "cc 83", "cc 84", "cc 85", "cc 86", "cc 87", "cc 88", "cc 89", "cc 90", "cc 91", "cc 92", "cc 93", "cc 94", "cc 95", "cc 96", "cc 97", "cc 98", "cc 99", "cc 100", "cc 101", "cc 102", "cc 103", "cc 104", "cc 105", "cc 106", "cc 107", "cc 108", "cc 109", "cc 110", "cc 111", "cc 112", "cc 113", "cc 114", "cc 115", "cc 116", "cc 117", "cc 118", "cc 119"};
 static const tp_info_t STRUM_P[4] = {{"roll", 0, 63, 30, PK_NUM, 0}, {"pattern", 0, 3, 0, PK_NAMES, MPAT_N},
                                        {"-", 0, 0, 0, PK_NUM, 0}, {"hold", 0, 1, 0, PK_SWITCH, 0}};
+/* random: P1..P4 page 1 (TP_P1..TP_AP4 are contiguous); AP1..AP4 page 2 (seq.c rand_notes) */
+static const char *const RAND_OCT_NAMES[RAND_OCT_N] = {"-3/+3", "-2/+3", "-1/+3", "-3/+2", "-2/+2", "-1/+2", "-3/+1", "-2/+1", "-1/+1", "-3/0", "-2/0", "-1/0", "0", "0/+1", "0/+2", "0/+3", "-1/+1", "-1/+2", "-1/+3", "-2/+1", "-2/+2", "-2/+3", "-3/+1", "-3/+2", "-3/+3"};
+static const tp_info_t RAND_P[8] = {
+    {"note %", 0, 127, 64, PK_PCT, 0},   /* P1: chance a grid step sounds */
+    {"pitch %", 0, 127, 32, PK_PCT, 0},  /* P2: chance the pitch phrase re-rolls each cycle */
+    {"rhythm %", 0, 127, 32, PK_PCT, 0}, /* P3: chance the rhythm phrase re-rolls each cycle */
+    {"octave", 0, RAND_OCT_N - 1, RAND_OCT_CENTRE, PK_NAMES, RAND_OCT_NAMES},   /* P4: the octave range (synth.h) */
+    {"time %", 0, 127, 0, PK_PCT, 0},    /* AP1: chance the next step is pushed late */
+    {"length", 1, 64, 16, PK_NUM, 0},    /* AP2: the generator cycle in grid steps */
+    {"vel %", 0, 127, 0, PK_PCT, 0},     /* AP3: chance the velocity is scaled */
+    {"gate %", 0, 127, 0, PK_PCT, 0}};   /* AP4: chance the gate is scaled */
 /* the LFO's knobs per type (synth.h): speed / amount / dest / x / x2 */
 static const tp_info_t LFO_SPEED_DUCK = {"source", 0, DUCK_METRO, 0, PK_NAMES, DUCK_N};
 static const tp_info_t LFO_AMT[NLT] = {{"-", 0, 0, 0, PK_NUM, 0}, {"amount", 0, 127, 64, PK_BIP, 0},
@@ -3465,6 +3476,8 @@ const tp_info_t *tp_info_par(int p, const uint8_t *par)
             return &FIXED[p];
         if (player == PL_STRUM && p <= TP_P4)
             return &STRUM_P[p - TP_P1];
+        if (player == PL_RAND)
+            return &RAND_P[p - TP_P1];
         return &NONE_P;
     }
     if (tp_is_dkey(p)) {

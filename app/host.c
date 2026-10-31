@@ -626,6 +626,20 @@ static int expect_more(const char *what, const char *a, const char *b, const cha
             host_fails++;
         } else
             printf("  ok note %s %s %s == %d\n", t, pt, st, got);
+    } else if (!strcmp(what, "pool")) {            /* expect pool T PAT MASK: a random pattern's pitch-class pool */
+        char t[16], pt[16], v[16];
+        int got;
+        if (sscanf(plat_host_line, "%*s %*s %15s %15s %15s", t, pt, v) != 3) {
+            printf("FAIL expect pool: T PAT MASK\n");
+            host_fails++;
+            return 1;
+        }
+        got = lane_pool_get(pats.lane, atoi(t) - 1, atoi(pt) - 1);
+        if (got != (int)strtol(v, 0, 0)) {
+            printf("FAIL expect pool %s %s == %s, got 0x%03x\n", t, pt, v, got);
+            host_fails++;
+        } else
+            printf("  ok pool %s %s == 0x%03x\n", t, pt, got);
     } else if (!strcmp(what, "lane")) {            /* expect lane T PAT PARAM N: the steps a lock / motion lane holds */
         char t[16] = {0}, pt[16] = {0}, pn[24] = {0}, nv[16] = {0};
         int ln, got = 0;

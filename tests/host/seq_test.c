@@ -1211,6 +1211,99 @@ static void t_follow(void)             /* the conductor's FOLLOW track: its lowe
     printf("ok %s\n", cur);
 }
 
+static void t_harmony(void)            /* harmony: the conductor's chord sets the followers' pitches */
+{
+    cur = "harmony";
+    /* the conductor's step holds a C major triad; "harmony" takes each note to the nearest tone */
+    reset();
+    P.pat[AUX_BRAIN][0].st[0].note[0] = 60;
+    P.pat[AUX_BRAIN][0].st[0].note[1] = 64;
+    P.pat[AUX_BRAIN][0].st[0].note[2] = 67;
+    P.pat[AUX_BRAIN][0].st[0].vel = 100;
+    par[0][TP_BRAIN] = BM_HARMONY;
+    note(0, 0, 61, 100);              /* C#: up to C */
+    note(0, 1, 62, 100);              /* D: a tie between C and E, down */
+    note(0, 2, 66, 100);              /* F#: up to G */
+    note(0, 3, 72, 100);              /* C5: already a tone, its register kept */
+    start();
+    run(4 * L16 + 40);
+    CHECK(on_n(0) && on_n(0)->a == 60);
+    CHECK(on_n(1) && on_n(1)->a == 60);
+    CHECK(on_n(2) && on_n(2)->a == 67);
+    CHECK(on_n(3) && on_n(3)->a == 72);
+    stop();
+    /* "chord deg": the note's place in the scale picks a chord tone (C E G, cycled) */
+    reset();
+    P.pat[AUX_BRAIN][0].st[0].note[0] = 60;
+    P.pat[AUX_BRAIN][0].st[0].note[1] = 64;
+    P.pat[AUX_BRAIN][0].st[0].note[2] = 67;
+    P.pat[AUX_BRAIN][0].st[0].vel = 100;
+    par[0][TP_BRAIN] = BM_DEGREE;
+    note(0, 0, 60, 100);              /* C: the root */
+    note(0, 1, 62, 100);              /* D: the third */
+    note(0, 2, 64, 100);              /* E: the fifth */
+    note(0, 3, 65, 100);              /* F: back to the root */
+    note(0, 4, 67, 100);              /* G: the third */
+    note(0, 5, 69, 100);              /* A: the fifth */
+    note(0, 6, 71, 100);              /* B: the root, an octave up */
+    start();
+    run(7 * L16 + 40);
+    CHECK(on_n(0)->a == 60 && on_n(1)->a == 64 && on_n(2)->a == 67 && on_n(3)->a == 60);
+    CHECK(on_n(4)->a == 64 && on_n(5)->a == 67 && on_n(6)->a == 72);
+    stop();
+    /* a lone conductor note is its diatonic triad (G: G B D) */
+    reset();
+    P.pat[AUX_BRAIN][0].st[0].note[0] = 67;
+    P.pat[AUX_BRAIN][0].st[0].vel = 100;
+    par[0][TP_BRAIN] = BM_HARMONY;
+    note(0, 0, 62, 100);              /* D: the triad's fifth an octave down */
+    start();
+    run(L16 + 40);
+    CHECK(on_n(0)->a == 62);
+    stop();
+    /* the FOLLOW track's step: all of its notes are the chord */
+    reset();
+    par[AUX_BRAIN][TP_E1] = 3;        /* T3 */
+    st(2, 0)->note[0] = 60;           /* C E G, not just the C */
+    st(2, 0)->note[1] = 64;
+    st(2, 0)->note[2] = 67;
+    st(2, 0)->vel = 100;
+    par[0][TP_BRAIN] = BM_HARMONY;
+    note(0, 0, 61, 100);              /* C#: to C, not to the scale's D */
+    start();
+    run(L16 + 40);
+    CHECK(on_n(0)->a == 60);
+    stop();
+    /* the FOLLOW track's held keys are the chord too */
+    reset();
+    par[AUX_BRAIN][TP_E1] = 3;
+    par[0][TP_BRAIN] = BM_HARMONY;
+    note(0, 0, 61, 100);
+    seq_key(&S, 2, 60, 1, 100);
+    seq_key(&S, 2, 64, 1, 100);
+    seq_key(&S, 2, 67, 1, 100);
+    run(10);
+    start();
+    run(L16 + 40);
+    CHECK(on_n(0)->a == 60);
+    seq_key(&S, 2, 60, 0, 0);
+    seq_key(&S, 2, 64, 0, 0);
+    seq_key(&S, 2, 67, 0, 0);
+    stop();
+    /* no chord at all: mode 3 falls back to diatonic (a degree of 0 leaves the note) */
+    reset();
+    par[0][TP_BRAIN] = BM_HARMONY;
+    start();
+    S.brain_chord = 0;                /* (an empty chord: as before harmony) */
+    seq_key(&S, 0, 62, 1, 100);       /* D: C E G would take it down to C */
+    seq_keys_live(&S, 0, &sink);
+    CHECK(on_n(0) && on_n(0)->a == 62);
+    seq_key(&S, 0, 62, 0, 0);
+    seq_keys_live(&S, 0, &sink);
+    stop();
+    printf("ok %s\n", cur);
+}
+
 static void t_arp(void)
 {
     cur = "arp";
@@ -1568,6 +1661,168 @@ static void t_step_players(void)      /* the arp and the strum play the steps' n
     nev = 0;
     run(3 * L16);                                 /* (step 5's D: the chord on it, in the scale: D minor) */
     CHECK(count(E_ON, 0) == 3 && on_n(0)->a == 62 && on_n(1)->a == 65 && on_n(2)->a == 69);
+    printf("ok %s\n", cur);
+}
+
+static void t_random_player(void)     /* the random player: the grid's active slots, the pool, the phrase knobs */
+{
+    cur = "random-player";
+    reset();
+    par[0][TP_PLAYER] = PL_RAND;
+    par[0][TP_P1] = 127;                          /* every step sounds */
+    par[0][TP_P2] = par[0][TP_P3] = 0;            /* the phrase locked */
+    par[0][TP_P4] = RAND_OCT_CENTRE;              /* the step's own octave */
+    par[0][TP_AP2] = 8;
+    P.pat[0][0].len = 8;
+    lane_pool_set(P.lane, 0, 0, 1u << 0);         /* C only */
+    start();
+    run(7 * L16 + 100);
+    CHECK(count(E_ON, 0) == 8);                   /* no slot set: every step of the grid plays */
+    for (int i = 0; i < count(E_ON, 0); i++)
+        CHECK(on_n(i)->a == 60);
+    stop();
+    /* active slots: only the steps set play (a step's note only marks it on) */
+    reset();
+    par[0][TP_PLAYER] = PL_RAND;
+    par[0][TP_P4] = RAND_OCT_CENTRE;
+    par[0][TP_P1] = 127;
+    par[0][TP_AP2] = 8;
+    P.pat[0][0].len = 8;
+    lane_pool_set(P.lane, 0, 0, 1u << 0);
+    st(0, 1)->note[0] = 60;
+    st(0, 1)->vel = 100;
+    st(0, 4)->note[0] = 60;
+    st(0, 4)->vel = 100;
+    start();
+    run(7 * L16 + 100);
+    CHECK(count(E_ON, 0) == 2);
+    stop();
+    /* the phrase is the same in the next cycle: pitch and rhythm locked */
+    reset();
+    par[0][TP_PLAYER] = PL_RAND;
+    par[0][TP_P4] = RAND_OCT_CENTRE;
+    par[0][TP_P1] = 127;
+    par[0][TP_AP2] = 8;
+    P.pat[0][0].len = 8;
+    lane_pool_set(P.lane, 0, 0, 0x0FFFu);
+    start();
+    run(15 * L16 + 100);
+    CHECK(count(E_ON, 0) == 16);
+    for (int i = 0; i < 8; i++) {
+        CHECK(on_n(i)->a == on_n(i + 8)->a);
+        CHECK(on_n(i)->b == on_n(i + 8)->b);
+    }
+    stop();
+    /* pitch 100 %: the next cycle's pitches move on */
+    reset();
+    par[0][TP_PLAYER] = PL_RAND;
+    par[0][TP_P4] = RAND_OCT_CENTRE;
+    par[0][TP_P1] = 127;
+    par[0][TP_P2] = 127;
+    par[0][TP_AP2] = 8;
+    P.pat[0][0].len = 8;
+    lane_pool_set(P.lane, 0, 0, 0x0FFFu);
+    start();
+    run(15 * L16 + 100);
+    {
+        int moved = 0;
+        CHECK(count(E_ON, 0) == 16);
+        for (int i = 0; i < 8; i++)
+            moved |= on_n(i)->a != on_n(i + 8)->a;
+        CHECK(moved);
+    }
+    stop();
+    /* note % 0: silence; octave range +1: two registers only */
+    reset();
+    par[0][TP_PLAYER] = PL_RAND;
+    par[0][TP_P4] = RAND_OCT_CENTRE;
+    par[0][TP_P1] = 0;
+    start();
+    run(7 * L16 + 100);
+    CHECK(count(E_ON, 0) == 0);
+    stop();
+    reset();
+    par[0][TP_PLAYER] = PL_RAND;
+    par[0][TP_P1] = 127;
+    par[0][TP_P4] = RAND_OCT_CENTRE + 1;          /* 0/+1: two registers */
+    lane_pool_set(P.lane, 0, 0, 1u << 0);
+    start();
+    run(15 * L16 + 100);
+    CHECK(count(E_ON, 0) == 16);
+    for (int i = 0; i < count(E_ON, 0); i++)
+        CHECK(on_n(i)->a == 60 || on_n(i)->a == 72);
+    stop();
+    /* octave range, by the knob's value: the centre keeps the step's own; -1/+1 (16) is three registers, both outer ones
+     * heard; -1/0 (11) only below; 0/+3 (15) up to three above */
+    for (int r = 0; r < 4; r++) {
+        static const uint8_t V[4] = {12, 16, 11, 15};
+        static const int LO[4] = {60, 48, 48, 60}, HI[4] = {60, 72, 60, 96};
+        int seen_lo = 0, seen_hi = 0;
+        reset();
+        par[0][TP_PLAYER] = PL_RAND;
+        par[0][TP_P1] = 127;
+        par[0][TP_P4] = V[r];
+        par[0][TP_AP2] = 16;                      /* a 16-step phrase: each step draws its own octave */
+        lane_pool_set(P.lane, 0, 0, 1u << 0);
+        start();
+        run(15 * L16 + 100);
+        CHECK(count(E_ON, 0) == 16);
+        for (int i = 0; i < count(E_ON, 0); i++) {
+            CHECK(on_n(i)->a >= LO[r] && on_n(i)->a <= HI[r] && on_n(i)->a % 12 == 0);
+            seen_lo |= on_n(i)->a == LO[r];
+            seen_hi |= on_n(i)->a == HI[r];
+        }
+        CHECK(seen_lo || r == 3);                 /* (0/+3: four registers, 16 draws: not every one need sound) */
+        CHECK(seen_hi || r == 3);
+        stop();
+    }
+    /* velocity and gate: scaled when their knobs ask, within their bands */
+    reset();
+    par[0][TP_PLAYER] = PL_RAND;
+    par[0][TP_P4] = RAND_OCT_CENTRE;
+    par[0][TP_P1] = 127;
+    par[0][TP_AP2] = 16;
+    par[0][TP_AP3] = 127;
+    par[0][TP_AP4] = 127;
+    lane_pool_set(P.lane, 0, 0, 1u << 0);
+    start();
+    run(15 * L16 + 100);
+    {
+        int varied = 0;
+        CHECK(count(E_ON, 0) == 16);
+        for (int i = 0; i < count(E_ON, 0); i++) {
+            CHECK(on_n(i)->b >= 50 && on_n(i)->b <= 127);
+            varied |= on_n(i)->b != 100;
+        }
+        CHECK(varied);
+    }
+    stop();
+    /* a pulse over a random step repeats that note (it does not draw another) */
+    reset();
+    par[0][TP_PLAYER] = PL_RAND;
+    par[0][TP_P4] = RAND_OCT_CENTRE;
+    par[0][TP_P1] = 127;
+    lane_pool_set(P.lane, 0, 0, 0x0FFFu);
+    st(0, 0)->comp = SC_PULSE;
+    st(0, 0)->cval = 0;                           /* one repeat */
+    start();
+    run(L16 + 100);
+    CHECK(count(E_ON, 0) == 2 && on_n(0)->a == on_n(1)->a);
+    stop();
+    /* the conductor still moves the generated pitches */
+    reset();
+    par[0][TP_PLAYER] = PL_RAND;
+    par[0][TP_P4] = RAND_OCT_CENTRE;
+    par[0][TP_P1] = 127;
+    par[0][TP_BRAIN] = BM_DIATONIC;
+    S.brain_key = 0;
+    S.brain_scale = BS_MAJOR;
+    S.brain_deg = 1;
+    lane_pool_set(P.lane, 0, 0, 1u << 0);
+    start();
+    run(L16 / 2);
+    CHECK(count(E_ON, 0) == 1 && on_n(0)->a == 62);   /* C, one scale degree along: D */
+    stop();
     printf("ok %s\n", cur);
 }
 
@@ -3082,6 +3337,7 @@ int main(void)
     t_pulse();
     t_pulse_kit();
     t_follow();
+    t_harmony();
     t_hold();
     t_multiply();
     t_velocity();
@@ -3114,6 +3370,7 @@ int main(void)
     t_player_switch();
     t_step_players();
     t_hold_player();
+    t_random_player();
     t_punch_keys();
     t_duck();
     t_loops();

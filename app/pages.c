@@ -162,7 +162,7 @@ static const char *const CLOCK_ROW[SEQ_NCLK] = {"internal", "sends", "receives"}
 static const char *const METRO_NAME[3] = {"off", "rec", "on"};
 static const char *const ONOFF[2] = {"off", "on"};
 static const char *const LINK_NAME[9] = {"off", "T1", "T2", "T3", "T4", "T5", "T6", "T7", "T8"};
-static const char *const FOLLOW_NAME[3] = {"no", "diatonic", "transpose"};
+static const char *const FOLLOW_NAME[NBM] = {"no", "diatonic", "transpose", "harmony", "ch. deg"};
 static const char *const CORE2_NAME[4] = {"one core", "two cores", "lost", "barred"};
 static const char *const USBA_NAME[2] = {"follows knob", "full"};
 static const char *const BRAIN_KNOB[3] = {"key", "scale", "link"};
@@ -216,6 +216,8 @@ static struct {
                                                       * it turned on), in chord_bar of pattern chord_pat: a scene
                                                       * change while it is on moves neither */
     uint8_t chord_bar, chord_pat;
+    uint8_t chord_pool;                              /* chord mode on a random track: the keys pick the pattern's
+                                                      * pool (pattern.h LANE_POOL), not a step's chord */
     uint8_t chord_down;                              /* chord mode: the chord's keys still down (0: the next key
                                                       * starts a fresh chord, replacing the held steps' notes) */
     uint16_t wv_held, wv_latched;                    /* the WEAVE track's keys: the tracks woven now (seq.wv_live) */
@@ -297,7 +299,7 @@ static struct {
 /* the undo: one stage, whatever was changed last (HOME + REC swaps it back, HOME + PLAY swaps again: redo): a
  * pattern with its locks, a track's sound (or T2-T8 at once), the master, or the arrangement (song, scenes, weave) */
 enum { U_PAT, U_SOUND, U_MASTER, U_ARR };
-#define UNDO_LANES 12
+#define UNDO_LANES 13                     /* (a pattern's 12 locks and its random pool) */
 static struct {
     uint8_t valid, redo, kind, trk, n, pt, nl, rsv;
     uint32_t t;
@@ -571,6 +573,8 @@ static const char *page_name_of(int p, int trk)
         return "Weave";
     if (trk == AUX_BRAIN && p == P_SUB)
         return "Follow";
+    if (trk < NTRK && !is_drum(trk) && !is_aux(trk) && p == P_PLAYERS3 && proj.trk[trk].par[TP_PLAYER] % NPL == PL_RAND)
+        return "Players 3";                          /* (the arp's page 3 is Hold) */
     if (trk < NTRK && p == P_SUB && proj.trk[trk].par[TP_ENGINE] == EG_SAMPLE)
         return "Loop";
     if ((is_drum(trk) || is_midi(trk)) && p == P_SUB)
@@ -646,7 +650,9 @@ static int group_n(int g)
              : x_page(trk) ? 4 : 3;      /* (a kit: Engine, Key, Sends: the key's own; Engine 2 after Engine when the
                                           * key's model has eight knobs) */
     if (b == B_ARP)                                  /* (grp_page: Players, Players 2, Hold the arp's, Weave) */
-        return is_aux(trk) ? 1 : is_drum(trk) || pl_type(trk) == PL_OFF ? 2 : pl_type(trk) == PL_ARP ? 4 : 3;
+        return is_aux(trk) ? 1
+             : is_drum(trk) || pl_type(trk) == PL_OFF ? 2
+             : pl_type(trk) == PL_ARP || pl_type(trk) == PL_RAND ? 4 : 3;
     if (b == B_ENV)
         return is_drum(trk) ? 4 : is_midi(trk) ? 1 : is_acid(trk) ? 2 : 3;   /* a kit: the key's envelope, filter; the
                                                            * kit's envelope, filter (a MIDI track: none, page_button
@@ -689,7 +695,7 @@ static int grp_page(int g, int i)
             return P_WEAVE;
         if (is_drum(trk) || pl_type(trk) == PL_OFF)
             return i & 1 ? P_WEAVE : P_PLAYERS;      /* (a kit, or no player: its page shows it off, then Weave) */
-        return pl_type(trk) == PL_ARP ? ARPP[i & 3] : OTHER[(i % 3 + 3) % 3];
+        return pl_type(trk) == PL_ARP || pl_type(trk) == PL_RAND ? ARPP[i & 3] : OTHER[(i % 3 + 3) % 3];
     }
     return PAGE_BTN[g].first + i;
 }
@@ -768,6 +774,14 @@ static int tp_page_param(int p, int k, int trk)
         return TP_O2FINE;                            /* knit's osc 2 with HOME held: its fine tune, in cents */
     if (is_drum(trk) && (p == P_PLAYERS || p == P_PLAYERS2 || p == P_PLAYERS3))
         return -1;                                   /* a kit: no player (its page shows it off) */
+    if (pl_type(trk) == PL_RAND) {                  /* random: P1..P3, AP1..AP4, octave */
+        if (p == P_PLAYERS)
+            return TP_PLAYER + k;
+        if (p == P_PLAYERS2)
+            return TP_AP1 + k;
+        if (p == P_PLAYERS3)
+            return k == 0 ? TP_P4 : -1;
+    }
     if (p == P_PLAYERS2 && pl_type(trk) != PL_ARP)
         return k == 0 ? TP_P4 : -1;
     if (p == P_PLAYERS3 && pl_type(trk) != PL_ARP)
@@ -1344,7 +1358,9 @@ static void step_knobs(knob_t *k)
         int n = 0;
         for (int i = 0; i < SN && !n; i++)
             n = st->note[i];
-        if (n)
+        if (n && pl_type(sel_trk()) == PL_RAND)
+            s_cat(t, "on");                           /* (a random slot: its pitch is drawn) */
+        else if (n)
             note_name(n, t);
         else
             s_cat(t, "-");
@@ -1875,7 +1891,7 @@ static void page_footer(char *t)
         else if (ui.trickpg)
             s_cat(t, "KNOB 1 3 trick|KNOB 2 4 value");
         else if (ui.chordmode && ui.page == P_STEPS)
-            s_cat(t, "KEYS the chord|SEQ exit");
+            s_cat(t, ui.chord_pool ? "KEYS the pool|SEQ exit" : "KEYS the chord|SEQ exit");
         else if (ui.len_key && (ui.held >> (ui.len_key - 1) & 1u))
             s_cat(t, "let go: length|KNOBS both steps");
         else if (ui.held && is_drum(trk))
@@ -1942,6 +1958,8 @@ static void page_footer(char *t)
             s_cat(t, "KEY strums the chord|KEYS together: a new chord");
         else if (ui.page >= P_PLAYERS && ui.page <= P_PLAYERS3 && pl_type(trk) == PL_ARP)
             s_cat(t, "KEYS hold notes: they arpeggiate");
+        else if (ui.page >= P_PLAYERS && ui.page <= P_PLAYERS3 && pl_type(trk) == PL_RAND)
+            s_cat(t, "POOL on Steps: hold a step, SEQ|steps on or off");
         else if (is_drum(trk) && ui.page == P_FILTER)
             s_cat(t, "PRESET type|BLACK pick a key");
         else if (is_drum(trk) && (ui.page == P_ENV2 || ui.page == P_KITF))
@@ -2198,8 +2216,8 @@ static const struct { uint8_t btn; uint32_t pages; const char *title, *l1, *l2; 
     {B_FX, PG_ANY, "Effects", "Character, sends, FX I, FX II, then Throws: keys fire effects.",
      "PRESETS: the type or effect. SEL: an FX's filter."},
     {B_LFO, PG_ANY, "LFO", "Type, then its first three knobs.", "Page 2 has the type's fourth and fifth."},
-    {B_ARP, PG_ANY, "Players", "Arp, strum or hold on the track's keys; last page, Weave.",
-     "Strum: a key strums its chord; keys held together set it."},
+    {B_ARP, PG_ANY, "Players", "Arp, strum, hold or random; last page, Weave.",
+     "Random: tap steps as active slots; SEQ picks the pool."},
     {B_ARP, PG_STEPS, "Tricks", "With a step held, ARP: KNOB 1 and 3 pick its two tricks,",
      "KNOB 2 and 4 their values. Let go of the step when done."},
     {B_GLO, PG_ANY, "Mix", "Sends, pan, level. Black: tap mute, hold solo, 2 taps: stays.",
@@ -2509,7 +2527,7 @@ static void list_sound(int trk)
         list_head("follow");
         for (int t = 0; t < NTRK; t++) {
             s_cat(num_s((uint32_t)t + 1u, s_cat(nm[t], "T")), " FOLLOWS");
-            list_add(nm[t], FOLLOW_NAME[proj.trk[t].par[TP_BRAIN] % 3], LK_PICK, A_FOLLOW);
+            list_add(nm[t], FOLLOW_NAME[proj.trk[t].par[TP_BRAIN] % NBM], LK_PICK, A_FOLLOW);
         }
     } else if (is_fx(trk)) {
         list_add(ACTION_NAME[A_EFFECT], fx_label(ui.pick_fx % NFXPICK), LK_PICK, A_EFFECT);
@@ -2553,7 +2571,7 @@ static void list_sound(int trk)
             num_s((uint32_t)sc + 1u, s_cat(from_t, "from T"));
             list_add(ACTION_NAME[A_PASTE_SOUND], from_t, LK_ACTION, A_PASTE_SOUND);
         }
-        s_cat(fol_t, FOLLOW_NAME[proj.trk[trk].par[TP_BRAIN] % 3]);
+        s_cat(fol_t, FOLLOW_NAME[proj.trk[trk].par[TP_BRAIN] % NBM]);
         list_add(ACTION_NAME[A_FOLLOW], fol_t, LK_PICK, A_FOLLOW);
         if (is_midi(trk)) {                          /* its knobs' CCs (its notes always go out: no MIDI OUT) */
             list_head("MIDI");
@@ -2648,6 +2666,8 @@ static void list_build(void)
                 s_cat(e, DL_SOUND_NAME[(st->note[i] - 1) % DL_NSOUND]);
             else if (trk == AUX_PUNCH)
                 s_cat(e, PX_VALID(st->note[i] - 1) ? PUNCH_NAME[(st->note[i] - 1) & 15] : "fx");
+            else if (pl_type(trk) == PL_RAND)
+                s_cat(e, "slot");
             else
                 note_name(st->note[i], e);
             list_add(rm[i], 0, LK_ACTION, A_REMOVE_NOTE);
@@ -3153,7 +3173,7 @@ static void draw_steps(void)
         else {
             char *e = t;
             *e = 0;
-            for (int i = 0; i < ui.nrem && i < SN; i++) {
+            for (int i = 0; i < ui.nrem && i < SN && pl_type(trk) != PL_RAND; i++) {
                 if (i)
                     e = s_cat(e, " ");
                 e = note_name(ui.rem[i], e);
@@ -3190,13 +3210,14 @@ static void draw_steps(void)
         }
     }
     for (int i = 0; i < 16; i++) {
-        int s = ui.bar * 16 + i, in = s < tp->len, held = ui.held >> i & 1u, on;
+        int s = ui.bar * 16 + i, in = s < tp->len, held = ui.held >> i & 1u, on, implicit;
         const step_t *st = &tp->st[s];
         int32_t x = ST_X + (i % 8) * ST_CW, y = ST_Y + (i / 8) * (ST_CH + 4);
         uint16_t bg, fg;
         hit_t hm;
-        on = step_on(st, trk);
-        bg = !in ? K_BG : on ? K_TINT : K_PANEL;
+        on = in && (pl_type(trk) == PL_RAND ? step_slot_on(tp, s) : step_on(st, trk));
+        implicit = on && pl_type(trk) == PL_RAND && !step_slot_set(tp, s);   /* none set: all on, shown plain */
+        bg = !in ? K_BG : on && !implicit ? K_TINT : K_PANEL;
         if (playing() && s == ph && in)
             bg = on ? K_NOW : K_NOW_T;
         fg = bg == K_NOW ? K_BG : K_TEXT;
@@ -3235,7 +3256,9 @@ static void draw_steps(void)
             }
         } else if (on) {
             uint16_t dim = bg == K_NOW ? K_BG : K_DIM;
-            if (trk == AUX_PUNCH) {
+            if (pl_type(trk) == PL_RAND) {
+                text_c(x + ST_MID, y + ST_L1, &FONT_XS, "on", implicit ? dim : fg);
+            } else if (trk == AUX_PUNCH) {
                 int fx = st->note[0] - 1;
                 /* the effect in capitals (no descender to meet the line under it), three letters, over its group */
                 static const char *const PX_CELL[NPUNCH] = {"MUT", "STU", "REP", "ECH", "BLD", "FLR", "JMB", "WBL",
@@ -3956,8 +3979,10 @@ static void draw_brain(void)
 {
     const uint8_t *p = proj.trk[AUX_BRAIN].par;
     int key = seq.brain_key % 12, sc = seq.brain_scale % NBS, deg = (int8_t)seq.brain_deg, src = p[TP_E1] % 9u;
-    uint32_t h = hash_u(hash_u(2166136261u, 0xB0u), (uint32_t)key | (uint32_t)sc << 4 | (uint32_t)(deg + 64) << 8 |
-                                          (uint32_t)src << 16 | (uint32_t)ui.page << 20 | (uint32_t)p[TP_E4] << 26);
+    uint32_t chord = seq.brain_chord;
+    uint32_t h = hash_u(hash_u(hash_u(2166136261u, 0xB0u), (uint32_t)key | (uint32_t)sc << 4 |
+                                          (uint32_t)(deg + 64) << 8 | (uint32_t)src << 16 | (uint32_t)ui.page << 20 |
+                                          (uint32_t)p[TP_E4] << 26), chord);
     char t[48], *e;
     for (int i = 0; i < NTRK; i++)
         h = hash_u(h, proj.trk[i].par[TP_BRAIN] | (uint32_t)is_drum(i) << 4);
@@ -3979,7 +4004,7 @@ static void draw_brain(void)
             s_cat(s_cat(t, TRACK_NAME[src - 1]), " is a kit: it has no notes");
             cv_text(12, 40, &FONT_XS, t, K_REC);
         } else {
-            s_cat(s_cat(t, TRACK_NAME[src - 1]), "'s lowest note sets the chord:");
+            s_cat(s_cat(t, TRACK_NAME[src - 1]), "'s notes set the chord:");
             cv_text(12, 34, &FONT_XS, t, K_DIM);
             cv_text(12, 48, &FONT_XS, "chords, a bass line; it follows nothing", K_DIM);
         }
@@ -3989,26 +4014,42 @@ static void draw_brain(void)
             e = s_cat(e, "+");
         num_i(deg, e);
         cv_text(12, 44, &FONT_B, t, deg ? K_NOW : K_DIM);
+        if (chord) {                         /* the active chord: the tones harmony plays */
+            char cb[24];
+            char *q = cb;
+            *q = 0;
+            for (int i = 0; i < SN; i++) {
+                int v = (int)(chord >> (8 * i) & 0xFFu);
+                if (!v)
+                    continue;
+                if (q != cb)
+                    q = s_cat(q, " ");
+                q = s_cat(q, NOTE_NAME[v % 12]);
+            }
+            text_r(230, 44, &FONT_XS, cb, K_FAINT);
+        }
         if (p[TP_E4])
             text_r(230, 48, &FONT_XS, LINK_NAME[p[TP_E4] % 9], K_DIM), text_r(230 - text_w(&FONT_XS, LINK_NAME[p[TP_E4] % 9]) - 4, 48, &FONT_XS, "link", K_FAINT);
     }
     cv_text(12, 70, &FONT_XS, src ? "tracks that follow; the chords' in its colour" : "tracks that follow", K_DIM);
     for (int i = 0; i < NTRK; i++) {
         int32_t x = 12 + i * 27;
-        int m = proj.trk[i].par[TP_BRAIN] % 3;
+        int m = proj.trk[i].par[TP_BRAIN] % NBM;
         num_s((uint32_t)i + 1u, t);
         if (src == i + 1) {                          /* the FOLLOW track: the chords come from it */
             cv_round(x, 86, 22, 22, 5, trk_ink(i));
             text_c(x + 11, 90, &FONT_B, t, K_BG);
             continue;
         }
-        if (m == 1)
+        if (m == BM_DIATONIC || m == BM_HARMONY)
             cv_round(x, 86, 22, 22, 5, K_TEXT);
-        else if (m == 2)
+        else if (m == BM_TRANSPOSE || m == BM_DEGREE)
             cv_frame(x, 86, 22, 22, 5, K_TEXT, K_BG);
         else
             cv_frame(x, 86, 22, 22, 5, K_LINE, K_BG);
-        text_c(x + 11, 90, &FONT_B, t, m == 1 ? K_BG : m == 2 ? K_TEXT : K_FAINT);
+        if (m >= BM_HARMONY)                          /* the harmony modes: a bar under the number */
+            cv_rect(x + 6, 104, 10, 2, m == BM_HARMONY ? K_BG : K_TEXT);
+        text_c(x + 11, 90, &FONT_B, t, m == BM_DIATONIC || m == BM_HARMONY ? K_BG : m ? K_TEXT : K_FAINT);
     }
     cv_blit(0, MAIN_Y);
 }
@@ -4669,6 +4710,8 @@ static void draw_players(void)
         cv_text(12, 24, &FONT_XS, "held notes play one after another", K_DIM);
     else if (pl == PL_STRUM)
         cv_text(12, 24, &FONT_XS, "one key strums the chord; keys together set it", K_DIM);
+    else if (pl == PL_RAND)
+        cv_text(12, 24, &FONT_XS, "active slots: the pool picks notes", K_DIM);
     else
         cv_text(12, 24, &FONT_XS, "notes stay until the next", K_DIM);
     e = s_cat(t, pl == PL_STRUM ? "chord: " : "held: ");
@@ -4721,6 +4764,83 @@ static void draw_players(void)
         for (int i = 0; i < pr->nheld && i < 16; i++)    /* a held note off these keys (another octave): an arrow */
             if (pr->held[i] < base || pr->held[i] >= base + 27)
                 cv_text(pr->held[i] < base ? 0 : 232, y0 + 16, &FONT_XS, pr->held[i] < base ? "<" : ">", ink);
+    }
+    cv_blit(0, MAIN_Y);
+}
+/* the pitch classes a random track may use at present (the pool picker's dots): its follow mode's notes */
+static int rand_in_scale(int t, int pc)
+{
+    int mode = proj.trk[t].par[TP_BRAIN] % NBM;
+    if (!((seq.brain_route >> t) & 1u) || mode == BM_NO)
+        return 0;
+    if (mode >= BM_HARMONY && seq.brain_chord) {
+        for (int i = 0; i < SN; i++) {
+            int n = (int)(seq.brain_chord >> (8 * i)) & 0xFF;
+            if (n && n % 12 == pc)
+                return 1;
+        }
+        return 0;
+    }
+    return (BRAIN_SCALE[seq.brain_scale % NBS] >> (((pc - seq.brain_key) % 12 + 12) % 12)) & 1u;
+}
+/* the random pool picker (chord mode on a PL_RAND track): the keys toggle pitch classes of the current
+ * pattern's pool; a dot under a key marks the notes the track's follow mode allows */
+static void draw_step_pool(void)
+{
+    int trk = sel_trk(), pat = ui.chord_pat % NPATT;
+    uint16_t pool = lane_pool_get(pats.lane, trk, pat);
+    uint32_t h = hash_u(hash_u(hash_u(2166136261u, 0xC4u),
+                               (uint32_t)trk | (uint32_t)pat << 4 | (uint32_t)ui.oct << 12), pool);
+    char t[48], *e;
+    for (int i = 0; i < NKEYS; i++)
+        h = hash_u(h, ui.kmode[i] == KM_STEPCHORD ? (uint32_t)ui.knote[i] + 1u : 0u);
+    h = hash_u(hash_u(h, seq.brain_chord), (uint32_t)seq.brain_key | (uint32_t)seq.brain_scale << 8 |
+                                                  (uint32_t)seq.brain_route << 16);
+    if (!begin_main(h))
+        return;
+    num_s((uint32_t)pat + 1u, s_cat(t, "POOL P"));
+    cv_text(12, 4, &FONT_B, t, K_REC);
+    cv_text(12 + text_w(&FONT_B, t) + 8, 4, &FONT_XS, "[SEQ] exit", K_DIM);
+    e = s_cat(t, "notes: ");
+    if (!pool)
+        e = s_cat(e, "all");
+    else {
+        int any = 0;
+        for (int i = 0; i < 12; i++)
+            if (pool >> i & 1u) {
+                if (any)
+                    e = s_cat(e, " ");
+                e = note_name(60 + i, e);
+                any = 1;
+            }
+    }
+    text_fit(12, 24, &FONT_S, t, 216, K_TEXT);
+    {
+        int base = KEY_BASE + ui.oct * 12, wi = 0;
+        int32_t wx[27], y0 = 48, wh = 44, bh = 27, ww = 13;
+        uint16_t ink = trk_ink(trk);
+        for (int k = 0; k < 27; k++)
+            wx[k] = BLACK_KEY(base + k) ? 6 + wi * ww + 2 - 4 : 6 + (wi++) * ww + 2;
+        for (int pass = 0; pass < 2; pass++)
+            for (int k = 0; k < 27; k++) {
+                int n = base + k, blk = BLACK_KEY(n), on = 0, down = 0, sc = rand_in_scale(trk, n % 12);
+                if (blk != pass)
+                    continue;
+                on = (pool >> (n % 12)) & 1u;
+                for (int i = 0; i < NKEYS; i++)
+                    down |= ui.kmode[i] == KM_STEPCHORD && ui.knote[i] == n;
+                {
+                    uint16_t c = down ? K_TEXT : on ? ink : blk ? K_BG : K_PANEL2;
+                    if (blk) {
+                        cv_round(wx[k], y0, 9, bh, 2, c);
+                        if (!down)
+                            cv_frame(wx[k], y0, 9, bh, 2, K_LINE, c);
+                    } else
+                        cv_round(wx[k], y0, ww - 1, wh, 2, c);
+                    if (sc)                           /* a note the follow mode allows: a dot under its key */
+                        cv_rect(wx[k] + (blk ? 2 : 3), y0 + wh + 3, 5, 3, K_NOW);
+                }
+            }
     }
     cv_blit(0, MAIN_Y);
 }
@@ -5224,7 +5344,10 @@ static void draw_page(void)
     case P_SONG: draw_song(); break;
     case P_STEPS:
         if (ui.chordmode && is_seqt(trk) && !is_drum(trk))
-            draw_step_chord();
+            if (ui.chord_pool)
+                draw_step_pool();
+            else
+                draw_step_chord();
         else
             draw_steps();
         break;
