@@ -2,8 +2,8 @@
 
 LOOM-8 is free software, file by file: each file says its licence in its first lines (`SPDX-License-Identifier`).
 Most are under the Mozilla Public License, version 2.0 (`MPL-2.0`, full text in `LICENSE`); the acid engine
-(`app/dsp/bass303.c`, `bass303.h`) is under the GNU General Public License, version 3 only (`GPL-3.0-only`, full text
-in `COPYING`). The firmware and the browser emulator are built with it, so each, as a whole, is under **GPL-3.0-only**
+(`app/dsp/bass303.c`, `bass303.h`) and the 909 kit models (`app/dsp/d909.c`, `d909.h`) are under the GNU General
+Public License, version 3 only (`GPL-3.0-only`, full text in `COPYING`). The firmware and the browser emulator are built with it, so each, as a whole, is under **GPL-3.0-only**
 (the MPL-2.0 files may be combined with GPL-3.0 code: MPL-2.0 section 3.3, none of them is marked "Incompatible With
 Secondary Licenses"), and its whole source must be available under it when you distribute it. Each MPL-2.0 file stays
 MPL-2.0 on its own: take it out of LOOM-8 and it is MPL-2.0 again. A build that linked JieLi's binary libraries
@@ -42,6 +42,7 @@ endorsed by or derived from teenage engineering; the name is only used descripti
 | `app/gfx_loom.c`, `tools/gen_font.py`: the text drawing and the faces' rendering | fm1-base's `device/gfx.c` and `tools/gen_font.py` (Leo Kuroshita's code there, felucca-bsp#4), with LOOM-8's own compact fonts, anti-aliased drawing and layout audit | MPL-2.0 |
 | The IMA ADPCM codec (`app/dsp/sample.c`, `tools/sampleio.py`, `app/web/samples/loom_samples.js`) | the IMA standard (IMA Digital Audio Focus and Technical Working Groups, "Recommended Practices for Enhancing Digital Audio Compatibility in Multimedia Systems", 1992): its tables and algorithm | MPL-2.0 (the code) |
 | The acid engine (`app/dsp/bass303.c`, `bass303.h`: a TB-303) | X0X's 303 engine ([fm1-x0x](https://github.com/charlesvestal/fm1-x0x), `firmware/src/dsp/bass303.c`), Copyright (C) 2026 Charles Vestal, through [schwung-303](https://github.com/charlesvestal/schwung-303): ported from [Open303](https://github.com/RobinSchmidt/Open303) by Robin Schmidt (MIT), with the Devilfish ranges of [jc303](https://github.com/midilab/jc303) by midilab (GPL-3.0) and the RAT drive ported from [dm-Rat](https://github.com/davemollen/dm-Rat) by Dave Mollen (GPL-3.0) | GPL-3.0-only (`COPYING`); the firmware as a whole with it |
+| The 909 kit models (`app/dsp/d909.c`, `d909.h`: the kick, snare, toms, rim shot and clap) | [9W9](https://github.com/athousanddetails/schwung-9W9)'s TR-909 circuit models, by athousanddetails (itself grown out of [ER-99](https://github.com/matthewcieplak/er-99) by Matthew Cieplak), through X0X's port (fm1-x0x `firmware/src/dsp/drum909.c`, `drum909_dsp.h`) | GPL-3.0-only (`COPYING`) |
 | The plate reverb in `app/dsp/fx.c` (`do_reverb`) and the delay's time slew | after [9W9](https://github.com/athousanddetails/schwung-9W9)'s reverb (`er99_verb_tick`), by athousanddetails, through X0X's port; LOOM-8 adds the modulated taps and the stereo | MPL-2.0, with the permission of 9W9's author, athousanddetails (below) |
 | The screen reader's words (`app/words.tsv`, `app/web/words/`) | [fm1-reader](https://github.com/charlesvestal/fm1-reader)'s protocol (fm1-base's `device/announce.c`, `tools/gen_words.py`) | MPL-2.0 |
 | The idea of a browser emulator for FM-1 firmware (`app/web/emu/`) | [Groove OS](https://www.groove-os.com/) by Peter Gombos, whose site runs its firmware in the browser; no code from it | credit only |

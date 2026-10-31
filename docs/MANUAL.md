@@ -657,7 +657,8 @@ Two acid tracks can play at once. A third takes over the oldest one.
 
 A drum track has eleven keys, played on the black keys. Each key has a drum model: kick, snare, hat, clap, shaker,
 tambourine, string (a plucked string), conga, tom, fm or sample; one of the x models (x kick, x snare, x hat,
-x clap, x tom, x rim, x fm, x noise); sophie; or clang. The kit is tuned to C: kick G1, snare G3, low tom C3, high
+x clap, x tom, x rim, x fm, x noise); sophie; clang; or one of the 909 models (909 kick, 909 snare, 909 tom,
+909 rim, 909 clap). The kit is tuned to C: kick G1, snare G3, low tom C3, high
 tom G3, conga C4, string C3, fm C5. To pick the key the knobs edit, press a black key or turn **PRESETS**. The four
 knobs on the Engine page belong to that key's model:
 
@@ -686,6 +687,11 @@ knobs on the Engine page belong to that key's model:
 | x noise | tone, length, drive |
 | sophie | pitch, length, color, metal · model, feedback, sweep, crush |
 | clang | pitch, length, color, metal · model, sweep, feedback, fold |
+| 909 kick | pitch, decay, attack, sweep · depth, drive, shape |
+| 909 snare | pitch, decay, snappy, tone · drive, shape |
+| 909 tom | pitch, decay, attack, size · drive, shape |
+| 909 rim | pitch, drive, shape |
+| 909 clap | tone, tail, drive, shape |
 
 The knobs after the dot are on a second Engine page (turn **SELECT**).
 
@@ -698,9 +704,14 @@ The knobs after the dot are on a second Engine page (turn **SELECT**).
   bit depth.
 - **clang** is digisophie, the version of Sophie made for the Digitakt: two operators, coarser and cheaper, with a
   wavefolder (fold).
+- The **909 models** are athousanddetails' 9W9, circuit models of the TR-909's kick, snare, toms, rim shot and
+  clap, with its knobs. On the kick, attack is the beater's click, sweep how long the pitch takes to fall and depth
+  how far; the snare's snappy is the wires and tone how long they ring; the tom's size picks the low, mid or high
+  tom, and its attack is the stick. shape is 9W9's distortion (diode, clip, sat, fuzz, pdist, fold, crush), which
+  drive pushes. Eight 909 hits can sound at once across every drum track; a ninth takes over the oldest.
 
-The x models and clang cost up to twice as much as a voice of a built-in model, and sophie up to three times as
-much. Even with a kit made of them, the busiest demo stays well within what the FM-1 can do.
+The x models and clang cost up to twice as much as a voice of a built-in model, and sophie and the 909 models up to
+three times as much. Even with a kit made of them, the busiest demo stays well within what the FM-1 can do.
 
 On every sound page of a drum track, a black key picks the key the knobs edit. Turn **SELECT** for the Key page:
 the model, random (a variation on every hit), pan, and volume in dB. Its **SEL** list sets the play mode: one-shot,
@@ -711,7 +722,7 @@ envelope, filter and sends. Two snares tuned apart start this way. On **ENV**, t
 
 **Kits.** On a kit track, **EDIT**'s **SEL** list has **KIT** and **SAVE KIT**. KIT loads a whole kit onto
 the track: its eleven keys with all their settings, plus the kit's envelope, filter, LFO and character. The track's
-level, pan, player and MIDI OUT stay as they are. LOOM-8 comes with ten kits, named for fibers and cloth:
+level, pan, player and MIDI OUT stay as they are. LOOM-8 comes with eleven kits, named for fibers and cloth:
 
 - **Loom**: the kit a new project starts with.
 - **Nylon**: the x models throughout.
@@ -723,6 +734,7 @@ level, pan, player and MIDI OUT stay as they are. LOOM-8 comes with ten kits, na
 - **Denim**: the factory 909 samples, with sophie's toms and the x models' conga and shaker.
 - **Linen**: short and dry: a tight kick, ticking hats, clicks and a small clap.
 - **Velvet**: deep: a round, long kick, the 909 clap, dusty hats and a round conga.
+- **Twill**: the 909's own circuits (9W9's kick, snare, toms, clap and rim shot), with the factory 909 hats.
 
 The new kits keep the default kit's layout: kick, snare, closed hat, open hat (these two share choke group 1),
 clap, low and high tom, conga, shaker, string, and fm (a short FM blip). That way a pattern plays the same parts on

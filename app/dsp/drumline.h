@@ -40,9 +40,17 @@ enum { DM_KICK, DM_SNARE, DM_HIHAT, DM_CLAP, DM_SHAKER, DM_TAMB, DM_RESO, DM_CON
         * digisophie's Sophie core (MIT: dsp/digisophie.c), eight knobs; sophie, Sophie's own voice (Matt Estela,
         * MIT; after SPH-16's port), its seven models on one knob */
        DM_XKICK, DM_XSNARE, DM_XHAT, DM_XCLAP, DM_XTOM, DM_XRIM, DM_XFM, DM_XNOISE, DM_CLANG, DM_SOPHIE,
+       /* the 909 models (2026-10-30): 9W9's TR-909 circuits (athousanddetails, GPL-3.0-only: dsp/d909.c), each hit in
+        * one of the kits' shared N909 voice slots (drumline.c d9_slot) */
+       DM_909KICK, DM_909SNARE, DM_909TOM, DM_909RIM, DM_909CLAP,
        NDM };                                        /* (saved by number: a new model goes last; development builds
                                                       * had 21 more, 11..31: project.c keys_fix) */
 #define DM_ISX(m) ((m) >= DM_XKICK && (m) <= DM_XNOISE)
+#define DM_IS909(m) ((m) >= DM_909KICK && (m) <= DM_909CLAP)
+#define N909 8                                       /* 909 hits sounding at once, every kit together (a ninth takes
+                                                      * the oldest's slot) */
+extern const char *const DM9_SHAPE_N[7];             /* a 909 model's shape (its 9W9 distortion): diode .. crush */
+extern const char *const DM9_SIZE_N[3];              /* the 909 tom's size: low mid high */
 extern const char *const DM_NAME[NDM];
 extern const char *const DM_KNOB[NDM][4];
 extern const uint8_t DM_DEFAULT[NDM][4];
@@ -62,9 +70,9 @@ extern const char *const DL_SOUND_NAME[DL_NSOUND];     /* the default kit's key 
 extern const uint8_t DL_DEFAULT_KIT[DL_NSOUND][DP_N];  /* DP_* of each key of a new drum track */
 
 typedef struct drumline drumline_t;
-#define DRUMLINE_BYTES 4608                            /* 8 voices (each with its key's envelope and filter state),
-                                                        * four sample windows (80 B each), the dynamic filter and
-                                                        * two strings (int16, 512 each) */
+#define DRUMLINE_BYTES 2560                            /* 8 voices (each with its key's envelope and filter state),
+                                                        * four sample windows (80 B each), the dynamic filter (the
+                                                        * strings' lines and the 909 slots: drumline.c, every kit's) */
 
 void drumline_init(drumline_t *d, const uint8_t *par);  /* par: the track's par[] (reads TP_DRUM0.., TP_A..TP_R at a hit,
                                                          * TP_SEND* each chunk) */

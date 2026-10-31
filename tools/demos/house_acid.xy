@@ -1,6 +1,6 @@
-# LOOM-8 demo: the house demo (tools/demos/house.xy) with a 303 on the bass: T2 the acid engine, an acid line with
-# accents (velocity 112+), slides (a note held into the next) and a glide trick, its cutoff opened by hand through the
-# song. Everything else as house.xy. Renders with house's bank (build/demos/house.bin: tools/demos/render.sh house
+# LOOM-8 demo: the house demo (tools/demos/house.xy) with a 303 on the bass and a 909 kick and clap: T2 the acid
+# engine, an acid line with accents (velocity 112+), slides (a note held into the next) and a glide trick, its cutoff
+# opened by hand through the song; T1's kick and clap the 909 models (9W9's circuits). Everything else as house.xy. Renders with house's bank (build/demos/house.bin: tools/demos/render.sh house
 # makes it): app/build/host/loom_host tools/demos/house_acid.xy DIR
 #   T1 kit: a round kick on every beat, clap, the open hat on the offbeats, shaker, conga; a little swing
 #   T2 tines "felt bass": the bass, ducked by the kick (pump)       T3 tines "felt piano": minor-ninth stabs, delayed
@@ -23,13 +23,20 @@ knob 9 e3 1
 # kick; minor-ninth stabs into a dotted echo, a pumped pad, a long dark hall kept off the low end; the master
 # warm: no top lift, a little low end, the whole mix pumped by the kick)
 # T1 the kit: the kick round (its tone down, a soft punch), a dry clap, a short open hat, a soft shaker
-knob 1 d1.k1 76
-knob 1 d1.k2 64
-knob 1 d1.k3 48
-knob 1 d1.k4 60
-knob 1 d5.k1 96
-knob 1 d5.k2 56
-knob 1 d5.k4 50
+# (acid house: the kick and the clap are the 909's circuits, 9W9's: a shorter decay, a little drive)
+knob 1 d1.model 21
+knob 1 d1.k1 45
+knob 1 d1.k2 70
+knob 1 d1.k3 30
+knob 1 d1.k4 34
+knob 1 d1.k5 0
+knob 1 d1.k6 20
+knob 1 d1.k7 0
+knob 1 d5.model 25
+knob 1 d5.k1 63
+knob 1 d5.k2 50
+knob 1 d5.k3 30
+knob 1 d5.k4 0
 knob 1 d5.volume 72
 knob 1 d4.k1 96
 knob 1 d4.k2 50

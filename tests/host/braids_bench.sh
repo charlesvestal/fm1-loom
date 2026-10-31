@@ -15,5 +15,5 @@ mkdir -p build/gen build/host
 V=""
 [ "${SCALAR:-0}" = 1 ] && V="-fno-vectorize -fno-slp-vectorize"
 $CC -O2 $V -ffp-contract=off -std=c99 -Wall -Wextra -Wdouble-promotion -Wno-unused-function -DPLAT_HOST -Iapp/dsp -Ibase/include -Ibuild/gen \
-    -o build/host/braids_bench tests/host/braids_bench.c app/dsp/drumline.c app/dsp/digisophie.c app/dsp/sample.c app/dsp/bass303.c
+    -o build/host/braids_bench tests/host/braids_bench.c app/dsp/drumline.c app/dsp/d909.c app/dsp/digisophie.c app/dsp/sample.c app/dsp/bass303.c
 build/host/braids_bench "$@"

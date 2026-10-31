@@ -38,6 +38,7 @@
 #include "synth.h"
 #include "fastmath.h"
 #include "digisophie.h"
+#include "d909.h"
 
 #define SR SY_SR
 #define CR SY_CHUNK                   /* pan / volume / sends re-read this often */
@@ -48,7 +49,8 @@ _Static_assert((RESO_LEN & (RESO_LEN - 1)) == 0, "a string's line wraps by a mas
 
 const char *const DM_NAME[NDM] = {"kick", "snare", "hat", "clap", "shaker", "tambourine", "string",
                                   "conga", "tom", "fm", "sample", "x kick", "x snare", "x hat", "x clap", "x tom",
-                                  "x rim", "x fm", "x noise", "clang", "sophie"};
+                                  "x rim", "x fm", "x noise", "clang", "sophie", "909 kick", "909 snare", "909 tom",
+                                  "909 rim", "909 clap"};
 const char *const DM_KNOB[NDM][4] = {
     [DM_KICK] = {"pitch", "length", "punch", "tone"},    [DM_SNARE] = {"pitch", "length", "wires", "punch"},
     [DM_HIHAT] = {"pitch", "length", "metal", "focus"},  [DM_CLAP] = {"tone", "length", "spread", "tail"},
@@ -61,6 +63,10 @@ const char *const DM_KNOB[NDM][4] = {
     [DM_XTOM] = {"pitch", "length", "tone", "sweep"},    [DM_XRIM] = {"pitch", "length", "tone", "sweep"},
     [DM_XFM] = {"pitch", "length", "ratio", "mod decay"}, [DM_XNOISE] = {"tone", "length", "drive"},
     [DM_CLANG] = {"pitch", "length", "color", "metal"},   [DM_SOPHIE] = {"pitch", "length", "color", "metal"},
+    /* 9W9's pots (d909.h): the kick's sweep is its Tune (the drop's time), the snare's tone its wires' decay */
+    [DM_909KICK] = {"pitch", "decay", "attack", "sweep"}, [DM_909SNARE] = {"pitch", "decay", "snappy", "tone"},
+    [DM_909TOM] = {"pitch", "decay", "attack", "size"},   [DM_909RIM] = {"pitch", "drive", "shape"},
+    [DM_909CLAP] = {"tone", "tail", "drive", "shape"},
 };
 /* knobs 5..8 (a model with more than four) */
 const char *const DM_KNOB2[NDM][4] = {
@@ -69,10 +75,13 @@ const char *const DM_KNOB2[NDM][4] = {
     [DM_XTOM] = {"noise", "fm", "drive"},      [DM_XRIM] = {"noise", "drive"},
     [DM_XFM] = {"click", "index", "drive"},
     [DM_CLANG] = {"model", "sweep", "feedback", "fold"}, [DM_SOPHIE] = {"model", "feedback", "sweep", "crush"},
+    [DM_909KICK] = {"depth", "drive", "shape"}, [DM_909SNARE] = {"drive", "shape"}, [DM_909TOM] = {"drive", "shape"},
 };
 const char *const SPH_MODEL_N[7] = {"fuse", "stack", "split", "shard", "pipe", "boom", "kick"};
 const char *const CLANG_MODEL_N[4] = {"fuse", "boom", "pipe", "shard"};
-const uint8_t DM_NKNOB[] = {4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 7, 7, 7, 3, 7, 6, 7, 3, 8, 8};
+const char *const DM9_SHAPE_N[7] = {"diode", "clip", "sat", "fuzz", "pdist", "fold", "crush"};   /* (9W9's dists) */
+const char *const DM9_SIZE_N[3] = {"low", "mid", "high"};
+const uint8_t DM_NKNOB[] = {4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 7, 7, 7, 3, 7, 6, 7, 3, 8, 8, 7, 6, 6, 3, 4};
 _Static_assert(sizeof DM_NKNOB == NDM, "a knob count for each model");
 /* the kit tuned to C (the pitch knobs, from start()'s mappings; measured by tests/host/drumline_test.c):
  *   kick   82: 16 Hz x 2^(82/127 x 2.5)       = 49.0 Hz  G1      length 42: -60 dB at about 0.17 s
@@ -95,6 +104,9 @@ const uint8_t DM_DEFAULT[NDM][4] = {
     [DM_XFM] = {59, 30, 97, 28},    [DM_XNOISE] = {97, 41, 23},
     [DM_CLANG] = {45, 60, 64, 90},                  /* a FUSE clang: A2, 0.3 s */
     [DM_SOPHIE] = {38, 54, 66, 97},                 /* Sophie's factory snare: D2, 0.24 s */
+    /* the 909 models: 9W9's pots as it seeds them (the toms: the low tom's) */
+    [DM_909KICK] = {45, 90, 13, 34}, [DM_909SNARE] = {64, 41, 64, 68}, [DM_909TOM] = {66, 111, 23, 0},
+    [DM_909RIM] = {62, 24, 0},       [DM_909CLAP] = {63, 63, 30, 0},
 };
 /* knobs 5..8 (a model with more than four) */
 const uint8_t DM_DEFAULT2[NDM][4] = {
@@ -102,6 +114,7 @@ const uint8_t DM_DEFAULT2[NDM][4] = {
     [DM_XTOM] = {13, 15, 23},  [DM_XRIM] = {13, 23},       [DM_XFM] = {13, 85, 23},
     [DM_CLANG] = {0, 64, 40, 0},
     [DM_SOPHIE] = {3, 23, 82, 38},                  /* shard, feedback 18, sweep 28, crush 30 */
+    [DM_909KICK] = {0, 0, 0}, [DM_909SNARE] = {36, 0}, [DM_909TOM] = {41, 0},
 };
 const char *const PM_NAME[NPM] = {"one-shot", "gated", "loop", "choke 1", "choke 2", "choke 3"};
 const char *const DL_SOUND_NAME[DL_NSOUND] = {"kick", "snare", "hat", "open", "clap", "ltom", "htom", "conga",
@@ -142,6 +155,10 @@ static const dm_spec_t SPEC[NDM] = {
     [DM_XCLAP] = {0.05f, 1.5f, 2.14f},  [DM_XTOM] = {0.05f, 1.5f, 2.11f},   [DM_XRIM] = {0.05f, 1.5f, 2.26f},
     [DM_XFM] = {0.05f, 1.5f, 0.54f},    [DM_XNOISE] = {0.05f, 1.5f, 1.46f}, [DM_CLANG] = {0.03f, 4.0f, 2.26f},
     [DM_SOPHIE] = {0.03f, 4.0f, 3.0f},                /* (its default, the snare, at -6 dBFS) */
+    /* the 909 models: their lengths are 9W9's (d909.c); trims as the x models' (kick and snare -6 dBFS, the rest
+     * -9: tests/host/drumline_test.c) */
+    [DM_909KICK] = {0.1f, 4.0f, 0.34f}, [DM_909SNARE] = {0.1f, 1.0f, 0.33f}, [DM_909TOM] = {0.1f, 2.6f, 0.39f},
+    [DM_909RIM] = {0.1f, 0.3f, 0.26f},  [DM_909CLAP] = {0.1f, 1.0f, 0.35f},
 };
 /* the 808's six metal oscillators (sc808: 205.3, 304.4, 369.6, 522.7, 540, 800 Hz) and the tambourine's
  * jingles: six inharmonic partials of a small brass disc */
@@ -215,6 +232,9 @@ typedef struct {
             struct ds_params dp;
             uint8_t dtrig, dfold;
         };
+        struct {                      /* the 909 models: the slot of d9_slot its hit plays in */
+            uint8_t d9s;
+        };
     };
     /* the key's own stage (DP_ATTACK..DP_FTYPE) */
     uint32_t et;                      /* samples since the hit began (after the lag) */
@@ -242,9 +262,20 @@ struct drumline {
     smp_cache_t sc[NDSC];             /* the sample model's decoded windows (dsp/sample.h) */
     int8_t sc_owner[NDSC];            /* the voice holding each, -1 */
     dynf_t f;
-    int8_t line_owner[NRESO];         /* the voice holding each string, -1 */
-    int16_t line[NRESO][RESO_LEN];
 };
+/* every kit's strings and 909 voices (2026-10-30: the strings were each kit's own two, 6 KB for three kits; shared,
+ * their 4 KB hold the 909 bank): each slot's owner, a kit and its voice (0: free; a voice that has moved on frees it
+ * too). The kits all render on the first core, and their hits come between renders: one owner at a time */
+#ifdef PLAT_HOST
+#define DL_POOL
+#else
+#define DL_POOL __attribute__((section(".pool")))   /* (the pool: zeroed at start, as .bss) */
+#endif
+typedef struct { drumline_t *d; int8_t vi; } dl_own_t;
+static int16_t dl_line[NRESO][RESO_LEN] DL_POOL;
+static dl_own_t dl_lown[NRESO] DL_POOL;
+static d909_t d9_slot[N909] DL_POOL;
+static dl_own_t d9_own[N909] DL_POOL;
 _Static_assert(sizeof(struct drumline) <= DRUMLINE_BYTES, "drumline_t does not fit DRUMLINE_BYTES");
 #ifdef PLAT_HOST
 int drumline_sizeof(void) { return (int)sizeof(struct drumline); }
@@ -312,10 +343,54 @@ void drumline_init(drumline_t *d, const uint8_t *par)
     d->f.gain = 1.0f;
     for (i = 0; i < NDSC; i++)
         d->sc_owner[i] = -1;
-    for (i = 0; i < NRESO; i++)
-        d->line_owner[i] = -1;
+    for (i = 0; i < NRESO; i++)                    /* (a kit unit set up again: what it held, free) */
+        if (dl_lown[i].d == d)
+            dl_lown[i].d = 0;
+    for (i = 0; i < N909; i++)
+        if (d9_own[i].d == d)
+            d9_own[i].d = 0;
     for (i = 0; i < NDVOICE; i++)
         d->v[i].rng = 0x9E3779B9u * (i + 1);
+}
+
+/* the shared slots (dl_lown: the strings' lines, d9_own: the 909 voices): voice vi of kit d holds slot i */
+static inline int holds(const dl_own_t *o, const drumline_t *d, int vi) { return o->d == d && o->vi == vi; }
+static int own_live(const dl_own_t *o, int line, int i)   /* its owner still plays from it */
+{
+    const dvoice_t *v;
+    if (!o->d)
+        return 0;
+    v = &o->d->v[o->vi];
+    return line ? v->on && v->model == DM_RESO && v->line == i : v->on && DM_IS909(v->model) && v->d9s == i;
+}
+/* a slot of n for voice vi of kit d: a free one, else the oldest owner's (that voice ends) */
+static int slot_claim(dl_own_t *own, int n, int line, drumline_t *d, int vi)
+{
+    int i, best = -1;
+    uint32_t age = 0;
+    for (i = 0; i < n && best < 0; i++)
+        if (!own_live(&own[i], line, i) || holds(&own[i], d, vi))
+            best = i;
+    if (best < 0) {
+        for (i = 0; i < n; i++) {
+            const dvoice_t *o = &own[i].d->v[own[i].vi];
+            if (best < 0 || o->age >= age) {
+                age = o->age;
+                best = i;
+            }
+        }
+        own[best].d->v[own[best].vi].on = 0;
+    }
+    own[best].d = d;
+    own[best].vi = (int8_t)vi;
+    return best;
+}
+static void slot_leave(const drumline_t *d, const dvoice_t *v, int vi)   /* the voice is done with its slot */
+{
+    if (v->model == DM_RESO && v->line < NRESO && holds(&dl_lown[v->line], d, vi))
+        dl_lown[v->line].d = 0;
+    if (DM_IS909(v->model) && v->d9s < N909 && holds(&d9_own[v->d9s], d, vi))
+        d9_own[v->d9s].d = 0;
 }
 
 /* a sample cache for voice vi: a free one (or one whose voice has moved on), else the oldest sample voice's
@@ -805,12 +880,15 @@ static void start(drumline_t *d, dvoice_t *v, int sound, int vel, int pitch_semi
     float rnd = fm_minf(1.0f, rnd_key + rnd_trk);
     float lscale = fm_exp2f(((float)par[TP_R] - 64.0f) * (1.0f / 32.0f));   /* length: 0.25x .. 4x */
     sp = &SPEC[model];
-    if (v->model == DM_RESO && model != DM_RESO && d->line_owner[v->line] == (int)(v - d->v))
-        d->line_owner[v->line] = -1;                  /* it leaves its string (also one choked while waiting) */
+    if (v->model != model || !v->on)                  /* it leaves its string or its 909 slot (also one choked while
+                                                       * waiting) */
+        slot_leave(d, v, (int)(v - d->v));
     {   /* the voice's constant part: the gains start at the chunk's first control read */
         uint32_t rng = v->rng;
-        uint8_t line = v->line;
-        int keep_line = v->on && v->model == DM_RESO && model == DM_RESO;
+        uint8_t line = v->line, d9s = v->d9s;
+        const int vi = (int)(v - d->v);
+        int keep_line = v->on && v->model == DM_RESO && model == DM_RESO && line < NRESO && holds(&dl_lown[line], d, vi);
+        int keep_9 = v->on && v->model == model && DM_IS909(model) && d9s < N909 && holds(&d9_own[d9s], d, vi);
         uint8_t *z = (uint8_t *)v;
         uint32_t n;
         for (n = 0; n < sizeof *v; n++)
@@ -825,30 +903,14 @@ static void start(drumline_t *d, dvoice_t *v, int sound, int vel, int pitch_semi
         v->hvel = (uint8_t)vel;
         v->hpitch = (int8_t)fm_clampf(semi, -127.0f, 127.0f);
         v->hflags = (uint8_t)flags;
-        if (!keep_line && model == DM_RESO) {         /* a string: a free one, else the older owner's */
-            int li = -1, oldest = -1;
-            for (i = 0; i < NRESO; i++)
-                if (d->line_owner[i] < 0) {
-                    li = i;
-                    break;
-                }
-            if (li < 0) {
-                uint32_t age = 0;
-                for (i = 0; i < NRESO; i++) {
-                    dvoice_t *o = &d->v[d->line_owner[i]];
-                    if (o->age >= age) {
-                        age = o->age;
-                        li = i;
-                        oldest = d->line_owner[i];
-                    }
-                }
-                d->v[oldest].on = 0;
-            }
-            d->line_owner[li] = (int8_t)(v - d->v);
+        if (!keep_line && model == DM_RESO) {         /* a string: a free one, else the oldest owner's (any kit's) */
+            int li = slot_claim(dl_lown, NRESO, 1, d, vi);
             v->line = (uint8_t)li;
             for (i = 0; i < RESO_LEN; i++)
-                d->line[li][i] = 0;
+                dl_line[li][i] = 0;
         }
+        if (DM_IS909(model))                          /* a 909 hit: its slot again, else a free one, else the oldest */
+            v->d9s = (uint8_t)(keep_9 ? d9s : slot_claim(d9_own, N909, 0, d, vi));
     }
     k1 = knob(p, 0, model == DM_KICK ? rnd_key : rnd, &v->rng);
     k2 = knob(p, 1, rnd, &v->rng);
@@ -1043,6 +1105,24 @@ static void start(drumline_t *d, dvoice_t *v, int sound, int vel, int pitch_semi
                 xp[map[i]] = kv[i] * (map[i] == XP_PITCH ? 127.0f : 100.0f);
         x_start(v, model, xp[XP_PITCH] + semi, xp[XP_DECAY], xp[XP_TONE], xp[XP_SWEEP], xp[XP_NOISE], xp[XP_FM],
                 xp[XP_DRIVE], lscale, flags);
+        break;
+    }
+    case DM_909KICK: case DM_909SNARE: case DM_909TOM: case DM_909RIM: case DM_909CLAP: {
+        /* 9W9's 909 (dsp/d909.c) in the voice's slot: its knobs 0..1, a list knob (the tom's size, a shape) as the
+         * key holds it, unrandomised; its own lengths; the velocity a gain (v->g), env only the choke's */
+        static const uint8_t LIST[ND9] = {0x40, 0x20, 0x28, 0x04, 0x08};   /* bit i: knob i is a list */
+        const uint8_t *px = par + TP_DRUMX(sound, 0);
+        const int w = model - DM_909KICK;
+        float kn[7];
+        for (i = 0; i < 7; i++) {
+            int raw = i < 4 ? p[DP_K1 + i] : px[i - 4];
+            kn[i] = LIST[w] >> i & 1 ? (float)raw * (1.0f / 127.0f) : i == 0 ? k1 : i == 1 ? k2 : i == 2 ? k3
+                  : i == 3 ? k4 : (float)raw * (1.0f / 127.0f);
+        }
+        d909_start(&d9_slot[v->d9s], w, kn, semi, lscale, (flags & HF_SHORT ? D9_F_SHORT : 0) |
+                                                         (flags & HF_LONG ? D9_F_LONG : 0), v->rng);
+        v->k = 1.0f;
+        v->env2 = 0.0f;
         break;
     }
     case DM_SOPHIE: {
@@ -1358,8 +1438,8 @@ static void clang_render(dvoice_t *v, float *t, int m, float *envp)
     *envp = env;
 }
 
-/* ---- one voice, m samples (<= SUB) of mono into t[] ---- */
-static void render_voice(dvoice_t *v, int16_t *line, smp_cache_t *sc, float *t, int m)
+/* ---- one voice, m samples (<= SUB) of mono into t[] (nine: its 909 slot, held; else 0) ---- */
+static void render_voice(dvoice_t *v, int16_t *line, smp_cache_t *sc, d909_t *nine, float *t, int m)
 {
     int i;
     float env = v->env, k = v->k, env2 = v->env2, k2 = v->k2, ph = v->ph, inc = v->inc, g = v->g;
@@ -1642,6 +1722,14 @@ static void render_voice(dvoice_t *v, int16_t *line, smp_cache_t *sc, float *t, 
         env2 = 0.0f;
         break;
     }
+    case DM_909KICK: case DM_909SNARE: case DM_909TOM: case DM_909RIM: case DM_909CLAP:
+        if (!nine || !d909_render(nine, t, m))       /* (its slot taken, or the hit done: the voice ends) */
+            env = 0.0f;
+        for (i = 0; i < m; i++) {                     /* the velocity, and the choke's fade */
+            t[i] *= g * env;
+            env *= k;
+        }
+        break;
     default:
         for (i = 0; i < m; i++)
             t[i] = 0.0f;
@@ -1887,8 +1975,11 @@ void drumline_render(drumline_t *d, float *l, float *r, float *s1, float *s2, ui
                 any |= 1u << ((c + (uint32_t)o) / SUB);
                 {
                     DHC_T(t0);
-                    render_voice(v, d->line[v->line],
-                                 v->sci && d->sc_owner[v->sci - 1] == vi ? &d->sc[v->sci - 1] : 0, t + from, mm - from);
+                    render_voice(v, dl_line[v->line < NRESO ? v->line : 0],
+                                 v->sci && d->sc_owner[v->sci - 1] == vi ? &d->sc[v->sci - 1] : 0,
+                                 DM_IS909(v->model) && v->d9s < N909 && holds(&d9_own[v->d9s], d, vi) ? &d9_slot[v->d9s]
+                                                                                                    : 0,
+                                 t + from, mm - from);
                     key_post(d->par + TP_DRUM(v->sound, 0), v, t + from, mm - from);
                     DHC_ADD(v->sound, 0, t0);
                 }
@@ -1912,8 +2003,7 @@ void drumline_render(drumline_t *d, float *l, float *r, float *s1, float *s2, ui
                 v->gr = gr;
                 v->att = att;
                 if (!v->on) {
-                    if (v->model == DM_RESO && d->line_owner[v->line] == vi)
-                        d->line_owner[v->line] = -1;
+                    slot_leave(d, v, vi);
                     if (v->held && v->mode == PM_LOOP)   /* loop: from the start again while held */
                         start(d, v, v->sound, v->hvel, v->hpitch, v->hflags, 0);
                 }

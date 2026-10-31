@@ -3392,6 +3392,17 @@ static const tp_info_t *dknob_of(int m, int k)   /* model m's knob k (0..7) */
     }
     if ((m == DM_SOPHIE && k == 6) || (m == DM_CLANG && k == 5))   /* their SWEEP: about the middle */
         i->kind = PK_BIP;
+    if (DM_IS909(m) && ((m == DM_909KICK && k == 6) || ((m == DM_909SNARE || m == DM_909TOM) && k == 5) ||
+                        (m == DM_909RIM && k == 2) || (m == DM_909CLAP && k == 3))) {   /* the 909s' shape */
+        i->kind = PK_NAMES;
+        i->hi = 6;
+        i->names = DM9_SHAPE_N;
+    }
+    if (m == DM_909TOM && k == 3) {                  /* the 909 tom's size */
+        i->kind = PK_NAMES;
+        i->hi = 2;
+        i->names = DM9_SIZE_N;
+    }
     if (m == DM_SAMPLE) {                        /* the sample model: sample, pitch (+-24 semitones), start, reverse */
         static const uint8_t KIND[4] = {PK_SAMPLE, PK_BIPST, PK_PCT, PK_SWITCH};
         i->kind = KIND[k];

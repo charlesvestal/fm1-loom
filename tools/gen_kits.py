@@ -16,7 +16,8 @@ import sys
 
 # drumline.h's model numbers (saved by number: never renumber)
 M = dict(kick=0, snare=1, hat=2, clap=3, shaker=4, tamb=5, string=6, conga=7, tom=8, fm=9, sample=10,
-         xkick=11, xsnare=12, xhat=13, xclap=14, xtom=15, xrim=16, xfm=17, xnoise=18, clang=19, sophie=20)
+         xkick=11, xsnare=12, xhat=13, xclap=14, xtom=15, xrim=16, xfm=17, xnoise=18, clang=19, sophie=20,
+         kick909=21, snare909=22, tom909=23, rim909=24, clap909=25)   # (9W9's circuits: dsp/d909.c)
 PM_ONESHOT, PM_CHOKE1 = 0, 3
 k127 = lambda v: max(0, min(127, round(v * 1.27)))                     # MACHINEDRUM's 0..100 on a knob
 
@@ -52,6 +53,13 @@ def clang(model, note, decay, color, metal, sweep=0, feedback=0, fold=0, **key):
     """clang in digisophie's terms: decay in seconds, color / metal / feedback / fold 0..127, sweep -64..63"""
     return dict(model=M["clang"], knobs=[note, length(decay), color, metal, CLANG_M.index(model), 64 + sweep, feedback,
                                          fold], **key)
+
+
+def n9(model, *knobs, **key):
+    """a 909 model (9W9's circuits, dsp/d909.c), its knobs as the model shows them: kick pitch decay attack sweep depth
+    drive shape; snare pitch decay snappy tone drive shape; tom pitch decay attack size drive shape; rim pitch drive shape;
+    clap tone tail drive shape"""
+    return dict(model=M[model], knobs=list(knobs), **key)
 
 
 def loom(model, k1, k2, k3, k4, **key):
@@ -196,6 +204,15 @@ KITS = [
         x("xhat", 91, 65, 76, 22, 92, 12, db=0, pan=40),
         SO_BLIP,
     ]),
+    ("Twill", [                                   # the 909's own circuits (9W9's), with the factory 909 hats
+        n9("kick909", 45, 80, 20, 34, 0, 10, 0, db=0),
+        n9("snare909", 64, 41, 70, 68, 36, 0, db=7),
+        hat(smp("hat909", decay=60), db=7, pan=56),                   # (cut short: about 80 ms)
+        hat(smp("hat909"), db=9, pan=72),
+        n9("clap909", 63, 63, 30, 0, db=12),
+        n9("tom909", 66, 105, 23, 0, 41, 0, db=-1, pan=50),            # (the low tom)
+        n9("tom909", 53, 100, 23, 2, 41, 0, db=-1, pan=78),            # (the high tom)
+    ]),
 ]
 # keys 8..11 as the default kit names them (conga, shaker, string, fm): a pattern written on Loom plays the same roles on
 # every kit. the kit's own models; the fm key a short FM blip
@@ -216,11 +233,13 @@ SLOTS = {                                                              # each ki
     "Linen": [x("xrim", 64, 10, 60, 30, 0), x("xnoise", tone=100, decay=3), clang("pipe", 55, 0.2, 50, 60, 0, 10),
                 clang("boom", 50, 0.08, 45, 45, 20, 5)],
     "Velvet": [S_CONGA, x("xnoise", tone=70, decay=12), S_STRING, sophie("boom", 45, 0.18, 30, 25, 5, 20, 0)],
+    "Twill": [n9("tom909", 69, 95, 23, 1, 41, 0), x("xnoise", tone=90, decay=7), S_STRING,   # (the conga a mid tom; the
+              n9("rim909", 62, 24, 0)],                                                    # fm key the 909 rim)
 }
 # their volumes, balanced by role as the other keys (conga 6 dB under the kick, the shaker 14, the string and the fm 8)
 SLOT_DB = {"Nylon": [3, 4, 0, 1], "Elastane": [-5, -6, -6, -7], "Wire": [1, 0, 0, 0], "Burlap": [3, 4, -1, 2],
            "Sequin": [2, 7, -1, 1], "Frayed": [1, -7, 0, -8], "Denim": [3, 4, -7, 0], "Linen": [7, 4, 1, 3],
-           "Velvet": [-7, 4, -8, -9]}
+           "Velvet": [-7, 4, -8, -9], "Twill": [3, 4, -8, 0]}
 KITS = [(name, keys[:7] + [dict(k, db=d) for k, d in zip(SLOTS[name], SLOT_DB[name])]) for name, keys in KITS]
 assert all(len(keys) == 11 and len(name) <= 11 for name, keys in KITS)
 

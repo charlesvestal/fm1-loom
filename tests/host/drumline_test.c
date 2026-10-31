@@ -1064,6 +1064,55 @@ int main(void)
         for (b = 0; b < 200; b++)
             render();
         check("three strings: finite, the third steals a delay line", !nan_seen && lpk > 0.0f);
+        {   /* the strings and the 909 voices are every kit's (drumline.c dl_line, d9_slot): a second kit shares them */
+            static uint8_t dbuf2[DRUMLINE_BYTES] __attribute__((aligned(8)));
+            static uint8_t par2[NTP];
+            drumline_t *dl2 = (drumline_t *)dbuf2;
+            int n1, n2, ok;
+            /* two strings on this kit, then one on the other: the oldest of this kit's ends */
+            memcpy(par2, par, sizeof par2);
+            drumline_init(dl, par);
+            drumline_init(dl2, par2);
+            drumline_hit(dl, 0, 127, 0, 0, 0);
+            render();
+            drumline_hit(dl, 1, 127, 5, 0, 0);
+            render();
+            drumline_hit(dl2, 2, 127, 10, 0, 0);
+            render();
+            n1 = drumline_voices(dl);
+            n2 = drumline_voices(dl2);
+            check("strings across kits: two at once in all, a third (another kit's) takes the oldest", n1 == 1 && n2 == 1);
+            /* nine 909 hits over the two kits: eight sound, finite; then a kit set up again lets its slots go */
+            kit_default();
+            for (s = 0; s < 5; s++)
+                key_model(s, DM_909KICK + s);
+            memcpy(par2, par, sizeof par2);
+            drumline_init(dl, par);
+            drumline_init(dl2, par2);
+            nan_seen = 0;
+            for (s = 0; s < 5; s++) {
+                drumline_hit(dl, s, 127, 0, 0, 0);
+                drumline_hit(dl2, s, 100, 0, 0, 0);
+                render();
+                memset(L, 0, sizeof L); memset(R, 0, sizeof R); memset(S1, 0, sizeof S1); memset(S2, 0, sizeof S2);
+                drumline_render(dl2, L, R, S1, S2, BLK);
+            }
+            n1 = drumline_voices(dl);
+            n2 = drumline_voices(dl2);
+            printf("  ten 909 hits over two kits: %d + %d sounding\n", n1, n2);
+            ok = n1 + n2 == N909 && !nan_seen;
+            drumline_init(dl2, par2);                     /* (its slots free: this kit's next hits take them) */
+            for (s = 0; s < 2; s++)
+                drumline_hit(dl, s, 127, 0, 0, 0);
+            render();
+            check("909s across kits: eight at once in all, finite; a kit set up again frees its slots",
+                  ok && drumline_voices(dl) == 5 && !nan_seen);
+            for (b = 0; b < 4 * SR / BLK; b++)          /* (the low tom's 1.7 s, the kick's 1.4) */
+                render();
+            check("the 909s end within 4 s", !drumline_sounding(dl));
+            kit_default();
+            drumline_init(dl, par);
+        }
         kit_default();
     }
 
