@@ -3275,6 +3275,7 @@ static const tp_info_t ACID_FT_P = {"type", 0, 0, 0, PK_NAMES, ACIDFT_N};
 static const tp_info_t KNIT_X_P[4] = {{"osc 2", 40, 88, 64, PK_BIPST, 0}, {"level", 0, 127, 0, PK_PCT, 0},
                                     {"sub", 0, 127, 0, PK_PCT, 0}, {"noise", 0, 127, 0, PK_PCT, 0}};
 static const tp_info_t O2FINE_P = {"osc 2 fine", 14, 114, 64, PK_CENT, 0};   /* (TP_O2FINE: +-50 cents) */
+static const tp_info_t RUP_P = {"oct up", 0, 3, 0, PK_NUM, 0};   /* (TP_RUP: the random player's octaves above) */
 /* the sample engine's second page (its loop modes only): where the loop starts in the region that plays, and how much
  * of the rest it loops (0 auto: the sample's own loop, else to the region's end) (smp_prep) */
 static const tp_info_t SAMPLE_X_P[4] = {{"loop start", 0, 127, 0, PK_PCT, 0}, {"loop len", 0, 127, 0, PK_PCT, 0},
@@ -3295,12 +3296,11 @@ static const char *const MIDI_CC_N[NMIDI_CC] = {"cc 0", "cc 1", "cc 2", "cc 3", 
 static const tp_info_t STRUM_P[4] = {{"roll", 0, 63, 30, PK_NUM, 0}, {"pattern", 0, 3, 0, PK_NAMES, MPAT_N},
                                        {"-", 0, 0, 0, PK_NUM, 0}, {"hold", 0, 1, 0, PK_SWITCH, 0}};
 /* random: P1..P4 page 1 (TP_P1..TP_AP4 are contiguous); AP1..AP4 page 2 (seq.c rand_notes) */
-static const char *const RAND_OCT_NAMES[RAND_OCT_N] = {"-3/+3", "-2/+3", "-1/+3", "-3/+2", "-2/+2", "-1/+2", "-3/+1", "-2/+1", "-1/+1", "-3/0", "-2/0", "-1/0", "0", "0/+1", "0/+2", "0/+3", "-1/+1", "-1/+2", "-1/+3", "-2/+1", "-2/+2", "-2/+3", "-3/+1", "-3/+2", "-3/+3"};
 static const tp_info_t RAND_P[8] = {
     {"note %", 0, 127, 64, PK_PCT, 0},   /* P1: chance a grid step sounds */
     {"pitch %", 0, 127, 32, PK_PCT, 0},  /* P2: chance the pitch phrase re-rolls each cycle */
     {"rhythm %", 0, 127, 32, PK_PCT, 0}, /* P3: chance the rhythm phrase re-rolls each cycle */
-    {"octave", 0, RAND_OCT_N - 1, RAND_OCT_CENTRE, PK_NAMES, RAND_OCT_NAMES},   /* P4: the octave range (synth.h) */
+    {"oct down", 0, 3, 0, PK_NUM, 0},     /* P4: octaves below the step's (synth.h rand_oct_lo) */
     {"time %", 0, 127, 0, PK_PCT, 0},    /* AP1: chance the next step is pushed late */
     {"length", 1, 64, 16, PK_NUM, 0},    /* AP2: the generator cycle in grid steps */
     {"vel %", 0, 127, 0, PK_PCT, 0},     /* AP3: chance the velocity is scaled */
@@ -3461,6 +3461,8 @@ const tp_info_t *tp_info(int p, int engine)
     if (p == TP_O2FINE)                          /* (its range on any engine, so a project's check keeps it; knit's
                                                   * Sub page shows it) */
         return &O2FINE_P;
+    if (p == TP_RUP)
+        return &RUP_P;
     if (p >= 0 && p < (int)(sizeof FIXED / sizeof FIXED[0]))
         return &FIXED[p];
     return &NONE_P;
@@ -3480,6 +3482,8 @@ const tp_info_t *tp_info_par(int p, const uint8_t *par)
             return &RAND_P[p - TP_P1];
         return &NONE_P;
     }
+    if (p == TP_RUP)                             /* (the random player's second octave knob) */
+        return player == PL_RAND ? &RUP_P : &NONE_P;
     if (tp_is_dkey(p)) {
         int s = (p - TP_DRUM0) / DP_N, k = (p - TP_DRUM0) % DP_N;
         if (k >= DP_K1 && k <= DP_K4)
@@ -3760,6 +3764,7 @@ void sound_default(uint8_t *par, int engine)
     if (engine == EG_DRUMLINE)
         par[TP_FTYPE] = FT_DYNAMIC;
     par[TP_O2FINE] = 64;
+    par[TP_RUP] = 0;
 }
 
 /* -------------------------------------------------------------- presets --- */

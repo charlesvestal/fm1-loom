@@ -86,3 +86,17 @@ expect name8 97
 expect par1.fine 64
 expect par2.fine 64
 expect par8.fine 64
+# a format 18 project with PR #13's random player (tests/fixtures/make_v18.xy): the tracks a byte longer (TP_RUP), the
+# one octave knob split into its octaves down and up (14: 0/+2 on T2, 16: -1/+1 on T3), the rest where it was
+storeload tests/fixtures/store_v18.bin
+reboot
+wait 400
+expect tempo 97
+expect par2.player 4
+expect par2.p4 0
+expect par2.rup 2
+expect par3.p4 1
+expect par3.rup 1
+expect par1.rup 0
+expect par2.x1 61
+expect par2.fine 64

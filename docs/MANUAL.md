@@ -1069,7 +1069,9 @@ Press **ARP**. **KNOB 1** picks the player: off, arp, strum, hold or random.
   on Steps: hold a step and press **SEQ** (as for a chord), and the keys toggle the current pattern's notes. With no
   pool picked, every pitch class is used. The pool is per pattern. A dot under a key marks a note your follow mode
   allows: the conductor's scale, or the chord tones for **harmony** and **chord deg**. A track that follows the
-  conductor still harmonises its generated notes. The player's parameters are spread over three pages:
+  conductor still harmonises its generated notes, and a step's own options apply to them as to a written note's
+  (ignore the progression, transpose only, a move by the scale). The player's parameters are spread over three
+  pages:
   - **note %** is the chance a step sounds.
   - **pitch %** is the chance the pitches re-roll when a generator cycle ends. At 0 % the phrase repeats exactly, at
     100 % it changes every cycle.
@@ -1081,11 +1083,10 @@ Press **ARP**. **KNOB 1** picks the player: off, arp, strum, hold or random.
     through the pattern before it repeats, and 32 steps and a length of 16 play the same phrase twice in one pass.
   - **vel %** is the chance a step's velocity changes, to anything from half to one and a half times its own.
   - **gate %** is the chance a step's note length changes, to anything from a tenth to twice its own.
-  - **octave** is how far a note may stray from the step's own octave: how many octaves below and above it, up to
-    three each way. In the middle it reads **0** and every note stays in the step's octave. Turn it right to allow
-    octaves above (**0/+1** to **0/+3**), left to allow octaves below (**-1/0** to **-3/0**); further out it widens
-    the other side too, and **-1/+1** spreads over three octaves around the step's. A step's own octave is its note's
-    (hold **SEQ** and press **OCT-** or **OCT+** to move a pattern's notes), and C4 for a step with no note set.
+  - **oct down** and **oct up** (Players 3) are how far a note may stray from the step's own octave: how many
+    octaves below it and above it, 0 to 3 each. At 0 and 0 every note stays in the step's octave; 1 and 1 spreads
+    over three octaves around it. A step's own octave is its note's, shown under its **on** (hold **SEQ** and press
+    **OCT-** or **OCT+** to move a pattern's notes), and C4 for a step with no note set.
 
 The arp and the strum play the track's steps too. A step's notes are arpeggiated for as long as the step lasts
 (give it a longer **LENGTH** for more notes), together with any keys you hold. A step with a chord is strummed in
@@ -1516,7 +1517,7 @@ On a sound page, hold **SAVE** and press white key 1 to 16 to keep the track's s
 | FX, SELECT four times | Throws | latch | | | | low: drum throws, high: melodic throws |
 | LFO | LFO | type | the type's three | | | play |
 | LFO, SELECT | LFO 2 | the type's fourth and fifth | | | | play |
-| ARP | Players | player | its first | its second | its third | play, through the player (random: Players 2 its randomization, Players 3 the octave) |
+| ARP | Players | player | its first | its second | its third | play, through the player (random: Players 2 its randomization, Players 3 the octaves down and up) |
 | ARP, SELECT | Players 2, Hold | the arp's length, style, glide, stereo; hold | | | | play |
 | ARP, SELECT (last) | Weave | with | pattern | rule | plays | black: the track woven in, white: its pattern; SEL: KEEP AS PATTERN |
 | GLO | Mix | FX I | FX II | pan | level | black: tap to mute, hold to solo (several together) |

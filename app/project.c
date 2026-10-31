@@ -59,6 +59,9 @@ typedef char raw_fits[(RAW_LEN < 0x100000u) ? 1 : -1];   /* (lz.c packs up to 16
 #define SET_OLD ((SET_HDR + NALLTRK * TRK14 + 3u) & ~3u)   /* (the struct padded to its 4-byte alignment) */
 #define NTP15 ((uint32_t)TP_O2FINE)                       /* format 15's par[]: up to the keys' knobs 5..8 */
 #define TRK15 (NTP15 + NAME_LEN + 4u)
+#define NTP18 ((uint32_t)TP_RUP)                          /* formats 16..18's: up to knit's osc 2 fine */
+/* the random player's one octave knob before 19 (TP_P4, 0..24: PR #13's path about its centre) as down * 4 + up */
+static const uint8_t OLD_OCT[25] = {15, 11, 7, 14, 10, 6, 13, 9, 5, 12, 8, 4, 0, 1, 2, 3, 5, 6, 7, 9, 10, 11, 13, 14, 15};
 typedef char settings_head_fits[(SET_HDR + 4u + 64u <= PLAT_STORE_MAX && SET_OLD == 3804u) ? 1 : -1];   /* (format 14's size) */
 typedef char trk_layout[(offsetof(trk_t, name) == NTP && sizeof(trk_t) == NTP + NAME_LEN + 4u) ? 1 : -1];
 typedef char preset_packed[(sizeof(user_preset_t) == NAME_LEN + 2u + NTP_SOUND) ? 1 : -1];   /* (no padding) */
@@ -710,18 +713,27 @@ static int settings_unpack(int n)
             return -1;
         for (i = 0; i < SET_HDR; i++)
             ((uint8_t *)&proj)[i] = io_buf[i];
-        if (fmt >= 16u)
+        uint32_t ntp = fmt >= 19u ? (uint32_t)NTP : fmt >= 16u ? NTP18 : NTP15, tl = ntp + NAME_LEN + 4u;
+        if (fmt >= 19u)
             return lz_decompress(&src, (uint8_t *)proj.trk, (uint32_t)sizeof proj.trk) ? -1 : 0;
-        if (lz_decompress(&src, (uint8_t *)proj.trk, NALLTRK * TRK15))   /* format 15: its tracks a byte shorter, */
+        if (lz_decompress(&src, (uint8_t *)proj.trk, NALLTRK * tl))   /* formats 15..18: their tracks shorter, */
             return -1;
         for (int t = NALLTRK - 1; t >= 0; t--) {  /* spread from the last (each moves up: copied from its end) */
-            const uint8_t *o = (const uint8_t *)proj.trk + (uint32_t)t * TRK15;
+            const uint8_t *o = (const uint8_t *)proj.trk + (uint32_t)t * tl;
             uint8_t *d = (uint8_t *)&proj.trk[t];
-            for (i = TRK15; i-- > NTP15;)       /* the name and rsv after the new parameter */
-                d[i + 1u] = o[i];
-            for (i = NTP15; i-- > 0;)
+            uint8_t *par = proj.trk[t].par;
+            for (i = tl; i-- > ntp;)            /* the name and rsv after the new parameters */
+                d[i + (NTP - ntp)] = o[i];
+            for (i = ntp; i-- > 0;)
                 d[i] = o[i];
-            proj.trk[t].par[TP_O2FINE] = 64;
+            if (ntp <= (uint32_t)TP_O2FINE)
+                par[TP_O2FINE] = 64;
+            par[TP_RUP] = 0;
+            if (t < NTRK && par[TP_PLAYER] % NPL == PL_RAND) {   /* (the octave knob: down and up) */
+                uint8_t v = OLD_OCT[par[TP_P4] < 25u ? par[TP_P4] : 12u];
+                par[TP_P4] = (uint8_t)(v >> 2);
+                par[TP_RUP] = (uint8_t)(v & 3u);
+            }
         }
         return 0;
     }
@@ -739,6 +751,7 @@ static int settings_unpack(int n)
             for (int j = 0; j < DPX_N; j++)
                 tr->par[TP_DRUMX(k, j)] = DM_DEFAULT2[tr->par[TP_DRUM(k, DP_MODEL)] % NDM][j];
         tr->par[TP_O2FINE] = 64;
+        tr->par[TP_RUP] = 0;
     }
     return 0;
 }

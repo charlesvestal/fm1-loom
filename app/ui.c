@@ -229,11 +229,13 @@ static void set_tp(int trk, int p, int v)
     } else
         engine_set(trk, p, v);
     if (p == TP_PLAYER && !is_aux(trk) && !is_drum(trk) && v == PL_RAND) {
-        static const uint8_t SD[8] = {64, 32, 32, RAND_OCT_CENTRE, 0, 16, 0, 0};   /* note, pitch, rhythm, octave, time, length, vel, gate */
+        static const uint8_t SD[8] = {64, 32, 32, 0, 0, 16, 0, 0};   /* note, pitch, rhythm, oct down, time, length, vel, gate */
         for (int i = 0; i < 8; i++) {                                /* a new random track makes a phrase at once */
             par[TP_P1 + i] = SD[i];
             engine_set(trk, TP_P1 + i, SD[i]);
         }
+        par[TP_RUP] = 0;                                             /* (oct up) */
+        engine_set(trk, TP_RUP, 0);
     }
     if (was_rand && (is_drum(trk) || par[TP_PLAYER] % NPL != PL_RAND))
         lane_pool_free(pats.lane, trk);              /* (another player, or an engine without one) */

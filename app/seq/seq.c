@@ -812,8 +812,25 @@ static void rand_end(seq_t *s, int t)
         rand_wrap(s, t);
 }
 /* a random step's note: one pitch class from the pool, an octave in the range, the knobs' velocity and gate */
+/* a step's note as it plays: its ramp, the step's tonality option tv (0 ignores the progression, 1 transposes only,
+ * 2.. the brain then a move by the scale), the octave throw; a written note and a random step's the same way */
+static int step_note(seq_t *s, int t, int note, int tv)
+{
+    const seq_trk_t *tr = &s->t[t];
+    if (tr->ramp_deg)
+        note = scale_step(note, s->brain_key, s->brain_scale, tr->ramp_deg);
+    if (tv == 1)                      /* transpose only: chromatic by the brain's degree (a routed track) */
+        note = brain_follows(s, t) ? brain_shift(note, s->brain_key, s->brain_scale, brain_deg(s), 2) : note;
+    else if (tv != 0)                 /* 0 = ignore the progression: this step sits out the brain */
+        note = brain_note(s, t, note);
+    if (tv >= 2)
+        note = tonal(s, t, note, tv);
+    if (fx_on(s, t, PX_OCTAVE) && !is_slice(s, t))   /* (a slice track: up, the engine's pitch) */
+        note -= 12;
+    return clamp_note(note);
+}
 static void rand_notes(seq_t *s, int t, const step_t *st, int p, int ratchet, int vel, uint32_t len_q8, int glide,
-                        const seq_sink_t *o)
+                       int tv, const seq_sink_t *o)
 {
     seq_trk_t *tr = &s->t[t];
     const uint8_t *par = s->par[t];
@@ -847,12 +864,9 @@ static void rand_notes(seq_t *s, int t, const step_t *st, int p, int ratchet, in
         if (pc < 0)
             pc = src % 12;
         lo = rand_oct_lo(par[TP_P4]);
-        oct = (int)(st_rand(tr->st_seed_pit, tr->st_step, ST_OCT) % (uint32_t)(lo + rand_oct_hi(par[TP_P4]) + 1)) - lo;
+        oct = (int)(st_rand(tr->st_seed_pit, tr->st_step, ST_OCT) % (uint32_t)(lo + rand_oct_hi(par[TP_RUP]) + 1)) - lo;
         note = clamp_note((src / 12 + oct) * 12 + pc);   /* the slot's note sets the register (C4 for an implicit one) */
-        note = brain_note(s, t, note);        /* one pass, as any note the track plays */
-        if (fx_on(s, t, PX_OCTAVE))
-            note -= 12;
-        note = clamp_note(note);
+        note = step_note(s, t, note, tv);     /* the step's options, as a written note's */
         if (vel < 1)
             vel = 100;
         if (!len_q8)
@@ -1046,7 +1060,8 @@ static void fire_notes(seq_t *s, int t, const step_t *st, int p, uint32_t L, int
             glide = (int)((L >> 8) * (uint32_t)(pv * 10 + 10) / 4410u);   /* ms: samples * pct / 100 / 44.1 */
     }
     if (rand_track(s, t)) {          /* the random player generates the step's note */
-        rand_notes(s, t, st, p, ratchet, vel, len_q8, glide, o);
+        if (!skip_has(tr, p, st->note[0] ? st->note[0] : 60))   /* (a slot just recorded live: played already) */
+            rand_notes(s, t, st, p, ratchet, vel, len_q8, glide, tv, o);
         return;
     }
     for (i = 0; i < SN; i++) {
@@ -1054,17 +1069,7 @@ static void fire_notes(seq_t *s, int t, const step_t *st, int p, uint32_t L, int
         uint32_t tag;
         if (!note || skip_has(tr, p, note))
             continue;
-        if (tr->ramp_deg)
-            note = scale_step(note, s->brain_key, s->brain_scale, tr->ramp_deg);
-        if (tv == 1)                  /* transpose only: chromatic by the brain's degree (a routed track) */
-            note = brain_follows(s, t) ? brain_shift(note, s->brain_key, s->brain_scale, brain_deg(s), 2) : note;
-        else if (tv != 0)             /* 0 = ignore the progression: this step sits out the brain */
-            note = brain_note(s, t, note);
-        if (tv >= 2)
-            note = tonal(s, t, note, tv);
-        if (fx_on(s, t, PX_OCTAVE) && !is_slice(s, t))   /* (a slice track: up, the engine's pitch) */
-            note -= 12;
-        note = clamp_note(note);
+        note = step_note(s, t, note, tv);
         tag = TAG_STEP | (uint32_t)(p * 16 + i + ratchet * 1024);
         pl = s->par[t][TP_PLAYER];
         if (pl != PL_ARP && pl != PL_STRUM)   /* (the arp and the strum play the step's notes: below) */

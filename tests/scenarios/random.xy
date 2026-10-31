@@ -12,9 +12,9 @@ expect page Players_2
 shot random_players2.png
 turn SELECT 1
 expect page Players_3
-# the octave knob at 0/+2: the step's own octave and up to two above (the knob's value 14: right of the centre, 12)
-knob 2 p4 14
-expect par2.p4 14
+# the octave knobs at 0 down, 2 up: the step's own octave and up to two above
+knob 2 rup 2
+expect par2.rup 2
 wait 40
 shot random_players3.png
 # the pool picker: hold a step, SEQ; the keys toggle C and E

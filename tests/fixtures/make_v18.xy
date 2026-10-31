@@ -1,0 +1,13 @@
+# a format 18 project with PR #13's random player (its one octave knob, TP_P4 0..24): saved by that build, for the
+# migration's test (tests/scenarios/migrate.xy). Run by a format 18 build (ce38001): its loom_host
+# tests/fixtures/make_v18.xy OUT
+wait 300
+bpm 97
+knob 2 player 4
+knob 2 p4 14
+knob 3 player 4
+knob 3 p4 16
+param 2 34 61
+wait 40
+projsave 1 v18_test
+storesave tests/fixtures/store_v18.bin

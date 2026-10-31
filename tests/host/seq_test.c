@@ -1671,7 +1671,7 @@ static void t_random_player(void)     /* the random player: the grid's active sl
     par[0][TP_PLAYER] = PL_RAND;
     par[0][TP_P1] = 127;                          /* every step sounds */
     par[0][TP_P2] = par[0][TP_P3] = 0;            /* the phrase locked */
-    par[0][TP_P4] = RAND_OCT_CENTRE;              /* the step's own octave */
+    par[0][TP_P4] = 0;              /* the step's own octave */
     par[0][TP_AP2] = 8;
     P.pat[0][0].len = 8;
     lane_pool_set(P.lane, 0, 0, 1u << 0);         /* C only */
@@ -1684,7 +1684,7 @@ static void t_random_player(void)     /* the random player: the grid's active sl
     /* active slots: only the steps set play (a step's note only marks it on) */
     reset();
     par[0][TP_PLAYER] = PL_RAND;
-    par[0][TP_P4] = RAND_OCT_CENTRE;
+    par[0][TP_P4] = 0;
     par[0][TP_P1] = 127;
     par[0][TP_AP2] = 8;
     P.pat[0][0].len = 8;
@@ -1700,7 +1700,7 @@ static void t_random_player(void)     /* the random player: the grid's active sl
     /* the phrase is the same in the next cycle: pitch and rhythm locked */
     reset();
     par[0][TP_PLAYER] = PL_RAND;
-    par[0][TP_P4] = RAND_OCT_CENTRE;
+    par[0][TP_P4] = 0;
     par[0][TP_P1] = 127;
     par[0][TP_AP2] = 8;
     P.pat[0][0].len = 8;
@@ -1716,7 +1716,7 @@ static void t_random_player(void)     /* the random player: the grid's active sl
     /* pitch 100 %: the next cycle's pitches move on */
     reset();
     par[0][TP_PLAYER] = PL_RAND;
-    par[0][TP_P4] = RAND_OCT_CENTRE;
+    par[0][TP_P4] = 0;
     par[0][TP_P1] = 127;
     par[0][TP_P2] = 127;
     par[0][TP_AP2] = 8;
@@ -1735,7 +1735,7 @@ static void t_random_player(void)     /* the random player: the grid's active sl
     /* note % 0: silence; octave range +1: two registers only */
     reset();
     par[0][TP_PLAYER] = PL_RAND;
-    par[0][TP_P4] = RAND_OCT_CENTRE;
+    par[0][TP_P4] = 0;
     par[0][TP_P1] = 0;
     start();
     run(7 * L16 + 100);
@@ -1744,7 +1744,8 @@ static void t_random_player(void)     /* the random player: the grid's active sl
     reset();
     par[0][TP_PLAYER] = PL_RAND;
     par[0][TP_P1] = 127;
-    par[0][TP_P4] = RAND_OCT_CENTRE + 1;          /* 0/+1: two registers */
+    par[0][TP_P4] = 0;                            /* 0/+1: two registers */
+    par[0][TP_RUP] = 1;
     lane_pool_set(P.lane, 0, 0, 1u << 0);
     start();
     run(15 * L16 + 100);
@@ -1752,16 +1753,17 @@ static void t_random_player(void)     /* the random player: the grid's active sl
     for (int i = 0; i < count(E_ON, 0); i++)
         CHECK(on_n(i)->a == 60 || on_n(i)->a == 72);
     stop();
-    /* octave range, by the knob's value: the centre keeps the step's own; -1/+1 (16) is three registers, both outer ones
-     * heard; -1/0 (11) only below; 0/+3 (15) up to three above */
+    /* octave range, by the two knobs (down, up): 0/0 keeps the step's own; -1/+1 is three registers, both outer ones
+     * heard; -1/0 only below; 0/+3 up to three above */
     for (int r = 0; r < 4; r++) {
-        static const uint8_t V[4] = {12, 16, 11, 15};
+        static const uint8_t DN[4] = {0, 1, 1, 0}, UP[4] = {0, 1, 0, 3};
         static const int LO[4] = {60, 48, 48, 60}, HI[4] = {60, 72, 60, 96};
         int seen_lo = 0, seen_hi = 0;
         reset();
         par[0][TP_PLAYER] = PL_RAND;
         par[0][TP_P1] = 127;
-        par[0][TP_P4] = V[r];
+        par[0][TP_P4] = DN[r];
+        par[0][TP_RUP] = UP[r];
         par[0][TP_AP2] = 16;                      /* a 16-step phrase: each step draws its own octave */
         lane_pool_set(P.lane, 0, 0, 1u << 0);
         start();
@@ -1779,7 +1781,7 @@ static void t_random_player(void)     /* the random player: the grid's active sl
     /* velocity and gate: scaled when their knobs ask, within their bands */
     reset();
     par[0][TP_PLAYER] = PL_RAND;
-    par[0][TP_P4] = RAND_OCT_CENTRE;
+    par[0][TP_P4] = 0;
     par[0][TP_P1] = 127;
     par[0][TP_AP2] = 16;
     par[0][TP_AP3] = 127;
@@ -1800,7 +1802,7 @@ static void t_random_player(void)     /* the random player: the grid's active sl
     /* a pulse over a random step repeats that note (it does not draw another) */
     reset();
     par[0][TP_PLAYER] = PL_RAND;
-    par[0][TP_P4] = RAND_OCT_CENTRE;
+    par[0][TP_P4] = 0;
     par[0][TP_P1] = 127;
     lane_pool_set(P.lane, 0, 0, 0x0FFFu);
     st(0, 0)->comp = SC_PULSE;
@@ -1812,7 +1814,7 @@ static void t_random_player(void)     /* the random player: the grid's active sl
     /* the conductor still moves the generated pitches */
     reset();
     par[0][TP_PLAYER] = PL_RAND;
-    par[0][TP_P4] = RAND_OCT_CENTRE;
+    par[0][TP_P4] = 0;
     par[0][TP_P1] = 127;
     par[0][TP_BRAIN] = BM_DIATONIC;
     S.brain_key = 0;
@@ -1823,6 +1825,26 @@ static void t_random_player(void)     /* the random player: the grid's active sl
     run(L16 / 2);
     CHECK(count(E_ON, 0) == 1 && on_n(0)->a == 62);   /* C, one scale degree along: D */
     stop();
+    /* a step's own tonality option applies to its generated note, as to a written one: "ignore the progression"
+     * (0) sits it out of the conductor, "transpose only" (1) moves it chromatically */
+    for (int tv = 0; tv < 2; tv++) {
+        reset();
+        par[0][TP_PLAYER] = PL_RAND;
+        par[0][TP_P4] = 0;
+        par[0][TP_P1] = 127;
+        par[0][TP_BRAIN] = BM_DIATONIC;
+        S.brain_key = 0;
+        S.brain_scale = BS_MAJOR;
+        S.brain_deg = 1;
+        lane_pool_set(P.lane, 0, 0, 1u << 0);
+        note(0, 0, 60, 100);
+        st(0, 0)->comp = SC_TONALITY;
+        st(0, 0)->cval = (uint8_t)tv;
+        start();
+        run(L16 / 2);
+        CHECK(count(E_ON, 0) == 1 && on_n(0)->a == (tv ? 62 : 60));   /* (C: ignored; +1 degree as 2 semitones) */
+        stop();
+    }
     printf("ok %s\n", cur);
 }
 

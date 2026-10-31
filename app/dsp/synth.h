@@ -103,18 +103,15 @@ enum {
     TP_O2FINE = TP_DRUMX0 + 11 * 4,                 /* knit's osc 2, fine: cents about 64 (14..114 = -50..+50; the Sub
                                                      * page's osc 2 knob with HOME held). Last, so format 15's indices
                                                      * stay (format 16) */
+    TP_RUP,                                         /* the random player's octaves up, 0..3 (TP_P4 its octaves down).
+                                                     * Last, so format 18's indices stay (format 19) */
     NTP
 };
 _Static_assert(NTP <= 511, "a parameter's index: nine bits in the engine's queue (engine.c cq_put); a lane's is 16");
-/* the random player's octave range (TP_P4): how many octaves below (lo) and above (hi) the step's own a note may land,
- * each 0..3. One knob walks the 16 pairs on a path about its centre (12, 0/0: the step's own octave only): turned
- * right the upper bound grows first (0/+1 .. 0/+3, then -1/+1 .. -3/+3), turned left the lower one (-1/0 .. -3/0, then
- * -1/+1 .. -3/+3); the pairs with both bounds are on both sides. Indexed by the knob's value 0..24 (left to right) */
-#define RAND_OCT_N 25
-#define RAND_OCT_CENTRE 12
-static const int8_t RAND_OCT[RAND_OCT_N][2] = {{3,3},{2,3},{1,3},{3,2},{2,2},{1,2},{3,1},{2,1},{1,1},{3,0},{2,0},{1,0},{0,0},{0,1},{0,2},{0,3},{1,1},{1,2},{1,3},{2,1},{2,2},{2,3},{3,1},{3,2},{3,3}};
-static inline int rand_oct_lo(int v) { return RAND_OCT[v < 0 ? 0 : v >= RAND_OCT_N ? RAND_OCT_N - 1 : v][0]; }
-static inline int rand_oct_hi(int v) { return RAND_OCT[v < 0 ? 0 : v >= RAND_OCT_N ? RAND_OCT_N - 1 : v][1]; }
+/* the random player's octave range: how many octaves below (TP_P4, "oct down") and above (TP_RUP, "oct up") the
+ * step's own a note may land, each 0..3 (0 and 0: the step's own octave only) */
+static inline int rand_oct_lo(int v) { return v < 0 ? 0 : v > 3 ? 3 : v; }
+static inline int rand_oct_hi(int v) { return v < 0 ? 0 : v > 3 ? 3 : v; }
 /* how a track follows the conductor (TP_BRAIN): 0 and 1..2 are saved before harmony and keep their meaning;
  * 3 and 4 are appended (append only: a project stores the byte). 3 "harmony" takes each note to the nearest tone of
  * the active chord; 4 "ch. deg" takes the note's place in the scale to pick a chord tone. See seq.c brain_note */

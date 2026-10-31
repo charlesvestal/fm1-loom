@@ -1698,19 +1698,14 @@ int main(void)
         p[TP_PLAYER] = PL_RAND;
         check("the random knobs follow the player",
               !strcmp(tp_info_par(TP_P1, p)->name, "note %") && !strcmp(tp_info_par(TP_AP2, p)->name, "length") &&
-                  !strcmp(tp_info_par(TP_P4, p)->name, "octave"));
-        check("the random octave range: 25 values about a centre of 0",
-              tp_info_par(TP_P4, p)->lo == 0 && tp_info_par(TP_P4, p)->hi == 24 && tp_info_par(TP_P4, p)->def == 12);
-        {
-            static const struct { int v; const char *s; int lo, hi; } OC[] = {
-                {12, "0", 0, 0}, {13, "0/+1", 0, 1}, {15, "0/+3", 0, 3}, {16, "-1/+1", 1, 1}, {24, "-3/+3", 3, 3},
-                {11, "-1/0", 1, 0}, {9, "-3/0", 3, 0}, {8, "-1/+1", 1, 1}, {0, "-3/+3", 3, 3}};
-            for (unsigned i = 0; i < sizeof OC / sizeof OC[0]; i++) {
-                tp_text_par(TP_P4, OC[i].v, p, num, unit);
-                check("the random octave knob's path", !strcmp(num, OC[i].s) && rand_oct_lo(OC[i].v) == OC[i].lo &&
-                                                          rand_oct_hi(OC[i].v) == OC[i].hi);
-            }
-        }
+                  !strcmp(tp_info_par(TP_P4, p)->name, "oct down") && !strcmp(tp_info_par(TP_RUP, p)->name, "oct up"));
+        check("the random octaves: down and up 0..3, 0 by default",
+              tp_info_par(TP_P4, p)->lo == 0 && tp_info_par(TP_P4, p)->hi == 3 && tp_info_par(TP_P4, p)->def == 0 &&
+                  tp_info_par(TP_RUP, p)->lo == 0 && tp_info_par(TP_RUP, p)->hi == 3 && tp_info_par(TP_RUP, p)->def == 0 &&
+                  rand_oct_lo(5) == 3 && rand_oct_hi(-1) == 0);
+        p[TP_PLAYER] = PL_ARP;
+        check("oct up is the random player's alone", tp_info_par(TP_RUP, p)->hi == 0);
+        p[TP_PLAYER] = PL_RAND;
         tp_text_par(TP_P2, 127, p, num, unit);
         check("random 127 is 100 %", !strcmp(num, "100") && !strcmp(unit, "%"));
         tp_text_par(TP_LTYPE, LT_WAVE, p, num, unit);

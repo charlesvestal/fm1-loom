@@ -823,7 +823,7 @@ static int tp_page_param(int p, int k, int trk)
         if (p == P_PLAYERS2)
             return TP_AP1 + k;
         if (p == P_PLAYERS3)
-            return k == 0 ? TP_P4 : -1;
+            return k == 0 ? TP_P4 : k == 1 ? TP_RUP : -1;   /* the octaves down and up */
     }
     if (p == P_PLAYERS2 && pl_type(trk) != PL_ARP)
         return k == 0 ? TP_P4 : -1;
@@ -3662,6 +3662,11 @@ static void draw_steps_as(void)
             uint16_t dim = bg == K_NOW ? K_BG : K_DIM;
             if (pl_type(trk) == PL_RAND) {
                 text_c(x + ST_MID, y + ST_L1, &FONT_XS, "on", implicit ? dim : fg);
+                if (!implicit) {                     /* its register: the octave its note sets (4: C4, a plain tap) */
+                    char o[4];
+                    num_i((st->note[0] ? st->note[0] : 60) / 12 - 1, o);
+                    text_c(x + ST_MID, y + ST_L2, st_font(o), o, dim);
+                }
             } else if (trk == AUX_PUNCH) {
                 int fx = st->note[0] - 1;
                 /* the effect in capitals (no descender to meet the line under it), three letters, over its group */
