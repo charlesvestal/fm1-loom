@@ -41,7 +41,7 @@ import time
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-DEV = ROOT / "build" / "demos" / "device"
+DEV = Path(os.environ.get("DEMO_DEV", ROOT / "build" / "demos" / "device"))   # (device_projects.py's OUT_DIR)
 REMOTE = Path(os.environ.get("FM1_REMOTE", ROOT / "base" / "tools" / "fm1_remote.py"))
 sys.path.insert(0, str(REMOTE.parent))
 sys.path.insert(0, str(ROOT / "tools"))

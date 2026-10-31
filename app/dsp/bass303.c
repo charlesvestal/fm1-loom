@@ -508,7 +508,7 @@ static void idle_advance(bass303_t *b, int n)
  * filter's state and coefficients in registers for its pass, the same operations in the same order. The 2x
  * upsampler's odd input is 0 and the lowpass's b0, b1, b2 are positive, so b * 0 is +0: its zero-input step is
  * written without the three products (0 + z1, (0 - a1 y) + z2, 0 - a2 y), which is the same to the bit. */
-#define BASS303_DSUB 32
+#define BASS303_DSUB 16                          /* (LOOM-8: 16, not Optimist's 32: the second core's stack) */
 
 typedef struct { float b0, b1, b2, a1, a2, z1, z2; } bass303_bql_t;   /* a biquad in locals */
 
@@ -667,7 +667,8 @@ static const float recip[5] = { 0.0f, 1.0f, 0.5f, 0.333333343f, 0.25f };
  * state in registers (the FPU works on the 16 general registers: one pass for everything spilled on every
  * sample); every value is computed by the same operations in the same order as one pass would, so the output
  * is the same to the bit. */
-#define BASS303_SUB 32
+#define BASS303_SUB 16                           /* (LOOM-8: 16, not Optimist's 32: its buffers are on the
+                                                  * stack, and a voice may render on the second core's 2.8 KB) */
 
 /* Pass 1 runs as three loops over the sub-block: the control steps (which also advance the per-sample linear
  * interpolation and keep each sample's values in cs[]), the oscillator and the highpass, the TeeBeeFilter.
