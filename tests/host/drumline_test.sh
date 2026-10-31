@@ -6,6 +6,7 @@ set -eu
 cd "$(dirname "$0")/../.."
 mkdir -p build/host build/gen
 [ -f build/gen/samples.h ] || "${PYTHON:-python3}" tools/gen_samples.py build/gen/samples.h >/dev/null
+"${PYTHON:-python3}" tools/gen_909res.py build/gen/res909.bin >/dev/null   # (the 909 cymbals: the resource region)
 [ -f build/gen/breaks.bin ] || "${PYTHON:-python3}" tools/loom_samples.py build --no-factory build/gen/breaks.bin breaks >/dev/null
 ${CC:-cc} -O2 -ffp-contract=off -std=c99 -Wall -Wextra -Wdouble-promotion -Werror -DPLAT_HOST -Iapp/dsp -Ibase/include -Ibuild/gen \
     -o build/host/drumline_test tests/host/drumline_test.c app/dsp/drumline.c app/dsp/d909.c app/dsp/digisophie.c app/dsp/sample.c -lm

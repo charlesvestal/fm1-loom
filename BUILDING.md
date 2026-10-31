@@ -16,6 +16,7 @@ The build (fm1-base's `tools/build.py`, run by `./build.sh`, driven by `app/fm1.
 | `loom.bin` | the firmware app |
 | `loader/ota.bin` | the update loader (felucca-bsp's) |
 | `loom.fwsc` | the installable package (app + loader) |
+| `loom-res.bin` | the resource region: the 909 cymbals' samples, written after the firmware (fm1-base `device/res.c`) |
 
 ## Prerequisites (macOS)
 
@@ -91,6 +92,9 @@ python3 base/tools/fm1_install.py app/build/loom.fwsc
 python3 base/tools/fm1_install.py --info     # identity of the connected FM-1
 ```
 
+After the firmware it writes `loom-res.bin` from beside the package (the 909 cymbals; a few seconds, and at once when
+the FM-1 has them already); `base/tools/fm1_resources.py app/build/loom-res.bin` writes it alone.
+
 Installing firmware is at your own risk. Hold OCT− and OCT+ for 5 seconds for the update mode. Two failed starts
 in a row bring up a safe mode with USB on; the web installer can put M-VAVE's firmware back.
 `base/tools/fm1_remote.py` drives an FM-1 over USB and reads its screen, crash record and log.
@@ -118,7 +122,8 @@ Firmware Hub shows such packages as built from source.
    and the signatures against the builder, the tag and the commit, then publishes the draft. A tag with a suffix
    (`v0.6-beta`) is a prerelease. A published release is never rebuilt: a new build needs a new tag. A manual run
    on a branch (Actions, Run workflow) builds and attests a development package, in the run's `packages` artifact.
-3. The site from that package: `gh release download vX.Y --pattern '*.fwsc' --dir app/build`, then
+3. The site from that package: `gh release download vX.Y --pattern '*.fwsc' --pattern '*-res.bin' --dir app/build`
+   (the resource region beside it: the 909 cymbals, which the installer writes after the firmware), then
    `tools/publish_pages.sh X.Y`: it builds the site (landing page, browser emulator, fm1-base's web installer and
    backup page, the words files, the firmware) with `tools/make_pages.py` and pushes it to the `gh-pages` branch,
    which GitHub Pages serves at <https://charlesvestal.github.io/fm1-loom/>.

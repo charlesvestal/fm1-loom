@@ -658,7 +658,7 @@ Two acid tracks can play at once. A third takes over the oldest one.
 A drum track has eleven keys, played on the black keys. Each key has a drum model: kick, snare, hat, clap, shaker,
 tambourine, string (a plucked string), conga, tom, fm or sample; one of the x models (x kick, x snare, x hat,
 x clap, x tom, x rim, x fm, x noise); sophie; clang; or one of the 909 models (909 kick, 909 snare, 909 tom,
-909 rim, 909 clap). The kit is tuned to C: kick G1, snare G3, low tom C3, high
+909 rim, 909 clap, 909 hat, 909 open, 909 ride, 909 crash). The kit is tuned to C: kick G1, snare G3, low tom C3, high
 tom G3, conga C4, string C3, fm C5. To pick the key the knobs edit, press a black key or turn **PRESETS**. The four
 knobs on the Engine page belong to that key's model:
 
@@ -692,6 +692,8 @@ knobs on the Engine page belong to that key's model:
 | 909 tom | pitch, decay, attack, size · drive, shape |
 | 909 rim | pitch, drive, shape |
 | 909 clap | tone, tail, drive, shape |
+| 909 hat, 909 open | pitch, decay, drive, shape |
+| 909 ride, 909 crash | pitch, decay, drive, shape |
 
 The knobs after the dot are on a second Engine page (turn **SELECT**).
 
@@ -709,6 +711,12 @@ The knobs after the dot are on a second Engine page (turn **SELECT**).
   how far; the snare's snappy is the wires and tone how long they ring; the tom's size picks the low, mid or high
   tom, and its attack is the stick. shape is 9W9's distortion (diode, clip, sat, fuzz, pdist, fold, crush), which
   drive pushes. Eight 909 hits can sound at once across every drum track; a ninth takes over the oldest.
+- The **909 hat, open hat, ride and crash** are 9W9's cymbals: the samples the TR-909 plays its cymbals from (ER-99's,
+  as 9W9 has them), with 9W9's knobs. pitch plays the sample slower or faster (two octaves each way), decay sets
+  how long it rings. Both hats play the same sample, as on the 909: give the hat and the open hat the same choke
+  group so that each cuts the other. The samples live beside the firmware, not in it: the installer writes them
+  after an update (about 70 KB, a few seconds). Until it has, these four models are silent; installing again from
+  the site writes them.
 
 The x models and clang cost up to twice as much as a voice of a built-in model, and sophie and the 909 models up to
 three times as much. Even with a kit made of them, the busiest demo stays well within what the FM-1 can do.
@@ -734,7 +742,7 @@ level, pan, player and MIDI OUT stay as they are. LOOM-8 comes with eleven kits,
 - **Denim**: the factory 909 samples, with sophie's toms and the x models' conga and shaker.
 - **Linen**: short and dry: a tight kick, ticking hats, clicks and a small clap.
 - **Velvet**: deep: a round, long kick, the 909 clap, dusty hats and a round conga.
-- **Twill**: the 909's own circuits (9W9's kick, snare, toms, clap and rim shot), with the factory 909 hats.
+- **Twill**: the 909's own circuits and cymbals (9W9's kick, snare, toms, clap, rim shot and hats).
 
 The new kits keep the default kit's layout: kick, snare, closed hat, open hat (these two share choke group 1),
 clap, low and high tom, conga, shaker, string, and fm (a short FM blip). That way a pattern plays the same parts on

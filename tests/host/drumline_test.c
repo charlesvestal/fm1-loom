@@ -17,6 +17,7 @@
 #include <stdint.h>
 #include <math.h>
 #include "drumline.h"
+#include "d909.h"                                 /* d909_res_get: the 909 cymbals' samples */
 #include "synth.h"
 #include "fastmath.h"
 #include "sample.h"
@@ -240,9 +241,27 @@ static float pitch_of(int sound, float t0, float t1, float target)
     return target * (float)pow(2.0, (double)best / 1200.0);
 }
 
+/* the resource region as the FM-1 holds it after an update (tools/gen_909res.py: build/gen/res909.bin) */
+static uint8_t res909[96 * 1024];
+static uint32_t res909_len;
+static const uint8_t *res_get(uint32_t *len)
+{
+    *len = res909_len;
+    return res909_len ? res909 : 0;
+}
+static void res_attach(void)
+{
+    FILE *f = fopen("build/gen/res909.bin", "rb");
+    res909_len = f ? (uint32_t)fread(res909, 1, sizeof res909, f) : 0u;
+    if (f)
+        fclose(f);
+    d909_res_get = res_get;
+}
+
 int main(void)
 {
     breaks_attach();                             /* the breaks installed, as a player has them */
+    res_attach();                                /* the 909 cymbals' samples there */
     int s, i, k, m;
     hit_t h, h2;
     char name[96];
@@ -379,8 +398,10 @@ int main(void)
                     par[TP_DRUM(0, DP_K1 + k)] = DM_DEFAULT[m][k];
                     continue;
                 }
-                if (nan_seen || d2 < (m == DM_SAMPLE && k == 2 ? -120.0f : -26.0f) || d2 > 1.0f) {
-                                                       /* (the sample's start at 99 %: its tail, faded to silence) */
+                if (nan_seen || d2 < (m == DM_SAMPLE && k == 2 ? -120.0f : m >= DM_909CH && k == 1 && !e ? -36.0f
+                                                                                       : -26.0f) || d2 > 1.0f) {
+                                                       /* (the sample's start at 99 %: its tail, faded to silence; a
+                                                        * 909 cymbal's shortest decay, 9W9's 15 / 20 ms tick) */
                     printf("  %s %s=%d: %.1f dBFS, nan %d\n", DM_NAME[m], knob_name(m, k), e, (double)d2, nan_seen);
                     ok = 0;
                 }
@@ -398,6 +419,20 @@ int main(void)
         check(name, ok);
     }
     kit_default();
+    {   /* an FM-1 without the resource region (updated, not yet written): the cymbals silent, the rest as ever */
+        int quiet = 1;
+        d909_res_get = 0;
+        for (m = DM_909CH; m <= DM_909CRASH; m++) {
+            key_model(0, m);
+            h = one_hit(0, 127, 0, 0, 0, 0);
+            quiet &= h.peak == 0.0f && !nan_seen;
+        }
+        key_model(0, DM_909KICK);
+        h = one_hit(0, 127, 0, 0, 0, 0);
+        check("no resource region: the 909 cymbals silent, the 909 kick plays", quiet && dbfs(h.peak) > -20.0f);
+        d909_res_get = res_get;
+        kit_default();
+    }
     {
         par[TP_DRUM(0, DP_K2)] = 127;
         h = one_hit(0, 127, 0, 1, 0, 0);

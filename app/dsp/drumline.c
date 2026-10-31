@@ -50,7 +50,7 @@ _Static_assert((RESO_LEN & (RESO_LEN - 1)) == 0, "a string's line wraps by a mas
 const char *const DM_NAME[NDM] = {"kick", "snare", "hat", "clap", "shaker", "tambourine", "string",
                                   "conga", "tom", "fm", "sample", "x kick", "x snare", "x hat", "x clap", "x tom",
                                   "x rim", "x fm", "x noise", "clang", "sophie", "909 kick", "909 snare", "909 tom",
-                                  "909 rim", "909 clap"};
+                                  "909 rim", "909 clap", "909 hat", "909 open", "909 ride", "909 crash"};
 const char *const DM_KNOB[NDM][4] = {
     [DM_KICK] = {"pitch", "length", "punch", "tone"},    [DM_SNARE] = {"pitch", "length", "wires", "punch"},
     [DM_HIHAT] = {"pitch", "length", "metal", "focus"},  [DM_CLAP] = {"tone", "length", "spread", "tail"},
@@ -67,6 +67,8 @@ const char *const DM_KNOB[NDM][4] = {
     [DM_909KICK] = {"pitch", "decay", "attack", "sweep"}, [DM_909SNARE] = {"pitch", "decay", "snappy", "tone"},
     [DM_909TOM] = {"pitch", "decay", "attack", "size"},   [DM_909RIM] = {"pitch", "drive", "shape"},
     [DM_909CLAP] = {"tone", "tail", "drive", "shape"},
+    [DM_909CH] = {"pitch", "decay", "drive", "shape"},    [DM_909OH] = {"pitch", "decay", "drive", "shape"},
+    [DM_909RIDE] = {"pitch", "decay", "drive", "shape"},  [DM_909CRASH] = {"pitch", "decay", "drive", "shape"},
 };
 /* knobs 5..8 (a model with more than four) */
 const char *const DM_KNOB2[NDM][4] = {
@@ -81,7 +83,7 @@ const char *const SPH_MODEL_N[7] = {"fuse", "stack", "split", "shard", "pipe", "
 const char *const CLANG_MODEL_N[4] = {"fuse", "boom", "pipe", "shard"};
 const char *const DM9_SHAPE_N[7] = {"diode", "clip", "sat", "fuzz", "pdist", "fold", "crush"};   /* (9W9's dists) */
 const char *const DM9_SIZE_N[3] = {"low", "mid", "high"};
-const uint8_t DM_NKNOB[] = {4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 7, 7, 7, 3, 7, 6, 7, 3, 8, 8, 7, 6, 6, 3, 4};
+const uint8_t DM_NKNOB[] = {4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 7, 7, 7, 3, 7, 6, 7, 3, 8, 8, 7, 6, 6, 3, 4, 4, 4, 4, 4};
 _Static_assert(sizeof DM_NKNOB == NDM, "a knob count for each model");
 /* the kit tuned to C (the pitch knobs, from start()'s mappings; measured by tests/host/drumline_test.c):
  *   kick   82: 16 Hz x 2^(82/127 x 2.5)       = 49.0 Hz  G1      length 42: -60 dB at about 0.17 s
@@ -107,6 +109,8 @@ const uint8_t DM_DEFAULT[NDM][4] = {
     /* the 909 models: 9W9's pots as it seeds them (the toms: the low tom's) */
     [DM_909KICK] = {45, 90, 13, 34}, [DM_909SNARE] = {64, 41, 64, 68}, [DM_909TOM] = {66, 111, 23, 0},
     [DM_909RIM] = {62, 24, 0},       [DM_909CLAP] = {63, 63, 30, 0},
+    [DM_909CH] = {64, 84, 0, 0},     [DM_909OH] = {64, 97, 0, 0},     [DM_909RIDE] = {64, 108, 0, 0},
+    [DM_909CRASH] = {64, 108, 0, 0},
 };
 /* knobs 5..8 (a model with more than four) */
 const uint8_t DM_DEFAULT2[NDM][4] = {
@@ -159,6 +163,8 @@ static const dm_spec_t SPEC[NDM] = {
      * -9: tests/host/drumline_test.c) */
     [DM_909KICK] = {0.1f, 4.0f, 0.34f}, [DM_909SNARE] = {0.1f, 1.0f, 0.33f}, [DM_909TOM] = {0.1f, 2.6f, 0.39f},
     [DM_909RIM] = {0.1f, 0.3f, 0.26f},  [DM_909CLAP] = {0.1f, 1.0f, 0.35f},
+    [DM_909CH] = {0.1f, 0.3f, 0.35f},   [DM_909OH] = {0.1f, 1.2f, 0.24f},   [DM_909RIDE] = {0.1f, 3.0f, 0.33f},
+    [DM_909CRASH] = {0.1f, 3.0f, 0.28f},              /* (the cymbals -12 dBFS, as the hats) */
 };
 /* the 808's six metal oscillators (sc808: 205.3, 304.4, 369.6, 522.7, 540, 800 Hz) and the tambourine's
  * jingles: six inharmonic partials of a small brass disc */
@@ -1107,10 +1113,11 @@ static void start(drumline_t *d, dvoice_t *v, int sound, int vel, int pitch_semi
                 xp[XP_DRIVE], lscale, flags);
         break;
     }
-    case DM_909KICK: case DM_909SNARE: case DM_909TOM: case DM_909RIM: case DM_909CLAP: {
+    case DM_909KICK: case DM_909SNARE: case DM_909TOM: case DM_909RIM: case DM_909CLAP:
+    case DM_909CH: case DM_909OH: case DM_909RIDE: case DM_909CRASH: {
         /* 9W9's 909 (dsp/d909.c) in the voice's slot: its knobs 0..1, a list knob (the tom's size, a shape) as the
          * key holds it, unrandomised; its own lengths; the velocity a gain (v->g), env only the choke's */
-        static const uint8_t LIST[ND9] = {0x40, 0x20, 0x28, 0x04, 0x08};   /* bit i: knob i is a list */
+        static const uint8_t LIST[ND9] = {0x40, 0x20, 0x28, 0x04, 0x08, 0x08, 0x08, 0x08, 0x08};   /* bit i: a list */
         const uint8_t *px = par + TP_DRUMX(sound, 0);
         const int w = model - DM_909KICK;
         float kn[7];
@@ -1723,6 +1730,7 @@ static void render_voice(dvoice_t *v, int16_t *line, smp_cache_t *sc, d909_t *ni
         break;
     }
     case DM_909KICK: case DM_909SNARE: case DM_909TOM: case DM_909RIM: case DM_909CLAP:
+    case DM_909CH: case DM_909OH: case DM_909RIDE: case DM_909CRASH:
         if (!nine || !d909_render(nine, t, m))       /* (its slot taken, or the hit done: the voice ends) */
             env = 0.0f;
         for (i = 0; i < m; i++) {                     /* the velocity, and the choke's fade */

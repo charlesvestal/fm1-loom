@@ -53,6 +53,10 @@ enum { OBJ_PANEL, OBJ_PRESETS, OBJ_PROJ0, OBJ_BLE = OBJ_PROJ0 + NPROJ * PROJ_NOB
 #define APP_STORE_POOL_OBJN (NPROJ * PROJ_NOBJ)
 /* up to 0.12 a save wrote every stream object past the packed stream as its format word alone (project.c st_flush:
  * PROJ_STREAM, 4 bytes): nothing to keep, so not moved into the pool (a stream object holds data after the word) */
+/* the resource region (fm1-base device/res.c; fm1.toml resources): the 909 cymbals' samples (tools/gen_909res.py), in
+ * the sectors the pool freed */
+#define APP_RES_BASE 0xAB000u
+#define APP_RES_SECTORS 22u
 #define APP_STORE_POOL_EMPTY(obj, p, n) \
     ((n) == 4u && ((obj) - OBJ_PROJ0) % PROJ_NOBJ >= 2u && (p)[0] == 2u && !(p)[1] && !(p)[2] && !(p)[3])
 

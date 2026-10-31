@@ -43,10 +43,13 @@ enum { DM_KICK, DM_SNARE, DM_HIHAT, DM_CLAP, DM_SHAKER, DM_TAMB, DM_RESO, DM_CON
        /* the 909 models (2026-10-30): 9W9's TR-909 circuits (athousanddetails, GPL-3.0-only: dsp/d909.c), each hit in
         * one of the kits' shared N909 voice slots (drumline.c d9_slot) */
        DM_909KICK, DM_909SNARE, DM_909TOM, DM_909RIM, DM_909CLAP,
+       /* the 909 cymbals (2026-10-31): 9W9's sampler on ER-99's hat, ride and crash, the samples in the resource
+        * region (fm1-base device/res.c: written after an update; silent until then) */
+       DM_909CH, DM_909OH, DM_909RIDE, DM_909CRASH,
        NDM };                                        /* (saved by number: a new model goes last; development builds
                                                       * had 21 more, 11..31: project.c keys_fix) */
 #define DM_ISX(m) ((m) >= DM_XKICK && (m) <= DM_XNOISE)
-#define DM_IS909(m) ((m) >= DM_909KICK && (m) <= DM_909CLAP)
+#define DM_IS909(m) ((m) >= DM_909KICK && (m) <= DM_909CRASH)
 #define N909 8                                       /* 909 hits sounding at once, every kit together (a ninth takes
                                                       * the oldest's slot) */
 extern const char *const DM9_SHAPE_N[7];             /* a 909 model's shape (its 9W9 distortion): diode .. crush */

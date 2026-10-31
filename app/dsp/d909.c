@@ -340,6 +340,55 @@ static float d9_len(float ms, float lscale, int flags)   /* a decay with the kit
     return ms;
 }
 
+/* ---- the samplers' samples: the resource region (tools/gen_909res.py), read in place ---- */
+#define D9S_MAGIC 0x3153394Eu                  /* "N9S1" */
+#define D9S_BLOCK 32u
+#define D9S_BLOCK_B 21u                        /* an exponent byte, 32 codes of 5 bits */
+enum { D9S_HH, D9S_RIDE, D9S_CRASH, ND9S };
+const uint8_t *(*d909_res_get)(uint32_t *len);
+static uint32_t d9s_rd32(const uint8_t *p) { return p[0] | (uint32_t)p[1] << 8 | (uint32_t)p[2] << 16 | (uint32_t)p[3] << 24; }
+static const uint8_t *d9s_find(int s, uint32_t *n)   /* sample s's blocks and length, 0 when absent */
+{
+    uint32_t len = 0, off, cnt;
+    const uint8_t *p = d909_res_get ? d909_res_get(&len) : 0;
+    *n = 0;
+    if (!p || len < 8u + 8u * ND9S || d9s_rd32(p) != D9S_MAGIC || (p[6] | p[7] << 8) != D9S_BLOCK)
+        return 0;
+    cnt = (uint32_t)(p[4] | p[5] << 8);
+    if ((uint32_t)s >= cnt || len < 8u + 8u * cnt)
+        return 0;
+    off = d9s_rd32(p + 8 + 8 * s);
+    *n = d9s_rd32(p + 12 + 8 * s);
+    if (off > len || (*n + D9S_BLOCK - 1u) / D9S_BLOCK * D9S_BLOCK_B + 1u > len - off) {
+        *n = 0;                                    /* (its blocks and the padding byte past them: inside) */
+        return 0;
+    }
+    return p + off;
+}
+int d909_res_ok(void)
+{
+    uint32_t n;
+    int s;
+    for (s = 0; s < ND9S; s++)
+        if (!d9s_find(s, &n))
+            return 0;
+    return 1;
+}
+/* the block's step 2^(e/2), over 32768 and the codes' bias of 16 taken out at the read */
+static const float d9s_step[32] = {
+    3.05175781e-05f, 4.31583721e-05f, 6.10351562e-05f, 8.63167443e-05f, 1.22070312e-04f, 1.72633489e-04f,
+    2.44140625e-04f, 3.45266977e-04f, 4.88281250e-04f, 6.90533954e-04f, 9.76562500e-04f, 1.38106791e-03f,
+    1.95312500e-03f, 2.76213582e-03f, 3.90625000e-03f, 5.52427163e-03f, 7.81250000e-03f, 1.10485433e-02f,
+    1.56250000e-02f, 2.20970865e-02f, 3.12500000e-02f, 4.41941731e-02f, 6.25000000e-02f, 8.83883461e-02f,
+    1.25000000e-01f, 1.76776692e-01f, 2.50000000e-01f, 3.53553385e-01f, 5.00000000e-01f, 7.07106769e-01f,
+    1.00000000e+00f, 1.41421354e+00f};
+static inline float d9s_at(const uint8_t *blk, uint32_t i)   /* sample i, -1 .. 1 */
+{
+    const uint8_t *b = blk + (i >> 5) * D9S_BLOCK_B;
+    const uint32_t bit = (i & 31u) * 5u, c = ((uint32_t)b[1 + (bit >> 3)] | (uint32_t)b[2 + (bit >> 3)] << 8) >> (bit & 7u);
+    return (float)((int32_t)(c & 31u) - 16) * d9s_step[b[0] & 31u];
+}
+
 /* ---- the hits (drum909.c drum909_trigger and the voices' *_trigger, with drum909_init's panels) ---- */
 void d909_start(d909_t *v, int which, const float *k, float semi, float lscale, int flags, uint32_t seed)
 {
@@ -438,6 +487,24 @@ void d909_start(d909_t *v, int which, const float *k, float semi, float lscale, 
         v->rim.impulse = 2;
         v->out_gain = D9_ACCENT;
         v->mute = d9_ceil((dec + 20.0f) * D9_MS);
+        break;
+    }
+    case D9_CH: case D9_OH: case D9_RIDE: case D9_CRASH: {   /* the sampler (er99 render_sampler; X0X's panels) */
+        static const float DECAY[4][2] = {{15.0f, 300.0f}, {20.0f, 1200.0f}, {100.0f, 3000.0f}, {100.0f, 3000.0f}};
+        static const float LEVEL[4] = {89.0f, 80.0f, 42.0f, 47.0f};   /* (their Level pots) */
+        static const uint8_t SAMPLE[4] = {D9S_HH, D9S_HH, D9S_RIDE, D9S_CRASH};
+        const int c = which - D9_CH;
+        const float rate = pot_exp(0.25f, 4.0f, k[0]) * tr, drive = drive_of(k[2]);
+        const float dec = d9_len(pot_exp(DECAY[c][0], DECAY[c][1], k[1]), lscale, flags);
+        d9_shape_prep(&v->shape, drive, pot_list(k[3], 7));
+        v->smp.pre = 1.0f + drive * 0.5f;
+        v->smp.blk = d9s_find(SAMPLE[c], &v->smp.len);
+        v->smp.inc = (uint32_t)rate;
+        v->smp.incf = (uint32_t)((rate - (float)v->smp.inc) * 4294967296.0f);
+        d9_env_set(&v->smp.out, LEVEL[c] / 127.0f * 1.35f);
+        d9_env_exp(&v->smp.out, 0.00001f, dec * D9_MS);
+        v->out_gain = D9_ACCENT;
+        v->mute = v->smp.blk ? d9_ceil(dec * D9_MS) : 0;   /* (no samples: silent) */
         break;
     }
     default: {                                        /* the clap: four bursts, then the tail */
@@ -611,6 +678,27 @@ static void render_clap(d909_t *v, float *out, int m)
     d9_biquad_flush(&v->clap.hp);
 }
 
+static void render_smp(d909_t *v, float *out, int m)
+{
+    int i;
+    const uint8_t *blk = v->smp.blk;
+    const uint32_t len = v->smp.len;
+    const float g = v->out_gain, pre = v->smp.pre;
+    d9_env_anchor(&v->smp.out);
+    for (i = 0; i < m; ++i) {
+        float y = 0.0f;
+        if (v->smp.pos < len) {                       /* linear, as 9W9's playbackRate */
+            const float a = d9s_at(blk, v->smp.pos), b = v->smp.pos + 1u < len ? d9s_at(blk, v->smp.pos + 1u) : 0.0f;
+            const uint32_t f2 = v->smp.frac + v->smp.incf;
+            y = a + (b - a) * ((float)v->smp.frac * (1.0f / 4294967296.0f));
+            v->smp.pos += v->smp.inc + (f2 < v->smp.frac);
+            v->smp.frac = f2;
+        }
+        y *= d9_env_tick(&v->smp.out);
+        out[i] = d9_shape(&v->shape, y * pre, v->crush_st) * g;   /* (9W9: drive always above 0.25 on its pot) */
+    }
+}
+
 int d909_render(d909_t *v, float *out, int n)
 {
     int m = n < v->mute ? n : v->mute, i;
@@ -620,7 +708,8 @@ int d909_render(d909_t *v, float *out, int n)
         case D9_SNARE: render_snare(v, out, m); break;
         case D9_TOM: render_tom(v, out, m); break;
         case D9_RIM: render_rim(v, out, m); break;
-        default: render_clap(v, out, m); break;
+        case D9_CLAP: render_clap(v, out, m); break;
+        default: render_smp(v, out, m); break;
         }
         v->mute -= m;
     }

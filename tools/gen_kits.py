@@ -17,7 +17,8 @@ import sys
 # drumline.h's model numbers (saved by number: never renumber)
 M = dict(kick=0, snare=1, hat=2, clap=3, shaker=4, tamb=5, string=6, conga=7, tom=8, fm=9, sample=10,
          xkick=11, xsnare=12, xhat=13, xclap=14, xtom=15, xrim=16, xfm=17, xnoise=18, clang=19, sophie=20,
-         kick909=21, snare909=22, tom909=23, rim909=24, clap909=25)   # (9W9's circuits: dsp/d909.c)
+         kick909=21, snare909=22, tom909=23, rim909=24, clap909=25,   # (9W9's circuits: dsp/d909.c)
+         ch909=26, oh909=27, ride909=28, crash909=29)                  # (9W9's sampler: the resource region's)
 PM_ONESHOT, PM_CHOKE1 = 0, 3
 k127 = lambda v: max(0, min(127, round(v * 1.27)))                     # MACHINEDRUM's 0..100 on a knob
 
@@ -58,7 +59,7 @@ def clang(model, note, decay, color, metal, sweep=0, feedback=0, fold=0, **key):
 def n9(model, *knobs, **key):
     """a 909 model (9W9's circuits, dsp/d909.c), its knobs as the model shows them: kick pitch decay attack sweep depth
     drive shape; snare pitch decay snappy tone drive shape; tom pitch decay attack size drive shape; rim pitch drive shape;
-    clap tone tail drive shape"""
+    clap tone tail drive shape; the hat, open hat, ride and crash pitch decay drive shape"""
     return dict(model=M[model], knobs=list(knobs), **key)
 
 
@@ -204,11 +205,11 @@ KITS = [
         x("xhat", 91, 65, 76, 22, 92, 12, db=0, pan=40),
         SO_BLIP,
     ]),
-    ("Twill", [                                   # the 909's own circuits (9W9's), with the factory 909 hats
+    ("Twill", [                                   # the 909's own circuits and its cymbals (9W9's)
         n9("kick909", 45, 80, 20, 34, 0, 10, 0, db=0),
         n9("snare909", 64, 41, 70, 68, 36, 0, db=7),
-        hat(smp("hat909", decay=60), db=7, pan=56),                   # (cut short: about 80 ms)
-        hat(smp("hat909"), db=9, pan=72),
+        hat(n9("ch909", 64, 84, 0, 0), db=6, pan=56),                 # (levels as Denim's hats)
+        hat(n9("oh909", 64, 97, 0, 0), db=10, pan=72),
         n9("clap909", 63, 63, 30, 0, db=12),
         n9("tom909", 66, 105, 23, 0, 41, 0, db=-1, pan=50),            # (the low tom)
         n9("tom909", 53, 100, 23, 2, 41, 0, db=-1, pan=78),            # (the high tom)

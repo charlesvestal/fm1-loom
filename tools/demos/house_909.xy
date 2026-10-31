@@ -1,0 +1,289 @@
+# LOOM-8 demo: house_acid.xy with the 909's cymbals too (2026-10-31): T1's closed and open hats the 909 hat and open
+# hat models (9W9's sampler on ER-99's hat, from the resource region). house_acid.xy: the house demo with a 303 on the bass and a 909 kick and clap: T2 the acid
+# engine, an acid line with accents (velocity 112+), slides (a note held into the next) and a glide trick, its cutoff
+# opened by hand through the song; T1's kick and clap the 909 models (9W9's circuits). Everything else as house.xy. Renders with house's bank (build/demos/house.bin: tools/demos/render.sh house
+# makes it): app/build/host/loom_host tools/demos/house_acid.xy DIR
+#   T1 kit: a round kick on every beat, clap, the open hat on the offbeats, shaker, conga; a little swing
+#   T2 tines "felt bass": the bass, ducked by the kick (pump)       T3 tines "felt piano": minor-ninth stabs, delayed
+#   T4 brocade "damask" (five saws): the pad, pumped by the kick    T5 slice: the sesame break, high-passed, the top
+#   T6 sample: "hey" (user 2) through the delay                     T7 cane "hand drum": a tuned drum, groove and main
+# The bass, the stabs and the pad are written once, on Am; the conductor (COND, a step a bar) moves them through
+# Am - F - Dm - Em diatonically. Song: intro 4, groove 8, breakdown 4 (no kick), main 8, outro 4.
+master 4096
+samples build/demos/house.bin
+bpm 122
+groove swing
+
+# ---- the conductor: A minor, manual (its steps); every melodic track follows, diatonic
+knob 9 e1 0
+knob 9 e2 9
+knob 9 e3 1
+
+# ---- the sounds (deep house: warm and round, the air from the hats alone. A round kick with a short tail, the
+# open hat on every offbeat, a clap on 2 and 4 and a 16th shaker; the bass round and up in the mix, ducked by the
+# kick; minor-ninth stabs into a dotted echo, a pumped pad, a long dark hall kept off the low end; the master
+# warm: no top lift, a little low end, the whole mix pumped by the kick)
+# T1 the kit: the kick round (its tone down, a soft punch), a dry clap, a short open hat, a soft shaker
+# (acid house: the kick and the clap are the 909's circuits, 9W9's: a shorter decay, a little drive)
+knob 1 d1.model 21
+knob 1 d1.k1 45
+knob 1 d1.k2 70
+knob 1 d1.k3 30
+knob 1 d1.k4 34
+knob 1 d1.k5 0
+knob 1 d1.k6 20
+knob 1 d1.k7 0
+knob 1 d5.model 25
+knob 1 d5.k1 63
+knob 1 d5.k2 50
+knob 1 d5.k3 30
+knob 1 d5.k4 0
+knob 1 d5.volume 72
+# (the hats the 909's: its closed hat, its open hat kept short, as house's)
+knob 1 d4.model 27
+knob 1 d4.k1 64
+knob 1 d4.k2 70
+knob 1 d4.k3 0
+knob 1 d4.k4 0
+knob 1 d4.volume 70
+knob 1 d3.model 26
+knob 1 d3.k1 64
+knob 1 d3.k2 84
+knob 1 d3.k3 0
+knob 1 d3.k4 0
+knob 1 d3.volume 66
+knob 1 d9.k1 50
+knob 1 d9.volume 62
+knob 1 d8.volume 64
+knob 1 res 30
+knob 1 level 92
+knob 1 send2 10
+# T2 acid "acid line": the 303, ducked by the kick (pump), a little more resonance, the soft drive
+preset 2 acid_line acid
+# (the song was written before a bass preset sat an octave down)
+param 2 oct 2
+knob 2 cut 30
+knob 2 res 100
+knob 2 brain diatonic
+knob 2 ltype pump
+knob 2 lspeed track_1
+knob 2 lamt 44
+knob 2 level 107
+# T3 tines "felt piano": the minor-ninth stabs, warm, into the dotted echo
+preset 3 piano_stab sample
+knob 3 brain diatonic
+knob 3 level 89
+knob 3 send1 44
+knob 3 send2 28
+knob 3 cut 92
+# T4 brocade "damask" (five saws): the pad, pumped by the kick, dark
+preset 4 dusty_pad knit
+knob 4 e1 5
+knob 4 cut 78
+knob 4 brain diatonic
+knob 4 ltype pump
+knob 4 lspeed track_1
+knob 4 lamt 100
+knob 4 level 87
+knob 4 send2 40
+# T5 the sesame break, high-passed: the top
+knob 5 engine slice
+preset 5 jungle slice
+knob 5 e1 u1
+knob 5 e4 127
+knob 5 ftype hp12
+knob 5 cut 88
+knob 5 brain no
+knob 5 level 97
+# T6 "hey" (user 2) through the echo
+knob 6 engine sample
+knob 6 e1 u2
+knob 6 e4 one-shot
+knob 6 a 0
+knob 6 s 127
+knob 6 r 60
+knob 6 cut 110
+knob 6 brain no
+knob 6 level 100
+knob 6 send1 60
+knob 6 send2 36
+# T7 cane "hand drum": a tuned drum, off the conductor
+preset 7 hand_drum cane
+knob 7 brain no
+knob 7 pan 88
+knob 7 level 87
+knob 7 send2 20
+# FX I a dotted-eighth echo, darker repeats; FX II a long dark hall (its high-pass keeps the bass and kick dry)
+knob 11 engine delay
+knob 11 e1 85
+knob 11 e3 70
+knob 11 e4 50
+knob 12 engine hall
+knob 12 e2 76
+knob 12 e3 56
+# the master: warm, the low end a little up, no top lift, a gentle compressor; the whole mix breathing with the kick
+# (the master's pump: 4 dB by the kick, swelling back over ~170 ms, most of a beat; the bass's and the pad's own
+# pumps stay: theirs is the parts' room around the kick)
+mst lo 72
+mst hi 64
+mst comp 56
+mst pump 21
+mst pumpby kick
+mst release 75
+mst level 110
+
+# ---- T1 the kit: kick 1, snare 2, hat 3, open 4, clap 5, conga 8, shaker 9
+pat 1 1 16 1 50 20
+hits 1 1 1 x...x...x...x...
+hits 1 1 4 ..x...x...x...x.
+hits 1 1 9 gogxgogxgogxgogx
+pat 1 2 16 1 50 20
+hits 1 2 1 x...x...x...x...
+hits 1 2 5 ....x.......x...
+hits 1 2 4 ..x...x...x...x.
+hits 1 2 3 .g.g.g.g.g.g.g.g
+hits 1 2 9 gogxgogxgogxgogx
+hits 1 2 8 .......o..x....o
+chance 1 2 16 50
+pat 1 3 16 1 50 20
+hits 1 3 9 gogxgogxgogxgogx
+hits 1 3 3 ..x...x...x...x.
+
+# ---- T2 the bass, on Am (the conductor moves it)
+# an acid line: accents at 120, the rest at 100; a length past the next note's start slides into it (steps 5, 11);
+# step 15's glide trick slides after a short note
+pat 2 1 16 1 60 20
+notes 2 1 1 0.5 120 A1
+notes 2 1 2 0.5 100 A1
+notes 2 1 3 0.5 100 A2
+notes 2 1 5 1.25 100 A1
+notes 2 1 6 0.5 120 C2
+notes 2 1 7 0.5 100 G1
+notes 2 1 8 0.5 120 A2
+notes 2 1 9 0.5 100 A1
+notes 2 1 10 0.5 100 A1
+notes 2 1 11 1.25 100 E2
+notes 2 1 12 0.5 100 D2
+notes 2 1 14 0.5 120 A2
+notes 2 1 15 0.5 100 G2
+trick 2 1 15 porta 4
+notes 2 1 16 0.5 100 E2
+pat 2 2 16 1 60 20
+notes 2 2 1 12 100 A1
+
+# ---- T3 the stabs: Am9 without its root, dotted
+pat 3 1 16 1 50 20
+notes 3 1 1 1 100 C4 E4 B4
+notes 3 1 4 0.5 85 C4 E4 B4
+notes 3 1 7 1 95 C4 E4 B4
+notes 3 1 11 0.5 85 C4 E4 B4
+notes 3 1 14 1 90 C4 E4 B4
+chance 3 1 4 70
+
+# ---- T4 the pad: the chord held through the bar
+pat 4 1 16 1 100
+notes 4 1 1 16 70 A2 E3 C4
+
+# ---- T5 the top loop
+pat 5 1 16 1 100 20
+notes 5 1 1 0 110 53
+notes 5 1 2 0 110 54
+notes 5 1 3 0 110 55
+notes 5 1 4 0 110 56
+notes 5 1 5 0 110 57
+notes 5 1 6 0 110 58
+notes 5 1 7 0 110 59
+notes 5 1 8 0 110 60
+notes 5 1 9 0 110 61
+notes 5 1 10 0 110 62
+notes 5 1 11 0 110 63
+notes 5 1 12 0 110 64
+notes 5 1 13 0 110 65
+notes 5 1 14 0 110 66
+notes 5 1 15 0 110 67
+notes 5 1 16 0 110 68
+
+# ---- T6 "hey": on the "and" of 4 every other bar, an octave-up one every fourth
+pat 6 1 64
+notes 6 1 15 1 100 A3
+notes 6 1 47 1 90 A3
+notes 6 1 63 0.5 80 A4
+chance 6 1 63 1:2
+
+# ---- T7 cane's "hand drum": a tuned drum answering the conga, off the conductor (brain no)
+pat 7 1 16 1 60 20
+notes 7 1 3 1 70 A4
+notes 7 1 6 1 95 E4
+notes 7 1 8 1 60 A4
+notes 7 1 11 1 100 A3
+notes 7 1 14 1 85 E4
+notes 7 1 16 1 60 A4
+chance 7 1 8 60
+chance 7 1 16 1:2
+
+# ---- the conductor: a step a bar, Am | F | Dm | Em (the chord's root against A4: F4 two degrees down, D5 and
+# E5 three and four up)
+pat 9 1 4 16
+notes 9 1 1 1 100 A4
+notes 9 1 2 1 100 F4
+notes 9 1 3 1 100 D5
+notes 9 1 4 1 100 E5
+
+# ---- scenes and the song
+scenedef 1 1 1 1 1 1 1 1 1 1
+scenemute 1 .xxx.xxx
+scenedef 2 2 1 1 1 1 1 1 1 1
+scenemute 2 ...x.x.x
+scenedef 3 3 2 1 1 1 1 1 1 1
+scenemute 3 .x..x.xx
+scenedef 4 2 1 1 1 1 1 1 1 1
+scenemute 4 .......x
+scenedef 5 1 1 1 1 1 1 1 1 1
+scenemute 5 .x.x.xxx
+song 1:4 2:8 3:4 4:8 5:4
+songloop 0
+
+# ---- play the song (HOME, SELECT to the Song page, PLAY), and perform
+
+knob 3 cut 70
+tap HOME
+turn SELECT 1
+stats reset
+wav loom_demo_house_909.wav
+tap PLAY
+# intro 4
+bars 4
+# groove 8: the stabs' filter opened by hand, and the 303's
+knob 3 cut 78
+knob 2 cut 40
+bars 2
+knob 3 cut 86
+knob 2 cut 55
+bars 2
+knob 3 cut 92
+knob 2 cut 70
+knob 2 fenv 85
+bars 3.75
+throw echo on perc
+bars 0.25
+throw echo off perc
+# breakdown 4
+bars 4
+# main 8: the 303 wide open, then closing
+knob 2 cut 85
+knob 2 res 110
+bars 4
+knob 2 cut 60
+bars 3
+knob 3 send1 100
+bars 1
+knob 3 send1 60
+# outro 4: the stabs closing, the 303 too
+knob 2 cut 35
+knob 3 cut 80
+bars 2
+knob 3 cut 70
+bars 2
+wait 3000
+wavstop
+stats

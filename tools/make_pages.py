@@ -14,6 +14,7 @@
   samples/index.html            the user sample bank in the browser (app/web/samples/: add, replace, rename, reorder,
                                 remove; loom_samples.js inlined)
   firmware/loom-VERSION.fwsc    the package the installer writes; also the download
+  firmware/loom-VERSION-res.bin the resource region beside it (the 909 cymbals), which the installer writes after it
   firmware/m-bootloader-X.Y.fwsc  m-bootloader (MIT, fm1-base's web/m-bootloader), offered after the firmware
 
   tools/make_pages.py app/build/loom-0.1.fwsc 0.1 OUT_DIR
@@ -197,6 +198,17 @@ def main(pkg, version, out):
     for d in ("install", "firmware", "backup"):
         (out / d).mkdir(parents=True)
     shutil.copy(pkg, out / "firmware" / name)
+    # the resource region (the 909 cymbals: fm1.toml resources), checked, beside it: the installer writes it after
+    res_src, res_name = pkg.with_name(pkg.stem + "-res.bin"), Path(name).stem + "-res.bin"
+    if not res_src.exists():
+        raise SystemExit(f"make_pages: no {res_src} (./build.sh --release writes it; gh release download it with the package)")
+    sys.path.insert(0, str(SRC / "base" / "tools"))
+    from fm1_resources import ResError, payload_of
+    try:
+        payload_of(res_src.read_bytes())
+    except ResError as e:
+        raise SystemExit(f"make_pages: {res_src}: {e}")
+    shutil.copy(res_src, out / "firmware" / res_name)
     # m-bootloader (MIT), which the installer offers after the firmware, with its licence (as fm1-base's sites)
     boot = SRC / "base" / "web" / "m-bootloader" / f"fm1-uboot-{base_site.MBOOT_VERSION}.fwsc"
     boot_name = f"m-bootloader-{base_site.MBOOT_VERSION}.fwsc"
@@ -209,6 +221,7 @@ def main(pkg, version, out):
         strip_module((SRC / "base" / "web" / "fm1ota.js").read_text(encoding="utf-8"))
     meta = json.dumps({"version": version, "product": product, "pkg": "../firmware/" + name,
                        "backup": True,                              # (the site's backup page: the installer links it)
+                       "res": "../firmware/" + res_name,           # (the resource region: written after the firmware)
                        "boot": {"pkg": "../firmware/" + boot_name, "version": base_site.MBOOT_VERSION,
                                 "sha256": hashlib.sha256(boot.read_bytes()).hexdigest()}})
     for mark in ("/*LIB*/", "/*META*/"):

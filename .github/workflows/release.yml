@@ -65,10 +65,12 @@ jobs:
           version=${GITHUB_REF_NAME#v}
           ./build.sh --release "$version"
           cp "app/build/loom-$version.fwsc" build/release-assets/
+          cp "app/build/loom-$version-res.bin" build/release-assets/   # (the 909 cymbals: the installer writes them)
           cp app/build/loom.bin "build/release-assets/loom-$version-app.bin"
         else
           ./build.sh
           cp app/build/loom.fwsc build/release-assets/
+          cp app/build/loom-res.bin build/release-assets/
           cp app/build/loom.bin build/release-assets/loom-app.bin
         fi
       test: |

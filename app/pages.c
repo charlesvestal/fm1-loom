@@ -3806,7 +3806,8 @@ static void pic_drumline(int32_t x0, int32_t y0, int32_t w, int32_t h, const uin
         int32_t x = x0 + (k % 6) * pw + 2, y = y0 + (k / 6) * ph + 2, hit = eng_drum_hit[k];
         static const char *const PAD[] = {"kick", "snare", "hat", "clap", "shakr", "tamb", "strng", "cong", "tom", "fm",
                                              "smpl", "xkick", "xsnr", "xhat", "xclap", "xtom", "xrim", "xfm",
-                                             "xnois", "clang", "sophi", "9kick", "9snr", "9tom", "9rim", "9clap"};
+                                             "xnois", "clang", "sophi", "9kick", "9snr", "9tom", "9rim", "9clap",
+                                             "9hat", "9open", "9ride", "9crsh"};
         _Static_assert(sizeof PAD / sizeof PAD[0] == NDM, "a pad name for each model");
         const char *nm = PAD[p[TP_DRUM(k, DP_MODEL)] % NDM];
         char t[4];

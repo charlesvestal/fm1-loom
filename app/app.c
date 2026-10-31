@@ -74,6 +74,10 @@ void app_init(void)
 #endif
     }
     smp_user_scan();                                /* (an empty or torn bank: no user samples) */
+    {
+        extern const uint8_t *(*d909_res_get)(uint32_t *len);   /* (dsp/d909.h) */
+        d909_res_get = plat_res;                    /* the 909 cymbals' samples: the resource region (fm1.toml) */
+    }
     project_load(project_last_slot());              /* the slot used last; defaults when nothing (or another format) is saved */
     presets_load();
     engine_init(&pats, proj_par);
