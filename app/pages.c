@@ -3070,7 +3070,7 @@ static void list_paint(int32_t oy)
     for (int i = lst.top; i < lst.n && y + oy - 1 + list_rh(i) <= LIST_VIS; y += list_rh(i), i++) {
         int32_t ty = cap_y(y, LIST_RH - 1, &FONT_S) - 1;   /* (descenders clear the foot) */
         int on = i == lst.sel, k = lst.row[i].kind;
-        uint16_t fg = on ? K_BG : K_TEXT, dim = on ? K_PANEL2 : K_DIM;
+        uint16_t fg = on ? K_BG : K_TEXT;
         const char *v = lst.row[i].val;
         if (k == LK_HEAD) {                          /* a section's name: small, a rule after it */
             int32_t e = cv_text(10, cap_y(y, LIST_HH, &FONT_XS) - 1, &FONT_XS, lst.row[i].name, K_DIM);

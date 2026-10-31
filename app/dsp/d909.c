@@ -684,7 +684,28 @@ static void render_smp(d909_t *v, float *out, int m)
     const uint8_t *blk = v->smp.blk;
     const uint32_t len = v->smp.len;
     const float g = v->out_gain, pre = v->smp.pre;
+    if (v->smp.pos >= len && v->shape.type != 6) {   /* past the sample's end (after Optimist 537fbf00): the shape's */
+        const float z = d9_shape(&v->shape, 0.0f, v->crush_st) * g;   /* 0, the same every sample (but Crush, whose */
+        for (i = 0; i < m; ++i)                       /* hold count runs on); the envelope is not read again before */
+            out[i] = z;                               /* a hit sets it anew */
+        return;
+    }
     d9_env_anchor(&v->smp.out);
+    if (v->smp.incf == 0u && v->smp.frac == 0u) {    /* a whole-number rate: on the samples, a + (b - a) 0 = a */
+        const uint32_t inc = v->smp.inc;
+        uint32_t p = v->smp.pos;
+        for (i = 0; i < m; ++i) {
+            float y = 0.0f;
+            if (p < len) {
+                y = d9s_at(blk, p);
+                p += inc;
+            }
+            y *= d9_env_tick(&v->smp.out);
+            out[i] = d9_shape(&v->shape, y * pre, v->crush_st) * g;
+        }
+        v->smp.pos = p;
+        return;
+    }
     for (i = 0; i < m; ++i) {
         float y = 0.0f;
         if (v->smp.pos < len) {                       /* linear, as 9W9's playbackRate */
