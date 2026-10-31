@@ -1671,6 +1671,9 @@ void app_speak_dump(void) { speak_dump(); }
 void app_host_reboot(void) { memset(&proj, 0, sizeof proj); }   /* what RAM forgets (the flash keeps the rest) */
 int app_host_fails(void)
 {
+    if (msg_too_wide)                               /* a hint row or a message that did not fit at its size (pages.c) */
+        printf("HINTS: %d too wide\n", msg_too_wide);
+    host_fails += msg_too_wide != 0;
 #ifdef GFX_AUDIT
     if (ga_findings)                                /* the layout audit (gfx_loom.c): labels must not clip, touch or overlap */
         printf("LAYOUT: %u findings\n", (unsigned)ga_findings);

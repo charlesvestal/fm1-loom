@@ -107,6 +107,7 @@ def model(song):
     return next((parse_stats(ln) for ln in log.read_text().splitlines() if ln.startswith("stats:")), None)
 
 
+# (HOME's list: SELECT 8 rows down to LOAD PROJECT, after the scenes' and the song's rows)
 PLAY_SONG = """master 4096
 samples {bank}
 restore {backup}
@@ -117,6 +118,9 @@ tap HOME
 wait 300
 tap SEL
 wait 300
+turn SELECT 8
+wait 200
+said LOAD PROJECT
 turn ALGO {turns}
 wait 200
 tap SEL
@@ -178,12 +182,12 @@ def main():
     for g, songs in GROUPS.items():
         bank = out / f"bank_{g}.bin"
         roots = list(dict.fromkeys(root(s) for s in songs))   # (a song and its variants share its samples)
-        allspecs = [sp for r in roots for sp in specs[r]]
+        allspecs = [sp for r in roots for sp in specs.get(r, [])]   # (a song of no bank: none)
         if not allspecs:                             # (no samples of their own: the breaks pack, which a slice preset
             allspecs = ["breaks"]                    # finds by name since the breaks left the firmware)
         at = {}                                      # each root's first user sample's place in the group's bank
         for r in roots:
-            at[r] = sum(len(specs[x]) for x in roots[:roots.index(r)])
+            at[r] = sum(len(specs.get(x, [])) for x in roots[:roots.index(r)])
         print(f"== group {g}: {', '.join(songs)}")
         r = subprocess.run([sys.executable, str(ROOT / "tools" / "loom_samples.py"), "build", str(bank)] + allspecs)
         if r.returncode:
@@ -197,8 +201,8 @@ def main():
             if slot > 1:
                 script.append("projnew")
             script += remap(setup, at[root(s)])
-            script += [f"projsave {slot} {NAMES[s]}", "wait 200"]
-            rows.append({"slot": slot, "song": s, "name": NAMES[s].replace("_", " "), "user_samples_from": at[root(s)] + 1,
+            script += [f"projsave {slot} {NAMES.get(s, s)}", "wait 200"]
+            rows.append({"slot": slot, "song": s, "name": NAMES.get(s, s).replace("_", " "), "user_samples_from": at[root(s)] + 1,
                          "model": model(s), "live": live_actions(live)})
         script.append(f"backup out:group_{g}.loom8")
         sp = out / f"group_{g}.xy"

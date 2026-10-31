@@ -947,6 +947,20 @@ static void draw_batt(int32_t x, int b)
     for (int i = 0; i < b && i < 3; i++)
         cv_rect(x + 2, 14 - i * 3, BATT_W - 4, 2, b <= 1 ? K_REC : K_TEXT);
 }
+#ifdef PLAT_HOST
+static int msg_too_wide;                         /* hints and messages that did not fit (the host fails on them) */
+#endif
+#if defined(PLAT_HOST) && !defined(PLAT_WEB)
+static void hdr_cut_(const felucca_font_t *f, const char *s, int32_t room)   /* a message's part cut in the header */
+{
+    static char last[64];
+    if (text_w(f, s) <= room || !strncmp(last, s, sizeof last - 1u))
+        return;
+    strncpy(last, s, sizeof last - 1u);
+    printf("  FAIL message cut in the header: %s\n", s);
+    msg_too_wide++;
+}
+#endif
 static void draw_header(void)
 {
     char t[40];
@@ -994,6 +1008,11 @@ static void draw_header(void)
         cv_round(222, 8, 9, 9, 4, K_REC);
     } else if (msg) {
         int no = ui.msg_no;
+#if defined(PLAT_HOST) && !defined(PLAT_WEB)
+#define hdr_cut(f, s, room) hdr_cut_(f, s, room)
+#else
+#define hdr_cut(f, s, room) ((void)0)
+#endif
         int32_t x;
         alert_box(no ? AL_NO : ui.msg_kind);
         {   /* (large type: a long first part a size down, the second after it as room allows) */
@@ -1018,11 +1037,17 @@ static void draw_header(void)
                 if (cut) {
                     l1[cut] = 0;
                     cv_text(x + 8, 2, f, l1, K_DIM);
+                    hdr_cut(f, ui.msg[1] + cut + 1, room);
                     text_fit(x + 8, 14, f, ui.msg[1] + cut + 1, room, K_DIM);
-                } else
+                } else {
+                    hdr_cut(f, ui.msg[1], room);
                     text_fit(x + 8, cap_y(0, HDR_H, f), f, ui.msg[1], room, K_DIM);
-            } else
+                }
+            } else {
+                if (LARGE)                           /* (the normal header's check: ui.c say_as) */
+                    hdr_cut(f, ui.msg[1], room);
                 text_fit(x + 8, LARGE ? cap_y(0, HDR_H, f) : f == &FONT_XS ? 6 : 4, f, ui.msg[1], room, K_DIM);
+            }
         }
     } else if (seq.rec_wait && playing()) {      /* recording on the first note: waiting for it */
         cv_text(8, 4, &FONT_B, "Play a note", K_TEXT);
@@ -2090,7 +2115,7 @@ static void page_footer(char *t)
         }
         s_cat(t, k == LK_ACTION ? "SEL confirm|HOME back"                       /* (the menu's rules: an action, a */
                : k == LK_PICK && !pick_sets(lst.row[lst.sel].id) ? "ALGO pick|SEL confirm|HOME back"   /* choice, a */
-               : "SELECT move|ALGO change|SEL back");    /* setting or a knob's row) */
+               : "ALGO change|SEL back");                /* setting or a knob's row) */
         return;
     }
     if (!ui.any_btn && ui.page == P_STEPS && !ui.held && !ui.chordmode) {
@@ -2366,9 +2391,6 @@ static void bot_line(const bot_t *p, int a, int b, int32_t y, const felucca_font
     for (int i = a; i < b; i++)
         x += bot_part(x, y, p->s[i], p->n[i], job, 1) + gap;
 }
-#ifdef PLAT_HOST
-static int msg_too_wide;
-#endif
 static void draw_footer_as(void);
 static void draw_footer(void)                        /* the hints keep today's faces in large type: they are hints */
 {
