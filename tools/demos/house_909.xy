@@ -63,7 +63,7 @@ knob 1 send2 10
 preset 2 acid_line acid
 # (the song was written before a bass preset sat an octave down)
 param 2 oct 2
-knob 2 cut 30
+knob 2 cut 51
 knob 2 res 100
 knob 2 brain diatonic
 knob 2 ltype pump
@@ -256,10 +256,10 @@ tap PLAY
 bars 4
 # groove 8: the stabs' filter opened by hand, and the 303's
 knob 3 cut 78
-knob 2 cut 40
+knob 2 cut 55
 bars 2
 knob 3 cut 86
-knob 2 cut 55
+knob 2 cut 61
 bars 2
 knob 3 cut 92
 knob 2 cut 70
@@ -274,13 +274,13 @@ bars 4
 knob 2 cut 85
 knob 2 res 110
 bars 4
-knob 2 cut 60
+knob 2 cut 62
 bars 3
 knob 3 send1 100
 bars 1
 knob 3 send1 60
 # outro 4: the stabs closing, the 303 too
-knob 2 cut 35
+knob 2 cut 53
 knob 3 cut 80
 bars 2
 knob 3 cut 70

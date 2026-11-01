@@ -665,8 +665,8 @@ It is the whole instrument, with its own filter, envelopes, accent and slide, so
 | --- | --- |
 | Engine | **wave** (saw or square), **accent** (how hard an accented note hits), **slide** (how long a slide takes, 2 to 360 ms), **tune** (the 303's tuning, about a semitone and a half either way) |
 | Envelope | **attack** (how the filter opens on a plain note: from a snap to a swell, 0.3 ms to 3 s), **decay** (how long the filter takes to close, 0.2 to 2 s), **acc dec** (the same for an accented note, 30 ms to 3 s), **length** (how long a held note takes to fade, 30 ms to 3 s) |
-| Filter | **cutoff** (314 Hz to 2.4 kHz, before the envelope opens it), **reso**, **env mod** (how far each note opens the filter), **low cut** (how much bass stays in the resonance, 350 down to 100 Hz) |
-| Sub | **drive** and its **type**: off, soft or rat (a distortion pedal's clipping); **shaper**: how square the square wave is |
+| Filter | **cutoff** (60 Hz to 2.4 kHz, before the envelope opens it: the top half is the stock 303's, from 870 Hz; the bottom half goes darker than a 303 can, which stops at 314 Hz), **reso**, **env mod** (how far each note opens the filter), **low cut** (how much bass stays in the resonance, 350 down to 100 Hz) |
+| Sub | **drive** and its **type**: off, soft or rat (a distortion pedal's clipping); **shaper**: how square the square wave is (with wave on square only; most of its change is in the bottom third of the knob) |
 
 The picture on the Envelope page draws the filter's opening and closing over three seconds, an accented note's
 dimmer, and the held note's level as a line. An acid track has no filter envelope page, its filter type is the 303's

@@ -188,3 +188,6 @@ void bass303_pitch(bass303_t *b, float mul);
 int bass303_max(int i);                          /* a parameter's top value: 127, or a switch's last */
 void bass303_set(bass303_t *b, int i, int value);
 int bass303_get(const bass303_t *b, int i);
+/* LOOM-8: the cutoff pot (0..127) in Hz: its top half the stock 303's (874 Hz at 64 .. 2394 Hz), its bottom half
+ * stretched down to 60 Hz (the stock 303 stops at 314 Hz): the dark end the other engines' filters have */
+float bass303_cutoff_hz(int v);

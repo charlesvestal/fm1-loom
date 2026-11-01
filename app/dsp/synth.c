@@ -3592,7 +3592,7 @@ static void tp_text_i(const tp_info_t *i, int p, int v, int engine, char *num, c
     if (engine == EG_ACID && (p == TP_CUT || p == TP_KTRK || (p >= TP_A && p <= TP_R) || p == TP_E3 || p == TP_E4)) {
         float n = (float)(v > 127 ? 127 : v) * (1.0f / 127.0f), ms;   /* (bass303.c's ranges) */
         if (p == TP_CUT || p == TP_KTRK) {
-            hz_text(p == TP_CUT ? 314.0f * fm_exp2f(n * 2.930586688f) : 350.0f * fm_exp2f(-n * 1.807354922f), num, unit);
+            hz_text(p == TP_CUT ? bass303_cutoff_hz(v > 127 ? 127 : v) : 350.0f * fm_exp2f(-n * 1.807354922f), num, unit);
             return;
         }
         if (p == TP_E4) {                        /* the tuning (A4 400 .. 479 Hz) in cents */

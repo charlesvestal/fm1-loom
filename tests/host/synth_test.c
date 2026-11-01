@@ -24,6 +24,7 @@
 #include "synth.h"
 #include "drumline.h"
 #include "sample.h"
+#include "bass303.h"                          /* bass303_cutoff_hz */
 
 static int bad;
 static void check(const char *what, int ok)
@@ -973,7 +974,12 @@ static void acid_tests(void)
     printf("-- acid\n");
     check("acid is an engine with presets", preset_first(EG_ACID) >= 0 && !strcmp(EG_NAME[EG_ACID], "acid"));
     tp_text(TP_CUT, 0, EG_ACID, num, unit);
-    check("acid's cutoff 0 shows 314 Hz", !strcmp(num, "314") && !strcmp(unit, "Hz"));
+    check("acid's cutoff 0 shows 60 Hz (below the stock 303's 314)", !strcmp(num, "60") && !strcmp(unit, "Hz"));
+    tp_text(TP_CUT, 64, EG_ACID, num, unit);
+    check("acid's cutoff 64 shows the stock 303's 874 Hz", !strcmp(num, "874") && !strcmp(unit, "Hz"));
+    check("acid's cutoff: the stock 303's from 64 up, continuous at 64",
+          fabsf(bass303_cutoff_hz(127) - 2394.0f) < 1.0f && fabsf(bass303_cutoff_hz(100) - 314.0f * exp2f(100.0f / 127.0f * 2.930586688f)) < 0.5f &&
+          fabsf(bass303_cutoff_hz(63) - 873.98f) < 0.05f * 873.98f && bass303_cutoff_hz(63) < bass303_cutoff_hz(64));
     tp_text(TP_D, 127, EG_ACID, num, unit);
     check("acid's decay 127 shows 2.0 s", !strcmp(tp_info(TP_D, EG_ACID)->name, "decay") && !strcmp(num, "2.0") &&
                                               !strcmp(unit, "s"));

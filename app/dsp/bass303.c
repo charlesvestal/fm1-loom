@@ -97,11 +97,20 @@ static void env_tables(bass303_t *b)
     }
 }
 
+BASS303_COLD float bass303_cutoff_hz(int v)
+{
+    if (v >= 64)                                             /* the stock 303: 314 * 2^(n log2(2394/314)) */
+        return 314.0f * c_exp2f((float)v * (2.930586688f / 127.0f));
+    return 60.0f * c_exp2f((float)v * (3.864561240f / 64.0f));  /* 60 Hz .. the stock 873.98 Hz at 64 */
+}
+
 /* Open303::calculateEnvModScalerAndOffset, the measured mapping */
 static void calc_envmod(bass303_t *b)
 {
     float e = (float)b->pot[BASS303_ENVMOD] * (1.0f / 127.0f);
     float c = c_log2f(b->cutoff * (1.0f / 313.8152786f)) * (1.0f / 2.931683907f); /* log2(c1/c0) */
+    if (c < 0.0f)                                /* (LOOM-8: below the stock range, as at its bottom) */
+        c = 0.0f;
     float slo = 3.773996325f * e + 0.736965594f;
     float shi = 4.194548788f * e + 0.864344901f;
     b->env_scaler = (1.0f - c) * slo + c * shi;
@@ -199,7 +208,7 @@ void bass303_set(bass303_t *b, int i, int v)
     n = (float)v * (1.0f / 127.0f);
     switch (i) {
     case BASS303_CUTOFF:
-        b->cutoff = 314.0f * c_exp2f(n * 2.930586688f);       /* log2(2394/314) */
+        b->cutoff = bass303_cutoff_hz(v);
         calc_envmod(b);
         break;
     case BASS303_ENVMOD:
@@ -691,6 +700,8 @@ static BASS303_PASS void run_control(bass303_t *b, bass303_cs_t *cs, float *ab, 
     float inc = b->c_inc, f_b0 = b->c_b0, k = b->c_k, g2 = b->c_g2, a = b->c_a;
     const float osc_freq = b->osc_freq, acc = b->accent_gain;
     const float scaler = b->env_scaler, offset = b->env_offset, cutoff = b->cutoff, r = b->reso;
+    /* Open303's floor, 200 Hz; LOOM-8's knob below the stock 314 Hz takes it down with the cutoff (38 Hz at 60) */
+    const float fc_min = cutoff < 314.0f ? cutoff * (200.0f / 314.0f) : 200.0f;
     const float *amp_pw = b->gate ? b->ampd_pw : b->amp_acc ? bass303_k.ampa_pw : bass303_k.ampn_pw;
     const float amp_boost = b->gate ? 0.45f + 4.0f * acc : 0.0f;
     /* the overload guard's lite mode: no oversampling; a change of rate jumps to the new rate's
@@ -720,7 +731,7 @@ static BASS303_PASS void run_control(bass303_t *b, bass303_cs_t *cs, float *ab, 
         n_inc = b->slew_y * b->pmul * (1.0f / fso);
         n_a = b->amp_y + amp_boost * b->env_y;
         fc = cutoff * fm_exp2f(scaler * (b->rc1_y - offset) + acc * b->rc2_y);   /* n1 = n2 = 1 */
-        fc = fm_clampf(fc, 200.0f, 20000.0f);
+        fc = fm_clampf(fc, fc_min, 20000.0f);
         /* TeeBeeFilter::calculateCoefficientsApprox4, TB_303 branch only (the a1 polynomial
          * it computes first is overwritten there, so it is skipped) */
         fx = fc * (0.707106781f / fso);
