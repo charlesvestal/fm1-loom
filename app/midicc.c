@@ -29,10 +29,11 @@ static const struct { uint8_t cc, m; } CC_MST[] = {
     {23, MS_CMIX},  {24, MS_PERC},  {25, MS_MEL},    {26, MS_COMP},  {27, MS_PUMP},  {28, MS_PUMP_REL}};
 
 static int cc_to(int v, int lo, int hi) { return lo + (v * (hi - lo) + 63) / 127; }   /* 0..127 onto lo..hi */
-/* CC IN endless (Setup; proj.rsv[3] CC_IN_ENDLESS): an encoder's value is a turn, not a place. Two encodings: about 64
- * (65 is +1, 63 is -1), or signed (1 is +1, 127 is -1); a turn of more than 8 in one message is not an encoder's */
+/* CC IN endless (Setup; proj.rsv[3] CC_IN_ENDLESS): an encoder's value is a turn, not a place (fm1-base midi_rel.h:
+ * about 64, 65 +1 and 63 -1, or signed, 1 +1 and 127 -1) */
+#include "midi_rel.h"
 static int cc_rel;                            /* (this message: endless) */
-static int cc_delta(int v) { return v >= 56 && v <= 72 ? v - 64 : v < 64 ? v : v - 128; }
+#define cc_delta midi_rel_delta
 static int cc_on(int v, int cur) { return cc_rel ? (cc_delta(v) > 0 ? 1 : cc_delta(v) < 0 ? 0 : cur) : v >= 64; }
 
 static void cc_par(int t, int p, int v)       /* a track's parameter from a CC (recorded as a knob turn would be) */
