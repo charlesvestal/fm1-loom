@@ -1,5 +1,6 @@
 # a kit's key picked while playing: no preview over the beat (Steps' black key, a sound page's black key); stopped,
-# the same keys sound it; a white key on a sound page still plays while playing
+# the same keys sound it. On EDIT's pages a white key writes the key shown on its step (tests/scenarios/kitedit.xy);
+# with EDIT held it plays, while playing too
 wait 300
 expect trk 1
 tap PLAY
@@ -15,6 +16,13 @@ expect drumhits 0
 key w3 down
 wait 20
 key w3 up
+expect drumhits 0
+expect note 1 1 4 3
+press EDIT
+key w3 down
+wait 20
+key w3 up
+release EDIT
 expect drumhits 1
 tap PLAY
 wait 300

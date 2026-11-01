@@ -640,6 +640,14 @@ static int playing(void) { return seq.playing; }
 #define NCIN 4                                       /* the count-in's choices (proj.rsv[0]): off, 1 bar, 2 bars, on note */
 #define CIN_NOTE 3
 static int recording(void) { return seq.rec || seq.rec_wait || ui.rec_armed; }
+static int page_btn_held(int b);
+/* a kit's EDIT pages: the white keys put the key shown (black keys pick it) on the bar's steps, as Steps does; while
+ * recording, or with EDIT held, they play the kit as before */
+static int kit_edit_steps(void)
+{
+    int t = sel_trk();
+    return is_drum(t) && PAGE_BTN[page_group(ui.page)].btn == B_EDIT && !recording() && !page_btn_held(B_EDIT);
+}
 static int step_shown(int i) { return ui.bar * 16 + i; }
 static step_t *chord_step(int t, int i)              /* chord mode's held cell i: in the bar and pattern it began in */
 {
@@ -2241,7 +2249,7 @@ static void page_footer(char *t)
         else if (is_drum(trk) && (ui.page == P_ENV2 || ui.page == P_KITF))
             s_cat(t, ui.page == P_KITF ? "PRESET on or off|KEYS play" : "KEYS play");
         else if (is_drum(trk) && ui.page <= P_LFO2)
-            s_cat(t, "BLACK pick a key|KEYS play");
+            s_cat(t, kit_edit_steps() ? "BLACK pick a key|WHITE its steps" : "BLACK pick a key|KEYS play");
         else if (ui.page == P_ENGINE)
             s_cat(t, "PRESET next sound|SEL engine");
         else if (ui.page == P_FILTER && !is_acid(trk))

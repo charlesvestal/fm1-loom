@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MPL-2.0
-// The browser build in Node: boot it, go to the Engine page (EDIT) and play the white keys, expect sound and screen frames.
+// The browser build in Node: boot it, go to the Engine page (EDIT) and play T1's kit on the black keys (a kit's white keys
+// there write its steps), expect sound and screen frames.
 import fs from "fs";
 const wasm = fs.readFileSync(process.argv[2]);
 let mem;
@@ -10,11 +11,11 @@ const ex = instance.exports; mem = ex.memory;
 if (ex._initialize) ex._initialize();
 ex.web_master(2800); ex.web_boot();
 let peak = 0;
-const WHITE = [0,2,4,6,7,9,11,12,14,16,18,19,21,23,24,26];
+const BLACK = [1,3,5,8,10,13,15,17,20,22,25];
 const B_EDIT = 4;                                   // plat.h: the Engine page, where the keys play
 ex.web_render(4096); ex.web_buttons(1 << B_EDIT); ex.web_render(4096); ex.web_buttons(0); ex.web_render(4096);
 for (let i = 0; i < 400; i++) {
-  if (i % 20 === 0 && i < 340) ex.web_keys(1 << WHITE[(i / 20) % 16]);
+  if (i % 20 === 0 && i < 340) ex.web_keys(1 << BLACK[(i / 20) % 11]);
   ex.web_render(128);
   const l = new Float32Array(mem.buffer, ex.web_out_l(), 128);
   for (const v of l) peak = Math.max(peak, Math.abs(v));

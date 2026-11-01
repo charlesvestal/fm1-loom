@@ -1656,6 +1656,11 @@ static void key_down(int k)
         }
         return;
     }
+    if (w >= 0 && kit_edit_steps()) {             /* a kit's EDIT pages: the key shown on the bar's steps */
+        ui.kmode[k] = KM_IDLE;
+        step_toggle(w);
+        return;
+    }
     keyboard_down(k);
 }
 #define STEP_TAP_MS 700u                         /* a step's key let go sooner: a tap (toggles the step) */
@@ -3951,13 +3956,14 @@ static void leds(void)
         if (ui.page >= PAGE_BTN[i].first && ui.page < PAGE_BTN[i].first + PAGE_BTN[i].n)
             b |= 1u << PAGE_BTN[i].btn;
     if (proj.lights) {
-        if (steps_page(ui.page) && is_seqt(trk)) {
+        if ((steps_page(ui.page) || kit_edit_steps()) && is_seqt(trk)) {   /* (a kit's EDIT pages: its steps too) */
             const tpat_t *tp = tpat(trk);
             int ph = eng_step[trk];
             for (i = 0; i < 16; i++) {
                 int s = ui.bar * 16 + (int)i;
-                if (step_on(&tp->st[s], trk) && s < tp->len)
-                    mid |= 1u << WHITE_K[i];         /* (the steps with notes: the mid level, brighter than the glow) */
+                if ((steps_page(ui.page) ? step_on(&tp->st[s], trk) : kit_has(&tp->st[s], ui.dsound + 1)) && s < tp->len)
+                    mid |= 1u << WHITE_K[i];         /* (the steps with notes: the mid level, brighter than the glow; a
+                                                      * kit's EDIT pages: the steps of the key shown) */
                 if (playing() && s == ph)
                     k |= 1u << WHITE_K[i];
             }

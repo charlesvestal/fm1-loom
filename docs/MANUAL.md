@@ -121,7 +121,7 @@ press…" means keep **HOME** down while you press the next thing.
 | write a beat | Press **SEQ**. On a drum track, black key 1 is the kick: press it, then white keys 1, 5, 9 and 13. Black key 2 is the snare. <!-- hint: press SEQ; black 1; white 1,5,9,13 --> |
 | write a note | On Steps, hold **SEQ** and play the note. Let go and press a white key: the note goes on that step. <!-- hint: hold SEQ; white 3 --> |
 | write a chord | On Steps, hold **SEQ** and hold the notes together. Let go and press a step. <!-- hint: hold SEQ; white 3,5,7 --> |
-| pick a drum sound | On a drum track's Steps page, press its black key, or hold **SEQ** and press any key. <!-- hint: press SEQ; black 1 --> |
+| pick a drum sound | On a drum track's Steps page or its **EDIT** pages, press its black key, or hold **SEQ** and press any key. <!-- hint: press SEQ; black 1 --> |
 | see a step | On Steps, hold its white key. The knobs show its velocity, length, chance and pitch. <!-- hint: white 5 --> |
 | make a note longer | Hold its step and press a later white key. A bar under the cells shows how far a note reaches. <!-- hint: white 1,5 --> |
 | nudge a step | Hold its step and press **OCT−** or **OCT+**. <!-- hint: press OCT−, OCT+; white 5 --> |
@@ -752,7 +752,10 @@ The knobs after the dot are on a second Engine page (turn **SELECT**).
 The x models and clang cost up to twice as much as a voice of a built-in model, and sophie and the 909 models up to
 three times as much. Even with a kit made of them, the busiest demo stays well within what the FM-1 can do.
 
-On every sound page of a drum track, a black key picks the key the knobs edit. Turn **SELECT** for the Key page:
+On every sound page of a drum track, a black key picks the key the knobs edit. On **EDIT**'s pages the white keys
+then put that key on the bar's steps, as on Steps (again takes it off; they light where it plays), so you can shape a
+sound and write it without leaving the page. Hold **EDIT**, or record, and the white keys play the kit as before.
+Turn **SELECT** for the Key page:
 the model, random (a variation on every hit), pan, and volume in dB. Its **SEL** list sets the play mode: one-shot,
 gated, loop, or choke group 1 to 3. When you change a key's model, the new model starts from its own knob settings.
 COPY DRUM copies the drum on the key shown, and PASTE DRUM puts it on another key (of this kit or another): its model, knobs,
