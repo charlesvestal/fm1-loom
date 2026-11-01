@@ -970,6 +970,14 @@ static void lock_knob(int k, int32_t e)
     for (int i = 0; i < 16; i++)
         if (ui.held >> i & 1u) {
             int s = step_shown(i), v = pats.lane[ln].val[s];
+            if (is_drum(trk) && !steps_page(ui.page)) {   /* (a kit's EDIT pages: the key shown put on the step) */
+                step_t *st = &tpat(trk)->st[s];
+                if (!kit_has(st, ui.dsound + 1)) {
+                    if (step_empty(st))
+                        memset(st, 0, sizeof *st);
+                    kit_toggle(st, ui.dsound + 1);
+                }
+            }
             if (v == LOCK_NONE)
                 v = proj.trk[trk].par[p];
             pats.lane[ln].val[s] = (uint8_t)clampi(v + e, in->lo, in->hi);
@@ -1656,9 +1664,21 @@ static void key_down(int k)
         }
         return;
     }
-    if (w >= 0 && kit_edit_steps()) {             /* a kit's EDIT pages: the key shown on the bar's steps */
-        ui.kmode[k] = KM_IDLE;
-        step_toggle(w);
+    if (w >= 0 && kit_edit_steps()) {             /* a kit's EDIT pages: the key shown on the bar's steps. A tap toggles
+                                                  * it (at the release, as on Steps); held, the knobs lock this page's
+                                                  * knobs on the step (lock_knob: the key put on it if it has not) */
+        ui.kmode[k] = KM_STEP;
+        ui.touched = -1;
+        if (!ui.held) {
+            ui.held_first = (uint8_t)w;
+            ui.held_used = 0;
+            ui.held_multi = 0;
+        } else
+            ui.held_multi = 1;
+        ui.len_key = 0;
+        ui.held |= (uint16_t)(1u << w);
+        ui.lockpg = (uint8_t)(ui.page + 1);
+        ui.trickpg = 0;
         return;
     }
     keyboard_down(k);

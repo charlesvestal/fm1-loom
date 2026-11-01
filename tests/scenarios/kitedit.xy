@@ -1,5 +1,6 @@
 # a kit's EDIT pages: a black key picks the key shown (and plays it, stopped); the white keys put it on the bar's
-# steps, again takes it off, as Steps does. With EDIT held, or while recording, the white keys play the kit
+# steps (a tap: at its release), again takes it off, as Steps does; held, the knobs lock the page's knobs on the step
+# (the key put on it if it has not), and the release toggles nothing. With EDIT held, or recording, the keys play
 wait 300
 expect trk 1
 tap EDIT
@@ -18,4 +19,17 @@ press EDIT
 tapkey w9
 release EDIT
 expect note 1 1 10 0
+turn SELECT -1
+wait 40
+key w11 down
+wait 100
+turn K1 5
+wait 800
+key w11 up
+expect note 1 1 12 2
+expect lane 1 1 d2.k1 1
+key w13 down
+wait 900
+key w13 up
+expect note 1 1 14 0
 shot kitedit.png

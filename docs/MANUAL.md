@@ -753,8 +753,9 @@ The x models and clang cost up to twice as much as a voice of a built-in model, 
 three times as much. Even with a kit made of them, the busiest demo stays well within what the FM-1 can do.
 
 On every sound page of a drum track, a black key picks the key the knobs edit. On **EDIT**'s pages the white keys
-then put that key on the bar's steps, as on Steps (again takes it off; they light where it plays), so you can shape a
-sound and write it without leaving the page. Hold **EDIT**, or record, and the white keys play the kit as before.
+then put that key on the bar's steps, as on Steps (a tap; again takes it off; they light where it plays), so you can
+shape a sound and write it without leaving the page. Hold a white key and turn a knob to lock it on that step (the
+key goes on the step if it was not there); hold **SEL** and turn it to clear the lock. Hold **EDIT**, or record, and the white keys play the kit as before.
 Turn **SELECT** for the Key page:
 the model, random (a variation on every hit), pan, and volume in dB. Its **SEL** list sets the play mode: one-shot,
 gated, loop, or choke group 1 to 3. When you change a key's model, the new model starts from its own knob settings.
