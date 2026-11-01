@@ -1211,14 +1211,15 @@ Turn **ALGORITHM** past T8. Each aux track has its own page under **EDIT** and i
 
 - **FX I** and **FX II** are a send effect each: chorus, delay, lofi, phaser or reverb, each with four knobs. To
   reach them from any track, press **FX** and turn **SELECT**. **PRESETS** picks the effect. **SEL** has its
-  high-pass and low-pass and, on FX I, the send into FX II. In a new project the high-passes keep the lows dry: the
+  high-pass and low-pass and, on FX I, the send into FX II. On a delay it also has **PING WIDTH**: how far apart
+  the echoes bounce, from hard left and right at 127 (a new project's) to the centre at 0. In a new project the high-passes keep the lows dry: the
   echoes start at about 130 Hz and the reverb at about 230 Hz. The keys play the track you were on. If you turn to
   FX I or FX II with **ALGORITHM**, **EDIT** has the same knobs.
 
 | Effect | Knobs |
 | --- | --- |
 | chorus | rate, depth, feedback, width |
-| delay | time, fine, repeats, tone (how bright the repeats are) |
+| delay | time, fine, repeats, tone (how bright the repeats are); in **SEL**'s list, ping width |
 | lofi | rate, bits, smooth, width |
 | phaser | freq, depth, rate, feedback |
 | reverb, plate | size, motion, tone, damp (how fast the tail darkens) |

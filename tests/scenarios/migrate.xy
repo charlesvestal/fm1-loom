@@ -100,3 +100,12 @@ expect par3.rup 1
 expect par1.rup 0
 expect par2.x1 61
 expect par2.fine 64
+# a format 19 project, from before PING WIDTH (tests/fixtures/make_v19.xy): its FX tracks' TP_X1 (33 there, read by
+# nothing) made 127, the full bounce it had
+storeload tests/fixtures/store_v19.bin
+reboot
+wait 400
+expect tempo 101
+expect par11.x1 127
+expect par12.x1 127
+expect epar11.x1 127

@@ -54,7 +54,9 @@ void engine_keys_off(int trk);
 void engine_punch(int fx, int on, int target_trk);
 void engine_brain_key(int note, int on);
 void engine_master(int p, int val);
-void engine_fx(int slot, int pick, const uint8_t knob[4], int hp, int lp);   /* pick: fx.h (effect, reverb mode) */
+void engine_fx(int slot, int pick, const uint8_t knob[4], int hp, int lp, int width);   /* pick: fx.h (effect, reverb
+                                                                                        * mode); width: PING WIDTH */
+#define TP_FX_WIDTH TP_X1               /* an FX track's PING WIDTH (the delay's; 127 full, from format 20) */
 int engine_fx_has(int slot, int pick);                   /* the slot can do this effect (fx.h fx_has) */
 void engine_panic(void);
 void engine_transport(int what);                         /* 0 stop, 1 start, 2 continue, 3 start from the top */

@@ -124,6 +124,7 @@ struct fxslot {
     /* delay */
     int32_t dw, dquiet, dph;                  /* (the line at half rate: dph, the pair's second frame) */
     float dcur, dlpl, dlpr, dal, dar;         /* (the pair being summed into the slot at dw) */
+    float dwa, dwb;                           /* PING WIDTH: a side's echo into its own side, into the other (fx_width) */
     /* lofi */
     float lph, lhold, lin1, lout1, lwph;
     /* phaser */
@@ -279,6 +280,7 @@ void fx_init(fxslot_t *f, int16_t *dly_l, int16_t *dly_r, int16_t *rv)
     f->lpv = 127;
     f->hpc = onepole_k(20.0f);
     f->lpc = onepole_k(20000.0f);
+    f->dwa = 1.0f;                            /* (full width: the bounce hard left and right) */
     if (dly_l) zero16(dly_l, FX_DLY_LEN);
     if (dly_r) zero16(dly_r, FX_DLY_LEN);
     if (rv) zero16(rv, FX_RV_LEN);
@@ -342,6 +344,15 @@ void fx_tempo(fxslot_t *f, float bpm)
         if (f->type_t == FXT_DELAY)
             delay_time(f);
     }
+}
+
+/* PING WIDTH: the echoes' mid kept, their sides times w (0 centred .. 127 hard left and right), at the same power: an
+ * echo on one side (e) gives e (1 + w) / 2 and e (1 - w) / 2, power e^2 (1 + w^2) / 2, so both times sqrt(2 / (1 + w^2)) */
+void fx_width(fxslot_t *f, int w)
+{
+    float x = k127(w), g = fm_sqrtf(2.0f / (1.0f + x * x));
+    f->dwa = w >= 127 ? 1.0f : 0.5f * g * (1.0f + x);
+    f->dwb = w >= 127 ? 0.0f : 0.5f * g * (1.0f - x);
 }
 
 void fx_filter(fxslot_t *f, int hp, int lp)
@@ -425,7 +436,7 @@ static inline float tap16(const int16_t *b, float rp)
  * tone, at 4 kHz by default, so the 11 kHz the line keeps is enough), read at the frame's own place between slots */
 static void do_delay(fxslot_t *f, const float *x, float *ol, float *orr, int m, int any, int lag)
 {
-    const float target = f->pt[0], fb = f->pc[2], tc = f->pc[3];
+    const float target = f->pt[0], fb = f->pc[2], tc = f->pc[3], wa = f->dwa, wb = f->dwb;
     float dcur = f->dcur, lpl = f->dlpl, lpr = f->dlpr, al = f->dal, ar = f->dar;
     int32_t w = f->dw, quiet = f->dquiet, ph = f->dph;
     int i;
@@ -472,8 +483,8 @@ static void do_delay(fxslot_t *f, const float *x, float *ol, float *orr, int m, 
                 w = 0;
         }
         ph ^= 1;
-        ol[i] += tl;
-        orr[i] += tr;
+        ol[i] += wa * tl + wb * tr;           /* PING WIDTH: at full width wa 1, wb 0, the sides as they are */
+        orr[i] += wa * tr + wb * tl;
     }
     f->dw = w;
     f->dph = ph;

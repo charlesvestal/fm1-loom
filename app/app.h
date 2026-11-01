@@ -124,7 +124,8 @@ void loom_lights(uint32_t buttons, uint32_t keys, int glow, uint32_t dim_keys, i
 #define DEBUG_BUILD (APP_VERSION[0] == 'D' && APP_VERSION[1] == 'E' && APP_VERSION[2] == 'V' && \
                      (!APP_VERSION[3] || APP_VERSION[3] == 'T'))   /* DEV, or the load test's DEVTEST */
 #define PROJ_MAGIC 0x384D4F4Cu          /* "LOM8" (was "XXY1": XY-1's projects start fresh) */
-#define PROJ_FORMAT 19u                 /* (10, 0.5-beta's, to 12 load too: project.c migrate_old; older ones do not)
+#define PROJ_FORMAT 20u                 /* (10, 0.5-beta's, to 12 load too: project.c migrate_old; older ones do not)
+                                         * 20: an FX track's PING WIDTH (TP_FX_WIDTH, its TP_X1; older: 127, full);
                                          * 19: the random player's octaves up (TP_RUP), the tracks' last parameter;
                                          *     TP_P4 its octaves down, 0..3 (was one knob: project.c OLD_OCT);
                                          * 18: the kits' hit settings (pats.hit: a sound's own chance and tricks);

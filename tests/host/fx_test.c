@@ -123,6 +123,7 @@ static void run_fx(int type, const uint8_t knob[4], run_t *r, const char *wav)
 static float db(float x) { return 20.0f * 0.30103f * fm_log2f(x + 1e-12f); }
 
 /* an impulse into the slot, then n samples of L and R */
+static int imp_width = 127;                              /* the delay's PING WIDTH for impulse() */
 static void impulse(int type, const uint8_t knob[4], float *l, float *r, int n)
 {
     static float in[BLK], ol[BLK], orr[BLK];
@@ -130,6 +131,8 @@ static void impulse(int type, const uint8_t knob[4], float *l, float *r, int n)
     fx_init(fx, dly_l, dly_r, rv);
     fx_tempo(fx, 120.0f);
     fx_set(fx, type, knob);
+    if (imp_width != 127)
+        fx_width(fx, imp_width);
     for (b = 0; type > FXT_REVERB && b < 40; b++) {       /* an SPU mode clears its area first (silent) */
         memset(in, 0, sizeof in);
         fx_process(fx, in, ol, orr, BLK);
@@ -340,6 +343,40 @@ int main(void)
             }
             snprintf(name, sizeof name, "  tone 20 -> 110: the repeats brighter (%.4f -> %.4f)", (double)br[0], (double)br[1]);
             check(name, br[1] > br[0] * 4.0f);
+        }
+        {   /* PING WIDTH: 127 as fx_init has it (the bounce hard left and right), 0 the echoes centred (left = right),
+             * 64 between; the same power at each */
+            static const uint8_t kw[4] = {72, 64, 100, 64};
+            static float l127[24064], r127[24064];
+            static const int ws[3] = {127, 64, 0};
+            float e[3], side[3];
+            int s2, i, same = 1;
+            for (s2 = 0; s2 < 3; s2++) {
+                imp_width = ws[s2];
+                impulse(FXT_DELAY, kw, imp_l, imp_r, 24064);
+                e[s2] = side[s2] = 0.0f;
+                for (i = 0; i < 24064; i++) {
+                    e[s2] += imp_l[i] * imp_l[i] + imp_r[i] * imp_r[i];
+                    side[s2] += (imp_l[i] - imp_r[i]) * (imp_l[i] - imp_r[i]);
+                    if (s2 == 0) {
+                        l127[i] = imp_l[i];
+                        r127[i] = imp_r[i];
+                    }
+                }
+            }
+            imp_width = 127;
+            {   /* 127 set by fx_width: the same samples as without it */
+                fx_init(fx, dly_l, dly_r, rv);
+                fx_width(fx, 64);
+                fx_width(fx, 127);
+                impulse(FXT_DELAY, kw, imp_l, imp_r, 24064);
+                for (i = 0; i < 24064; i++)
+                    same &= imp_l[i] == l127[i] && imp_r[i] == r127[i];
+            }
+            snprintf(name, sizeof name, "  width 127 / 64 / 0: power %.4f / %.4f / %.4f, sides %.4f / %.4f / %.4f",
+                     (double)e[0], (double)e[1], (double)e[2], (double)side[0], (double)side[1], (double)side[2]);
+            check(name, same && side[2] == 0.0f && side[1] > 0.1f * side[0] && side[1] < 0.9f * side[0] &&
+                        fm_fabsf(e[1] - e[0]) < 0.02f * e[0] && fm_fabsf(e[2] - e[0]) < 0.02f * e[0]);
         }
     }
 

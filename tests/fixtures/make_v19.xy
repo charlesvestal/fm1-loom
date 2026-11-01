@@ -1,0 +1,11 @@
+# a format 19 project, from before PING WIDTH (the delay's width in an FX track's TP_X1, format 20): saved by that
+# build, for the migration's test (tests/scenarios/migrate.xy). FX I's TP_X1 set to 33 (a format 19 build reads it
+# nowhere): format 20 makes it 127, the full bounce those projects had. Run by a format 19 build (bd54e6e): its
+# loom_host tests/fixtures/make_v19.xy OUT
+wait 300
+bpm 101
+param 11 x1 33
+param 12 x1 33
+wait 40
+projsave 1 v19_test
+storesave tests/fixtures/store_v19.bin

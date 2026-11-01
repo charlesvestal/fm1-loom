@@ -60,6 +60,8 @@ void fx_set(fxslot_t *f, int pick, const uint8_t knob[4]);  /* the slot's effect
                                                              * mode) and its four knobs (0..127) */
 void fx_tempo(fxslot_t *f, float bpm);
 void fx_filter(fxslot_t *f, int hp, int lp);                /* the slot's filter page: high-pass, low-pass 0..127 */
+void fx_width(fxslot_t *f, int w);                          /* the delay's PING WIDTH: 0 the echoes centred .. 127 hard
+                                                             * left and right (the default), the same power */
 /* process n frames of the send (mono in) into out L/R (added) */
 void fx_process(fxslot_t *f, const float *in, float *out_l, float *out_r, uint32_t n);
 /* the same for a send that arrives lag samples late (0..256: the engine runs the effects a block behind, on the

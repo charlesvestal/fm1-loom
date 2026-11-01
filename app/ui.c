@@ -142,8 +142,9 @@ static void apply_brain(void)
 static void apply_fx(int trk)
 {
     const uint8_t *p = proj.trk[trk].par;    /* the engine's layout: TP_ENGINE the effect, E1..E4 its knobs,
-                                              * FENV the high-pass, CUT the low-pass (SEND2: the feed, by engine_set) */
-    engine_fx(trk - AUX_FX1, p[TP_ENGINE] % NFXPICK, p + TP_E1, p[TP_FENV], p[TP_CUT]);
+                                              * FENV the high-pass, CUT the low-pass, X1 the delay's PING WIDTH
+                                              * (SEND2: the feed, by engine_set) */
+    engine_fx(trk - AUX_FX1, p[TP_ENGINE] % NFXPICK, p + TP_E1, p[TP_FENV], p[TP_CUT], p[TP_FX_WIDTH]);
 }
 static void apply_aux(int trk)
 {
@@ -2619,9 +2620,9 @@ static void list_change_do(int32_t e)
         case A_KIT_FILTER:                       /* the kit's bus: on (dynamic) / off */
             set_tp(sel_trk(), TP_FTYPE, d > 0 ? FT_DYNAMIC : FT_LP24);
             break;
-        case A_FX_HP: case A_FX_LP: case A_FX_SEND: {
+        case A_FX_HP: case A_FX_LP: case A_FX_SEND: case A_FX_WIDTH: {
             int ft = ui.page == P_FX2 ? AUX_FX2 : AUX_FX1, id = lst.row[lst.sel].id;
-            int q = id == A_FX_HP ? TP_FENV : id == A_FX_LP ? TP_CUT : TP_SEND2;
+            int q = id == A_FX_HP ? TP_FENV : id == A_FX_LP ? TP_CUT : id == A_FX_WIDTH ? TP_FX_WIDTH : TP_SEND2;
             set_tp(ft, q, proj.trk[ft].par[q] + (int)accel(EN_ALGO, e));
             break;
         }
@@ -3679,7 +3680,7 @@ static void action_run(int a)
     case A_FOLLOW: case A_USB_AUDIO: case A_COUNT_IN: case A_THEME: case A_LARGE_TYPE: case A_PLAYMODE: case A_FTYPE: case A_FX_HP: case A_FX_LP:
     case A_FX_SEND: case A_PUMP_BY: case A_PUMP_REL: case A_PUMP_ACC: case A_LEVEL: case A_SCENE_AT: case A_AUTOSAVE:
     case A_MIDI_OUT: case A_LOOP_FREE: case A_CC_OUT: case A_SCENES_OUT: case A_MIDI_CC: case A_USB_HOST: case A_KIT_FILTER:
-    case A_CC_IN:
+    case A_CC_IN: case A_FX_WIDTH:
         return;   /* (ALGORITHM sets them; SEL
                                                                                     * leaves the list) */
     case A_REMOVE_NOTE: act_remove_note(lst.sel); break;

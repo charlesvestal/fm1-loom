@@ -172,6 +172,7 @@ static void aux_defaults(void)
     proj.trk[AUX_FX1].par[TP_FENV] = 40;                 /* the high-pass: the echoes from 130 Hz (no mud) */
     proj.trk[AUX_FX2].par[TP_CUT] = 127;
     proj.trk[AUX_FX2].par[TP_FENV] = 52;                 /* the reverb from 230 Hz: the kick and the bass stay dry */
+    proj.trk[AUX_FX1].par[TP_FX_WIDTH] = proj.trk[AUX_FX2].par[TP_FX_WIDTH] = 127;   /* the delay's bounce: full */
 }
 
 /* a new band: T2-T8 each a random factory preset of a part, so a project starts as one: a bass, a polyphonic synth,
@@ -788,6 +789,8 @@ int project_load(int slot)
         if (load_format < 13u)                        /* (before 13 the conductor's LFO slots held a knit's defaults:
                                                        * the shared LFO from its start) */
             glfo_defaults(proj.trk[AUX_BRAIN].par);
+        if (load_format < 20u)                        /* (before 20 no PING WIDTH: the full bounce they had) */
+            proj.trk[AUX_FX1].par[TP_FX_WIDTH] = proj.trk[AUX_FX2].par[TP_FX_WIDTH] = 127;
         if (load_format < 14u)                        /* (before 14, off (FT_DYNAMIC) sat at 4 and bp12 at 5: swap) */
             for (int t = 0; t < NTRK; t++) {
                 uint8_t ft = proj.trk[t].par[TP_FTYPE];
@@ -1060,7 +1063,7 @@ void project_apply(void)
         engine_set_all(t);
     for (k = 0; k < 2; k++) {
         const uint8_t *p = proj.trk[AUX_FX1 + k].par;
-        engine_fx(k, p[TP_ENGINE], p + TP_E1, p[TP_FENV], p[TP_CUT]);
+        engine_fx(k, p[TP_ENGINE], p + TP_E1, p[TP_FENV], p[TP_CUT], p[TP_FX_WIDTH]);
     }
     for (k = 0; k < NMS; k++)
         engine_master(k, proj.master[k]);

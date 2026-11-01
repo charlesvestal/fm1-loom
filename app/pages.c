@@ -286,7 +286,7 @@ enum { A_CLEAR_NOTES, A_CLEAR_LOCKS, A_CLEAR_BOTH, A_COPY_PAT, A_PASTE_PAT, A_RO
        A_KIT, A_SAVE_KIT, A_MIDI_CC, A_USB_HOST, A_BT_MIDI, A_BT_AUDIO, A_BT_ADEV, A_BT_DEVICE, A_BT_DEV, A_BT_LOOK,
        A_BT_FORGET, A_BT_DISCONNECT, A_CLEAR, A_ROTATE, A_PASTE, A_COPY_EMPTY, A_CLEAR_BAR,
        A_COPY_SOUND, A_PASTE_SOUND, A_COPY_KEY, A_PASTE_KEY, A_COPY_SCENE, A_PASTE_SCENE, A_DUP_SLOT, A_KIT_FILTER,
-       A_SHIFT, A_LARGE_TYPE, A_CC_IN, NACTIONS };
+       A_SHIFT, A_LARGE_TYPE, A_CC_IN, A_FX_WIDTH, NACTIONS };
 static const char *const ACTION_NAME[NACTIONS] = {
     "CLEAR NOTES", "CLEAR LOCKS", "CLEAR NOTES AND LOCKS", "COPY PATTERN", "PASTE PATTERN", "ROTATE FORWARD",
     "ROTATE BACK", "DUPLICATE BAR", "ENGINE", "PRESET", "SCRAMBLE", "SAVE AS PRESET", "RESET SOUND", "FOLLOWS CONDUCTOR",
@@ -297,7 +297,7 @@ static const char *const ACTION_NAME[NACTIONS] = {
     "PASTE LOCKS ONLY", "DOUBLE PATTERN", "CLEAR LOCKS", "CC OUT", "SCENES OUT", "KIT", "SAVE KIT", "KNOB CC",
     "USB PORT", "BT MIDI", "BT AUDIO", "AUDIO DEVICE", "MIDI DEVICE", "DEVICE", "LOOK AGAIN", "FORGET", "DISCONNECT",
     "CLEAR", "ROTATE", "PASTE", "COPY TO EMPTY", "CLEAR BAR", "COPY SOUND", "PASTE SOUND", "COPY DRUM", "PASTE DRUM",
-    "COPY SCENE", "PASTE SCENE", "DUPLICATE SLOT", "KIT FILTER", "SHIFT NOTES", "LARGE TYPE", "CC IN"};
+    "COPY SCENE", "PASTE SCENE", "DUPLICATE SLOT", "KIT FILTER", "SHIFT NOTES", "LARGE TYPE", "CC IN", "PING WIDTH"};
 static const char *const CLEAR_WHAT[3] = {"notes", "locks", "notes and locks"};
 /* a pick ALGORITHM sets at once (a setting: SEL only leaves the list), as against a choice SEL then carries out */
 static int pick_sets(int a)
@@ -306,7 +306,7 @@ static int pick_sets(int a)
     case A_FOLLOW: case A_USB_AUDIO: case A_COUNT_IN: case A_THEME: case A_LARGE_TYPE: case A_PLAYMODE: case A_FTYPE:
     case A_FX_HP: case A_FX_LP: case A_FX_SEND: case A_PUMP_BY: case A_PUMP_REL: case A_PUMP_ACC: case A_LEVEL:
     case A_SCENE_AT: case A_AUTOSAVE: case A_MIDI_OUT: case A_LOOP_FREE: case A_CC_OUT: case A_SCENES_OUT: case A_MIDI_CC:
-    case A_USB_HOST: case A_KIT_FILTER: case A_CC_IN:
+    case A_USB_HOST: case A_KIT_FILTER: case A_CC_IN: case A_FX_WIDTH:
         return 1;
     default:
         return 0;
@@ -761,6 +761,7 @@ static int grp_index(int p)
     return -1;
 }
 /* the TP_* a page's knob k edits, -1 none */
+static int fx_pick_of(int trk);
 static int tp_page_param(int p, int k, int trk)
 {
     static const int8_t M[][4] = {
@@ -790,9 +791,10 @@ static int tp_page_param(int p, int k, int trk)
             return p == P_SUB ? (k ? -1 : TP_E1) : k < 3 ? TP_E2 + k : -1;
         if (p == P_ENGINE)
             return (trk == AUX_PUNCH || trk == AUX_WEAVE) && k ? -1 : TP_E1 + k;
-        if (p == P_PLAY && is_fx(trk)) {             /* an FX track's page 2: high-pass, low-pass, the feed into FX II */
-            static const int8_t F2[4] = {TP_FENV, TP_CUT, TP_SEND2, -1};
-            return k == 2 && trk != AUX_FX1 ? -1 : F2[k];
+        if (p == P_PLAY && is_fx(trk)) {             /* an FX track's page 2: high-pass, low-pass, the feed into FX II,
+                                                      * a delay's PING WIDTH */
+            static const int8_t F2[4] = {TP_FENV, TP_CUT, TP_SEND2, TP_FX_WIDTH};
+            return k == 2 && trk != AUX_FX1 ? -1 : k == 3 && fx_pick_type(fx_pick_of(trk)) != FXT_DELAY ? -1 : F2[k];
         }
         return -1;
     }
@@ -1708,6 +1710,8 @@ static void page_knobs(knob_t *k)
             kn(&k[1], "LP", par[TP_CUT], 127);
             if (trk == AUX_FX1)
                 kn(&k[2], "TO FX II", par[TP_SEND2], 127);
+            if (fx_pick_type(fx_pick_of(trk)) == FXT_DELAY)
+                kn(&k[3], "WIDTH", par[TP_FX_WIDTH], 127);
         } else if (!is_aux(trk))
             for (int i = 0; i < 4; i++)
                 ktp(&k[i], trk, tp_page_param(p, i, trk));
@@ -3029,9 +3033,10 @@ static void list_build(void)
         }
     } else if (keep == P_ARRANGE || keep == P_SONG) {
         list_home(keep);
-    } else if (fx_page(keep)) {                     /* an effect: the type, its filter, the feed into FX II */
+    } else if (fx_page(keep)) {                     /* an effect: the type, its filter, the feed into FX II, the
+                                                     * delay's PING WIDTH */
         int ft = keep == P_FX1 ? AUX_FX1 : AUX_FX2;
-        static char hp[8], lp[8], fd[8];
+        static char hp[8], lp[8], fd[8], wd[8];
         num_s(proj.trk[ft].par[TP_FENV], hp);
         num_s(proj.trk[ft].par[TP_CUT], lp);
         list_add(ACTION_NAME[A_EFFECT], fx_label(ui.pick_fx % NFXPICK), LK_PICK, A_EFFECT);
@@ -3040,6 +3045,10 @@ static void list_build(void)
         if (ft == AUX_FX1) {
             num_s(proj.trk[ft].par[TP_SEND2], fd);
             list_add(ACTION_NAME[A_FX_SEND], fd, LK_PICK, A_FX_SEND);
+        }
+        if (fx_pick_type(fx_pick_of(ft)) == FXT_DELAY) {
+            num_s(proj.trk[ft].par[TP_FX_WIDTH], wd);
+            list_add(ACTION_NAME[A_FX_WIDTH], wd, LK_PICK, A_FX_WIDTH);
         }
     } else if ((keep == P_ENV || keep == P_FILTER || keep == P_ENV2 || keep == P_KITF) && !is_aux(trk)) {
         int fq = ftype_param(trk, keep);

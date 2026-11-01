@@ -254,7 +254,7 @@ static void cq_put(uint32_t type, uint32_t a, uint32_t b, uint32_t c)
 /* the FX settings travel beside the queue (too many bytes for one word): the main loop writes them,
  * posts C_FX, and the interrupt reads them whole at the next block. A knob caught between two writes
  * lasts one block. */
-static struct { uint8_t type, knob[4], hp, lp; } fx_req[2];
+static struct { uint8_t type, knob[4], hp, lp, width; } fx_req[2];
 
 /* the knob's value into the contiguous array the synth and the sequencer read (one byte: safe beside
  * the interrupt), then the command, for what needs doing with it (a kind change, a unit told) */
@@ -293,7 +293,7 @@ void engine_master(int p, int val)
     if (p >= 0 && p < NMS)
         cq_put(C_MASTER, (uint32_t)p, 0, (uint32_t)val);
 }
-void engine_fx(int slot, int type, const uint8_t knob[4], int hp, int lp)
+void engine_fx(int slot, int type, const uint8_t knob[4], int hp, int lp, int width)
 {
     int k;
     if (slot < 0 || slot > 1)
@@ -303,6 +303,7 @@ void engine_fx(int slot, int type, const uint8_t knob[4], int hp, int lp)
         fx_req[slot].knob[k] = knob[k];
     fx_req[slot].hp = (uint8_t)hp;
     fx_req[slot].lp = (uint8_t)lp;
+    fx_req[slot].width = (uint8_t)width;
     cq_put(C_FX, (uint32_t)slot, 0, 0);
 }
 void engine_panic(void) { cq_put(C_PANIC, 0, 0, 0); }
@@ -979,6 +980,7 @@ static void drain(void)
                 epar[AUX_FX1 + a][TP_ENGINE] = (uint8_t)type;
                 fx_set(FXS(a), type, fx_req[a].knob);
                 fx_filter(FXS(a), fx_req[a].hp, fx_req[a].lp);
+                fx_width(FXS(a), fx_req[a].width);
             }
             break;
         case C_PANIC: {
