@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LOOM-8</title>
+<meta name="description" content="A pocket groovebox for the M-VAVE FM-1: eight tracks, each in its own colour, a 64-step sequencer with tricks and locks, weave, throws, a conductor and a song.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;600&family=Barlow+Semi+Condensed:wght@600;700&display=swap">
+<style>
+:root { --ground: #f4f3f1; --ink: #1c1c20; --muted: #66666e; --rule: #dcdbd8; --card: #ffffff; --accent: #c8306f; color-scheme: light; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) { --ground: #000; --ink: #ebebee; --muted: #9a9aa2; --rule: #2e2e34; --card: #141418; --accent: #ff5caa; color-scheme: dark; }
+}
+:root[data-theme="dark"] { --ground: #000; --ink: #ebebee; --muted: #9a9aa2; --rule: #2e2e34; --card: #141418; --accent: #ff5caa; color-scheme: dark; }
+body { background: var(--ground); color: var(--ink); margin: 0; padding-inline: 16px; padding-block: 48px 64px;
+       font: 400 17px/1.6 "Barlow", "Helvetica Neue", Arial, sans-serif; }
+main { max-width: 42rem; margin: 0 auto; }
+h1 { font: 700 3rem/1 "Barlow Semi Condensed", "Barlow", sans-serif; margin: 0 0 .7rem; }
+h2 { font: 700 1.4rem "Barlow Semi Condensed", "Barlow", sans-serif; margin: 2.2rem 0 .6rem; }
+.threads { display: flex; gap: 6px; margin: 0 0 1.4rem; }
+.threads span { flex: 1; height: 6px; border-radius: 3px; }
+.lede { font-size: 1.15rem; margin: 0 0 1.6rem; max-width: 36rem; }
+.video { aspect-ratio: 16 / 9; margin: 0 0 1.4rem; border-radius: 14px; overflow: hidden; border: 1px solid var(--rule); background: #000; }
+.video iframe { width: 100%; height: 100%; border: 0; display: block; }
+.shots { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin: 0 0 1.8rem; }
+.shots img { width: 100%; height: auto; border-radius: 14px; image-rendering: pixelated; border: 1px solid var(--rule); }
+.status { border: 1px solid var(--rule); background: var(--card); border-radius: 14px; padding: 12px 16px; margin: 0 0 1.6rem; }
+.ways { display: grid; gap: 12px; margin: 0 0 1rem; }
+.ways a { display: block; text-decoration: none; color: var(--ink); background: var(--card); border: 1px solid var(--rule);
+          border-radius: 14px; padding: 14px 18px; }
+.ways a:hover, .ways a:focus-visible { border-color: var(--accent); outline: none; }
+.ways strong { font: 600 1.25rem "Barlow Semi Condensed", "Barlow", sans-serif; color: var(--accent); display: block; }
+.ways span { color: var(--muted); font-size: .95rem; }
+ul.feat { padding-left: 1.2rem; }
+ul.feat li { margin: 0 0 .5rem; }
+p.small { color: var(--muted); font-size: .9rem; }
+a { color: var(--accent); }
+code { font-size: .9em; }
+</style>
+<style>
+:root { --ground: #f4ecdc; --bg: #f4ecdc; --card: #fffaf0; --panel: #fffaf0; --now: #e9dcc4; --rule: #d8c6a8; --line: #d8c6a8; --muted: #6a5440; --dim: #6a5440; --ink: #24180f; --fg: #24180f; --accent: #8a5a00; --on-accent: #ffffff; --keytext: #ffffff; --teal: #2a7a72; --bad: #b3261e; --red: #b3261e; --focus: #2f5f9a; --wave: #a08a6e; --key: #24180f; color-scheme: light; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --ground: #18120e; --bg: #18120e; --card: #2c221a; --panel: #2c221a; --now: #46382a; --rule: #4a3c2e; --line: #4a3c2e; --muted: #beaa8c; --dim: #beaa8c; --ink: #f4e6c8; --fg: #f4e6c8; --accent: #e6b432; --on-accent: #18120e; --keytext: #18120e; --teal: #46aaa0; --bad: #ff7a5c; --red: #ff7a5c; --focus: #8fb4e0; --wave: #786450; --key: #f4e6c8; color-scheme: dark; } }
+:root[data-theme="dark"] { --ground: #18120e; --bg: #18120e; --card: #2c221a; --panel: #2c221a; --now: #46382a; --rule: #4a3c2e; --line: #4a3c2e; --muted: #beaa8c; --dim: #beaa8c; --ink: #f4e6c8; --fg: #f4e6c8; --accent: #e6b432; --on-accent: #18120e; --keytext: #18120e; --teal: #46aaa0; --bad: #ff7a5c; --red: #ff7a5c; --focus: #8fb4e0; --wave: #786450; --key: #f4e6c8; color-scheme: dark; }
+.lm-top { max-width: 64rem; margin: 0 auto 28px; display: flex; flex-wrap: wrap; align-items: center; gap: .3rem 1.4rem;
+          padding: 14px 0 12px; border-bottom: 1px solid var(--rule); font: 600 1rem/1.4 "Barlow", "Helvetica Neue", Arial, sans-serif; }
+.lm-top .lm-brand { display: inline-flex; align-items: center; gap: .55rem; color: var(--ink); text-decoration: none;
+                    font: 700 1.35rem/1 "Barlow Semi Condensed", "Barlow", sans-serif; letter-spacing: .02em; }
+.lm-top .lm-threads { display: inline-flex; gap: 3px; }
+.lm-top .lm-threads i { width: 4px; height: 18px; border-radius: 2px; }
+.lm-top nav { display: flex; flex-wrap: wrap; gap: .2rem 1.1rem; margin-left: auto; }
+.lm-top nav a { color: var(--muted); text-decoration: none; padding: 2px 0; border-bottom: 2px solid transparent; }
+.lm-top nav a:hover, .lm-top nav a:focus-visible { color: var(--ink); }
+.lm-top nav a[aria-current="page"] { color: var(--ink); border-bottom-color: var(--accent); }
+@media (max-width: 520px) { .lm-top nav { margin-left: 0; width: 100%; } }
+</style></head>
+<body><header class="lm-top"><a class="lm-brand" href="./" aria-current="page"><span class="lm-threads" aria-hidden="true"><i style="background:#e6b432"></i><i style="background:#d66030"></i><i style="background:#a0aa46"></i><i style="background:#46aaa0"></i><i style="background:#6e96c8"></i><i style="background:#b46e96"></i><i style="background:#d2aa78"></i><i style="background:#96be96"></i></span>LOOM-8</a><nav aria-label="LOOM-8"><a href="emu/">Try it</a><a href="manual/">Manual</a><a href="install/">Install</a><a href="samples/">Samples</a><a href="backup/">Backup</a><a href="https://github.com/charlesvestal/fm1-loom">Source</a></nav></header>
+<main>
+<h1>LOOM-8</h1>
+<div class="threads" aria-hidden="true"><span style="background:#e6b432"></span><span style="background:#d66030"></span><span style="background:#a0aa46"></span><span style="background:#46aaa0"></span><span style="background:#6e96c8"></span><span style="background:#b46e96"></span><span style="background:#d2aa78"></span><span style="background:#96be96"></span></div>
+<p class="lede">A pocket groovebox for the M-VAVE FM-1. Eight tracks, each in its own colour, on six synth
+engines, a sample player, a break slicer and a drum kit; a 64-step sequencer with tricks and parameter locks; and weave, which crosses two
+patterns into a third.</p>
+<div class="video"><iframe src="https://www.youtube-nocookie.com/embed/d84QXnfulRE" title="LOOM-8 video" loading="lazy"
+  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe></div>
+<div class="shots">
+  <img src="img/screen-beat-playing.png" width="240" height="240" alt="The Steps page on T1, the kit, playing: kick and snare in pink, the playhead lit">
+  <img src="img/screen-arrange.png" width="240" height="240" alt="Arrange: every track's pattern in its own colour, the scene number large at the right">
+  <img src="img/screen-weave.png" width="240" height="240" alt="The Steps list with WEAVE WITH COPIED picked, its way set to rhythm">
+</div>
+<div class="status"><strong>Version 0.12.1.</strong> It installs and
+uninstalls the way every fm1-base firmware does, and the installer can put M-VAVE's own firmware back. Installing is at your own risk.</div>
+<nav class="ways" aria-label="Get LOOM-8">
+  <a href="emu/"><strong>Try it in the browser</strong><span>The same code the FM-1 runs, with sound. No FM-1 needed.</span></a>
+  <a href="manual/"><strong>Read the manual</strong><span>A ten-minute quick start, every page and gesture, with screenshots.</span></a>
+  <a href="install/"><strong>Install</strong><span>From Chrome or Edge, with the FM-1 connected by USB. Nothing to install on the computer.</span></a>
+  <a href="samples/"><strong>Samples</strong><span>Put your own samples on the FM-1: add, replace, rename, reorder and remove up to 32.</span></a>
+  <a href="backup/"><strong>Backup</strong><span>Save your projects, presets and samples to a file, and load them back later.</span></a>
+  <a href="firmware/loom-0.12.1.fwsc"><strong>Download loom-0.12.1.fwsc</strong><span>For the command-line installer: <code>python3 base/tools/fm1_install.py loom-0.12.1.fwsc</code></span></a>
+  <a href="https://github.com/charlesvestal/fm1-loom"><strong>Source</strong><span>GitHub, GPL-3.0 (most files MPL-2.0). Built on fm1-base and felucca-bsp, from Felucca by Leo Kuroshita (Hügelton Instruments).</span></a>
+</nav>
+
+<h2>What's in it</h2>
+<ul class="feat">
+  <li><b>Eight tracks</b>, each with eight patterns of up to 64 steps: knit (the everyday subtractive voice, with a supersaw unison), rayon (two-operator FM), jacquard (wavetables), bellows (an organ), cane and voile (physical models and voices from Mutable Instruments Braids) and acid (a TB-303 bass line, with accent and slide) synths; sample and slice, which play the sample bank and chop breaks; the kit, eleven drum voices on the black keys; or midi, which plays another synth over USB or Bluetooth, eight knobs sending its CCs. 93 factory presets, and 16 of your own.</li>
+  <li><b>Tricks</b> on any step: pulse, hold, multiply, ramps, bends, jumps, skips and more; <b>locks</b> for any knob on any step.</li>
+  <li><b>Weave</b> a pattern with a copied one: bars or steps in turn, or one's rhythm playing the other's notes.</li>
+  <li><b>Players</b>: arp, strum (one key plays a recorded chord) and hold.</li>
+  <li><b>The conductor</b> moves the tracks that follow it through a key, a scale and a progression.</li>
+  <li><b>Throws</b>: twelve momentary effects a hand, held from the keys, and recorded if you like.</li>
+  <li>Two <b>send effects</b> (the reverb with the PlayStation's own reverbs among its modes), a mixer with EQ and a compressor on the master, thirty-two <b>scenes</b> and a <b>song</b>.</li>
+  <li>A <b>screen reader</b>: the FM-1 says its screen through <a href="https://charlesvestal.github.io/fm1-reader/">FM-1 Screen Reader</a>.</li>
+</ul>
+<p class="small">To go back to the official firmware, use the installer's "Back to the stock firmware", or
+M-VAVE's updater, M-UPGRADE, from <a href="https://www.m-vave.com/download">m-vave.com/download</a>. LOOM-8's
+way of working owes a great deal to teenage engineering's OP-XY. M-VAVE, FM-1 and OP-XY are trademarks of their
+owners; LOOM-8 is not affiliated with any of them.</p>
+</main>
+</body>
+</html>
