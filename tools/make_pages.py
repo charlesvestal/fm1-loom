@@ -7,7 +7,7 @@
   img/                          screenshots (docs/img)
   emu/                          LOOM-8 in the browser (app/build/emu, from ./build.sh --web)
   words/                        the screen reader's words files (app/web/words, from app/words.tsv)
-  install/index.html            the web installer (fm1-base's web/installer.html, with fm1pkg.js, fm1ota.js and
+  install/index.html            the web installer (fm1-base's web/installer.html, with fm1ports.js, fm1pkg.js, fm1ota.js and
                                 the package's metadata inlined; Chrome or Edge, Web MIDI)
   backup/index.html             backup and restore in the browser (fm1-base's web/backup/index.html: the projects and
                                 the user presets; the samples, app/web/backup/extras.js, in a section of the file)
@@ -217,8 +217,8 @@ def main(pkg, version, out):
     for lic in sorted((SRC / "base" / "LICENSES").glob("*.txt")):   # fm1-base's parts under other licences (the JieLi
         shutil.copy(lic, out / "firmware" / lic.name)               # SDK files, the Bluetooth stack's Apache / BSD parts)
     page = (SRC / "base" / "web" / "installer.html").read_text(encoding="utf-8")
-    lib = strip_module((SRC / "base" / "web" / "fm1pkg.js").read_text(encoding="utf-8")) + "\n" + \
-        strip_module((SRC / "base" / "web" / "fm1ota.js").read_text(encoding="utf-8"))
+    lib = "\n".join(strip_module((SRC / "base" / "web" / f).read_text(encoding="utf-8"))   # (as fm1-base's make_site)
+                     for f in ("fm1ports.js", "fm1pkg.js", "fm1ota.js"))
     meta = json.dumps({"version": version, "product": product, "pkg": "../firmware/" + name,
                        "backup": True,                              # (the site's backup page: the installer links it)
                        "res": "../firmware/" + res_name,           # (the resource region: written after the firmware)
