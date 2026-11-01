@@ -212,11 +212,13 @@ void project_random_sounds(uint32_t seed)
  * takes them (app.h project_device_get / put around the load) */
 #define DEV_BITS (4u | 8u | 16u | 32u | 64u | 128u)   /* rsv[2]: pages.c AUTOSAVE_OFF, LOOP_FREE, CC_OUT_OFF, SCENES_OUT,
                                                         * bt.c BT_AUDIO_ON, BT_MIDI_OFF */
-static struct { uint8_t theme, bits, lights, clock, notes, usb; } dev;
+#define DEV_BITS3 1u                                   /* rsv[3]: pages.c CC_IN_ENDLESS */
+static struct { uint8_t theme, bits, bits3, lights, clock, notes, usb; } dev;
 void project_device_get(void)
 {
     dev.theme = proj.rsv[1];
     dev.bits = (uint8_t)(proj.rsv[2] & DEV_BITS);
+    dev.bits3 = (uint8_t)(proj.rsv[3] & DEV_BITS3);
     dev.lights = proj.lights;
     dev.clock = proj.clock;                               /* (Setup sets them and seq's together) */
     dev.notes = proj.send_notes;
@@ -226,6 +228,7 @@ void project_device_put(void)
 {
     proj.rsv[1] = dev.theme;
     proj.rsv[2] = (uint8_t)((proj.rsv[2] & ~DEV_BITS) | dev.bits);
+    proj.rsv[3] = (uint8_t)((proj.rsv[3] & ~DEV_BITS3) | dev.bits3);
     proj.lights = dev.lights;
     proj.clock = dev.clock;
     proj.send_notes = dev.notes;

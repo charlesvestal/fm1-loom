@@ -1260,7 +1260,7 @@ On Setup, the knobs are the lights, the MIDI clock (internal, receive or send: s
 notes (on to start with) and the theme (b/w to start with, tape deck or blueprint). The page also shows where the tempo comes from (LOOM-8, or a MIDI clock coming
 in), the USB audio level, the autosave, Bluetooth audio and the Bluetooth MIDI device (see Bluetooth below). The
 version is on the next page, Debug. **SEL** on Setup has the FM-1's own settings, in three groups: Bluetooth (BT
-MIDI, MIDI DEVICE, BT AUDIO, AUDIO DEVICE), USB and MIDI (the USB audio level, USB PORT, CLOCK, NOTES, CC OUT,
+MIDI, MIDI DEVICE, BT AUDIO, AUDIO DEVICE), USB and MIDI (the USB audio level, USB PORT, CLOCK, NOTES, CC IN, CC OUT,
 SCENES OUT), and LOOM-8 (LIGHTS, THEME, AUTOSAVE, LOOP THROWS). The theme belongs to the FM-1, not the project:
 loading a project keeps it. So do all of Setup's settings: they belong to the FM-1, and every project you load
 or start keeps them as you left them. On every page, the header shows the scene playing ("S3") before the
@@ -1443,6 +1443,13 @@ automation.
 
 To pick scenes 1 to 32 over MIDI, send Program Change 0 to 31 on channel 11, or notes 36 to 67 (C1 up) on that
 channel. This works like Arrange's white keys, and SCENES SWITCH decides when the change happens.
+
+CC IN, in Setup's **SEL** list (**GLO**), says what a controller's knobs send. **absolute** (to start with) is for
+pots and faders: a CC's value is the parameter's place. **endless** is for endless encoders sending relative values
+(on a Launchkey, set its encoders to relative): each message turns the parameter by its amount, in the knob's own
+steps, so nothing jumps when the FM-1's value and the encoder's disagree. Both of the usual relative codes work:
+values about 64 (65 is +1, 63 is -1) and signed values (1 is +1, 127 is -1). A mute's CC mutes on a turn up and
+unmutes on a turn down. Like CC OUT, it is the FM-1's setting, kept across projects.
 
 CC OUT is in Setup's **SEL** list (**GLO**) and is on to start with. With it on, turning a mapped knob or **SEL** row
 by hand sends its CC on its channel, if the track's MIDI OUT is on (FX and the master always send). LOOM-8 never

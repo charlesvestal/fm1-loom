@@ -1,0 +1,51 @@
+# CC IN endless (Setup's SEL list, the FM-1's setting): a mapped CC's value is a turn, in the knob's own steps.
+# 65 / 63 (about 64) and 1 / 127 (signed) are +1 / -1; 64 turns nothing. Absolute (the default) sets the value
+wait 300
+projnew
+tap GLO
+turn SELECT 5
+expect page Setup
+tap SEL
+row CC IN
+turn ALGO 1
+tap HOME
+knob 2 cut 60
+expect par2.cut 60
+# T2's cutoff (channel 2: B1, CC 74 = 4A)
+midi B1 4A 41
+wait 20
+expect par2.cut 61
+midi B1 4A 01
+wait 20
+expect par2.cut 62
+midi B1 4A 7F
+wait 20
+expect par2.cut 61
+midi B1 4A 3E
+wait 20
+expect par2.cut 59
+midi B1 4A 40
+wait 20
+expect par2.cut 59
+# the master's level (channel 11: BA, CC 7)
+expect mst.level 100
+midi BA 07 03
+wait 20
+expect mst.level 103
+# a new project keeps it (the FM-1's setting, as CC OUT)
+projnew
+knob 2 cut 60
+midi B1 4A 42
+wait 20
+expect par2.cut 62
+# absolute again: the value is the place
+tap GLO
+turn SELECT 5
+expect page Setup
+tap SEL
+row CC IN
+turn ALGO -1
+tap HOME
+midi B1 4A 00
+wait 20
+expect par2.cut 0

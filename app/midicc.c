@@ -29,10 +29,17 @@ static const struct { uint8_t cc, m; } CC_MST[] = {
     {23, MS_CMIX},  {24, MS_PERC},  {25, MS_MEL},    {26, MS_COMP},  {27, MS_PUMP},  {28, MS_PUMP_REL}};
 
 static int cc_to(int v, int lo, int hi) { return lo + (v * (hi - lo) + 63) / 127; }   /* 0..127 onto lo..hi */
+/* CC IN endless (Setup; proj.rsv[3] CC_IN_ENDLESS): an encoder's value is a turn, not a place. Two encodings: about 64
+ * (65 is +1, 63 is -1), or signed (1 is +1, 127 is -1); a turn of more than 8 in one message is not an encoder's */
+static int cc_rel;                            /* (this message: endless) */
+static int cc_delta(int v) { return v >= 56 && v <= 72 ? v - 64 : v < 64 ? v : v - 128; }
+static int cc_on(int v, int cur) { return cc_rel ? (cc_delta(v) > 0 ? 1 : cc_delta(v) < 0 ? 0 : cur) : v >= 64; }
 
 static void cc_par(int t, int p, int v)       /* a track's parameter from a CC (recorded as a knob turn would be) */
 {
-    if (is_aux(t))
+    if (cc_rel)                                /* endless: the turn on its value, in the knob's own steps */
+        set_tp(t, p, proj.trk[t].par[p] + cc_delta(v));   /* (set_tp clamps to the range) */
+    else if (is_aux(t))
         set_tp(t, p, v);                       /* an FX track's knobs: 0..127 as they come */
     else {
         const tp_info_t *in = tp_info_par(p, proj.trk[t].par);
@@ -43,7 +50,7 @@ static void cc_par(int t, int p, int v)       /* a track's parameter from a CC (
 }
 static void cc_master(int m, int v)
 {
-    int nv = cc_to(v, 0, master_max(m));
+    int nv = cc_rel ? clampi(proj.master[m] + cc_delta(v), 0, master_max(m)) : cc_to(v, 0, master_max(m));
     if (nv == proj.master[m])                  /* (as the master list's knob: no undo step for a value that holds) */
         return;
     undo_master();
@@ -69,8 +76,9 @@ static void cc_kit_send(int t, int which, int v)   /* every sound's send moved b
                                                     * one knob, so this move is not recorded (a kit sound's own
                                                     * send is, from set_tp) */
 {
-    int d = v - cc_ksend[t][which];
-    cc_ksend[t][which] = (uint8_t)v;
+    int d = cc_rel ? cc_delta(v) : v - cc_ksend[t][which];
+    if (!cc_rel)
+        cc_ksend[t][which] = (uint8_t)v;
     for (int k = 0; k < DL_NSOUND; k++) {
         int p = TP_DRUM(k, DP_SEND1 + which);
         set_tp(t, p, proj.trk[t].par[p] + d);    /* (set_tp clamps to the send's range) */
@@ -82,11 +90,12 @@ static void cc_track(int t, int cc, int v)
     if (proj.trk[t].par[TP_ENGINE] == EG_MIDI) {  /* a MIDI track: no sound to set (its knobs' CC numbers sit where an
                                                    * envelope would): only its mute */
         if (cc == 9)
-            cc_mute(t, v >= 64);
+            cc_mute(t, cc_on(v, (int)(seq.mute >> t & 1u)));
         return;
     }
     if (kit && cc >= CC_KMUTE && cc < CC_KMUTE + DL_NSOUND) {
-        cc_kmute(t, cc - CC_KMUTE, v >= 64);
+        int k = kit_slot(t);
+        cc_kmute(t, cc - CC_KMUTE, cc_on(v, k >= 0 && (seq.kmute[k] >> (cc - CC_KMUTE) & 1u)));
         return;
     }
     if (kit && cc >= CC_KPAN && cc < CC_KPAN + DL_NSOUND) {
@@ -101,13 +110,14 @@ static void cc_track(int t, int cc, int v)
         if (CC_TRK[i].cc == cc) {
             int p = kit ? CC_TRK[i].kit : CC_TRK[i].syn;
             if (p == CC_MUTE)
-                cc_mute(t, v >= 64);
+                cc_mute(t, cc_on(v, (int)(seq.mute >> t & 1u)));
             else if (p == CC_KSEND1 || p == CC_KSEND2)
                 cc_kit_send(t, p == CC_KSEND2, v);
             else if (p < TP_DRUM0) {
                 cc_par(t, p, v);
-                if (p == TP_SEND1 || p == TP_SEND2)   /* a synth's send: keep the kit's base current too (91 / 93's
-                                                        * last value), so a track turned back into a kit doesn't jump */
+                if ((p == TP_SEND1 || p == TP_SEND2) && !cc_rel)   /* a synth's send: keep the kit's base current too
+                                                        * (91 / 93's last value), so a track turned back into a kit
+                                                        * doesn't jump */
                     cc_ksend[t][p == TP_SEND2] = (uint8_t)v;
             }
             return;
@@ -137,6 +147,9 @@ static void cc_in(uint32_t pkt)
         return;
     }
     if (ty != 0xB0)
+        return;
+    cc_rel = (proj.rsv[3] & CC_IN_ENDLESS) != 0;
+    if (cc_rel && !cc_delta(v))                /* (endless: 64, or 0, turns nothing) */
         return;
     if (ch == CH_MASTER) {
         for (uint32_t i = 0; i < sizeof CC_MST / sizeof CC_MST[0]; i++)
