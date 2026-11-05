@@ -182,6 +182,7 @@ void app_backup_hold(int on) { store_held = (uint8_t)(on != 0); }
 void app_backup_restored(void)
 {
     memset(stored_known, 0, sizeof stored_known);  /* (what project.c knew of the flash is stale) */
+    slot_known = 0;
     if (project_load(proj_slot) != 0)
         proj_slot = 0;
     presets_load();
