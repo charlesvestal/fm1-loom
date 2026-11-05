@@ -38,3 +38,11 @@ tagline = "a pocket groovebox"
 repo = "https://github.com/charlesvestal/fm1-loom"
 licence = "GPL-3.0-only"        # (the acid engine, dsp/bass303.c: the firmware as a whole; most files MPL-2.0: LICENSING.md)
 credits = "Built on fm1-base and felucca-bsp, from Felucca by Leo Kuroshita (Hügelton Instruments). Supersaw (brocade): after NuSaw (MIT). Cane, voile and gingham: Mutable Instruments Braids by Emilie Gillet (MIT). Acid: X0X's 303, from Open303 by Robin Schmidt (MIT), with jc303's Devilfish ranges by midilab and dm-Rat's RAT drive by Dave Mollen (GPL-3.0). Reverb: the plate after 9W9 by athousanddetails (with permission), the PlayStation modes PSXVerb (MIT). The 909 kick, snare and clap: renders of 9W9 by athousanddetails (with permission); the 909 models: 9W9's circuits (GPL-3.0); the hat and the 909 cymbals: ER-99's samples by Matthew Cieplak, through 9W9 (GPL-3.0). The x drums: after MACHINEDRUM by Omodaka9375 (MIT); sophie: Sophie by Matt Estela (MIT); clang: digisophie (MIT). USB MIDI host: Melodee's, by Adrien Tibi and Kerem Kilic (MPL-2.0). Bluetooth: Optimist's stack by Henri David (MPL-2.0), with Android's SBC encoder (Apache-2.0), micro-ecc by Kenneth MacKay (BSD-2-Clause) and the radio's set-up after JieLi's AC79 SDK (Apache-2.0). Fonts: Barlow, Terminus (SIL OFL 1.1)."
+
+# firmware.json, for firmware hubs (fm1-base docs/FIRMWARE-JSON.md)
+author = "Charles Vestal"
+description = "LOOM-8 turns the M-VAVE FM-1 into a pocket groovebox. Eight tracks play on eleven engines (seven synths, a sample player, a break slicer, a drum kit and MIDI out), with a 64-step sequencer, step tricks and parameter locks. Weave two patterns into a third, let the conductor move the song through a progression, and play throws while it runs. Two send effects, a mixer, scenes and a song round it out. MIDI goes over USB, Bluetooth and the TRS jack, and a USB keyboard or synth plugs in through a powered hub."
+tags = ["groovebox", "drum-machine", "sequencer", "synth", "sampler", "midi"]
+install = "https://charlesvestal.github.io/fm1-loom/install/"
+site = "https://charlesvestal.github.io/fm1-loom/"
+screenshot = "docs/img/screen-card.png"
