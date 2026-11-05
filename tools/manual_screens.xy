@@ -238,7 +238,7 @@ tap PLAY
 wait 1600
 shot mix.png
 tap PLAY
-turn SELECT 1
+turn SELECT 2
 wait 1600
 shot master.png
 turn SELECT 1

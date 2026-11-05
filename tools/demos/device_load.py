@@ -127,7 +127,7 @@ def release_all():
     time.sleep(0.2)
 
 
-GLO = ["Mix", "Master EQ", "Master color", "Master out", "LFO", "Setup", "Debug"]   # (Debug: a debug build's, as the DEVTEST one)
+GLO = ["Mix", "Tempo", "Master EQ", "Master color", "Master out", "LFO", "Setup", "Debug"]   # (Debug: a debug build's, as the DEVTEST one)
 
 
 def glo(page):

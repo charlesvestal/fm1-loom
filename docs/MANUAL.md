@@ -162,6 +162,7 @@ press…" means keep **HOME** down while you press the next thing.
 | record step by step | While stopped, on Steps, tap **REC**. The red cursor starts after the last note. Each key (or chord) you play is written there, and the cursor moves on. **OCT+** leaves a rest and **OCT−** goes back. Tap **REC** again to finish. |
 | undo | Hold **HOME** and press **REC**. Hold **HOME** and press **PLAY** to redo. |
 | set the tempo | Press **HOME** and turn **KNOB 1**. Hold **HOME** while you turn it for tenths. On any page, you can also hold **HOME** and turn **SELECT**. |
+| tap the tempo | Press **GLO** and turn **SELECT** to Tempo. Tap any key on each beat: two taps set the tempo, and more make it steadier. <!-- hint: press GLO; turn SELECT; white 1 --> |
 | use a throw | Press **FX** and turn **SELECT** to Throws. Hold a key: the lower octave works on the drums and the upper octave on the melodic tracks. Hold **REC** while it plays to record throws into the THROW track. <!-- hint: press FX; turn SELECT; white 1-16 --> |
 | make a new scene | Press **HOME** and press an empty white key. It becomes a copy of the scene that is playing. **OCT+** puts scenes 17 to 32 on the white keys. <!-- hint: press HOME; white 2 --> |
 | switch scenes while playing | On Arrange, press the scene's white key, and it starts at the next bar. Press it again to switch at once. To wait for the end of T1's pattern instead, set SCENES SWITCH in the **SEL** list to "pattern end". <!-- hint: press HOME; white 2 --> |
@@ -193,7 +194,7 @@ press…" means keep **HOME** down while you press the next thing.
 | **FX** | Opens Character, the track's own effect. Next come Sends, the track's sends to FX I and FX II, and then FX I and FX II, the two effects. |
 | **LFO** | Opens LFO. Page 2 has the type's fourth and fifth knobs. |
 | **ARP** | Opens Players. With the arp, page 2 has its second set of knobs and page 3 is hold. |
-| **GLO** | Opens Mix. Turn **SELECT** for Master EQ, Master color, Master out, LFO (the shared LFO) and Setup. |
+| **GLO** | Opens Mix. Turn **SELECT** for Tempo, Master EQ, Master color, Master out, LFO (the shared LFO) and Setup. |
 | **SAVE** | Saves. Hold it and press a white key to save to a slot, or to keep a sound. |
 | **OCT−** / **OCT+** | Move the keys an octave. On Steps, they show the bar before or after (with **SEQ** held, they move the pattern an octave), and with a step held, they nudge it. In step record, they move the cursor. On Arrange and Song, they put scenes 1 to 16 or 17 to 32 on the white keys. |
 | **SELECT** | Turns to a button's next page. In a list, it moves up and down. |
@@ -1252,6 +1253,12 @@ to FX I and FX II, the pan and the level. A drum track's sends are set per key, 
 
 Turn **SELECT** for more pages:
 
+- Tempo: **KNOB 1** sets the tempo (hold **HOME** for tenths), or tap any key on each beat, in quarter notes. The
+  second tap sets the tempo, in whole BPM, and each tap after it the average of the last four gaps, so more taps make
+  it steadier. A gap much longer or shorter than the others starts a new tempo from that gap. After two seconds
+  without a tap, or when you leave the page, the next tap starts again. On this page the keys only tap: they play
+  nothing, write no steps and record nothing, and playing keeps its place in the bar. When a MIDI clock is coming
+  in, it sets the tempo: the page shows it, and the taps and **KNOB 1** do nothing.
 - Master EQ: low, mid and high (64 is flat).
 - Master color (see below).
 - Master out: the drums' level, the melodic tracks' level, the compressor and the pump. **SEL** on these pages lists
@@ -1533,6 +1540,7 @@ On a sound page, hold **SAVE** and press white key 1 to 16 to keep the track's s
 | ARP, SELECT | Players 2, Hold | the arp's length, style, glide, stereo; hold | | | | play |
 | ARP, SELECT (last) | Weave | with | pattern | rule | plays | black: the track woven in, white: its pattern; SEL: KEEP AS PATTERN |
 | GLO | Mix | FX I | FX II | pan | level | black: tap to mute, hold to solo (several together) |
+| GLO, SELECT | Tempo | tempo | | | | any key: tap the tempo, in quarter notes |
 | GLO, SELECT | Master EQ | low | mid | high | | |
 | GLO, SELECT | Master color | color | amount | tone | mix | |
 | GLO, SELECT | Master out | drums | melodic | comp | pump | SEL: pump by, release, accent, level |

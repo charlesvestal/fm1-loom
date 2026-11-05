@@ -107,6 +107,11 @@ expect page Mix
 wait 40
 shot mix.png
 turn SELECT 1
+expect page Tempo
+wait 40
+shot tempo.png
+turn SELECT 1
+expect page Master_EQ
 wait 40
 shot master.png
 turn SELECT 1

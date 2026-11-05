@@ -247,12 +247,68 @@ static void set_tp(int trk, int p, int v)
     cc_out_param(trk, p);
     mark_dirty();
 }
-static void set_tempo_x10(int x10)
+static void tempo_store(int x10)                 /* (engine_tempo changes the rate only: playing, every track keeps
+                                                  * its place) */
 {
     x10 = clampi(x10, 400, 2200);
     proj.tempo_x10 = (uint16_t)x10;
     engine_tempo(x10);
     mark_dirty();
+}
+static void tap_reset(void) { tap.taps = 0; }    /* the next tap starts a measurement */
+static void set_tempo_x10(int x10)               /* the tempo set by hand: the taps start again */
+{
+    tap_reset();
+    tempo_store(x10);
+}
+/* GLO's Tempo page: a key tapped in quarter notes. The first tap starts a measurement, the second sets the tempo, each
+ * later one the mean of the last TAP_GAPS gaps; a gap more than a third off that mean is a new tempo meant: the mean
+ * starts again from it. A gap under TAP_BOUNCE_MS is a bounce or keys pressed together: no tap. After TAP_RESET_MS
+ * without one (or off the page, a load, the tempo turned), the next starts again. Whole BPM, 40..220 as KNOB 1: a gap
+ * past either end gives that end. A MIDI clock in leads: no tap counts */
+#define TAP_BOUNCE_MS 90u
+static void tempo_tap(void)
+{
+    uint32_t now = plat_ms(), g = now - tap.last, sum = 0;
+    int n, i, fresh = 0;
+    if (seq.ext) {
+        tap_reset();
+        say_no("MIDI CLOCK IN", "it sets the tempo");
+        return;
+    }
+    if (tap.taps && g < TAP_BOUNCE_MS)
+        return;
+    tap.last = now;
+    if (!tap.taps || g > TAP_RESET_MS) {
+        tap.taps = 1;
+        return;
+    }
+    n = tap.taps - 1 < TAP_GAPS ? tap.taps - 1 : TAP_GAPS;   /* the gaps so far */
+    for (i = 0; i < n; i++)
+        sum += tap.gap[i];
+    if (n && (g * 3u * (uint32_t)n < sum * 2u || g * 3u * (uint32_t)n > sum * 4u)) {
+        n = 0;                                   /* a new tempo: from this gap alone */
+        fresh = 1;
+    }
+    for (i = TAP_GAPS - 1; i > 0; i--)
+        tap.gap[i] = tap.gap[i - 1];
+    tap.gap[0] = (uint16_t)g;
+    n = n < TAP_GAPS ? n + 1 : TAP_GAPS;
+    for (i = 0, sum = 0; i < n; i++)
+        sum += tap.gap[i];
+    tap.taps = (uint8_t)(fresh ? 2 : tap.taps < 255 ? tap.taps + 1 : 255);   /* (a new tempo: two taps old) */
+    tempo_store((int)((60000u * (uint32_t)n + sum / 2u) / sum) * 10);   /* (whole BPM: a tap is no finer; KNOB 1 with
+                                                                        * HOME held still sets tenths) */
+}
+static void tempo_knob(int k, int32_t e)         /* Tempo: KNOB 1 (HOME held: tenths); a MIDI clock in leads */
+{
+    if (k)
+        return;
+    if (seq.ext) {
+        say_no("MIDI CLOCK IN", "it sets the tempo");
+        return;
+    }
+    set_tempo_x10((int)proj.tempo_x10 + (home_held() ? (int)e : (int)e * 10));
 }
 static void set_groove_type(int g)
 {
@@ -1428,6 +1484,13 @@ static void key_down(int k)
         ui.knote[k] = (uint8_t)(w < 0 ? 255 : w);
         return;
     }
+    if (p == P_TEMPO) {                          /* Tempo: every key taps the tempo, and nothing else (no note, no step,
+                                                  * nothing recorded, REC armed or held too); HOME held: nothing */
+        ui.kmode[k] = KM_IDLE;
+        if (!home_held())
+            tempo_tap();
+        return;
+    }
     if (lst.open) {                              /* (the keys play under a list: a preset auditioned as it is picked) */
         keyboard_down(k);
         return;
@@ -2277,6 +2340,7 @@ static void knob_do(int k, int32_t e)
         }
         return;
     case P_ARRANGE: arrange_knob(k, e); return;
+    case P_TEMPO: tempo_knob(k, e); return;
     case P_SONG: song_knob(k, e); return;
     case P_STEPS: steps_knob(k, e); return;
     case P_BAR: bar_knob(k, e); return;
@@ -2390,7 +2454,7 @@ static void presets(int32_t e)
             say("FILTER", tp_info_par(q, par)->names[par[q] % n]);
         }
         break;
-    case P_THROWS: case P_WEAVE:
+    case P_THROWS: case P_WEAVE: case P_TEMPO:
         break;
     default:
         if (is_fx(trk))
@@ -3311,6 +3375,7 @@ static void after_load(void)
         weave_apply(t);
     engine_tempo(proj.tempo_x10);
     engine_groove(proj.groove);
+    tap_reset();
     undo.valid = 0;
     ui.held = 0;
     ui.trickpg = 0;
@@ -3878,7 +3943,9 @@ static void input(void)
                 ui.btn_used |= m;
                 continue;
             }
-            if (i == B_REC && playing() && !ui.ask) {
+            if (i == B_REC && playing() && !ui.ask && ui.page != P_TEMPO) {   /* (Tempo: its keys only tap, so REC held
+                                                                               * records nothing: in replace mode it
+                                                                               * would only clear steps) */
                 rec_down();
                 continue;
             }
@@ -4261,6 +4328,15 @@ static void sp_main(void)
             }
         if (!n)
             sp_cat("none");
+    } else if (ui.page == P_TEMPO) {
+        if (seq.ext) {
+            sp_cat("a MIDI clock in leads the tempo: ");
+            sp_int((int)(seq.ext_bpm + 0.5f));
+        } else if (tap.taps) {
+            sp_cat("taps ");
+            sp_int(tap.taps);
+        } else
+            sp_cat("tap a key on each beat");
     } else if (ui.page == P_ENGINE && !is_aux(trk)) {
         sp_cat("engine ");
         sp_cat(EG_NAME[proj.trk[trk].par[TP_ENGINE] % NENGINE]);
@@ -4677,6 +4753,7 @@ void ui_init(void)
 {
     memset(&ui, 0, sizeof ui);
     memset(&lst, 0, sizeof lst);
+    tap_reset();
     ui.touched = -1;
     ui.solo_tap_trk = 0xFF;
     bt.want = (uint8_t)((proj.rsv[2] & BT_AUDIO_ON) != 0);   /* (Bluetooth audio as it was: on, the last device) */
@@ -4730,6 +4807,8 @@ void ui_frame(void)
 {
     input();
     bt_poll();
+    if (tap.taps && (ui.page != P_TEMPO || plat_ms() - tap.last > TAP_RESET_MS))
+        tap_reset();                             /* (off Tempo, or no tap for a while: the next one starts again) */
     if (ui.chordmode && (ui.page != P_STEPS || !is_seqt(sel_trk()) || is_drum(sel_trk()) ||
                          (pl_type(sel_trk()) == PL_RAND) != ui.chord_pool)) {
         ui.chordmode = 0;                        /* (chord mode lives on a melodic track's Steps page only: any way off
