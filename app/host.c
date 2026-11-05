@@ -449,6 +449,8 @@ int app_expect(const char *what, int *got)
         *got = theme_ix();
     else if (!strcmp(what, "listopen"))             /* a SEL list up */
         *got = lst.open;
+    else if (!strncmp(what, "pad", 3) && what[3] >= '1' && what[3] <= '9')   /* padK: kit pad K's flash as drawn, 0..16 */
+        *got = (int)pad_a((atoi(what + 3) - 1) % NDRUM);
     else if (!strncmp(what, "kvel", 4)) {          /* kvelT.PAT.S.K: kit sound K's own velocity on that step (0 none) */
         int t, pt, st, k;
         if (sscanf(what + 4, "%d.%d.%d.%d", &t, &pt, &st, &k) != 4)
@@ -1371,6 +1373,11 @@ int app_host_cmd(const char *cmd, const char *a, const char *b, const char *c, c
         return 1;
     if (!strcmp(cmd, "expect"))
         return expect_more(a, b, c, d);
+    if (!strcmp(cmd, "drumhit")) {                  /* drumhit K VEL: the selected kit track's key K (from 1) hit at VEL,
+                                                     * as a step plays it */
+        s_drum(0, proj.trk_sel, atoi(a) - 1, atoi(b), 0, 0, 0);
+        return 1;
+    }
     if (!strcmp(cmd, "row")) {                      /* row NAME: the open list's row of that name picked (as SELECT
                                                      * would: remembered), whatever the order; none: a failure */
         const char *nm = plat_host_line + 3;
