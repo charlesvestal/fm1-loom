@@ -31,17 +31,11 @@ a { color: var(--accent); }
 .device canvas { position: absolute; left: 31.8%; top: 9.6875%; width: 20%; height: 31.25%; image-rendering: pixelated; background: #000; border-radius: 2px; }
 .ctl { cursor: pointer; }
 .ctl.knob { cursor: ns-resize; }
-.btnface { transition: fill .06s; }
-.lit .btnface { fill: #e6b432; }
-.lit text.btn { fill: #18120e; }
+/* the lights in LOOM-8's gold (fm1panel.js draws them; tools/make_pages.py gives the mirror page the same) */
+:root { --panel-lit: #e6b432; --panel-lit-ink: #18120e; --panel-lit-white: #f0d58a; --panel-lit-black: #46aaa0;
+        --panel-dim: #6b5a2e; --panel-dim-white: #e4d8b4; --panel-dim-black: #8fbdb7; }
 .held .btnface, .held .keyface { stroke: #e6b432; stroke-width: 3; }
 .latched .btnface, .latched .keyface { stroke: #6fc3ff; stroke-width: 3; }
-.keyface { transition: fill .06s; }
-.lit .keyface.white { fill: #f0d58a; }
-.lit .keyface.black { fill: #46aaa0; }
-.dim .btnface { fill: #6b5a2e; }                /* the dim lights: set steps, the buttons' glow */
-.dim .keyface.white { fill: #e4d8b4; }
-.dim .keyface.black { fill: #8fbdb7; }
 .start { position: absolute; inset: 0; display: grid; place-items: center; background: rgba(10, 11, 13, .55); border-radius: 4.4% / 6.9%; }
 .start button { font: 600 1.25rem "Barlow Semi Condensed", "Barlow", sans-serif; letter-spacing: .04em; padding: .7em 1.6em;
                 border-radius: 999px; border: 0; background: #e6b432; color: #18120e; cursor: pointer; }
@@ -121,81 +115,16 @@ kbd { font: 600 .85em ui-monospace, Menlo, monospace; background: var(--card); b
 
 <script>
 "use strict";
-const NS = "http://www.w3.org/2000/svg";
-const BTN = { FX: 0, SEL: 1, ENV: 2, LFO: 3, EDIT: 4, GLO: 5, HOME: 6, SAVE: 7, ARP: 8, SEQ: 9, PLAY: 10, REC: 11, "OCT-": 12, "OCT+": 13 };
-const ENC = { SELECT: 0, ALGORITHM: 1, PRESETS: 2, KNOB1: 3, KNOB2: 4, KNOB3: 5, KNOB4: 6 };
-const WHITE_K = [0, 2, 4, 6, 7, 9, 11, 12, 14, 16, 18, 19, 21, 23, 24, 26];
-const BLACK_K = [1, 3, 5, 8, 10, 13, 15, 17, 20, 22, 25];
-const BLACK_AFTER = [0, 1, 2, 4, 5, 7, 8, 9, 11, 12, 14];
-const BODY = "#3a3d42", TRAY = "#26282c", KEY_W = "#d9dadc", KEY_B = "#c9cacd", KNOB = "#1f2124", BTNC = "#2e3135", LABEL = "#e8e8ea";
+// ---------------------------------------------------------------- the panel: fm1-base's web/fm1panel.js (its mirror page's too)
+{{PANEL_JS}}
+const BTN = PANEL_BTN, ENC = PANEL_ENC, WHITE_K = PANEL_WHITE_K, BLACK_K = PANEL_BLACK_K;
 const STORE_KEY = "xy-emu-store";
-
-const svg = document.getElementById("panel");
-function el(tag, attrs, parent = svg) {
-  const e = document.createElementNS(NS, tag);
-  for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v);
-  parent.appendChild(e);
-  return e;
-}
-function text(parent, x, y, s, size, fill = LABEL, weight = 600) {
-  const t = el("text", { x, y, "text-anchor": "middle", "font-family": "'Barlow Semi Condensed', 'Arial Narrow', Arial, sans-serif",
-                         "font-size": size, "font-weight": weight, fill, "letter-spacing": ".05em", class: "btn", "pointer-events": "none" }, parent);
-  t.textContent = s;
-  return t;
-}
-
-// ---------------------------------------------------------------- the panel
-el("rect", { x: 4, y: 4, width: 992, height: 632, rx: 44, fill: BODY });
-const knobs = {};
-function knob(x, y, r, label, role) {
-  const g = el("g", { class: "ctl knob", tabindex: 0, role: "slider", "aria-label": label });
-  el("circle", { cx: x, cy: y, r: r + 5, fill: TRAY }, g);
-  el("circle", { cx: x, cy: y, r, fill: KNOB, stroke: "#44474c", "stroke-width": 2 }, g);
-  const ind = el("line", { x1: x, y1: y - r + 5, x2: x, y2: y - r + 15, stroke: LABEL, "stroke-width": 3, "stroke-linecap": "round" }, g);
-  text(g, x, y - r - 12, label, 17);
-  el("circle", { cx: x, cy: y, r: r + 14, fill: "transparent" }, g);
-  knobs[label] = { g, ind, x, y, angle: 0, role };
-  return knobs[label];
-}
-knob(105, 100, 24, "MASTER", "master");
-knob(215, 100, 24, "SELECT", ENC.SELECT);
-knob(105, 205, 24, "PRESETS", ENC.PRESETS);
-knob(215, 205, 24, "ALGORITHM", ENC.ALGORITHM);
-for (let i = 0; i < 4; i++) knob(610 + i * 104, 100, 22, `KNOB${i + 1}`, ENC[`KNOB${i + 1}`]);
-
-const buttons = {};
-function button(x, y, w, h, label, two) {
-  const g = el("g", { class: "ctl", role: "button", "aria-label": label });
-  el("rect", { x, y, width: w, height: h, rx: 9, fill: BTNC, stroke: "#4a4d52", "stroke-width": 1.5, class: "btnface" }, g);
-  if (two) { text(g, x + w / 2, y + h / 2 - 1, label, 12); text(g, x + w / 2, y + h / 2 + 12, two, 12); }
-  else text(g, x + w / 2, y + h / 2 + 5, label, 15);
-  buttons[label] = { g, bit: BTN[label] };
-}
-el("rect", { x: 58, y: 258, width: 210, height: 58, rx: 14, fill: TRAY });
-button(72, 268, 82, 38, "OCT-"); button(170, 268, 82, 38, "OCT+");
-el("rect", { x: 300, y: 44, width: 236, height: 236, rx: 26, fill: "#111214" });
-el("rect", { x: 568, y: 160, width: 400, height: 140, rx: 18, fill: TRAY });
-const ROW1 = ["FX", "SEL", "ENV", "LFO", "EDIT", "GLO"], ROW2 = ["HOME", "SAVE", "ARP", "SEQ", "PLAY", "REC"];
-for (let i = 0; i < 6; i++) {
-  button(582 + i * 63, 174, 54, 48, ROW1[i]);
-  if (ROW2[i] === "PLAY") button(582 + i * 63, 236, 54, 48, "PLAY", "STOP"); else button(582 + i * 63, 236, 54, 48, ROW2[i]);
-}
-
-const keys = [];
-(function keybed(x0, y0, w, h) {
-  el("rect", { x: x0, y: y0, width: w, height: h, rx: 18, fill: TRAY });
-  const pitch = (w - 24) / 16, kw = pitch * 0.78;
-  for (let i = 0; i < 16; i++) {
-    const g = el("g", { class: "ctl", role: "button", "aria-label": `white key ${i + 1}` });
-    el("rect", { x: x0 + 12 + i * pitch + (pitch - kw) / 2, y: y0 + h * 0.43, width: kw, height: h * 0.52, rx: kw / 2, fill: KEY_W, class: "keyface white" }, g);
-    keys[WHITE_K[i]] = { g };
-  }
-  BLACK_AFTER.forEach((a, k) => {
-    const g = el("g", { class: "ctl", role: "button", "aria-label": `black key ${k + 1}` });
-    el("rect", { x: x0 + 12 + (a + 1) * pitch - kw / 2, y: y0 + h * 0.06, width: kw, height: h * 0.33, rx: kw / 2, fill: KEY_B, class: "keyface black" }, g);
-    keys[BLACK_K[k]] = { g };
-  });
-})(36, 340, 928, 270);
+const svg = document.getElementById("panel"), panel = fm1Panel(svg);
+const knobs = panel.knobs, buttons = panel.buttonsByLabel, keys = panel.keys;
+// what a reader calls them: hit(), below, moves these onto each control's touch target
+for (const [n, k] of Object.entries(knobs)) for (const [a, v] of [["tabindex", 0], ["role", "slider"], ["aria-label", n]]) k.g.setAttribute(a, v);
+for (const [n, b] of Object.entries(buttons)) { b.g.setAttribute("role", "button"); b.g.setAttribute("aria-label", n); }
+for (const k of keys) { k.g.setAttribute("role", "button"); k.g.setAttribute("aria-label", k.name.toLowerCase()); }
 
 // ---------------------------------------------------------------- touch targets
 // The drawing is only a picture (pointer-events: none). Each control gets an invisible HTML target
@@ -387,16 +316,7 @@ function drawScreen(fb) {
   }
   ctx.putImageData(img, 0, 0);
 }
-function drawLights(b, k, db, dk) {
-  for (const x of Object.values(buttons)) {
-    x.g.classList.toggle("lit", !!(b & (1 << x.bit)));
-    x.g.classList.toggle("dim", !!(db & ~b & (1 << x.bit)));
-  }
-  keys.forEach((x, i) => {
-    x.g.classList.toggle("lit", !!(k & (1 << i)));
-    x.g.classList.toggle("dim", !!(dk & ~k & (1 << i)));
-  });
-}
+function drawLights(b, k, db, dk) { panel.lights(b, k, db, dk); }
 
 // ---------------------------------------------------------------- storage
 function loadStore() {

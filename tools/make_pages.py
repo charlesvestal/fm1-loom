@@ -62,6 +62,8 @@ def tokens(p):
 
 
 SITE_CSS = """<style>
+:root { --panel-lit: #e6b432; --panel-lit-ink: #18120e; --panel-lit-white: #f0d58a; --panel-lit-black: #46aaa0;
+        --panel-dim: #6b5a2e; --panel-dim-white: #e4d8b4; --panel-dim-black: #8fbdb7; }   /* (the FM-1's lights: fm1panel.js; as app/web/emu) */
 :root { %s color-scheme: light; }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { %s color-scheme: dark; } }
 :root[data-theme="dark"] { %s color-scheme: dark; }
