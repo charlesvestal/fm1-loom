@@ -11,6 +11,8 @@
                                 the package's metadata inlined; Chrome or Edge, Web MIDI)
   backup/index.html             backup and restore in the browser (fm1-base's web/backup/index.html: the projects and
                                 the user presets; the samples, app/web/backup/extras.js, in a section of the file)
+  mirror/index.html             the screen and the panel on the computer (fm1-base's web/mirror/index.html; Chrome or
+                                Edge, Web MIDI)
   samples/index.html            the user sample bank in the browser (app/web/samples/: add, replace, rename, reorder,
                                 remove; loom_samples.js inlined)
   firmware/loom-VERSION.fwsc    the package the installer writes; also the download
@@ -77,7 +79,7 @@ SITE_CSS = """<style>
 </style>""" % (tokens(PALETTE["light"]), tokens(PALETTE["dark"]), tokens(PALETTE["dark"]))
 
 SECTIONS = [("emu/", "Try it"), ("manual/", "Manual"), ("install/", "Install"), ("samples/", "Samples"),
-            ("backup/", "Backup")]
+            ("backup/", "Backup"), ("mirror/", "Mirror")]
 
 
 def dress(page, here):
@@ -159,6 +161,7 @@ uninstalls the way every fm1-base firmware does, and the installer can put M-VAV
   <a href="install/"><strong>Install</strong><span>From Chrome or Edge, with the FM-1 connected by USB. Nothing to install on the computer.</span></a>
   <a href="samples/"><strong>Samples</strong><span>Put your own samples on the FM-1: add, replace, rename, reorder and remove up to 32.</span></a>
   <a href="backup/"><strong>Backup</strong><span>Save your projects, presets and samples to a file, and load them back later.</span></a>
+  <a href="mirror/"><strong>Mirror</strong><span>The FM-1's screen on your computer, live, and its buttons, keys and knobs to play from there.</span></a>
   <a href="firmware/__PKG__"><strong>Download __PKG__</strong><span>For the command-line installer: <code>python3 base/tools/fm1_install.py __PKG__</code></span></a>
   <a href="__REPO__"><strong>Source</strong><span>GitHub, GPL-3.0 (most files MPL-2.0). Built on fm1-base and felucca-bsp, from Felucca by Leo Kuroshita (Hügelton Instruments).</span></a>
 </nav>
@@ -195,7 +198,7 @@ def main(pkg, version, out):
     name = f"loom-{re.sub(r'[^A-Za-z0-9.-]', '-', version)}.fwsc"
     if out.exists():
         shutil.rmtree(out)
-    for d in ("install", "firmware", "backup"):
+    for d in ("install", "firmware", "backup", "mirror"):
         (out / d).mkdir(parents=True)
     shutil.copy(pkg, out / "firmware" / name)
     # the resource region (the 909 cymbals: fm1.toml resources), checked, beside it: the installer writes it after
@@ -266,6 +269,7 @@ def main(pkg, version, out):
     tools = base_site.tool_pages(SRC / "app", conf, {"NAME": "LOOM-8", "EXTRAS_JS": extras, "EXTRA": note,
                                                      "TERMINAL": terminal})
     (out / "backup" / "index.html").write_text(tools["backup/index.html"], encoding="utf-8")
+    (out / "mirror" / "index.html").write_text(tools["mirror/index.html"], encoding="utf-8")
     # the samples page, its bank code (app/web/samples/loom_samples.js) inlined
     spage = (SRC / "app" / "web" / "samples" / "index.html").read_text(encoding="utf-8")
     if spage.count("/*LIB*/") != 1:
@@ -297,11 +301,12 @@ def main(pkg, version, out):
     # the screen reader's words files (fm1-reader): every one ever made, for the devices that point at them
     shutil.copytree(SRC / "app" / "web" / "words", out / "words")
     for path, here in (("index.html", ""), ("manual/index.html", "manual/"), ("install/index.html", "install/"),
-                       ("backup/index.html", "backup/"), ("samples/index.html", "samples/"), ("emu/index.html", "emu/")):
+                       ("backup/index.html", "backup/"), ("mirror/index.html", "mirror/"), ("samples/index.html", "samples/"),
+                       ("emu/index.html", "emu/")):
         f = out / path
         f.write_text(dress(f.read_text(encoding="utf-8"), here), encoding="utf-8")
     (out / ".nojekyll").write_text("")
-    print(f"site: {out}: index.html, manual/, install/ ({product}), backup/, samples/, emu/, words/, firmware/{name} ({len(raw)} B)")
+    print(f"site: {out}: index.html, manual/, install/ ({product}), backup/, mirror/, samples/, emu/, words/, firmware/{name} ({len(raw)} B)")
 
 
 if __name__ == "__main__":
