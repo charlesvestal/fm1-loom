@@ -101,12 +101,12 @@ static uint16_t col_mix(uint16_t a, uint16_t b, uint32_t s)   /* a moved s/16 of
  * track: Engine, Play, Play 2 (the octave), then Sub where the engine has a second page of knobs (TP_X1..X4: knit's
  * oscillator 2, level, sub, noise; rayon's fall); a kit or an FX track Engine and Play; the conductor Engine, Play (routing), Sub (Follow) */
 enum { P_ARRANGE, P_SONG, P_STEPS, P_BAR, P_ENGINE, P_PLAY, P_PLAY2, P_SUB, P_ENV, P_FILTER, P_ENV2, P_KITF, P_CHARACTER, P_SENDS,
-       P_FX1, P_FX2, P_THROWS, P_LFO, P_LFO2, P_PLAYERS, P_PLAYERS2, P_PLAYERS3, P_WEAVE, P_MIX, P_MASTER, P_MASTER2, P_MASTER3, P_GLFO, P_SETUP,
+       P_FX1, P_FX2, P_THROWS, P_LFO, P_LFO2, P_PLAYERS, P_PLAYERS2, P_PLAYERS3, P_WEAVE, P_MIX, P_TEMPO, P_MASTER, P_MASTER2, P_MASTER3, P_GLFO, P_SETUP,
        P_STATUS, NPAGES };
 static const char *const PAGE_NAME[NPAGES] = {"Arrange", "Song", "Steps", "Bar", "Engine", "Play", "Play 2", "Sub", "Envelope",
                                               "Filter", "Filter env", "Kit filter", "Character", "Sends", "FX I",
                                               "FX II", "Throws", "LFO", "LFO 2", "Players", "Players 2", "Hold", "Weave", "Mix",
-                                              "Master EQ", "Master color", "Master out", "LFO", "Setup", "Debug"};
+                                              "Tempo", "Master EQ", "Master color", "Master out", "LFO", "Setup", "Debug"};
 static char *s_cat(char *b, const char *s);
 static char *num_s(uint32_t v, char *b);
 static const char *const GLFO_SHAPE[NGS + 1] = {"off", "sine", "triangle", "saw up", "saw down", "square", "random"};
@@ -136,7 +136,7 @@ static uint32_t glfo_route(void)                 /* the tracks it moves: bit t *
 static int mst_base(int p) { return p == P_MASTER ? MS_EQ_LO : p == P_MASTER2 ? MS_CTYPE : MS_PERC; }   /* its first knob */
 static const struct { uint8_t btn, first, n; } PAGE_BTN[] = {
     {B_HOME, P_ARRANGE, 2}, {B_SEQ, P_STEPS, 2}, {B_EDIT, P_ENGINE, 4}, {B_ENV, P_ENV, 4}, {B_FX, P_CHARACTER, 5},
-    {B_LFO, P_LFO, 2}, {B_ARP, P_PLAYERS, 4}, {B_GLO, P_MIX, 7}};
+    {B_LFO, P_LFO, 2}, {B_ARP, P_PLAYERS, 4}, {B_GLO, P_MIX, 8}};
 #define NPAGE_BTN (sizeof PAGE_BTN / sizeof PAGE_BTN[0])
 static int page_group(int p)
 {
@@ -273,6 +273,14 @@ static struct {
                                                       * and whether the press made the scene (a copy) */
     uint32_t sig[6];
 } ui;
+/* GLO's Tempo page: the keys tapped in quarter notes (ui.c tempo_tap) */
+#define TAP_GAPS 4                                   /* the gaps a tempo is the mean of */
+#define TAP_RESET_MS 2000u                           /* no tap for this long: the next one starts again */
+static struct {
+    uint32_t last;                                   /* the last tap counted (plat_ms) */
+    uint16_t gap[TAP_GAPS];                          /* the gaps between the last taps, ms, the newest first */
+    uint8_t taps;                                    /* the taps of the measurement going on (0: none) */
+} tap;
 
 /* SEL: the screen as a list: the page's knobs, then its actions */
 enum { LK_KNOB, LK_MORE, LK_ACTION, LK_PICK, LK_NOTE, LK_HEAD };   /* LK_NOTE: a line that says what to do; LK_HEAD:
@@ -715,7 +723,7 @@ static int group_n(int g)
     if (b == B_FX && is_midi(trk))
         return 3;                                    /* (grp_page: FX I, FX II, Throws: no Character, no Sends) */
     if (b == B_GLO)
-        return DEBUG_BUILD ? 7 : 6;                  /* Debug last, in a debug build only */
+        return DEBUG_BUILD ? 8 : 7;                  /* Debug last, in a debug build only */
     return PAGE_BTN[g].n;
 }
 /* a button's i-th page now (ARP's depend on the player: the arp has Hold before Weave; the conductor and the
@@ -1749,6 +1757,14 @@ static void page_knobs(knob_t *k)
             k[1].name = "FX II";
         }
         break;
+    case P_TEMPO:                                    /* (a MIDI clock in leads: KNOB 1 shows it and turns nothing) */
+        if (seq.ext)
+            kv(&k[0], "TEMPO", "ext", 0, 0);
+        else {
+            tempo_text(t);
+            kv(&k[0], "TEMPO", t, (int)proj.tempo_x10 / 10 - 40, 180);
+        }
+        break;
     case P_MASTER: case P_MASTER2: case P_MASTER3:
         for (int i = 0; i < 4; i++) {
             int m = mst_base(p) + i;
@@ -2010,7 +2026,7 @@ static void page_tag(char *t)
             s_cat(s_cat(e, ">"), fx_pick_name(pick));
         break;
     }
-    case P_MASTER: case P_MASTER2: case P_MASTER3: case P_GLFO: case P_SETUP: case P_STATUS:
+    case P_TEMPO: case P_MASTER: case P_MASTER2: case P_MASTER3: case P_GLFO: case P_SETUP: case P_STATUS:
         s_cat(t, "all tracks");
         break;
     default:
@@ -2127,7 +2143,8 @@ static void page_footer(char *t)
         s_cat(t, playing() ? "KNOBS record settings|KEYS record" : "KNOBS record settings|PLAY record");
         return;
     }
-    if ((ui.btn >> B_REC & 1u) && !home_held()) {   /* (playing, a sound page: the knobs record) */
+    if ((ui.btn >> B_REC & 1u) && !home_held() && ui.page != P_TEMPO) {   /* (playing, a sound page: the knobs record;
+                                                                           * Tempo: its keys tap, nothing records) */
         s_cat(t, "KNOBS record motion|KEYS record notes");
         return;
     }
@@ -2205,6 +2222,9 @@ static void page_footer(char *t)
         break;
     case P_MIX:
         s_cat(t, "BLACK mute|hold: solo|WHITE play");
+        break;
+    case P_TEMPO:
+        s_cat(t, "KEYS tap");
         break;
     case P_THROWS:
         s_cat(t, "KEYS throw: low drums, high melodic|REC held: record");
@@ -2284,7 +2304,7 @@ static void enc_line(char *t)
     if (n > 1)                        /* SELECT names what it turns to where that is the point of the page */
         e = s_cat(t, p == P_CHARACTER ? "SELECT sends" : p == P_SENDS ? "SELECT effects" : p == P_ENV ? "SELECT filter"
                      : p == P_LFO ? "SELECT more" : "SELECT page");
-    if (p != P_ARRANGE && p != P_SONG && p != P_THROWS && p < P_MASTER)
+    if (p != P_ARRANGE && p != P_SONG && p != P_THROWS && p != P_TEMPO && p < P_MASTER)
         e = s_cat(e, *t ? "|ALGO track" : "ALGO track");
     {
         const char *a = p == P_ARRANGE ? "scene" : p == P_SONG ? "slot"
@@ -2546,8 +2566,10 @@ static const struct { uint8_t btn; uint32_t pages; const char *title, *l1, *l2; 
      "Random: tap steps as active slots; SEQ picks the pool."},
     {B_ARP, PG_STEPS, "Tricks", "With a step held, ARP: KNOB 1 and 3 pick its two tricks,",
      "KNOB 2 and 4 their values. Let go of the step when done."},
+    {B_GLO, PG(P_TEMPO), "Tempo", "KNOB 1 sets it. Or tap any key in time, in quarter notes.",
+     "A MIDI clock coming in leads: then the taps and KNOB 1 rest."},
     {B_GLO, PG_ANY, "Mix", "Sends, pan, level. Black: tap mute, hold solo, 2 taps: stays.",
-     "SELECT: Master EQ, out, Setup. HOME's SEL: projects."},
+     "SELECT: Tempo, Master, Setup. HOME's SEL: projects."},
     {B_HOME, PG_ANY, "Arrange", "Each track's pattern in the scene. White: scenes, black: mutes.",
      "SEL: projects, scene timing. + REC undoes, + PLAY redoes."},
     {B_SEL, PG_ANY, "Lists", "The page's actions, then its knobs. SEL runs the one picked.",
@@ -5671,6 +5693,39 @@ static void draw_master(void)
     cv_blit(0, MAIN_Y);
 }
 static const felucca_font_t *setup_f;                /* setup_row's face (0: FONT_S) */
+/* GLO's Tempo: the tempo big; a light flashing at each tap counted, a dot for each tap of the measurement going on;
+ * a MIDI clock in leads: its tempo, and that it does */
+#define TAP_PULSE_MS 160u
+static void draw_tempo(void)
+{
+    uint32_t a = plat_ms() - tap.last;
+    int ext = seq.ext, lv = !ext && tap.taps && a < TAP_PULSE_MS ? (int)(16u - a * 16u / TAP_PULSE_MS) : 0,
+        n = tap.taps > 8 ? 8 : tap.taps;
+    uint32_t x10 = ext ? (uint32_t)(seq.ext_bpm * 10.0f + 0.5f) : proj.tempo_x10;
+    uint32_t h = hash_u(hash_u(2166136261u, 0x7E40u), x10 | (uint32_t)ext << 16 | (uint32_t)lv << 17 | (uint32_t)n << 22);
+    char t[32], *e;
+    if (!begin_main(h))
+        return;
+    cv_round(20, LY(18, 4), 44, 44, 22, lv ? col_mix(K_PANEL, K_NOW, (uint32_t)lv) : K_PANEL);   /* the light */
+    if (ext)
+        text_c(42, cap_y(LY(18, 4), 44, &FONT_XS), &FONT_XS, "EXT", K_TEXT);
+    e = num_s(x10 / 10u, t);
+    *e++ = '.';
+    num_s(x10 % 10u, e);
+    text_c(148, cap_y(LY(14, 4), 44, &FONT_L), &FONT_L, t, ext ? K_DIM : K_TEXT);
+    if (!LARGE)                                      /* (large type: no room under it; the header says the tempo too) */
+        text_c(148, 60, &FONT_XS, "BPM", K_DIM);
+    for (int i = 0; i < 8; i++)                      /* the taps counted, one dot each */
+        cv_round(92 + i * 14, LY(80, 52), 8, 8, 4, i < n ? K_TEXT : K_LINE);
+    if (ext)
+        s_cat(t, "a MIDI clock in leads the tempo");
+    else if (!n)
+        s_cat(t, "tap a key on each beat");
+    else
+        s_cat(t, n == 1 ? "and again" : "more taps: steadier");
+    text_c(120, LY(100, 64), F_CAP, t, ext ? K_TEXT : K_DIM);
+    cv_blit(0, MAIN_Y);
+}
 static void setup_row(int32_t y, const char *name, const char *val)
 {
     const felucca_font_t *f = setup_f ? setup_f : &FONT_S;
@@ -6022,6 +6077,7 @@ static void draw_page(void)
             draw_players();
         break;
     case P_MIX: draw_mix(); break;
+    case P_TEMPO: draw_tempo(); break;
     case P_THROWS: draw_punch(); break;
     case P_WEAVE: draw_weave(); break;
     case P_MASTER: case P_MASTER3: draw_master(); break;

@@ -1,0 +1,246 @@
+# GLO's Tempo page: after Mix; KNOB 1 the tempo; any key taps it in quarter notes (two
+# taps make a tempo, then the mean of the last four gaps, in whole BPM); bounces and keys together ignored; two seconds quiet, a
+# load, the knob or leaving the page start again; the keys play, write and record nothing; playing keeps its place;
+# a MIDI clock in leads (its tempo shown, the stored one untouched by the page)
+wait 300
+projnew
+expect filled1 0
+expect filled2 0
+tap GLO
+expect page Mix
+turn SELECT 1
+expect page Tempo
+wait 40
+shot tempo.png
+expect tempo10 1200
+expect taps 0
+
+# KNOB 1: whole BPM, HOME held tenths (its release opens no page), 40 to 220
+spin K1 5
+expect tempo10 1250
+press HOME
+spin K1 -3
+release HOME
+wait 20
+expect page Tempo
+expect tempo10 1247
+spin K1 -200
+expect tempo10 400
+spin K1 300
+expect tempo10 2200
+bpm 100
+expect tempo10 1000
+
+# two taps 500 ms apart: 120 (a tapkey is 90 ms: then 410 more); the first alone changes nothing
+tapkey w0
+expect taps 1
+expect tempo10 1000
+shot tempo_pulse.png
+wait 410
+tapkey b3
+expect taps 2
+expect tempo10 1200
+wait 410
+tapkey w5
+expect tempo10 1200
+# a gap of 520: the mean of 500 500 520 (118.4: whole BPM, 118)
+wait 430
+tapkey w9
+expect tempo10 1180
+# the last four gaps only: 500 520 500 500 (118.8: 119), then the 520 drops out after four more 500s
+wait 410
+tapkey w1
+expect tempo10 1190
+wait 410
+tapkey w1
+wait 410
+tapkey w1
+expect tempo10 1190
+wait 410
+tapkey w1
+expect tempo10 1200
+expect taps 8
+wait 40
+shot tempo_taps.png
+
+# a gap far off the mean (300 ms): a new tempo at once, from that gap (200)
+wait 170
+tapkey w0
+expect tempo10 2000
+expect taps 2
+wait 210
+tapkey w0
+expect tempo10 2000
+expect taps 3
+
+# a bounce (the same key 30 ms later) and two keys at once: one tap
+wait 210
+key w2 down
+key w2 up
+wait 30
+key w2 down
+key w2 up
+key w3 down
+key w4 down
+key w3 up
+key w4 up
+expect taps 4
+expect tempo10 2000
+
+# two seconds without a tap: the next one starts again (alone it changes nothing)
+wait 2100
+expect taps 0
+tapkey w0
+expect taps 1
+expect tempo10 2000
+# a gap past either end gives that end: 1800 ms (33 BPM) -> 40, then 200 ms (300 BPM) -> 220
+wait 1710
+tapkey w0
+expect tempo10 400
+wait 2100
+tapkey w0
+wait 110
+tapkey w0
+expect tempo10 2200
+
+# the knob, leaving the page, HOME held, a new project: the taps start again
+bpm 120
+tapkey w0
+expect taps 1
+spin K1 1
+expect taps 0
+expect tempo10 1210
+tapkey w0
+expect taps 1
+turn SELECT 1
+wait 40
+expect page Master_EQ
+expect taps 0
+turn SELECT -1
+expect page Tempo
+press HOME
+tapkey w0
+release HOME
+wait 20
+expect taps 0
+expect page Tempo
+tapkey w0
+expect taps 1
+projnew
+wait 40
+expect taps 0
+expect tempo10 1200
+expect page Tempo
+
+# the keys play nothing (a kit on T1, a synth on T2) and write nothing, step record armed too
+expect voices 0
+expect drumhits 0
+turn ALGO 1
+expect trk 2
+tapkey w0
+wait 410
+tapkey w4
+wait 40
+expect voices 0
+expect drumhits 0
+tap REC
+wait 40
+shot tempo_steprec.png
+tapkey w0
+wait 410
+tapkey b1
+expect filled1 0
+expect filled2 0
+expect voices 0
+expect tempo10 1200
+tap REC
+
+# playing: a tap changes the rate, never the place (no restart: the sixteenths go on counting)
+tap PLAY
+wait 1000
+expect playing 1
+expect six >6
+tapkey w0
+wait 310
+tapkey w0
+wait 310
+tapkey w0
+expect tempo10 1500
+expect playing 1
+expect six >13
+wait 800
+expect six >18
+# REC held while playing: the keys still only tap, nothing recorded (and REC held starts no recording here)
+press REC
+tapkey w0
+wait 310
+tapkey w2
+wait 310
+tapkey b0
+wait 40
+shot tempo_rec_held.png
+release REC
+expect tempo10 1500
+wait 1000
+expect filled1 0
+expect filled2 0
+# live recording latched (REC + PLAY): still only taps
+tap PLAY
+wait 40
+press REC
+tap PLAY
+release REC
+wait 300
+tapkey w0
+wait 410
+tapkey w6
+wait 410
+tapkey b4
+expect tempo10 1200
+wait 1500
+tap PLAY
+wait 40
+expect filled1 0
+expect filled2 0
+expect playing 0
+
+# a MIDI clock in leads: its tempo shown and followed; the taps and KNOB 1 leave the stored tempo as it is
+bpm 100
+clock 24 20
+expect ext 1
+expect tempo >122
+expect tempo <128
+wait 10
+shot tempo_ext.png
+tapkey w0
+clock 20 20
+tapkey w0
+clock 20 20
+tapkey w0
+expect taps 0
+expect tempo10 1000
+spin K1 5
+expect tempo10 1000
+clock 10 20
+expect ext 1
+# the clock gone (half a second): LOOM-8's own again, the taps count
+wait 700
+expect ext 0
+expect tempo 100
+tapkey w0
+wait 410
+tapkey w0
+expect tempo10 1200
+
+# the screen reader: the page, its hint; a tap's new tempo said as KNOB 1's value (600 ms: 100)
+wait 2100
+listen
+where
+said Tempo, page 2 of 8
+where
+said keys: tap
+tapkey w0
+wait 510
+tapkey w0
+wait 300
+said TEMPO 100.0

@@ -26,7 +26,8 @@
  *   expect WHAT VALUE            besides fm1-base's: playing, scene, mute (the tracks' bits), songpos, used (the scenes' bits), voices, drumhits (the kit's hits),
  *                                guard, cores, dirty, ask, mem (the last save's
  *                                share of a project slot, %), model_avg /
- *                                model_peak (the last meter's, %), tempo, trk, user / userbytes / rateN (the user bank's
+ *                                model_peak (the last meter's, %), tempo, tempo10 (the project's, tenths), taps (Tempo's), ext,
+ *                                six (sixteenths since the start), filledT (track T's steps not empty), trk, user / userbytes / rateN (the user bank's
  *                                samples, its data's bytes, user N's rate), punch_drum / punch_mel (the masks in effect,
  *                                PX_* bits), parT.P (P a number or a name: par2.x1, par1.d3.decay), mst.NAME (a
  *                                master value, the mst command's names), pump (the
@@ -493,6 +494,21 @@ int app_expect(const char *what, int *got)
         *got = project_mem_pct();
     else if (!strcmp(what, "tempo"))
         *got = (int)(seq_tempo(&seq) + 0.5f);
+    else if (!strcmp(what, "tempo10"))              /* the project's own tempo, tenths (an external clock's aside) */
+        *got = proj.tempo_x10;
+    else if (!strcmp(what, "taps"))                 /* Tempo: the taps of the measurement going on */
+        *got = tap.taps;
+    else if (!strcmp(what, "ext"))                  /* a MIDI clock in leads */
+        *got = seq.ext;
+    else if (!strcmp(what, "six"))                  /* the sixteenths since the start (a restart: back to 0) */
+        *got = (int)seq.step_tick;
+    else if (!strncmp(what, "filled", 6) && isnum(what + 6)) {   /* filledT: track T's steps with something on them,
+                                                                  * its playing pattern */
+        tpat_t *tp = pat_of(atoi(what + 6), 0);
+        *got = 0;
+        for (int i = 0; tp && i < NSTEP; i++)
+            *got += !step_empty(&tp->st[i]);
+    }
     else if (!strcmp(what, "trk"))
         *got = proj.trk_sel + 1;
     else if (!strncmp(what, "name", 4) && what[4])  /* nameT: track T's name, its first letter's code */
