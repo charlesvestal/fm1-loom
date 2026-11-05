@@ -50,7 +50,7 @@ On Linux x86-64 the toolchain runs natively and Docker is not needed.
 ```
 ./build.sh                    # the firmware: app/build/loom.fwsc
 ./build.sh --host             # the host simulator: app/build/host/loom_host
-./build.sh --web              # the browser emulator: app/build/emu/ (LOOM-8's own page, app/web/emu/)
+./build.sh --web              # the browser emulator: app/build/emu/ (fm1-base's page; LOOM-8's bits: app/web/emu/)
 ```
 
 `JIELI_TOOLCHAIN` and `AC79_SDK` override the default locations (`~/.jieli/toolchain`, `~/fw-AC79_AIoT_SDK`).

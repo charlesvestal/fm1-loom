@@ -13,6 +13,7 @@ PKG="app/build/loom-$V.fwsc"
 [ -f "$PKG" ] || { echo "no $PKG: run ./build.sh --release $V first"; exit 1; }
 PYTHON="$PY" sh build.sh --web --release "$V"
 node tests/host/emu_test.mjs app/build/emu/app.wasm
+node tests/host/emu_page_test.mjs app/build/emu
 "$PY" tools/make_pages.py "$PKG" "$V" build/pages
 if [ -n "${SITE_PASSWORD:-}" ]; then
     SALT="$(openssl rand -hex 16)"

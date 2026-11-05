@@ -71,6 +71,8 @@ run bank-too-big sh -c "mkdir -p $OUT/big && head -c 221185 /dev/zero > $OUT/big
     grep -q 'larger than' $OUT/big.out"
 if command -v emcc >/dev/null 2>&1 && command -v node >/dev/null 2>&1; then   # the browser build, when it can be built
     run emu sh -c "sh build.sh --web >/dev/null && node tests/host/emu_test.mjs $B/emu/app.wasm"
+    # fm1-base's page with LOOM-8's bits, its worklet with the part resample (in time at 48 kHz)
+    run emu-page node tests/host/emu_page_test.mjs $B/emu
 else
     echo "  skip emu (no emcc or node)"
 fi
