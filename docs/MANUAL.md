@@ -1391,7 +1391,7 @@ or behind one hub. Its notes and CCs play LOOM-8 as a computer's would (by chann
 (the tracks' MIDI OUT, the midi engine, the clock on send) goes to it, so LOOM-8 can play a hardware synth. The
 header says when a device connects, has no MIDI, or is lost; if it is lost, the notes it held are let go.
 Connecting freezes the screen for a moment (longer behind a hub); the sound plays on. While USB PORT is MIDI host
-there's no computer link (no USB audio, backup or samples page), and Bluetooth MIDI works as before. USB PORT goes
+there's no computer link (no USB audio, backup, mirror or samples page), and Bluetooth MIDI works as before. USB PORT goes
 back to **computer** at every start, so updating always works.
 
 The TRS jack is MIDI in. Everything that comes in over USB works from it too (notes, CCs, Program Change, and
@@ -1496,6 +1496,12 @@ the firmware's folder:
 - projects and presets: `python3 base/tools/fm1_backup.py backup FILE --magic LM8B` and `restore FILE`
 - samples: `python3 tools/loom_samples.py backup FILE` and `restore FILE` (its `restore` also takes the backup
   page's file)
+
+**Mirror.** To see LOOM-8's screen on a computer, live (for a video, a lesson, or a bigger view), open
+<https://charlesvestal.github.io/fm1-loom/mirror/> in Chrome or Edge with the FM-1 connected by USB. The page shows
+the buttons, keys and knobs too, and you can play them from there. The music always comes first: on a busy screen
+the picture may skip a frame, never the sound. From a terminal, `python3 base/tools/fm1_mirror.py screen.png` saves
+the screen as a PNG.
 
 On a sound page, hold **SAVE** and press white key 1 to 16 to keep the track's sound as that user preset.
 

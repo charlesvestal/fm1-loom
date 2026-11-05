@@ -451,7 +451,8 @@ static void patterns_clamp(void)
 
 /* ---- objects -------------------------------------------------------------------------------- */
 
-static uint8_t io_buf[PLAT_STORE_MAX] __attribute__((aligned(4)));
+uint8_t loom_io_buf[PLAT_STORE_MAX] __attribute__((aligned(4))) PLAT_POOL;   /* (lent to a restore: app.h) */
+#define io_buf loom_io_buf
 
 /* what each object last held on the flash (a hash of its payload), so a save writes only the
  * objects that changed: a save of a tweaked pattern usually erases one or two sectors, not seven */

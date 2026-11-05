@@ -70,6 +70,8 @@ enum { OBJ_PANEL, OBJ_PRESETS, OBJ_PROJ0, OBJ_BLE = OBJ_PROJ0 + NPROJ * PROJ_NOB
 #define APP_BACKUP_MAGIC 0x42384D4Cu     /* "LM8B" */
 #define APP_BACKUP_VERSION 1u
 #define APP_BACKUP_WHAT "replaces projects, presets"
+#define APP_BACKUP_BUF loom_io_buf      /* project.c's object buffer, lent to a restore (fm1-base's own: 3.8 KB of the pool) */
+extern uint8_t loom_io_buf[];
 int app_backup_playing(void);
 void app_backup_flush(void);
 void app_backup_hold(int on);
@@ -87,6 +89,8 @@ void app_say(const char *a, const char *b);
 #define APP_SPLASH                      /* the name over the eight tracks' inks woven as threads */
 void app_splash(void);
 #define APP_REDRAW                      /* the screen mirror lost a part (or a viewer came): every band again */
+#define MRQ 2048u                       /* the mirror's frame ring (fm1-base's 4096: RAM), a rect frame 1.1 KB at most */
+#define MR_SEGW 80u                     /* what the viewer has, by 80-pixel segments of each row (30: 4.8 KB more pool) */
 void app_redraw(void);
 #define APP_SYSEX                       /* the user sample bank over USB-MIDI (samples.c: F0 7D 46 4C) */
 int app_sysex(const uint8_t *p, uint32_t n);

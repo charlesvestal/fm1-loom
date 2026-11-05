@@ -21,7 +21,8 @@ firmware back, and an FM-1 that keeps crashing starts in a safe mode.
 
 The design is in `docs/superpowers/specs/2026-10-15-xy1-design.md`.
 
-Your projects and presets can be backed up to a computer and put back (the site's Backup page); your own
+Your projects and presets can be backed up to a computer and put back (the site's Backup page), and the screen
+mirrored to it and played from there (the Mirror page); your own
 samples load from their WAV files with `tools/loom_samples.py` (see the manual).
 
 ## Building and testing
