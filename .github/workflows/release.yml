@@ -60,6 +60,13 @@ jobs:
         sudo apt-get install -y -qq libfribidi0
         python3 -c "from PIL import features; assert features.check('raqm'), 'Pillow without raqm'"
         test "$(git -C "$AC79_SDK" rev-parse HEAD)" = d179b4484759423312073f5fbb232501aa491047
+        # Emscripten for the .rfm1 (host apps: RemoteFM1), a fixed version from emsdk at a fixed commit
+        git clone -q https://github.com/emscripten-core/emsdk.git "$RUNNER_TEMP/emsdk"
+        git -C "$RUNNER_TEMP/emsdk" checkout -q a2b92777574c2feda07994cd4f1079a3dfc151f8   # emsdk 6.0.10
+        "$RUNNER_TEMP/emsdk/emsdk" install 6.0.10
+        "$RUNNER_TEMP/emsdk/emsdk" activate 6.0.10
+        set +u; source "$RUNNER_TEMP/emsdk/emsdk_env.sh"; set -u
+        emcc --version
         mkdir -p build/release-assets
         if [[ "$GITHUB_REF" == refs/tags/* ]]; then
           version=${GITHUB_REF_NAME#v}
@@ -67,12 +74,19 @@ jobs:
           cp "app/build/loom-$version.fwsc" build/release-assets/
           cp "app/build/loom-$version-res.bin" build/release-assets/   # (the 909 cymbals: the installer writes them)
           cp app/build/loom.bin "build/release-assets/loom-$version-app.bin"
+          # the app for host apps (base/README.md, .rfm1)
+          ./build.sh --rfm1 --release "$version"
+          cp "app/build/loom-$version.rfm1" build/release-assets/
         else
           ./build.sh
           cp app/build/loom.fwsc build/release-assets/
           cp app/build/loom-res.bin build/release-assets/
           cp app/build/loom.bin build/release-assets/loom-app.bin
+          ./build.sh --rfm1
+          cp app/build/rfm1/loom-dev+*.rfm1 build/release-assets/loom.rfm1
         fi
+        # the firmware described for hubs (base/docs/FIRMWARE-JSON.md)
+        cp app/build/firmware.json build/release-assets/
       test: |
         set -euo pipefail
         # (the update-path check flashes the last package over an older one: it needs app/build/loom.fwsc)
@@ -98,7 +112,8 @@ jobs:
         run: |
           set -euo pipefail
           sha256sum --check SHA256SUMS
-          for package in build/release-assets/*.fwsc build/release-assets/*-app.bin; do
+          for package in build/release-assets/*.fwsc build/release-assets/*-app.bin build/release-assets/*.rfm1 \
+              build/release-assets/firmware.json; do
             gh attestation verify "$package" --repo "$GITHUB_REPOSITORY" \
               --signer-workflow zvenson/fm1-build/.github/workflows/build.yml \
               --source-ref "$GITHUB_REF" --source-digest "$GITHUB_SHA"
