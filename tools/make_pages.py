@@ -105,7 +105,7 @@ LANDING = """<!doctype html>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>LOOM-8</title>
-<meta name="description" content="A pocket groovebox for the M-VAVE FM-1: eight tracks, each in its own colour, a 64-step sequencer with tricks and locks, weave, throws, a conductor and a song.">
+<meta name="description" content="LOOM-8 turns the M-VAVE FM-1 into a pocket groovebox, with eight tracks, a 64-step sequencer with tricks and locks, weave, throws, a conductor and a song.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;600&family=Barlow+Semi+Condensed:wght@600;700&display=swap">
@@ -145,43 +145,43 @@ code { font-size: .9em; }
 <main>
 <h1>LOOM-8</h1>
 <div class="threads" aria-hidden="true">__THREADS__</div>
-<p class="lede">A pocket groovebox for the M-VAVE FM-1. Eight tracks, each in its own colour, on six synth
-engines, a sample player, a break slicer and a drum kit; a 64-step sequencer with tricks and parameter locks; and weave, which crosses two
-patterns into a third.</p>
+<p class="lede">LOOM-8 turns your M-VAVE FM-1 into a pocket groovebox. Fill eight tracks with synths, samples,
+chopped-up breaks or drums, and sequence them over 64 steps, with tricks and parameter locks on any step. Then weave
+two patterns together to get a third.</p>
 <div class="video"><iframe src="https://www.youtube-nocookie.com/embed/d84QXnfulRE" title="LOOM-8 video" loading="lazy"
   allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe></div>
 <div class="shots">
   <img src="img/screen-beat-playing.png" width="240" height="240" alt="The Steps page on T1, the kit, playing: kick and snare in pink, the playhead lit">
-  <img src="img/screen-arrange.png" width="240" height="240" alt="Arrange: every track's pattern in its own colour, the scene number large at the right">
+  <img src="img/screen-arrange.png" width="240" height="240" alt="Arrange: every track's pattern in its own color, the scene number large at the right">
   <img src="img/screen-weave.png" width="240" height="240" alt="The Steps list with WEAVE WITH COPIED picked, its way set to rhythm">
 </div>
-<div class="status"><strong>Version __VERSION__.</strong> It installs and
-uninstalls the way every fm1-base firmware does, and the installer can put M-VAVE's own firmware back. Installing is at your own risk.</div>
+<div class="status"><strong>Version __VERSION__.</strong> You install and remove it like any other fm1-base
+firmware, and the installer can always put M-VAVE's own firmware back. Install at your own risk.</div>
 <nav class="ways" aria-label="Get LOOM-8">
-  <a href="emu/"><strong>Try it in the browser</strong><span>The same code the FM-1 runs, with sound. No FM-1 needed.</span></a>
-  <a href="manual/"><strong>Read the manual</strong><span>A ten-minute quick start, every page and gesture, with screenshots.</span></a>
-  <a href="install/"><strong>Install</strong><span>From Chrome or Edge, with the FM-1 connected by USB. Nothing to install on the computer.</span></a>
-  <a href="samples/"><strong>Samples</strong><span>Put your own samples on the FM-1: add, replace, rename, reorder and remove up to 32.</span></a>
+  <a href="emu/"><strong>Try it in the browser</strong><span>Play it right here, with sound. It runs the same code as the FM-1, so you don't need one.</span></a>
+  <a href="manual/"><strong>Read the manual</strong><span>Start with the ten-minute quick start, then look up any page or gesture.</span></a>
+  <a href="install/"><strong>Install</strong><span>Connect your FM-1 by USB and install from Chrome or Edge. There's nothing to install on your computer.</span></a>
+  <a href="samples/"><strong>Samples</strong><span>Load up to 32 of your own samples onto the FM-1, and rename, reorder or swap them any time.</span></a>
   <a href="backup/"><strong>Backup</strong><span>Save your projects, presets and samples to a file, and load them back later.</span></a>
-  <a href="mirror/"><strong>Mirror</strong><span>The FM-1's screen on your computer, live, and its buttons, keys and knobs to play from there.</span></a>
+  <a href="mirror/"><strong>Mirror</strong><span>See the FM-1's screen live on your computer, and play its buttons, keys and knobs from there.</span></a>
   <a href="firmware/__PKG__"><strong>Download __PKG__</strong><span>For the command-line installer: <code>python3 base/tools/fm1_install.py __PKG__</code></span></a>
-  <a href="__REPO__"><strong>Source</strong><span>GitHub, GPL-3.0 (most files MPL-2.0). Built on fm1-base and felucca-bsp, from Felucca by Leo Kuroshita (Hügelton Instruments).</span></a>
+  <a href="__REPO__"><strong>Source</strong><span>On GitHub under GPL-3.0 (most files are MPL-2.0). Built on fm1-base and felucca-bsp, which grew out of Felucca by Leo Kuroshita (Hügelton Instruments).</span></a>
 </nav>
 
 <h2>What's in it</h2>
 <ul class="feat">
-  <li><b>Eight tracks</b>, each with eight patterns of up to 64 steps: knit (the everyday subtractive voice, with a supersaw unison), rayon (two-operator FM), jacquard (wavetables), bellows (an organ), cane and voile (physical models and voices from Mutable Instruments Braids) and acid (a TB-303 bass line, with accent and slide) synths; sample and slice, which play the sample bank and chop breaks; the kit, eleven drum voices on the black keys; or midi, which plays another synth over USB or Bluetooth, eight knobs sending its CCs. 93 factory presets, and 16 of your own.</li>
-  <li><b>Tricks</b> on any step: pulse, hold, multiply, ramps, bends, jumps, skips and more; <b>locks</b> for any knob on any step.</li>
-  <li><b>Weave</b> a pattern with a copied one: bars or steps in turn, or one's rhythm playing the other's notes.</li>
-  <li><b>Players</b>: arp, strum (one key plays a recorded chord) and hold.</li>
-  <li><b>The conductor</b> moves the tracks that follow it through a key, a scale and a progression.</li>
-  <li><b>Throws</b>: twelve momentary effects a hand, held from the keys, and recorded if you like.</li>
-  <li>Two <b>send effects</b> (the reverb with the PlayStation's own reverbs among its modes), a mixer with EQ and a compressor on the master, thirty-two <b>scenes</b> and a <b>song</b>.</li>
-  <li>A <b>screen reader</b>: the FM-1 says its screen through <a href="https://charlesvestal.github.io/fm1-reader/">FM-1 Screen Reader</a>.</li>
+  <li><b>Eight tracks</b>, each with eight patterns of up to 64 steps. Give a track one of seven synths: knit (an everyday subtractive voice with supersaw unison), rayon (two-operator FM), jacquard (wavetables), bellows (an organ), cane and voile (physical models and voices from Mutable Instruments Braids) or acid (a TB-303 bass line, with accent and slide). Or play the sample bank with sample, chop up breaks with slice, put eleven drums on the black keys with the kit, or play another synth over USB or Bluetooth with midi. Start from 93 factory presets, and save 16 of your own.</li>
+  <li>Add <b>tricks</b> to any step: pulse, hold, multiply, ramps, bends, jumps, skips and more. <b>Lock</b> any knob to its own value on any step.</li>
+  <li><b>Weave</b> two patterns together. They can take turns bar by bar or step by step, or one can play its rhythm with the other's notes.</li>
+  <li>Use the <b>players</b> to arpeggiate, to strum a recorded chord from a single key, or to hold notes.</li>
+  <li>Use <b>the conductor</b> to lead your tracks through a key, a scale and a chord progression.</li>
+  <li>Hold a key for a <b>throw</b>: a stutter, an echo, a build-up or another momentary effect, on the drums or the rest of the band. There are twelve for each, and you can record them as you play.</li>
+  <li>Mix it with two <b>send effects</b> (the reverb's modes include the PlayStation's own reverbs), EQ and a compressor on the master. Then arrange it into a <b>song</b> of up to thirty-two <b>scenes</b>.</li>
+  <li>The FM-1 can read its screen aloud with <a href="https://charlesvestal.github.io/fm1-reader/">FM-1 Screen Reader</a>.</li>
 </ul>
-<p class="small">To go back to the official firmware, use the installer's "Back to the stock firmware", or
-M-VAVE's updater, M-UPGRADE, from <a href="https://www.m-vave.com/download">m-vave.com/download</a>. LOOM-8's
-way of working owes a great deal to teenage engineering's OP-XY. M-VAVE, FM-1 and OP-XY are trademarks of their
+<p class="small">To go back to the official firmware, use "Back to the stock firmware" in the installer, or
+M-VAVE's own updater, M-UPGRADE, from <a href="https://www.m-vave.com/download">m-vave.com/download</a>. LOOM-8
+owes a lot of its way of working to teenage engineering's OP-XY. M-VAVE, FM-1 and OP-XY are trademarks of their
 owners; LOOM-8 is not affiliated with any of them.</p>
 </main>
 </body>
