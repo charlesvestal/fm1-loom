@@ -1,4 +1,4 @@
-# step record from MIDI in (midicc.c srec_midi): REC tapped while stopped arms it; a note over MIDI for the track on
+# the keys from MIDI in (midicc.c key_midi). Step record: REC tapped while stopped arms it; a note over MIDI for the track on
 # the screen (its channel, or 12 to 16) writes the cursor step as the FM-1's keys do, notes held together make a
 # chord, the first note's velocity is the step's; another track's channel writes nothing; the mode off, nothing
 wait 300
@@ -59,3 +59,51 @@ wait 20
 midi 81 3C 00
 wait 60
 expect note 2 1 5 0
+# the notes a step writes: no SEQ needed for MIDI; E4 G4 played on the track's channel, let go, then a step tapped
+# (white key w5, step 6, empty) gets them
+midi 91 40 64
+midi 91 43 64
+wait 30
+midi 81 40 00
+midi 81 43 00
+wait 60
+tapkey w5
+wait 60
+expect note 2 1 6 64
+expect noteat 2 1 6 2 67
+expect noteat 2 1 6 3 0
+# chord mode (chordmode.xy's way in: a step held, SEQ tapped): a chord over MIDI writes the held step's notes, its
+# length stays; a note on another channel writes nothing; SEQ again ends it
+notes 2 1 8 4 100 60
+expect slen 2 8 16
+key w7 down
+wait 30
+tap SEQ
+wait 30
+key w7 up
+wait 30
+midi 91 3E 64
+midi 91 41 64
+wait 30
+midi 81 3E 00
+midi 81 41 00
+wait 60
+expect note 2 1 8 62
+expect noteat 2 1 8 2 65
+expect slen 2 8 16
+midi 92 47 64
+wait 20
+midi 82 47 00
+wait 60
+expect note 2 1 8 62
+tap SEQ
+wait 60
+# chord mode off: a MIDI note is the memory again, not step 8
+midi 91 48 64
+wait 20
+midi 81 48 00
+wait 60
+expect note 2 1 8 62
+tapkey w8
+wait 60
+expect note 2 1 9 72

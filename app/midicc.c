@@ -133,33 +133,58 @@ static void cc_scene(int n)                   /* as a white key on Arrange: made
     cc_scene_quiet = (uint8_t)n;               /* quiet for whichever scene lands next, even this one again */
     scene_go(n, proj.rsv[2] & SCENES_AT_END ? SCENE_END : SCENE_BAR);
 }
-/* ---- step record from MIDI in ---- */
-/* REC tapped while stopped arms step record (ui.c rec_tap): a key on the FM-1's keyboard writes the cursor step and,
- * let go, moves the cursor on (step_rec_key, step_rec_key_up). A MIDI note does the same from here, in the main loop
- * (engine.c midi_in queues it while eng_srec says the mode is on; the interrupt has played it already), when it is
- * for the track on the screen: its own channel, or 12 to 16. Notes held together join one step as a chord and the
- * last release moves on; the first note's velocity is the step's (the FM-1's keys write 100). A kit takes its
- * sounds 1-11. Only a note counted here is let go here (ui.srec_down): an off for one that came before the mode, or
- * on another track's channel, moves nothing; leaving the mode forgets them */
-static uint8_t srec_midi_down[16];            /* the MIDI notes down that step record counted (a bit each) */
-static void srec_midi(int ch, int note, int on, int vel)
+/* ---- the keys from MIDI in ---- */
+/* A note for the track on the screen (its own channel, or 12 to 16) does here, in the main loop, what a key on the
+ * FM-1's keyboard does beside playing it (engine.c midi_in has played it, and queues it while eng_midi_trk is its
+ * track):
+ *  - step record (REC tapped while stopped, ui.c rec_tap): it writes the cursor step through step_rec_key /
+ *    step_rec_key_up as the keys do: held together, a chord; the last release moves on; the first note's velocity the
+ *    step's (the keys write 100); a kit's sounds 1-11;
+ *  - chord mode (a step held, SEQ tapped: ui.chordmode on Steps): it writes the chord onto the held steps
+ *    (step_chord_key; with the pool picker, the pitch class);
+ *  - else the notes a step writes: the notes down are what the next step tap writes (chord_add, ui.rem: what the
+ *    keys do with SEQ held, "the line above the grid says the notes a step will write"; a MIDI keyboard needs no SEQ,
+ *    its keys never pick steps).
+ * Only a note counted here is let go here (md: what counted it): an off from before a mode, or on another track's
+ * channel, moves nothing; a mode left is not let go into */
+enum { MD_SREC = 1, MD_CHORD = 2, MD_MEM = 4 };   /* what counted the note down */
+static uint8_t md[128];
+static void key_midi(int ch, int note, int on, int vel)
 {
     int trk = sel_trk(), t = ch < NTRK ? ch : ch > CH_MASTER ? inst_trk() : -1;
-    uint8_t *b = &srec_midi_down[note >> 3], m = (uint8_t)(1u << (note & 7));
-    if (!ui.rec_armed || playing()) {
-        memset(srec_midi_down, 0, sizeof srec_midi_down);
+    int srec = ui.rec_armed && !playing(), cmode = ui.chordmode && ui.page == P_STEPS && !is_drum(trk);
+    uint8_t *m = &md[note & 127];
+    if (!on) {                                     /* a release: let go from whatever counted it */
+        if ((*m & MD_SREC) && srec)
+            step_rec_key_up();
+        if ((*m & MD_CHORD) && cmode && !ui.chord_pool)
+            step_chord_key_up();
+        if (*m & MD_MEM)
+            chord_del(note);
+        *m = 0;
         return;
     }
-    if (on) {
-        if (t < 0 || t != trk || !is_seqt(trk) || (*b & m) || (is_drum(trk) && (note < 1 || note > NDRUM)))
+    if (t < 0 || t != trk || !is_seqt(trk) || (is_drum(trk) && (note < 1 || note > NDRUM)))
+        return;
+    if (cmode) {                                   /* (as the keys: chord mode writes, the memory stays) */
+        if (*m & MD_CHORD)
             return;
-        *b |= m;
+        *m |= MD_CHORD;
+        if (ui.chord_pool)
+            pool_toggle(trk, ui.chord_pat % NPATT, note % 12);
+        else
+            step_chord_key(note);
+        return;
+    }
+    if (!is_drum(trk) && !(*m & MD_MEM)) {
+        *m |= MD_MEM;
+        chord_remember(note);
+    }
+    if (srec && !(*m & MD_SREC)) {
+        *m |= MD_SREC;
         step_rec_key(note);
-        if (ui.srec_down == 1 && vel)          /* (the chord's first note: its velocity is the step's) */
+        if (ui.srec_down == 1 && vel)              /* (the chord's first note: its velocity is the step's) */
             tpat(trk)->st[ui.cursor].vel = (uint8_t)vel;
-    } else if (*b & m) {
-        *b &= (uint8_t)~m;
-        step_rec_key_up();
     }
 }
 
@@ -176,8 +201,9 @@ static void cc_in(uint32_t pkt)
         if (ch == CH_MASTER) {                /* the master's channel's notes 36-67: scenes 1-32 */
             if (ty == 0x90 && v && d1 >= 36 && d1 <= 67)
                 cc_scene(d1 - 36);
-        } else                                /* a track's note while step record is armed (eng_srec): the step */
-            srec_midi(ch, d1, ty == 0x90 && v, v);
+        } else                                /* a track's note: the main loop's key (step record, chord mode, the
+                                               * notes a step writes) */
+            key_midi(ch, d1, ty == 0x90 && v, v);
         return;
     }
     if (ty != 0xB0)
