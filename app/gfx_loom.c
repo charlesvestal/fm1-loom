@@ -11,7 +11,7 @@ typedef struct {               /* proportional, see tools/gen_font.py */
     uint8_t h;
     uint8_t pad;               /* bitmap starts this many pixels left of the pen */
     uint8_t first, last;
-    uint8_t rle;               /* 1: the nibbles code runs of 0 and 15 (gen_font.py) */
+    uint8_t rle;               /* 1: the nibbles code runs of 0 and 15; 2: Huffman-coded alphas (gen_font.py) */
     const uint8_t *adv;        /* advance per glyph */
     const uint8_t (*box)[4];   /* ink box per glyph: x (from FONT_PAD left of the pen), y, w, h */
     const uint16_t *off;       /* byte offset of each glyph's nibbles */
@@ -234,6 +234,24 @@ static uint32_t loom_glyph(const loom_font_t *f, uint32_t ch)
     return ch - f->first;
 }
 
+/* the next alpha of a Huffman-coded glyph (rle 2, gen_font.py huff_face): t the code for the alpha before (the counts of
+ * each length 1..12, then the alphas in code order), d the face's data, *bit the next bit's index */
+static uint32_t loom_alpha(const uint8_t *t, const uint8_t *d, uint32_t *bit)
+{
+    uint32_t len, code = 0, first = 0, at = 0;
+    for (len = 0; len < 12u; len++) {
+        uint32_t n = t[len];
+        code |= (uint32_t)(d[*bit >> 3] >> (7u - (*bit & 7u))) & 1u;
+        ++*bit;
+        if (code - first < n)
+            return t[12u + at + code - first];
+        at += n;
+        first = (first + n) << 1;
+        code <<= 1;
+    }
+    return 0;
+}
+
 /* text in colour c, each pixel's coverage blended over what is already on the canvas (an
  * anti-aliased face on a coloured box gets no dark fringe); returns the end x */
 static int32_t loom_track;                           /* letters this much closer (a label a few pixels too wide: 1) */
@@ -253,7 +271,12 @@ static int32_t loom_text(int32_t x, int32_t y, const loom_font_t *f, const char 
         for (gy = 0; gy < bh; gy++)
             for (gx = 0; gx < w; gx++) {
                 int32_t px = x0 + (int32_t)gx, py = y0 + (int32_t)gy;
-                if (!run) {                          /* the next nibble: a pixel, or a run of them */
+                if (f->rle == 2u) {                  /* (Huffman: the code for the alpha before; bits from the glyph's) */
+                    if (!gx && !gy)
+                        nib = (uint32_t)f->off[gi] * 8u, a = 0;
+                    a = loom_alpha(f->data + 28u * (a == 0 ? 0u : a == 15u ? 1u : 2u), f->data, &nib);
+                    run = 1;
+                } else if (!run) {                   /* the next nibble: a pixel, or a run of them */
                     a = (nib & 1u) ? gd[nib >> 1] & 15u : gd[nib >> 1] >> 4;
                     nib++;
                     run = 1;

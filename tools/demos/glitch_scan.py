@@ -20,10 +20,25 @@ import wave
 import numpy as np
 
 
+def riff(path):
+    """(channels, sample width, rate, the data's bytes) of a WAV file, WAVE_FORMAT_EXTENSIBLE too (ffmpeg writes it for
+    more than two channels: the FM-1's ten, usb_audio_channels; Python's wave refuses it)"""
+    import struct
+    b = open(path, "rb").read()
+    at, fmt, data = 12, None, b""
+    while at + 8 <= len(b):
+        tag, size = b[at:at + 4], struct.unpack("<I", b[at + 4:at + 8])[0]
+        if tag == b"fmt ":
+            _, ch, fs, _, _, bits = struct.unpack("<HHIIHH", b[at + 8:at + 24])
+            fmt = (ch, bits // 8, fs)
+        elif tag == b"data":
+            data = b[at + 8:at + 8 + size]
+        at += 8 + size + (size & 1)
+    return (*fmt, data)
+
+
 def read(path):
-    with wave.open(path, "rb") as w:
-        n, ch, sw, fs = w.getnframes(), w.getnchannels(), w.getsampwidth(), w.getframerate()
-        raw = w.readframes(n)
+    ch, sw, fs, raw = riff(path)
     if sw == 3:
         b = np.frombuffer(raw, np.uint8).reshape(-1, 3)
         x = (b[:, 0].astype(np.int32) | b[:, 1].astype(np.int32) << 8 | b[:, 2].astype(np.int32) << 16)

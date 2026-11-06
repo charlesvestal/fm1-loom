@@ -217,8 +217,107 @@ LARGE = [("L18", "BarlowSemiCondensed-SemiBold.ttf", 18, 1, False, 32, 126),    
          ("L20B", "BarlowSemiCondensed-Bold.ttf", 20, 1, False, 32, 126)]      # B's: the header, step numbers
 
 
-def face(name, ttf, px, scale, pixel, first, last):
-    """one face encoded: (h, pad, first, last, runs, advances, boxes, offsets, data)"""
+# a face's third coding (runs 2, the faces in the image: main), when it is smaller: each pixel's alpha by one of three
+# canonical Huffman codes, the one for the alpha after a 0, after a 15, after anything else (a glyph starts after a 0),
+# bits from the high one down, each glyph padded to a byte. The data starts with the three codes (HUF_SZ bytes each: the
+# count of codes of each length 1..HUF_LEN, then the alphas in code order, padded to 16); the offsets count from the
+# data's start. fm1-base's font_pack (base/tools/gen_font.py) for its own faces; app/gfx_loom.c loom_alpha decodes it
+HUF_LEN = 12
+HUF_SZ = HUF_LEN + 16
+
+
+def huff_lengths(freq):
+    """{alpha: code length} of a Huffman code for the counts freq (none longer than HUF_LEN)"""
+    import heapq
+    freq = {k: v for k, v in freq.items() if v}
+    while True:
+        if len(freq) == 1:
+            return {k: 1 for k in freq}
+        heap = [(v, i, [k]) for i, (k, v) in enumerate(sorted(freq.items()))]
+        heapq.heapify(heap)
+        depth = dict.fromkeys(freq, 0)
+        n = len(heap)
+        while len(heap) > 1:
+            x, y = heapq.heappop(heap), heapq.heappop(heap)
+            for k in x[2] + y[2]:
+                depth[k] += 1
+            heapq.heappush(heap, (x[0] + y[0], n, x[2] + y[2]))
+            n += 1
+        if max(depth.values()) <= HUF_LEN:
+            return depth
+        freq = {k: (v + 1) // 2 for k, v in freq.items()}
+
+
+def huff_code(lengths):
+    """-> (the table's HUF_SZ bytes, {alpha: (code, length)}): the canonical code (by length, then alpha)"""
+    order = sorted(lengths, key=lambda k: (lengths[k], k))
+    counts = [sum(1 for k in order if lengths[k] == n) for n in range(1, HUF_LEN + 1)]
+    codes, code, at = {}, 0, 0
+    for n in range(1, HUF_LEN + 1):
+        for _ in range(counts[n - 1]):
+            codes[order[at]] = (code, n)
+            code += 1
+            at += 1
+        code <<= 1
+    return counts + order + [0] * (16 - len(order)), codes
+
+
+def ctx_of(prev):
+    return 0 if prev == 0 else 1 if prev == 15 else 2
+
+
+def huff_face(cells):
+    """the glyphs' pixels -> (data, offsets): the three codes, then each glyph's bits"""
+    freq = [dict.fromkeys(range(16), 0) for _ in range(3)]
+    for c in cells:
+        prev = 0
+        for a in c:
+            freq[ctx_of(prev)][a] += 1
+            prev = a
+    data, codes = [], []
+    for f in freq:
+        t, k = huff_code(huff_lengths(f) if any(f.values()) else {})
+        data += t
+        codes.append(k)
+    offs = []
+    for c in cells:
+        offs.append(len(data))
+        acc, nb, prev = 0, 0, 0
+        for a in c:
+            code, n = codes[ctx_of(prev)][a]
+            acc, nb, prev = (acc << n) | code, nb + n, a
+            while nb >= 8:
+                nb -= 8
+                data.append((acc >> nb) & 0xFF)
+        if nb:
+            data.append((acc << (8 - nb)) & 0xFF)
+    return data, offs
+
+
+def huff_unpack(data, off, n):
+    """loom_alpha's decoder, for the check: n pixels of the glyph at off"""
+    out, bit, prev = [], off * 8, 0
+    while len(out) < n:
+        t = data[HUF_SZ * ctx_of(prev):]
+        code = first = at = 0
+        for ln in range(HUF_LEN):
+            code |= (data[bit >> 3] >> (7 - (bit & 7))) & 1
+            bit += 1
+            if code - first < t[ln]:
+                prev = t[HUF_LEN + at + code - first]
+                break
+            at += t[ln]
+            first = (first + t[ln]) << 1
+            code <<= 1
+        else:
+            raise AssertionError("no code")
+        out.append(prev)
+    return out
+
+
+def face(name, ttf, px, scale, pixel, first, last, huff=False):
+    """one face encoded: (h, pad, first, last, runs, advances, boxes, offsets, data); huff: the third coding too, when
+    it is smaller (runs 2)"""
     h, glyphs = render(ttf, px, scale, pixel, first, last)
     # each glyph trimmed to its ink box, its pixels row after row as one nibble stream (high nibble first),
     # run-length coded when that is smaller for the face (FONT_<N>.rle); each glyph starts on a byte
@@ -234,6 +333,12 @@ def face(name, ttf, px, scale, pixel, first, last):
         offs.append(len(data))
         nib = nib + [0] * (len(nib) & 1)
         data += [(nib[i] << 4) | nib[i + 1] for i in range(0, len(nib), 2)]
+    if huff:
+        hd, ho = huff_face(cells)
+        if len(hd) < len(data):
+            for c, o in zip(cells, ho):
+                assert huff_unpack(hd, o, len(c)) == c   # decodes to the glyph's pixels exactly
+            data, offs, runs = hd, ho, 2
     assert len(data) < 65536 and all(max(b) < 256 for b in boxes)
     return h, PAD * scale, first, last, runs, [a for a, _, _ in glyphs], boxes, offs, data or [0]
 
@@ -269,7 +374,7 @@ def main(out):
              "#pragma once", "#include <stdint.h>", ""]
     total = 0
     for name, ttf, px, scale, pixel, first, last in SIZES:
-        h, pad, first, last, runs, adv, boxes, offs, data = face(name, ttf, px, scale, pixel, first, last)
+        h, pad, first, last, runs, adv, boxes, offs, data = face(name, ttf, px, scale, pixel, first, last, huff=True)
         lines.append(f"static const uint8_t LFONT_{name}_DATA[{len(data)}] = {{")
         for i in range(0, len(data), 24):
             lines.append("    " + ", ".join(f"0x{b:02x}" for b in data[i:i + 24]) + ",")
@@ -284,7 +389,7 @@ def main(out):
         size = len(data) + 2 * len(offs) + 5 * len(adv)
         total += size
         print(f"font {name}: {ttf} {px}px h {h}, digit adv {adv[ord('0') - first]}, {size} B"
-              f"{' (runs)' if runs else ''}")
+              f"{('', ' (runs)', ' (huffman)')[runs]}")
     print(f"font set {FONTSET}: {total} B")
     Path(out).write_text("\n".join(lines))
 

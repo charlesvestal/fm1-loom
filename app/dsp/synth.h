@@ -309,6 +309,12 @@ void synth_prepare(synth_t *s, uint32_t n);
 void synth_render(synth_t *s, int v0, int v1, float *l, float *r, float *s1, float *s2, uint32_t n);
 /* the same, saying which core renders (0 the first, 1 the second: the profiler's halves) */
 void synth_render_on(synth_t *s, int core, int v0, int v1, float *l, float *r, float *s1, float *s2, uint32_t n);
+/* each core's track sink (the USB audio input's track channels, engine.c): while p is set, each voice that core renders
+ * also adds its output, mono and before its pan (the bus's L + R it added, over its pan's two gains), times k, into
+ * the 16-bit sample of its track: frame f of the render's n at p + f * stride (f < run), else p2 + (f - run) * stride,
+ * plus the track. One sink a core, so one writer a sample */
+typedef struct { int16_t *p, *p2; uint32_t run, stride; float k; } synth_tap_t;
+extern synth_tap_t synth_tap[2];
 int synth_order(const synth_t *s, int8_t *ord);   /* the cores' queue (engine.c): the sounding voices by cost, how many
                                                      * (the simulator: all NVOICE in order) */
 void synth_idle(synth_t *s, const int8_t *ord, int nord, uint32_t n);   /* the voices not in it moved n frames on */

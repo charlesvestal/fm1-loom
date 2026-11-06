@@ -3080,6 +3080,22 @@ void synth_idle(synth_t *s, const int8_t *ord, int nord, uint32_t n)
         }
     }
 }
+synth_tap_t synth_tap[2];
+static float tap_was[2][SY_CHUNK];                  /* the bus's L + R before the voice (each core's) */
+/* the voice's m samples from frame at into its track's sample of the sink: what it added to the bus (L + R now, less
+ * before), over its pan's gains (the constant-power pair: a mono source comes back at its level) */
+static __attribute__((noinline)) void tap_voice(const synth_tap_t *tp, const voice_t *v, const float *l, const float *r,
+                                                const float *was, uint32_t at, int m)
+{
+    const float k = tp->k / (v->pan_l + v->pan_r);
+    for (int j = 0; j < m; j++) {
+        uint32_t f = at + (uint32_t)j;
+        int16_t *q = (f < tp->run ? tp->p + f * tp->stride : tp->p2 + (f - tp->run) * tp->stride) + v->trk;
+        float x = fm_clampf((l[j] + r[j] - was[j]) * k, -65536.0f, 65536.0f) + (float)*q;
+        *q = (int16_t)(x > 32767.0f ? 32767 : x < -32768.0f ? -32768 : (int32_t)x);
+    }
+}
+
 void synth_render_on(synth_t *s, int core, int v0, int v1, float *l, float *r, float *s1, float *s2, uint32_t n)
 {
     int vi;
@@ -3140,7 +3156,13 @@ void synth_render_on(synth_t *s, int core, int v0, int v1, float *l, float *r, f
                 if (timed)
                     tc += clk() - tk;
             }
-            if (v_sounding(v))
+            if (v_sounding(v) && synth_tap[core != 0].p && v->trk < NTRK) {   /* (the USB audio input's tracks) */
+                float *was = tap_was[core != 0];
+                for (uint32_t j = 0; j < m; j++)
+                    was[j] = l[i + j] + r[i + j];
+                voice_samples(s, v, l + i, r + i, s1 + i, s2 + i, (int)m);
+                tap_voice(&synth_tap[core != 0], v, l + i, r + i, was, i, (int)m);
+            } else if (v_sounding(v))
                 voice_samples(s, v, l + i, r + i, s1 + i, s2 + i, (int)m);
             else
                 v->pos = (uint16_t)(v->pos + m);

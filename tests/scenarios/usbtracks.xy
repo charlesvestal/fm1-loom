@@ -1,0 +1,51 @@
+# the USB audio input's ten channels (fm1.toml usb_audio_channels = 10): the master on 1 and 2, tracks 1..8 on 3..10.
+# A beat on T1, a melody on T2; recorded as a computer gets them (tests/usbtracks_check.py reads the files)
+wait 200
+expect page Steps
+tapkey w0
+tapkey w4
+tapkey w8
+tapkey w12
+tapkey b1
+tapkey w4
+tapkey w12
+turn ALGO 1
+expect trk 2
+press SEQ
+tapkey 7
+release SEQ
+tapkey w0
+press SEQ
+tapkey 11
+release SEQ
+tapkey w4
+press SEQ
+tapkey 14
+release SEQ
+tapkey w8
+press SEQ
+tapkey 9
+release SEQ
+tapkey w12
+wait 40
+tap PLAY
+expect playing 1
+wait 400
+usbwav usb_both.wav
+wait 2200
+usbwavstop
+# T2 panned hard left (CC 10 on its channel): its own channel keeps its level, the master's right side loses it
+midi B1 0A 00
+wait 300
+usbwav usb_panned.wav
+wait 2200
+usbwavstop
+midi B1 0A 40
+# T1 muted (GLO, its black key, b0): its channel silent, T2's as before
+tap GLO
+tapkey b0
+wait 400
+expect mute 1
+usbwav usb_muted.wav
+wait 2200
+usbwavstop
