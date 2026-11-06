@@ -1394,6 +1394,13 @@ Connecting freezes the screen for a moment (longer behind a hub); the sound play
 there's no computer link (no USB audio, backup, mirror or samples page), and Bluetooth MIDI works as before. USB PORT goes
 back to **computer** at every start, so updating always works.
 
+**Recording on a computer.** Over USB, the FM-1 is also an audio input with ten channels, at 44.1 kHz. Channels 1
+and 2 are the master, as you hear it. Channels 3 to 10 are tracks 1 to 8, one track each, so a computer can record
+every track on its own. A track's channel has the track at its level, before its pan, with its own filter and
+character. Its sends' effects and the master's EQ, color, compressor and pump are only on channels 1 and 2. A muted
+track's channel is silent. USB audio on Setup's **SEL** list sets the level of all ten: **follows knob** (MASTER
+sets it) or **full** (the speaker follows MASTER, the recording stays at full level).
+
 The TRS jack is MIDI in. Everything that comes in over USB works from it too (notes, CCs, Program Change, and
 MIDI clock with start and stop), except SysEx. The FM-1 has no MIDI out jack, so LOOM-8 sends only over USB and
 Bluetooth.

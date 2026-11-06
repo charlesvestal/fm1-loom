@@ -24,7 +24,7 @@ What it does:
      readings to build/demos/device/load_<song>.csv, the table to build/demos/device/device_load.txt;
   6. restores before.loom8, flashes --normal PKG (if given) and starts a NEW PROJECT.
 --record: each song's USB audio recorded (ffmpeg, the FM-1 as a Mac audio input: FM1_AUDIO, default "LOOM-8 FM-1")
-into build/demos/device/rec_<song>.wav and scanned for breaks (tools/demos/glitch_scan.py). --quiet: nothing asked
+with Setup's USB AUDIO full and MASTER at 0 (the speaker silent), into build/demos/device/rec_<song>.wav and scanned for breaks (tools/demos/glitch_scan.py). --quiet: nothing asked
 while a song plays (the Debug page read once it has played), as a player has it.
 Run tools/demos/device_projects.py first (the banks, backups and manifest). Never switch Setup > CORES meanwhile.
 FM1_REMOTE: fm1_remote.py (default base/tools/fm1_remote.py); needs mido + python-rtmidi.
@@ -147,6 +147,28 @@ def glo(page):
     if s.startswith(page + ","):                      # (the last turn's page)
         return s
     raise SystemExit(f"device_load: no GLO page {page}: {s!r}")
+
+
+def usb_full():
+    """for a recording: Setup's USB AUDIO full (the USB audio at full level whatever MASTER is; the restored backup brings
+    the FM-1's own setting back), so the speaker can stay at MASTER 0 (play_song) while the recording has the song"""
+    glo("Setup")
+    run("tap", "SEL", "wait", 400)
+    s = where()
+    for _ in range(20):
+        if "USB AUDIO" in s:
+            break
+        run("turn", "SELECT", 1, "wait", 200)
+        s = where()
+    if "USB AUDIO" not in s:
+        raise SystemExit(f"device_load: no USB AUDIO in Setup's list: {s!r}")
+    if "USB AUDIO full" not in s:
+        run("turn", "ALGO", 1, "wait", 300)
+        s = where()
+    run("tap", "HOME", "wait", 6000)         # (its autosave, 3 s after the last touch, done before the song: a flash
+                                             # write while it plays cuts the audio)
+    if "USB AUDIO full" not in s:
+        raise SystemExit(f"device_load: USB AUDIO not full: {s!r}")
 
 
 def is_playing(s):
@@ -313,7 +335,7 @@ def record_start(song):
     out = DEV / f"rec_{song}.wav"
     p = subprocess.Popen(["ffmpeg", "-hide_banner", "-loglevel", "error", "-y", "-f", "avfoundation", "-i",
                           ":" + REC_DEVICE, "-c:a", "pcm_s24le", str(out)], stdin=subprocess.PIPE)
-    time.sleep(1.5)                          # (the device opened before the song starts)
+    time.sleep(float(os.environ.get("REC_PREROLL", "1.5")))   # (the device opened before the song starts)
     return p, out
 
 
@@ -333,8 +355,12 @@ def play_song(row, every, overhead_note, record=False, quiet=False):
     print(f"== slot {slot}: {song} ({name})" + (" (recorded)" if record else "") + (" (quiet)" if quiet else ""))
     log0 = crash_log()[:2]
     stop()
+    if record:
+        usb_full()
     load_slot(slot, name)
     release_all()
+    if record:
+        run("master", 0)                     # (the speaker silent: the song goes to the recording alone, USB AUDIO full)
     rec = record_start(song) if record else None
     run("tap", "PLAY", "wait", 300)
     t0 = time.time()

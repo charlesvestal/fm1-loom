@@ -1022,6 +1022,61 @@ static float s1[STRETCH_MAX] POOL, s2[STRETCH_MAX] POOL;
 static float c2_l[STRETCH_MAX] POOL, c2_r[STRETCH_MAX] POOL, c2_s1[STRETCH_MAX] POOL, c2_s2[STRETCH_MAX] POOL;
 static float tl[STRETCH_MAX] POOL, tr[STRETCH_MAX] POOL, ts1[STRETCH_MAX] POOL, ts2[STRETCH_MAX] POOL;
 static float mix_l[256] POOL, mix_r[256] POOL;
+/* the USB audio input's track channels (fm1.toml usb_audio_channels = 10: fm1-base plat_usb_ch): channels 3..10 are
+ * tracks 1..8, each at its level and before its pan, after its sound's own filter and character, without the sends'
+ * effects and the master (those are on 1 and 2 alone). The first core's voices and the drum tracks add straight into
+ * the platform's frames; the second core's voices into c2_trk, added in once it is done (one writer a sample). Nothing
+ * of it runs while no computer records */
+#if PLAT_USB_CH >= NTRK
+#define TRK_TAP 1
+static float tap_k;                                     /* this block's scale: MASTER's gain, as the master's 16 bits */
+static int16_t c2_trk[STRETCH_MAX][NTRK] POOL;
+static void tap_set(uint32_t n, uint32_t at)            /* a stretch's sinks (render_sub, before either core renders) */
+{
+    uint32_t run, run2;
+    int16_t *p = tap_k > 0.0f ? plat_usb_ch(at, &run) : 0;
+    synth_tap[0].p = synth_tap[1].p = 0;
+    if (!p)
+        return;
+    synth_tap[0] = (synth_tap_t){p, run < n ? plat_usb_ch(at + run, &run2) : p, run, PLAT_USB_CH_STRIDE, tap_k};
+    synth_tap[1] = (synth_tap_t){&c2_trk[0][0], &c2_trk[0][0], n, NTRK, tap_k};
+}
+static volatile uint8_t c2_tapped;                     /* the second core rendered a voice into c2_trk this stretch */
+static inline __attribute__((always_inline)) int16_t *tap_at(uint32_t f)   /* the first core's sink: frame f, track 1 */
+{
+    const synth_tap_t *tp = &synth_tap[0];
+    return f < tp->run ? tp->p + f * tp->stride : tp->p2 + (f - tp->run) * tp->stride;
+}
+static inline __attribute__((always_inline)) int16_t tap_sat(float x)
+{
+    return (int16_t)(x > 32767.0f ? 32767 : x < -32768.0f ? -32768 : (int32_t)x);
+}
+/* a drum track: its mono (L + R over 2: the kit's balance keeps a centred sound at its level) at its level, gliding from
+ * c0 to c1 over the stretch */
+static __attribute__((noinline)) void tap_drum(int t, const float *a, const float *b, float c0, float c1, uint32_t n)
+{
+    float c = c0, step = (c1 - c0) / (float)n, k = synth_tap[0].k * 0.5f;
+    for (uint32_t i = 0; i < n; i++) {
+        int16_t *q = tap_at(i) + t;
+        c += step;
+        *q = tap_sat((float)*q + fm_clampf((a[i] + b[i]) * c * k, -65536.0f, 65536.0f));
+    }
+}
+static __attribute__((noinline)) void tap_c2(uint32_t n)   /* the second core's voices, into the first's sink */
+{
+    if (!c2_tapped)
+        return;
+    for (uint32_t i = 0; i < n; i++) {
+        int16_t *q = tap_at(i);
+        for (int t = 0; t < NTRK; t++) {
+            int32_t x = q[t] + c2_trk[i][t];
+            q[t] = (int16_t)(x > 32767 ? 32767 : x < -32768 ? -32768 : x);
+        }
+    }
+}
+#else
+#define TRK_TAP 0
+#endif
 
 __attribute__((noinline)) static void zerof(float *b, uint32_t n)
 {
@@ -1167,8 +1222,19 @@ static void core2_job(uint32_t arg)
     zerof(c2_r, n);
     zerof(c2_s1, n);
     zerof(c2_s2, n);
-    while ((vi = ws_take1()) >= 0)
+#if TRK_TAP
+    c2_tapped = 0;
+#endif
+    while ((vi = ws_take1()) >= 0) {
+#if TRK_TAP
+        if (synth_tap[1].p && !c2_tapped) {               /* (its tracks: cleared at its first voice; none, none) */
+            for (uint32_t i = 0; i < n * NTRK; i++)
+                synth_tap[1].p[i] = 0;
+            c2_tapped = 1;
+        }
+#endif
         synth_render_on(SY, 1, vi, vi + 1, c2_l, c2_r, c2_s1, c2_s2, n);
+    }
     PROF_ADD(PR_SYNTH1, pt);
     c2_took = plat_cycles() - p0;
 }
@@ -1258,6 +1324,10 @@ static void render_drums(uint32_t n)                    /* the drum tracks (the 
         pan_gains(epar[t][TP_PAN] + perf_pan[t], &gl, &gr);
         glide_set(&trk_glide[t][GL_L], g * gl);
         glide_set(&trk_glide[t][GL_R], g * gr);
+#if TRK_TAP
+        if (synth_tap[0].p)
+            tap_drum(t, tl, tr, trk_glide[t][GL_SEND].cur < 0.0f ? g : trk_glide[t][GL_SEND].cur, g, n);
+#endif
         glide_set(&trk_glide[t][GL_SEND], g);
         add_glide(perc_l, tl, &trk_glide[t][GL_L], n);
         add_glide(perc_r, tr, &trk_glide[t][GL_R], n);
@@ -1326,6 +1396,9 @@ static void render_sub(uint32_t n, uint32_t at)
     zerof(s1, n);
     zerof(s2, n);
     perf_tick(n);
+#if TRK_TAP
+    tap_set(n, at);                                       /* the USB audio input's tracks: this stretch's sinks */
+#endif
     synth_prepare(SY, n);                                 /* the shared per-chunk values, before either core renders */
     ws_n = synth_order(SY, ws_ord);
     synth_idle(SY, ws_ord, ws_n, n);                      /* (the silent voices: moved on here, not taken) */
@@ -1367,6 +1440,10 @@ static void render_sub(uint32_t n, uint32_t at)
             synth_render_on(SY, 0, ws_ord[i], ws_ord[i] + 1, c2_l, c2_r, c2_s1, c2_s2, n);
     } else if (on2) {
         PROF_ADD(PR_WAIT, pt);                            /* what the first core waited for the second */
+#if TRK_TAP
+        if (synth_tap[0].p)
+            tap_c2(n);                                    /* (its tracks: in c2_trk, whole only when it did not fail) */
+#endif
     } else {
         zerof(c2_l, n);
         zerof(c2_r, n);
@@ -1489,6 +1566,9 @@ void engine_render(int32_t *out_lr, uint32_t n, uint32_t gain_q12)
     float vol = (float)gain_q12 * (1.0f / 4096.0f);
     int p;
     static uint8_t was_playing;
+#if TRK_TAP
+    tap_k = vol * 16384.0f;                               /* (the master: 1.0 is 1 << 22 at the codec, 16384 in 16 bits) */
+#endif
     PROF_T(pa);
     if (seq.playing && !was_playing)                     /* the transport started: the shared LFO from its start */
         synth_glfo_restart(SY);
