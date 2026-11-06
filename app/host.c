@@ -449,6 +449,8 @@ int app_expect(const char *what, int *got)
         *got = theme_ix();
     else if (!strcmp(what, "listopen"))             /* a SEL list up */
         *got = lst.open;
+    else if (!strcmp(what, "slot_reads"))           /* project_exists's reads of the flash so far */
+        *got = (int)slot_reads;
     else if (!strncmp(what, "kvel", 4)) {          /* kvelT.PAT.S.K: kit sound K's own velocity on that step (0 none) */
         int t, pt, st, k;
         if (sscanf(what + 4, "%d.%d.%d.%d", &t, &pt, &st, &k) != 4)
