@@ -3468,7 +3468,6 @@ void seq_advance(seq_t *s, uint32_t k, const seq_sink_t *o)
     brain_follow_par(s);
     if (s->req_stop) {
         s->req_stop = 0;
-        s->req_start = s->req_cont = 0;
         s->wv_rec = 0;                /* (the recorded weaves end with the transport) */
         for (t = 0; t < NSEQT; t++)
             s->wv_left[t] = 0, s->wv_rec_at[t] = 0xFF;
@@ -3679,7 +3678,13 @@ void seq_start(seq_t *s, int from_start)
     else
         s->req_cont = 1;
 }
-void seq_stop(seq_t *s) { s->req_stop = 1; }
+void seq_stop(seq_t *s)
+{
+    /* Cancel only requests older than this Stop. A subsequent Start/Continue
+     * queued before seq_advance must survive the deferred Stop cleanup. */
+    s->req_start = s->req_cont = 0;
+    s->req_stop = 1;
+}
 void seq_continue(seq_t *s) { s->req_cont = 1; }
 void seq_ext_clock(seq_t *s)
 {

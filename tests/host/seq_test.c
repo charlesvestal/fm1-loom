@@ -2618,6 +2618,38 @@ static void t_ext_clock(void)
     printf("ok %s\n", cur);
 }
 
+/* A host loop seek can deliver Stop, SPP and Continue before one audio update.
+ * A later Continue/Start must survive Stop cleanup; a final Stop must win. */
+static void t_transport_batch(void)
+{
+    cur = "transport-batch";
+    reset();
+    S.clock = SEQ_CLK_RECEIVE;
+    note(0, 0, 60, 100);
+    start();
+    CHECK(S.playing);
+    seq_stop(&S); seq_continue(&S);
+    seq_advance(&S, 0, &sink);
+    CHECK(S.playing);
+    seq_continue(&S); seq_stop(&S);
+    seq_advance(&S, 0, &sink);
+    CHECK(!S.playing);
+    seq_stop(&S); seq_start(&S, 1);
+    seq_advance(&S, 0, &sink);
+    CHECK(S.playing);
+    seq_start(&S, 1); seq_stop(&S);
+    seq_advance(&S, 0, &sink);
+    CHECK(!S.playing);
+    seq_continue(&S); seq_stop(&S); seq_continue(&S);
+    seq_advance(&S, 0, &sink);
+    CHECK(S.playing);
+    stop();
+    CHECK(!S.playing);
+    seq_continue(&S); seq_advance(&S, 0, &sink);
+    CHECK(S.playing);
+    printf("ok %s\n", cur);
+}
+
 static void t_midi_out(void)
 {
     int i, clocks = 0, starts = 0, ons = 0;
@@ -3407,6 +3439,7 @@ int main(void)
     t_rec_wait();
     t_rec_early();
     t_ext_clock();
+    t_transport_batch();
     t_midi_out();
     t_count_in();
     t_aux_tracks();
