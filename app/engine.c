@@ -101,7 +101,8 @@ static uint8_t fx_type[2];                        /* each slot's effect, as set 
 static uint32_t metro_left;                       /* the metronome's click: samples left, phase, rate */
 static float metro_ph, metro_inc;
 static int16_t bend_c[NTRK];                      /* the bend component's cents, per track */
-/* MIDI for the main loop (midicc.c): every CC, Program Change and the master channel's note-ons, raw USB-MIDI
+/* MIDI for the main loop (midicc.c): every CC, Program Change and the master channel's note-ons, and every track's
+ * notes for the track on the screen (midicc.c key_midi), raw USB-MIDI
  * packets; the interrupt writes, the main loop reads (engine_cc_take); full, the newest is dropped. 64 is about
  * 17 ms of a busy controller's CCs between two UI frames (longer during a flash write) */
 #define CCQ 64u
@@ -941,8 +942,12 @@ static void midi_in(uint32_t pkt)
         if (ch == CH_MASTER) {                      /* the master's channel: notes pick scenes (midicc.c) */
             if (ty == 0x90)
                 ccq_put(pkt);
-        } else if (t >= 0)                          /* played and recorded, not sent back out (seq_key_midi) */
+        } else if (t >= 0) {                        /* played and recorded, not sent back out (seq_key_midi) */
             seq_key_midi(&seq, t, d1, ty == 0x90, d2);
+            if (t == eng_midi_trk)                  /* the track on the screen: the main loop's key too (midicc.c key_midi:
+                                                     * step record, chord mode, the notes a step writes) */
+                ccq_put(pkt);
+        }
     } else if (ty == 0xB0 || ty == 0xC0) {          /* CCs and Program Change: the main loop's (midicc.c) */
         ccq_put(pkt);
     } else if (ty == 0xE0) {                        /* pitch bend: +-2 semitones onto the track's bend */
