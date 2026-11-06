@@ -1,0 +1,61 @@
+# step record from MIDI in (midicc.c srec_midi): REC tapped while stopped arms it; a note over MIDI for the track on
+# the screen (its channel, or 12 to 16) writes the cursor step as the FM-1's keys do, notes held together make a
+# chord, the first note's velocity is the step's; another track's channel writes nothing; the mode off, nothing
+wait 300
+turn ALGO 1
+expect trk 2
+tap REC
+wait 60
+# C4 on channel 2 (T2), velocity 100: step 1
+midi 91 3C 64
+wait 20
+midi 81 3C 40
+wait 60
+expect note 2 1 1 60
+expect stepvel 2 1 1 100
+# a note-on with velocity 0 is the off; velocity 80 kept
+midi 91 40 50
+wait 20
+midi 91 40 00
+wait 60
+expect note 2 1 2 64
+expect stepvel 2 1 2 80
+# a chord: three notes held together land on step 3; the cursor moves only once they are all up
+midi 91 3C 64
+midi 91 40 64
+midi 91 43 64
+wait 30
+midi 81 3C 00
+midi 81 40 00
+wait 30
+expect note 2 1 4 0
+midi 81 43 00
+wait 60
+expect note 2 1 3 60
+expect noteat 2 1 3 2 64
+expect noteat 2 1 3 3 67
+expect noteat 2 1 3 4 0
+# channel 12: the track selected
+midi 9B 45 64
+wait 20
+midi 8B 45 00
+wait 60
+expect note 2 1 4 69
+# channel 3 is T3, not the track on the screen: nothing written, and its off moves nothing
+midi 92 47 64
+wait 20
+midi 82 47 00
+wait 60
+expect note 2 1 5 0
+# an off for a note that was never counted moves nothing either
+midi 81 30 00
+wait 60
+expect note 2 1 5 0
+# REC tapped again: the mode off; a note plays but writes nothing
+tap REC
+wait 60
+midi 91 3C 64
+wait 20
+midi 81 3C 00
+wait 60
+expect note 2 1 5 0

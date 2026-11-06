@@ -133,6 +133,36 @@ static void cc_scene(int n)                   /* as a white key on Arrange: made
     cc_scene_quiet = (uint8_t)n;               /* quiet for whichever scene lands next, even this one again */
     scene_go(n, proj.rsv[2] & SCENES_AT_END ? SCENE_END : SCENE_BAR);
 }
+/* ---- step record from MIDI in ---- */
+/* REC tapped while stopped arms step record (ui.c rec_tap): a key on the FM-1's keyboard writes the cursor step and,
+ * let go, moves the cursor on (step_rec_key, step_rec_key_up). A MIDI note does the same from here, in the main loop
+ * (engine.c midi_in queues it while eng_srec says the mode is on; the interrupt has played it already), when it is
+ * for the track on the screen: its own channel, or 12 to 16. Notes held together join one step as a chord and the
+ * last release moves on; the first note's velocity is the step's (the FM-1's keys write 100). A kit takes its
+ * sounds 1-11. Only a note counted here is let go here (ui.srec_down): an off for one that came before the mode, or
+ * on another track's channel, moves nothing; leaving the mode forgets them */
+static uint8_t srec_midi_down[16];            /* the MIDI notes down that step record counted (a bit each) */
+static void srec_midi(int ch, int note, int on, int vel)
+{
+    int trk = sel_trk(), t = ch < NTRK ? ch : ch > CH_MASTER ? inst_trk() : -1;
+    uint8_t *b = &srec_midi_down[note >> 3], m = (uint8_t)(1u << (note & 7));
+    if (!ui.rec_armed || playing()) {
+        memset(srec_midi_down, 0, sizeof srec_midi_down);
+        return;
+    }
+    if (on) {
+        if (t < 0 || t != trk || !is_seqt(trk) || (*b & m) || (is_drum(trk) && (note < 1 || note > NDRUM)))
+            return;
+        *b |= m;
+        step_rec_key(note);
+        if (ui.srec_down == 1 && vel)          /* (the chord's first note: its velocity is the step's) */
+            tpat(trk)->st[ui.cursor].vel = (uint8_t)vel;
+    } else if (*b & m) {
+        *b &= (uint8_t)~m;
+        step_rec_key_up();
+    }
+}
+
 static void cc_in(uint32_t pkt)
 {
     int st = (int)(pkt >> 8 & 0xFFu), ch = st & 15, ty = st & 0xF0, d1 = (int)(pkt >> 16 & 0x7Fu),
@@ -142,9 +172,12 @@ static void cc_in(uint32_t pkt)
             cc_scene(d1);
         return;
     }
-    if (ty == 0x90) {                         /* the master's channel's notes 36-67: scenes 1-32 */
-        if (ch == CH_MASTER && v && d1 >= 36 && d1 <= 67)
-            cc_scene(d1 - 36);
+    if (ty == 0x90 || ty == 0x80) {
+        if (ch == CH_MASTER) {                /* the master's channel's notes 36-67: scenes 1-32 */
+            if (ty == 0x90 && v && d1 >= 36 && d1 <= 67)
+                cc_scene(d1 - 36);
+        } else                                /* a track's note while step record is armed (eng_srec): the step */
+            srec_midi(ch, d1, ty == 0x90 && v, v);
         return;
     }
     if (ty != 0xB0)

@@ -101,7 +101,8 @@ static uint8_t fx_type[2];                        /* each slot's effect, as set 
 static uint32_t metro_left;                       /* the metronome's click: samples left, phase, rate */
 static float metro_ph, metro_inc;
 static int16_t bend_c[NTRK];                      /* the bend component's cents, per track */
-/* MIDI for the main loop (midicc.c): every CC, Program Change and the master channel's note-ons, raw USB-MIDI
+/* MIDI for the main loop (midicc.c): every CC, Program Change and the master channel's note-ons, and every track's
+ * notes while step record is armed (eng_srec), raw USB-MIDI
  * packets; the interrupt writes, the main loop reads (engine_cc_take); full, the newest is dropped. 64 is about
  * 17 ms of a busy controller's CCs between two UI frames (longer during a flash write) */
 #define CCQ 64u
@@ -910,6 +911,8 @@ static void perf_tick(uint32_t n)
 }
 
 /* ---------------------------------------------------------------- MIDI in --- */
+volatile uint8_t eng_srec;                          /* step record on (ui.c: REC tapped while stopped): midi_in queues
+                                                    * the notes for the main loop too (midicc.c srec_midi) */
 volatile uint8_t eng_midi_trk;                      /* channels 12-16's track (the main loop's inst_trk(), set once a
                                                     * frame before cc_in_drain): the keys' instrument, not trk_sel */
 static int midi_track(int ch)                      /* the track a channel plays: 1-8 theirs, 12-16 the one playing
@@ -941,8 +944,11 @@ static void midi_in(uint32_t pkt)
         if (ch == CH_MASTER) {                      /* the master's channel: notes pick scenes (midicc.c) */
             if (ty == 0x90)
                 ccq_put(pkt);
-        } else if (t >= 0)                          /* played and recorded, not sent back out (seq_key_midi) */
+        } else if (t >= 0) {                        /* played and recorded, not sent back out (seq_key_midi) */
             seq_key_midi(&seq, t, d1, ty == 0x90, d2);
+            if (eng_srec)                           /* step record: the main loop writes the step (midicc.c srec_midi) */
+                ccq_put(pkt);
+        }
     } else if (ty == 0xB0 || ty == 0xC0) {          /* CCs and Program Change: the main loop's (midicc.c) */
         ccq_put(pkt);
     } else if (ty == 0xE0) {                        /* pitch bend: +-2 semitones onto the track's bend */
