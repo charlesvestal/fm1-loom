@@ -145,6 +145,12 @@ oct	octave
 maj7	major 7
 min7	minor 7
 sus4	sus 4
+dim7	diminished 7
+m7b5	minor 7 flat 5
+add9	add 9
+madd9	minor add 9
+7sus4	7 sus 4
+mMaj7	minor major 7
 faille	file
 sley	slay
 pirn	purn

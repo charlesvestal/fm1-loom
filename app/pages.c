@@ -3456,12 +3456,15 @@ static int step_on(const step_t *st, int trk)       /* the cell is "on" for the 
         return kit_has(st, ui.dsound + 1);
     return !step_empty(st);
 }
-/* a chord from its notes (3 or 4): its shape (CHORD_SHAPE's, +1; 0 = none) and its root's pitch class. The root is a
- * note whose intervals to the others match a shape (the lowest tried first). A cell names it in full when that fits
- * ("C", "Am", "G7", "Dm7"), else by the short form ("CM7", "C+", "Co", "Ds2"): draw_steps */
+/* a chord from its notes (3 or more): its shape (CHORD_SHAPE's, +1; 0 = none) and its root's pitch class. The root is
+ * a note whose intervals to the others match a shape (the lowest tried first: C E G A is C6, A C E G Am7). A cell
+ * names it in full when that fits ("C", "Am", "G7", "Dm7", "Bdim7"), else by the short form ("CM7", "C+", "Co",
+ * "Ds2"): draw_steps; the chord editor and the strum player name it in full (chord_name) */
 static const struct { uint16_t mask; const char *suf, *sh; } CHORD_SHAPE[] = {
     {0x091, "", ""}, {0x089, "m", "m"}, {0x491, "7", "7"}, {0x891, "maj7", "M7"}, {0x489, "m7", "m7"},
-    {0x049, "dim", "o"}, {0x111, "aug", "+"}, {0x085, "sus2", "s2"}, {0x0A1, "sus4", "s4"}};
+    {0x049, "dim", "o"}, {0x111, "aug", "+"}, {0x085, "sus2", "s2"}, {0x0A1, "sus4", "s4"},
+    {0x249, "dim7", "o7"}, {0x449, "m7b5", "m7b5"}, {0x291, "6", "6"}, {0x289, "m6", "m6"}, {0x095, "add9", "add9"},
+    {0x08D, "madd9", "madd9"}, {0x4A1, "7sus4", "7s4"}, {0x889, "mMaj7", "mM7"}};
 static int chord_shape(const uint8_t *notes, int n, int *root)
 {
     uint16_t pcs = 0;
@@ -3486,6 +3489,12 @@ static int chord_shape(const uint8_t *notes, int n, int *root)
                 break;
         }
     return 0;
+}
+/* a chord's name ("Cm7", "Bdim7") after "chord: " and before its notes, or nothing when its notes make no shape */
+static char *chord_name(const uint8_t *notes, int n, char *e)
+{
+    int root = 0, sh = chord_shape(notes, n, &root);
+    return sh ? s_cat(s_cat(s_cat(e, NOTE_NAME[root]), CHORD_SHAPE[sh - 1].suf), "  ") : e;
 }
 static void cell_note(int n, char *b)               /* a note's name in a cell; the octave -1's "C#-1" too wide: "C#" */
 {
@@ -5296,7 +5305,7 @@ static void draw_players(void)
     const player_t *pr = &seq.player[trk < NTRK ? trk : 0];
     uint32_t h = hash_u(hash_u(2166136261u, 0x9Cu), (uint32_t)trk | (uint32_t)pl << 4 | (uint32_t)pr->nheld << 8 |
                                           (uint32_t)pr->nchord << 12 | (uint32_t)pr->arp_note << 16 | (uint32_t)pr->chord[0] << 24);
-    char t[48], *e;
+    char t[64], *e;
     for (int i = 0; i < 16; i++)
         h = hash_u(h, pr->held[i] | (uint32_t)(i < pr->nsounding ? pr->sounding[i] : 0) << 8);
     for (int i = 0; i < SN * 2; i++)
@@ -5319,6 +5328,7 @@ static void draw_players(void)
                            : pl == PL_RAND ? "active slots: the pool picks notes" : "notes stay until the next", K_DIM);
     e = s_cat(t, pl == PL_STRUM ? "chord: " : "held: ");
     if (pl == PL_STRUM) {
+        e = chord_name(pr->chord, pr->nchord < SN * 2 ? pr->nchord : SN * 2, e);
         for (int i = 0; i < pr->nchord && i < SN * 2; i++) {
             if (i)
                 e = s_cat(e, " ");
@@ -5465,6 +5475,7 @@ static void draw_step_chord(void)
     st = chord_step(trk, first);
     h = hash_u(hash_u(2166136261u, 0xC2u), (uint32_t)trk | (uint32_t)s << 5 | (uint32_t)ui.oct << 13);
     char t[48], *e;
+    uint8_t nt[SN];
     int any = 0;
     for (int i = 0; i < SN; i++)
         h = hash_u(h, st->note[i]);
@@ -5475,7 +5486,11 @@ static void draw_step_chord(void)
     num_s((uint32_t)s + 1u, s_cat(t, "STEP "));
     cv_text(12, 4, &FONT_B, t, K_REC);
     cv_text(12 + text_w(&FONT_B, t) + 8, 4, &FONT_XS, "[SEQ] exit", K_DIM);
-    e = s_cat(t, "chord: ");
+    for (int i = 0; i < SN; i++)
+        if (st->note[i])
+            nt[any++] = st->note[i];
+    e = chord_name(nt, any, s_cat(t, "chord: "));
+    any = 0;
     for (int i = 0; i < SN; i++)
         if (st->note[i]) {
             if (any)
