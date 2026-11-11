@@ -1136,6 +1136,13 @@ static void chord_add(int note)
     if (ui.nchord < 8)
         ui.chord[ui.nchord++] = (uint8_t)note;
 }
+static void chord_remember(int note)   /* the key's note into the chord down, and the chord is what a step writes next */
+{
+    chord_add(note);
+    for (int i = 0; i < SN && i < ui.nchord; i++)
+        ui.rem[i] = ui.chord[i];
+    ui.nrem = (uint8_t)(ui.nchord > SN ? SN : ui.nchord);
+}
 static void chord_del(int note)
 {
     for (int i = 0; i < ui.nchord; i++)
@@ -1315,10 +1322,7 @@ static void keyboard_down(int k)
         ui.kmode[k] = KM_BRAIN;
         ui.knote[k] = (uint8_t)key_note(k);
         engine_brain_key(key_note(k), 1);
-        chord_add(key_note(k));
-        for (int i = 0; i < SN && i < ui.nchord; i++)
-            ui.rem[i] = ui.chord[i];
-        ui.nrem = (uint8_t)(ui.nchord > SN ? SN : ui.nchord);
+        chord_remember(key_note(k));
         if (srec)
             step_rec_key(key_note(k));
         return;
@@ -1359,9 +1363,7 @@ static void keyboard_down(int k)
                     say("KEY", DL_SOUND_NAME[ui.dsound]);
             }
         } else if (!is_aux(sel_trk())) {
-            for (int i = 0; i < SN && i < ui.nchord; i++)
-                ui.rem[i] = ui.chord[i];
-            ui.nrem = (uint8_t)(ui.nchord > SN ? SN : ui.nchord);
+            chord_remember(note);
         }
         if (srec && !is_aux(sel_trk()))
             step_rec_key(note);

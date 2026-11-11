@@ -628,6 +628,26 @@ static int expect_more(const char *what, const char *a, const char *b, const cha
             host_fails++;
         } else
             printf("  ok note %s %s %s == %d\n", t, pt, st, got);
+    } else if (!strcmp(what, "noteat") || !strcmp(what, "stepvel")) {   /* expect noteat T PAT S I VALUE: the step's
+                                                     * I-th note (1-4); expect stepvel T PAT S VALUE: its velocity */
+        char t[16], pt[16], st[16], i[16], v[16];
+        tpat_t *tp;
+        int s, k, got, at = !strcmp(what, "noteat");
+        if (sscanf(plat_host_line, at ? "%*s %*s %15s %15s %15s %15s %15s" : "%*s %*s %15s %15s %15s %15s",
+                   t, pt, st, at ? i : v, v) != 4 + at) {
+            printf(at ? "FAIL expect noteat: T PAT S I VALUE\n" : "FAIL expect stepvel: T PAT S VALUE\n");
+            host_fails++;
+            return 1;
+        }
+        tp = pat_of(atoi(t), atoi(pt));
+        s = atoi(st) - 1;
+        k = at ? atoi(i) - 1 : 0;
+        got = !tp || s < 0 || s >= NSTEP || k < 0 || k >= SN ? -1 : at ? tp->st[s].note[k] : tp->st[s].vel;
+        if (got != atoi(v)) {
+            printf("FAIL expect %s %s %s %s%s%s == %s, got %d\n", what, t, pt, st, at ? " " : "", at ? i : "", v, got);
+            host_fails++;
+        } else
+            printf("  ok %s %s %s %s%s%s == %d\n", what, t, pt, st, at ? " " : "", at ? i : "", got);
     } else if (!strcmp(what, "pool")) {            /* expect pool T PAT MASK: a random pattern's pitch-class pool */
         char t[16], pt[16], v[16];
         int got;

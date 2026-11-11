@@ -508,7 +508,11 @@ melody's notes.
 - To record step by step, tap **REC** while stopped. On Steps, the keys become a keyboard, and a red cursor marks
   the step they write, starting after the pattern's last note. Play a key, or several keys together, to write the
   step, and the cursor moves on when you let go. **OCT+** leaves a rest and **OCT−** goes back a step. On a drum
-  track, the sound is added to the step. Tap **REC** again to stop. Step recording works on the sound pages too,
+  track, the sound is added to the step. A MIDI keyboard (USB, Bluetooth or the jack) writes steps the same way
+  when it plays the track on the screen, on the track's own channel or on 12 to 16. Notes held together make a
+  chord, and the first note's velocity becomes the step's. The notes you hold on it are also what a step tap
+  writes next, with no need to hold **SEQ**, and in chord mode they write the held step. Tap **REC** again to
+  stop. Step recording works on the sound pages too,
   with a strip of the bar along the bottom of the screen.
 - Throws you hold while you record are written into the THROW track's pattern.
 
