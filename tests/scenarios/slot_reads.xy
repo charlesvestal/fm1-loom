@@ -1,0 +1,25 @@
+# a new project with every slot full has no slot: HOME's list shows LOAD PROJECT and SAVE TO on other slots, and is
+# built every frame; whether a slot holds a project is read from the flash once, not every frame (a store read keeps
+# interrupts off a while: the LED scan stalled and the black keys' mid level flickered under the list)
+wait 300
+projsave 1
+projsave 2
+projsave 3
+tap HOME
+tap SEL
+row NEW PROJECT
+tap SEL
+wait 100
+tap SEL
+wait 200
+tap HOME
+tap SEL
+expect listopen 1
+wait 1000
+expect slot_reads <4
+# a row turned to another slot: read once, then known
+row LOAD PROJECT
+turn ALGO 1
+wait 1000
+expect slot_reads <5
+tap HOME

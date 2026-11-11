@@ -458,6 +458,11 @@ uint8_t loom_io_buf[PLAT_STORE_MAX] __attribute__((aligned(4))) PLAT_POOL;   /* 
  * objects that changed: a save of a tweaked pattern usually erases one or two sectors, not seven */
 static uint32_t stored_hash[OBJ_NOBJ];
 static uint8_t stored_known[OBJ_NOBJ];
+/* which slots hold a project, as project_exists last read them (a bit a slot): HOME's list asks every frame (LOAD
+ * PROJECT, SAVE TO on another slot), and a store read keeps interrupts off a while, so the LED scan stalls (the black
+ * keys' mid level flickered). Forgotten at every write and a restore */
+static uint8_t slot_known, slot_have;
+_Static_assert(NPROJ <= 8, "a bit a slot");
 static uint32_t hash_of(const uint8_t *p, uint32_t n)        /* FNV-1a */
 {
     uint32_t h = 2166136261u;
@@ -502,6 +507,7 @@ static int save_buf(uint32_t obj, uint32_t n)
     if (store_held)
         return -2;
     rc = loom_store_save(obj, io_buf, n);
+    slot_known = 0;
     stored_known[obj] = rc == 0;
     stored_hash[obj] = h;
     return rc;
@@ -930,13 +936,24 @@ int project_touch(int slot)                       /* (only the settings change: 
     return n < 0 || save_buf(OBJ_PROJ(slot, 0), (uint32_t)n) < 0 ? -1 : 0;
 }
 
+#ifdef PLAT_HOST
+static uint32_t slot_reads;                           /* (the simulator's count: expect slot_reads) */
+#endif
 int project_exists(int slot)
 {
     int n;
     if (slot < 0 || slot >= NPROJ)
         return 0;
+    if (slot_known >> slot & 1u)
+        return slot_have >> slot & 1u;
+#ifdef PLAT_HOST
+    slot_reads++;
+#endif
     n = plat_store_load(OBJ_PROJ(slot, 0), io_buf, 8);
-    return n >= 8 && get32(io_buf) == PROJ_MAGIC && FORMAT_OK(get32(io_buf + 4));
+    n = n >= 8 && get32(io_buf) == PROJ_MAGIC && FORMAT_OK(get32(io_buf + 4));
+    slot_known |= (uint8_t)(1u << slot);
+    slot_have = (uint8_t)(n ? slot_have | 1u << slot : slot_have & ~(1u << slot));
+    return n;
 }
 
 int presets_load(void)
