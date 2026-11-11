@@ -26,6 +26,7 @@ To see it played first, watch the [LOOM-8 video](https://www.youtube.com/watch?v
 - [Mix and master](#mix-and-master)
 - [Saving](#saving)
 - [Page by page](#page-by-page)
+- [Troubleshooting](#troubleshooting)
 - [Screen reader](#screen-reader)
 
 ## Quick start
@@ -1611,6 +1612,48 @@ The aux tracks have their own **EDIT** pages:
 - THROW has latch.
 - WEAVE has latch.
 - FX I and FX II have the effect's four knobs. Page 2 has hp, lp and the send to FX II.
+
+## Troubleshooting
+
+To put the FM-1 in update mode, hold **REC** while you switch it on. If you installed m-bootloader with the web
+installer, the installer can reach the FM-1 from there, and holding **PLAY** instead opens m-bootloader's recovery
+menu. Without m-bootloader, **REC** starts the chip's own update mode, which only the rescue below can reach.
+
+If LOOM-8 crashes, it shows a red CRASH screen and restarts by itself a few seconds later. If you report the
+problem, include the numbers on that screen (a photo is easiest) and what you were doing.
+
+If LOOM-8 crashes twice in a row while starting, it starts in SAFE MODE instead. There's no sound, but USB works,
+so the web installer can reach it. Install LOOM-8 again, or put the stock firmware back from the same page. Press
+**PLAY** to try starting LOOM-8 normally again. If even safe mode fails twice, the FM-1 drops into the chip's own
+update mode, and only the rescue below can reach it.
+
+### Recovering an FM-1 that won't start
+
+An FM-1 in the chip's own update mode shows a blank screen, and neither the web installer nor M-VAVE's updater can
+see it. A script can put M-VAVE's firmware back, on a Mac, with the USB cable you already have. M-VAVE's own
+M-FLASHER can do the same.
+
+Open Terminal, paste this line and press Return:
+
+```
+bash -c "$(curl -fsSL https://raw.githubusercontent.com/hugelton/felucca-bsp/main/tools/fm1_rescue.sh)"
+```
+
+1. If a window asks to install the command line developer tools, click Install. When it's finished, paste the line
+   again.
+2. If it asks for a password, type your Mac password (nothing shows as you type) and press Return.
+3. When it says it's waiting, plug the FM-1 in and switch it on. If it starts normally instead, switch it off, then
+   hold **REC** while you switch it back on. The script catches it and checks the chip. It saves a backup of the
+   FM-1's memory in the `fm1-rescue` folder in your home folder, and asks before it writes anything.
+4. Type **yes** and press Return. Don't unplug anything until it says it's restarting the FM-1. The FM-1 then
+   starts into its original firmware, and you can install LOOM-8 again from there.
+
+The script downloads M-VAVE's FM-1 firmware (V16 and V15) and JieLi's flash loader, and checks them against known
+fingerprints. It writes only the firmware area of the memory, never the bootloader or the FM-1's own settings, and
+it checks everything it writes. Running it again is always safe. If it fails, copy everything in the Terminal
+window and [open an issue](https://github.com/charlesvestal/fm1-loom/issues). If the FM-1 never shows up at all,
+Felucca's [FM-1-transporter](https://github.com/kurogedelic/FM-1-transporter) can still reach it. It's a small
+RP2040 board wired to the USB lines.
 
 ## Screen reader
 
