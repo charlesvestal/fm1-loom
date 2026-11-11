@@ -806,11 +806,13 @@ SY_INLINE void knit_loop(voice_t *v, float *xl, float *xr, int m, const int ster
     const float *co = KNIT_COEF[n / 2], mix = c->ex[3], pw = c->ex[4], g = c->ex[12], dr = c->ex[22];
     float d[KNIT_MAX + 1], gg[2 * KNIT_MAX + 2];
     int i, k;
-    for (k = 0; k < n; k++) {                    /* the voices: the centre, then the pairs (upper right, lower left) */
+    for (k = 0; k < n; k++) {                    /* the voices: the centre, then the pairs (upper right, lower left); an
+                                                  * even count's last voice has no lower one: the centre is its partner,
+                                                  * on the left (fm1-loom#15: it leaned right) */
         d[k] = fm_clampf((c->ex[0] + co[k] * c->ex[1]) * dr, 1e-6f, 0.45f);
         gg[2 * k] = gg[2 * k + 1] = g;
-        if (k && stereo) {
-            const float *pn = &c->ex[3 + 2 * ((k + 1) >> 1)];
+        if ((k || !(n & 1)) && stereo) {
+            const float *pn = &c->ex[3 + 2 * (k ? (k + 1) >> 1 : n >> 1)];
             gg[2 * k] = g * pn[~k & 1];
             gg[2 * k + 1] = g * pn[k & 1];
         }

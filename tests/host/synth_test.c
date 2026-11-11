@@ -1573,6 +1573,37 @@ static void bench_char(void)
 }
 
 /* a kit's character (char_bus): on the kit's summed pair, off by default and at mix 0, every type finite */
+/* knit's voices spread evenly about the centre at every count and width: a centred sound's left and right within
+ * 0.5 dB (fm1-loom#15: an even count's last voice had no left partner, and leaned right) */
+static void knit_balance_tests(void)
+{
+    static const int W[3] = {0, 64, 127};
+    int worst_n = 0, worst_w = 0, finite = 1;
+    float worst = 0.0f;
+    for (int n = 1; n <= 7; n++)
+        for (int j = 0; j < 3; j++) {
+            double el = 0.0, er = 0.0;
+            float d;
+            char_sound(EG_KNIT, CT_OFF, 0, 64, 127);
+            par[0][TP_E3] = (uint8_t)n;
+            par[0][TP_E4] = (uint8_t)W[j];
+            synth_init(S, par);
+            synth_tempo(S, 120.0f);
+            synth_note_on(S, 0, 57, 100, 0, 1);
+            for (int b = 0; b < 1200; b++) {     /* (7 s: the detuned voices beat, and a second's window reads that) */
+                block(N, &finite);
+                if (b < 30)
+                    continue;
+                for (int i = 0; i < N; i++)
+                    el += (double)L[i] * (double)L[i], er += (double)R[i] * (double)R[i];
+            }
+            d = (float)(10.0 * log10(er / el));
+            if (fabs_f(d) > fabs_f(worst))
+                worst = d, worst_n = n, worst_w = W[j];
+        }
+    printf("    knit's balance: worst %+.2f dB (right over left) at %d voices, width %d\n", (double)worst, worst_n, worst_w);
+    check("knit: left and right within 0.5 dB at every voice count and width", finite && fabs_f(worst) <= 0.5f);
+}
 static void kit_char_tests(void)
 {
     static float l[4096], r[4096], l0[4096];
@@ -2608,6 +2639,7 @@ int main(void)
         check(what, finite && lo[0] < hi[0] * 0.3f && lo[1] > hi[1] * 0.7f);   /* (T2: knit's own drift) */
     }
     char_tests();
+    knit_balance_tests();
     kit_char_tests();
     sample_tests();
     slice_tests();
