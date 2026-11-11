@@ -1191,7 +1191,7 @@ static void kn(knob_t *k, const char *name, int32_t v, int32_t max)
 static void kmc(knob_t *k, int m)
 {
     static const uint8_t CT_OF[NMC] = {CT_OFF, CT_TAPE, CT_SAMPLER};
-    uint8_t par[NTP_SOUND] = {0};
+    uint8_t par[NTP] = {0};                          /* (all of it: tp_info_par reads TP_PLAYER, past the sound's part) */
     char num[12], unit[6], val[24], *e;
     int p = TP_CAMT + (m - MS_CAMT), v = proj.master[m];
     par[TP_CTYPE] = CT_OF[proj.master[MS_CTYPE] % NMC];
