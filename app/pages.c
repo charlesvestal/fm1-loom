@@ -4263,12 +4263,17 @@ static void pic_slice(int32_t x0, int32_t y0, int32_t w, int32_t h, const uint8_
 }
 
 /* the drumline: eleven pads, each key's model, the shown one ringed, hits flashing */
+static uint8_t pad_lvl[NDRUM];                       /* each pad's flash as draw_engine last eased it */
+static uint32_t pad_a(int k) { return pad_lvl[k] >= 200u ? 16u : pad_lvl[k] * 16u / 200u; }   /* its ink, of 16 */
 static void pic_drumline(int32_t x0, int32_t y0, int32_t w, int32_t h, const uint8_t *p, uint32_t f)
 {
     int32_t pw = w / 6, ph = h / 2;
     (void)f;
     for (int k = 0; k < DL_NSOUND; k++) {
-        int32_t x = x0 + (k % 6) * pw + 2, y = y0 + (k / 6) * ph + 2, hit = eng_drum_hit[k];
+        int32_t x = x0 + (k % 6) * pw + 2, y = y0 + (k / 6) * ph + 2;
+        uint32_t a = pad_a(k);                       /* the flash fades (a retrigger brightens it: no dark frame
+                                                      * between two hits); the text dark on a pad lit past half */
+        uint16_t base = k == ui.dsound ? K_PANEL2 : K_PANEL;
         static const char *const PAD[] = {"kick", "snare", "hat", "clap", "shakr", "tamb", "strng", "cong", "tom", "fm",
                                              "smpl", "xkick", "xsnr", "xhat", "xclap", "xtom", "xrim", "xfm",
                                              "xnois", "clang", "sophi", "9kick", "9snr", "9tom", "9rim", "9clap",
@@ -4280,21 +4285,21 @@ static void pic_drumline(int32_t x0, int32_t y0, int32_t w, int32_t h, const uin
         _Static_assert(sizeof PAD / sizeof PAD[0] == NDM && sizeof PAD4 / sizeof PAD4[0] == NDM, "a pad name for each model");
         const char *nm = (LARGE ? PAD4 : PAD)[p[TP_DRUM(k, DP_MODEL)] % NDM];
         char t[4];
-        cv_round(x, y, pw - 4, ph - 4, 4, hit > 40 ? K_NOW : k == ui.dsound ? K_PANEL2 : K_PANEL);
+        cv_round(x, y, pw - 4, ph - 4, 4, col_mix(base, K_NOW, a));
         if (k == ui.dsound)
-            cv_frame(x, y, pw - 4, ph - 4, 4, K_SEL, hit > 40 ? K_NOW : K_PANEL2);
+            cv_frame(x, y, pw - 4, ph - 4, 4, K_SEL, col_mix(K_PANEL2, K_NOW, a));
         if (LARGE) {                                 /* large type: the name alone, the pads in the black keys' order */
             const felucca_font_t *pf = text_w(&FONT_XS, nm) <= pw - 8 ? &FONT_XS : &LFONT_S;   /* (2 px each side) */
-            text_c(x + (pw - 4) / 2, cap_y(y, ph - 4, pf), pf, nm, hit > 40 ? K_BG : K_TEXT);
+            text_c(x + (pw - 4) / 2, cap_y(y, ph - 4, pf), pf, nm, a >= 8u ? K_BG : K_TEXT);
             continue;
         }
         {
             int32_t tw = text_w(&FONT_XS, nm);
             text_fit(tw <= pw - 9 ? x + (pw - 4 - tw) / 2 : x + 3, y + (ph - 4) / 2 - 6, &FONT_XS, nm, pw - 9,
-                     hit > 40 ? K_BG : K_TEXT);
+                     a >= 8u ? K_BG : K_TEXT);
         }
         num_s((uint32_t)k + 1u, t);
-        cv_text(x + 3, y, &FONT_XS, t, hit > 40 ? K_BG : K_FAINT);
+        cv_text(x + 3, y, &FONT_XS, t, a >= 8u ? K_BG : K_FAINT);
     }
 }
 static void pic_clock(int trk)                       /* (the clock eases out: its speed follows the sound up at once and
@@ -4387,11 +4392,21 @@ static void draw_engine(void)
         if (engine_slice_now(trk, &sl, &pos) && sm)
             h = hash_u(h, (uint32_t)(sl + 1) | (uint32_t)((float)pos * 200.0f / (float)sm->n) << 8);
     }
-    if (eg == EG_DRUMLINE)
+    if (eg == EG_DRUMLINE) {                         /* the flashes ease out by 0.6 a millisecond (10 a frame at 60
+                                                      * frames a second), however often this runs */
+        static uint32_t fade_ms, fade_acc;
+        uint32_t now = plat_ms(), el = now - fade_ms, d;
+        fade_ms = now;
+        fade_acc += (el > 1000u ? 1000u : el) * 3u;
+        d = fade_acc / 5u;
+        fade_acc %= 5u;
         for (int k = 0; k < DL_NSOUND; k++) {
-            eng_drum_hit[k] = (uint8_t)(eng_drum_hit[k] > 10 ? eng_drum_hit[k] - 10 : 0);   /* the flash eases out */
-            h = hash_u(h, p[TP_DRUM(k, DP_MODEL)] | (uint32_t)eng_drum_hit[k] << 8);
+            uint32_t v = eng_drum_hit[k];
+            eng_drum_hit[k] = (uint8_t)(v > d ? v - d : 0u);
+            pad_lvl[k] = eng_drum_hit[k];            /* (what the pads draw: the engine may hit again meanwhile) */
+            h = hash_u(h, p[TP_DRUM(k, DP_MODEL)] | pad_a(k) << 8);
         }
+    }
     h = hash_s(h, proj.trk[trk].name);
     if (!begin_main(h))
         return;
