@@ -41,6 +41,6 @@ L += ["turn SELECT 1"]
 L += ["turn PRESET 1", "wait 60"] * 16
 L += ["spin ALGO -1", "expect trk 1"]                # every track and aux track, every button's pages
 for _ in range(14):
-    visit(["EDIT", "ENV", "FX", "LFO", "ARP", "GLO", "HOME", "SEQ"])
+    visit(["EDIT", "ENV", "FX", "LFO", "ARP", "GLO", "HOME", "SEQ"], 7)   # (7: GLO's eight pages in a debug build)
     L.append("spin ALGO 1")
 open(sys.argv[1], "w").write("\n".join(L) + "\n")

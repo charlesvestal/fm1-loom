@@ -200,21 +200,21 @@ def mode_poly():
     run("turn", "SELECT", -1, "wait", 350)
 
 
-GLO = ["Mix", "Master EQ", "Master color", "Master out", "Setup", "Debug"]
+GLO = ["Mix", "Tempo", "Master EQ", "Master color", "Master out", "LFO", "Setup", "Debug"]   # (Debug: a debug build's)
 
 
 def glo(page):
     """GLO's page PAGE ("Mix", "Master EQ", "Setup", "Status" ...)"""
     s = where()
     for _ in range(3):                       # (a tap can be missed)
-        if " of 6." in s:
+        if s.split(",")[0] in GLO and " list." not in s:
             break
         run("tap", "HOME" if " list." in s else "GLO", "wait", 400)
         s = where()
-    for _ in range(8):
+    for _ in range(9):
         if s.startswith(page + ","):
             return s
-        m = re.search(r"page (\d) of 6", s)
+        m = re.search(r"page (\d) of \d", s)
         cur = int(m.group(1)) if m else 1
         run("turn", "SELECT", 1 if cur < GLO.index(page) + 1 else -1, "wait", 300)
         s = where()
