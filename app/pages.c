@@ -1554,6 +1554,33 @@ static const char *fx_label(int pick)
     s_cat(s_cat(s_cat(t, FXT_NAME[FXT_REVERB]), " "), fx_pick_name(pick));
     return t;
 }
+/* an effect's four knobs, 00..99; the delay's time as a note ("1/8D", or what the line plays: "1/4 plays 1/8") and its
+ * fine in % */
+static char *dl_name(char *o, int d, int h)
+{
+    o = num_s((uint32_t)FX_DL_NOTE[d] << h, s_cat(o, "1/"));
+    if (FX_DL_MARK[d])
+        *o++ = FX_DL_MARK[d], *o = 0;
+    return o;
+}
+static void fx_knobs(knob_t *k, int trk)
+{
+    const uint8_t *par = proj.trk[trk].par;
+    int pick = par[TP_ENGINE] % NFXPICK;
+    for (int i = 0; i < 4; i++)
+        kn(&k[i], short_name(fx_knob_name(pick, i)), par[TP_E1 + i] * 100 / 128, 99);
+    if (fx_pick_type(pick) == FXT_DELAY) {
+        char t[24];
+        int d = fx_delay_div(par[TP_E1]), h = fx_delay_halves(par[TP_E1], par[TP_E2], seq_tempo(&seq)), f = par[TP_E2] - 64;
+        f = (f * 50 + 64) >> 7;                      /* fine: +-25 %, rounded */
+        char *e = dl_name(t, d, 0);
+        if (h)                                       /* the line too short: what it plays */
+            dl_name(s_cat(e, " plays "), d, h);
+        kv(&k[0], k[0].name, t, par[TP_E1], 127);
+        s_cat(num_i(f, s_cat(t, f > 0 ? "+" : "")), "%");
+        kv(&k[1], k[1].name, t, par[TP_E2], 127);
+    }
+}
 static void aux_engine_knobs(knob_t *k, int trk)
 {
     const uint8_t *par = proj.trk[trk].par;
@@ -1564,9 +1591,7 @@ static void aux_engine_knobs(knob_t *k, int trk)
     } else if (trk == AUX_PUNCH || trk == AUX_WEAVE) {
         kname(&k[0], "latch", ONOFF, par[TP_E1], 2);
     } else {
-        int pick = par[TP_ENGINE] % NFXPICK;
-        for (int i = 0; i < 4; i++)
-            kn(&k[i], short_name(fx_knob_name(pick, i)), par[TP_E1 + i] * 100 / 128, 99);
+        fx_knobs(k, trk);
     }
 }
 static void page_knobs(knob_t *k)
@@ -1682,9 +1707,7 @@ static void page_knobs(knob_t *k)
                 ktp(&k[i], trk, tp_page_param(p, i, trk));
         break;
     case P_FX1: case P_FX2: {                        /* an effect: its four knobs (the type: PRESETS, SEL) */
-        int ft = P_FX1 == p ? AUX_FX1 : AUX_FX2, pick = fx_pick_of(ft);
-        for (int i = 0; i < 4; i++)
-            kn(&k[i], short_name(fx_knob_name(pick, i)), proj.trk[ft].par[TP_E1 + i] * 100 / 128, 99);
+        fx_knobs(k, P_FX1 == p ? AUX_FX1 : AUX_FX2);
         break;
     }
     case P_CHARACTER: {                              /* the instrument's character stage */
@@ -1719,7 +1742,7 @@ static void page_knobs(knob_t *k)
     case P_WEAVE: {                                  /* the track's weave: the track and pattern woven in, the rule */
         int f = wv_from(trk);
         static char wt[8];
-        kv(&k[0], "WITH", f ? TRACK_NAME[f - 1] : "off", f, NSEQT);
+        kv(&k[0], "FROM", f ? TRACK_NAME[f - 1] : "off", f, NSEQT);
         num_s((uint32_t)wv_pat(trk) + 1u, s_cat(wt, "P"));
         kv(&k[1], "PATTERN", f ? wt : "-", wv_pat(trk), NPATT - 1);
         kname(&k[2], "RULE", WEAVE_NAME, wv_rule(trk), NWV);
@@ -5858,7 +5881,7 @@ static void ink_follow(void)                         /* another track: its ink, 
     for (uint32_t i = 0; i < sizeof ui.sig / sizeof ui.sig[0]; i++)
         ui.sig[i] ^= 0x5A5A5A5Au;
 }
-/* ARP's Weave page: the track, what it weaves with and how, in words with their names, and its first bar three
+/* ARP's Weave page: what is woven into the track and how, in words with their names, and its first bar three
  * ways: its own steps, the other pattern's, and what plays woven (each step in the ink of the pattern it came from) */
 static void weave_row(int32_t y, const char *label, uint16_t lc, const tpat_t *p, const tpat_t *a,
                       const tpat_t *b, int ka, int kb, int rule, uint16_t ca, uint16_t cb, int bar)
@@ -5893,7 +5916,7 @@ static void draw_weave(void)
     if (!begin_main(h))
         return;
     if (!f) {
-        s_cat(s_cat(t, TRACK_NAME[trk]), " weaves with nothing yet");
+        s_cat(s_cat(s_cat(t, "Nothing woven into "), TRACK_NAME[trk]), " yet");
         text_c(120, LY(26, 10), text_w(&FONT_B, t) <= 228 ? &FONT_B : &LFONT_B, t, K_TEXT);   /* ("COND ...": a size down) */
         text_c(120, LY(54, 42), LY(&FONT_S, F_CAP), "black key: the track to weave in", K_DIM);
         text_c(120, LY(72, 56), LY(&FONT_S, F_CAP), "white key: its pattern", K_DIM);
@@ -5902,11 +5925,7 @@ static void draw_weave(void)
     }
     num_s((uint32_t)cur_pat(trk) + 1u, s_cat(s_cat(an, TRACK_NAME[trk]), " P"));   /* "T2 P1", "T1 P3" */
     num_s((uint32_t)wv_pat(trk) + 1u, s_cat(s_cat(bn, TRACK_NAME[f - 1]), " P"));
-    if (f - 1 == trk)                                /* its own patterns: "T2 weaves P1 with P3" */
-        e = s_cat(s_cat(s_cat(s_cat(t, TRACK_NAME[trk]), " weaves "), an + s_len(TRACK_NAME[trk]) + 1), " with ");
-    else
-        e = s_cat(s_cat(t, TRACK_NAME[trk]), " weaves with ");
-    s_cat(e, f - 1 == trk ? bn + s_len(TRACK_NAME[trk]) + 1 : TRACK_NAME[f - 1]);
+    s_cat(s_cat(s_cat(t, bn), " woven into "), an);   /* "T1 P3 woven into T2 P1": T2 changes, T1 plays as it was */
     if (!LARGE)                                      /* (large type: the header and the knobs say it) */
         cv_text(8, 2, &FONT_B, t, K_TEXT);
     e = s_cat(s_cat(t, "by "), WEAVE_NAME[r]);
@@ -5934,7 +5953,7 @@ static void draw_weave(void)
         }
     }
     if (!wv_cued(trk))
-        s_cat(t, "on: it plays woven");
+        s_cat(s_cat(s_cat(t, "on: "), TRACK_NAME[trk]), " plays woven");
     else if ((seq.wv_live | seq.wv_rec) >> trk & 1u)
         s_cat(t, "weaving now");
     else

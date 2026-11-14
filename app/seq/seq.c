@@ -92,7 +92,8 @@ static const int8_t GROOVE_V[NGROOVE][16] = {
 static const int8_t SIN32[32] = {0, 25, 49, 71, 90, 106, 117, 125, 127, 125, 117, 106, 90, 71, 49, 25,
                                  0, -25, -49, -71, -90, -106, -117, -125, -127, -125, -117, -106, -90, -71, -49, -25};
 /* the arp's speeds: the period in sixteenths as NUM / DEN */
-static const uint8_t ARP_NUM[9] = {4, 8, 2, 4, 1, 2, 1, 1, 1}, ARP_DEN[9] = {1, 3, 1, 3, 1, 3, 2, 3, 4};
+static const uint8_t ARP_NUM[NARPSPD] = {4, 3, 8, 2, 3, 4, 1, 2, 1, 1, 1},
+                     ARP_DEN[NARPSPD] = {1, 1, 3, 1, 2, 3, 1, 3, 2, 3, 4};
 
 const char *const PUNCH_NAME[NPUNCH] = {"mute", "stutter", "repeat", "echo", "build", "floor", "jumble",
                                         "warble", "pan", "octave", "chop", "ring"};
@@ -2300,8 +2301,8 @@ static void held_remove(player_t *pl, int note)
 static uint32_t arp_period(const seq_t *s, int t)
 {
     int sp = s->par[t][TP_P1];
-    if (sp > 8)
-        sp = 8;
+    if (sp > NARPSPD - 1)
+        sp = NARPSPD - 1;
     return six_q8(s) / ARP_DEN[sp] * ARP_NUM[sp];
 }
 

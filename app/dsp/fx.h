@@ -27,7 +27,7 @@ const char *fx_pick_name(int pick);            /* "chorus" .. "phaser", "plate" 
 const char *fx_knob_name(int pick, int k);     /* the four knobs' names (the plate's and the SPU modes' differ) */
 /* the knobs and their defaults (stored 0..127), and what the defaults sound like:
  *   chorus      rate depth feedback width        50 86 20 127   0.33 Hz, +-5.5 ms, light feedback, the sides opposite
- *   delay       time fine repeats tone           72 64 56 64    1/8 ping-pong, ~4 repeats, repeats low-passed at 4 kHz
+ *   delay       time fine repeats tone           83 64 56 64    1/8 ping-pong, ~4 repeats, repeats low-passed at 4 kHz
  *   lofi        rate bits smooth width           80 80 64 40    8.4 kHz, 11 bits, half smoothed, the right 3.4 ms late
  *   phaser      freq depth rate feedback         50 90 50 80    466 Hz, +-2.1 octaves, 0.27 Hz, feedback 0.57
  *   plate       size motion tone damp            100 40 44 72   combs x1.43 (feedback 0.88), a little wander, 7.4 kHz, damp 0.45
@@ -36,7 +36,8 @@ const char *fx_knob_name(int pick, int k);     /* the four knobs' names (the pla
  *   lush        size decay tone damp             64 64 56 48    Dattorro's lengths x1 (pre-delay 19 ms), a tail of
  *                                                               ~1.4 s (decay: 0.6 .. 7 s to fall 60 dB, whatever the
  *                                                               size), a little darker, the tank's damping at 0.39
- * delay time: 1/32 1/32D 1/16 1/16D 1/8 1/8D 1/4 1/2 of the tempo, fine +-25 %; delay tone: the repeats' low-pass,
+ * delay time: 1/32 1/16T 1/32D 1/16 1/8T 1/16D 1/8 1/4T 1/8D 1/4 of the tempo (one too long for the line, 0.5 s,
+ * halved till it fits: 1/4 below 120 BPM, 1/8D below 90), fine +-25 %; delay tone: the repeats' low-pass,
  * 800 Hz .. 19 kHz; reverb tone: a low-pass below the centre, a high-pass above it; plate damp: the combs' damping.
  * SPU size: the delays from x1 of the registers (schwung-psxverb's) to x4 (the console's: the registers count
  * 8-byte units); SPU decay: the wall reflection's feedback, 0.5x .. x1 (64) .. as far as it stays stable;
@@ -59,6 +60,11 @@ void fx_init(fxslot_t *f, int16_t *dly_l, int16_t *dly_r, int16_t *rv);   /* a s
 void fx_set(fxslot_t *f, int pick, const uint8_t knob[4]);  /* the slot's effect (a pick: the type and the reverb's
                                                              * mode) and its four knobs (0..127) */
 void fx_tempo(fxslot_t *f, float bpm);
+#define FX_DL_N 10                                          /* the delay's times */
+static inline int fx_delay_div(int time) { return (time < 0 ? 0 : time > 127 ? 127 : time) * FX_DL_N >> 7; }
+extern const uint8_t FX_DL_NOTE[FX_DL_N];                  /* a time's name: 1/note and its mark (T, D or none) */
+extern const char FX_DL_MARK[FX_DL_N];
+int fx_delay_halves(int time, int fine, float bpm);          /* the times the line halves it (0: as set) */
 void fx_filter(fxslot_t *f, int hp, int lp);                /* the slot's filter page: high-pass, low-pass 0..127 */
 void fx_width(fxslot_t *f, int w);                          /* the delay's PING WIDTH: 0 the echoes centred .. 127 hard
                                                              * left and right (the default), the same power */

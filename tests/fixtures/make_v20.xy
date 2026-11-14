@@ -1,0 +1,15 @@
+# a format 20 project, from before the arp's dotted speeds and the delay's triplet times (format 21): saved by that
+# build, for the migration's test (tests/scenarios/migrate.xy). Track 1 an arp at 1/16 (4 then) with a lock of 1/4T
+# (1 then) on step 1, track 2 an arp at 1/64 (8), FX I's delay at 1/8D (time 85), FX II's knobs left (the reverb).
+# Run by a format 20 build (ffc0cd1): its loom_host tests/fixtures/make_v20.xy OUT
+wait 300
+bpm 102
+param 1 player 1
+param 1 p1 4
+param 2 player 1
+param 2 p1 8
+param 11 e1 85
+lock 1 1 1 p1 1
+wait 40
+projsave 1 v20_test
+storesave tests/fixtures/store_v20.bin

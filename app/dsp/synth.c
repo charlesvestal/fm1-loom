@@ -88,7 +88,8 @@ static const char *const LDEST_N[NLD] = {"synth", "envelope", "filter", "voice",
 static const char *const DUCK_N[11] = {"track 1", "track 2", "track 3", "track 4", "track 5", "track 6", "track 7",
                                        "track 8", "conductor", "throws", "metro"};
 static const char *const PLAYER_N[NPL] = {"off", "arp", "strum", "hold", "rand"};
-static const char *const ARPSPD_N[9] = {"1/4", "1/4T", "1/8", "1/8T", "1/16", "1/16T", "1/32", "1/32T", "1/64"};
+static const char *const ARPSPD_N[NARPSPD] = {"1/4", "1/8D", "1/4T", "1/8", "1/16D", "1/8T", "1/16", "1/16T", "1/32", "1/32T",
+                                               "1/64"};
 static const char *const ARPPAT_N[6] = {"up", "down", "bounce", "bounce+", "played", "random"};
 static const char *const ARPLEN_N[3] = {"short", "medium", "long"};
 static const char *const ARPSTY_N[6] = {"off", "pedal", "thirds", "double", "skip", "swap"};
@@ -3250,7 +3251,7 @@ static const tp_info_t FIXED[NTP_SOUND + 13] = {
     {"-", 0, 0, 0, PK_NUM, 0}, {"-", 0, 0, 0, PK_NUM, 0}, {"-", 0, 0, 0, PK_NUM, 0}, {"-", 0, 0, 0, PK_NUM, 0},
     {"octave", 0, 4, 2, PK_NAMES, OCT_N},                /* TP_OCT */
     /* TP_PLAYER .. TP_CHAN */
-    {"player", 0, NPL - 1, PL_OFF, PK_NAMES, PLAYER_N}, {"speed", 0, 8, 4, PK_NAMES, ARPSPD_N},
+    {"player", 0, NPL - 1, PL_OFF, PK_NAMES, PLAYER_N}, {"speed", 0, NARPSPD - 1, ARP_1_16, PK_NAMES, ARPSPD_N},
     {"pattern", 0, 5, 0, PK_NAMES, ARPPAT_N},           {"range", 1, 4, 1, PK_NUM, 0},
     {"hold", 0, 1, 0, PK_SWITCH, 0},                    {"length", 0, 2, 1, PK_NAMES, ARPLEN_N},
     {"style", 0, 5, 0, PK_NAMES, ARPSTY_N},             {"glide", 0, 2, 0, PK_NAMES, ARPGLD_N},

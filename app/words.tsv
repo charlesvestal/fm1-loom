@@ -67,8 +67,13 @@ Hz	hertz
 dB	decibels
 st	semitones
 ct	cents
-1/16T	sixteenth triplet
+1/4T	quarter triplet
 1/8T	eighth triplet
+1/16T	sixteenth triplet
+1/32T	thirty-second triplet
+1/8D	dotted eighth
+1/16D	dotted sixteenth
+1/32D	dotted thirty-second
 # in 1	# steps over one octave
 # in 3	# steps over three octaves
 bump dn	bump down

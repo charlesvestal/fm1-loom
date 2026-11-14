@@ -1641,7 +1641,7 @@ static void key_down(int k)
         if (wv_from(trk)) {
             char t[24];
             num_s((uint32_t)wv_pat(trk) + 1u, s_cat(s_cat(t, TRACK_NAME[wv_from(trk) - 1]), " P"));
-            say("WEAVES WITH", t);
+            say("WOVEN IN", t);
         } else
             say("NO WEAVE", TRACK_NAME[trk]);
         return;

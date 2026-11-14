@@ -249,7 +249,7 @@ int main(void)
         check(name, !r.nan && r.peak > 0.001f && r.peak < 4.0f);
     }
     {   /* the defaults and the knobs' names */
-        static const uint8_t want[NFXT][4] = {{50, 86, 20, 127}, {72, 64, 56, 64}, {80, 80, 64, 40},
+        static const uint8_t want[NFXT][4] = {{50, 86, 20, 127}, {83, 64, 56, 64}, {80, 80, 64, 40},
                                               {50, 90, 50, 80},  {100, 40, 44, 72}};
         static const char *const names[NFXT][4] = {
             {"rate", "depth", "feedback", "width"}, {"time", "fine", "repeats", "tone"},
@@ -264,7 +264,7 @@ int main(void)
         for (t = 0; t < NFXT; t++)
             for (k = 0; k < 4; k++)
                 ok &= FXT_DEFAULT[t][k] == want[t][k];
-        check("FXT_DEFAULT: chorus 50 86 20 127, delay 72 64 56 64, ... plate 100 40 44 72", ok);
+        check("FXT_DEFAULT: chorus 50 86 20 127, delay 83 64 56 64, ... plate 100 40 44 72", ok);
         ok = 1;
         for (t = 0; t < NFXPICK; t++) {
             ok &= !strcmp(fx_pick_name(t), picks[t]);
@@ -299,9 +299,9 @@ int main(void)
 
     printf("-- delay at 120 BPM: time 1/4 = 0.5 s, dotted 1/8 = 0.375 s\n");
     {
-        /* time 100: (100 * 8) >> 7 = 6, 1/4; time 85: 5, 1/8D; fine 64 (none); repeats 0.47; tone open.
+        /* time 121: (121 * 10) >> 7 = 9, 1/4; time 108: 8, 1/8D; fine 64 (none); repeats 0.47; tone open.
          * The impulse's echoes are looked for in a run longer than run_fx's window */
-        static const uint8_t kn[2][4] = {{100, 64, 64, 127}, {85, 64, 64, 127}};
+        static const uint8_t kn[2][4] = {{121, 64, 64, 127}, {108, 64, 64, 127}};
         static const int at[2] = {22050, 16538};
         int s;
         for (s = 0; s < 2; s++) {
@@ -328,13 +328,22 @@ int main(void)
             check(name, at_l >= at[s] - 2 && at_l <= at[s] + 3 && at_r >= 2 * at[s] - 2 && at_r <= 2 * at[s] + 4 &&
                         pl > 0.3f && pr > 0.1f);
         }
+        {   /* the times too long for the line (0.5 s) halved: 1/4 from 120 BPM down, 1/8D from 90 down, fine counted */
+            int ok = fx_delay_halves(121, 64, 120.0f) == 0 && fx_delay_halves(121, 64, 119.0f) == 1 &&
+                     fx_delay_halves(121, 64, 59.0f) == 2 && fx_delay_halves(108, 64, 90.0f) == 0 &&
+                     fx_delay_halves(108, 64, 89.0f) == 1 && fx_delay_halves(108, 127, 110.0f) == 1 &&
+                     fx_delay_halves(6, 0, 30.0f) == 0;
+            for (i = 0; i < 128; i++)                        /* every knob a time, in order */
+                ok &= fx_delay_div(i) >= 0 && fx_delay_div(i) < FX_DL_N && (!i || fx_delay_div(i) >= fx_delay_div(i - 1));
+            check("delay: 1/4 halved below 120 BPM, 1/8D below 90; the knob's ten times in order", ok);
+        }
         {   /* the delay returns only its echoes: the send itself is not passed through */
             static const uint8_t kd[4] = {100, 64, 127, 127};
             impulse(FXT_DELAY, kd, imp_l, imp_r, 2048);
             check("delay: no dry in the return", imp_l[0] == 0.0f && imp_r[0] == 0.0f);
         }
         {   /* tone: the right's first echo (once through the repeats' low-pass) is brighter at 110 than at 20 */
-            static const uint8_t kt[2][4] = {{72, 64, 100, 20}, {72, 64, 100, 110}};
+            static const uint8_t kt[2][4] = {{83, 64, 100, 20}, {83, 64, 100, 110}};
             float br[2];
             int s2;
             for (s2 = 0; s2 < 2; s2++) {                     /* 1/8 at 120 BPM: 11025 samples; right at 22050 */
@@ -346,7 +355,7 @@ int main(void)
         }
         {   /* PING WIDTH: 127 as fx_init has it (the bounce hard left and right), 0 the echoes centred (left = right),
              * 64 between; the same power at each */
-            static const uint8_t kw[4] = {72, 64, 100, 64};
+            static const uint8_t kw[4] = {83, 64, 100, 64};
             static float l127[24064], r127[24064];
             static const int ws[3] = {127, 64, 0};
             float e[3], side[3];

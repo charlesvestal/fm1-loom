@@ -61,6 +61,11 @@ typedef char raw_fits[(RAW_LEN < 0x100000u) ? 1 : -1];   /* (lz.c packs up to 16
 #define TRK15 (NTP15 + NAME_LEN + 4u)
 #define NTP18 ((uint32_t)TP_RUP)                          /* formats 16..18's: up to knit's osc 2 fine */
 /* the random player's one octave knob before 19 (TP_P4, 0..24: PR #13's path about its centre) as down * 4 + up */
+/* before 21: the arp's speeds without the dotted ones (1/4 1/4T 1/8 1/8T 1/16 1/16T 1/32 1/32T 1/64: old_arp, to
+ * synth.h's order), the delay's times 1/32 1/32D 1/16 1/16D 1/8 1/8D 1/4 1/2 (the knob in eighths; now fx.h's, in tenths: 1/2,
+ * which the line always halved, to 1/4: each the knob at the middle of its new tenth) */
+static const uint8_t OLD_DLY[8] = {6, 32, 44, 70, 83, 108, 121, 121};
+static uint8_t old_arp(uint8_t v) { return v == LOCK_NONE ? v : v > 8u ? 10u : (uint8_t)(v + (v > 0u) + (v > 2u)); }
 static const uint8_t OLD_OCT[25] = {15, 11, 7, 14, 10, 6, 13, 9, 5, 12, 8, 4, 0, 1, 2, 3, 5, 6, 7, 9, 10, 11, 13, 14, 15};
 typedef char settings_head_fits[(SET_HDR + 4u + 64u <= PLAT_STORE_MAX && SET_OLD == 3804u) ? 1 : -1];   /* (format 14's size) */
 typedef char trk_layout[(offsetof(trk_t, name) == NTP && sizeof(trk_t) == NTP + NAME_LEN + 4u) ? 1 : -1];
@@ -798,6 +803,14 @@ int project_load(int slot)
             glfo_defaults(proj.trk[AUX_BRAIN].par);
         if (load_format < 20u)                        /* (before 20 no PING WIDTH: the full bounce they had) */
             proj.trk[AUX_FX1].par[TP_FX_WIDTH] = proj.trk[AUX_FX2].par[TP_FX_WIDTH] = 127;
+        if (load_format < 21u) {                      /* (before 21 no dotted arp speeds, the delay's times fewer) */
+            for (int t = 0; t < NTRK; t++)
+                if (proj.trk[t].par[TP_PLAYER] % NPL == PL_ARP)
+                    proj.trk[t].par[TP_P1] = old_arp(proj.trk[t].par[TP_P1]);
+            for (int t = AUX_FX1; t <= AUX_FX2; t++)
+                if (fx_pick_type(proj.trk[t].par[TP_ENGINE] % NFXPICK) == FXT_DELAY)
+                    proj.trk[t].par[TP_E1] = OLD_DLY[(proj.trk[t].par[TP_E1] & 127u) >> 4];
+        }
         if (load_format < 14u)                        /* (before 14, off (FT_DYNAMIC) sat at 4 and bp12 at 5: swap) */
             for (int t = 0; t < NTRK; t++) {
                 uint8_t ft = proj.trk[t].par[TP_FTYPE];
@@ -845,6 +858,13 @@ int project_load(int slot)
     } else {
         bad = 1;
     }
+    if (load_format < 21u)                            /* (the arp speeds' locks too: above) */
+        for (int k = 0; k < NLANE; k++) {
+            lane_t *L = &pats.lane[k];
+            if (L->used && L->param == TP_P1 && L->trk < NTRK && proj.trk[L->trk].par[TP_PLAYER] % NPL == PL_ARP)
+                for (int i = 0; i < NSTEP; i++)
+                    L->val[i] = old_arp(L->val[i]);
+        }
     migrated = !bad && load_format != PROJ_FORMAT ? (uint8_t)slot : 0xFF;
     return bad ? -1 : 0;
 }

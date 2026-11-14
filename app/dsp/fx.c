@@ -60,7 +60,7 @@ static const char *const SPU_KNOB[4] = {"size", "decay", "tone", "damp"};
 /* the defaults, 0..127 (what each gives: fx_derive's mappings) */
 const uint8_t FXT_DEFAULT[NFXT][4] = {
     {50, 86, 20, 127},                        /* chorus      0.33 Hz, +-5.5 ms, feedback 0.11, fully wide */
-    {72, 64, 56, 64},                         /* delay       1/8, on the beat, feedback 0.42 (~4 repeats), 4 kHz */
+    {83, 64, 56, 64},                         /* delay       1/8, on the beat, feedback 0.42 (~4 repeats), 4 kHz */
     {80, 80, 64, 40},                         /* lofi        8.4 kHz, 10.8 bits, half smoothed, 3.4 ms spread */
     {50, 90, 50, 80},                         /* phaser      466 Hz, +-2.1 octaves, 0.27 Hz, feedback 0.57 */
     {100, 40, 44, 72},                        /* plate       combs x1.43, 2.4 samples of wander, 7.4 kHz, damp 0.45 */
@@ -87,8 +87,11 @@ static const int32_t RV_CAP[4] = {2125, 2262, 2431, 2581};
 static const int32_t RV_AP[4] = {556, 441, 579, 457};
 #define RV_AP0 (2125 + 2262 + 2431 + 2581)
 _Static_assert(RV_AP0 + 556 + 441 + 579 + 457 <= FX_RV_LEN, "the reverb's lines do not fit FX_RV_LEN");
-/* the delay's times in sixteenths: 1/32, 1/32D, 1/16, 1/16D, 1/8, 1/8D, 1/4, 1/2 (dotted = 1.5x) */
-static const float DL_DIV[8] = {0.5f, 0.75f, 1.0f, 1.5f, 2.0f, 3.0f, 4.0f, 8.0f};
+/* the delay's times in sixteenths: 1/32, 1/16T, 1/32D, 1/16, 1/8T, 1/16D, 1/8, 1/4T, 1/8D, 1/4 (dotted = 1.5x, a
+ * triplet 2/3); its name's note and mark (fx.h) */
+static const float DL_DIV[FX_DL_N] = {0.5f, 2.0f / 3.0f, 0.75f, 1.0f, 4.0f / 3.0f, 1.5f, 2.0f, 8.0f / 3.0f, 3.0f, 4.0f};
+const uint8_t FX_DL_NOTE[FX_DL_N] = {32, 16, 32, 16, 8, 16, 8, 4, 8, 4};
+const char FX_DL_MARK[FX_DL_N] = {0, 'T', 'D', 0, 'T', 'D', 0, 'T', 'D', 0};
 
 /* lush: Dattorro's plate at 22.05 kHz on the reverb line (int16, through psxrev.h's spu_rd / spu_wr: one ring whose
  * base moves a sample a tick; a line at offset o is written at o and read len ticks later at o + len). The lines in
@@ -187,15 +190,28 @@ static void fx_states(fxslot_t *f)              /* a fresh effect: its states at
     }
 }
 
+/* the delay's time in seconds at a tempo, and the times the line halved it (h) */
+static __attribute__((noinline)) float delay_secs(int time, int fine, float bpm, int *h)
+{
+    float t = DL_DIV[fx_delay_div(time)] * 15.0f / (bpm > 20.0f ? bpm : 120.0f);   /* sixteenths: 60 / (bpm * 4) */
+    float max_s = (float)(FX_DLY_LEN - 128) * 2.0f / SR;            /* (the line at half rate) */
+    t *= 1.0f + ((float)fine - 64.0f) * (0.25f / 64.0f);              /* fine: +-25 % */
+    for (*h = 0; t > max_s; ++*h)                                     /* too long for the line: half, */
+        t *= 0.5f;                                                    /* still on the beat */
+    return t;
+}
+
 static void delay_time(fxslot_t *f)
 {
-    float bpm = f->bpm > 20.0f ? f->bpm : 120.0f;
-    float t = DL_DIV[(f->knob[0] * 8) >> 7] * 15.0f / bpm;           /* sixteenths: 60 / (bpm * 4) */
-    float max_s = (float)(FX_DLY_LEN - 128) * 2.0f / SR;            /* (the line at half rate) */
-    t *= 1.0f + ((float)f->knob[1] - 64.0f) * (0.25f / 64.0f);        /* fine: +-25 % */
-    while (t > max_s)                                                 /* too long for the line: half, */
-        t *= 0.5f;                                                    /* still on the beat */
-    f->pt[0] = t * SR;
+    int h;
+    f->pt[0] = delay_secs(f->knob[0], f->knob[1], f->bpm, &h) * SR;
+}
+
+int fx_delay_halves(int time, int fine, float bpm)
+{
+    int h;
+    delay_secs(time, fine, bpm, &h);
+    return h;
 }
 
 /* the knobs to the effect's numbers (its pt[]: what each means is in the effect's loop) */

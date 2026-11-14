@@ -1309,7 +1309,7 @@ static void t_arp(void)
     cur = "arp";
     reset();
     par[0][TP_PLAYER] = PL_ARP;
-    par[0][TP_P1] = 4;                /* 1/16 */
+    par[0][TP_P1] = 6;                /* 1/16 */
     par[0][TP_P2] = 0;                /* up */
     par[0][TP_P3] = 1;
     seq_key(&S, 0, 60, 1, 100);
@@ -1326,7 +1326,7 @@ static void t_arp(void)
     CHECK(count(E_ON, 0) == 4 && count(E_OFF, 0) == 4);
     /* down, two octaves, 1/8 */
     nev = 0;
-    par[0][TP_P1] = 2;
+    par[0][TP_P1] = 3;
     par[0][TP_P2] = 1;
     par[0][TP_P3] = 2;
     seq_key(&S, 0, 60, 1, 100);
@@ -1345,7 +1345,7 @@ static void t_arp(void)
     par[0][TP_P4] = 0;
     par[0][TP_P2] = 2;
     par[0][TP_P3] = 1;
-    par[0][TP_P1] = 4;
+    par[0][TP_P1] = 6;
     seq_key_all_off(&S, 0);
     seq_key(&S, 0, 60, 1, 100);
     seq_key(&S, 0, 64, 1, 100);
@@ -1365,7 +1365,7 @@ static void t_arp(void)
           on_n(5)->a == 60 && on_n(6)->a == 60 && on_n(7)->a == 64);
     /* 1/64: four notes a sixteenth, the key's velocity */
     nev = 0;
-    par[0][TP_P1] = 8;
+    par[0][TP_P1] = 10;
     par[0][TP_P2] = 0;
     seq_key_all_off(&S, 0);
     seq_key(&S, 0, 60, 1, 77);
@@ -1373,14 +1373,21 @@ static void t_arp(void)
     CHECK(count(E_ON, 0) == 5 && near(on_n(1)->t - on_n(0)->t, L16 / 4, 2) && on_n(0)->b == 77);
     /* 1/4T: three notes a quarter */
     nev = 0;
-    par[0][TP_P1] = 1;
+    par[0][TP_P1] = 2;
     seq_key_all_off(&S, 0);
     seq_key(&S, 0, 60, 1, 100);
     run(8 * L16 + 10);
     CHECK(count(E_ON, 0) == 4 && near(on_n(1)->t - on_n(0)->t, 8 * L16 / 3, 3));
+    /* 1/8D: a note every three sixteenths */
+    nev = 0;
+    par[0][TP_P1] = 1;
+    seq_key_all_off(&S, 0);
+    seq_key(&S, 0, 60, 1, 100);
+    run(9 * L16 + 10);
+    CHECK(count(E_ON, 0) == 4 && near(on_n(1)->t - on_n(0)->t, 3 * L16, 2) && near(on_n(3)->t - on_n(0)->t, 9 * L16, 6));   /* (L16 rounded down) */
     /* the styles over an up arp of 60 64 67 71: A 1 2 1 3 1 4, B 1 3 2 4 3 1, C 1 1 2 2, D 1 3 2 4, E 2 1 4 3 */
     nev = 0;
-    par[0][TP_P1] = 4;
+    par[0][TP_P1] = 6;
     par[0][TP_AP2] = 1;
     seq_key_all_off(&S, 0);
     seq_key(&S, 0, 60, 1, 100);
@@ -1445,7 +1452,7 @@ static void t_arp(void)
     /* while playing, the first note waits for the grid */
     reset();
     par[0][TP_PLAYER] = PL_ARP;
-    par[0][TP_P1] = 4;
+    par[0][TP_P1] = 6;
     par[0][TP_P3] = 1;
     start();
     run(L16 / 2);
@@ -1599,7 +1606,7 @@ static void t_player_switch(void)     /* the player changed while its notes soun
     run(10);
     /* a latched arp, latch turned off with no key down: it stops */
     nev = 0;
-    par[0][TP_P1] = 4;
+    par[0][TP_P1] = 6;
     par[0][TP_P4] = 1;
     seq_key(&S, 0, 64, 1, 90);
     seq_key(&S, 0, 64, 0, 0);
@@ -1619,7 +1626,7 @@ static void t_step_players(void)      /* the arp and the strum play the steps' n
     cur = "step_players";
     reset();
     par[0][TP_PLAYER] = PL_ARP;
-    par[0][TP_P1] = 4;                /* 1/16 */
+    par[0][TP_P1] = 6;                /* 1/16 */
     par[0][TP_P3] = 1;
     st(0, 0)->note[0] = 60;
     st(0, 0)->note[1] = 64;

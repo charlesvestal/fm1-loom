@@ -445,9 +445,10 @@ the WEAVE track and bring it in by hand.
 
 **Set it up.** On a track, press **ARP** and turn **SELECT** to the last page, Weave. Press a black key to choose
 the track to weave in. Keys 1 to 8 are the tracks, 9 is COND and 10 is THROW, and pressing the same key again sets
-none. Then press a white key, 1 to 8, to choose its pattern. **KNOB 1** (WITH: the track), **KNOB 2** (PATTERN: its
-pattern) and **KNOB 3** (RULE) set the same things. The page spells it out in words ("T2 weaves with T1", "by
-rhythm: T2 P1's rhythm, T1 P1's pitch"). It draws a bar three ways: the track's own steps, the other pattern's
+none. Then press a white key, 1 to 8, to choose its pattern. **KNOB 1** (FROM: the track), **KNOB 2** (PATTERN: its
+pattern) and **KNOB 3** (RULE) set the same things. The page spells it out in words ("T1 P1 woven into T2 P1", "by
+rhythm: T2 P1's rhythm, T1 P1's pitch"). Only the track you set it up on changes: T2 plays woven, and T1 plays as it
+was. It draws a bar three ways: the track's own steps, the other pattern's
 steps, and what plays, with each step in the color of the pattern it comes from. If a pattern is longer than a
 bar, use **OCT+** and **OCT−** to go through its bars ("bar 2 of 4"). The last line tells you whether the weave
 plays (on), or which WEAVE track key brings it in. The rules:
@@ -1084,7 +1085,7 @@ Press **ARP** and turn **KNOB 1** to pick the player: off, arp, strum, hold or r
 
 <img src="img/screen-players.png" width="240" alt="Players: the arp at 1/16, up, one octave, with C4 E4 G4 held" title="The arp">
 
-- **arp** plays the held notes one after another. Page 1 has the speed (1/4 to 1/64, with triplets), the pattern
+- **arp** plays the held notes one after another. Page 1 has the speed (1/4 to 1/64, with triplets and dotted 1/8 and 1/16), the pattern
   (up, down, up down 1, up down 2, as played, random) and the range. Page 2 has the note length, a style, glide
   and stereo. Page 3 is hold.
 - **strum** plays a chord from one key, built on that key in the conductor's key and scale. At first it plays a
@@ -1258,13 +1259,17 @@ under **SEQ**.
 | Effect | Knobs |
 | --- | --- |
 | chorus | rate, depth, feedback, width |
-| delay | time, fine, repeats, tone (how bright the repeats are); in **SEL**'s list, ping width |
+| delay | time (a note value, synced to the tempo), fine, repeats, tone (how bright the repeats are); in **SEL**'s list, ping width |
 | lofi | rate, bits, smooth, width |
 | phaser | freq, depth, rate, feedback |
 | reverb, plate | size, motion, tone, damp (how fast the tail darkens) |
 | reverb, the other modes (lush too) | size, decay, tone, damp |
 
   The effects return only the sound they make. The track's own sound stays on the track.
+
+  The delay's time runs from 1/32 to 1/4 of the tempo, with triplets and dotted values, and fine moves it up to 25 %
+  either way. The delay holds half a second, so it halves a time longer than that and the knob shows what plays. For
+  example, below 120 BPM a 1/4 shows "1/4 plays 1/8", and below 90 BPM a 1/8D plays as 1/16D.
 
   The reverb has eleven modes, and **PRESETS** steps through them after the phaser. **plate** is LOOM-8's own.
   Nine come from the PlayStation's sound chip, the reverbs its games used: **room**, **studio S**, **studio M** and

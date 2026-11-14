@@ -109,3 +109,16 @@ expect tempo 101
 expect par11.x1 127
 expect par12.x1 127
 expect epar11.x1 127
+
+# a format 20 project, from before the arp's dotted speeds and the delay's triplet times (tests/fixtures/make_v20.xy):
+# the arp speeds moved to their places now (1/16 4 -> 6, 1/64 8 -> 10, the lock's 1/4T 1 -> 2), the delay's 1/8D (85)
+# to the middle of its tenth (108)
+storeload tests/fixtures/store_v20.bin
+reboot
+wait 400
+expect tempo 102
+expect par1.p1 6
+expect par2.p1 10
+expect lock 1 1 1 p1 2
+expect par11.e1 108
+expect epar11.e1 108

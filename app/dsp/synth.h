@@ -192,7 +192,10 @@ enum { GD_CUT, GD_RES, GD_PITCH, GD_PAN, GD_VOL, GD_SEND1, GD_SEND2, GD_CHAR, NG
 enum { LD_SYNTH, LD_ENV, LD_FILTER, LD_AMP, LD_FREE = 4, NLD = 8 };   /* TP_LDEST: module (LD_AMP: "voice"), + LD_FREE = free-running */
 #define LS_SYNC_N 8                                /* TP_LSPEED values below this are synced divisions */
 enum { PL_OFF, PL_ARP, PL_STRUM, PL_HOLD, PL_RAND, NPL };
-/* arp: P1 speed (1/4 1/4T 1/8 1/8T 1/16 1/16T 1/32 1/32T 1/64), P2 pattern (up, down, bounce (up and down, the
+#define NARPSPD 11
+#define ARP_1_16 6                                 /* the arp's speed 1/16 (its default) */
+/* arp: P1 speed (1/4 1/8D 1/4T 1/8 1/16D 1/8T 1/16 1/16T 1/32 1/32T 1/64; before project
+ * format 21 no dotted ones: project.c migrates), P2 pattern (up, down, bounce (up and down, the
  * ends once), bounce+ (the ends repeated), as played, random), P3 range 1..4 octaves, P4 hold; its page 2 is
  * TP_AP1..AP4 = note length (short medium long), style (off, pedal, thirds, double, skip, swap: seq.c
  * arp_style_pos), glide (off low high), stereo (mono narrow wide). strum: P1 roll 0..63 (63 = a note per sequencer step of the
