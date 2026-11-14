@@ -2214,7 +2214,7 @@ static void page_footer(char *t)
         else if (ui.held)
             s_cat(t, "WHITE length|ARP tricks|EDIT ENV FX LFO lock|SEQ notes");
         else if (ui.rec_armed)
-            s_cat(t, "KEYS write|OCT+ rest|OCT- back|REC done");
+            s_cat(t, "KEYS write|OCT skip, back|REC+OCT clear|REC done");
         else if (seq.rec || seq.rec_wait)
             s_cat(t, "KEYS record|REC off");
         else if (ui.btn >> B_SEQ & 1u && ui.page == P_BAR)
@@ -2258,7 +2258,7 @@ static void page_footer(char *t)
         break;
     default:
         if (ui.rec_armed)
-            s_cat(t, "KEYS write|OCT+ rest|OCT- back|REC done");
+            s_cat(t, "KEYS write|OCT skip, back|REC+OCT clear|REC done");
         else if (trk == AUX_BRAIN)
             s_cat(t, ui.page == P_PLAY ? "BLACK route track" : ui.page == P_SUB ? "BLACK the track" : "KEYS chord");
         else if (trk == AUX_PUNCH)

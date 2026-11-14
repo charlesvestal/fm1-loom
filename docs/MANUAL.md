@@ -45,7 +45,7 @@ keys 1 to 11.
    **REC** and play the notes one after another, and each one lands on the next step. Press **EDIT** and turn
    **KNOB 1** while it plays to hear the shape change.
 
-   <img src="img/screen-seq-held.png" width="240" alt="Steps on T2 with SEQ held: the keys play notes, and the line above the grid says the notes a step will write" title="SEQ held on Steps"> <img src="img/screen-step-record2.png" width="240" alt="Step record on T2: the red cursor on the next step after the notes written so far; the footer says KEYS write, OCT+ rest, OCT- back, REC done" title="Step record">
+   <img src="img/screen-seq-held.png" width="240" alt="Steps on T2 with SEQ held: the keys play notes, and the line above the grid says the notes a step will write" title="SEQ held on Steps"> <img src="img/screen-step-record2.png" width="240" alt="Step record on T2: the red cursor on the next step after the notes written so far; the footer says KEYS write, OCT skip or back, REC+OCT clear, REC done" title="Step record">
 3. **Tricks.** Still on T2, hold white key 7 and press **ARP**. Turn **KNOB 1** to multiply and **KNOB 2** to 3,
    and step 7 plays three hits. Let go. Now hold white key 14, press **ARP**, turn **KNOB 1** to jump and **KNOB 2**
    to "either", and the pattern starts to wander. Last, hold white key 1, press **ARP** and turn **KNOB 1** to
@@ -169,7 +169,7 @@ Count the white keys 1 to 16 from the left, and the black keys 1 to 11. "Hold **
 | record while playing | While it plays, hold **REC** and play: it records for as long as you hold **REC**. Hold **REC** and press **PLAY** to keep recording on. |
 | record a knob's motion | While it plays, on a sound page, hold **REC** and turn the knob. The motion is recorded for as long as you hold **REC**. |
 | set the click, count-in, quantize | While stopped, hold **REC** and turn the knobs: CLICK, COUNT, QUANT and MODE (overdub or replace). |
-| record step by step | While stopped, on Steps, tap **REC**. The red cursor starts after the last note. Each key (or chord) you play is written there, and the cursor moves on. **OCT+** leaves a rest and **OCT−** goes back. Tap **REC** again to finish. |
+| record step by step | While stopped, on Steps, tap **REC**. The red cursor starts after the last note. Each key (or chord) you play is written there, and the cursor moves on. **OCT+** skips a step and **OCT−** goes back. Hold **REC** and press **OCT+** to clear a step and move on, or **OCT−** to go back and clear one. Tap **REC** again to finish. |
 | undo | Hold **HOME** and press **REC**. Hold **HOME** and press **PLAY** to redo. |
 | set the tempo | Press **HOME** and turn **KNOB 1**. Hold **HOME** while you turn it for tenths. On any page, you can also hold **HOME** and turn **SELECT**. |
 | use a throw | Press **FX** and turn **SELECT** to Throws. Hold a key: the lower octave works on the drums and the upper octave on the melodic tracks. Hold **REC** while it plays to record throws into the THROW track. <!-- hint: press FX; turn SELECT; white 1-16 --> |
@@ -509,8 +509,9 @@ melody's notes.
   else.
 - To record step by step, tap **REC** while stopped. On Steps, the keys become a keyboard, and a red cursor marks
   the step they write, starting after the pattern's last note. Play a key, or several keys together, to write the
-  step, and the cursor moves on when you let go. **OCT+** leaves a rest and **OCT−** goes back a step. On a drum
-  track, the sound is added to the step. A MIDI keyboard (USB, Bluetooth or the jack) writes steps the same way
+  step, and the cursor moves on when you let go. **OCT+** skips a step and **OCT−** goes back one, leaving them as
+  they are. To clear steps, hold **REC** and press **OCT+** to clear the step and move on (a rest), or **OCT−** to go
+  back and clear the step before, like backspace. On a drum track, the sound is added to the step. A MIDI keyboard (USB, Bluetooth or the jack) writes steps the same way
   when it plays the track on the screen, on the track's own channel or on 12 to 16. Notes held together make a
   chord, and the first note's velocity becomes the step's. The notes you hold on it are also what a step tap
   writes next, with no need to hold **SEQ**, and in chord mode they write the held step. Tap **REC** again to

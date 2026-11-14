@@ -1,0 +1,51 @@
+# step record's clears: hold REC and press OCT- to go back and clear that step (a backspace), OCT+ to clear the
+# cursor's step and go on (a rest); OCT+ / OCT- alone skip and go back, the steps kept; REC's release after them is
+# not a tap, so step record stays on. Notes from MIDI (channel 2: T2), as midisteprec.xy
+wait 300
+turn ALGO 1
+expect trk 2
+tap REC
+wait 60
+midi 91 3C 64
+midi 81 3C 00
+wait 40
+midi 91 40 64
+midi 81 40 00
+wait 40
+midi 91 43 64
+midi 81 43 00
+wait 40
+expect note 2 1 1 60
+expect note 2 1 2 64
+expect note 2 1 3 67
+# REC + OCT-: back to step 3, cleared; the next note lands there
+press REC
+tap OCT-
+release REC
+wait 40
+expect note 2 1 3 0
+midi 91 45 64
+midi 81 45 00
+wait 40
+expect note 2 1 3 69
+# OCT- alone, three times: back to step 1, nothing cleared; REC + OCT+ clears step 1 and goes on to step 2
+tap OCT-
+tap OCT-
+tap OCT-
+wait 40
+expect note 2 1 1 60
+expect note 2 1 2 64
+press REC
+tap OCT+
+release REC
+wait 40
+expect note 2 1 1 0
+expect note 2 1 2 64
+# OCT+ alone skips step 2 (kept); the next note writes step 3, so step record is still on
+tap OCT+
+wait 20
+midi 91 47 64
+midi 81 47 00
+wait 40
+expect note 2 1 2 64
+expect note 2 1 3 71

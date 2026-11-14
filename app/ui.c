@@ -1071,6 +1071,19 @@ static void step_rec_move(int d)                  /* the cursor a step on (a res
         ann_later(t, 0, 150u, plat_ms());
     }
 }
+static void step_rec_clear(void)                  /* REC held + OCT: the cursor's step emptied (a kit's: its sounds' own settings too) */
+{
+    int trk = sel_trk();
+    step_t *st = &tpat(trk)->st[ui.cursor];
+    undo_keep();
+    if (is_drum(trk))
+        for (int k = 0; k < NDRUM; k++)
+            if (kit_has(st, k + 1))
+                hit_sound_off(trk, cur_pat(trk), ui.cursor, k);
+    memset(st, 0, sizeof *st);
+    st->vel = 100;
+    mark_dirty();
+}
 static void step_rec_key_up(void)
 {
     if (ui.srec_down && !--ui.srec_down)
@@ -1905,7 +1918,7 @@ static void button_up(int b)
         break;
     case B_OCTDN: case B_OCTUP: {
         int d = b == B_OCTUP ? 1 : -1;
-        char t[8];
+        char t[12];
         if (ui.chordmode && ui.page == P_STEPS) {   /* chord mode: the keyboard's octave, not the step's nudge or bar */
             ui.oct = (int8_t)clampi(ui.oct + d, -4, 4);
             t[0] = ui.oct < 0 ? '-' : '+';
@@ -1918,10 +1931,24 @@ static void button_up(int b)
             step_nudge(d);
             break;
         }
-        if (ui.rec_armed && !playing() && is_seqt(sel_trk())) {   /* OCT+ a rest, OCT- back a step */
+        if (ui.rec_armed && !playing() && is_seqt(sel_trk())) {   /* OCT+ a step on, OCT- back a step, the steps kept;
+                                                                    * REC held: OCT+ clears the step and goes on (a
+                                                                    * rest), OCT- goes back and clears that one */
+            int clr = ui.btn >> B_REC & 1u;
+            if (clr) {
+                ui.btn_used |= 1u << B_REC;         /* (REC's release: not a tap, step record stays on) */
+                if (d < 0)
+                    step_rec_move(-1);
+                num_s((uint32_t)ui.cursor + 1u, s_cat(t, "step "));
+                step_rec_clear();
+                if (d > 0)
+                    step_rec_move(1);
+                say("CLEARED", t);
+                break;
+            }
             step_rec_move(d);
             num_s((uint32_t)ui.cursor + 1u, t);
-            say(d > 0 ? "REST" : "BACK", t);
+            say(d > 0 ? "SKIP" : "BACK", t);
             break;
         }
         if (steps_page(ui.page) && (ui.btn >> B_SEQ & 1u) && !home_held()) {
