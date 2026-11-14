@@ -45,3 +45,5 @@ The idea of a browser emulator: Groove OS.
 
 LOOM-8's way of working owes a great deal to teenage engineering's OP-XY; LOOM-8 is not affiliated with
 teenage engineering.
+
+You can also try LOOM-8 in the browser, no flashing needed, in the free community [FM-1 Emulator](https://fm1-emulator.atst.tools/).
