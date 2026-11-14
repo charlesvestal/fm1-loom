@@ -183,7 +183,7 @@ void engine_load(uint32_t pct)
 {
     uint32_t frames = guard_frames;
     guard_frames = 0;
-    /* (the note-start check, synth.c load_over: the last block's load without its look-ahead run, which was the
+    /* (the note-start check, synth.c find_voice: the last block's load without its look-ahead run, which was the
      * next block's sequencing: else a block before a section change, carrying it, has the chord's notes steal) */
     synth_load_hint(SY, pct > la_pct ? pct - la_pct : 0u);
     if (pct > ACID_LITE_ON) {

@@ -1597,25 +1597,16 @@ static void acid_reserve(synth_t *s, int vi, int trk)   /* the slot for an acid 
 
 /* the load check at a note's start (the FM-1's: there each track knows its voices' measured time): a free voice
  * adds the track's cost to this block's predicted load, scaled by LOAD_SHARE (the two cores share the voices); one
- * that would take it past LOAD_ADMIT % takes a sounding voice instead, as a full pool does. The overload guard
- * (engine.c) only sees a block once it has overrun: a chord change's new voices could. */
-#define LOAD_ADMIT 92.0f
+ * that would take it past LOAD_ADMIT % takes the quietest release tail instead (find_voice). The overload guard
+ * (engine.c) only sees a block once it has overrun: a chord change's new voices could. 80, not 92: the block a chord
+ * lands in also carries its sequencing and note starts (~10 %), and the FM-1 drops out a little under 100 % (pop's
+ * chord change on the FM-1, 2026-11-14: 92 -> 103 % and 2-3 dropouts, 85 -> 97 % and 2, 80 -> 94 % and none) */
+#define LOAD_ADMIT 80.0f
 #define LOAD_SHARE 0.6f
 void synth_load_hint(synth_t *s, uint32_t pct) { s->load_pred = (float)pct; }
 static float load_add(const synth_t *s, int trk)
 {
     return s->t[trk].cost_m * (100.0f / 544.0f) * LOAD_SHARE;   /* (ticks a frame; 544 a frame's budget) */
-}
-static int load_over(const synth_t *s, int trk)
-{
-    int i;
-    float add = load_add(s, trk);
-    if (add <= 0.0f || s->load_pred <= 0.0f || s->load_pred + add <= LOAD_ADMIT)
-        return 0;
-    for (i = 0; i < s->max_voices; i++)          /* (a sounding voice to take: else the free one after all) */
-        if (v_sounding(&s->v[i]) && s->v[i].steal_phase == 0)
-            return 1;
-    return 0;
 }
 
 /* a voice for a new note: a free one (inside the load check); else the track's oldest if it holds NVOICE_TRK
@@ -1623,8 +1614,8 @@ static int load_over(const synth_t *s, int trk)
  * first keep to their own caps (knit_find, cn_find). */
 static int find_voice(synth_t *s, int trk)
 {
-    int i, best = -1, over;
-    float quiet = 1e9f;
+    int i, best = -1, over, free = -1;
+    float quiet = 1e9f, add;
     uint32_t oldest = 0xFFFFFFFFu;
     if (P(s, trk, TP_ENGINE) == EG_KNIT && (best = knit_find(s, trk)) >= 0)
         return best;
@@ -1641,22 +1632,26 @@ static int find_voice(synth_t *s, int trk)
         if (best >= 0)
             return best;
     }
-    over = load_over(s, trk);
-    if (over)
-        synth_load_steals++;
-    else
-        for (i = 0; i < s->max_voices; i++)
-            if (!v_sounding(&s->v[i])) {
-                s->load_pred += load_add(s, trk);
-                return i;
-            }
-    for (i = 0; i < s->max_voices; i++)
-        if (s->v[i].amp.stage == ENV_RELEASE && s->v[i].steal_phase == 0 && s->v[i].amp.level < quiet) {
+    for (i = 0; i < s->max_voices; i++)          /* (one pass: the first free voice, the quietest tail) */
+        if (!v_sounding(&s->v[i])) {
+            if (free < 0)
+                free = i;
+        } else if (s->v[i].amp.stage == ENV_RELEASE && s->v[i].steal_phase == 0 && s->v[i].amp.level < quiet) {
             quiet = s->v[i].amp.level;
             best = i;
         }
-    if (best >= 0)
+    /* a free voice, unless the load check says over and a release tail can make room (a held note is never cut for
+     * the load); else the quietest tail, as a full pool does */
+    add = load_add(s, trk);
+    over = free >= 0 && best >= 0 && add > 0.0f && s->load_pred > 0.0f && s->load_pred + add > LOAD_ADMIT;
+    if (free >= 0 && !over) {
+        s->load_pred += add;
+        return free;
+    }
+    if (best >= 0) {
+        synth_load_steals += (uint32_t)over;
         return best;
+    }
     for (i = 0; i < s->max_voices; i++)
         if (s->v[i].steal_phase == 0 && s->v[i].age < oldest) {
             oldest = s->v[i].age;
