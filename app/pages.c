@@ -3424,7 +3424,7 @@ static void draw_song(void)
         return;
     if (!sg->len) {
         text_c(120, LY(40, 18), &FONT_B, "No scenes in the song yet", K_TEXT);
-        text_c(120, LY(62, 48), LY(&FONT_S, F_CAP), ui.scene_pg ? "White keys add scenes 17 to 32" : "White keys add scenes 1 to 16", K_DIM);
+        text_c(120, LY(62, 48), LY(&FONT_S, F_CAP), ui.scene_pg ? "Press a white key to add scene 17-32" : "Press a white key to add scene 1-16", K_DIM);
         cv_blit(0, MAIN_Y);
         return;
     }

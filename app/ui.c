@@ -603,7 +603,7 @@ static void play_press(void)
     }
     if (ui.page == P_SONG) {
         if (!pats.song.len) {
-            say_no("NO SONG", "add them with white keys");
+            say_no("NO SONG", "press a white key");
             return;
         }
         int from = ui.name_slot < pats.song.len ? ui.name_slot : 0;   /* from the slot picked (SLOT), else the first */
@@ -4577,7 +4577,7 @@ static void speak_dump(void)
         {"OCTAVE", "+1"}, {"PRESET", "U3 knit"}, {"EFFECT", "delay"}, {"CLEARED", "notes"}, {"COPIED", "pattern"},
         {"PASTED", "pattern"}, {"WOVEN", "copied rhythm"}, {"ROTATED", "forward"}, {"DUPLICATED", "bar"}, {"NO ROOM", "four bars at most"},
         {"SCRAMBLED", 0}, {"PRESET SAVED", "U2"}, {"RESET", "knit"}, {"SONG FULL", "64 slots"}, {"NO SLOT HERE", 0},
-        {"NO SONG", "add them with white keys"}, {"LOADED", "slot 2"}, {"EMPTY SLOT", "defaults loaded"}, {"OLD FORMAT", "defaults loaded"},
+        {"NO SONG", "press a white key"}, {"LOADED", "slot 2"}, {"EMPTY SLOT", "defaults loaded"}, {"OLD FORMAT", "defaults loaded"},
         {"NEW PROJECT", "unsaved"}, {"RANDOMIZED", "T2 to T8"}, {"SCENE IN USE", "pick another first"}, {"ALL NOTES OFF", 0},
         {"STOP FIRST", "to change slots"}, {"THREE SLOTS", "white keys 1 to 3"}, {"ENGINE", "jacquard"}, {"LIST", "nothing here"},
         {"DELETED", "slot"}, {"REMOVED", 0}, {"NO EFFECT YET", "play a key on EDIT"}, {"NO SEGMENT YET", "play a key on EDIT"},

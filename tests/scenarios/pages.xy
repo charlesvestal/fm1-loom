@@ -14,6 +14,10 @@ turn SELECT 1
 expect page Song
 wait 40
 shot song.png
+# PLAY on an empty song: its pop-up (the header checks its width)
+tap PLAY
+wait 40
+expect playing 0
 tap EDIT
 expect page Engine
 wait 40
