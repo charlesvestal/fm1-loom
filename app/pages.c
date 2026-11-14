@@ -1554,7 +1554,7 @@ static const char *fx_label(int pick)
     s_cat(s_cat(s_cat(t, FXT_NAME[FXT_REVERB]), " "), fx_pick_name(pick));
     return t;
 }
-/* an effect's four knobs, 00..99; the delay's time as a note ("1/8D", or what the line plays: "1/4 plays 1/8") and its
+/* an effect's four knobs, 00..99; the delay's time as a note ("1/8D", or what the line plays: "1/4 as 1/8") and its
  * fine in % */
 static char *dl_name(char *o, int d, int h)
 {
@@ -1575,8 +1575,8 @@ static void fx_knobs(knob_t *k, int trk)
         f = (f * 50 + 64) >> 7;                      /* fine: +-25 %, rounded */
         char *e = dl_name(t, d, 0);
         if (h)                                       /* the line too short: what it plays */
-            dl_name(s_cat(e, " plays "), d, h);
-        kv(&k[0], k[0].name, t, par[TP_E1], 127);
+            dl_name(s_cat(e, " as "), d, h);
+        kv(&k[0], k[0].name, t, d, 0);              /* (a list's knob, as the arp's speed) */
         s_cat(num_i(f, s_cat(t, f > 0 ? "+" : "")), "%");
         kv(&k[1], k[1].name, t, par[TP_E2], 127);
     }
@@ -5917,9 +5917,8 @@ static void draw_weave(void)
         return;
     if (!f) {
         s_cat(s_cat(s_cat(t, "Nothing woven into "), TRACK_NAME[trk]), " yet");
-        text_c(120, LY(26, 10), text_w(&FONT_B, t) <= 228 ? &FONT_B : &LFONT_B, t, K_TEXT);   /* ("COND ...": a size down) */
-        text_c(120, LY(54, 42), LY(&FONT_S, F_CAP), "black key: the track to weave in", K_DIM);
-        text_c(120, LY(72, 56), LY(&FONT_S, F_CAP), "white key: its pattern", K_DIM);
+        text_c(120, LY(40, 26), text_w(&FONT_B, t) <= 228 ? &FONT_B : &LFONT_B, t, K_TEXT);   /* ("COND ...": a size down;
+                                                       * the keys' hints below, at the foot) */
         cv_blit(0, MAIN_Y);
         return;
     }
@@ -5957,7 +5956,7 @@ static void draw_weave(void)
     else if ((seq.wv_live | seq.wv_rec) >> trk & 1u)
         s_cat(t, "weaving now");
     else
-        num_s((uint32_t)trk + 1u, s_cat(t, "plays while the WEAVE track's white key ")), s_cat(t + s_len(t), " is on");
+        num_s((uint32_t)trk + 1u, s_cat(t, "on WEAVE: its white key "));   /* (short: "bar 2 of 4" beside it) */
     text_fit(8, LY(98, 64), F_CAP, t, LY(228, 160), !wv_cued(trk) || (seq.wv_live | seq.wv_rec) >> trk & 1u ? K_NOW : K_DIM);
     cv_blit(0, MAIN_Y);
 }

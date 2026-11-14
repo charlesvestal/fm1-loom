@@ -1269,7 +1269,7 @@ under **SEQ**.
 
   The delay's time runs from 1/32 to 1/4 of the tempo, with triplets and dotted values, and fine moves it up to 25 %
   either way. The delay holds half a second, so it halves a time longer than that and the knob shows what plays. For
-  example, below 120 BPM a 1/4 shows "1/4 plays 1/8", and below 90 BPM a 1/8D plays as 1/16D.
+  example, below 120 BPM a 1/4 shows "1/4 as 1/8", and below 90 BPM a 1/8D shows "1/8D as 1/16D".
 
   The reverb has eleven modes, and **PRESETS** steps through them after the phaser. **plate** is LOOM-8's own.
   Nine come from the PlayStation's sound chip, the reverbs its games used: **room**, **studio S**, **studio M** and

@@ -2199,6 +2199,16 @@ static void fx_pick(int trk, int d)              /* the effect (the reverb's mod
         say("EFFECT", fx_label(t));
     }
 }
+/* an effect track's knob p turned by e: the delay's time a note value a click (13 d + 6: in the tenth d, fx.h) */
+static __attribute__((noinline)) int fx_turned(int ft, int p, int32_t e)
+{
+    const uint8_t *par = proj.trk[ft].par;
+    int d;
+    if (p != TP_E1 || fx_pick_type(par[TP_ENGINE] % NFXPICK) != FXT_DELAY)
+        return par[p] + (int)e;
+    d = fx_delay_div(par[p]) + (e > 0 ? 1 : -1);
+    return d < 0 ? 6 : d >= FX_DL_N ? 13 * FX_DL_N - 7 : 13 * d + 6;
+}
 static void aux_knob(int trk, int k, int32_t e)
 {
     const uint8_t *par = proj.trk[trk].par;
@@ -2209,7 +2219,7 @@ static void aux_knob(int trk, int k, int32_t e)
         hi = p == TP_E2 ? 11 : p == TP_E3 ? NBS - 1 : 8;   /* key, scale; link and FOLLOW: off, T1-T8 */
     else if (trk == AUX_PUNCH || trk == AUX_WEAVE)
         hi = 1;
-    set_tp(trk, p, clampi(par[p] + e, 0, hi));
+    set_tp(trk, p, clampi(is_fx(trk) ? fx_turned(trk, p, e) : par[p] + e, 0, hi));
 }
 /* SEL held, a knob turned: that knob's automation (its motion and locks) cleared, from the pattern, or from the steps
  * held (the lock editor's knob) */
@@ -2295,7 +2305,7 @@ static void knob_do(int k, int32_t e)
     }
     if (fx_page(ui.page)) {                      /* an effect's knobs: the effect track's own */
         int ft = ui.page == P_FX1 ? AUX_FX1 : AUX_FX2;
-        set_tp(ft, TP_E1 + k, proj.trk[ft].par[TP_E1 + k] + (int)e);
+        set_tp(ft, TP_E1 + k, fx_turned(ft, TP_E1 + k, e));
         return;
     }
     if (ui.page == P_SENDS) {

@@ -1,0 +1,24 @@
+# the delay's TIME: a note value a click (1/8 -> 1/4T -> 1/8D -> 1/4, the last held), each the middle of its tenth
+# (fx.h fx_delay_div); the knob prints the note, and what plays where the line halves it
+wait 300
+tap FX
+turn SELECT 1
+turn SELECT 1
+wait 40
+expect page FX_I
+expect par11.e1 83
+turn K1 1
+wait 40
+expect par11.e1 97
+turn K1 1
+turn K1 1
+turn K1 1
+wait 40
+expect par11.e1 123
+turn K1 -1
+wait 40
+expect par11.e1 110
+expect epar11.e1 110
+bpm 80
+wait 40
+shot delaytime_80bpm.png
