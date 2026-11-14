@@ -5956,7 +5956,7 @@ static void draw_weave(void)
     else if ((seq.wv_live | seq.wv_rec) >> trk & 1u)
         s_cat(t, "weaving now");
     else
-        num_s((uint32_t)trk + 1u, s_cat(t, "on WEAVE: its white key "));   /* (short: "bar 2 of 4" beside it) */
+        num_s((uint32_t)trk + 1u, s_cat(t, "press WEAVE's white key "));   /* (short: "bar 2 of 4" beside it) */
     text_fit(8, LY(98, 64), F_CAP, t, LY(228, 160), !wv_cued(trk) || (seq.wv_live | seq.wv_rec) >> trk & 1u ? K_NOW : K_DIM);
     cv_blit(0, MAIN_Y);
 }
