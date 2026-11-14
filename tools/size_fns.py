@@ -39,6 +39,8 @@ SRC = Path(__file__).resolve().parents[1]
 SIZE_FILES = ["app/ui.c", "app/pages.c", "app/project.c", "app/lz.c", "app/samples.c", "app/gfx_loom.c", "app/app.c",
               "app/plat_loom.c", "base/device/panel.c", "base/device/main_fm1.c", "base/device/gfx.c",
               "base/device/storage.c", "base/bsp/chip/ota.c", "base/device/announce.c", "base/device/backup.c"]
+# (voice_chunk and voice_subblock left it 2026-11-14: a voice's set-up every 64 / 16 samples, 16 % and 7 % of its time
+# on the FM-1; at -O2 the voices -4 % (pop's both cores 47.1 -> 45.3 %), 2.35 KB of flash)
 # (seq.c's and pattern.c's per-step and per-note code joined 2026-11-14: the six demo songs on the FM-1 the same within
 # noise, mean and slowest block, the sequencer's share of the slowest block too; 3.3 KB of flash)
 COLD = {
@@ -54,7 +56,7 @@ COLD = {
     "dsp/bench.c": [],
     "dsp/synth.c": ["tp_text_i", "tp_text_par", "tp_info_par", "tp_text", "char_picture",
                     "synth_note_off", "synth_duck_trigger", "synth_all_off",
-                    "sound_default", "synth_init", "eknob_init", "voice_chunk", "voice_subblock", "synth_prepare",
+                    "sound_default", "synth_init", "eknob_init", "synth_prepare",
                     "hz_text", "ms_text", "organ_bars", "synth_cut"],
     "seq/pattern.c": ["pattern_init", "patterns_init", "lane_alloc", "lane_clear", "lane_count", "lane_pool_set",
                       "lane_pool_free", "step_clear_locks", "pattern_clear_locks", "step_set_notes",
