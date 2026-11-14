@@ -198,7 +198,7 @@ static struct {
     uint32_t btn, keys, btn_used, btn_t[NB];
     uint32_t enc_t[NE];
     uint32_t act_t;
-    char msg[2][32];                             /* (the second part up to 31: "no weave set: its ARP, Weave") */
+    char msg[2][32];                             /* (the second part up to 31: "set one on its ARP's Weave") */
     uint32_t msg_until;
     uint8_t msg_kind, msg_no;
     int8_t touched;
@@ -2155,7 +2155,7 @@ static void page_footer(char *t)
         return;
     }
     if (ui.card) {
-        s_cat(t, "let go: nothing changes");
+        s_cat(t, "let go to close the help");
         return;
     }
     if (lst.open && lst.n) {
@@ -2552,44 +2552,44 @@ static void draw_footer_as(void)
 #define PG_SOUND (PG(P_ENGINE) | PG(P_PLAY) | PG(P_PLAY2) | PG(P_SUB) | PG(P_ENV) | PG(P_ENV2) | PG(P_KITF) | PG(P_FILTER) | \
                   PG(P_CHARACTER) | PG(P_LFO) | PG(P_LFO2))
 static const struct { uint8_t btn; uint32_t pages; const char *title, *l1, *l2; } CARD[] = {
-    {B_SEQ, PG(P_BAR), "Bars", "Hold SEQ, black keys 1-4: jump to a bar at the next bar line.",
-     "Two held: loop them. One twice: loop it."},
-    {B_SEQ, PG_ANY, "Steps", "The bar's 16 steps on the white keys. Hold SEQ and play the notes,",
+    {B_SEQ, PG(P_BAR), "Bars", "Hold SEQ and press black key 1-4 to jump to that bar.",
+     "Hold two to loop them. Tap one twice to loop it."},
+    {B_SEQ, PG_ANY, "Steps", "The white keys are the bar's 16 steps. Hold SEQ and play notes,",
      "then press steps to write them. Hold several to edit them all."},
-    {B_EDIT, PG_STEPS, "Lock", "With a step held, EDIT, ENV, FX or LFO show their knobs.",
-     "Turn one to lock it. SELECT: pages. SEL held + knob: clear."},
-    {B_EDIT, PG_ANY, "Engine", "The engine's four knobs. PRESETS: its next sound.",
-     "Held: the keys play, ALGORITHM picks the engine. SELECT: pages."},
+    {B_EDIT, PG_STEPS, "Lock", "Hold a step and press EDIT, ENV, FX or LFO for its knobs.",
+     "Turn one to lock it. Hold SEL and turn it to clear."},
+    {B_EDIT, PG_ANY, "Engine", "Press PRESET for the next sound.",
+     "Hold EDIT to play the keys or turn ALGORITHM for the engine."},
     {B_ENV, PG_ANY, "Envelope", "The amp's envelope, the filter, its envelope.",
-     "PRESETS on Filter: its type. A kit: the key's, then the kit's."},
-    {B_FX, PG_ANY, "Effects", "Character, sends, FX I, FX II, then Throws: keys fire effects.",
-     "PRESETS: the type or effect. SEL: an FX's filter."},
-    {B_LFO, PG_ANY, "LFO", "Type, then its first three knobs.", "Page 2 has the type's fourth and fifth."},
+     "Press PRESET on Filter for its type. A kit's key pages come first."},
+    {B_FX, PG_ANY, "Effects", "Character, sends, FX I, FX II, then Throws: play keys to throw.",
+     "Press PRESET for the effect, SEL for its filter."},
+    {B_LFO, PG_ANY, "LFO", "Type, then its first three knobs.", "Turn SELECT for its fourth and fifth."},
     {B_ARP, PG_ANY, "Players", "Arp, strum, hold or random; last page, Weave.",
-     "Random: tap steps as active slots; SEQ picks the pool."},
-    {B_ARP, PG_STEPS, "Tricks", "With a step held, ARP: KNOB 1 and 3 pick its two tricks,",
-     "KNOB 2 and 4 their values. Let go of the step when done."},
-    {B_GLO, PG_ANY, "Mix", "Sends, pan, level. Black: tap mute, hold solo, 2 taps: stays.",
-     "SELECT: Master EQ, out, Setup. HOME's SEL: projects."},
-    {B_HOME, PG_ANY, "Arrange", "Each track's pattern in the scene. White: scenes, black: mutes.",
-     "SEL: projects, scene timing. + REC undoes, + PLAY redoes."},
-    {B_SEL, PG_ANY, "Lists", "The page's actions, then its knobs. SEL runs the one picked.",
-     "SELECT moves, ALGORITHM changes, HOME goes back."},
-    {B_SAVE, PG_STEPS, "Save", "Tap to save the project. A held step's SEL list clears locks.",
+     "Random: tap steps for slots, hold one and press SEQ for the pool."},
+    {B_ARP, PG_STEPS, "Tricks", "Hold a step and press ARP. Turn KNOB 1 and 3 for its tricks,",
+     "KNOB 2 and 4 for their values. Let go of the step when done."},
+    {B_GLO, PG_ANY, "Mix", "Tap a black key to mute, hold to solo, tap twice to keep it.",
+     "Turn SELECT for the master and Setup."},
+    {B_HOME, PG_ANY, "Arrange", "Press white keys for scenes, black keys to mute.",
+     "Press SEL for projects. Hold it, press REC to undo, PLAY to redo."},
+    {B_SEL, PG_ANY, "Lists", "Actions, then knobs. Press SEL to run one.",
+     "Turn SELECT to move, ALGORITHM to change it."},
+    {B_SAVE, PG_STEPS, "Save", "Tap to save. Hold a step and press SEL to clear its locks.",
      "Hold SAVE and press white key 1 to 3 to save to that slot."},
     {B_SAVE, PG_SOUND, "Save", "Tap to save the project.",
-     "Hold SAVE and press a white key: the sound as that user preset."},
-    {B_SAVE, PG_ANY, "Save", "Saves now (LOOM-8 saves by itself when stopped and quiet).", "Hold SAVE and press white key 1 to 3 to save to that slot."},
-    {B_REC, PG_ANY, "Recording", "Stopped: a tap, then each key writes a step. + PLAY: live.",
-     "Playing: hold it and play. Held, the knobs set click, count-in, mode."},
-    {B_PLAY, PG(P_SONG), "Play", "Plays the song from the slot picked. PLAY again stops.", "SEL's PLAY SONG: from the top."},
-    {B_PLAY, PG_ANY, "Play", "Starts and stops. Twice quickly: from the top.", "HOME + PLAY redoes."},
-    {B_OCTDN, PG_STEPS, "Bar", "Shows the bar before. A step held: nudges it earlier.",
-     "Step record: the cursor back."},
-    {B_OCTUP, PG_STEPS, "Bar", "Shows the next bar. A step held: nudges it later.",
-     "Step record: the cursor on."},
-    {B_OCTDN, PG_ANY, "Octave", "The keys an octave down.", 0},
-    {B_OCTUP, PG_ANY, "Octave", "The keys an octave up.", 0},
+     "Hold SAVE and press a white key to save the sound as a preset."},
+    {B_SAVE, PG_ANY, "Save", "Tap to save now. LOOM-8 also saves when stopped and quiet.", "Hold SAVE and press white key 1 to 3 to save to that slot."},
+    {B_REC, PG_ANY, "Recording", "When stopped, tap it and play keys to write steps.",
+     "Hold it and play to record live, or turn knobs to set it up."},
+    {B_PLAY, PG(P_SONG), "Play", "Press to play the song from the slot picked, again to stop.", "For the top, use PLAY SONG on SEL."},
+    {B_PLAY, PG_ANY, "Play", "Press to start or stop, twice quickly to start from the top.", "Hold HOME and press PLAY to redo."},
+    {B_OCTDN, PG_STEPS, "Bar", "Press for the bar before. Hold a step and press to nudge it earlier.",
+     "In step record, press to step back."},
+    {B_OCTUP, PG_STEPS, "Bar", "Press for the next bar. Hold a step and press to nudge it later.",
+     "In step record, press to step on."},
+    {B_OCTDN, PG_ANY, "Octave", "Press for the keys an octave lower.", 0},
+    {B_OCTUP, PG_ANY, "Octave", "Press for the keys an octave higher.", 0},
 };
 #define NCARDS (sizeof CARD / sizeof CARD[0])
 static int card_find(int btn)
@@ -2749,8 +2749,8 @@ static void list_bt_audio(void)
         bt_ix[n] = (uint8_t)i;
         list_add(bt_nm[n++], "new", LK_ACTION, A_BT_DEV);
     }
-    s_cat(bt_note, look ? (n ? "still looking. SEL connects" : "looking for devices...")
-                        : n ? "pick a device. SEL connects" : "none found. In pairing mode?");
+    s_cat(bt_note, look ? (n ? "pick one and press SEL" : "looking for devices...")
+                        : n ? "pick one and press SEL" : "none found. In pairing mode?");
     list_add(ACTION_NAME[A_BT_LOOK], look ? "looking" : "", LK_ACTION, A_BT_LOOK);
     if (k) {
         char nm[17];
@@ -2764,14 +2764,14 @@ static void list_bt_dev(void)
 {
     int n;
     if (btdev_busy()) {
-        list_note(btdev_ready() ? "connected. SEL lets it go" : "connecting...");
+        list_note(btdev_ready() ? "Press SEL to disconnect" : "connecting...");
         list_add(ACTION_NAME[A_BT_DISCONNECT], btdev_name(), LK_ACTION, A_BT_DISCONNECT);
         return;
     }
     list_note("");
     for (n = 0; n < BT_ROWS && btdev_found(n, bt_nm[n], 0); n++)
         list_add(bt_nm[n], "found", LK_ACTION, A_BT_DEV);
-    s_cat(bt_note, n ? "pick a device. SEL connects" : plat_ms() - bt.t0 < 8000u ? "looking for MIDI devices..."
+    s_cat(bt_note, n ? "pick one and press SEL" : plat_ms() - bt.t0 < 8000u ? "looking for MIDI devices..."
                                                      : "none found yet. Is it on?");
 }
 /* the first empty pattern of a track (its steps all empty), not the one shown; -1 none */
@@ -4164,7 +4164,7 @@ static void smp_columns(int idx, const smp_t *sm, int w)
  * the installer puts them in the bank) is installed from the samples page */
 static const char *smp_missing(int idx)
 {
-    return idx >= smp_factory() ? "empty: the samples page fills it"
+    return idx >= smp_factory() ? "empty: fill it on the samples page"
          : idx >= SMP_BREAK ? "install the breaks: samples page" : "install the sounds: samples page";
 }
 static void pic_sample(int32_t x0, int32_t y0, int32_t w, int32_t h, const uint8_t *p)
@@ -4994,7 +4994,7 @@ static void draw_key_filter(void)
     cv_rect(x0, y0 + hh, w, 1, K_LINE);
     if (ft == DF_OFF) {
         cv_rect(x0, y0 + 22, w, 2, K_DIM);
-        s_cat(s_cat(t, DL_SOUND_NAME[key]), ": no filter, PRESET picks one");
+        s_cat(s_cat(t, DL_SOUND_NAME[key]), ": no filter. Press PRESET for one");
         text_fit(x0, y0 + hh + 3, LY(&FONT_XS, F_CAP), t, w, K_DIM);
         cv_blit(0, MAIN_Y);
         return;
@@ -5137,7 +5137,7 @@ static void draw_filter(void)
     cv_rect(x0, y0 + hh, w, 1, K_LINE);
     if (is_drum(trk) && !dyn) {                      /* the kit's bus filter, switched off */
         cv_rect(x0, y0 + 22, w, 2, K_DIM);
-        cv_text(x0, y0 + hh + 3, &FONT_XS, "all keys: no bus filter, PRESET turns it on", K_DIM);
+        cv_text(x0, y0 + hh + 3, &FONT_XS, "all keys: no bus filter. Press PRESET for one", K_DIM);
         cv_blit(0, MAIN_Y);
         return;
     }
@@ -5348,7 +5348,7 @@ static void draw_players(void)
     int32_t ty = title_sub(tp_info_par(TP_PLAYER, proj.trk[trk].par)->names[pl],
                            pl == PL_OFF ? "the keys play as they are" : pl == PL_ARP ? "held notes play one after another"
                            : pl == PL_STRUM ? "one key strums the chord; keys together set it"
-                           : pl == PL_RAND ? "active slots: the pool picks notes" : "notes stay until the next", K_DIM);
+                           : pl == PL_RAND ? "active slots: notes from the pool" : "notes stay until the next", K_DIM);
     e = s_cat(t, pl == PL_STRUM ? "chord: " : "held: ");
     if (pl == PL_STRUM) {
         e = chord_name(pr->chord, pr->nchord < SN * 2 ? pr->nchord : SN * 2, e);
@@ -5730,7 +5730,7 @@ static void draw_glfo(void)
         return;
     if (!sh) {
         text_c(120, 24, &FONT_B, "the shared LFO is off", K_TEXT);
-        text_c(120, 50, &FONT_S, "KNOB 1: a shape to turn it on", K_DIM);
+        text_c(120, 50, &FONT_S, "turn KNOB 1 to pick a shape", K_DIM);
     } else {
         cv_rect(x0, cy, w, 1, K_LINE);
         for (int i = 0; i <= 52; i++) {           /* (the random shape: a few steps, as it holds a value a cycle) */
@@ -5778,7 +5778,7 @@ static void draw_setup(void)
         setup_f = &LFONT_S;
         setup_row(1, "tempo from", seq.ext ? "MIDI clock in" : "LOOM-8");
         setup_row(17, "USB audio", USBA_NAME[proj.usb_full & 1u]);
-        setup_row(33, "autosave", proj.rsv[2] & AUTOSAVE_OFF ? "off: SAVE saves" : "on");
+        setup_row(33, "autosave", proj.rsv[2] & AUTOSAVE_OFF ? "off: press SAVE" : "on");
         setup_row(49, "BT audio", ta);
         setup_row(65, "BT MIDI", td);
         setup_f = 0;
@@ -5789,7 +5789,7 @@ static void draw_setup(void)
     setup_row(16, "clock", CLOCK_ROW[proj.clock % SEQ_NCLK]);
     setup_row(30, "sends notes", proj.send_notes ? "yes" : "no");
     setup_row(44, "USB audio", USBA_NAME[proj.usb_full & 1u]);
-    setup_row(58, "autosave", proj.rsv[2] & AUTOSAVE_OFF ? "off: SAVE saves" : "on");
+    setup_row(58, "autosave", proj.rsv[2] & AUTOSAVE_OFF ? "off: press SAVE" : "on");
     setup_row(72, "theme", THEME_OF_PROJ()->name);
     setup_row(86, "BT audio", ta);
     setup_row(100, "BT MIDI", td);
@@ -5991,7 +5991,7 @@ static void draw_weave_play(void)
             text_c(x + 21, LY(y + 22, y + 16), F_CAP, "-", K_FAINT);
     }
     cv_text(8, LY(99, 66), F_CAP, !any ? "no weaves yet: set one on a track's ARP"
-                             : proj.trk[AUX_WEAVE].par[TP_E1] ? "latch: a tap on, a tap off" : "a key held: that track weaves",
+                             : proj.trk[AUX_WEAVE].par[TP_E1] ? "tap a key to weave, again to stop" : "hold a key to weave its track",
             K_DIM);
     cv_blit(0, MAIN_Y);
 }

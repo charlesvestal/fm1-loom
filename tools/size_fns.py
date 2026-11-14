@@ -42,7 +42,7 @@ SIZE_FILES = ["app/ui.c", "app/pages.c", "app/project.c", "app/lz.c", "app/sampl
 COLD = {
     "dsp/drumline.c": ["start", "knob", "drumline_filter", "drumline_hit", "reso_set", "drumline_init"],
     "dsp/fx.c": ["fx_derive", "eq_coefs", "fx_filter", "master_set", "master_init", "comp_coefs",
-                 "fx_set", "fx_init"],
+                 "fx_set", "fx_init", "delay_time", "delay_secs", "fx_delay_halves"],
     "dsp/sample.c": ["smp_user_scan", "fact_init"],
     "dsp/digisophie.c": [],
     "dsp/d909.c": ["d909_start", "d9_biquad_set", "d9_shape_prep", "d9_env_exp"],

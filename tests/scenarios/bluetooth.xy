@@ -23,7 +23,7 @@ tap SEL
 wait 300
 said Audio devices list. looking for devices...
 wait 600
-said still looking. SEL connects. Speaker new
+said pick one and press SEL. Speaker new
 shot bt_audio_list.png
 # SEL: connect it (audio turns on, kept in the project)
 tap SEL
@@ -37,7 +37,7 @@ tap SEL
 row AUDIO DEVICE
 tap SEL
 wait 300
-said pick a device. SEL connects. Speaker playing
+said pick one and press SEL. Speaker playing
 row FORGET
 wait 100
 said FORGET Speaker
@@ -104,7 +104,7 @@ tap SEL
 wait 200
 said MIDI devices list. looking for MIDI devices...
 wait 700
-said pick a device. SEL connects. BLE MIDI found
+said pick one and press SEL. BLE MIDI found
 shot bt_dev_list.png
 tap SEL
 wait 600
@@ -116,7 +116,7 @@ tap SEL
 row MIDI DEVICE
 tap SEL
 wait 200
-said connected. SEL lets it go. DISCONNECT BLE MIDI
+said Press SEL to disconnect. DISCONNECT BLE MIDI
 tap SEL
 wait 200
 said DISCONNECTED

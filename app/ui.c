@@ -603,7 +603,7 @@ static void play_press(void)
     }
     if (ui.page == P_SONG) {
         if (!pats.song.len) {
-            say_no("NO SONG", "white keys add scenes");
+            say_no("NO SONG", "add them with white keys");
             return;
         }
         int from = ui.name_slot < pats.song.len ? ui.name_slot : 0;   /* from the slot picked (SLOT), else the first */
@@ -654,7 +654,7 @@ static void rec_tap(void)                        /* REC released, unused, while 
     ui.rec_armed = (uint8_t)!ui.rec_armed;
     if (ui.rec_armed) {
         step_rec_start();
-        say("STEP RECORD", "keys write steps");
+        say("STEP RECORD", "play keys to write");
     } else
         say("RECORD OFF", 0);
 }
@@ -2881,7 +2881,7 @@ static void weave_key(int k, int on)
         ui.wv_held &= (uint16_t)~m;
     seq.wv_live = (uint16_t)(ui.wv_held | ui.wv_latched);
     if (on && !wv_from(w))
-        say_no(TRACK_NAME[w], "no weave set: its ARP, Weave");
+        say_no(TRACK_NAME[w], "set one on its ARP's Weave");
 }
 static void weave_set(int t, int from, int pat, int rule)
 {
@@ -4570,14 +4570,14 @@ static void speak_dump(void)
         {"SAVED", 0}, {"NOT SAVED", "flash error"}, {"UNDO", "T1 P1"}, {"REDO", "T1 P1"}, {"NOTHING TO UNDO", 0},
         {"NOTHING TO REDO", 0}, {"COUNT-IN", "then recording"}, {"RECORDING", "latched"}, {"RECORDING", "on the first note"}, {"SOLO", "T1"}, {"PLAY FROM BAR", "2"},
         {"SOLO OFF", 0}, {"RECORDING", "play to start"},
-        {"RECORD OFF", 0}, {"STEP RECORD", "keys write steps"},
+        {"RECORD OFF", 0}, {"STEP RECORD", "play keys to write"},
         {"LENGTH", "to step 4"}, {"NUDGE", "+2"},
         {"NO LANE LEFT", "clear locks first"}, {"LOCKS CLEARED", 0}, {"NEW", "S3"}, {"MUTED", "T1"}, {"UNMUTED", "T1"},
         {"INSERTED", "S2"}, {"T3", 0}, {"SOUND", "snare"}, {"KEY", "snare"}, {"SCALE", "1/2"}, {"BAR", "2"}, {"CURSOR", "5"},
         {"OCTAVE", "+1"}, {"PRESET", "U3 knit"}, {"EFFECT", "delay"}, {"CLEARED", "notes"}, {"COPIED", "pattern"},
         {"PASTED", "pattern"}, {"WOVEN", "copied rhythm"}, {"ROTATED", "forward"}, {"DUPLICATED", "bar"}, {"NO ROOM", "four bars at most"},
         {"SCRAMBLED", 0}, {"PRESET SAVED", "U2"}, {"RESET", "knit"}, {"SONG FULL", "64 slots"}, {"NO SLOT HERE", 0},
-        {"NO SONG", "white keys add scenes"}, {"LOADED", "slot 2"}, {"EMPTY SLOT", "defaults loaded"}, {"OLD FORMAT", "defaults loaded"},
+        {"NO SONG", "add them with white keys"}, {"LOADED", "slot 2"}, {"EMPTY SLOT", "defaults loaded"}, {"OLD FORMAT", "defaults loaded"},
         {"NEW PROJECT", "unsaved"}, {"RANDOMIZED", "T2 to T8"}, {"SCENE IN USE", "pick another first"}, {"ALL NOTES OFF", 0},
         {"STOP FIRST", "to change slots"}, {"THREE SLOTS", "white keys 1 to 3"}, {"ENGINE", "jacquard"}, {"LIST", "nothing here"},
         {"DELETED", "slot"}, {"REMOVED", 0}, {"NO EFFECT YET", "play a key on EDIT"}, {"NO SEGMENT YET", "play a key on EDIT"},
@@ -4585,8 +4585,8 @@ static void speak_dump(void)
         {"BT AUDIO", "refused"}, {"BT AUDIO", "lost"}, {"BT AUDIO", "no answer"}, {"CONNECTING", "Speaker"},
         {"CONNECTED", 0}, {"NO ANSWER", 0}, {"DEVICE LOST", 0}, {"DISCONNECTED", 0}, {"FORGOTTEN", "Speaker"},
         {"NO DEVICE", "computer connected"}, {"NO DEVICE", "look again"}, {"LOOKING", "for headphones, speakers"},
-        {"PIN", "0 4 2 6 1 3"}, {"BT MIDI", "on"}, {"BT MIDI", "off"}, {"BT MIDI OFF", "turn it on first"}, {"looking for devices...", 0}, {"still looking. SEL connects", 0},
-        {"pick a device. SEL connects", 0}, {"none found. In pairing mode?", 0}, {"connected. SEL lets it go", 0},
+        {"PIN", "0 4 2 6 1 3"}, {"BT MIDI", "on"}, {"BT MIDI", "off"}, {"BT MIDI OFF", "turn it on first"}, {"looking for devices...", 0}, {"pick one and press SEL", 0},
+        {"pick one and press SEL", 0}, {"none found. In pairing mode?", 0}, {"Press SEL to disconnect", 0},
         {"connecting...", 0}, {"looking for MIDI devices...", 0}, {"none found yet. Is it on?", 0}};
     static const char *const ASK[] = {"CLEAR SCENE 3?", "REPLACE USER PRESET 2?", "REPLACE PROJECT 2?", "REPLACE KIT K2?",
                                       "LOSE UNSAVED CHANGES?", "NEW PROJECT?", "CLEAR THE SONG?",
