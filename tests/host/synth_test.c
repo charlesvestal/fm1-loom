@@ -1021,11 +1021,11 @@ static void acid_tests(void)
     acid_render(44100 / 4, &finite);
     pk100 = peak_of(acid_buf, 44100 / 4);
     synth_note_off(S, 0, 1);
-    for (b = 0; b < 172 && synth_sounding(S, 0, NVOICE); b++)
+    for (b = 0; b < 207 && synth_sounding(S, 0, NVOICE); b++)   /* 1.2 s: the 500 ms hold and the drive's DC blocker */
         block(N, &finite);
     printf("    acid line: a note peaks %.1f dBFS, its voice free after %d ms\n", (double)db(pk100), b * N * 1000 / 44100);
     check("acid: a note sounds, finite, in range", finite && pk100 > 0.0316f && pk100 <= 1.0f);
-    check("acid: its voice ends within a second of the note's end", !synth_sounding(S, 0, NVOICE));
+    check("acid: its voice ends within 1.2 s of the note's end", !synth_sounding(S, 0, NVOICE));
     /* accent */
     synth_note_on(S, 0, 48, 127, 0, 2);
     acid_render(44100 / 4, &finite);

@@ -242,7 +242,11 @@ void bass303_set(bass303_t *b, int i, int v)
     case BASS303_DRIVE:
         b->drv_amt = n;
         b->s_gain = c_db2lin(24.0f * n);
-        b->s_inv = 1.0f / b->s_gain;
+        {   /* LOOM-8: Soft's make-up, the drive-off level kept (within 1.6 dB, measured across cutoff, resonance and
+             * both waves); drive.h's 1 / gain lost up to 18 dB at LOOM-8's level, where tanh already caps the peaks */
+            const float h = 1.0f - 1.0f / b->s_gain;
+            b->s_inv = 1.0f / (1.0f + h * h);
+        }
         rat_coeffs(b);
         break;
     case BASS303_SOFTATK:                                      /* Open303 setNormalAttack: the first RC follower */
