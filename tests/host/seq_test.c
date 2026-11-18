@@ -2625,6 +2625,36 @@ static void t_ext_clock(void)
     printf("ok %s\n", cur);
 }
 
+/* the clock in's tempo, ticks seen at the start of 256-sample blocks (as the FM-1 sees them): steady at 89 BPM (it
+ * swung 88-90, and the delay bent with it), then 120 followed */
+static void t_ext_tempo(void)
+{
+    double at = 0.0, now = 0.0;
+    float lo = 999.0f, hi = 0.0f;
+    int b;
+    cur = "ext-tempo";
+    reset();
+    S.clock = SEQ_CLK_RECEIVE;
+    start();
+    for (b = 0; b < 40 * 44100 / 256; b++) {          /* 40 s */
+        double tick = 44100.0 * 60.0 / ((now < 30 * 44100.0 ? 89.0 : 120.0) * 24.0);
+        now += 256.0;
+        while (at <= now) {
+            seq_ext_clock(&S);
+            at += tick;
+        }
+        seq_advance(&S, 256, &sink);
+        if (now > 5 * 44100.0 && now < 30 * 44100.0) {
+            float t = seq_tempo(&S);
+            lo = t < lo ? t : lo;
+            hi = t > hi ? t : hi;
+        }
+    }
+    CHECK(S.ext == 1 && lo == hi && lo > 88.7f && lo < 89.3f);
+    CHECK(seq_tempo(&S) > 119.6f && seq_tempo(&S) < 120.4f);
+    printf("ok %s\n", cur);
+}
+
 /* A host loop seek can deliver Stop, SPP and Continue before one audio update.
  * A later Continue/Start must survive Stop cleanup; a final Stop must win. */
 static void t_transport_batch(void)
@@ -3446,6 +3476,7 @@ int main(void)
     t_rec_wait();
     t_rec_early();
     t_ext_clock();
+    t_ext_tempo();
     t_transport_batch();
     t_midi_out();
     t_count_in();

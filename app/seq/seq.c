@@ -3309,6 +3309,49 @@ static void six_tick(seq_t *s, const seq_sink_t *o)
     s->six_to_next = s->ext ? NEVER : carry + six_q8(s);
 }
 
+/* the clock in's tempo, from one tick more (D samples after the last). A tick is seen at its block's start, so one
+ * tick's time is out by up to a block (5.8 ms, a fifth of a tick at 89 BPM): the tempo is the ticks over the time
+ * since the clock came (or changed tempo), halved past 8 s so a slow drift is followed, and it moves only when that
+ * leaves it by 0.3 %, to a tenth of a BPM. Tick by tick it swung 88-90 BPM, and the delay, timed by it, bent its
+ * echoes (up to 4 semitones). A beat 3 % off the tempo is a new tempo, from that beat */
+static void ext_tempo(seq_t *s, uint32_t d)
+{
+    float est, raw;
+    if (d >= SEQ_FS / 2u || !s->ext_lock) {  /* a new clock (or one back after a gap): count from this tick */
+        s->ext_t = s->ext_beat = 0;
+        s->ext_n = 0;
+        s->ext_bn = 0;
+        s->ext_lock = 1;
+        return;
+    }
+    s->ext_t += d;
+    s->ext_beat += d;
+    s->ext_n++;
+    if (!s->ext_t)
+        return;
+    est = (float)SEQ_FS * 60.0f * (float)s->ext_n / (24.0f * (float)s->ext_t);
+    if (++s->ext_bn < 24) {
+        if (s->ext_lock == 1)             /* the first beat: the tempo so far */
+            s->ext_bpm = est;
+        return;
+    }
+    raw = (float)SEQ_FS * 60.0f / (float)s->ext_beat;
+    if (raw > est * 1.03f || raw < est * 0.97f) {
+        s->ext_t = s->ext_beat;
+        s->ext_n = 24;
+        est = raw;
+    }
+    if (s->ext_t > 8u * SEQ_FS) {
+        s->ext_t >>= 1;
+        s->ext_n >>= 1;
+    }
+    s->ext_beat = 0;
+    s->ext_bn = 0;
+    if (s->ext_lock == 1 || est > s->ext_bpm * 1.003f || est < s->ext_bpm * 0.997f)
+        s->ext_bpm = (float)(int32_t)(est * 10.0f + 0.5f) * 0.1f;
+    s->ext_lock = 2;
+}
+
 /* external clock ticks: arm the sixteenth and the steps they complete */
 static void ext_ticks(seq_t *s)
 {
@@ -3316,11 +3359,7 @@ static void ext_ticks(seq_t *s)
     int t;
     s->ext_pending = 0;
     for (; n; n--) {
-        if (s->ext_since > 0 && s->ext_since < SEQ_FS) {
-            uint32_t q = s->ext_since << 8;
-            s->ext_period = s->ext_period ? s->ext_period - (s->ext_period >> 3) + (q >> 3) : q;
-            s->ext_bpm = (float)SEQ_FS * 60.0f * 256.0f / (24.0f * (float)s->ext_period);
-        }
+        ext_tempo(s, s->ext_since);
         s->ext_since = 0;
         if (!s->playing || s->rec_wait)
             continue;

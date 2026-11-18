@@ -267,7 +267,10 @@ typedef struct {
     player_t player[NTRK];
     uint32_t bar_to_next;             /* Q8 */
     int32_t clk_to_next;              /* Q8; the MIDI clock's goes below 0 when it waits for a stretch to end */
-    uint32_t ext_since, ext_period;
+    uint32_t ext_since;               /* samples since the last clock tick */
+    uint32_t ext_t, ext_beat;         /* the clock in's tempo: samples over ext_n ticks, and this beat's (ext_bn ticks) */
+    uint16_t ext_n;
+    uint8_t ext_bn, ext_lock;         /* lock: 0 no clock, 1 its first beat, 2 a beat measured */
     volatile uint32_t ext_pending;
     volatile uint8_t req_start, req_stop, req_cont, req_from_start;
     volatile int16_t req_at;          /* seq_start_at: the step the start is from (0: step 1) */
