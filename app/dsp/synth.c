@@ -476,6 +476,19 @@ static void rayon_prep(voice_t *v)
     c->ex[4] = c->ex[5] < 0.45f ? c->e[3] * 0.5f * vs : 0.0f;
     c->stereo = 0;
 }
+/* rayon's sine, sin(2 pi ph) for any phase: folded to a quarter turn, then a degree-7 polynomial in turns (max error
+ * 7.4e-7, -123 dB; fitted on [-1/4, 1/4]). About half the multiplies of fastmath's fm_sin_turns (2 pi, then degree 13),
+ * which rayon calls two or three times a sample */
+static inline float sin_q7(float ph)
+{
+    float x = ph - fm_floorf(ph + 0.5f), x2;
+    if (x > 0.25f)
+        x = 0.5f - x;
+    else if (x < -0.25f)
+        x = -0.5f - x;
+    x2 = x * x;
+    return x * (((-7.099341583e+01f * x2 + 8.134076691e+01f) * x2 - 4.133714294e+01f) * x2 + 6.283164024e+00f);
+}
 static void rayon_run(voice_t *v, float *xl, float *xr, int m)
 {
     const cfg_t *c = &v->c;
@@ -487,15 +500,15 @@ static void rayon_run(voice_t *v, float *xl, float *xr, int m)
         float mo;
         mp = step1(mp, dm);
         cp = step1(cp, dc);
-        mo = fm_sin_turns(mp + fbv * fb);
+        mo = sin_q7(mp + fbv * fb);
         fbv = mo;
-        xl[i] = fm_sin_turns(cp + mo * idx);
+        xl[i] = sin_q7(cp + mo * idx);
     }
     if (tl > 1e-4f) {                            /* the tine, added */
         float tp = v->o[6], dt = c->ex[5];
         for (i = 0; i < m; i++) {
             tp = step1(tp, dt);
-            xl[i] += fm_sin_turns(tp) * tl;
+            xl[i] += sin_q7(tp) * tl;
         }
         v->o[6] = tp;
     }
