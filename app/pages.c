@@ -182,7 +182,7 @@ static const char *const ONOFF[2] = {"off", "on"};
 static const char *const LINK_NAME[9] = {"off", "T1", "T2", "T3", "T4", "T5", "T6", "T7", "T8"};
 static const char *const FOLLOW_NAME[NBM] = {"no", "diatonic", "transpose", "harmony", "ch. deg"};
 static const char *const CORE2_NAME[4] = {"one core", "two cores", "lost", "barred"};
-static const char *const USBA_NAME[2] = {"follows knob", "full"};
+static const char *const USBA_NAME[3] = {"follows knob", "full", "stereo"};
 static const char *const BRAIN_KNOB[3] = {"key", "scale", "link"};
 
 /* the keys: 0 = F3; the white and the black ones in order */
@@ -2980,7 +2980,7 @@ static void list_setup(int g)
     bt_adev_text(baud_t);
     list_add(ACTION_NAME[A_BT_ADEV], baud_t, LK_ACTION, A_BT_ADEV);
     list_head("USB and MIDI");
-    list_add(ACTION_NAME[A_USB_AUDIO], USBA_NAME[proj.usb_full & 1u], LK_PICK, A_USB_AUDIO);
+    list_add(ACTION_NAME[A_USB_AUDIO], USBA_NAME[proj.usb_full < 3u ? proj.usb_full : 0u], LK_PICK, A_USB_AUDIO);
 #if FM1B_USB_HOST
     list_add(ACTION_NAME[A_USB_HOST], plat_usb_host_state() ? "MIDI host" : "computer", LK_PICK, A_USB_HOST);
 #endif
@@ -5777,7 +5777,7 @@ static void draw_setup(void)
                                                       * notes, theme: their values right there), at 15 px */
         setup_f = &LFONT_S;
         setup_row(1, "tempo from", seq.ext ? "MIDI clock in" : "LOOM-8");
-        setup_row(17, "USB audio", USBA_NAME[proj.usb_full & 1u]);
+        setup_row(17, "USB audio", USBA_NAME[proj.usb_full < 3u ? proj.usb_full : 0u]);
         setup_row(33, "autosave", proj.rsv[2] & AUTOSAVE_OFF ? "off: press SAVE" : "on");
         setup_row(49, "BT audio", ta);
         setup_row(65, "BT MIDI", td);
@@ -5788,7 +5788,7 @@ static void draw_setup(void)
     setup_row(2, "tempo from", seq.ext ? "MIDI clock in" : "LOOM-8");
     setup_row(16, "clock", CLOCK_ROW[proj.clock % SEQ_NCLK]);
     setup_row(30, "sends notes", proj.send_notes ? "yes" : "no");
-    setup_row(44, "USB audio", USBA_NAME[proj.usb_full & 1u]);
+    setup_row(44, "USB audio", USBA_NAME[proj.usb_full < 3u ? proj.usb_full : 0u]);
     setup_row(58, "autosave", proj.rsv[2] & AUTOSAVE_OFF ? "off: press SAVE" : "on");
     setup_row(72, "theme", THEME_OF_PROJ()->name);
     setup_row(86, "BT audio", ta);

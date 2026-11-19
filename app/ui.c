@@ -2600,12 +2600,15 @@ static void list_change_do(int32_t e)
         case A_SAVE_KIT: ui.pick_kslot = (uint8_t)((ui.pick_kslot + d + NUSER_KITS) % NUSER_KITS); break;
         case A_LOAD_PROJ: ui.pick_slot = (uint8_t)((ui.pick_slot + d + NPROJ) % NPROJ); break;
         case A_SAVE_TO: ui.pick_save = (uint8_t)((ui.pick_save + d + NPROJ) % NPROJ); break;
-        case A_USB_AUDIO:
-            if (proj.usb_full != (uint8_t)(d > 0)) {
-                proj.usb_full = (uint8_t)(d > 0);
+        case A_USB_AUDIO: {                           /* follows knob, full, stereo */
+            int v = (int)proj.usb_full + (d > 0 ? 1 : -1);
+            v = v < 0 ? 0 : v > 2 ? 2 : v;
+            if (proj.usb_full != (uint8_t)v) {
+                proj.usb_full = (uint8_t)v;
                 mark_dirty();
             }
             break;
+        }
         case A_BT_AUDIO:
             if (bt.want != (uint8_t)(d > 0))
                 bt_audio_set(d > 0);

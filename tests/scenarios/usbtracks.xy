@@ -49,3 +49,17 @@ expect mute 1
 usbwav usb_muted.wav
 wait 2200
 usbwavstop
+# USB AUDIO stereo (Setup's SEL list, two steps past follows knob): the master alone, channels 3..10 silent
+tap GLO
+turn SELECT 5
+expect page Setup
+tap SEL
+row USB AUDIO
+wait 50
+turn ALGO 2
+wait 100
+tap HOME
+wait 300
+usbwav usb_stereo.wav
+wait 2200
+usbwavstop

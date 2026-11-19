@@ -147,7 +147,9 @@ static void usb_host_poll(void)
 }
 void app_frame(void)
 {
-    plat_usb_audio_full(proj.usb_full);             /* Setup's USB AUDIO: follows the knob, or full */
+    plat_usb_audio_full(proj.usb_full != 0);        /* Setup's USB AUDIO: follows the knob, full, or stereo (full,
+                                                     * the master alone) */
+    eng_usb_stereo = proj.usb_full == 2;
     usb_host_poll();
     ui_frame();
 }

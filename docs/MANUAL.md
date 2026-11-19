@@ -1457,6 +1457,8 @@ every track on its own. Each track's channel has the track at its level, before 
 character. The sends' effects and the master's EQ, color, compressor and pump are only on channels 1 and 2. A
 muted track's channel is silent. To set the level of all ten, use USB audio on Setup's **SEL** list. With
 **follows knob**, MASTER sets it. With **full**, the speaker follows MASTER and the recording stays at full level.
+With **stereo**, the master is recorded at full level as with **full**, and channels 3 to 10 are silent. Use it when
+you only record the master: sending the tracks takes some of LOOM-8's time, which a busy song may need.
 
 The TRS jack is MIDI in. Everything that comes in over USB works from it too, except SysEx: notes, CCs, Program
 Change, and MIDI clock with start and stop. The FM-1 has no MIDI out jack, so LOOM-8 sends only over USB and

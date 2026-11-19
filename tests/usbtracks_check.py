@@ -28,10 +28,10 @@ def db(x):
 
 
 def main(d):
-    both, panned, muted = (channels(f"{d}/usb_{k}.wav") for k in ("both", "panned", "muted"))
+    both, panned, muted, stereo = (channels(f"{d}/usb_{k}.wav") for k in ("both", "panned", "muted", "stereo"))
     lv = lambda chs: [round(db(c), 1) for c in chs]
     print("usbtracks: dBFS by channel (master L R, T1..T8)")
-    for name, chs in (("both", both), ("panned", panned), ("muted", muted)):
+    for name, chs in (("both", both), ("panned", panned), ("muted", muted), ("stereo", stereo)):
         print(f"  {name:7s}", lv(chs))
     fails = []
     if not (db(both[2]) > -40 and db(both[3]) > -40):
@@ -46,6 +46,10 @@ def main(d):
         fails.append("T1 muted: its channel silent")
     if abs(db(muted[3]) - db(both[3])) > 1.0:
         fails.append("T1 muted: T2's channel unchanged")
+    if not db(stereo[0]) > -40:
+        fails.append("stereo: the master should sound")
+    if any(rms(c) for c in stereo[2:]):
+        fails.append("stereo: channels 3..10 should be silent")
     for f in fails:
         print("  FAIL", f)
     return 1 if fails else 0

@@ -7,6 +7,7 @@ ble = true                     # Bluetooth MIDI with a computer
 ble_stack = "own"              # Optimist's own stack (fm1-base bt/), no JieLi library
 ble_pairing = true
 ble_central = true
+ble_diag = false               # the link layer's diagnostics left out (~2.4 KB of RAM): the room for audio_ahead
 bt_audio = true
 usb_audio_in = true            # the master output recordable over USB (Setup's USB AUDIO: follows the knob, or full)
 usb_audio_first = true         # the audio streaming interface listed first (macOS shows the audio device: felucca-bsp #10)
@@ -21,6 +22,8 @@ words = "words.tsv"
 boot_pack = true               # .ram_text and .data LZMA-packed in the image, unpacked at boot (Melodee's: ~9 KB of flash)
 pool_spare = 1984              # the SRAM's margin (fm1-base insists on 8 KB): spent on mirroring (2026-11-05), the 10-channel USB audio (11-06) and 64 B to fm1-base 7337375 (11-19)
 ram_layout = "packed"            # one SRAM budget (the RAM code's unused 12 KB): the USB audio input's 10-channel ring
+audio_ahead = true             # each half rendered aside a block ahead (fm1-base FM1B_AUDIO_AHEAD): a render may take two halves
+                               # without a dropout (a busy song with the ten USB channels and a clock in), for 5.8 ms more latency; 2 KiB of RAM
 cpu2 = true                    # the second core: fm1-base's (felucca-bsp's chip/fm1_cpu1.h, Melodee's), plat_cpu2_*
 # the DSP and the sequencer at -O2, apart (as LOOM-8's own build had them); bench.c: the profiler, empty unless XY_BENCH=1
 o2 = ["dsp/synth.c", "dsp/drumline.c", "dsp/digisophie.c", "dsp/sample.c", "dsp/fx.c", "dsp/bass303.c", "dsp/d909.c", "dsp/bench.c", "seq/pattern.c", "seq/seq.c"]

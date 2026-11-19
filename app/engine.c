@@ -39,6 +39,7 @@ volatile uint8_t eng_drum_hit[NDRUM];
 volatile uint8_t eng_midi_hit[NTRK];
 volatile uint8_t eng_voices, eng_voices_max = NVOICE;
 volatile uint32_t eng_guard_count;
+volatile uint8_t eng_usb_stereo;
 volatile uint32_t eng_acid_lite_count;
 volatile uint32_t eng_punch_drum, eng_punch_mel;
 volatile float eng_pump_db;
@@ -1572,7 +1573,8 @@ void engine_render(int32_t *out_lr, uint32_t n, uint32_t gain_q12)
     int p;
     static uint8_t was_playing;
 #if TRK_TAP
-    tap_k = vol * 16384.0f;                               /* (the master: 1.0 is 1 << 22 at the codec, 16384 in 16 bits) */
+    tap_k = eng_usb_stereo ? 0.0f : vol * 16384.0f;     /* (the master: 1.0 is 1 << 22 at the codec, 16384 in 16 bits;
+                                                          * stereo: no taps, channels 3..10 silent) */
 #endif
     PROF_T(pa);
     if (seq.playing && !was_playing)                     /* the transport started: the shared LFO from its start */
