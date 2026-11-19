@@ -23,7 +23,7 @@ What it does:
      the song, a crash, against the host's model of the same project (manifest.json's project_model); the
      readings to build/demos/device/load_<song>.csv, the table to build/demos/device/device_load.txt;
   6. restores before.loom8, flashes --normal PKG (if given) and starts a NEW PROJECT.
---record: each song's USB audio recorded (ffmpeg, the FM-1 as a Mac audio input: FM1_AUDIO, default "LOOM-8 FM-1")
+--record: each song's USB audio recorded (sox, the FM-1 as a Mac audio input: FM1_AUDIO, default "LOOM-8 FM-1")
 with Setup's USB AUDIO full and MASTER at 0 (the speaker silent), into build/demos/device/rec_<song>.wav and scanned for breaks (tools/demos/glitch_scan.py). --quiet: nothing asked
 while a song plays (the Debug page read once it has played), as a player has it.
 Run tools/demos/device_projects.py first (the banks, backups and manifest). Never switch Setup > CORES meanwhile.
@@ -34,6 +34,7 @@ import csv
 import json
 import os
 import re
+import signal
 import statistics
 import subprocess
 import sys
@@ -222,6 +223,9 @@ def load_slot(slot, name):
             break
     else:
         raise SystemExit(f"device_load: HOME's list did not open: {s!r}")
+    if "LOAD PROJECT" not in s:              # (the list keeps its place: from its top)
+        run("turn", "SELECT", -20, "wait", 300)   # (-30 in one turn is not taken)
+        s = where()
     for _ in range(24):                      # to the LOAD PROJECT item
         if "LOAD PROJECT" in s:
             break
@@ -333,16 +337,17 @@ def upload_bank(path):
 def record_start(song):
     """the FM-1's USB audio (its own input device on the Mac) into DEV/rec_<song>.wav, as a player records it"""
     out = DEV / f"rec_{song}.wav"
-    p = subprocess.Popen(["ffmpeg", "-hide_banner", "-loglevel", "error", "-y", "-f", "avfoundation", "-i",
-                          ":" + REC_DEVICE, "-c:a", "pcm_s24le", str(out)], stdin=subprocess.PIPE)
+    p = subprocess.Popen(["sox", "-q", "-t", "coreaudio", REC_DEVICE, "-b", "16", str(out)])   # (sox: ffmpeg's
+                                             # avfoundation input drops or repeats frames at its 512-frame buffers' edges)
     time.sleep(float(os.environ.get("REC_PREROLL", "1.5")))   # (the device opened before the song starts)
     return p, out
 
 
 def record_stop(rec):
     p, out = rec
+    p.send_signal(signal.SIGINT)             # (sox finishes the file's header on SIGINT)
     try:
-        p.communicate(b"q", timeout=10)
+        p.wait(timeout=10)
     except subprocess.TimeoutExpired:
         p.kill()
     r = subprocess.run([PY, str(Path(__file__).with_name("glitch_scan.py")), str(out)], capture_output=True, text=True)
@@ -522,7 +527,7 @@ def main():
     ap.add_argument("--no-keep", action="store_true", help="do not back up and put back the FM-1's own projects")
     ap.add_argument("--every", type=float, default=0.5)
     ap.add_argument("--songs", help="only these songs (e.g. hyperpop,house); the others' rows kept from the last run")
-    ap.add_argument("--record", action="store_true", help="record each song's USB audio (ffmpeg) and scan it for breaks")
+    ap.add_argument("--record", action="store_true", help="record each song's USB audio (sox) and scan it for breaks")
     ap.add_argument("--quiet", action="store_true", help="nothing asked while a song plays (the Debug page read at its "
                     "end): the load as a player has it (the reader's polling costs a few %%)")
     a = ap.parse_args()
