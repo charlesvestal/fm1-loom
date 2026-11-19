@@ -356,6 +356,7 @@ void seq_maestro_record(seq_t *s, int trk, const uint8_t *notes, int n);   /* th
 /* a key on the BRAIN track: the lowest key held is the chord's root, its pitch class against the key's tonic
  * (in the octave of middle C) sets the degree; the link track plays the key as pressed, in parallel */
 void seq_brain_key(seq_t *s, int note, int on);
+int seq_brain_root(const seq_t *s);   /* the note the degree stands for: the key that sets it */
 /* a punch-in key: fx = the bit (0..11 the percussive octave, 16..27 the melodic one); target_trk -1 = every
  * track of that octave's group, t = that track only (the bit is moved to the track's own octave). With rec on
  * while playing the key is recorded into the PUNCH track's pattern. The latch (PUNCH track E1) is the UI's:

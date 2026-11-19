@@ -4083,8 +4083,20 @@ static void leds(void)
                         mid |= 1u << BLACK_K[i];
                 }
             k |= ui.keys;                         /* (white keys: play, same as every other page) */
-        } else
+        } else {
             k |= ui.keys;
+            if (trk == AUX_BRAIN) {               /* the conductor: the key its degree stands for (pressing it sets
+                                                  * this degree), the same note in other octaves at the mid level */
+                int r = seq_brain_root(&seq);
+                for (i = 0; i < 27; i++) {
+                    int d = key_note((int)i) - r;
+                    if (!d)
+                        k |= 1u << i;
+                    else if (d % 12 == 0)
+                        mid |= 1u << i;
+                }
+            }
+        }
         if (sel_trk() == AUX_WEAVE && !steps_page(ui.page))   /* the tracks weaving: their keys */
             for (i = 0; i < NSEQT; i++)
                 if ((seq.wv_live | seq.wv_rec) >> i & 1u)

@@ -61,7 +61,8 @@ keys 1 to 11.
    <img src="img/screen-chords.png" width="240" alt="Steps on T3: a C chord on step 1 and a D minor on step 9, each named in its cell, with a bar under the steps they last" title="Two chords">
 5. **The conductor.** Turn **ALGORITHM** to COND and press **EDIT**. This is the conductor. It sets the key for
    every melodic track, and it starts in C major. While the pattern plays, play an F, then a G, then a C, and the
-   whole band follows you, in key.
+   whole band follows you, in key. The lit key is the chord's root, the key that plays the chord now sounding,
+   so you can see where the progression is. The same note in other octaves glows dimmer.
 
    To write a progression, press **SEQ**, turn **SELECT** to the Bar page and press black key 4, so each step
    lasts a beat. Go back to Steps. Hold **SEQ** and play a chord, then let go and press a step. Do the same for

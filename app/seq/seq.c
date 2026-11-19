@@ -630,6 +630,14 @@ static void brain_set_root(seq_t *s, int root)
     s->brain_deg = (uint8_t)(int8_t)d;
 }
 
+/* the root note the degree stands for (what pressing it on the conductor's keys sets): brain_set_root undone */
+int seq_brain_root(const seq_t *s)
+{
+    uint16_t mask = scale_mask(s->brain_scale < NBS ? s->brain_scale : BS_MAJOR);
+    int key = s->brain_key % 12;
+    return deg_to_note(note_to_deg(60 + key, key, mask) + brain_deg(s), key, mask);
+}
+
 /* the degree a FOLLOW track's note sets: its place in the scale whatever its octave, the nearer way (in C major a
  * G is 4 down, an F 3 up), so a bass line moves the others as little as a chord would */
 static void brain_set_near(seq_t *s, int root)
