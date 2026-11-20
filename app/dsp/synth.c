@@ -443,6 +443,20 @@ static void wt_run(voice_t *v, float *xl, float *xr, int m)
     v->o[1] = mp;
 }
 
+_Static_assert(WT_FRAMES == WT_NFRAME, "synth.h's WT_FRAMES");
+float wt_value(int t, float scan, float ph)
+{
+    float pos = fm_clampf(scan, 0.0f, 1.0f) * (float)(WT_NFRAME - 1), fr = fm_minf(fm_floorf(pos), (float)(WT_NFRAME - 2));
+    const int8_t *ta = WT[t < 0 ? 0 : t >= WT_NTABLE ? WT_NTABLE - 1 : t][(int)fr], *tb = ta + WT_N;
+    float s = (ph - fm_floorf(ph)) * (float)WT_N, fa, a, b;
+    int k = (int)s;
+    fa = s - (float)k;
+    k &= WT_N - 1;
+    a = (float)ta[k] + ((float)ta[(k + 1) & (WT_N - 1)] - (float)ta[k]) * fa;
+    b = (float)tb[k] + ((float)tb[(k + 1) & (WT_N - 1)] - (float)tb[k]) * fa;
+    return (a + (b - a) * (pos - fr)) * (1.0f / 128.0f);
+}
+
 /* rayon (was orbit): two-operator FM, the DX's way, for e-pianos, bells, mallets and basses. bright = the index (velocity
  * sets how much of it a note gets: 0.4 .. 1 of it); ratio from a detuned 1:1 (0..50: slow beating) to the modulator's
  * ratios (51..100: RAYON_RATIO, the bells' inharmonic ones among them); edge = the modulator's feedback (sine toward

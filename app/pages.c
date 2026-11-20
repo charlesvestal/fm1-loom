@@ -3909,15 +3909,30 @@ static uint32_t pic_f;
 static float pic_lvl;
 static void pic_wave(int32_t x0, int32_t y0, int32_t w, int32_t h, const uint8_t *p, uint32_t f)
 {
-    /* table: the harmonics; scan: their mix; bend: the phase bent; ripple: a second cycle sliding */
-    float cy = (float)(y0 + h / 2), amp = (float)(h / 2 - 8), harm = (float)(1 + p[TP_E1] * 7 / 127);
-    pen_t pn = {0};
-    (void)f;
-    cv_rect(x0, y0 + h / 2, w, 1, K_LINE);
-    for (int32_t x = 0; x <= w; x++) {
-        float ph = (float)x / (float)w * 2.0f, bend = ph + fm_sin_turns(ph) * (float)p[TP_E3] / 127.0f / 6.0f;
-        float a = fm_sin_turns(bend), b = fm_sin_turns(bend * harm + (float)p[TP_E4] / 256.0f);
-        pen_to(&pn, (float)(x0 + x), cy - (a * (127 - p[TP_E2]) + b * p[TP_E2]) / 127.0f * amp, K_NOW);
+    /* the table's sixteen frames stacked front (scan 0) to back, faint; the frame scan reads drawn bright at its place
+     * in the stack, bent as bend bends the phase (synth.c wt_run) and pushed by ripple's second cycle, which slides
+     * while the track sounds */
+    int t = p[TP_E1];
+    float scan = (float)p[TP_E2] / 127.0f, wp = 0.5f + (float)p[TP_E3] / 127.0f * 0.45f, dr = (float)p[TP_E4] / 127.0f;
+    float ka = 0.5f / wp, kb = 0.5f / (1.0f - wp), depth = dr * dr * 0.6f;
+    float rate = dr > 0.001f ? fm_exp2f(-7.0f + 8.0f * dr) : 0.0f, mp0 = (float)f / 90.0f;
+    int32_t dx = 40, dy = 22, ww = w - dx;
+    float amp = (float)(h - dy - 6) / 2.0f, cy0 = (float)(y0 + h) - amp - 3.0f;
+    for (int fr = WT_FRAMES - 1; fr >= 0; fr--) {
+        pen_t pn = {0};
+        float d = (float)fr / (float)(WT_FRAMES - 1), ox = (float)x0 + d * (float)dx, cy = cy0 - d * (float)dy;
+        for (int32_t x = 0; x <= ww; x += 3)
+            pen_to(&pn, ox + (float)x, cy - wt_value(t, d, (float)x / (float)ww) * amp, K_FAINT);
+    }
+    {
+        pen_t pn = {0};
+        float ox = (float)x0 + scan * (float)dx, cy = cy0 - scan * (float)dy;
+        for (int32_t x = 0; x <= ww; x++) {
+            float ph = (float)x / (float)ww, q = ph < wp ? ph * ka : 0.5f + (ph - wp) * kb;
+            if (rate > 0.0f)
+                q += depth * fm_sin_turns(mp0 + ph * rate);
+            pen_to(&pn, ox + (float)x, cy - wt_value(t, scan, q) * amp, K_NOW);
+        }
     }
 }
 static void pic_rayon(int32_t x0, int32_t y0, int32_t w, int32_t h, const uint8_t *p, uint32_t f)
