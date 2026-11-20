@@ -1461,6 +1461,12 @@ muted track's channel is silent. To set the level of all ten, use USB audio on S
 With **stereo**, the master is recorded at full level as with **full**, and channels 3 to 10 are silent. Use it when
 you only record the master: sending the tracks takes some of LOOM-8's time, which a busy song may need.
 
+On Windows, a DAW such as Reaper uses one audio driver at a time. With WASAPI or ASIO, LOOM-8 and the device you
+listen on must run at the same rate. Most headphones and speakers are set to 48 kHz, so set yours to 44.1 kHz too:
+open Windows' Sound settings, choose the output device, and set its format to 44100 Hz. If it has to stay at
+48 kHz, choose DirectSound in your DAW instead, which converts between the two rates. A bridge such as ASIO4ALL also
+converts, but what you hear through it can distort. The recording itself stays clean.
+
 The TRS jack is MIDI in. Everything that comes in over USB works from it too, except SysEx: notes, CCs, Program
 Change, and MIDI clock with start and stop. The FM-1 has no MIDI out jack, so LOOM-8 sends only over USB and
 Bluetooth.
