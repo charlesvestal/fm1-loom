@@ -1148,7 +1148,8 @@ that is playing.
 - COPY SCENE in the **SEL** list copies the scene that is playing. Switch to another scene and pick PASTE SCENE to
   make it the same again: its patterns, its mutes, the conductor's key and the weave. While playing, you hear the
   change at the next bar.
-- Turn **PRESETS** to cue the next scene for the next bar in the same way.
+- Turn **PRESETS** to cue the next scene for the next bar in the same way. It steps through the scenes you've
+  made and skips the empty ones, so a turn never makes a new scene.
 - Press an empty scene's key to turn it into a copy of the scene that is playing.
 - Hold a white key for a second to clear that scene. The playing scene keeps going while LOOM-8 asks you to
   confirm. Holding an empty scene's key does nothing.

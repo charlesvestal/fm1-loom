@@ -1226,6 +1226,17 @@ static void scene_go(int n, int when)
     proj.scene = (uint8_t)n;
 }
 static int scene_aim(void) { return seq.cue < NSCENE ? seq.cue : cur_scene(); }   /* the knob steps from the cue */
+static int scene_next(int d)                     /* PRESETS (HOME held anywhere, Arrange alone): the next scene in use
+                                                  * from the cue, round; it makes none (a white key does: #28) */
+{
+    int n = scene_aim();
+    for (int i = 0; i < NSCENE; i++) {
+        n = ((n + d) % NSCENE + NSCENE) % NSCENE;
+        if (pats.scene[n].used)
+            break;
+    }
+    return n;
+}
 static void scene_key(int k, int w, int when)    /* a white key on Arrange; again while its scene waits: now */
 {
     char t[8];
@@ -2384,7 +2395,7 @@ static void presets(int32_t e)
     }
     switch (ui.page) {
     case P_ARRANGE:
-        scene_go(((scene_aim() + d) % NSCENE + NSCENE) % NSCENE, SCENE_BAR);
+        scene_go(scene_next(d), SCENE_BAR);
         break;
     case P_SONG:
         song_knob(0, d);
@@ -4004,7 +4015,7 @@ static void input(void)
     }
     if ((e = ev[EN_PRESET]) != 0) {
         if (home_held())
-            scene_go(((scene_aim() + (e > 0 ? 1 : -1)) % NSCENE + NSCENE) % NSCENE, SCENE_BAR);
+            scene_go(scene_next(e > 0 ? 1 : -1), SCENE_BAR);
         else
             presets(e);
     }

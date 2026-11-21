@@ -1,0 +1,36 @@
+# PRESETS on Arrange (and HOME held + PRESETS anywhere) steps through the scenes in use only: a turn makes no new
+# scene (a white key does), and past the last scene in use it comes round to the first (#28)
+wait 200
+tap HOME
+expect page Arrange
+expect scene 1
+expect used 1
+turn PRESET 1
+wait 40
+expect scene 1
+expect used 1
+turn PRESET -3
+wait 40
+expect used 1
+tapkey w3
+wait 40
+expect scene 4
+expect used 9
+turn PRESET 1
+wait 40
+expect scene 1
+turn PRESET 1
+wait 40
+expect scene 4
+turn PRESET -1
+wait 40
+expect scene 1
+expect used 9
+# from another page, HOME held
+tap SEQ
+press HOME
+turn PRESET 1
+release HOME
+wait 40
+expect scene 4
+expect used 9
