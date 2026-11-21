@@ -1529,8 +1529,13 @@ projects.
 
 CC OUT is in Setup's **SEL** list (**GLO**) and is on to start with. With it on, when you turn a mapped knob or
 **SEL** row by hand, LOOM-8 sends its CC on its channel, if the track's MIDI OUT is on. FX and the master always
-send. LOOM-8 never sends back what comes in. It never sends locks, automation, presets or a kit's 91 / 93 either,
-because each sound's own send is a separate parameter, and it isn't mapped.
+send. Apart from mutes, LOOM-8 never sends back what comes in. It never sends locks, automation, presets or a
+kit's 91 / 93 either, because each sound's own send is a separate parameter, and it isn't mapped.
+
+Mutes are the exception. With CC OUT on, whenever a track's mute changes, LOOM-8 sends CC 9 on the track's channel
+(127 muted, 0 playing), if the track's MIDI OUT is on. It sends it however the mute changed: on the Mix page, by a
+solo, by a scene, or by a CC 9 that came in. That way a controller's mute pads follow LOOM-8. Since the value sent
+back is the one that came in, it changes nothing on the controller.
 
 SCENES OUT comes after CC OUT in Setup's **SEL** list and is off to start with. With it on, when the scene changes
 on LOOM-8 or when you load a project, LOOM-8 sends that scene's Program Change on channel 11. A scene change that

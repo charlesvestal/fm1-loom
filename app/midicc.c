@@ -286,6 +286,20 @@ static void cc_out_master(int m)              /* master_knob, the master's list 
         if (CC_MST[i].m == m)
             cc_send(0xB0 | CH_MASTER, CC_MST[i].cc, cc_from(proj.master[m], 0, master_max(m)));
 }
+/* ui_frame: a track's mute changed, however (Mix, a scene, a solo, a CC in): CC 9 on its channel, 127 muted, 0 not,
+ * with CC OUT on and the track's MIDI OUT on, so a controller's mute pads follow (#31). A mute that came in by CC 9
+ * goes back out too: the same value in again changes nothing */
+static uint16_t cc_mute_sent = 0xFFFFu;       /* (0xFFFF: boot, nothing sent yet: the first look only notes them) */
+static void cc_out_mutes(void)
+{
+    uint16_t m = seq.mute, d = (uint16_t)(m ^ cc_mute_sent);
+    if (cc_mute_sent == 0xFFFFu)
+        d = 0;
+    cc_mute_sent = m;
+    for (int t = 0; t < NTRK && d; t++)
+        if ((d >> t & 1u) && proj.trk[t].par[TP_CHAN])
+            cc_send(0xB0 | t, 9, (m >> t & 1u) ? 127 : 0);
+}
 static void cc_out_scene(int n)               /* ui_frame: the scene playing changed */
 {
     int q = cc_scene_quiet == n;

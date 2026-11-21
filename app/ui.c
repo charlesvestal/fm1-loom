@@ -162,6 +162,7 @@ static void cc_in_drain(void);                    /* midicc.c: MIDI in's CCs, Pr
 static void cc_out_param(int trk, int p);         /* midicc.c: a parameter changed (sent when by hand, CC OUT on) */
 static void cc_out_master(int m);
 static void cc_out_scene(int n);                  /* midicc.c: the scene playing changed */
+static void cc_out_mutes(void);                   /* midicc.c: a track's mute changed: its CC 9 */
 static uint8_t cc_hand;                           /* (midicc.c's: knob() and list_change() running) */
 static void sound_reset(uint8_t *par, int engine)   /* the engine's defaults; MIDI OUT stays (routing, not sound) */
 {
@@ -4813,6 +4814,7 @@ void ui_frame(void)
         if (!ui.playing)
             rec_off();
     }
+    cc_out_mutes();
     if (cur_scene() != ui.scene_seen) {
         if (ui.scene_seen != 0xFF)               /* not boot's first catch-up: no Program Change for that */
             cc_out_scene(cur_scene());            /* (MIDI: its Program Change, midicc.c) */

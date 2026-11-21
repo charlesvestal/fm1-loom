@@ -1,0 +1,73 @@
+# a track's mute goes out as CC 9 on its channel (127 muted, 0 not), whatever changed it: Mix's black key, a scene,
+# a CC 9 in (sent back, the same value in again changes nothing); MIDI OUT off on the track or CC OUT off: nothing (#31)
+wait 200
+tap GLO
+expect page Mix
+ccreset
+wait 600
+tapkey b1
+wait 40
+expect mute 2
+expect ccouts 1
+expect ccst 177
+expect ccd1 9
+expect ccd2 127
+ccreset
+wait 600
+tapkey b1
+wait 40
+expect mute 0
+expect ccouts 1
+expect ccd2 0
+# a CC 9 in on channel 3: T3 muted, and the CC back out; the same CC in again: nothing more
+ccreset
+midi B2 09 7F
+wait 40
+expect mute 4
+expect ccouts 1
+expect ccst 178
+expect ccd2 127
+ccreset
+midi B2 09 7F
+wait 40
+expect ccouts 0
+midi B2 09 00
+wait 40
+expect mute 0
+# a scene with T1 muted: its CC as the scene comes in
+scenedef 2 1 1 1 1 1 1 1 1 1 1
+scenemute 2 x
+tap HOME
+ccreset
+tapkey w1
+wait 40
+expect scene 2
+expect mute 1
+expect ccst 176
+expect ccd1 9
+expect ccd2 127
+# MIDI OUT off on T1: its mute sends nothing
+param 1 51 0
+tap GLO
+ccreset
+wait 600
+tapkey b0
+wait 40
+expect mute 0
+expect ccouts 0
+param 1 51 1
+# CC OUT off (Setup's SEL list): nothing
+turn SELECT 5
+expect page Setup
+tap SEL
+row CC OUT
+turn ALGO -1
+tap HOME
+turn SELECT -5
+expect page Mix
+ccreset
+wait 600
+tapkey b1
+wait 40
+expect mute 2
+expect ccouts 0
