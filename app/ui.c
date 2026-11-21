@@ -1766,9 +1766,10 @@ static void key_up(int k)
         if (!ui.held_used && !ui.held_multi && plat_ms() - ui.key_t[k] < STEP_TAP_MS)
             step_toggle(w);                      /* a tap; a longer hold only looked at the step */
         ui.held &= (uint16_t)~(1u << w);
-        if (!ui.held)                            /* (chord mode stays on past the step's own release) */
+        if (!ui.held) {                          /* (chord mode stays on past the step's own release) */
             ui.lockpg = ui.trickpg = 0;
-        else
+            lst.open = 0;                        /* its SEL list is the held step's: let go, and it goes */
+        } else
             for (int i = 0; i < 16; i++)
                 if (ui.held >> i & 1u) {
                     ui.held_first = (uint8_t)i;
@@ -3971,7 +3972,8 @@ static void input(void)
         ui.act_t = plat_ms();
     if (ui.ask)
         return;
-    if ((e = ev[EN_SELECT]) != 0 && ui.lockpg) {  /* the lock editor: the module's other pages (the track's own) */
+    if ((e = ev[EN_SELECT]) != 0 && ui.lockpg && !lst.open) {   /* the lock editor: the module's other pages (the
+                                                  * track's own); a list open over it keeps SELECT for its rows */
         int g = page_group(ui.lockpg - 1), f = PAGE_BTN[g].first, n = group_n(g), pg = ui.lockpg - 1 - f;
         if (PAGE_BTN[g].btn == B_FX) {           /* the track's own: Character and Sends */
             f = P_CHARACTER;

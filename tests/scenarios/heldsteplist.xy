@@ -1,0 +1,31 @@
+# A held step's SEL list, opened over the lock editor (step held + EDIT): SELECT moves its rows (not the lock
+# editor's pages), and SEL runs the row picked. With CLEAR LOCKS picked, the step's note stays.
+wait 300
+turn ALGO 1
+expect trk 2
+tap SEQ
+step 2 1 1 60 100
+key w0 down
+wait 60
+press EDIT
+wait 60
+tap SEL
+wait 60
+spin SELECT 2
+wait 60
+tap SEL
+wait 60
+expect note 2 1 1 60
+release EDIT
+key w0 up
+# letting the step go closes its list: back on Steps (SELECT turns its page, not the list's rows)
+wait 60
+key w1 down
+wait 60
+tap SEL
+wait 60
+key w1 up
+wait 60
+spin SELECT 1
+wait 60
+expect page Bar
