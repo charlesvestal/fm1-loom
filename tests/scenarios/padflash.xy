@@ -1,0 +1,40 @@
+# a kit's pads (its EDIT page's picture): a hit flashes its pad, and the flash fades by time (0.6 of 255 a millisecond:
+# gone ~425 ms after a full hit), however often the UI draws, its colour blended by how much is left (padK: 16 full ..
+# 0 dark). A soft hit fades out too, not a pad lit a few frames, then dark; a retrigger (hats at 16ths) brightens what
+# is left: no dark frame between two hits
+wait 300
+expect trk 1
+tap EDIT
+expect page Engine
+# a full hit: lit at once, then fading
+drumhit 2 127
+wait 20
+expect pad2 >14
+shot padflash_0.png
+wait 100
+expect pad2 >5
+expect pad2 <15
+shot padflash_1.png
+wait 100
+expect pad2 >0
+expect pad2 <11
+shot padflash_2.png
+wait 300
+expect pad2 0
+# a soft hit (velocity 40: 80 of 255): partly lit, then dark
+drumhit 3 40
+wait 20
+expect pad3 >0
+expect pad3 <7
+wait 150
+expect pad3 0
+# soft hits at 16ths (120 BPM: 125 ms apart): the pad never goes dark between them
+drumhit 4 40
+wait 110
+expect pad4 >0
+drumhit 4 40
+wait 110
+expect pad4 >0
+drumhit 4 40
+wait 110
+expect pad4 >0
