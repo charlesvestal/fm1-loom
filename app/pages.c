@@ -889,6 +889,18 @@ static int tp_page_param(int p, int k, int trk)
 }
 
 /* a pen for smooth curves: pen_to draws an anti-aliased line from the last point (pen_up lifts it) */
+/* bands taller than the canvas (app.h APP_CANVAS_PX: 60 rows) draw in strips: the band's rows r0 .. r0 + CV_ROWS - 1, the
+ * drawing as it would be on the whole band (cv_oy: the offset; cv_y0, cv_y1: the strip's rows), sent to its own rows */
+#define CV_ROWS ((int32_t)(APP_CANVAS_PX / 240u))
+static void strip_begin(int32_t band_h, int32_t r0, uint16_t bg)
+{
+    int32_t n = band_h - r0 < CV_ROWS ? band_h - r0 : CV_ROWS;
+    cv_begin(240, (uint32_t)n, bg);
+    cv_oy = -r0, cv_y0 = 0, cv_y1 = n;
+#ifdef GFX_AUDIT
+    ga_lo = -r0, ga_hi = band_h - r0, ga_quiet = r0 > 0;   /* (the first strip audits the whole band) */
+#endif
+}
 typedef struct { float x, y, px, py; int down, steep; } pen_t;   /* (px, py: the last segment's start; steep: its axis,
                                                                  * -1 none yet) */
 static void pen_up(pen_t *p) { p->down = 0; }
@@ -1989,28 +2001,11 @@ static void knob_large(int32_t cx, const knob_t *k, int hot, uint16_t vc)
         knob_tick(k, cx - 24, 46, 59);
     }
 }
-static void draw_knobs(void)
+static void knobs_paint(const knob_t *k, int now_touch)   /* the knob band (draw_knobs), one strip of it */
 {
-    knob_t k[4];
-    uint32_t h = hash_u(2166136261u, ui.page | (uint32_t)ui.touched << 8), i;
-    int now_touch = plat_ms() < ui.touch_until;
-    page_knobs(k);
-    for (i = 0; i < 4; i++) {
-        h = hash_s(h, k[i].val);
-        h = hash_s(h, k[i].name);
-        h = hash_u(h, (uint32_t)k[i].num << 8 | (uint32_t)(k[i].name != 0) | (uint32_t)(k[i].live + 1) << 20);
-        if (k[i].mod)
-            h = hash_u(h, (uint32_t)k[i].mod);
-    }
-    h = hash_u(h, (uint32_t)now_touch | (uint32_t)ui.lockpg << 1);
-    if (h == ui.sig[2])
+    uint32_t i;
+    if (!(k[0].name || k[1].name || k[2].name || k[3].name))
         return;
-    ui.sig[2] = h;
-    cv_begin(240, KNB_H, K_BG);
-    if (!(k[0].name || k[1].name || k[2].name || k[3].name)) {
-        cv_blit(0, KNB_Y);
-        return;
-    }
     cv_round(4, 0, 232, KNB_H - 2, 6, K_PANEL);
     for (i = 0; i < 4; i++) {
         int32_t x = (int32_t)i * 60, cx = LARGE ? 33 + (int32_t)i * 58 : x + 30, nw;   /* (large: 58 apart in the panel) */
@@ -2058,7 +2053,29 @@ static void draw_knobs(void)
             knob_tick(&k[i], cx - 22, 42, 38);       /* an LFO moves it: where it is now, a tick across the bar */
         }
     }
-    cv_blit(0, KNB_Y);
+}
+static void draw_knobs(void)
+{
+    knob_t k[4];
+    uint32_t h = hash_u(2166136261u, ui.page | (uint32_t)ui.touched << 8), i;
+    int now_touch = plat_ms() < ui.touch_until;
+    page_knobs(k);
+    for (i = 0; i < 4; i++) {
+        h = hash_s(h, k[i].val);
+        h = hash_s(h, k[i].name);
+        h = hash_u(h, (uint32_t)k[i].num << 8 | (uint32_t)(k[i].name != 0) | (uint32_t)(k[i].live + 1) << 20);
+        if (k[i].mod)
+            h = hash_u(h, (uint32_t)k[i].mod);
+    }
+    h = hash_u(h, (uint32_t)now_touch | (uint32_t)ui.lockpg << 1);
+    if (h == ui.sig[2])
+        return;
+    ui.sig[2] = h;
+    for (int32_t r0 = 0; r0 < KNB_H; r0 += CV_ROWS) {   /* (large type's band is taller than the canvas: in strips) */
+        strip_begin(KNB_H, r0, K_BG);
+        knobs_paint(k, now_touch);
+        cv_blit(0, (uint32_t)(KNB_Y + r0));
+    }
 }
 
 /* ------------------------------------------------- tag, footer, cards --- */
@@ -2729,10 +2746,8 @@ static void draw_card(void)
     ui.sig[1] = h;
     if (LARGE)
         ui.sig[2] = ui.sig[3] = 0;                   /* (the tag and the knobs under it: drawn again after it) */
-    for (int32_t off = 0; off < CARD_H; off += 120) {   /* (taller than the canvas, large type: in two goes) */
-        int32_t hh = CARD_H - off < 120 ? CARD_H - off : 120;
-        cv_begin(240, (uint32_t)hh, K_BG);
-        cv_oy = -off, cv_y0 = 0, cv_y1 = hh;
+    for (int32_t off = 0; off < CARD_H; off += CV_ROWS) {   /* (taller than the canvas: in strips) */
+        strip_begin(CARD_H, off, K_BG);
         card_paint(i);
         cv_blit(0, (uint32_t)(MAIN_Y + off));
     }
@@ -3346,29 +3361,40 @@ static void draw_list(void)
     if (h == ui.sig[1])
         return;
     ui.sig[1] = h;
-    {                                            /* two bands, split between rows (MAIN_H at most each) */
-        int32_t h1 = 1;
-        for (int i = lst.top; i < lst.n && h1 + list_rh(i) <= MAIN_H; i++)
-            h1 += list_rh(i);
-        cv_begin(240, h1, K_BG);
-        list_paint(0);
-        cv_blit(0, LIST_Y);
-        cv_begin(240, LIST_H - h1, K_BG);
-        list_paint(h1);
-        cv_blit(0, LIST_Y + h1);
+    {                                            /* in bands of the canvas's rows at most, split between rows */
+        int32_t y0 = 0, i = lst.top;
+        while (y0 < LIST_H) {
+            int32_t hb = y0 ? 0 : 1, hb0 = hb;
+            while (i < lst.n && hb + list_rh(i) <= CV_ROWS && y0 + hb + list_rh(i) <= LIST_VIS + 1)
+                hb += list_rh(i++);
+            if (hb == hb0)                       /* (no more rows here: the rest, plain) */
+                hb = LIST_H - y0 < CV_ROWS ? LIST_H - y0 : CV_ROWS;
+            cv_begin(240, (uint32_t)hb, K_BG);
+            list_paint(y0);
+            cv_blit(0, (uint32_t)(LIST_Y + y0));
+            y0 += hb;
+        }
     }
 }
 
 /* ------------------------------------------------------- the pages --- */
+/* the main band in strips (strip_begin): draw_page calls the page once a strip, main_r0 the strip's first row. The
+ * first call decides (its hash), the later ones draw on: a page's own state moves on its first call only (main_r0 0) */
+static int32_t main_r0;
+static uint8_t main_drawn;
 static int begin_main(uint32_t h)
 {
-    if (h == ui.sig[1])
-        return 0;
-    ui.sig[1] = h;
-    ui.sig[5] = 0;                                   /* (the step record strip over it: drawn again) */
-    cv_begin(240, MAIN_H, K_BG);
+    if (!main_r0) {
+        if (h == ui.sig[1])
+            return 0;
+        ui.sig[1] = h;
+        ui.sig[5] = 0;                               /* (the step record strip over it: drawn again) */
+        main_drawn = 1;
+    }
+    strip_begin(MAIN_H, main_r0, K_BG);
     return 1;
 }
+static void main_blit(void) { cv_blit(0, (uint32_t)(MAIN_Y + main_r0)); }
 static uint32_t hash_pat(uint32_t h, const tpat_t *p)
 {
     const uint32_t *w = (const uint32_t *)(const void *)p;
@@ -3461,7 +3487,7 @@ static void draw_arrange(void)
         return;
     if (LARGE) {                                     /* large type: the tracks as cells (the scenes: the tag) */
         arrange_large(mh, amh);
-        cv_blit(0, MAIN_Y);
+        main_blit();
         return;
     }
     for (int tr = 0; tr < NSEQT; tr++) {
@@ -3527,7 +3553,7 @@ static void draw_arrange(void)
             cv_frame(x, y, 5, 5, 1, K_TEXT, K_BG);
     }
     cv_rect(172, 92 + ui.scene_pg * 14, 2, 12, K_DIM);
-    cv_blit(0, MAIN_Y);
+    main_blit();
 }
 
 static void draw_song(void)
@@ -3551,7 +3577,7 @@ static void draw_song(void)
     if (!sg->len) {
         text_c(120, LY(40, 18), &FONT_B, "No scenes in the song yet", K_TEXT);
         text_c(120, LY(62, 48), LY(&FONT_S, F_CAP), ui.scene_pg ? "Press a white key to add scene 17-32" : "Press a white key to add scene 1-16", K_DIM);
-        cv_blit(0, MAIN_Y);
+        main_blit();
         return;
     }
     for (int i = top; i < top + 16 && i <= sg->len; i++) {
@@ -3579,7 +3605,7 @@ static void draw_song(void)
         num_s((uint32_t)sg->len, s_cat(num_s((uint32_t)top + 1u, s_cat(t, "slots ")), " to "));
         text_r(232, 112, &FONT_XS, t, K_DIM);
     }
-    cv_blit(0, MAIN_Y);
+    main_blit();
 }
 
 /* Steps: what a press writes and the bars' squares, then the bar's 16 cells */
@@ -3698,7 +3724,7 @@ static void draw_weave_steps(void)
         for (int j = 0; j < (w->len ? w->len : 1) && i + j < 16 && (i + j) / 8 == i / 8; j++)
             cv_rect(ST_X + ((i + j) % 8) * ST_CW + (j ? 0 : 3), y + ST_CH - 4, ST_CW - (j ? 0 : 3) - (j + 1 == (w->len ? w->len : 1) ? 3 : 0), 2, K_NOW);
     }
-    cv_blit(0, MAIN_Y);
+    main_blit();
 }
 /* the Steps page's head: an instrument's name (nm) and what a step takes (t: its sound, or the notes held); an aux
  * track's in t alone ("fx: ...", "chord: ...") */
@@ -3766,7 +3792,7 @@ static void draw_steps_as(void)
             return;
         text_c(120, 40, &FONT_B, TRACK_NAME[trk], K_TEXT);
         text_c(120, 62, &FONT_S, "has no steps: turn ALGORITHM", K_DIM);
-        cv_blit(0, MAIN_Y);
+        main_blit();
         return;
     }
     for (int i = 0; i < 16; i++)
@@ -3949,7 +3975,7 @@ static void draw_steps_as(void)
             }
         }
     }
-    cv_blit(0, MAIN_Y);
+    main_blit();
     }
 }
 
@@ -3968,7 +3994,7 @@ static void draw_bar(void)
         return;
     if (!is_seqt(trk)) {
         text_c(120, 50, &FONT_S, "No steps on this track", K_DIM);
-        cv_blit(0, MAIN_Y);
+        main_blit();
         return;
     }
     static const char *const STEP_FRAC[NTS] = {"1/32", "1/16", "1/8", "3/16", "1/4", "5/16", "3/8", "1/2", "1 Bar"};
@@ -4013,7 +4039,7 @@ static void draw_bar(void)
     cv_text(12, LY(86, MAIN_H - 27), F_CAP, t, K_DIM);
     cv_text(12, LY(100, MAIN_H - 15), F_CAP, is_drum(trk) ? "white keys: the bar's steps, black keys: sounds"
                                             : "black keys: scale 1 2 3 4 5 6 8 16 1/2", K_DIM);
-    cv_blit(0, MAIN_Y);
+    main_blit();
 }
 
 /* the engines' pictures */
@@ -4800,7 +4826,8 @@ static void draw_engine(void)
     int trk = sel_trk(), eg = proj.trk[trk].par[TP_ENGINE] % NENGINE;
     const uint8_t *p = par_now(trk);
     uint32_t h;
-    pic_clock(trk);
+    if (!main_r0)                                    /* (its clock moves once a frame, not once a strip) */
+        pic_clock(trk);
     h = hash_u(hash_u(2166136261u, 0xE0u), (uint32_t)trk | (uint32_t)eg << 4 | (uint32_t)ui.dsound << 8 |
                                           (eg == EG_SAMPLE || eg == EG_SLICE || eg == EG_TULLE ? 0u : (pic_f / 2) << 12));
     h = hash_u(h, (uint32_t)(pic_lvl * 32.0f));
@@ -4810,7 +4837,8 @@ static void draw_engine(void)
         h = hash_u(h, (uint32_t)p[TP_CUT] | (uint32_t)p[TP_RES] << 8 | (uint32_t)p[TP_FENV] << 16 | (uint32_t)p[TP_D] << 24);
     if (eg == EG_MIDI) {                             /* (the second page's values, the eight CCs, which page; a note
                                                       * out: the port lit, easing out) */
-        eng_midi_hit[trk] = (uint8_t)(eng_midi_hit[trk] > 20 ? eng_midi_hit[trk] - 20 : 0);
+        if (!main_r0)
+            eng_midi_hit[trk] = (uint8_t)(eng_midi_hit[trk] > 20 ? eng_midi_hit[trk] - 20 : 0);
         h = hash_u(h, eng_midi_hit[trk] > 40);
     }
     if (eg == EG_MIDI)
@@ -4915,7 +4943,7 @@ static void draw_engine(void)
             pic_drumline(10, 26, 220, 90, p, pic_f);
         break;
     }
-    cv_blit(0, MAIN_Y);
+    main_blit();
 }
 
 /* the aux tracks' pages */
@@ -5027,7 +5055,7 @@ static void draw_brain(void)
         return;
     if (LARGE) {
         brain_large(p, key, sc, deg, src);
-        cv_blit(0, MAIN_Y);
+        main_blit();
         return;
     }
     e = s_cat(s_cat(t, NOTE_NAME[key]), " ");
@@ -5099,7 +5127,7 @@ static void draw_brain(void)
             cv_rect(x + 6, 104, 10, 2, m == BM_HARMONY ? K_BG : K_TEXT);
         text_c(x + 11, 90, &FONT_B, t, m == BM_DIATONIC || m == BM_HARMONY ? K_BG : m ? K_TEXT : K_FAINT);
     }
-    cv_blit(0, MAIN_Y);
+    main_blit();
 }
 static void draw_punch(void)
 {
@@ -5148,7 +5176,7 @@ static void draw_punch(void)
     }
     cv_rect(8 + 7 * 14 - 1, 36, 2, 70, K_DIM);
     cv_text(120, 104, &FONT_XS, proj.trk[AUX_PUNCH].par[TP_E1] ? "latch on" : "while held", K_DIM);
-    cv_blit(0, MAIN_Y);
+    main_blit();
 }
 static void draw_fxtrack(int trk)                    /* AUX_FX1 / AUX_FX2: the effect and a picture of it */
 {
@@ -5203,7 +5231,7 @@ static void draw_fxtrack(int trk)                    /* AUX_FX1 / AUX_FX2: the e
             break;
         }
     }
-    cv_blit(0, MAIN_Y);
+    main_blit();
 }
 
 static void draw_play(void)
@@ -5228,7 +5256,7 @@ static void draw_play(void)
         cv_round(12 + v * LY(13, 16), LY(50, ty + 8), LY(10, 13), LY(10, 13), 3, v < eng_voices ? K_NOW : K_LINE);
     num_s((uint32_t)eng_voices, s_cat(t, "voices sounding "));
     cv_text(12, LY(66, ty + 28), LY(F_CAP, &FONT_XS), t, K_DIM);
-    cv_blit(0, MAIN_Y);
+    main_blit();
 }
 /* Play 2: the track's volume alone, a wedge of sixteen bars lit up to it (as the knob turns, or motion moves it) */
 static void draw_volume(void)
@@ -5244,7 +5272,7 @@ static void draw_volume(void)
         int32_t bh = 6 + (base - top - 6) * i / 15;
         cv_round(12 + i * 14, base - bh, 10, bh, 3, i < lit ? K_NOW : K_LINE);
     }
-    cv_blit(0, MAIN_Y);
+    main_blit();
 }
 /* a MIDI track's Play 2: the sound's octave, five places, the one now lit */
 static void draw_play2(void)
@@ -5263,7 +5291,7 @@ static void draw_play2(void)
         cv_round(x, 52, 32, 24, 5, i == o ? K_NOW : K_LINE);
         text_c(x + 16, 57, &FONT_XS, LAB[i], i == o ? K_BG : K_DIM);
     }
-    cv_blit(0, MAIN_Y);
+    main_blit();
 }
 /* orbit's Sub page: the FM index from the note's start over two seconds (fall, floor), and how keyscale lowers it
  * up the keyboard (a second, fainter curve: two octaves up) */
@@ -5289,7 +5317,7 @@ static void draw_rayon_fall(void)
         pen_to(&pb, (float)(x0 + i), (float)(y0 + hh) - e * hi * (float)hh, K_FAINT);
         pen_to(&pa, (float)(x0 + i), (float)(y0 + hh) - e * (float)hh, K_NOW);
     }
-    cv_blit(0, MAIN_Y);
+    main_blit();
 }
 /* knit's wave at phase fr (0..1), as pic_knit draws it: osc 1's (its wave knob: saw .. square .. pulse), or osc 2's
  * (osc2: its own wave, O2W_*) */
@@ -5342,7 +5370,7 @@ static void draw_knit_x(void)
     else
         s_cat(t, "osc 2 in unison");
     text_r(230, LY(100, 64), F_CAP, t, K_DIM);
-    cv_blit(0, MAIN_Y);
+    main_blit();
 }
 /* knit's Mod page (P_KMOD): osc 2 (bright) over osc 1 (faint), two of osc 1's cycles, synced (starting again with
  * each of osc 1's) or free; with a sweep, osc 2 at the filter envelope's top too (faint); under them two cycles of the
@@ -5384,7 +5412,7 @@ static void draw_knit_mod(void)
     if (cr)
         num_i((cr * 100 + 64) / 128, s_cat(e, ", cross "));
     text_r(230, LY(56, 44), F_CAP, t, K_DIM);
-    cv_blit(0, MAIN_Y);
+    main_blit();
 }
 /* rayon's Ops page (P_KMOD): its four operators as boxes, each with its ratio, the modulators (dim) above what they
  * move, the carriers (bright) on the bottom row into the output line, op 4's feedback a loop when it is up; ops 3 and 4
@@ -5444,7 +5472,7 @@ static void draw_rayon_ops(void)
     }
     s_cat(cap, ro == RO_OFF ? "the pair alone" : ro == RO_STACK ? "3 and 4 move the modulator" : "a second pair beside it");
     text_r(230, LY(100, 64), F_CAP, cap, K_DIM);
-    cv_blit(0, MAIN_Y);
+    main_blit();
 }
 /* tulle's Grain page (P_KMOD): a grain's window as its shape makes it (synth.c tl_win: its peak from the middle toward
  * its start), and the share of the grains played backwards: arrows, forward and back, as many of each */
@@ -5472,7 +5500,7 @@ static void draw_tulle_grain(void)
     }
     s_cat(num_i((rv * 100 + 63) / 127, s_cat(t, sh < 20 ? "smooth, " : sh < 90 ? "sharper, " : "a pluck, ")), "% backwards");
     text_r(230, LY(100, 64), F_CAP, t, K_DIM);
-    cv_blit(0, MAIN_Y);
+    main_blit();
 }
 /* acid's Sub page: its drive (TP_X1 amount, TP_X2 off / soft / rat; bass303.c drive_block) on two cycles of a sine,
  * the input faint and what comes out bright, each scaled to the picture's height (the shape, not the level) */
@@ -5514,7 +5542,7 @@ static void draw_acid_x(void)
         num_i((int32_t)(d * 100.0f + 0.5f), s_cat(s_cat(s_cat(t, "drive "), ty == 1 ? "soft" : "rat"), " ")), s_cat(t + s_len(t), " %");
     cv_text(8, LY(100, 64), F_CAP, t, K_DIM);
     text_r(230, LY(100, 64), F_CAP, "shaper: the square's edge", K_FAINT);
-    cv_blit(0, MAIN_Y);
+    main_blit();
 }
 /* the Sub page: the engine's second page of knobs (TP_X1..X4): knit's Levels (its layers), rayon's fall, acid's
  * drive */
@@ -5578,7 +5606,7 @@ static void draw_key_env(void)
         pen_to(&pn, px[i], py[i], K_NOW);
     s_cat(s_cat(t, DL_SOUND_NAME[key]), open ? "'s envelope, decay off: its own length" : "'s envelope");
     text_fit(16, LY(16 + 84 + 3, MAIN_H - 15), F_CAP, t, 208, K_DIM);
-    cv_blit(0, MAIN_Y);
+    main_blit();
 }
 /* a filter's response in dB at x px from its cutoff (an octave every 22 px): a resonant two-pole section,
  * squared for the 24 dB types; hp mirrors it, bp is its band-pass with the peak at unity */
@@ -5620,7 +5648,7 @@ static void draw_key_filter(void)
         cv_rect(x0, y0 + 22, w, 2, K_DIM);
         s_cat(s_cat(t, DL_SOUND_NAME[key]), ": no filter. Press PRESET for one");
         text_fit(x0, y0 + hh + 3, LY(&FONT_XS, F_CAP), t, w, K_DIM);
-        cv_blit(0, MAIN_Y);
+        main_blit();
         return;
     }
     {
@@ -5654,7 +5682,7 @@ static void draw_key_filter(void)
             s_cat(e, p[DP_FENV] > 64 ? ", the envelope opens it" : ", the envelope closes it");
     }
     text_fit(x0, y0 + hh + 3, &FONT_XS, t, w, K_DIM);
-    cv_blit(0, MAIN_Y);
+    main_blit();
 }
 static void draw_env(int filter)
 {
@@ -5685,7 +5713,7 @@ static void draw_env(int filter)
             pen_to(&pa, x0 + (float)xi, base - hh * fl, K_NOW);
         }
         cv_text(16, 16 + 84 + 3, &FONT_XS, "filter; dim: accented; line: the note's level", K_DIM);
-        cv_blit(0, MAIN_Y);
+        main_blit();
         return;
     }
     st = mv.of == trk ? (filter ? mv.fst : mv.ast) : 0;   /* MOD VIEW: the newest note's stage and level, a dot */
@@ -5762,7 +5790,7 @@ static void draw_env(int filter)
         cv_round(mv_dot - 2, (int32_t)dy - 2, 5, 5, 2, K_NOW);   /* (a bead on the line, its colour) */
     cv_text(16, 16 + 84 + 3, &FONT_XS, drum ? "every key: lag, attack, random, length"
                                               : filter ? "filter envelope" : "amp envelope", K_DIM);
-    cv_blit(0, MAIN_Y);
+    main_blit();
 }
 static void draw_filter(void)
 {
@@ -5787,7 +5815,7 @@ static void draw_filter(void)
     if (is_drum(trk) && !dyn) {                      /* the kit's bus filter, switched off */
         cv_rect(x0, y0 + 22, w, 2, K_DIM);
         cv_text(x0, y0 + hh + 3, &FONT_XS, "all keys: no bus filter. Press PRESET for one", K_DIM);
-        cv_blit(0, MAIN_Y);
+        main_blit();
         return;
     }
     if (dyn) {                                       /* low cut .. hi cut: the band that passes */
@@ -5796,7 +5824,7 @@ static void draw_filter(void)
         cv_rect(lo, y0 + 10, 2, hh - 10, K_NOW);
         cv_rect(hi, y0 + 10, 2, hh - 10, K_NOW);
         cv_text(x0, y0 + hh + 3, &FONT_XS, "all keys: low cut, compression, drive, hi cut", K_DIM);
-        cv_blit(0, MAIN_Y);
+        main_blit();
         return;
     }
     {
@@ -5821,7 +5849,7 @@ static void draw_filter(void)
     cv_rect(fc, y0, 1, hh, K_FAINT);
     cv_text(x0, y0 + hh + 3, &FONT_XS, tp_info_par(TP_FTYPE, p)->names[ft], K_DIM);
     text_r(x0 + w, y0 + hh + 3, &FONT_XS, is_acid(trk) ? "" : p[TP_KTRK] ? "key tracking on" : "", K_DIM);
-    cv_blit(0, MAIN_Y);
+    main_blit();
 }
 /* the instrument's character stage: its type, what it does, and a picture of it (synth.c char_picture: the
  * transfer curve, a crushed or ring-modulated wave, the tilt's response), dry dimmed behind */
@@ -5875,7 +5903,7 @@ static void draw_character(void)
         for (i = 0; i <= w; i++)
             pen_to(&pn, (float)(x0 + i), ys[i], ct == CT_OFF ? K_DIM : K_NOW);
     }
-    cv_blit(0, MAIN_Y);
+    main_blit();
 }
 static void draw_sends(void)                         /* the instrument's two sends (a kit's: the key's), named with
                                                       * the effects on them */
@@ -5909,7 +5937,7 @@ static void draw_sends(void)                         /* the instrument's two sen
         if (v > 0)
             cv_round(92, y + 3, v < 8 ? 8 : v, 8, 4, K_NOW);
     }
-    cv_blit(0, MAIN_Y);
+    main_blit();
 }
 /* an LFO shape at phase ph (0..1), -1..1: 0 sine, 1 saw (falling), 2 exponential, 3 square, 4 blip, 5 ramp (rising) */
 static float lfo_shape_v(int shape, float ph)
@@ -5971,7 +5999,7 @@ static void draw_lfo(void)
         cv_text(x0, y0 + hh + 3, &FONT_XS, t, K_DIM);
     } else if (lt)
         cv_text(x0, y0 + hh + 3, &FONT_XS, tp_info_par(TP_LTYPE, p)->names[lt], K_DIM);
-    cv_blit(0, MAIN_Y);
+    main_blit();
 }
 #define BLACK_KEY(n) ((0x54Au >> ((n) % 12)) & 1)          /* C# D# F# G# A#: a black key's semitones */
 static void draw_players(void)
@@ -5994,7 +6022,7 @@ static void draw_players(void)
         cv_text(12, 4, &FONT_B, "no player", K_DIM);
         cv_text(12, 24, F_CAP, "a kit's keys are its sounds: no arp, no strum", K_DIM);
         cv_text(12, LY(48, 40), LY(&FONT_S, F_CAP), "WEAVE is on the last page (SELECT)", K_DIM);
-        cv_blit(0, MAIN_Y);
+        main_blit();
         return;
     }
     int32_t ty = title_sub(tp_info_par(TP_PLAYER, proj.trk[trk].par)->names[pl],
@@ -6053,7 +6081,7 @@ static void draw_players(void)
             if (pr->held[i] < base || pr->held[i] >= base + 27)
                 cv_text(pr->held[i] < base ? 0 : 232, y0 + 16, &FONT_XS, pr->held[i] < base ? "<" : ">", ink);
     }
-    cv_blit(0, MAIN_Y);
+    main_blit();
 }
 /* the pitch classes a random track may use at present (the pool picker's dots): its follow mode's notes */
 static int rand_in_scale(int t, int pc)
@@ -6130,7 +6158,7 @@ static void draw_step_pool(void)
                 }
             }
     }
-    cv_blit(0, MAIN_Y);
+    main_blit();
 }
 /* chord mode (a step held, SEQ tapped), on Steps: the keys are a keyboard (Players') writing the held step's chord
  * instead of playing it. Shown in red (K_REC), as every lock is: the step's own notes lit in the track's ink, a key
@@ -6202,7 +6230,7 @@ static void draw_step_chord(void)
                 }
             }
     }
-    cv_blit(0, MAIN_Y);
+    main_blit();
 }
 /* the Mix page: a strip a track, its meter (after the fader, eng_peak) and its fader on one scale in dB, +6 at the
  * top, -48 at the foot, a line at 0 dB. The meter falls 24 dB a second; its peak holds a second, then falls too.
@@ -6286,7 +6314,7 @@ static void draw_mix(void)
     }
     if (ui.solo)
         text_r(236, 108, &FONT_XS, ui.solo_lat ? "SOLO" : "solo", ui.solo_lat ? K_SEL : K_TEXT);
-    cv_blit(0, MAIN_Y);
+    main_blit();
 }
 /* Master color: the type and what it does, and the Character page's picture of it (synth.c char_picture, through a
  * voice's bytes made from the master's knobs: the same curves) */
@@ -6317,7 +6345,7 @@ static void draw_master_color(void)
         float y = fm_clampf(char_picture(par, u), -1.2f, 1.2f);
         pen_to(&pn, (float)(x0 + i), (float)cy - y * (float)(hh / 2 - 6) / 1.2f, ty == MC_OFF ? K_FAINT : K_NOW);
     }
-    cv_blit(0, MAIN_Y);
+    main_blit();
 }
 static void draw_master(void)
 {
@@ -6358,7 +6386,7 @@ static void draw_master(void)
             text_c(x + 23, y0 + hh + 3, &FONT_XS, NM[i], K_DIM);
         }
     }
-    cv_blit(0, MAIN_Y);
+    main_blit();
 }
 static const felucca_font_t *setup_f;                /* setup_row's face (0: FONT_S) */
 static void setup_row(int32_t y, const char *name, const char *val)
@@ -6412,7 +6440,7 @@ static void draw_glfo(void)
         cv_round(x, 90, 22, 16, 4, on ? trk_ink(i) : K_PANEL);
         text_c(x + 11, 92, &FONT_XS, TRACK_NAME[i], on ? K_BG : K_DIM);
     }
-    cv_blit(0, MAIN_Y);
+    main_blit();
 }
 static void draw_setup(void)
 {
@@ -6434,7 +6462,7 @@ static void draw_setup(void)
         setup_row(49, "BT audio", ta);
         setup_row(65, "BT MIDI", td);
         setup_f = 0;
-        cv_blit(0, MAIN_Y);
+        main_blit();
         return;
     }
     setup_row(2, "tempo from", seq.ext ? "MIDI clock in" : "LOOM-8");
@@ -6445,7 +6473,7 @@ static void draw_setup(void)
     setup_row(72, "theme", THEME_OF_PROJ()->name);
     setup_row(86, "BT audio", ta);
     setup_row(100, "BT MIDI", td);
-    cv_blit(0, MAIN_Y);
+    main_blit();
 }
 static uint32_t status_peak;                          /* the highest peak shown since the screen reader said it (ui.c) */
 static void draw_status(void)
@@ -6483,7 +6511,7 @@ static void draw_status(void)
     setup_row(LY(98, 66), "909 cymbals", d909_res_ok() ? "there" : "missing: reinstall");
     setup_f = 0;   /* (the resource region: the
                                                                                      * installer writes them) */
-    cv_blit(0, MAIN_Y);
+    main_blit();
 }
 
 /* step record on a play page: the cursor's bar as a strip of 16 cells along the main band's foot, so the
@@ -6571,7 +6599,7 @@ static void draw_weave(void)
         s_cat(s_cat(s_cat(t, "Nothing woven into "), TRACK_NAME[trk]), " yet");
         text_c(120, LY(40, 26), text_w(&FONT_B, t) <= 228 ? &FONT_B : &LFONT_B, t, K_TEXT);   /* ("COND ...": a size down;
                                                        * the keys' hints below, at the foot) */
-        cv_blit(0, MAIN_Y);
+        main_blit();
         return;
     }
     num_s((uint32_t)cur_pat(trk) + 1u, s_cat(s_cat(an, TRACK_NAME[trk]), " P"));   /* "T2 P1", "T1 P3" */
@@ -6610,7 +6638,7 @@ static void draw_weave(void)
     else
         num_s((uint32_t)trk + 1u, s_cat(t, "press WEAVE's white key "));   /* (short: "bar 2 of 4" beside it) */
     text_fit(8, LY(98, 64), F_CAP, t, LY(228, 160), !wv_cued(trk) || (seq.wv_live | seq.wv_rec) >> trk & 1u ? K_NOW : K_DIM);
-    cv_blit(0, MAIN_Y);
+    main_blit();
 }
 /* the WEAVE track's page: the ten tracks it weaves (white keys 1-10), each with its weave, lit while it weaves */
 static void draw_weave_play(void)
@@ -6645,11 +6673,11 @@ static void draw_weave_play(void)
     cv_text(8, LY(99, 66), F_CAP, !any ? "no weaves yet: set one on a track's ARP"
                              : proj.trk[AUX_WEAVE].par[TP_E1] ? "tap a key to weave, again to stop" : "hold a key to weave its track",
             K_DIM);
-    cv_blit(0, MAIN_Y);
+    main_blit();
 }
+static void draw_main(int trk);
 static void draw_page(void)
 {
-    int trk = sel_trk();
     if (ui.card) {
         draw_card();
         return;
@@ -6658,6 +6686,15 @@ static void draw_page(void)
         draw_list();
         return;
     }
+    main_r0 = 0;                                     /* the first strip decides; the rest, if it drew */
+    main_drawn = 0;
+    draw_main(sel_trk());
+    for (main_r0 = CV_ROWS; main_drawn && main_r0 < MAIN_H; main_r0 += CV_ROWS)
+        draw_main(sel_trk());
+    main_r0 = 0;
+}
+static void draw_main(int trk)
+{
     switch (ui.page) {
     case P_ARRANGE: draw_arrange(); break;
     case P_SONG: draw_song(); break;

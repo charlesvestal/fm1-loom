@@ -31,11 +31,17 @@ typedef struct { int32_t x0, y0, x1, y1; char s[24]; } ga_box_t;
 static ga_box_t ga_txt[96], ga_rnd[160];
 static uint32_t ga_ntxt, ga_nrnd, ga_seen[512], ga_nseen, ga_findings;
 static int32_t ga_margin;                            /* LOOM_MARGIN=N (host.c): labels N px apart, and from boxes' edges */
+/* a band drawn in strips (pages.c strip_begin): the band's rows in the canvas's coordinates (a label is clipped only past
+ * them, not at a strip's edge), and quiet on every strip but the first, which sees each label's whole ink already */
+static int32_t ga_lo, ga_hi;
+static uint8_t ga_quiet;
 static void ga_reset(void) { ga_ntxt = ga_nrnd = 0; }
 static void ga_report(const char *what, const char *a, const char *b, int32_t x, int32_t y)
 {
     uint32_t h = 2166136261u;
     const char *w = gfx_audit_where(), *q;
+    if (ga_quiet)
+        return;
     for (q = what; *q; q++) h = (h ^ (uint8_t)*q) * 16777619u;
     for (q = a; *q; q++) h = (h ^ (uint8_t)*q) * 16777619u;
     for (q = b; *q; q++) h = (h ^ (uint8_t)*q) * 16777619u;
@@ -52,7 +58,7 @@ static void ga_text(const char *s, int32_t x0, int32_t y0, int32_t x1, int32_t y
 {
     ga_box_t *t;
     uint32_t i;
-    if (x1 < x0)
+    if (x1 < x0 || ga_quiet)
         return;                                      /* no ink (spaces) */
     if (clipped)
         ga_report("CLIPPED", s, "", x0, y0);
@@ -91,7 +97,7 @@ static void ga_text(const char *s, int32_t x0, int32_t y0, int32_t x1, int32_t y
 }
 static void gfx_audit_box(int32_t x, int32_t y, int32_t w, int32_t h)
 {
-    if (ga_nrnd < 160 && w > 0 && h > 0) {
+    if (ga_nrnd < 160 && w > 0 && h > 0 && !ga_quiet) {
         ga_box_t *r = &ga_rnd[ga_nrnd++];
         r->x0 = x, r->y0 = y + cv_oy, r->x1 = x + w - 1, r->y1 = y + cv_oy + h - 1, r->s[0] = 0;
         for (uint32_t i = 0; i < ga_ntxt; i++) {     /* a box drawn after a label: over it, or (LOOM_MARGIN) close */
@@ -113,6 +119,7 @@ static void loom_begin(uint32_t w, uint32_t h, uint16_t bg)   /* fm1-base's cv_b
 {
     cv_begin(w, h, bg);
 #ifdef GFX_AUDIT
+    ga_lo = 0, ga_hi = (int32_t)cv_h, ga_quiet = 0;
     ga_reset();
 #endif
 }
@@ -292,7 +299,7 @@ static int32_t loom_text(int32_t x, int32_t y, const loom_font_t *f, const char 
                     if (px > ix1) ix1 = px;
                     if (py < iy0) iy0 = py;
                     if (py > iy1) iy1 = py;
-                    if ((uint32_t)px >= cv_w || py < cv_y0 || py >= cv_y1)
+                    if ((uint32_t)px >= cv_w || py < ga_lo || py >= ga_hi)
                         clip = 1;
                     else
                         shown = 1;

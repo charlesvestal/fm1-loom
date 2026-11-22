@@ -15,7 +15,8 @@
                                          * each rendered as two 256-frame calls, which is what the simulator always did */
 #define FM1B_UAC_DEEP 1                 /* the USB audio input a half deeper: a song's busy blocks take most of their
                                          * time, which ran fm1-base's ring dry (holds in a recording; base/device/unity.c) */
-#define APP_CANVAS_PX (240u * 120u)     /* the tallest band, the main one, is 240 x 120 */
+#define APP_CANVAS_PX (240u * 60u)      /* half the main band (240 x 120): taller bands draw in strips (pages.c
+                                         * strip_begin), 28.8 KB of RAM back (2026-11-23) */
 #define APP_SYS_TEXT                    /* fm1-base's own screens (crash, update, restore, calibration) in LOOM-8's faces:
                                          * gfx_loom.c app_sys_*; fm1-base's are then not linked (18 KB) */
 
