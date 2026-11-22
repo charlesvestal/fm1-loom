@@ -2225,10 +2225,14 @@ int synth_voice_cost(const synth_t *s, int vi)
                                                   * a half a unison voice, a unit an extra; clamped: a voice started
                                                   * this block holds its last engine's values until its first chunk) */
         return 3 + (int)(1.5f * fm_clampf(v->c.ex[2], 1.0f, (float)KNIT_MAX)) + (v->c.ex[14] > 0.0f) +
-               (v->c.ex[16] > 0.0f || v->c.ex[17] > 0.0f);
+               (v->c.ex[16] > 0.0f || v->c.ex[17] > 0.0f) +
+               (v->ksync || v->ksweep || v->kcross ? 3 : 0) +   /* (the Mod page: the FM-1, 2026-11-23: a synced
+                                                  * voice 7.5 % of a core, plain knit's 3 %; cross 9 %, its unison's
+                                                  * voices each the full path) */
+               (v->kcross ? 2 + (int)(1.5f * fm_clampf(v->c.ex[2], 1.0f, (float)KNIT_MAX)) : 0);
     if (v->engine == EG_RAYON)                   /* (the FM-1, 2026-10-19: a quarter above an ordinary voice; with ops
-                                                  * 3 and 4 two sines more a sample: an estimate) */
-        return v->c.ex[16] > 0.0f ? 7 : 5;
+                                                  * 3 and 4, 2026-11-23: 6.5 .. 7 % of a core a voice, the pair's 4.4) */
+        return v->c.ex[16] > 0.0f ? 8 : 5;
     if (v->engine == EG_ACID)
         return 16;                               /* (the FM-1, 2026-10-30: 17 to 19 % of a core, its 303 oversampled
                                                   * twice: a knit unison voice's) */
