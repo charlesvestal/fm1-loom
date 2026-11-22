@@ -5929,20 +5929,33 @@ static void draw_insert(void)
 {
     static const char *const ABOUT[NIT] = {"nothing more", "the level rising and falling",
                                            "notches that sweep", "a lamp-swept phase",
-                                           "a pedal's distortion", "a filter your playing opens"};
+                                           "a pedal's distortion", "a filter your playing opens",
+                                           "two voices swaying apart", "a tape's fading repeats"};
     int trk = inst_trk();
     const uint8_t *p = par_now(trk);
     int it = p[TP_ITYPE] % NIT;
+    int room = engine_insert_room(trk);
     uint32_t h = hash_u(hash_u(2166136261u, 0x15u), (uint32_t)trk | (uint32_t)it << 4 | (uint32_t)p[TP_I1] << 8 |
                                           (uint32_t)p[TP_I2] << 16 | (uint32_t)p[TP_I3] << 24);
     int32_t x0 = 128, y0 = 8, w = 100, hh = 96;
-    char t[32];
+    char t[40];
+    h = hash_u(h, (uint32_t)room);
+    for (int k = 0; k < NTRK && !room; k++)          /* (who has the memory: the message names them) */
+        h = hash_u(h, proj.trk[k].par[TP_ITYPE]);
     if (!begin_main(h))
         return;
     cv_text(12, 4, &FONT_L, tp_info(TP_ITYPE, 0)->names[it], K_TEXT);
     cv_text(12, 40, &FONT_XS, ABOUT[it], K_DIM);
     s_cat(s_cat(s_cat(t, "after "), TRACK_NAME[trk]), "'s character");
     cv_text(12, 56, &FONT_XS, t, K_DIM);
+    if (!room) {                                     /* (the inserts' memory taken: which tracks have it) */
+        char *e = s_cat(t, "no memory: ");
+        int n = 0;
+        for (int k = 0; k < NTRK; k++)
+            if (k != trk && (proj.trk[k].par[TP_ITYPE] == IT_CHORUS || proj.trk[k].par[TP_ITYPE] == IT_ECHO))
+                e = s_cat(s_cat(e, n++ ? " " : ""), TRACK_NAME[k]);
+        cv_text(12, 74, &FONT_XS, t, K_TEXT);
+    }
     if (it == IT_TREMOLO) {
         float d = (float)p[TP_I2] / 127.0f * 0.5f, pn = (float)p[TP_I3] / 127.0f * 0.5f;
         pen_t pl = {0}, pr = {0};
@@ -5979,6 +5992,26 @@ static void draw_insert(void)
                 }
                 pen_to(&pn, (float)(x0 + i), (float)(y0 + hh - 4) - m * (float)(hh - 12), c ? K_FAINT : K_NOW);
             }
+        }
+    } else if (it == IT_CHORUS) {                    /* its two taps' delays over two cycles, crossing */
+        float dm = 0.1f + 0.9f * (float)p[TP_I2] / 127.0f;
+        pen_t pl = {0}, pr = {0};
+        int32_t cy = y0 + hh / 2;
+        cv_rect(x0, cy, w, 1, K_LINE);
+        for (int32_t i = 0; i <= w; i++) {
+            float ph = 2.0f * (float)i / (float)w, tri = 4.0f * fm_fabsf(ph - fm_floorf(ph + 0.5f)) - 1.0f;
+            pen_to(&pr, (float)(x0 + i), (float)cy + tri * dm * (float)(hh / 2 - 8), K_FAINT);
+            pen_to(&pl, (float)(x0 + i), (float)cy - tri * dm * (float)(hh / 2 - 8), K_NOW);
+        }
+    } else if (it == IT_ECHO) {                      /* the note, then its repeats at its time, each lower by feedback */
+        static const float BT[8] = {0.125f, 1.0f / 6.0f, 0.25f, 1.0f / 3.0f, 0.375f, 0.5f, 0.75f, 1.0f};
+        float fb = (float)p[TP_I2] / 127.0f * 0.95f, lv = 1.0f, mix = (float)p[TP_I3] / 127.0f;
+        int32_t gap = (int32_t)(BT[p[TP_I1] & 7] * 40.0f) + 4;
+        cv_rect(x0, y0 + hh - 4, w, 1, K_LINE);
+        for (int32_t x = 0; x <= w && lv > 0.02f; x += gap) {
+            int32_t bh = (int32_t)(lv * (float)(hh - 12));
+            cv_rect(x0 + x, y0 + hh - 4 - bh, 3, bh, x ? K_NOW : K_DIM);
+            lv = (x ? lv : mix) * (x ? fb : 1.0f);
         }
     } else if (it == IT_RAT) {                       /* the clip's curve at its gain, the dry line faint */
         float g = 1.0f + 60.0f * (float)p[TP_I1] / 127.0f, top;

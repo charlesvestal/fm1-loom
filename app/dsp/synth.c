@@ -246,6 +246,9 @@ typedef struct {
     float ins_k[3], ins_ph;           /* its knobs this block (the LFO on them), the tremolo's phase (turns) */
     float iz[16];                     /* the insert's states (ins_run: per type) */
     uint8_t iz_type;                  /* the type they are for (another: cleared) */
+    int8_t pool_at;                   /* its insert's memory: its first slot of ins_pool (-1 none) */
+    uint16_t ins_tail;                /* blocks its insert rings on once its voices are done (the echo's repeats) */
+    uint8_t pool_n;                   /* how many */
 } trk_t;
 
 struct synth {
@@ -2836,6 +2839,7 @@ void synth_init(synth_t *s, uint8_t (*par)[NTP])
     s->max_voices = NVOICE;
     for (i = 0; i < NTRK; i++) {
         trk_t *t = &s->t[i];
+        t->pool_at = -1;                         /* (no insert memory) */
         for (j = 0; j < NTP_LOCK + NTP_LOCK2; j++)
             t->lock[j] = LOCK_NONE;
         t->mono_voice = -1;
@@ -4206,6 +4210,51 @@ static float bus_sp[2][NSPLIT][2][BUS_N];
 #else
 static float bus_sp[2][NSPLIT][2][BUS_N] __attribute__((section(".pool")));
 #endif
+/* the inserts' memory (chorus: a slot, echo: two), shared by the tracks: given when a track's insert asks for it (the
+ * first free run of slots, cleared), kept while its type stays, given back when it changes */
+#define INS_SLOT_N 1024                          /* (int16 a slot: 2 KB) */
+#ifdef PLAT_HOST
+static int16_t ins_pool[INS_SLOTS][INS_SLOT_N];
+#else
+static int16_t ins_pool[INS_SLOTS][INS_SLOT_N] __attribute__((section(".pool")));
+#endif
+static inline int ins_slots(int type) { return type == IT_CHORUS ? 1 : type == IT_ECHO ? 2 : 0; }
+static void ins_alloc(synth_t *s)
+{
+    uint8_t used = 0;
+    int i, k;
+    for (i = 0; i < NTRK; i++) {                 /* (given back: a track whose insert no longer needs its memory) */
+        trk_t *t = &s->t[i];
+        if (t->pool_at >= 0 && t->pool_n != ins_slots(t->ins))
+            t->pool_at = -1, t->pool_n = 0;
+        if (t->pool_at >= 0)
+            for (k = 0; k < t->pool_n; k++)
+                used |= (uint8_t)(1u << (t->pool_at + k));
+    }
+    for (i = 0; i < NTRK; i++) {
+        trk_t *t = &s->t[i];
+        int need = ins_slots(t->ins);
+        if (!need || t->pool_at >= 0)
+            continue;
+        for (k = 0; k + need <= INS_SLOTS; k++) {
+            uint8_t m = (uint8_t)(((1u << need) - 1u) << k);
+            if (!(used & m)) {
+                used |= m;
+                t->pool_at = (int8_t)k;
+                t->pool_n = (uint8_t)need;
+                t->iz_type = IT_OFF;             /* (its states and memory cleared: ins_run) */
+                for (int q = 0; q < need; q++)
+                    for (int j = 0; j < INS_SLOT_N; j++)
+                        ins_pool[k + q][j] = 0;
+                break;
+            }
+        }
+    }
+}
+int synth_insert_room(const synth_t *s, int trk)
+{
+    return trk < 0 || trk >= NTRK || !ins_slots(s->t[trk].ins) || s->t[trk].pool_at >= 0;
+}
 /* this block's buses (synth_prepare): each track's type, amount, gains and wow; which voices join which bus; the
  * busiest split */
 static void bus_prepare(synth_t *s, uint32_t n)
@@ -4242,6 +4291,7 @@ static void bus_prepare(synth_t *s, uint32_t n)
             }
         }
     }
+    ins_alloc(s);
     for (i = 0; i < NVOICE; i++) {
         const voice_t *v = &s->v[i];
         s->grp[i] = 0;
@@ -4278,14 +4328,29 @@ static void bus_prepare(synth_t *s, uint32_t n)
     }
     for (i = 0; i < NTRK; i++) {                 /* a bus whose voices have ended rings out (a stage's state: the fold's
                                                   * DC blocker, the tape's roll-off; stopped at once it stepped to 0, a
-                                                  * click): a silent voice carries its turn, its frames moved on as idle */
-        const chbus_t *c = &s->t[i].cb;
-        float e;
-        if (s->t[i].bus == CT_OFF || s->lead[i] >= 0 || s->split[i] >= 0 || c->type != s->t[i].bus)
+                                                  * click; an insert's tail: the echo's repeats): a silent voice carries
+                                                  * its turn, its frames moved on as idle */
+        trk_t *t = &s->t[i];
+        const chbus_t *c = &t->cb;
+        float e = 0.0f;
+        if (t->bus == CT_OFF && t->ins == IT_OFF)
             continue;
-        e = fm_fabsf(c->cz[0]) + fm_fabsf(c->cz[1]) + fm_fabsf(c->cz[2]) + fm_fabsf(c->cz[3]) + fm_fabsf(c->cz[6]) +
-            fm_fabsf(c->cz[7]);                  /* (cz[4], cz[5]: phases, not sound) */
-        if (e < 1e-5f)
+        if (s->lead[i] >= 0 || s->split[i] >= 0) {   /* (playing: its insert's tail from here, in blocks) */
+            float sec = 0.1f;
+            if (t->ins == IT_ECHO) {             /* (its repeats to -60 dB, at most 8 s) */
+                static const float BT[8] = {0.125f, 1.0f / 6.0f, 0.25f, 1.0f / 3.0f, 0.375f, 0.5f, 0.75f, 1.0f};
+                float fb = t->ins_k[1] * (0.95f / 127.0f), d = BT[(int)t->ins_k[0] & 7] * 60.0f / fm_maxf(s->bpm, 20.0f);
+                sec = fm_minf(d * (1.0f + (fb > 0.01f ? 3.0f / -fm_log2f(fb) * 3.3219f : 1.0f)), 8.0f);
+            }
+            t->ins_tail = (uint16_t)(sec * SY_SR / (float)(n ? n : 256u) + 1.0f);
+            continue;
+        }
+        if (t->bus != CT_OFF && c->type == t->bus)
+            e = fm_fabsf(c->cz[0]) + fm_fabsf(c->cz[1]) + fm_fabsf(c->cz[2]) + fm_fabsf(c->cz[3]) + fm_fabsf(c->cz[6]) +
+                fm_fabsf(c->cz[7]);              /* (cz[4], cz[5]: phases, not sound) */
+        if (t->ins_tail)
+            t->ins_tail--;
+        if (e < 1e-5f && !t->ins_tail)
             continue;
         for (int vi = 0; vi < NVOICE; vi++)
             if (!s->grp[vi] && !v_sounding(&s->v[vi])) {
@@ -4469,6 +4534,89 @@ static void ins_run(synth_t *s, trk_t *t, float *bl, float *br, uint32_t n)
             }
         }
         z[4] = fm_flush(e);
+        break;
+    }
+    case IT_CHORUS: {                            /* z[0] where it writes; the line: its slot, the pair's middle at 1/8192 */
+        int16_t *ln = t->pool_at >= 0 ? ins_pool[(int)t->pool_at] : 0;
+        const float dph = lfo_hz((int)t->ins_k[0], s->bpm) * INV_SR, d0 = 0.007f * SY_SR, dm = (0.0004f + 0.004f * k1) * SY_SR;
+        const float wet = k2;
+        int w = (int)z[0];
+        if (!ln)
+            break;
+        for (uint32_t j = 0; j < n; j += 16) {
+            uint32_t m = n - j < 16u ? n - j : 16u;
+            float tri = 4.0f * fm_fabsf(ph - fm_floorf(ph + 0.5f)) - 1.0f;   /* (a triangle, -1..1, as the Juno's) */
+            float dl = d0 + dm * tri, dr = d0 - dm * tri;
+            for (uint32_t i = j; i < j + m; i++) {
+                float xs = 0.5f * (bl[i] + br[i]), yl, yr;
+                ln[w] = (int16_t)fm_clampf(xs * 8192.0f, -32767.0f, 32767.0f);
+                {
+                    float pl = (float)w - dl, pr = (float)w - dr;
+                    int il, ir;
+                    float fl, fr;
+                    pl += pl < 0.0f ? (float)INS_SLOT_N : 0.0f;
+                    pr += pr < 0.0f ? (float)INS_SLOT_N : 0.0f;
+                    il = (int)pl, ir = (int)pr;
+                    fl = pl - (float)il, fr = pr - (float)ir;
+                    yl = ((float)ln[il] + ((float)ln[(il + 1) & (INS_SLOT_N - 1)] - (float)ln[il]) * fl) * (1.0f / 8192.0f);
+                    yr = ((float)ln[ir] + ((float)ln[(ir + 1) & (INS_SLOT_N - 1)] - (float)ln[ir]) * fr) * (1.0f / 8192.0f);
+                }
+                bl[i] += wet * (yl - bl[i]);
+                br[i] += wet * (yr - br[i]);
+                w = (w + 1) & (INS_SLOT_N - 1);
+            }
+            ph += dph * (float)m;
+            ph -= fm_floorf(ph);
+        }
+        z[0] = (float)w;
+        break;
+    }
+    case IT_ECHO: {                              /* a tape echo at half the rate, 8-bit companded (sqrt) in its two slots:
+                                                  * z[0] where it writes, z[1] the repeats' low-pass, z[2] the last read,
+                                                  * z[3] the half-rate input's first of its pair, z[4] which of the pair */
+        static const float BEATS[8] = {0.125f, 1.0f / 6.0f, 0.25f, 1.0f / 3.0f, 0.375f, 0.5f, 0.75f, 1.0f};
+        int8_t *ln = t->pool_at >= 0 ? (int8_t *)(void *)ins_pool[(int)t->pool_at] : 0;
+        const int LN = 2 * INS_SLOT_N * 2;       /* (bytes: two slots) */
+        float dly = BEATS[(int)t->ins_k[0] & 7] * 60.0f / fm_maxf(s->bpm, 20.0f) * (SY_SR * 0.5f);
+        const float fb = k1 * 0.95f, wet = k2, klp = op_coef(3500.0f * 2.0f);   /* (at half the rate: its coefficient
+                                                  * for twice the frequency) */
+        float lp = z[1], last = z[2], a = z[3], wow;
+        int w = (int)z[0], odd = (int)z[4];
+        if (!ln)
+            break;
+        dly = fm_minf(dly, (float)(LN - 4));
+        wow = 1.0f + 0.002f * in_sin(ph);        /* (the tape's wow: 0.5 Hz, a block at a time) */
+        ph += 0.5f * INV_SR * (float)n;
+        ph -= fm_floorf(ph);
+        dly *= wow;
+        for (uint32_t i = 0; i < n; i++) {
+            float x = 0.5f * (bl[i] + br[i]);
+            if (!odd)
+                a = x;
+            else {                               /* the pair in: a step of the line */
+                float in = 0.5f * (a + x), p = (float)w - dly, rd, fr, v, sq;
+                int ip;
+                p += p < 0.0f ? (float)LN : 0.0f;
+                ip = (int)p;
+                fr = p - (float)ip;
+                {
+                    float c0 = (float)ln[ip] * (1.0f / 127.0f), c1 = (float)ln[(ip + 1) % LN] * (1.0f / 127.0f);
+                    c0 = c0 * fm_fabsf(c0) * 4.0f;     /* (the sqrt companding back: x^2, the line at 1/4) */
+                    c1 = c1 * fm_fabsf(c1) * 4.0f;
+                    rd = c0 + (c1 - c0) * fr;
+                }
+                lp += klp * (rd - lp);
+                v = soft3(in + fb * lp);         /* (the repeats darker each time, saturated) */
+                sq = fm_sqrtf(fm_minf(fm_fabsf(v) * 0.25f, 1.0f)) * 127.0f;
+                ln[w] = (int8_t)(v < 0.0f ? -(int)(sq + 0.5f) : (int)(sq + 0.5f));
+                w = (w + 1) % LN;
+                last = lp;
+            }
+            odd ^= 1;
+            bl[i] += wet * last;
+            br[i] += wet * last;
+        }
+        z[0] = (float)w, z[1] = fm_flush(lp), z[2] = fm_flush(last), z[3] = a, z[4] = (float)odd;
         break;
     }
     default:
@@ -4750,7 +4898,8 @@ static const tp_info_t ROPS_P[4] = {{"ops", 0, NRO - 1, RO_OFF, PK_NAMES, RO_N},
                                     {"depth", 0, 127, 0, PK_NN, 0}, {"feedback", 0, 127, 0, PK_NN, 0}};
 static const tp_info_t KANALOG_P = {"analog", 0, 127, 0, PK_NN, 0};
 /* the insert (synth.h IT_*): its type, and its knobs as each type names them (any type's ranges: tp_info) */
-static const char *const ITYPE_N[NIT] = {"off", "tremolo", "phaser", "univibe", "rat", "autowah"};
+static const char *const ITYPE_N[NIT] = {"off", "tremolo", "phaser", "univibe", "rat", "autowah", "chorus", "echo"};
+static const char *const ECHO_T_N[8] = {"1/32", "1/16T", "1/16", "1/8T", "1/16D", "1/8", "1/8D", "1/4"};
 static const tp_info_t ITYPE_P = {"insert", 0, NIT - 1, IT_OFF, PK_NAMES, ITYPE_N};
 static const tp_info_t INS_ANY_P = {"", 0, 127, 0, PK_NN, 0};
 static const tp_info_t INS_P[NIT][3] = {
@@ -4759,7 +4908,9 @@ static const tp_info_t INS_P[NIT][3] = {
     {{"rate", 0, 127, 40, PK_HZ_SYNC, 0}, {"depth", 0, 127, 90, PK_PCT, 0}, {"feedback", 0, 127, 60, PK_PCT, 0}},
     {{"rate", 0, 127, 70, PK_HZ_SYNC, 0}, {"depth", 0, 127, 90, PK_PCT, 0}, {"vibrato", 0, 127, 0, PK_PCT, 0}},
     {{"distort", 0, 127, 70, PK_NN, 0}, {"filter", 0, 127, 50, PK_NN, 0}, {"level", 0, 127, 80, PK_NN, 0}},
-    {{"sense", 0, 127, 80, PK_NN, 0}, {"reso", 0, 127, 70, PK_NN, 0}, {"decay", 0, 127, 50, PK_NN, 0}}};
+    {{"sense", 0, 127, 80, PK_NN, 0}, {"reso", 0, 127, 70, PK_NN, 0}, {"decay", 0, 127, 50, PK_NN, 0}},
+    {{"rate", 0, 127, 30, PK_HZ_SYNC, 0}, {"depth", 0, 127, 70, PK_PCT, 0}, {"mix", 0, 127, 64, PK_PCT, 0}},
+    {{"time", 0, 7, 5, PK_NAMES, ECHO_T_N}, {"feedback", 0, 127, 60, PK_PCT, 0}, {"mix", 0, 127, 45, PK_PCT, 0}}};
 static const tp_info_t TULLE_G_P[4] = {{"shape", 0, 127, 0, PK_NN, 0}, {"reverse", 0, 127, 0, PK_PCT, 0},
                                        {"-", 0, 0, 0, PK_NUM, 0}, {"-", 0, 0, 0, PK_NUM, 0}};
 static const tp_info_t KMOD_P[4] = {{"sync", 0, 1, 0, PK_SWITCH, 0}, {"sweep", 0, KSWEEP_MAX, 0, PK_SEMI, 0},

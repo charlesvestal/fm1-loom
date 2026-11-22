@@ -154,7 +154,11 @@ enum {
  * depth; pan: 0 a tremolo, both sides together, 127 an auto-pan, the sides opposite); phaser (rate, depth: the sweep's
  * span, feedback); univibe (rate, depth, vibrato: 0 its chorus, dry and wet, 127 the wet alone); rat (distortion,
  * filter: darker turned up, level); autowah (sensitivity, resonance, decay) */
-enum { IT_OFF, IT_TREMOLO, IT_PHASER, IT_UNIVIBE, IT_RAT, IT_AUTOWAH, NIT };
+enum { IT_OFF, IT_TREMOLO, IT_PHASER, IT_UNIVIBE, IT_RAT, IT_AUTOWAH, IT_CHORUS, IT_ECHO, NIT };
+/* chorus (rate, depth, mix) and echo (time: IE_* divisions, feedback, mix) take memory from a pool shared by every
+ * track's insert: INS_SLOTS of 2 KB, a chorus one, an echo two. A track whose insert finds none passes dry
+ * (synth_insert_room) */
+#define INS_SLOTS 4
 _Static_assert(NTP <= 511, "a parameter's index: nine bits in the engine's queue (engine.c cq_put); a lane's is 16");
 /* knit's osc 2 wave (TP_O2WAVE): osc 1's (its wave knob and the LFO on it), or its own: saw, square and pulse are
  * points of its shape's sweep (TP_O2SHAPE: turning the wave sets the shape there), triangle and sine */
@@ -393,6 +397,7 @@ void synth_split(synth_t *s, int on);
 /* a track's insert (TP_ITYPE) on a pair of its own: the kit's bus (engine.c, after its character); this block's knobs
  * (synth_prepare) */
 void synth_insert(synth_t *s, int trk, float *l, float *r, uint32_t n);
+int synth_insert_room(const synth_t *s, int trk);   /* 1: its insert has its memory (or needs none: INS_SLOTS) */
 void synth_bus_join(synth_t *s, float *l, float *r, float *s1, float *s2, uint32_t n);
 void synth_bus_reset(synth_t *s, int core);
 /* the same, saying which core renders (0 the first, 1 the second: the profiler's halves) */

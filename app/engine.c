@@ -145,6 +145,7 @@ int engine_slice_now(int trk, int *slice, int32_t *pos)
 {
     return trk >= 0 && trk < NTRK && synth_slice_now(SY, trk, slice, pos);
 }
+int engine_insert_room(int trk) { return synth_insert_room(SY, trk); }
 int engine_tulle_grains(int trk, int32_t *pos, uint8_t *lvl, int max)
 {
     return trk >= 0 && trk < NTRK ? synth_tulle_grains(SY, trk, pos, lvl, max) : 0;

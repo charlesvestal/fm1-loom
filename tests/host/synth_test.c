@@ -2102,6 +2102,46 @@ static void insert_tests(void)
         }
         check("every insert type sounds, finite, under 2, and changes the sound", ok && finite);
     }
+    {   /* echo: a short note, then its repeats after the voice has ended (the bus rings on); the pool: five choruses,
+         * four with memory, the fifth without */
+        float late = 0.0f;
+        int ended = 0, room = 0;
+        reset();
+        par[0][TP_A] = 0;
+        par[0][TP_D] = 30;
+        par[0][TP_S] = 0;
+        par[0][TP_R] = 10;
+        par[0][TP_ITYPE] = IT_ECHO;
+        par[0][TP_I1] = 5;                       /* 1/8: 250 ms at 120 */
+        par[0][TP_I2] = 90;
+        par[0][TP_I3] = 100;
+        synth_init(S, par);
+        synth_tempo(S, 120.0f);
+        synth_note_on(S, 0, 60, 120, 0, 1);
+        block(N, &finite);
+        synth_note_off(S, 0, 1);
+        for (int b = 0; b < 200; b++) {
+            float pk = block(N, &finite);
+            if (!synth_sounding(S, 0, NVOICE) && !ended)
+                ended = b;
+            if (ended && b > ended + 20 && b < ended + 120)   /* (0.5 .. 2.8 s on: its repeats) */
+                late = pk > late ? pk : late;
+        }
+        printf("    echo: the voice done at block %d, its repeats after it up to %.3f\n", ended, (double)late);
+        check("echo: its repeats go on after the note's voice has ended", ended > 0 && late > 0.005f && finite);
+        reset();
+        for (int t = 0; t < 5; t++) {
+            par[t][TP_ITYPE] = IT_CHORUS;
+            par[t][TP_I3] = 64;
+        }
+        synth_init(S, par);
+        block(N, &finite);
+        for (int t = 0; t < 5; t++)
+            room += synth_insert_room(S, t);
+        check("the inserts' memory: four choruses have it, the fifth not (it passes dry)", room == 4 && finite);
+        for (int t = 0; t < 5; t++)
+            par[t][TP_ITYPE] = IT_OFF;
+    }
     check("the insert's knobs named by its type", !strcmp(tp_info(TP_ITYPE, EG_KNIT)->name, "insert") &&
           !strcmp(tp_info_par(TP_I1, (const uint8_t[NTP]){[TP_ITYPE] = IT_TREMOLO})->name, "rate"));
 }

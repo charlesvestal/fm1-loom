@@ -1230,6 +1230,13 @@ a type sets its knobs to their starting values. On a kit, the insert comes after
 | univibe | The rate, as tremolo's. | The depth. | Vibrato: at 0 the classic chorus, the dry sound under the swept one; turned up, more of the swept sound alone, a pitch-wobbling vibrato. The sweep follows a lamp: it lingers dark and flashes bright. |
 | rat | Distortion, after the RAT pedal: more gain, and darker as it rises. | Filter: darker turned up. | The level. At its starting value it's about as loud as the track without it. |
 | autowah | Sensitivity: how far your playing opens the filter. | Resonance. | Decay: how slowly it closes again. |
+| chorus | The rate, as tremolo's. | The depth. | Mix. Two copies sway against each other, one on each side, as in the Juno's chorus. |
+| echo | The time: 1/32, 1/16T, 1/16, 1/8T, 1/16D, 1/8, 1/8D or 1/4, at the song's tempo. | Feedback: more repeats. Each repeat comes back darker and a little saturated, with a slight wow, like tape. | Mix: how loud the repeats are. |
+
+Chorus and echo need memory, which all the tracks' inserts share: four choruses, two echoes, or an echo and two
+choruses at once. When it runs out, the Insert page says "no memory" and which tracks hold it, and that insert
+passes the sound through unchanged until one of them is turned off or changed. At a slow tempo an echo can't reach
+the longer times, and it stays at about 370 ms. When you stop playing, an echo's repeats ring out.
 
 You can lock the insert's knobs on a step, and COPY SOUND carries the insert with the rest of the sound.
 
