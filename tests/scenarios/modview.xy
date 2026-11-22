@@ -107,8 +107,11 @@ wait 400
 expect envdot >30
 shot mod_env_decay.png
 wait 3000
-expect envdot 109
+expect envdot >109
+expect envdot <177
 shot mod_env_sustain.png
+wait 7000
+expect envdot 177
 play 3 C4 off
 wait 200
 expect envdot >140

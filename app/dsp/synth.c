@@ -2322,12 +2322,15 @@ static inline float sin_q(float ph)              /* a quick sine of a phase in t
     float x = ph - fm_floorf(ph + 0.5f), y = 8.0f * x - 16.0f * x * fm_fabsf(x);
     return y + 0.225f * (y * fm_fabsf(y) - y);
 }
-static float ch_lp_hz(float t) { return 400.0f * fm_exp2f(t * 5.64385619f); }      /* tone 0..1: 400 Hz .. 20 kHz */
-static float ch_pivot_hz(float a) { return 150.0f * fm_exp2f(a * 5.32192809f); }   /* amount 0..1: 150 Hz .. 6 kHz */
-static float ch_alpha(float hz) { return hz >= 19000.0f ? 1.0f : 1.0f - fm_expf(-FM_TWO_PI * hz * INV_SR); }
-static float ch_tape_hz(float t) { return 1500.0f * fm_exp2f(t * 3.585f); }        /* tone 0..1: 1.5 .. 18 kHz */
-static float ch_smp_hz(float t) { return 2000.0f * fm_exp2f(t * 3.322f); }         /* tone 0..1: 2 .. 20 kHz */
-static float ch_smp_rate(float a) { return 26040.0f * fm_exp2f(-a * 1.243f); }     /* amount 0..1: 26 .. 11 kHz */
+static __attribute__((noinline)) float ch_exp2(float x) { return fm_exp2f(x); }   /* (the coefficients': made only
+                                                                                        * when a knob moves, so one copy) */
+static __attribute__((noinline)) float ch_exp(float x) { return fm_expf(x); }
+static float ch_lp_hz(float t) { return 400.0f * ch_exp2(t * 5.64385619f); }      /* tone 0..1: 400 Hz .. 20 kHz */
+static float ch_pivot_hz(float a) { return 150.0f * ch_exp2(a * 5.32192809f); }   /* amount 0..1: 150 Hz .. 6 kHz */
+static float ch_alpha(float hz) { return hz >= 19000.0f ? 1.0f : 1.0f - ch_exp(-FM_TWO_PI * hz * INV_SR); }
+static float ch_tape_hz(float t) { return 1500.0f * ch_exp2(t * 3.585f); }        /* tone 0..1: 1.5 .. 18 kHz */
+static float ch_smp_hz(float t) { return 2000.0f * ch_exp2(t * 3.322f); }         /* tone 0..1: 2 .. 20 kHz */
+static float ch_smp_rate(float a) { return 26040.0f * ch_exp2(-a * 1.243f); }     /* amount 0..1: 26 .. 11 kHz */
 #define CH_DC (FM_TWO_PI * 12.0f * INV_SR)       /* the DC blocker's one-pole: 12 Hz */
 #define CH_REF 0.7f                              /* the drive keeps the level of a peak here (an engine's, about) */
 #define CH_FOLD 0.6f                             /* the fold's level once it folds (a folded wave's RMS: about a saw's) */
@@ -2353,14 +2356,14 @@ static void char_coefs(int type, float a, float t, float freq, float *x)
     float tc = fm_clampf((t * 127.0f - 64.0f) * (1.0f / 63.0f), -1.0f, 1.0f);
     switch (type) {
     case CT_DRIVE: {                             /* gain 0.25 .. 32 (-12 .. +30 dB), made up at CH_REF */
-        float g = 0.25f * fm_exp2f(a * 7.0f);
+        float g = 0.25f * ch_exp2(a * 7.0f);
         x[0] = g;
         x[1] = CH_REF / sat_c(g * CH_REF) * (1.0f - 0.25f * a);   /* (squarer as it drives: a little less) */
         x[2] = ch_alpha(ch_lp_hz(t));
         break;
     }
     case CT_FOLD: {                              /* sin(pi/2 (g x + bias)): g 0.3 .. 8, the bias +-1 */
-        float g = 0.3f * fm_exp2f(a * 4.74f), b = tc;
+        float g = 0.3f * ch_exp2(a * 4.74f), b = tc;
         x[0] = g * 0.25f;                        /* (in turns) */
         x[1] = fm_maxf(CH_FOLD, 2.0f / (FM_PI * g));   /* small g: linear, unity; large: about the input's level */
         x[3] = b * 0.25f;
@@ -2370,10 +2373,10 @@ static void char_coefs(int type, float a, float t, float freq, float *x)
     }
     case CT_CRUSH: {                             /* bits 16 .. 3 and the rate / 1 .. / 45, by the balance */
         float wb = fm_minf(1.0f, 1.0f + tc), wr = fm_minf(1.0f, 1.0f - tc);
-        float q = fm_exp2f(15.0f - a * wb * 13.0f);
+        float q = ch_exp2(15.0f - a * wb * 13.0f);
         x[0] = q;
         x[1] = 1.0f / q;
-        x[2] = fm_exp2f(-a * wr * 5.5f);
+        x[2] = ch_exp2(-a * wr * 5.5f);
         break;
     }
     case CT_RING: {                              /* x (1 - d + d sin): the level made up for the depth */
@@ -2388,7 +2391,7 @@ static void char_coefs(int type, float a, float t, float freq, float *x)
         break;
     }
     case CT_TAPE: {                              /* the drive's curve, gentler; a two-pole roll-off; the wow's depth */
-        float g = 0.5f * fm_exp2f(a * 4.0f);
+        float g = 0.5f * ch_exp2(a * 4.0f);
         x[0] = g;
         x[1] = CH_REF / sat_c(g * CH_REF) * (1.0f - 0.15f * a);
         x[2] = ch_alpha(ch_tape_hz(t));
@@ -2396,7 +2399,7 @@ static void char_coefs(int type, float a, float t, float freq, float *x)
         break;
     }
     case CT_SAMPLER: {                           /* rate and bits by the amount; the input and output filters */
-        float r = ch_smp_rate(a), q = fm_exp2f(13.0f - 3.0f * a);   /* (14 .. 11 bits: a voice sits well under 0 dB) */
+        float r = ch_smp_rate(a), q = ch_exp2(13.0f - 3.0f * a);   /* (14 .. 11 bits: a voice sits well under 0 dB) */
         x[0] = q;
         x[1] = 1.0f / q;
         x[2] = r * INV_SR;
@@ -2407,8 +2410,8 @@ static void char_coefs(int type, float a, float t, float freq, float *x)
     case CT_TILT: {                              /* lows x 2^-tilt, highs x 2^tilt about the pivot */
         float tl = tc;
         x[0] = ch_alpha(ch_pivot_hz(a));
-        x[1] = fm_exp2f(-tl);
-        x[2] = fm_exp2f(tl);
+        x[1] = ch_exp2(-tl);
+        x[2] = ch_exp2(tl);
         break;
     }
     default:

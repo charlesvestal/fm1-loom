@@ -1198,6 +1198,7 @@ static void draw_header(void)
 #define MV_GUARD_OFF 70u
 static synth_mod_t mv = {.of = NTRK};
 static uint8_t mv_guard;
+static uint32_t mv_sus;                             /* (when the Envelope page's note reached its sustain, ms | 1; 0 not in it) */
 static int32_t mv_fc, mv_dot = -1;                  /* (the host's checks: the Filter curve's cutoff, x; the
                                                      * Envelope page's dot, x, -1 none) */
 static int mod_view(void) { return !(proj.rsv[3] & MOD_VIEW_OFF) && !mv_guard; }
@@ -5308,6 +5309,7 @@ static void draw_env(int filter)
         }
     }
     mv_dot = -1;
+    mv_sus = st == 3 ? (mv_sus ? mv_sus : plat_ms() | 1u) : 0;
     if (st) {                                        /* the dot where its stage's curve is at its level (sustain: the
                                                       * decay's end; a release from above the sustain: its start),
                                                       * between the curve's points, so it glides rather than steps */
@@ -5317,6 +5319,8 @@ static void draw_env(int filter)
             i++;
         g = py[i] - py[i - 1];
         mv_dot = (int32_t)(px[i] - (px[i] - px[i - 1]) * (g != 0.0f ? fm_maxf((py[i] - dy) / g, 0.0f) : 0.0f) + 0.5f);
+        if (st == 3)                                 /* sustain: along its line over 7 s, then it waits at the end */
+            mv_dot = (int32_t)(px[28] + (px[29] - px[28]) * fm_minf((float)(int32_t)(plat_ms() - mv_sus) * (1.0f / 7000.0f), 1.0f) + 0.5f);
         dy = (float)(int32_t)(dy + 0.5f);
         h = hash_u(h, (uint32_t)st | (uint32_t)dy << 4 | (uint32_t)mv_dot << 16);
     }
