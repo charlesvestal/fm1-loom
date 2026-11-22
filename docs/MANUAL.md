@@ -729,8 +729,8 @@ turn **PRESETS**.
 
 Three kit tracks can play at once, because each kit takes its own share of the FM-1's memory, even with only one
 sound in use. If you make a fourth kit track, LOOM-8 tells you which track is silent (for example "T4 SILENT, 3
-kits at most"), and that track's Engine page says "silent: 3 kits at most". It plays as soon as one of the other
-kits becomes another engine.
+kits at most"), and that track's Engine page shows its pads faded behind "SILENT, 3 kits at most". It plays as soon
+as one of the other kits becomes another engine.
 
 The four knobs on the Engine page belong to the key's model:
 
