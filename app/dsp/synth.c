@@ -700,10 +700,10 @@ SY_INLINE void knit_hp(float *x, float *lo, float *bp, float f, int m)
 }
 /* knit: the everyday subtractive voice. wave: saw (0) .. square (the middle) .. a 10 % pulse (saw_pulse:
  * the LFO on it is PWM); voices 1..7: a unison of that wave, detuned by the JP-8000's offsets (KNIT_COEF) as detune opens, each pair across the field as width opens, all at one power (1 / sqrt n); at one voice
- * detune is a drift instead, the pitch wandering slowly (up to +-12 cents, a fresh target every ~0.4 s). Its second
- * page (TP_X1..X4, KNIT_X_P): osc 2, one more of the wave at an interval (+-24 semitones about 64) and its level (0 off),
- * detune also tuning it up to 20 cents above the interval (two oscillators beating, at any number of voices); its
- * third, Osc 2 (TP_O2WAVE, TP_O2SHAPE, TP_O2FINE): osc 2's own wave, its shape and its fine tune;
+ * detune is a drift instead, the pitch wandering slowly (up to +-12 cents, a fresh target every ~0.4 s). Its Osc 2
+ * page (TP_X1, TP_O2FINE, TP_O2WAVE, TP_O2SHAPE): osc 2, one more of the wave at an interval (+-24 semitones about
+ * 64), its fine tune, its own wave and shape, detune also tuning it up to 20 cents above the interval (two oscillators
+ * beating, at any number of voices); its Levels page (TP_X2..X4, KNIT_X_P): osc 2's level (0 off),
  * sub, a sine an octave down; noise. A unison's beating is kept out of the bass by brocade's keytracked high-pass.
  * o[0..6] the voices' phases (random at the start), o[7] osc 2's, o[8] the sub's, o[9] osc 2's own shape (0..1, as
  * voice_chunk read it: voice_t o2w says whether it counts), o[10] the drift (cents) and o[11]
@@ -2679,7 +2679,7 @@ static void voice_chunk(synth_t *s, voice_t *v)
         c->pitch_off += off * (1200.0f / 127.0f);
     if (gd == GD_PITCH)                          /* (+-12 semitones at 100 %) */
         c->pitch_off += g * (1200.0f / 127.0f);
-    {   /* the sound's octave (Play 2) */
+    {   /* the sound's octave (Play's fourth knob) */
         int oc = P(s, trk, TP_OCT);
         c->pitch_off += (float)((oc > 4 ? 4 : oc) - 2) * 1200.0f;
     }
@@ -3379,11 +3379,12 @@ static const char *const ACIDVM_N[3] = {"legato", "legato", "legato"};
 static const char *const ACIDFT_N[NFT] = {"303", "303", "303", "303", "303", "303"};
 static const tp_info_t ACID_VM_P = {"mode", 0, 0, 0, PK_NAMES, ACIDVM_N};
 static const tp_info_t ACID_FT_P = {"type", 0, 0, 0, PK_NAMES, ACIDFT_N};
-/* knit's second page: osc 2's interval (+-24 semitones about 64) and level, the sub, the noise (knit_prep) */
-static const tp_info_t KNIT_X_P[4] = {{"osc 2", 40, 88, 64, PK_BIPST, 0}, {"level", 0, 127, 0, PK_PCT, 0},
+/* knit's TP_X1..X4: osc 2's interval (+-24 semitones about 64; on the Osc 2 page) and level, the sub, the noise (on
+ * Levels; knit_prep) */
+static const tp_info_t KNIT_X_P[4] = {{"interval", 40, 88, 64, PK_BIPST, 0}, {"osc 2", 0, 127, 0, PK_PCT, 0},
                                     {"sub", 0, 127, 0, PK_PCT, 0}, {"noise", 0, 127, 0, PK_PCT, 0}};
-/* its third, Osc 2: osc 2's wave (O2W_*), its own shape (as osc 1's wave knob: "-" but for saw, square, pulse), its fine
- * tune (+-50 cents) */
+/* osc 2's own (the Osc 2 page, after its interval): its wave (O2W_*), its own shape (as osc 1's wave knob: "-" but
+ * for saw, square, pulse), its fine tune (+-50 cents) */
 static const char *const O2WAVE_N[NO2W] = {"same", "saw", "square", "pulse", "triangle", "sine"};
 static const tp_info_t O2WAVE_P = {"wave", 0, NO2W - 1, O2W_SAME, PK_NAMES, O2WAVE_N};
 static const tp_info_t O2SHAPE_P = {"shape", 0, 127, 0, PK_NN, 0};

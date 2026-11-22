@@ -74,7 +74,8 @@ enum { DF_OFF, DF_LP, DF_HP, DF_BP, NDF };        /* a key's filter: off, 12 dB 
 enum {
     TP_ENGINE, TP_E1, TP_E2, TP_E3, TP_E4,         /* Engine page: the engine and its four knobs */
     TP_VMODE, TP_PORTA, TP_BEND, TP_VOLUME,        /* Play page: poly / mono / legato, glide (0 = off), bend range
-                                                     * (0 off, 1..7 semitones, 8 = an octave: tp_bend_semi), volume */
+                                                     * (0 off, 1..7 semitones, 8 = an octave: tp_bend_semi); volume
+                                                     * (Play 2; knit's on Levels) */
     TP_A, TP_D, TP_S, TP_R,                         /* amp ADSR */
     TP_FA, TP_FD, TP_FS, TP_FR,                     /* filter ADSR */
     TP_CUT, TP_RES, TP_FENV, TP_KTRK, TP_FTYPE,     /* Filter page (cutoff 50 Hz .. 20 kHz) and the type (FT_*); on a
@@ -86,10 +87,11 @@ enum {
     TP_CTYPE, TP_CAMT, TP_CTONE, TP_CMIX,           /* Character: the voice's own effect after the filter (CT_*),
                                                      * its amount, tone (per type, below) and mix (dry .. wet) */
     TP_X1, TP_X2, TP_X3, TP_X4,                     /* the engine's second page (its names per engine: tp_info; "-"
-                                                     * where unused): knit's osc 2, level, sub, noise; rayon's fall,
-                                                     * floor, keyscale */
-    TP_OCT,                                         /* Play 2: the sound's octave, 0..4 = -2..+2 (2: as played); a
-                                                     * preset's by its role (a bass -2). Moves the notes, sequenced too */
+                                                     * where unused): knit's interval (its Osc 2 page), osc 2's
+                                                     * level, sub, noise (Levels); rayon's fall, floor, keyscale */
+    TP_OCT,                                         /* Play's fourth (MIDI's Play 2): the sound's octave, 0..4 = -2..+2
+                                                     * (2: as played); a preset's by its role (a bass -2). Moves the
+                                                     * notes, sequenced too */
     TP_PLAYER, TP_P1, TP_P2, TP_P3, TP_P4,          /* Players: off / arp / strum / hold and its four knobs */
     TP_AP1, TP_AP2, TP_AP3, TP_AP4,                 /* the arp's second page: length, style, glide, stereo */
     TP_LEVEL, TP_PAN,                               /* Mix */

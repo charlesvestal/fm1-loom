@@ -128,7 +128,8 @@ turn ALGO -1
 tap EDIT
 wait 1600
 shot engine.png
-turn SELECT 1
+# Play: the last of knit's EDIT pages
+turn SELECT -1
 wait 1600
 shot play.png
 tap ENV

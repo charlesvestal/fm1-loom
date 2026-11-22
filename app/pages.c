@@ -98,9 +98,10 @@ static uint16_t col_mix(uint16_t a, uint16_t b, uint32_t s)   /* a moved s/16 of
  * envelope, the filter, the filter envelope (a drum track: the shown key's envelope and filter, then the kit's
  * envelope and the kit's bus filter: four pages); FX: the instrument's character stage (a kit's on the whole
  * kit, after its bus filter), its sends and the two effects; ARP three with the arp (its page 2, then hold). EDIT on a synth
- * track: Engine, Play, Play 2 (the octave), then Sub where the engine has a second page of knobs (TP_X1..X4: knit's
- * oscillator 2, level, sub, noise; rayon's fall), and knit's Osc 2 after it (osc 2's wave, shape, fine); a kit or an FX
- * track Engine and Play; the conductor Engine, Play (routing), Sub (Follow) */
+ * track: the sound first, then how it plays: Engine, Sub where the engine has a second page of knobs (TP_X1..X4:
+ * rayon's fall, acid's drive), Play (mode, glide, bend, octave), Play 2 (volume); knit: Engine, Osc 2 (osc 2's
+ * interval, fine, wave, shape), Levels (the Sub page: osc 2's level, sub, noise, volume), Play; a kit or an FX track
+ * Engine and Play; the conductor Engine, Play (routing), Sub (Follow) */
 enum { P_ARRANGE, P_SONG, P_STEPS, P_BAR, P_ENGINE, P_PLAY, P_PLAY2, P_SUB, P_OSC2, P_ENV, P_FILTER, P_ENV2, P_KITF, P_CHARACTER, P_SENDS,
        P_FX1, P_FX2, P_THROWS, P_LFO, P_LFO2, P_PLAYERS, P_PLAYERS2, P_PLAYERS3, P_WEAVE, P_MIX, P_MASTER, P_MASTER2, P_MASTER3, P_GLFO, P_SETUP,
        P_STATUS, NPAGES };
@@ -627,6 +628,8 @@ static const char *page_name_of(int p, int trk)
         return "Players 3";                          /* (the arp's page 3 is Hold) */
     if (trk < NTRK && p == P_SUB && proj.trk[trk].par[TP_ENGINE] == EG_SAMPLE)
         return "Loop";
+    if (is_knit(trk) && p == P_SUB)                  /* (not "Mix": GLO's Mix is the track's sends, pan, level) */
+        return "Levels";
     if ((is_drum(trk) || is_midi(trk)) && p == P_SUB)
         return "Engine 2";
     return PAGE_NAME[p % NPAGES];
@@ -705,8 +708,8 @@ static int group_n(int g)
         return 1;                                    /* (WEAVE's steps: no Bar page) */
     if (b == B_EDIT)                                 /* (grp_page: the conductor's Sub third; a kit, an FX track: two) */
         return trk == AUX_PUNCH || trk == AUX_WEAVE ? 1 : trk == AUX_BRAIN ? 3 : is_aux(trk) ? 2
-             : x_page(trk) ? 4 + is_knit(trk) : 3;   /* (a kit: Engine, Key, Sends: the key's own; Engine 2 after Engine
-                                          * when the key's model has eight knobs; knit: Osc 2 after Sub) */
+             : x_page(trk) ? 4 : 3;      /* (a kit: Engine, Key, Sends: the key's own; Engine 2 after Engine
+                                          * when the key's model has eight knobs; knit: Osc 2, Levels, Play) */
     if (b == B_ARP)                                  /* (grp_page: Players, Players 2, Hold the arp's, Weave) */
         return is_aux(trk) ? 1
              : is_drum(trk) || pl_type(trk) == PL_OFF ? 2
@@ -737,8 +740,12 @@ static int grp_page(int g, int i)
         return P_ENGINE;                             /* (a MIDI track has no sound to shape: its knobs instead) */
     if (PAGE_BTN[g].btn == B_EDIT && sel_trk() == AUX_BRAIN)   /* Engine, Play (routing), Sub (Follow) */
         return i == 2 ? P_SUB : P_ENGINE + i;
-    if (PAGE_BTN[g].btn == B_EDIT && sel_trk() < NTRK && (proj.trk[sel_trk()].par[TP_ENGINE] == EG_SAMPLE ||
-        is_drum(sel_trk()) || is_midi(sel_trk())) && x_page(sel_trk())) {  /* a looping sample: its Loop page second, after Engine (a
+    if (PAGE_BTN[g].btn == B_EDIT && is_knit(sel_trk())) {   /* knit: osc 2, the levels, then how it plays */
+        static const uint8_t KNP[4] = {P_ENGINE, P_OSC2, P_SUB, P_PLAY};
+        return KNP[i & 3];
+    }
+    if (PAGE_BTN[g].btn == B_EDIT && x_page(sel_trk())) {   /* a second page of knobs second, after Engine (rayon's
+                                                      * fall, acid's drive, a looping sample's Loop, MIDI's or a
                                                       * kit's key of eight knobs: Engine 2) */
         static const uint8_t SMPP[4] = {P_ENGINE, P_SUB, P_PLAY, P_PLAY2};
         return SMPP[i & 3];
@@ -770,7 +777,7 @@ static int fx_pick_of(int trk);
 static int tp_page_param(int p, int k, int trk)
 {
     static const int8_t M[][4] = {
-        {TP_E1, TP_E2, TP_E3, TP_E4}, {TP_VMODE, TP_PORTA, TP_BEND, TP_VOLUME}, {TP_OCT, -1, -1, -1},
+        {TP_E1, TP_E2, TP_E3, TP_E4}, {TP_VMODE, TP_PORTA, TP_BEND, TP_OCT}, {-1, -1, -1, TP_VOLUME},
         {TP_X1, TP_X2, TP_X3, TP_X4}, {-1, -1, -1, -1},
         {TP_A, TP_D, TP_S, TP_R},
         {TP_CUT, TP_RES, TP_FENV, TP_KTRK}, {TP_FA, TP_FD, TP_FS, TP_FR}, {TP_CUT, TP_RES, TP_FENV, TP_KTRK},
@@ -830,10 +837,21 @@ static int tp_page_param(int p, int k, int trk)
     }
     if (p == P_SUB && !x_page(trk))
         return -1;
-    if (p == P_OSC2) {                               /* knit's osc 2: its wave, shape, fine tune (past the int8 table) */
-        static const uint16_t O2[3] = {TP_O2WAVE, TP_O2SHAPE, TP_O2FINE};
-        return is_knit(trk) && k < 3 ? O2[k] : -1;
+    if (is_midi(trk) && (p == P_PLAY || p == P_PLAY2)) {   /* MIDI's as they were: volume on Play, the octave alone */
+        static const int8_t MP[2][4] = {{TP_VMODE, TP_PORTA, TP_BEND, TP_VOLUME}, {TP_OCT, -1, -1, -1}};
+        return MP[p == P_PLAY2][k];
     }
+    if (is_knit(trk) && p == P_SUB) {                /* knit's Levels: osc 2, sub, noise, and the track's volume */
+        static const int8_t LV[4] = {TP_X2, TP_X3, TP_X4, TP_VOLUME};
+        return LV[k];
+    }
+    if (p == P_OSC2) {                               /* knit's osc 2: its interval, fine tune, wave, shape (past the
+                                                      * int8 table) */
+        static const uint16_t O2[4] = {TP_X1, TP_O2FINE, TP_O2WAVE, TP_O2SHAPE};
+        return is_knit(trk) ? O2[k] : -1;
+    }
+    if (is_knit(trk) && p == P_PLAY2)                /* (knit's volume is on Levels: no Play 2) */
+        return -1;
     if (is_drum(trk) && (p == P_PLAYERS || p == P_PLAYERS2 || p == P_PLAYERS3))
         return -1;                                   /* a kit: no player (its page shows it off) */
     if (pl_type(trk) == PL_RAND) {                  /* random: P1..P3, AP1..AP4, octave */
@@ -4833,7 +4851,23 @@ static void draw_play(void)
     cv_text(12, LY(66, ty + 28), LY(F_CAP, &FONT_XS), t, K_DIM);
     cv_blit(0, MAIN_Y);
 }
-/* Play 2: the sound's octave, five places, the one now lit */
+/* Play 2: the track's volume alone, a wedge of sixteen bars lit up to it (as the knob turns, or motion moves it) */
+static void draw_volume(void)
+{
+    int trk = sel_trk(), v = par_now(trk)[TP_VOLUME], lit = (v * 16 + 63) / 127;
+    uint32_t h = hash_u(hash_u(2166136261u, 0x0Du), (uint32_t)trk | (uint32_t)v << 4);
+    int32_t top, base;
+    if (!begin_main(h))
+        return;
+    top = title_sub("volume", "the sound's own level, before Mix's", K_DIM) + 8;
+    base = MAIN_H - 10;
+    for (int i = 0; i < 16; i++) {                   /* (each bar taller: louder to the right) */
+        int32_t bh = 6 + (base - top - 6) * i / 15;
+        cv_round(12 + i * 14, base - bh, 10, bh, 3, i < lit ? K_NOW : K_LINE);
+    }
+    cv_blit(0, MAIN_Y);
+}
+/* a MIDI track's Play 2: the sound's octave, five places, the one now lit */
 static void draw_play2(void)
 {
     static const char *const WHAT[5] = {"two octaves down: a sub", "an octave down: a bass", "as played",
@@ -4891,8 +4925,8 @@ static float knit_y(float fr, const uint8_t *p, int osc2)
         return fm_sin_turns(fr);
     return (1.0f - 2.0f * fr) + ((fr < pw ? 1.0f : -1.0f) - (1.0f - 2.0f * fr)) * mix;
 }
-/* knit's Sub page: its layers stacked, each as tall as its level: the wave (faint: the first page's), osc 2 at its
- * interval (its own wave), the sub an octave down, the noise */
+/* knit's Levels page (P_SUB): its layers stacked, each as tall as its level: the wave (faint: the first page's), osc 2
+ * at its interval (its own wave), the sub an octave down, the noise */
 static void draw_knit_x(void)
 {
     int trk = sel_trk();
@@ -4953,7 +4987,7 @@ static void draw_knit_o2(void)
         pen_to(&b, (float)(12 + x), cy - knit_y(f2 - fm_floorf(f2), p, 1) * amp, on ? K_NOW : K_DIM);
     }
     if (!on)
-        s_cat(t, "osc 2 is off: its level is on Sub");
+        s_cat(t, "osc 2 is off: turn it up on Levels");
     else {
         e = s_cat(t, "osc 2 ");
         if (st)
@@ -5008,7 +5042,8 @@ static void draw_acid_x(void)
     text_r(230, LY(100, 64), F_CAP, "shaper: the square's edge", K_FAINT);
     cv_blit(0, MAIN_Y);
 }
-/* the Sub page: the engine's second page of knobs (TP_X1..X4), knit's layers, rayon's fall or acid's drive */
+/* the Sub page: the engine's second page of knobs (TP_X1..X4): knit's Levels (its layers), rayon's fall, acid's
+ * drive */
 static void draw_sub(void)
 {
     int eg = proj.trk[sel_trk()].par[TP_ENGINE];
@@ -6154,8 +6189,10 @@ static void draw_page(void)
             draw_play();
         else if (ui.page == P_PLAY2 && is_drum(trk))
             draw_sends();
-        else if (ui.page == P_PLAY2)
+        else if (ui.page == P_PLAY2 && is_midi(trk))
             draw_play2();
+        else if (ui.page == P_PLAY2)
+            draw_volume();
         else if (ui.page == P_SUB)
             draw_sub();
         else if (ui.page == P_OSC2)

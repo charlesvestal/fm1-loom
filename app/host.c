@@ -706,6 +706,21 @@ static int expect_more(const char *what, const char *a, const char *b, const cha
             host_fails++;
         } else
             printf("  ok weave %s %s == %s %s\n", pt, st, m, l);
+    } else if (!strcmp(what, "knobs")) {           /* expect knobs P1 P2 P3 P4: the parameter each knob of the page
+                                                     * turns (TP_* names as knob's, "-" none), and the names shown */
+        char pn[4][24] = {{0}};
+        knob_t kn[4] = {{0}};
+        int bad = 0;
+        sscanf(plat_host_line, "%*s %*s %23s %23s %23s %23s", pn[0], pn[1], pn[2], pn[3]);
+        page_knobs(kn);
+        for (int k = 0; k < 4; k++) {
+            int want = !strcmp(pn[k], "-") ? -1 : param_of(pn[k]), got = tp_page_param(ui.page, k, sel_trk());
+            bad |= want != got;
+        }
+        printf("%s knobs %s %s %s %s: %s, %s, %s, %s\n", bad ? "FAIL" : "  ok", pn[0], pn[1], pn[2], pn[3],
+               kn[0].name ? kn[0].name : "-", kn[1].name ? kn[1].name : "-", kn[2].name ? kn[2].name : "-",
+               kn[3].name ? kn[3].name : "-");
+        host_fails += bad;
     } else if (!strncmp(what, "par", 3) && !strchr(what, '.')) {
         printf("FAIL unknown expect %s\n", what);
         host_fails++;

@@ -4022,8 +4022,14 @@ static void input(void)
             n = 2;
             pg = ui.lockpg - 1 - f;
         }
-        pg = ((pg + (e > 0 ? 1 : -1)) % n + n) % n;
-        ui.lockpg = (uint8_t)(f + pg + 1);
+        if (PAGE_BTN[g].btn == B_EDIT) {         /* EDIT's in the track's own order (knit: Osc 2 second) */
+            pg = grp_index(ui.lockpg - 1);
+            pg = ((pg < 0 ? 0 : pg + (e > 0 ? 1 : -1)) % n + n) % n;
+            ui.lockpg = (uint8_t)(grp_page(g, pg) + 1);
+        } else {
+            pg = ((pg + (e > 0 ? 1 : -1)) % n + n) % n;
+            ui.lockpg = (uint8_t)(f + pg + 1);
+        }
         e = 0;
     }
     if (e) {

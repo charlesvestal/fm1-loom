@@ -1,6 +1,7 @@
-# the Sub page: EDIT's fourth page (after Play 2), only where the engine has a second page of knobs (knit, rayon);
-# knit's: osc 2's interval (TP_X1, +-24 semitones about 64) and level, the sub, the noise, and the screen reader says
-# them; another engine, or another track, takes the page away
+# the engine's second page of knobs (TP_X1..X4): EDIT's second page where the engine has one (rayon, acid: Sub), and
+# on knit its Levels page, third after Osc 2: osc 2's level, the sub, the noise, the volume; osc 2's interval is on
+# Osc 2 (tests/scenarios/editpages.xy has every engine's pages). The screen reader says them; another engine, or
+# another track, takes the page away
 wait 300
 spin ALGO 2
 expect trk 3
@@ -14,36 +15,41 @@ expect page Play_2
 expect par3.oct 2
 turn SELECT 1
 expect page Engine
-# knit: osc 2 in unison and off, a fourth page (and Osc 2 a fifth: tests/scenarios/osc2page.xy)
+# knit: osc 2 in unison and off
 knob 3 engine knit
 expect par3.engine 0
 expect par3.x1 64
 expect par3.x2 0
 listen
-turn SELECT 3
-expect page Sub
+turn SELECT 2
+expect page Levels
 wait 400
-said Sub
+said Levels
 shot sub_off.png
+# the interval, on Osc 2: the screen reader says it
+turn SELECT -1
+expect page Osc_2
 spin K1 7
 expect par3.x1 71
 wait 400
-said osc 2 +7 st
-spin K2 50
-expect par3.x2 50
-spin K3 40
-expect par3.x3 40
-spin K4 20
-expect par3.x4 20
-wait 40
-shot sub_layers.png
+said interval +7 st
 spin K1 -40
 expect par3.x1 40
 spin K1 60
 expect par3.x1 88
 spin K1 -17
 expect par3.x1 71
-# the list: the Sub page's knobs among EDIT's
+turn SELECT 1
+expect page Levels
+spin K1 50
+expect par3.x2 50
+spin K2 40
+expect par3.x3 40
+spin K3 20
+expect par3.x4 20
+wait 40
+shot sub_layers.png
+# the list: the Levels page's knobs among EDIT's
 tap SEL
 wait 40
 shot sub_list.png
@@ -55,18 +61,18 @@ expect voices 1
 key 7 up
 wait 300
 turn SELECT 1
-expect page Osc_2
+expect page Play
 turn SELECT -1
-expect page Sub
-# another track (jacquard: no Sub page): back to the button's first page
+expect page Levels
+# another track (jacquard: no Levels page): back to the button's first page
 spin ALGO 1
 expect trk 4
 expect page Engine
 spin ALGO -1
 expect trk 3
-turn SELECT -2
-expect page Sub
-# another engine on the Sub page (jacquard): back to Engine, three pages
+turn SELECT 2
+expect page Levels
+# another engine on the Levels page (jacquard): back to Engine, three pages
 knob 3 engine jacquard
 expect page Engine
 turn SELECT 1
@@ -75,3 +81,13 @@ turn SELECT 1
 expect page Play_2
 turn SELECT 1
 expect page Engine
+# rayon: Sub second, its fall, floor, keyscale
+knob 3 engine rayon
+turn SELECT 1
+expect page Sub
+wait 400
+said Sub, page 2 of 4
+spin K1 30
+expect par3.x1 30
+turn SELECT 1
+expect page Play
