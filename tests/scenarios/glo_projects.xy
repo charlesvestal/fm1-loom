@@ -16,3 +16,50 @@ wait 50
 projsave 2
 expect slot 2 985 2
 expect projslot 2
+# GLO's list: the projects first, the open one marked
+tap GLO
+tap SEL
+expect listopen 1
+rowval PROJ 1 = 122 bpm, 1 scene
+rowval PROJ 2 (OPEN) = 98.5 bpm, 2 scenes
+rowval PROJ 3 = empty
+shot glo_projects.png
+# a saved slot, nothing unsaved: loaded at once
+row PROJ 1
+tap SEL
+wait 200
+expect ask 0
+expect projslot 1
+expect tempo 122
+# unsaved changes: a scene PROJ 1 never used, made new
+tap HOME
+tapkey w1
+expect dirty 1
+tap GLO
+tap SEL
+row PROJ 2
+tap SEL
+wait 50
+expect ask 1
+shot glo_projects_ask.png
+tap SEL
+wait 200
+expect projslot 2
+# an empty slot: a new project there, asked first
+tap GLO
+tap SEL
+row PROJ 3
+tap SEL
+wait 50
+expect ask 1
+tap SEL
+wait 200
+expect projslot 3
+expect dirty 1
+# HOME's list: no project rows now
+tap HOME
+tap SEL
+norow LOAD PROJECT
+norow NEW PROJECT
+norow SAVE TO
+row RANDOMIZE PRESETS

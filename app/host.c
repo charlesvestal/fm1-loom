@@ -1420,6 +1420,31 @@ int app_host_cmd(const char *cmd, const char *a, const char *b, const char *c, c
         s_drum(0, proj.trk_sel, atoi(a) - 1, atoi(b), 0, 0, 0);
         return 1;
     }
+    if (!strcmp(cmd, "rowval") || !strcmp(cmd, "norow")) {   /* rowval NAME = VALUE: the open list's row NAME shows
+                                                               * VALUE; norow NAME: the list has no row NAME */
+        int val = cmd[0] == 'r';
+        const char *nm = plat_host_line + (val ? 6 : 5), *eq;
+        size_t l, vl = 0;
+        while (*nm == ' ')
+            nm++;
+        eq = val ? strstr(nm, " = ") : 0;
+        l = eq ? (size_t)(eq - nm) : strcspn(nm, "\r\n");
+        while (l && nm[l - 1] == ' ')
+            l--;
+        if (eq)
+            vl = strcspn(eq + 3, "\r\n");
+        list_build();
+        for (int r = 0; r < lst.n; r++)
+            if (strlen(lst.row[r].name) == l && !strncmp(lst.row[r].name, nm, l)) {
+                int bad = !val || strlen(lst.row[r].val) != vl || strncmp(lst.row[r].val, eq + 3, vl);
+                printf("%s %s %.*s: \"%s\"\n", bad ? "FAIL" : "  ok", cmd, (int)l, nm, lst.row[r].val);
+                host_fails += bad;
+                return 1;
+            }
+        printf("%s %s %.*s: not in the list\n", val ? "FAIL" : "  ok", cmd, (int)l, nm);
+        host_fails += val;
+        return 1;
+    }
     if (!strcmp(cmd, "row")) {                      /* row NAME: the open list's row of that name picked (as SELECT
                                                      * would: remembered), whatever the order; none: a failure */
         const char *nm = plat_host_line + 3;

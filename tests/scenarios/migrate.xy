@@ -5,13 +5,12 @@ storeload tests/fixtures/store_v10.bin
 reboot
 wait 400
 expect note 3 1 9 57
-tap HOME
+tap GLO
 tap SEL
-row LOAD PROJECT
-wait 40
-turn ALGO -1
+row PROJ 1
 tap SEL
 wait 400
+tap HOME
 expect ask 0
 expect tempo 97
 expect note 2 1 1 60

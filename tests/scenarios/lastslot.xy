@@ -1,10 +1,11 @@
 # power-on opens the project saved or loaded last (the save count in its settings: project.c)
 wait 300
-# slot 2 at 90 BPM (SAVE TO), a restart opens it
+# slot 2 at 90 BPM (GLO's SAVE TO), a restart opens it
 tap HOME
 spin K1 -30
 wait 50
 expect tempo 90
+tap GLO
 tap SEL
 row SAVE TO
 turn ALGO 1
@@ -18,6 +19,7 @@ expect tempo 90
 # slot 1 at 100 BPM; a restart opens slot 1
 tap HOME
 spin K1 10
+tap GLO
 tap SEL
 row SAVE TO
 turn ALGO -1
@@ -31,11 +33,9 @@ reboot
 wait 400
 expect tempo 100
 # slot 2 loaded (not changed): a restart opens slot 2
-tap HOME
+tap GLO
 tap SEL
-row LOAD PROJECT
-turn ALGO 1
-wait 50
+row PROJ 2
 tap SEL
 wait 300
 expect tempo 90

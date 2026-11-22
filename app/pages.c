@@ -279,25 +279,27 @@ enum { LK_KNOB, LK_MORE, LK_ACTION, LK_PICK, LK_NOTE, LK_HEAD };   /* LK_NOTE: a
                                                                     * a section's name (neither ever picked) */
 enum { A_CLEAR_NOTES, A_CLEAR_LOCKS, A_CLEAR_BOTH, A_COPY_PAT, A_PASTE_PAT, A_ROT_FWD, A_ROT_BACK, A_DUP_BAR,
        A_ENGINE, A_PRESET, A_SCRAMBLE, A_SAVE_PRESET, A_INIT, A_FOLLOW, A_INSERT_SLOT, A_DELETE_SLOT, A_CLEAR_SONG,
-       A_PLAY_SONG, A_LOAD_PROJ, A_NEW_PROJ, A_USB_AUDIO, A_CLEAR_SCENE, A_PANIC, A_EFFECT, A_REMOVE_NOTE,
+       A_PLAY_SONG, A_NEW_PROJ, A_USB_AUDIO, A_CLEAR_SCENE, A_PANIC, A_EFFECT, A_REMOVE_NOTE,
        A_COUNT_IN, A_PLAYMODE, A_FTYPE, A_FX_HP, A_FX_LP, A_FX_SEND, A_WEAVE, A_THEME, A_PUMP_BY, A_PUMP_REL,
        A_PUMP_ACC, A_LEVEL, A_SCENE_AT, A_SAVE_TO, A_AUTOSAVE, A_RANDOM_SOUNDS, A_MIDI_OUT, A_LOOP_FREE, A_COPY_BAR,
        A_COPY_STEP, A_PASTE_BAR, A_PASTE_STEP, A_PASTE_LOCKS, A_DOUBLE, A_CLEAR_STEP_LOCKS, A_CC_OUT, A_SCENES_OUT,
        A_KIT, A_SAVE_KIT, A_MIDI_CC, A_USB_HOST, A_BT_MIDI, A_BT_AUDIO, A_BT_ADEV, A_BT_DEVICE, A_BT_DEV, A_BT_LOOK,
        A_BT_FORGET, A_BT_DISCONNECT, A_CLEAR, A_ROTATE, A_PASTE, A_COPY_EMPTY, A_CLEAR_BAR,
        A_COPY_SOUND, A_PASTE_SOUND, A_COPY_KEY, A_PASTE_KEY, A_COPY_SCENE, A_PASTE_SCENE, A_DUP_SLOT, A_KIT_FILTER,
-       A_SHIFT, A_LARGE_TYPE, A_CC_IN, A_FX_WIDTH, NACTIONS };
+       A_SHIFT, A_LARGE_TYPE, A_CC_IN, A_FX_WIDTH, A_PROJ1, A_PROJ2, A_PROJ3, NACTIONS };
 static const char *const ACTION_NAME[NACTIONS] = {
     "CLEAR NOTES", "CLEAR LOCKS", "CLEAR NOTES AND LOCKS", "COPY PATTERN", "PASTE PATTERN", "ROTATE FORWARD",
     "ROTATE BACK", "DUPLICATE BAR", "ENGINE", "PRESET", "SCRAMBLE", "SAVE AS PRESET", "RESET SOUND", "FOLLOWS CONDUCTOR",
-    "INSERT SLOT", "DELETE SLOT", "CLEAR SONG", "PLAY SONG", "LOAD PROJECT", "NEW PROJECT", "USB AUDIO", "CLEAR SCENE",
+    "INSERT SLOT", "DELETE SLOT", "CLEAR SONG", "PLAY SONG", "NEW PROJECT", "USB AUDIO", "CLEAR SCENE",
     "ALL NOTES OFF", "EFFECT", "REMOVE", "COUNT-IN", "PLAY MODE", "FILTER TYPE", "HIGH-PASS", "LOW-PASS",
     "TO FX II", "KEEP AS PATTERN", "THEME", "PUMP BY", "RELEASE", "ACCENT", "MASTER LEVEL", "SCENES SWITCH", "SAVE TO", "AUTOSAVE",
     "RANDOMIZE PRESETS", "MIDI OUT", "LOOP THROWS", "COPY BAR", "COPY STEP", "PASTE BAR", "PASTE STEP",
     "PASTE LOCKS ONLY", "DOUBLE PATTERN", "CLEAR LOCKS", "CC OUT", "SCENES OUT", "KIT", "SAVE KIT", "KNOB CC",
     "USB PORT", "BT MIDI", "BT AUDIO", "AUDIO DEVICE", "MIDI DEVICE", "DEVICE", "LOOK AGAIN", "FORGET", "DISCONNECT",
     "CLEAR", "ROTATE", "PASTE", "COPY TO EMPTY", "CLEAR BAR", "COPY SOUND", "PASTE SOUND", "COPY DRUM", "PASTE DRUM",
-    "COPY SCENE", "PASTE SCENE", "DUPLICATE SLOT", "KIT FILTER", "SHIFT NOTES", "LARGE TYPE", "CC IN", "PING WIDTH"};
+    "COPY SCENE", "PASTE SCENE", "DUPLICATE SLOT", "KIT FILTER", "SHIFT NOTES", "LARGE TYPE", "CC IN", "PING WIDTH",
+    "PROJ 1", "PROJ 2", "PROJ 3"};
+_Static_assert(NPROJ == 3, "GLO's list: an action a slot (A_PROJ1..A_PROJ3)");
 static const char *const CLEAR_WHAT[3] = {"notes", "locks", "notes and locks"};
 /* a pick ALGORITHM sets at once (a setting: SEL only leaves the list), as against a choice SEL then carries out */
 static int pick_sets(int a)
@@ -2787,6 +2789,40 @@ static int pat_first_empty(int trk)
     return -1;
 }
 static void list_head(const char *t) { list_add(t, 0, LK_HEAD, 0); }
+/* GLO's list, first: the slots (the open one marked) with their tempo and scenes as saved, then SAVE TO and NEW
+ * PROJECT */
+static const char *const PROJ_ROW[2][NPROJ] = {{"PROJ 1", "PROJ 2", "PROJ 3"},
+                                                {"PROJ 1 (OPEN)", "PROJ 2 (OPEN)", "PROJ 3 (OPEN)"}};
+static void proj_summary(int slot, char *t)        /* "122 bpm, 4 scenes", "98.5 bpm", "empty" */
+{
+    uint16_t tx;
+    uint8_t ns;
+    char *e;
+    if (!project_slot_info(slot, &tx, &ns)) {
+        s_cat(t, "empty");
+        return;
+    }
+    e = num_s(tx / 10u, t);
+    if (tx % 10u) {
+        *e++ = '.';
+        e = num_s(tx % 10u, e);
+    }
+    e = s_cat(e, " bpm");
+    if (ns)                                        /* (0: saved before the count was kept) */
+        s_cat(num_s(ns, s_cat(e, ", ")), ns == 1 ? " scene" : " scenes");
+}
+static void list_projects(void)
+{
+    static char val[NPROJ][24], save_t[24];
+    list_head("projects");
+    for (int s = 0; s < NPROJ; s++) {
+        proj_summary(s, val[s]);
+        list_add(PROJ_ROW[s == proj_slot][s], val[s], LK_ACTION, A_PROJ1 + s);
+    }
+    proj_slot_text(ui.pick_save % NPROJ, save_t);
+    list_add(ACTION_NAME[A_SAVE_TO], save_t, LK_PICK, A_SAVE_TO);
+    list_add(ACTION_NAME[A_NEW_PROJ], 0, LK_ACTION, A_NEW_PROJ);
+}
 static void list_page_knobs(int p, uint32_t mask)  /* page P's knobs (bit i: knob i) not listed yet */
 {
     knob_t k[4];
@@ -2849,10 +2885,11 @@ static void list_steps(int trk)
     list_add(ACTION_NAME[A_CLEAR_BAR], 0, LK_ACTION, A_CLEAR_BAR);
     list_add(ACTION_NAME[A_DUP_BAR], 0, LK_ACTION, A_DUP_BAR);
 }
-/* HOME: the page's own first (Song: the song; Arrange: the scenes), then the projects */
+/* HOME: the page's own first (Song: the song; Arrange: the scenes), then RANDOMIZE PRESETS and ALL NOTES OFF
+ * (the projects moved to GLO's list) */
 static void list_home(int keep)
 {
-    static char slot_t[24], save_t[24], scl_t[12];
+    static char scl_t[12];
     for (int i = 0; i < 2; i++)
         if ((i == 0) == (keep == P_SONG)) {
             list_head("song");
@@ -2872,12 +2909,7 @@ static void list_home(int keep)
             }
             list_add(ACTION_NAME[A_CLEAR_SCENE], 0, LK_ACTION, A_CLEAR_SCENE);
         }
-    list_head("project");
-    proj_slot_text(ui.pick_slot % NPROJ, slot_t);
-    list_add(ACTION_NAME[A_LOAD_PROJ], slot_t, LK_PICK, A_LOAD_PROJ);
-    proj_slot_text(ui.pick_save % NPROJ, save_t);
-    list_add(ACTION_NAME[A_SAVE_TO], save_t, LK_PICK, A_SAVE_TO);
-    list_add(ACTION_NAME[A_NEW_PROJ], 0, LK_ACTION, A_NEW_PROJ);
+    list_head("more");
     list_add(ACTION_NAME[A_RANDOM_SOUNDS], 0, LK_ACTION, A_RANDOM_SOUNDS);
     list_add(ACTION_NAME[A_PANIC], 0, LK_ACTION, A_PANIC);
 }
@@ -3088,6 +3120,7 @@ static void list_build(void)
     } else if (b == B_EDIT) {
         list_sound(trk);
     } else if (b == B_GLO) {
+        list_projects();
         if (list_is_setup(keep))
             list_setup(g);
         else

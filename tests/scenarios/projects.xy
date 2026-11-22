@@ -5,16 +5,18 @@ tapkey w0
 expect dirty 1
 wait 3500
 expect dirty 0
-# HOME's list: the projects (a project is its slot: no names)
-tap HOME
+# GLO's list: the projects (a project is its slot: no names)
+tap GLO
 tap SEL
-row LOAD PROJECT
+row PROJ 1 (OPEN)
 wait 100
 shot proj_list.png
 tap HOME
+tap HOME
 wait 100
 expect page Arrange
-# new project: slot 2 (slot 1 is taken), asked first
+# new project: slot 2 (slot 1 is taken), asked first (GLO's list)
+tap GLO
 tap SEL
 row NEW PROJECT
 tap SEL
@@ -29,7 +31,7 @@ tapkey w0
 tapkey w1
 wait 50
 shot proj_song.png
-# RANDOMIZE PRESETS (after NEW PROJECT on HOME's list), asked first: T2 a bass, mono; T3 polyphonic; T5 a mono lead
+# RANDOMIZE PRESETS (after NEW PROJECT on GLO's list), asked first: T2 a bass, mono; T3 polyphonic; T5 a mono lead
 tap SEL
 row RANDOMIZE PRESETS
 tap SEL

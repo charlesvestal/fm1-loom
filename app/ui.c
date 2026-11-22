@@ -2522,8 +2522,8 @@ static void list_open(void)
         ui.pick_fx = proj.trk[sel_trk()].par[TP_ENGINE] % NFXPICK;
     if (fx_page(ui.page))
         ui.pick_fx = proj.trk[ui.page == P_FX1 ? AUX_FX1 : AUX_FX2].par[TP_ENGINE] % NFXPICK;
-    if ((ui.page == P_ARRANGE || ui.page == P_SONG) && proj_slot < NPROJ)   /* LOAD and SAVE TO start on the slot open */
-        ui.pick_slot = ui.pick_save = proj_slot;
+    if (PAGE_BTN[page_group(ui.page)].btn == B_GLO && proj_slot < NPROJ)   /* SAVE TO starts on the slot open */
+        ui.pick_save = proj_slot;
     list_build();
     if (!lst.n) {
         lst.open = 0;
@@ -2611,7 +2611,6 @@ static void list_change_do(int32_t e)
         case A_SAVE_PRESET: ui.pick_slot = (uint8_t)((ui.pick_slot + d + NUSER_PRESETS) % NUSER_PRESETS); break;
         case A_KIT: ui.pick_kit = (uint8_t)((ui.pick_kit + d + NKITS) % NKITS); break;
         case A_SAVE_KIT: ui.pick_kslot = (uint8_t)((ui.pick_kslot + d + NUSER_KITS) % NUSER_KITS); break;
-        case A_LOAD_PROJ: ui.pick_slot = (uint8_t)((ui.pick_slot + d + NPROJ) % NPROJ); break;
         case A_SAVE_TO: ui.pick_save = (uint8_t)((ui.pick_save + d + NPROJ) % NPROJ); break;
         case A_USB_AUDIO: {                           /* follows knob, full, stereo */
             int v = (int)proj.usb_full + (d > 0 ? 1 : -1);
@@ -3411,7 +3410,7 @@ static void do_random_sounds(void)               /* HOME's RANDOMIZE PRESETS: T2
     mark_dirty();
     say("RANDOMIZED", "T2 to T8");
 }
-static void do_new_proj(void)
+static void new_proj(int slot)                   /* slot < 0: the first free one (none free: SAVE TO picks one) */
 {
     engine_transport(0);
     engine_panic();
@@ -3419,16 +3418,39 @@ static void do_new_proj(void)
     project_random_sounds(plat_ms() * 2654435761u ^ proj_seed++);   /* a band of its own each time */
     after_load();
     ui.dirty = 1;
-    proj_slot = PROJ_NOSLOT;                     /* its slot: the first free one; none free, SAVE TO picks one */
-    for (int s = NPROJ - 1; s >= 0; s--)
-        if (!project_exists(s))
-            proj_slot = (uint8_t)s;
+    proj_slot = PROJ_NOSLOT;
+    if (slot >= 0 && slot < NPROJ)
+        proj_slot = (uint8_t)slot;
+    else
+        for (int s = NPROJ - 1; s >= 0; s--)
+            if (!project_exists(s))
+                proj_slot = (uint8_t)s;
     if (proj_slot < NPROJ) {
         char t[16];
         num_s((uint32_t)proj_slot + 1u, s_cat(t, "slot "));
         say("NEW PROJECT", t);
     } else
         say("NEW PROJECT", "no free slot");
+}
+static void do_new_proj(void) { new_proj(-1); }
+static void do_new_proj_here(void) { new_proj(ui.ask_arg % NPROJ); }
+/* GLO's list: a slot's row. The open one: nothing; an empty one: a new project there, asked; a saved one: loaded,
+ * asked first when the open project has unsaved changes */
+static void act_project(int slot)
+{
+    char q[32];
+    if (slot == proj_slot)
+        return;
+    ui.ask_arg = (uint8_t)slot;
+    if (!project_exists(slot)) {
+        s_cat(num_s((uint32_t)slot + 1u, s_cat(q, "NEW PROJECT IN PROJ ")), "?");
+        ask(q, do_new_proj_here);
+    } else if (ui.dirty)
+        ask("LOSE UNSAVED CHANGES?", do_load_proj);
+    else {
+        do_load_proj();
+        lst.open = 0;                            /* (the other song: back to its page, as after the question) */
+    }
 }
 static void act_remove_note(int row)             /* a step held: the row's note off the step */
 {
@@ -3781,15 +3803,7 @@ static void action_run(int a)
             engine_transport(0);
         play_press();
         break;
-    case A_LOAD_PROJ:
-        ui.ask_arg = ui.pick_slot % NPROJ;
-        if (ui.dirty)
-            ask("LOSE UNSAVED CHANGES?", do_load_proj);
-        else {
-            do_load_proj();
-            lst.open = 0;                        /* (the other song: back to its page, as after the question) */
-        }
-        return;
+    case A_PROJ1: case A_PROJ2: case A_PROJ3: act_project(a - A_PROJ1); return;
     case A_NEW_PROJ: ask("NEW PROJECT?", do_new_proj); return;
     case A_RANDOM_SOUNDS: ask("NEW SOUNDS ON T2 TO T8?", do_random_sounds); return;
     case A_SAVE_TO: act_save_slot(ui.pick_save % NPROJ); break;

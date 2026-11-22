@@ -128,14 +128,12 @@ turn ALGO -1
 tap HOME
 expect theme 0
 expect sendnotes 0
-tap HOME
+# SAVE TO its own slot (GLO's list): the settings reach the slot's header, kept over a restart
+tap GLO
 tap SEL
-row LOAD PROJECT
+row SAVE TO
 tap SEL
 wait 100
-tap SEL
-wait 300
-expect ask 0
 expect spat2.2 2
 expect theme 0
 expect sendnotes 0
