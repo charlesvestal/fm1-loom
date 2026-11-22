@@ -516,9 +516,9 @@ export async function seekLink(midi, wait = 1000) {
 }
 // the FM-1 running LOOM-8 among midi's ports (it answers SB_PING); null: none
 export async function findLink(midi, wait = 1000) { return (await seekLink(midi, wait)).link; }
-// what to tell the user when seekLink found no LOOM-8 to talk to
-export function notFound(res) {
-  if (res.loom) return `${res.loom} didn't answer the samples page. Update LOOM-8 on the install page, then connect again.`;
+// what to tell the user when seekLink found no LOOM-8 to talk to; page: the page asking (the export page reads too)
+export function notFound(res, page = "the samples page") {
+  if (res.loom) return `${res.loom} didn't answer ${page}. Update LOOM-8 on the install page, then connect again.`;
   if (res.others.length) return `The FM-1 is running ${res.others[0]}, not LOOM-8. Install LOOM-8 on the install page, then connect again.`;
   if (res.fm1) return "An FM-1 is connected, but LOOM-8 didn't answer. Close other apps that use its MIDI port. If the FM-1 " +
     "is in update mode, turn it off and on again. If it runs M-VAVE's firmware, install LOOM-8 on the install page.";

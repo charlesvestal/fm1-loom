@@ -15,9 +15,10 @@
                                 Edge, Web MIDI)
   samples/index.html            the user sample bank in the browser (app/web/samples/: add, replace, rename, reorder,
                                 remove; fm1ports.js and loom_samples.js inlined)
-  export/index.html             a project's song or a scene as a WAV, from a backup file, in the browser (app/web/export/:
-                                the page, worker.js and render.js; extras.js written beside them for the backup's samples;
-                                the emulator's app.wasm, fetched from ../emu/app.wasm)
+  export/index.html             a project's song or a scene as a WAV, from a backup file or read from the FM-1, in the
+                                browser (app/web/export/: the page, worker.js and render.js; extras.js written beside them
+                                for the backup's samples; the emulator's app.wasm, fetched from ../emu/app.wasm; "Read from
+                                the FM-1": export_lib() inlined)
   firmware/loom-VERSION.fwsc    the package the installer writes; also the download
   firmware/loom-VERSION-res.bin the resource region beside it (the 909 cymbals), which the installer writes after it
   firmware/m-bootloader-X.Y.fwsc  m-bootloader (MIT, fm1-base's web/m-bootloader), offered after the firmware
@@ -194,6 +195,42 @@ owners; LOOM-8 is not affiliated with any of them.</p>
 """
 
 
+def backup_tools(conf=None):
+    """fm1-base's tool pages filled in for LOOM-8 (base_site.tool_pages): the backup page with its sample section
+    (app/web/backup/extras.js on the samples page's code), and the mirror"""
+    conf = conf or base_site.read_conf(SRC / "app" / "fm1.toml")
+    extras = ("const EXTRAS = (() => {\n" +
+              strip_module((SRC / "app" / "web" / "samples" / "loom_samples.js").read_text(encoding="utf-8")) + "\n" +
+              (SRC / "app" / "web" / "backup" / "extras.js").read_text(encoding="utf-8") + "})();")
+    note = ("\n  <li>The samples go in the file too. A restore sends them after LOOM-8 has said yes on its screen, which "
+            "takes about 20 seconds more. An older backup has no samples, so a restore from it leaves the samples as they "
+            "are.</li>\n  <li>To make a WAV of a song or a scene from a backup, use <a href=\"../export/\">the export page</a>.</li>")
+    terminal = ("You can also do it from a terminal, in LOOM-8's repository: <code>python3 base/tools/fm1_backup.py</code> "
+                "for the projects and presets (the same files: it leaves their samples alone), and "
+                "<code>python3 tools/loom_samples.py backup</code> / <code>restore</code> for the samples (its restore "
+                "takes this page's files too).")
+    return base_site.tool_pages(SRC / "app", conf, {"NAME": "LOOM-8", "EXTRAS_JS": extras, "EXTRA": note,
+                                                    "TERMINAL": terminal})
+
+
+def export_lib(backup_page=None):
+    """the export page's /*LIB*/ (its "Read from the FM-1"): one function, USB, holding fm1-base's web/fm1ports.js and
+    app/web/samples/loom_samples.js (seekLink, notFound: LOOM-8 found as the samples page finds it), the backup page's
+    protocol (PB) and its Link, as the filled-in backup page has them (between its "backup protocol" markers: what
+    fm1-base tests), its EXTRAS (app/web/backup/extras.js), then app/web/export/usb.js; -> { readFM1, PB }"""
+    page = backup_page or backup_tools()["backup/index.html"]
+    m = re.search(r"// --- backup protocol: begin[^\n]*\n(.*?)// --- backup protocol: end", page, re.S)
+    k = re.findall(r"^// one MIDI in/out pair with a SysEx queue.*?^\}\n", page, re.S | re.M)
+    if not m or len(k) != 1 or "const PB = " not in m.group(1):
+        raise SystemExit("export_lib: base/web/backup/index.html: no backup protocol markers or no one Link class")
+    samples = strip_module((SRC / "app" / "web" / "samples" / "loom_samples.js").read_text(encoding="utf-8"))
+    return ("const USB = (() => {\n\"use strict\";\n" + base_site.ports_js() + "\n" + samples + "\n" + m.group(1) +
+            "const EXTRAS = (() => {\n" + (SRC / "app" / "web" / "backup" / "extras.js").read_text(encoding="utf-8") +
+            "})();\nconst QLink = (() => {\n" + k[0] + "return Link;\n})();\n" +
+            (SRC / "app" / "web" / "export" / "usb.js").read_text(encoding="utf-8") +
+            "return { readFM1, PB };\n})();")
+
+
 def main(pkg, version, out):
     pkg, out = Path(pkg), Path(out)
     raw = pkg.read_bytes()
@@ -263,18 +300,7 @@ def main(pkg, version, out):
     (out / "install" / "index.html").write_text(page.replace("/*LIB*/", lib).replace("/*META*/", meta)
                                                 .replace("/*APP*/", app_js), encoding="utf-8")
     # the backup page's own section: the sample bank (app/web/backup/extras.js on the samples page's code)
-    extras = ("const EXTRAS = (() => {\n" +
-              strip_module((SRC / "app" / "web" / "samples" / "loom_samples.js").read_text(encoding="utf-8")) + "\n" +
-              (SRC / "app" / "web" / "backup" / "extras.js").read_text(encoding="utf-8") + "})();")
-    note = ("\n  <li>The samples go in the file too. A restore sends them after LOOM-8 has said yes on its screen, which "
-            "takes about 20 seconds more. An older backup has no samples, so a restore from it leaves the samples as they "
-            "are.</li>\n  <li>To make a WAV of a song or a scene from a backup, use <a href=\"../export/\">the export page</a>.</li>")
-    terminal = ("You can also do it from a terminal, in LOOM-8's repository: <code>python3 base/tools/fm1_backup.py</code> "
-                "for the projects and presets (the same files: it leaves their samples alone), and "
-                "<code>python3 tools/loom_samples.py backup</code> / <code>restore</code> for the samples (its restore "
-                "takes this page's files too).")
-    tools = base_site.tool_pages(SRC / "app", conf, {"NAME": "LOOM-8", "EXTRAS_JS": extras, "EXTRA": note,
-                                                     "TERMINAL": terminal})
+    tools = backup_tools(conf)
     (out / "backup" / "index.html").write_text(tools["backup/index.html"], encoding="utf-8")
     (out / "mirror" / "index.html").write_text(tools["mirror/index.html"], encoding="utf-8")
     # the samples page, its bank code (app/web/samples/loom_samples.js) inlined after fm1-base's web/fm1ports.js (it
@@ -310,8 +336,13 @@ def main(pkg, version, out):
     # the export page: its worker and render.js as they are, and extras.js, the backup page's EXTRAS as a module for the
     # module worker (worker.js imports it: its default export returns them)
     (out / "export").mkdir()
-    for f in ("index.html", "worker.js", "render.js"):
+    for f in ("worker.js", "render.js"):
         shutil.copy(SRC / "app" / "web" / "export" / f, out / "export" / f)
+    epage = (SRC / "app" / "web" / "export" / "index.html").read_text(encoding="utf-8")
+    if epage.count("/*LIB*/") != 1:
+        raise SystemExit("app/web/export/index.html must contain /*LIB*/ once")
+    (out / "export" / "index.html").write_text(epage.replace("/*LIB*/", export_lib(tools["backup/index.html"])),
+                                               encoding="utf-8")
     (out / "export" / "extras.js").write_text(
         "// SPDX-License-Identifier: MPL-2.0\n// written by tools/make_pages.py: app/web/samples/loom_samples.js and "
         "app/web/backup/extras.js, as the backup page has them\nexport default () => {\n" +

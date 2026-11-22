@@ -1613,10 +1613,12 @@ user preset.
 
 ## Export a song
 
-Use the export page to make a WAV file of a project's song, or of one of its scenes played up to 16 times. First
-save a backup on the backup page, or with Save backup in the emulator. Then open
-<https://charlesvestal.github.io/fm1-loom/export/>, open the backup there, pick the project and what to play, and
-press **Export**. Your browser plays it faster than real time, so you don't need the FM-1 for it. The file is
+Use the export page to make a WAV file of a project's song, or of one of its scenes played up to 16 times. Open
+<https://charlesvestal.github.io/fm1-loom/export/> and open a backup there: one you saved on the backup page, or with
+Save backup in the emulator. Or read it straight from the FM-1: connect it by USB, and press **Read from the FM-1**
+in Chrome or Edge. That reads the projects, the presets and the samples, and changes nothing on the FM-1. The
+samples take the longest, up to a minute. LOOM-8 can keep playing, but stop it first if you have changes that
+aren't saved yet, so they're in the export too. Then pick the project and what to play, and press **Export**. Your browser plays it faster than real time, so you don't need the FM-1 for it. The file is
 16-bit, 44.1 kHz stereo, at the level LOOM-8 sends to USB audio, and it goes on after the music until the reverb
 and the echoes fade out. Every voice sounds in the file, so a busy song can sound fuller than it does on the FM-1.
 

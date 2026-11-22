@@ -86,7 +86,7 @@ done
 if command -v emcc >/dev/null 2>&1 && command -v node >/dev/null 2>&1; then
     run export-wasm node tests/host/export_wasm.mjs $B/emu/app.wasm $B/scenarios/export_fixture/export.bkp
     # the page's worker code: the song to a WAV at the host's level; a backup with build/gen/user_bank.bin as its samples
-    run export-web node tests/host/export_web.mjs $B/emu/app.wasm $B/scenarios/export_fixture build/gen/user_bank.bin
+    run export-web node tests/host/export_web.mjs $B/emu/app.wasm $B/scenarios/export_fixture build/gen/user_bank.bin "$PY"
 else
     echo "  skip export-wasm, export-web (no emcc or node)"
 fi

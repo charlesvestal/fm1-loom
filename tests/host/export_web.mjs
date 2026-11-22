@@ -2,11 +2,19 @@
 // The WAV export page's render (app/web/export/render.js) in Node: the fixture's backup set up, its song rendered to
 // a WAV, checked against the host simulator's render of the same song (tests/scenarios/export_fixture.xy); bad files
 // refused in plain words; a backup with a sample section (the fixture's, with build/gen/user_bank.bin joined as base's
-// backup page joins it) restored through extras.js into the wasm's bank.
-//   node tests/host/export_web.mjs app/build/emu/app.wasm app/build/scenarios/export_fixture [BANK]
+// backup page joins it) restored through extras.js into the wasm's bank. "Read from the FM-1" (app/web/export/usb.js,
+// as tools/make_pages.py export_lib() inlines it in the page) against a simulated FM-1 on Web MIDI holding the fixture
+// and the bank: the file it reads is the joined one byte for byte, and renders; nothing but reads sent; its messages;
+// the page's scripts, LIB filled in, node --check'ed.
+//   node tests/host/export_web.mjs app/build/emu/app.wasm app/build/scenarios/export_fixture [BANK [PYTHON]]
 import fs from "fs";
+import os from "os";
+import path from "path";
+import { execFileSync } from "child_process";
+import { FakeFM1 } from "./fake_fm1.mjs";
 import { exportSetup, exportRender, exportSamples, useExtras } from "../../app/web/export/render.js";
 const wasm = fs.readFileSync(process.argv[2]), dir = process.argv[3], bankPath = process.argv[4] || "build/gen/user_bank.bin";
+const PY = process.argv[5] || process.env.PYTHON || "python3";
 const file = new Uint8Array(fs.readFileSync(`${dir}/export.bkp`));
 let fails = 0;
 const check = (what, ok, got) => { console.log(`${ok ? "  ok" : "FAIL"} ${what}: ${got}`); fails += !ok; };
@@ -79,4 +87,96 @@ check("progress reached 1", last === 1, last);
 const ref = pcm(new Uint8Array(fs.readFileSync(`${dir}/export_ref.wav`)));
 const a = rms(s, first(s), 8 * 88200), b = rms(ref, first(ref), 8 * 88200), db = 20 * Math.log10(a / b);
 check("level: the host's render within 1 dB", Math.abs(db) <= 1, `${db.toFixed(2)} dB (${a.toFixed(4)} / ${b.toFixed(4)})`);
+
+// "Read from the FM-1": the page's LIB as tools/make_pages.py makes it
+const lib = execFileSync(PY, ["-c", "import sys; sys.path.insert(0, 'tools'); import make_pages; sys.stdout.write(make_pages.export_lib())"],
+  { encoding: "utf8", maxBuffer: 1 << 26 });
+const USB = new Function(`${lib}\nreturn USB;`)();
+const L = new Function(strip(fs.readFileSync("app/web/samples/loom_samples.js", "utf8")) +
+  "\nreturn { BANK_HDR, BANK_SIZE, parseHeader, pack7, unpack7, crc32 };")();
+// a simulated FM-1 on Web MIDI: the screen reader's HELLO answered with fw, LOOM-8's PING (25), the backup (BU_REQ:
+// image in frames of 512 bytes, then BU_END with flags; no answer when backup is false), the bank's commands
+// (tests/host/fake_fm1.mjs, as the backup page's test has them; INFO's version info)
+function fm1(fw, { image = file, flags = 0, backup = true, info = 2 } = {}) {
+  const dev = new FakeFM1(L, bank), sent = [];
+  const ears = new Set();
+  const input = { name: "LOOM-8 FM-1", state: "connected", onmidimessage: null, open: async () => {},
+    addEventListener: (t, f) => ears.add(f), removeEventListener: (t, f) => ears.delete(f) };
+  const reply = (d) => setTimeout(() => {
+    const data = Uint8Array.from(d);
+    for (const f of ears) f({ data });
+    if (input.onmidimessage) input.onmidimessage({ data });
+  }, 0);
+  const le32 = (v) => [v & 0xFF, (v >>> 8) & 0xFF, (v >>> 16) & 0xFF, (v >>> 24) & 0xFF];
+  const output = { name: "LOOM-8 FM-1", state: "connected", open: async () => {}, send: (d) => {
+    d = Array.from(d);
+    if (d[1] === 0x7D && d[2] === 0x53 && d[3] === 0x52) {             // the screen reader's HELLO
+      sent.push("hello");
+      if (d[4] === 1) reply([0xF0, 0x7D, 0x53, 0x52, 1, 1, ...[...`${fw}\0https://x/words/1.json`].map((c) => c.charCodeAt(0)), 0xF7]);
+      return;
+    }
+    if (d[1] === 0x7D && d[2] === 0x46 && d[3] === 0x4C) {             // LOOM-8's own
+      sent.push(d[4]);
+      if (!/^LOOM-8/.test(fw)) return;
+      if (d[4] === 25) return reply([0xF0, 0x7D, 0x46, 0x4C, 25, 0, 0xF7]);
+      if (d[4] === 15 && info !== 2) return reply([0xF0, 0x7D, 0x46, 0x4C, 15, info, 0, 0, 0, 0, 0, 0, 0, 0xF7]);
+      const r = dev.answer(d[4], d.slice(5, -1));
+      if (r) reply([0xF0, 0x7D, 0x46, 0x4C, d[4], ...r, 0xF7]);
+      return;
+    }
+    const f = USB.PB.parseFrame(d);
+    sent.push(f ? `frame ${f.cmd}` : "other");
+    if (!f || f.cmd !== USB.PB.BU_REQ || !backup || !/^LOOM-8/.test(fw)) return;
+    for (let o = 0; o < image.length; o += 512) reply(USB.PB.frame(USB.PB.BU_REQ, [...le32(o), ...image.subarray(o, o + 512)]));
+    reply(USB.PB.frame(USB.PB.BU_END, [...le32(image.length), ...le32(USB.PB.crc32(image)), 0, flags]));
+  } };
+  return { midi: { inputs: new Map([[0, input]]), outputs: new Map([[0, output]]) }, sent };
+}
+{
+  const { midi, sent } = fm1("LOOM-8 0.18");
+  const said = []; let part = 0;
+  const got = await USB.readFM1(midi, { status: (t) => said.push(t), progress: (f) => { if (f != null) part = f; } });
+  check("read from the FM-1: the backup and its samples, as the backup page saves them", got.file.length === joined.length &&
+        got.file.every((v, i) => v === joined[i]) && got.flags === 0, `${got.file.length} B`);
+  check("   ... the samples' progress reached 1", part === 1, part);
+  check("   ... its status says the samples take a while", said.some((t) => /samples.*up to a minute/.test(t)), said.join(" | "));
+  const reads = new Set(["hello", 25, `frame ${USB.PB.BU_REQ}`, 15, 17]);
+  check("   ... nothing written: only HELLO, PING, the backup's request, INFO and READ sent", sent.every((c) => reads.has(c)),
+        [...new Set(sent)].join(" "));
+  slots = await exportSetup(wasm, got.file);
+  check("   ... set up: the fixture's slots", slots[0] && slots[0].tempo === 1200 && slots[0].scenes === 2, JSON.stringify(slots));
+  const n = await exportSamples();
+  check("   ... and its samples", n === want, `${n} of ${want}`);
+  const w2 = await exportRender({ slot: 0, scene: 0, loops: 1 }, () => {});
+  check("   ... and renders a scene", String.fromCharCode(...w2.subarray(0, 4)) === "RIFF" && w2.length > 44 + 4 * 44100, `${w2.length} B`);
+  const p = await USB.readFM1(fm1("LOOM-8 0.18", { flags: 1 }).midi);
+  check("   taken while playing: its flag (the page says to stop LOOM-8 for unsaved changes)", p.flags === 1, p.flags);
+}
+for (const [what, fw, opts, re] of [
+  ["another firmware", "X0X 1.2", {}, /^The FM-1 is running X0X 1\.2, not LOOM-8\. Install LOOM-8 on the install page/],
+  ["a LOOM-8 without backup", "LOOM-8 0.4", { backup: false }, /^LOOM-8 didn't answer\. If it's an older LOOM-8 without backup, update it on the Install page\./],
+  ["a LOOM-8 too old for its samples", "LOOM-8 0.4", { info: 1 }, /^This LOOM-8 is too old to back up its samples\. Update it/],
+]) {
+  let m = "(read)";
+  try { await USB.readFM1(fm1(fw, opts).midi); } catch (e) { m = e.message; }
+  check(`read from the FM-1: ${what}`, re.test(m), m);
+}
+{
+  let m = "(read)";
+  try { await USB.readFM1({ inputs: new Map(), outputs: new Map() }); } catch (e) { m = e.message; }
+  check("read from the FM-1: none connected", /^No FM-1 running LOOM-8 found\. Connect it by USB/.test(m), m);
+}
+// the page's scripts, LIB filled in as make_pages.py fills it, node --check'ed (the module one as a module)
+{
+  const page = fs.readFileSync("app/web/export/index.html", "utf8").replace("/*LIB*/", () => lib);
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "loom-export-"));
+  const scripts = [...page.matchAll(/<script( type="module")?>([\s\S]*?)<\/script>/g)];
+  let ok = scripts.length === 2;
+  scripts.forEach(([, mod, body], i) => {
+    const f = path.join(tmp, `s${i}.${mod ? "mjs" : "js"}`);
+    fs.writeFileSync(f, body);
+    try { execFileSync(process.execPath, ["--check", f], { stdio: "pipe" }); } catch (e) { ok = false; console.log(String(e.stderr)); }
+  });
+  check("the page's scripts (LIB filled in): node --check", ok, `${scripts.length} scripts`);
+}
 process.exit(fails ? 1 : 0);

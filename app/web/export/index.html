@@ -1,6 +1,7 @@
 <!doctype html>
 <!-- SPDX-License-Identifier: MPL-2.0
-     LOOM-8's export page: a backup file opened, a project picked and its song or one of its scenes (played 1 to 16
+     LOOM-8's export page: a backup file opened (or the backup read straight from the FM-1 over USB: usb.js, which
+     tools/make_pages.py inlines at LIB with what it uses, as export_lib() says), a project picked and its song or one of its scenes (played 1 to 16
      times), rendered to a WAV in the browser, faster than real time (worker.js, render.js: the emulator's app.wasm at
      ../emu/app.wasm, the backup restored into it). tools/make_pages.py dresses it, and writes extras.js beside the
      worker for a backup's samples. The idea is from gfcalvi's Bloomy (a fork of LOOM-8); written fresh. -->
@@ -32,6 +33,7 @@
   button, label.pick { font: 600 15px "Barlow", sans-serif; border-radius: 999px; padding: 7px 18px; cursor: pointer;
                        border: 1px solid transparent; }
   button { background: var(--accent); color: var(--on-accent); }
+  button.quiet { background: none; color: var(--ink); border-color: var(--rule); }
   button[aria-disabled="true"], button:disabled { opacity: .35; cursor: default; }
   label.pick { display: inline-block; position: relative; background: none; color: var(--ink); border-color: var(--rule); }
   label.pick:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
@@ -61,10 +63,13 @@
 
   <ol class="steps">
     <li><p style="margin: 0">Save a backup of your FM-1 on <a href="../backup/">the backup page</a>, or press Save backup
-      in <a href="../emu/">the emulator</a>.</p></li>
+      in <a href="../emu/">the emulator</a>. Or read it straight from the FM-1: connect it by USB and press Read from
+      the FM-1. That works in Chrome or Edge.</p></li>
     <li><div class="row">
       <label class="pick">Open the backup&hellip;<input type="file" id="file" accept=".loom8" aria-describedby="fileInfo"></label>
+      <button id="read" class="quiet" type="button" aria-disabled="false">Read from the FM-1</button>
       <span id="fileInfo"></span>
+      <progress id="readbar" max="1" value="0" hidden aria-label="Reading progress"></progress>
     </div></li>
     <li><div class="row">
       <label for="proj">Project</label> <select id="proj" disabled><option>Open a backup first</option></select>
@@ -91,9 +96,16 @@
     goes on until the reverb and the echoes fade out, for up to 20 seconds.</p>
   <p class="small">Every voice sounds in the file, so a busy song can sound fuller than it does on the FM-1. The
     samples in the backup play too.</p>
+  <p class="small">Reading from the FM-1 changes nothing on it, and LOOM-8 can keep playing. If you have changes
+    that aren't saved yet, stop LOOM-8 first so they're in the export too. Reading the samples takes the longest, up to
+    a minute. The browser asks once for permission to use MIDI with SysEx. Allow it, and close other apps that use the
+    FM-1's MIDI first.</p>
   <p class="small">For details on backups, see <a href="../manual/#saving">the manual's Saving section</a>. The idea
     for this page came from Bloomy, gfcalvi's fork of LOOM-8.</p>
 </main>
+<script>
+/*LIB*/
+</script>
 <script type="module">
 const $ = (id) => document.getElementById(id);
 let worker = null, wasm = null, slots = [], busy = false, ready = false;
@@ -101,10 +113,10 @@ let worker = null, wasm = null, slots = [], busy = false, ready = false;
 function say(t) { $("alert").textContent = ""; $("status").textContent = t; }
 function fail(t) { $("status").textContent = ""; $("alert").textContent = t; }
 let shown = { at: 0, pct: -100 };
-function sayPct(frac) {                             // progress, at most every 2 s or 10 percent (screen readers)
+function sayPct(frac, what = "Exporting") {         // progress, at most every 2 s or 10 percent (screen readers)
   const pct = Math.floor(frac * 100), now = performance.now();
   if (now - shown.at < 2000 && pct - shown.pct < 10) return;
-  say(`Exporting, ${pct} percent`);
+  say(`${what}, ${pct} percent`);
   shown = { at: now, pct };
 }
 
@@ -113,8 +125,9 @@ function slotText(s, i) {
   if (!s) return `Proj ${i + 1} · empty`;
   return `Proj ${i + 1} · ${bpm(s.tempo)} · ${s.scenes} scene${s.scenes === 1 ? "" : "s"}`;
 }
-function setGo() {                                  // (aria-disabled: focus stays on it while it exports)
+function setGo() {                                  // (aria-disabled: focus stays on it while it exports, or reads)
   $("go").setAttribute("aria-disabled", String(busy || !ready));
+  $("read").setAttribute("aria-disabled", String(busy));
 }
 function lock(on) {
   busy = on;
@@ -142,33 +155,73 @@ function ask(msg, transfer = [], onProgress = null) {
   });
 }
 
-async function openFile(f) {
+// a backup set up for export: read() -> { file: its bytes (an ArrayBuffer), where: "in NAME" or "on the FM-1",
+// note: more to say after it }
+async function openBackup(read) {
   lock(true);
-  $("fileInfo").textContent = f.name;
-  say("Reading the backup…");
+  let got;
+  try { got = await read(); }                       // (not read: what was open stays open)
+  catch (e) { $("readbar").hidden = true; fail(e.message); lock(false); return; }
   try {
+    const { file, where, note = "" } = got;
+    say("Reading the backup…");
     if (!wasm) {
       const r = await fetch("../emu/app.wasm");
       if (!r.ok) throw new Error("This page couldn't load LOOM-8. Reload the page to try again.");
       wasm = await r.arrayBuffer();
     }
     if (!worker) worker = new Worker("worker.js", { type: "module" });
-    const file = await f.arrayBuffer(), w = wasm.slice(0);
+    const w = wasm.slice(0);
     const m = await ask({ type: "setup", wasm: w, file }, [w, file]);
     slots = m.slots;
     const first = slots.findIndex((s) => s);
-    if (first < 0) { clear("No projects in this backup", "Pick a project first"); fail("This backup has no projects in it."); return; }
+    if (first < 0) { clear("No projects in this backup", "Pick a project first"); fail(`There are no projects ${where}.`); return; }
     $("proj").innerHTML = slots.map((s, i) => `<option value="${i}"${s ? "" : " disabled"}${i === first ? " selected" : ""}>${slotText(s, i)}</option>`).join("");
     ready = true;
     await openProject(first);
     const n = slots.filter((s) => s).length;
-    say(`${n} project${n === 1 ? "" : "s"} in ${f.name}. Pick what to play, then press Export.`);
+    say(`${n} project${n === 1 ? "" : "s"} ${where}. Pick what to play, then press Export.${note}`);
   } catch (e) {
     clear("Open a backup first", "Pick a project first");
     fail(e.message);
   } finally {
+    $("readbar").hidden = true;
     lock(false);
   }
+}
+function openFile(f) {
+  $("fileInfo").textContent = f.name;
+  return openBackup(async () => ({ file: await f.arrayBuffer(), where: `in ${f.name}` }));
+}
+// the backup straight from the FM-1 (usb.js, inlined at LIB): what the backup page saves, never written anywhere
+let midi = null;
+function readFM1() {
+  if (busy) return;
+  $("fileInfo").textContent = "";
+  const bar = $("readbar");
+  return openBackup(async () => {
+    if (typeof USB === "undefined" || !navigator.requestMIDIAccess)
+      throw new Error("This browser can't talk to the FM-1. Open this page in Chrome or Edge, or open a backup file instead.");
+    if (!midi) {
+      try { midi = await navigator.requestMIDIAccess({ sysex: true }); }
+      catch (_) { throw new Error("MIDI with SysEx was not allowed. Allow MIDI in the site settings (the address bar), then try again."); }
+    }
+    shown = { at: 0, pct: -100 };
+    let what = "";
+    const { file, flags } = await USB.readFM1(midi, {
+      status: (t) => { what = t.replace(/[.…].*$/, ""); shown = { at: 0, pct: -100 }; say(t); },
+      progress: (f) => {
+        bar.hidden = false;
+        if (f == null) { bar.removeAttribute("value"); return; }
+        bar.value = f;
+        if (f > 0) sayPct(f, what);
+      },
+    });
+    bar.hidden = true;
+    $("fileInfo").textContent = "From the FM-1";
+    return { file: file.buffer.slice(file.byteOffset, file.byteOffset + file.byteLength), where: "on the FM-1",
+      note: flags & 1 ? " LOOM-8 was playing, so changes it hadn't saved yet aren't in it. To include them, stop LOOM-8 and read it again." : "" };
+  });
 }
 
 async function openProject(slot) {
@@ -214,6 +267,7 @@ $("proj").onchange = async () => {
 };
 $("what").onchange = () => lock(false);
 $("go").onclick = exportIt;
+$("read").onclick = readFM1;
 lock(false);
 </script>
 </body>

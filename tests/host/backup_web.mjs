@@ -12,6 +12,7 @@ import { execFileSync } from "node:child_process";
 import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { FakeFM1 as Fake } from "./fake_fm1.mjs";
 
 const PY = process.argv[2] || process.env.PYTHON || "python3";
 const strip = (src) => src.replace(/^export\s+/gm, "").replace(/^import .*?;\n/gm, "");
@@ -20,63 +21,12 @@ const [EX] = new Function(code)();
 const L = new Function(strip(readFileSync("app/web/samples/loom_samples.js", "utf8")) +
   "\nreturn { BANK_HDR, BANK_SIZE, BANK_MAGIC, REGIONS, userBank, pack7, unpack7, crc32, parseHeader };")();
 
+class FakeFM1 extends Fake { constructor(img, opts) { super(L, img, opts); } }
+
 let bad = 0;
 const check = (what, ok) => { console.log(`  ${ok ? "ok  " : "FAIL"} ${what}`); if (!ok) bad++; };
 const same = (a, b) => a.length === b.length && a.every((v, i) => v === b[i]);
 const err = async (p) => { try { await p; return null; } catch (e) { return e; } };
-
-// a simulated FM-1: the bank's 216 KB (virtual offsets), the commands as samples.c answers them
-class FakeFM1 {
-  constructor(img, { drop = [], late = [], rc = {} } = {}) {
-    this.bank = new Uint8Array(L.BANK_SIZE).fill(0xFF);
-    if (img) this.bank.set(img);
-    this.q = []; this.n = 0; this.drop = drop; this.late = late; this.rc = rc; this.open = false; this.hdr = null;
-    this.writes = 0; this.lost = false;
-  }
-  count() { const h = L.parseHeader(this.bank.subarray(0, L.BANK_HDR)); return h ? h.count : 0; }
-  send(bytes) {
-    const cmd = bytes[4], a = bytes.slice(5, -1), k = this.n++;
-    const r = this.answer(cmd, a);
-    if (!r) return true;
-    const msg = [0xF0, 0x7D, 0x46, 0x4C, cmd, ...r, 0xF7];
-    if (this.drop.includes(k)) return true;                     // the answer lost on the way
-    if (this.late.includes(k)) { this.held = msg; return true; } // ... or late: it comes after the next request's
-    this.q.push(msg);
-    if (this.held && !this.late.includes(k)) { this.q.unshift(this.held); this.held = null; }
-    return true;
-  }
-  answer(cmd, a) {
-    const off = (i) => a[i] | a[i + 1] << 7 | a[i + 2] << 14;
-    if (cmd === 15) return [2, 0, 0, 0, 0, this.count(), 0, 0];
-    if (cmd === 17) {
-      const o = off(1), n = a[4] | a[5] << 7;
-      if (this.open) return [0, ...a.slice(1, 4), 4];
-      return [0, ...a.slice(1, 4), 0, ...L.pack7(this.bank.subarray(o, o + n))];
-    }
-    if (cmd === 11) { this.open = true; this.hdr = new Uint8Array(L.BANK_HDR); this.bank.fill(0xFF, 0, 4096); return [0, this.rc[11] || 0]; }
-    if (cmd === 12) {
-      const o = off(1), d = L.unpack7(a.slice(4));
-      if (!this.open) return [0, ...a.slice(1, 4), 4];
-      this.bank.set(d.subarray(0, 256), o); this.writes++;
-      return [0, ...a.slice(1, 4), this.rc[12] || 0];
-    }
-    if (cmd === 16) { this.hdr.set(L.unpack7(a.slice(2)).subarray(0, 320), a[1] * 320); return [0, a[1], 0]; }
-    if (cmd === 13) {
-      const h = L.parseHeader(this.hdr);
-      const ok = h && L.crc32(this.bank.subarray(L.BANK_HDR, L.BANK_HDR + h.dataLen)) === h.crc;
-      if (ok) this.bank.set(this.hdr.subarray(0, 1344));
-      this.open = false;
-      return [0, ok ? 0 : 6];
-    }
-    if (cmd === 14) { this.bank.fill(0xFF); return [0, 0]; }
-    return null;
-  }
-  async read(ms) {
-    if (!this.q.length) await new Promise((r) => setTimeout(r, Math.min(ms, 20)));
-    return this.q.shift() || null;
-  }
-  drain() { this.q.length = 0; }
-}
 
 // a bank of three samples, as the samples page builds it
 let seed = 7;
