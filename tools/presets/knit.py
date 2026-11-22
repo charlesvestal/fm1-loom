@@ -72,11 +72,11 @@ P("reed pad", "pad", "knit", knobs=dict(wave=20, detune=28, voices=2, width=90),
 P("sync lead", "lead", "knit", knobs=dict(wave=0, detune=10, voices=1, width=0), mode="legato", glide=14,
   volume=88, amp=(2, 70, 110, 50), fenv=(0, 76, 30, 60), filter=("lp24", 92, 10, 70, 64), sends=(22, 18),
   x=(71, 110, 0, 0), osc2=("saw", 0, 64), mod=(True, 19, 0, "sine"), genres=("synthpop",))
-# the 101's bass: a saw and a pulse locked to it (osc 2 synced in unison: one oscillator), the low square two octaves
-# down, the ladder plucked by a short envelope, mono
-P("rubber bass", "bass", "knit", knobs=dict(wave=0, detune=0, voices=1, width=0), mode="mono", volume=98,
-  amp=(0, 76, 90, 30), fenv=(0, 54, 10, 40), filter=("ladder", 52, 40, 96, 50), x=(64, 80, 70, 0),
-  osc2=("pulse", 100, 64), mod=(True, 0, 0, "low square"), genres=("house", "synthpop"))
+# the 101's bass: a saw and a pulse locked to it (osc 2 synced in unison: one oscillator), the square sub an octave
+# down (the low one sat under hearing, a bass already two octaves down), the ladder plucked by a short envelope, mono
+P("rubber bass", "bass", "knit", knobs=dict(wave=0, detune=0, voices=1, width=0), mode="mono", volume=112,
+  amp=(0, 76, 90, 30), fenv=(0, 54, 10, 40), filter=("ladder", 58, 26, 96, 50), x=(64, 90, 45, 0),
+  osc2=("pulse", 100, 64), mod=(True, 0, 0, "square"), genres=("house", "synthpop"))
 # poly sync keys: a synced saw an octave up, swept a little by the filter envelope on each note, two voices wide
 P("poly sync", "keys", "knit", knobs=dict(wave=0, detune=18, voices=2, width=70), volume=74,
   amp=(0, 84, 80, 64), fenv=(0, 70, 20, 64), filter=("lp24", 80, 8, 80, 64), sends=(20, 30), x=(76, 90, 0, 0),

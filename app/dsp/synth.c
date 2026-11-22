@@ -1065,7 +1065,8 @@ static __attribute__((noinline)) void knit_sub_sq(voice_t *v, float *xl, float *
 }
 /* knit's analog (TP_KANALOG), out of line: its drift as each oscillator's factor (the two walks in a mix of its own,
  * up to 6 cents: k 0..6 the unison's voices, 7 osc 2, 8 the sub); its softer edges (a one-pole low-pass, open at 0,
- * about 6 kHz at the top) and its saturation (soft3, driven up to 2.5 x, the level held about where it was) */
+ * about 11 kHz at the top) and its saturation (soft3 at unity gain, its ceiling down to 2.2: knit_analog; mixed in
+ * by the knob, so 0 to 1 is no step) */
 static const float KAN_W[9][2] = {{0.4f, 0.3f}, {-0.9f, 0.2f}, {0.7f, -0.6f}, {-0.3f, -0.9f}, {1.0f, 0.4f},
                                   {-0.6f, 0.8f}, {0.2f, -1.0f}, {0.8f, 0.6f}, {-0.5f, 0.5f}};
 static inline float kan_f(const voice_t *v, int k)
@@ -1074,13 +1075,16 @@ static inline float kan_f(const voice_t *v, int k)
 }
 static __attribute__((noinline)) void knit_analog(voice_t *v, float *xl, float *xr, int m, int stereo)
 {
-    const float a = (float)v->kanalog * (1.0f / 127.0f), g = 1.0f - 0.2f * a, dv = 1.0f + 1.5f * a;
-    const float og = 1.0f / (1.0f + 0.5f * a);
+    /* the saturation: soft3 at unity gain for small signals (the level and the fundamental stay), its ceiling 1 / dv
+     * above knit's mix (a voice's saw, osc 2 and sub together peak about 1.65: the ceiling 4 at the knob's bottom, 2.2
+     * at its top, where such a peak rounds off by under 1 dB) */
+    const float a = (float)v->kanalog * (1.0f / 127.0f), g = 1.0f - 0.2f * a, dv = 0.25f + 0.2f * a;
+    const float og = 1.0f / dv;
     for (int ch = 0; ch < (stereo ? 2 : 1); ch++) {
         float *x = ch ? xr : xl, y = v->kan_lp[ch];
         for (int i = 0; i < m; i++) {
-            y += (x[i] - y) * g;
-            x[i] = soft3(y * dv) * og;
+            y += (x[i] - y) * g;                 /* (the softer edges: g 0.8 at the top, about 11 kHz) */
+            x[i] = y + (soft3(y * dv) * og - y) * a;   /* (the saturation faded in with the knob: no step at 1) */
         }
         v->kan_lp[ch] = fm_flush(y);
     }
