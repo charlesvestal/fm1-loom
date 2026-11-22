@@ -18,6 +18,7 @@ mirror = true                  # the screen and the panel on a computer over USB
 backup = true                  # projects and presets over USB (base/tools/fm1_backup.py); the page adds the samples (app/web/backup/extras.js)
 backup_ext = "loom8"           # the backup page's files: NAME.loom8
 backup_holds = "the three projects, the user presets and the samples"
+emu = ["backup"]                # the emulator's Save backup and Load backup (base/web/emu/parts/backup.js): the export page takes its file
 words = "words.tsv"
 boot_pack = true               # .ram_text and .data LZMA-packed in the image, unpacked at boot (Melodee's: ~9 KB of flash)
 pool_spare = 1984              # the SRAM's margin (fm1-base insists on 8 KB): spent on mirroring (2026-11-05), the 10-channel USB audio (11-06) and 64 B to fm1-base 7337375 (11-19)
