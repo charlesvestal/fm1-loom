@@ -2031,6 +2031,48 @@ static void bus_split_tests(void)
     printf("    bus split: largest %.3f, the difference %.2g\n", (double)top, (double)err);
     check("a driven chord split across the cores sounds as on one (within rounding); its share in its pairs", ok && quiet);
 }
+/* the insert (TP_ITYPE): tremolo at full depth swings the track's level; at pan 127 its sides swing opposite (an
+ * auto-pan); off, the track sounds as it did */
+static void insert_tests(void)
+{
+    float lo[2] = {1e9f, 1e9f}, hi[2] = {0.0f, 0.0f}, corr = 0.0f;
+    int finite = 1;
+    for (int pass = 1; pass < 3; pass++) {
+        double el = 0.0, er = 0.0;
+        int acc = 0;
+        reset();
+        par[0][TP_A] = 0;
+        par[0][TP_S] = 127;
+        par[0][TP_ITYPE] = (uint8_t)(pass ? IT_TREMOLO : IT_OFF);
+        par[0][TP_I1] = 3;                       /* (1/4: 2 Hz at 120) */
+        par[0][TP_I2] = 127;
+        par[0][TP_I3] = (uint8_t)(pass == 2 ? 127 : 0);
+        synth_note_on(S, 0, 60, 100, 0, 1);
+        for (int b = 0; b < 60; b++) {
+            block(N, &finite);
+            for (int i = 0; i < N; i++)
+                el += (double)L[i] * (double)L[i], er += (double)R[i] * (double)R[i];
+            if (++acc == 2) {                    /* (two blocks: 11.6 ms) */
+                float rl = (float)sqrt(el / (2.0 * N)), rr = (float)sqrt(er / (2.0 * N));
+                if (b > 10 && pass) {
+                    lo[pass - 1] = rl < lo[pass - 1] ? rl : lo[pass - 1];
+                    hi[pass - 1] = rl > hi[pass - 1] ? rl : hi[pass - 1];
+                    if (pass == 2)
+                        corr += (rl - rr) * (rl - rr);
+                }
+                el = er = 0.0;
+                acc = 0;
+            }
+        }
+        synth_note_off(S, 0, 1);
+    }
+    printf("    tremolo: level %.3f .. %.3f; auto-pan %.3f .. %.3f, sides apart %.3f\n", (double)lo[0], (double)hi[0],
+           (double)lo[1], (double)hi[1], (double)corr);
+    check("insert tremolo: full depth swings the level; pan at the top swings the sides apart",
+          finite && lo[0] < hi[0] * 0.2f && lo[1] < hi[1] * 0.5f && corr > 0.0f);
+    check("the insert's knobs named by its type", !strcmp(tp_info(TP_ITYPE, EG_KNIT)->name, "insert") &&
+          !strcmp(tp_info_par(TP_I1, (const uint8_t[NTP]){[TP_ITYPE] = IT_TREMOLO})->name, "rate"));
+}
 static void lace_velvet_tests(void)
 {
     static float l[20 * N], r[20 * N], l2[20 * N], r2[20 * N];
@@ -3127,6 +3169,7 @@ int main(void)
     tulle_tests();
     lace_velvet_tests();
     bus_split_tests();
+    insert_tests();
     preset_table_tests();
     kit_char_tests();
     sample_tests();

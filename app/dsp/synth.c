@@ -242,6 +242,8 @@ typedef struct {
     float bus_g, bus_gn;              /* the bus's gain after the stage (the fader, the volume): the last block's, this one's */
     float bus_s1, bus_s2;             /* its sends */
     float wow[2], wowc[NCK];          /* tape's wow on its voices: one for the track (its phases, each chunk's cents) */
+    uint8_t ins;                      /* its insert this block (IT_*), after the stage */
+    float ins_k[3], ins_ph;           /* its knobs this block (the LFO on them), the tremolo's phase (turns) */
 } trk_t;
 
 struct synth {
@@ -3121,6 +3123,12 @@ static __attribute__((noinline)) float ring_glide(float a, float was, float *run
     was += (a - was) * CH_RING_SLEW;
     return fm_fabsf(a - was) < 0.002f ? a : was;
 }
+/* a type on the track's bus (bus_render), not on each voice (ring: its sine follows the note) */
+static inline int ch_on_bus(int type)
+{
+    return type == CT_DRIVE || type == CT_FOLD || type == CT_CRUSH || type == CT_TILT || type == CT_TAPE ||
+           type == CT_SAMPLER;
+}
 /* the type's values from the amount and tone (0..1) and the note's frequency (ring). tc: the tone as -1..1,
  * 0 at 64 exactly (the page prints it so: the fold's bias, the crush's balance, the tilt) */
 static void char_coefs(int type, float a, float t, float freq, float *x)
@@ -3194,7 +3202,8 @@ static void char_prep(synth_t *s, voice_t *v, int dest, float off, float gch)   
 {
     cfg_t *c = &v->c;
     int trk = v->trk, type = P(s, trk, TP_CTYPE), mix = P(s, trk, TP_CMIX), i;
-    if (type >= NCT || mix == 0 || s->grp[v->vi])   /* (on its track's bus: the stage there, bus_render) */
+    if (type >= NCT || mix == 0 || (s->grp[v->vi] && ch_on_bus(type)))   /* (on its track's bus: the stage there,
+                                                  * bus_render; ring stays on the voice) */
         type = CT_OFF;
     if (type != c->ctype) {
         for (i = 0; i < 8; i++)
@@ -4180,11 +4189,6 @@ static void voice_render(synth_t *s, int core, int vi, float *l, float *r, float
  * synth_order queues it alone, at their summed cost) into that core's own pair, before the fader and the volume (their
  * gains on the stage's output: the fader does not drive it) and with no sends (the stage's output's); the pan's level
  * made up on the way in (x sqrt 2), so a note in the middle drives the stage as it drove its own */
-static inline int ch_on_bus(int type)
-{
-    return type == CT_DRIVE || type == CT_FOLD || type == CT_CRUSH || type == CT_TILT || type == CT_TAPE ||
-           type == CT_SAMPLER;
-}
 #define BUS_N 256                             /* a bus's frames at a time (the engine's block; a longer render in pieces) */
 #ifdef PLAT_HOST
 static float bus_px[2][2][BUS_N];
@@ -4214,7 +4218,10 @@ static void bus_prepare(synth_t *s, uint32_t n)
         int gd = g != 0.0f ? gp[TP_LDEST] % NGD : -1;
         s->lead[i] = -1;
         t->bus = (uint8_t)(type < NCT && P(s, i, TP_CMIX) && ch_on_bus(type) ? type : CT_OFF);
-        if (t->bus == CT_OFF)
+        t->ins = (uint8_t)(P2(s, i, TP_ITYPE) < NIT ? P2(s, i, TP_ITYPE) : IT_OFF);
+        for (int q = 0; q < 3; q++)              /* (its knobs: a lock, the LFO's offset when it reaches one) */
+            t->ins_k[q] = fm_clampf((float)P2(s, i, TP_I1 + q) + (dest == TP_I1 + q ? off : 0.0f), 0.0f, 127.0f);
+        if (t->bus == CT_OFF && t->ins == IT_OFF)
             continue;
         t->bus_amt = fm_clampf(pf(s, i, TP_CAMT, dest, off) + (gd == GD_CHAR ? g : 0.0f), 0.0f, 127.0f) * (1.0f / 127.0f);
         vol = pf(s, i, TP_VOLUME, dest, off) * (1.0f / 127.0f);
@@ -4236,7 +4243,7 @@ static void bus_prepare(synth_t *s, uint32_t n)
     for (i = 0; i < NVOICE; i++) {
         const voice_t *v = &s->v[i];
         s->grp[i] = 0;
-        if (v->trk < NTRK && s->t[v->trk].bus != CT_OFF && v_sounding(v)) {
+        if (v->trk < NTRK && (s->t[v->trk].bus != CT_OFF || s->t[v->trk].ins != IT_OFF) && v_sounding(v)) {
             s->grp[i] = (uint8_t)(v->trk + 1);
             if (s->lead[v->trk] < 0)
                 s->lead[v->trk] = (int8_t)i;
@@ -4305,6 +4312,34 @@ static void bus_piece(synth_t *s, int core, int trk, float *l, float *r, float *
 }
 /* a bus's pair (bl, br: its voices' sum) through its stage, its gains and sends into l, r, s1, s2, its share of the
  * USB audio input's track (core's sink) */
+/* a track's insert on its pair (synth.h IT_*), after the stage. tremolo: each side's gain 1 - depth (1 + sin) / 2, the
+ * right side's sine pan half a cycle on at the top (an auto-pan), ramped across 16 frames at a time */
+static void ins_run(synth_t *s, trk_t *t, float *bl, float *br, uint32_t n)
+{
+    switch (t->ins) {
+    case IT_TREMOLO: {
+        const float d = t->ins_k[1] * (0.5f / 127.0f), pn = t->ins_k[2] * (0.5f / 127.0f);
+        const float dph = lfo_hz((int)t->ins_k[0], s->bpm) * INV_SR;
+        float ph = t->ins_ph, gl = 1.0f - d - d * fm_sin_turns(ph), gr = 1.0f - d - d * fm_sin_turns(ph + pn);
+        for (uint32_t j = 0; j < n; j += 16) {
+            uint32_t m = n - j < 16u ? n - j : 16u;
+            float ph2 = ph + dph * (float)m, gl2 = 1.0f - d - d * fm_sin_turns(ph2), gr2 = 1.0f - d - d * fm_sin_turns(ph2 + pn);
+            float sl = (gl2 - gl) / (float)m, sr = (gr2 - gr) / (float)m;
+            for (uint32_t i = j; i < j + m; i++) {
+                bl[i] *= gl;
+                br[i] *= gr;
+                gl += sl;
+                gr += sr;
+            }
+            ph = ph2 - fm_floorf(ph2);
+        }
+        t->ins_ph = ph;
+        break;
+    }
+    default:
+        break;
+    }
+}
 static void bus_out(synth_t *s, int core, int trk, float *bl, float *br, float *l, float *r, float *s1, float *s2,
                     uint32_t n, uint32_t at)
 {
@@ -4320,7 +4355,7 @@ static void bus_out(synth_t *s, int core, int trk, float *bl, float *br, float *
         c->type = (uint8_t)type;
         c->cin_type = 0xFFu;
     }
-    {
+    if (type != CT_OFF) {
         float a = t->bus_amt, tn = fm_minf((float)P(s, trk, TP_CTONE), 127.0f) * (1.0f / 127.0f);
         if (type != c->cin_type || a != c->cin[0] || tn != c->cin[1]) {
             char_coefs(type, a, tn, 0.0f, c->cx);
@@ -4332,7 +4367,9 @@ static void bus_out(synth_t *s, int core, int trk, float *bl, float *br, float *
     }
     for (j = 0; j < n && bl[j] == br[j]; j++)
         ;
-    if (j == n) {                                /* its two sides the same (mono voices in the middle, a bass, a lead):
+    if (type == CT_OFF)
+        ;
+    else if (j == n) {                                /* its two sides the same (mono voices in the middle, a bass, a lead):
                                                   * the stage once, its right side's states the left's */
         char_stage(c->cx, c->cz, type, 0, bl, br, (int)n);
         for (j = 0; j < n; j++)
@@ -4342,6 +4379,8 @@ static void bus_out(synth_t *s, int core, int trk, float *bl, float *br, float *
         c->cz[7] = c->cz[6];
     } else
         char_stage(c->cx, c->cz, type, 1, bl, br, (int)n);
+    if (t->ins != IT_OFF)
+        ins_run(s, t, bl, br, n);
     dg = (t->bus_gn - g) / (float)n;             /* (the gain glides across the block) */
     for (j = 0; j < n; j++) {
         float ol = bl[j] * g, or_ = br[j] * g, mono = (ol + or_) * 0.5f;
@@ -4428,6 +4467,11 @@ void synth_bus_join(synth_t *s, float *l, float *r, float *s1, float *s2, uint32
     }
 }
 void synth_split(synth_t *s, int on) { s->split_on = (uint8_t)(on != 0); }
+void synth_insert(synth_t *s, int trk, float *l, float *r, uint32_t n)
+{
+    if (trk >= 0 && trk < NTRK && s->t[trk].ins != IT_OFF)
+        ins_run(s, &s->t[trk], l, r, n);
+}
 void synth_bus_reset(synth_t *s, int core)
 {
     for (int trk = 0; trk < NTRK; trk++)
@@ -4569,6 +4613,13 @@ static const char *const RO_N[NRO] = {"off", "stack", "layer"};
 static const tp_info_t ROPS_P[4] = {{"ops", 0, NRO - 1, RO_OFF, PK_NAMES, RO_N}, {"ratio", 0, RO_NRATIO - 1, 1, PK_NUM, 0},
                                     {"depth", 0, 127, 0, PK_NN, 0}, {"feedback", 0, 127, 0, PK_NN, 0}};
 static const tp_info_t KANALOG_P = {"analog", 0, 127, 0, PK_NN, 0};
+/* the insert (synth.h IT_*): its type, and its knobs as each type names them (any type's ranges: tp_info) */
+static const char *const ITYPE_N[NIT] = {"off", "tremolo"};
+static const tp_info_t ITYPE_P = {"insert", 0, NIT - 1, IT_OFF, PK_NAMES, ITYPE_N};
+static const tp_info_t INS_ANY_P = {"", 0, 127, 0, PK_NN, 0};
+static const tp_info_t INS_P[NIT][3] = {
+    {{"-", 0, 0, 0, PK_NUM, 0}, {"-", 0, 0, 0, PK_NUM, 0}, {"-", 0, 0, 0, PK_NUM, 0}},
+    {{"rate", 0, 127, 4, PK_HZ_SYNC, 0}, {"depth", 0, 127, 80, PK_PCT, 0}, {"pan", 0, 127, 0, PK_PCT, 0}}};
 static const tp_info_t TULLE_G_P[4] = {{"shape", 0, 127, 0, PK_NN, 0}, {"reverse", 0, 127, 0, PK_PCT, 0},
                                        {"-", 0, 0, 0, PK_NUM, 0}, {"-", 0, 0, 0, PK_NUM, 0}};
 static const tp_info_t KMOD_P[4] = {{"sync", 0, 1, 0, PK_SWITCH, 0}, {"sweep", 0, KSWEEP_MAX, 0, PK_SEMI, 0},
@@ -4786,6 +4837,10 @@ const tp_info_t *tp_info(int p, int engine)
         return &ROPS_P[p - TP_ROPS];
     if (p == TP_KANALOG)
         return &KANALOG_P;
+    if (p == TP_ITYPE)
+        return &ITYPE_P;
+    if (p >= TP_I1 && p <= TP_I3)                 /* (its type's names: tp_info_par) */
+        return &INS_ANY_P;
     if (p >= 0 && p < (int)(sizeof FIXED / sizeof FIXED[0]))
         return &FIXED[p];
     return &NONE_P;
@@ -4807,6 +4862,8 @@ const tp_info_t *tp_info_par(int p, const uint8_t *par)
     }
     if (p == TP_RUP)                             /* (the random player's second octave knob) */
         return player == PL_RAND ? &RUP_P : &NONE_P;
+    if (p >= TP_I1 && p <= TP_I3)                /* the insert's knobs, as its type names them */
+        return &INS_P[par[TP_ITYPE] < NIT ? par[TP_ITYPE] : IT_OFF][p - TP_I1];
     if (p == TP_O2SHAPE && !o2w_shaped(par[TP_O2WAVE]))   /* (osc 2's shape: its saw, square and pulse only) */
         return &NONE_P;
     if (tp_is_dkey(p)) {

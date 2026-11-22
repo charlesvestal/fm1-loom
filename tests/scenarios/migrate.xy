@@ -279,3 +279,17 @@ reboot
 wait 400
 preset 3 U2
 expect par3.kanalog 77
+# a format 25 project, from before the tracks' inserts (tests/fixtures/make_v25.xy): the tracks four bytes longer
+# (TP_ITYPE, TP_I1..I3: 0, no insert), knit's analog, the character and rayon's Ops page kept
+storeload tests/fixtures/store_v25.bin
+reboot
+wait 400
+expect tempo 107
+expect par3.kanalog 77
+expect par3.ctype 1
+expect par3.camt 90
+expect par3.itype 0
+expect par3.i1 0
+expect par4.rops 2
+expect par4.rfb 30
+expect par4.itype 0

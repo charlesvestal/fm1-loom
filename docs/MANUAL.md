@@ -1216,6 +1216,19 @@ the amount through the voice module's fourth knob, "character". On a kit, the ch
 and comes after its bus filter. The keys' sends are taken before it. A kit's ring uses a ratio of C4, and its
 tape has no wow.
 
+### Insert
+
+Each track also has an insert: one more effect on the whole track, after its character and before its sends. Press
+**FX** and turn **SELECT** once to reach the Insert page. Turn **PRESETS**, or **KNOB 1**, to pick its type. Picking
+a type sets its knobs to their starting values. On a kit, the insert comes after the kit's character.
+
+| Type | Knob 2 | Knob 3 | Knob 4 |
+| --- | --- | --- | --- |
+| off | | | |
+| tremolo | The rate: synced divisions to the left, free rates to the right, as the LFO's speed. | The depth. | Pan: at 0 both sides rise and fall together, a tremolo; turned up, they move apart until at the top they take turns, an auto-pan. |
+
+You can lock the insert's knobs on a step, and COPY SOUND carries the insert with the rest of the sound.
+
 ## Players
 
 Press **ARP** and turn **KNOB 1** to pick the player: off, arp, strum, hold or random.

@@ -5,7 +5,7 @@ expect trk 1
 tapkey b1
 expect par1.d2.send2 0
 tap FX
-turn SELECT 1
+turn SELECT 2
 expect page Sends
 wait 60
 shot kit_sends.png

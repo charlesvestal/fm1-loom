@@ -72,6 +72,8 @@ shot d10l_sampler.png
 turn PRESET 1
 expect par2.30 0
 turn SELECT 1
+expect page Insert
+turn SELECT 1
 expect page Sends
 wait 60
 shot d10_sends.png

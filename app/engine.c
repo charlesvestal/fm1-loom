@@ -1330,6 +1330,7 @@ static void render_drums(uint32_t n)                    /* the drum tracks (the 
         zerof(ts2, n);
         drumline_render(DL(t), tl, tr, ts1, ts2, n);
         char_bus(&dl_ch[dl_slot[t]], epar[t], tl, tr, (int)n);   /* the kit's character, after its bus filter */
+        synth_insert(SY, t, tl, tr, n);                   /* and its insert (the keys' sends taken before both) */
         g = perf_mute[t] || !HOST_ON(t) ? 0.0f : tp_level_gain(epar[t][TP_LEVEL]);
         pan_gains(epar[t][TP_PAN] + perf_pan[t], &gl, &gr);
         glide_set(&trk_glide[t][GL_L], g * gl);

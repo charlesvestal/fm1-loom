@@ -335,7 +335,7 @@ tap HOME
 # FX I's and FX II's knobs by hand: on channels 9 and 10 (0xB8 = 184, 0xB9 = 185), the first knob CC 16
 projnew
 tap FX
-turn SELECT 2
+turn SELECT 3
 expect page FX_I
 ccreset
 turn K1 1

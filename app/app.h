@@ -137,7 +137,9 @@ void loom_lights(uint32_t buttons, uint32_t keys, int glow, uint32_t dim_keys, i
 #define DEBUG_BUILD (APP_VERSION[0] == 'D' && APP_VERSION[1] == 'E' && APP_VERSION[2] == 'V' && \
                      (!APP_VERSION[3] || APP_VERSION[3] == 'T'))   /* DEV, or the load test's DEVTEST */
 #define PROJ_MAGIC 0x384D4F4Cu          /* "LOM8" (was "XXY1": XY-1's projects start fresh) */
-#define PROJ_FORMAT 25u                 /* (10, 0.5-beta's, to 12 load too: project.c migrate_old; older ones do not)
+#define PROJ_FORMAT 26u                 /* (10, 0.5-beta's, to 12 load too: project.c migrate_old; older ones do not)
+                                         * 26: the tracks' inserts (TP_ITYPE, TP_I1..I3), their last parameters
+                                         *     (older: off);
                                          * 25: knit's analog (TP_KANALOG), the tracks' last parameter (older: 0);
                                          * 24: rayon's Ops page (TP_ROPS, TP_RRATIO, TP_RDEPTH, TP_RFB), the tracks'
                                          *     last parameters (older: off, rayon as before);

@@ -104,12 +104,12 @@ static uint16_t col_mix(uint16_t a, uint16_t b, uint32_t s)   /* a moved s/16 of
  * Play, Play 2; knit: Engine, Osc 2 (osc 2's interval, fine, wave, shape), Mod (P_KMOD: sync, sweep, cross, the sub's
  * type), Levels (the Sub page: osc 2's level, sub, noise, analog), Play, Play 2; a kit or an FX track
  * Engine and Play; the conductor Engine, Play (routing), Sub (Follow) */
-enum { P_ARRANGE, P_SONG, P_STEPS, P_BAR, P_ENGINE, P_PLAY, P_PLAY2, P_SUB, P_OSC2, P_KMOD, P_ENV, P_FILTER, P_ENV2, P_KITF, P_CHARACTER, P_SENDS,
+enum { P_ARRANGE, P_SONG, P_STEPS, P_BAR, P_ENGINE, P_PLAY, P_PLAY2, P_SUB, P_OSC2, P_KMOD, P_ENV, P_FILTER, P_ENV2, P_KITF, P_CHARACTER, P_INSERT, P_SENDS,
        P_FX1, P_FX2, P_THROWS, P_LFO, P_LFO2, P_PLAYERS, P_PLAYERS2, P_PLAYERS3, P_WEAVE, P_MIX, P_MASTER, P_MASTER2, P_MASTER3, P_GLFO, P_SETUP,
        P_STATUS, NPAGES };
 static const char *const PAGE_NAME[NPAGES] = {"Arrange", "Song", "Steps", "Bar", "Engine", "Play", "Play 2", "Sub", "Osc 2", "Mod",
                                               "Envelope",
-                                              "Filter", "Filter env", "Kit filter", "Character", "Sends", "FX I",
+                                              "Filter", "Filter env", "Kit filter", "Character", "Insert", "Sends", "FX I",
                                               "FX II", "Throws", "LFO", "LFO 2", "Players", "Players 2", "Hold", "Weave", "Mix",
                                               "Master EQ", "Master color", "Master out", "LFO", "Setup", "Debug"};
 static char *s_cat(char *b, const char *s);
@@ -140,7 +140,7 @@ static uint32_t glfo_route(void)                 /* the tracks it moves: bit t *
 }
 static int mst_base(int p) { return p == P_MASTER ? MS_EQ_LO : p == P_MASTER2 ? MS_CTYPE : MS_PERC; }   /* its first knob */
 static const struct { uint8_t btn, first, n; } PAGE_BTN[] = {
-    {B_HOME, P_ARRANGE, 2}, {B_SEQ, P_STEPS, 2}, {B_EDIT, P_ENGINE, 6}, {B_ENV, P_ENV, 4}, {B_FX, P_CHARACTER, 5},
+    {B_HOME, P_ARRANGE, 2}, {B_SEQ, P_STEPS, 2}, {B_EDIT, P_ENGINE, 6}, {B_ENV, P_ENV, 4}, {B_FX, P_CHARACTER, 6},
     {B_LFO, P_LFO, 2}, {B_ARP, P_PLAYERS, 4}, {B_GLO, P_MIX, 7}};
 #define NPAGE_BTN (sizeof PAGE_BTN / sizeof PAGE_BTN[0])
 static int page_group(int p)
@@ -697,7 +697,8 @@ static int fx_page(int p) { return p == P_FX1 || p == P_FX2; }
 /* the track a page's knobs edit: the FX pages their effect track, Character and Sends the instrument */
 static int page_trk(int p)
 {
-    return p == P_FX1 ? AUX_FX1 : p == P_FX2 ? AUX_FX2 : p == P_SENDS || p == P_CHARACTER ? inst_trk() : sel_trk();
+    return p == P_FX1 ? AUX_FX1 : p == P_FX2 ? AUX_FX2 : p == P_SENDS || p == P_CHARACTER || p == P_INSERT ? inst_trk()
+                                                                                                  : sel_trk();
 }
 static int kit_x_page(int t)                         /* a kit whose key shown has eight knobs: its
                                                       * knobs 5..8 on Engine 2 (TP_DRUMX) */
@@ -801,7 +802,7 @@ static int tp_page_param(int p, int k, int trk)
         {TP_X1, TP_X2, TP_X3, TP_X4}, {-1, -1, -1, -1}, {-1, -1, -1, -1},   /* (Osc 2, Mod: knit's, below) */
         {TP_A, TP_D, TP_S, TP_R},
         {TP_CUT, TP_RES, TP_FENV, TP_KTRK}, {TP_FA, TP_FD, TP_FS, TP_FR}, {TP_CUT, TP_RES, TP_FENV, TP_KTRK},
-        {TP_CTYPE, TP_CAMT, TP_CTONE, TP_CMIX},
+        {TP_CTYPE, TP_CAMT, TP_CTONE, TP_CMIX}, {-1, -1, -1, -1},   /* (Insert: past the int8 table, below) */
         {TP_SEND1, TP_SEND2, TP_PAN, TP_LEVEL},
         {TP_E1, TP_E2, TP_E3, TP_E4}, {TP_E1, TP_E2, TP_E3, TP_E4}, {-1, -1, -1, -1},
         {TP_LTYPE, TP_LSPEED, TP_LAMT, TP_LDEST},
@@ -814,6 +815,9 @@ static int tp_page_param(int p, int k, int trk)
     if (p == P_SENDS)                                /* (a kit's: the key's own, below) */
         return is_aux(trk) ? -1 : is_drum(trk) && k < 2 ? TP_DRUM(ui.dsound % DL_NSOUND, DP_SEND1 + k)
                                                         : M[p - P_ENGINE][k];
+    if (p == P_INSERT)                               /* the insert: its type and three knobs (a kit's: after its
+                                                      * character) */
+        return is_aux(trk) ? -1 : TP_ITYPE + k;
     if (p == P_CHARACTER)                            /* (a kit's: the whole kit's, after its bus filter) */
         return is_aux(trk) ? -1 : M[p - P_ENGINE][k];
     if (is_aux(trk)) {
@@ -1803,7 +1807,7 @@ static void page_knobs(knob_t *k)
         fx_knobs(k, P_FX1 == p ? AUX_FX1 : AUX_FX2);
         break;
     }
-    case P_CHARACTER: {                              /* the instrument's character stage */
+    case P_CHARACTER: case P_INSERT: {               /* the instrument's character stage, its insert */
         int it = inst_trk();
         for (int i = 0; i < 4; i++)
             ktp(&k[i], it, tp_page_param(p, i, it));
@@ -2137,6 +2141,10 @@ static void page_tag(char *t)
         e = s_cat(s_cat(t, TRACK_NAME[inst_trk()]), ">character");
         s_cat(s_cat(e, ">"), CTYPE_NAME(proj.trk[inst_trk()].par));
         break;
+    case P_INSERT:
+        e = s_cat(s_cat(t, TRACK_NAME[inst_trk()]), ">insert");
+        s_cat(s_cat(e, ">"), tp_info(TP_ITYPE, 0)->names[proj.trk[inst_trk()].par[TP_ITYPE] % NIT]);
+        break;
     case P_FX1: case P_FX2: {                        /* FX II>delay, FX II>reverb>hall */
         int pick = fx_pick_of(ui.page == P_FX1 ? AUX_FX1 : AUX_FX2);
         e = s_cat(s_cat(s_cat(t, TRACK_NAME[ui.page == P_FX1 ? AUX_FX1 : AUX_FX2]), ">"), FXT_NAME[fx_pick_type(pick)]);
@@ -2361,7 +2369,7 @@ static void page_footer(char *t)
     case P_SENDS:
         s_cat(t, "KEYS play");
         break;
-    case P_CHARACTER:
+    case P_CHARACTER: case P_INSERT:
         s_cat(t, "PRESET type|KEYS play");
         break;
     case P_FX1: case P_FX2:
@@ -2416,7 +2424,7 @@ static void enc_line(char *t)
         return;
     }
     if (n > 1)                        /* SELECT names what it turns to where that is the point of the page */
-        e = s_cat(t, p == P_CHARACTER ? "SELECT sends" : p == P_SENDS ? "SELECT effects" : p == P_ENV ? "SELECT filter"
+        e = s_cat(t, p == P_CHARACTER ? "SELECT insert" : p == P_INSERT ? "SELECT sends" : p == P_SENDS ? "SELECT effects" : p == P_ENV ? "SELECT filter"
                      : p == P_LFO ? "SELECT more" : "SELECT page");
     if (p != P_ARRANGE && p != P_SONG && p != P_THROWS && p < P_MASTER)
         e = s_cat(e, *t ? "|ALGO track" : "ALGO track");
@@ -2657,12 +2665,12 @@ static void draw_footer_as(void)
 }
 
 /* the help cards: a button held alone for a second says what it does on this page */
-#define PG(p) (1u << (p))
-#define PG_ANY 0xFFFFFFFFu
+#define PG(p) (1ull << (p))                          /* (more than 32 pages: 64 bits) */
+#define PG_ANY (~0ull)
 #define PG_STEPS (PG(P_STEPS) | PG(P_BAR))
 #define PG_SOUND (PG(P_ENGINE) | PG(P_PLAY) | PG(P_PLAY2) | PG(P_SUB) | PG(P_OSC2) | PG(P_KMOD) | PG(P_ENV) | PG(P_ENV2) | PG(P_KITF) | PG(P_FILTER) | \
-                  PG(P_CHARACTER) | PG(P_LFO) | PG(P_LFO2))
-static const struct { uint8_t btn; uint32_t pages; const char *title, *l1, *l2; } CARD[] = {
+                  PG(P_CHARACTER) | PG(P_INSERT) | PG(P_LFO) | PG(P_LFO2))
+static const struct { uint8_t btn; uint64_t pages; const char *title, *l1, *l2; } CARD[] = {
     {B_SEQ, PG(P_BAR), "Bars", "Hold SEQ and press black key 1-4 to jump to that bar.",
      "Hold two to loop them. Tap one twice to loop it."},
     {B_SEQ, PG_ANY, "Steps", "The white keys are the bar's 16 steps. Hold SEQ and play notes,",
@@ -2673,7 +2681,7 @@ static const struct { uint8_t btn; uint32_t pages; const char *title, *l1, *l2; 
      "Hold EDIT to play the keys or turn ALGORITHM for the engine."},
     {B_ENV, PG_ANY, "Envelope", "The amp's envelope, the filter, its envelope.",
      "Press PRESET on Filter for its type. A kit's key pages come first."},
-    {B_FX, PG_ANY, "Effects", "Character, sends, FX I, FX II, then Throws: play keys to throw.",
+    {B_FX, PG_ANY, "Effects", "Character, insert, sends, FX I and II, Throws: keys throw.",
      "Press PRESET for the effect, SEL for its filter."},
     {B_LFO, PG_ANY, "LFO", "Type, then its first three knobs.", "Turn SELECT for its fourth and fifth."},
     {B_ARP, PG_ANY, "Players", "Arp, strum, hold or random; last page, Weave.",
@@ -5905,6 +5913,37 @@ static void draw_character(void)
     }
     main_blit();
 }
+/* the Insert page: its type and what it does, after the track's character; tremolo: each side's level over two of its
+ * cycles (the left bright, the right faint: apart by pan) */
+static void draw_insert(void)
+{
+    static const char *const ABOUT[NIT] = {"nothing after the character", "the level rising and falling"};
+    int trk = inst_trk();
+    const uint8_t *p = par_now(trk);
+    int it = p[TP_ITYPE] % NIT;
+    uint32_t h = hash_u(hash_u(2166136261u, 0x15u), (uint32_t)trk | (uint32_t)it << 4 | (uint32_t)p[TP_I1] << 8 |
+                                          (uint32_t)p[TP_I2] << 16 | (uint32_t)p[TP_I3] << 24);
+    int32_t x0 = 128, y0 = 8, w = 100, hh = 96;
+    char t[32];
+    if (!begin_main(h))
+        return;
+    cv_text(12, 4, &FONT_L, tp_info(TP_ITYPE, 0)->names[it], K_TEXT);
+    cv_text(12, 40, &FONT_XS, ABOUT[it], K_DIM);
+    s_cat(s_cat(s_cat(t, "after "), TRACK_NAME[trk]), "'s character");
+    cv_text(12, 56, &FONT_XS, t, K_DIM);
+    if (it == IT_TREMOLO) {
+        float d = (float)p[TP_I2] / 127.0f * 0.5f, pn = (float)p[TP_I3] / 127.0f * 0.5f;
+        pen_t pl = {0}, pr = {0};
+        cv_rect(x0, y0 + hh - 4, w, 1, K_LINE);
+        for (int32_t i = 0; i <= w; i++) {
+            float ph = 2.0f * (float)i / (float)w;
+            float gl = 1.0f - d - d * fm_sin_turns(ph), gr = 1.0f - d - d * fm_sin_turns(ph + pn);
+            pen_to(&pr, (float)(x0 + i), (float)(y0 + hh - 4) - gr * (float)(hh - 12), K_FAINT);
+            pen_to(&pl, (float)(x0 + i), (float)(y0 + hh - 4) - gl * (float)(hh - 12), K_NOW);
+        }
+    }
+    main_blit();
+}
 static void draw_sends(void)                         /* the instrument's two sends (a kit's: the key's), named with
                                                       * the effects on them */
 {
@@ -6709,6 +6748,7 @@ static void draw_main(int trk)
         break;
     case P_BAR: draw_bar(); break;
     case P_CHARACTER: draw_character(); break;
+    case P_INSERT: draw_insert(); break;
     case P_SENDS: draw_sends(); break;
     case P_FX1: draw_fxtrack(AUX_FX1); break;
     case P_FX2: draw_fxtrack(AUX_FX2); break;

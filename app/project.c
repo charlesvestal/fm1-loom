@@ -64,6 +64,7 @@ typedef char raw_fits[(RAW_LEN < 0x100000u) ? 1 : -1];   /* (lz.c packs up to 16
 #define NTP22 ((uint32_t)TP_KSYNC)                        /* format 22's: up to knit's osc 2 shape */
 #define NTP23 ((uint32_t)TP_ROPS)                         /* format 23's: up to knit's Mod page */
 #define NTP24 ((uint32_t)TP_KANALOG)                      /* format 24's: up to rayon's Ops page */
+#define NTP25 ((uint32_t)TP_ITYPE)                        /* format 25's: up to knit's analog */
 /* the random player's one octave knob before 19 (TP_P4, 0..24: PR #13's path about its centre) as down * 4 + up */
 /* before 21: the arp's speeds without the dotted ones (1/4 1/4T 1/8 1/8T 1/16 1/16T 1/32 1/32T 1/64: old_arp, to
  * synth.h's order), the delay's times 1/32 1/32D 1/16 1/16D 1/8 1/8D 1/4 1/2 (the knob in eighths; now fx.h's, in tenths: 1/2,
@@ -754,12 +755,12 @@ static int settings_unpack(int n)
             return -1;
         for (i = 0; i < SET_HDR; i++)
             ((uint8_t *)&proj)[i] = io_buf[i];
-        uint32_t ntp = fmt >= 25u ? (uint32_t)NTP : fmt >= 24u ? NTP24 : fmt >= 23u ? NTP23 : fmt >= 22u ? NTP22
+        uint32_t ntp = fmt >= 26u ? (uint32_t)NTP : fmt >= 25u ? NTP25 : fmt >= 24u ? NTP24 : fmt >= 23u ? NTP23 : fmt >= 22u ? NTP22
                      : fmt >= 19u ? NTP21 : fmt >= 16u ? NTP18 : NTP15;
         uint32_t tl = ntp + NAME_LEN + 4u;
-        if (fmt >= 25u)
+        if (fmt >= 26u)
             return lz_decompress(&src, (uint8_t *)proj.trk, (uint32_t)sizeof proj.trk) ? -1 : 0;
-        if (lz_decompress(&src, (uint8_t *)proj.trk, NALLTRK * tl))   /* formats 15..24: their tracks shorter, */
+        if (lz_decompress(&src, (uint8_t *)proj.trk, NALLTRK * tl))   /* formats 15..25: their tracks shorter, */
             return -1;
         for (int t = NALLTRK - 1; t >= 0; t--) {  /* spread from the last (each moves up: copied from its end) */
             const uint8_t *o = (const uint8_t *)proj.trk + (uint32_t)t * tl;
@@ -771,6 +772,9 @@ static int settings_unpack(int n)
                 d[i] = o[i];
             if (ntp <= (uint32_t)TP_O2FINE)
                 par[TP_O2FINE] = 64;
+            par[TP_ITYPE] = par[TP_I1] = par[TP_I2] = par[TP_I3] = 0;   /* (no insert) */
+            if (ntp > (uint32_t)TP_KANALOG)
+                continue;
             par[TP_KANALOG] = 0;                 /* (no analog: knit as it was) */
             if (ntp > (uint32_t)TP_RFB)
                 continue;
@@ -817,6 +821,7 @@ static int settings_unpack(int n)
         tr->par[TP_RRATIO] = 1;
         tr->par[TP_RDEPTH] = tr->par[TP_RFB] = 0;
         tr->par[TP_KANALOG] = 0;
+        tr->par[TP_ITYPE] = tr->par[TP_I1] = tr->par[TP_I2] = tr->par[TP_I3] = 0;
     }
     return 0;
 }

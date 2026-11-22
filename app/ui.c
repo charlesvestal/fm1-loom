@@ -2379,12 +2379,19 @@ static void knob_do(int k, int32_t e)
             seq_rec_knob(&seq, trk, p, proj.trk[trk].par[p]);
         return;
     }
-    if (ui.page == P_CHARACTER) {                /* the instrument's (an effect track selected: the last one played) */
+    if (ui.page == P_CHARACTER || ui.page == P_INSERT) {   /* the instrument's (an effect track selected: the last one
+                                                  * played) */
         trk = inst_trk();
-        p = tp_page_param(P_CHARACTER, k, trk);
+        p = tp_page_param(ui.page, k, trk);
         if (p < 0)
             return;
-        set_tp(trk, p, proj.trk[trk].par[p] + (int)e);
+        {
+            int was = proj.trk[trk].par[p];
+            set_tp(trk, p, was + (int)e);
+            if (p == TP_ITYPE && proj.trk[trk].par[p] != was)   /* (another insert: its knobs at their defaults) */
+                for (int q = TP_I1; q <= TP_I3; q++)
+                    set_tp(trk, q, tp_info_par(q, proj.trk[trk].par)->def);
+        }
         if (seq.rec && playing() && trk == sel_trk())
             seq_rec_knob(&seq, trk, p, proj.trk[trk].par[p]);
         return;
@@ -2453,6 +2460,16 @@ static void presets(int32_t e)
             const uint8_t *par = proj.trk[trk].par;
             set_tp(trk, TP_CTYPE, (par[TP_CTYPE] + d + NCT) % NCT);
             say("CHARACTER", tp_info_par(TP_CTYPE, par)->names[par[TP_CTYPE] % NCT]);
+        }
+        break;
+    case P_INSERT:                               /* the insert's type */
+        trk = inst_trk();
+        {
+            const uint8_t *par = proj.trk[trk].par;
+            set_tp(trk, TP_ITYPE, (par[TP_ITYPE] + d + NIT) % NIT);
+            for (int q = TP_I1; q <= TP_I3; q++)  /* (another type: its knobs at their defaults) */
+                set_tp(trk, q, tp_info_par(q, par)->def);
+            say("INSERT", tp_info(TP_ITYPE, 0)->names[par[TP_ITYPE] % NIT]);
         }
         break;
     case P_FILTER: case P_KITF:                  /* the filter type (a kit: the key's; Kit filter: the bus on / off) */
@@ -3066,7 +3083,7 @@ static void act_paste_sound(void)
         par[TP_O2FINE] = proj.trk[src].par[TP_O2FINE];
         par[TP_O2WAVE] = proj.trk[src].par[TP_O2WAVE];
         par[TP_O2SHAPE] = proj.trk[src].par[TP_O2SHAPE];
-        for (int q = TP_KSYNC; q <= TP_KANALOG; q++)   /* (knit's Mod page, rayon's Ops page, knit's analog) */
+        for (int q = TP_KSYNC; q <= TP_I3; q++)   /* (knit's Mod page, rayon's Ops page, knit's analog, the insert) */
             par[q] = proj.trk[src].par[q];
         memcpy(proj.trk[trk].name, proj.trk[src].name, NAME_LEN);
         engine_set_all(trk);
@@ -4054,9 +4071,9 @@ static void input(void)
     if ((e = ev[EN_SELECT]) != 0 && ui.lockpg && !lst.open) {   /* the lock editor: the module's other pages (the
                                                   * track's own); a list open over it keeps SELECT for its rows */
         int g = page_group(ui.lockpg - 1), f = PAGE_BTN[g].first, n = group_n(g), pg = ui.lockpg - 1 - f;
-        if (PAGE_BTN[g].btn == B_FX) {           /* the track's own: Character and Sends */
+        if (PAGE_BTN[g].btn == B_FX) {           /* the track's own: Character, Insert and Sends */
             f = P_CHARACTER;
-            n = 2;
+            n = 3;
             pg = ui.lockpg - 1 - f;
         }
         if (PAGE_BTN[g].btn == B_EDIT) {         /* EDIT's in the track's own order (knit: Osc 2 second) */
