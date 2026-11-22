@@ -14,8 +14,9 @@ import { readFileSync } from "node:fs";
 
 const PY = process.argv[2] || process.env.PYTHON || "python3";
 const strip = (src) => src.replace(/^export\s+/gm, "").replace(/^import .*?;\n/gm, "");
+const PORTS = strip(readFileSync("base/web/fm1ports.js", "utf8"));   // (inlined before them in the page: make_pages.py /*LIB*/)
 const LIB = strip(readFileSync("app/web/samples/loom_samples.js", "utf8"));
-const APP = new Function(LIB + "\n" + readFileSync("app/web/install_app.js", "utf8") + "\nreturn { before, after };")();
+const APP = new Function(PORTS + "\n" + LIB + "\n" + readFileSync("app/web/install_app.js", "utf8") + "\nreturn { before, after };")();
 const L = new Function(LIB + "\nreturn { BANK_HDR, BANK_SIZE, BLK, BLK_V2, HDR_USED, NFENT, E_FACTORY, userBank, " +
   "pack7, unpack7, crc32, parseHeader, keptOf, isFactory, sampleBytes };")();
 
@@ -36,14 +37,20 @@ class Fake {
     if (img) this.bank.set(img);
     this.quiet = false; this.sent = 0; this.open = false; this.hdr = null;
     const self = this;
-    this.input = { name: "LOOM-8 FM-1", state: "connected", open: async () => {}, onmidimessage: null };
-    this.output = { name: "LOOM-8 FM-1", open: async () => {}, send(d) { self.recv(d); } };
+    this.ears = new Set();
+    this.input = { name: "LOOM-8 FM-1", state: "connected", open: async () => {}, onmidimessage: null,
+      addEventListener: (t, f) => this.ears.add(f), removeEventListener: (t, f) => this.ears.delete(f) };
+    this.output = { name: "LOOM-8 FM-1", state: "connected", open: async () => {}, send(d) { self.recv(d); } };
     this.midi = { inputs: new Map([["i", this.input]]), outputs: new Map([["o", this.output]]) };
   }
   count() { const h = L.parseHeader(this.bank.subarray(0, L.BANK_HDR)); return h ? h.count : 0; }
   image() { const h = L.parseHeader(this.bank.subarray(0, L.BANK_HDR)); return this.bank.slice(0, L.BANK_HDR + h.dataLen); }
   recv(d) {
     if (this.quiet) return;
+    if (d[1] === 0x7D && d[2] === 0x53 && d[3] === 0x52) {          // the screen reader's HELLO: answered with its name
+      if (d[4] === 1) setTimeout(() => { for (const f of this.ears) f({ data: Uint8Array.from([0xF0, 0x7D, 0x53, 0x52, 1, 1, ..."LOOM-8 0.14\0".split("").map((c) => c.charCodeAt(0)), 0xF7]) }); }, 0);
+      return;
+    }
     const cmd = d[4], a = d.slice(5, -1), r = this.answer(cmd, a);
     if (r && this.input.onmidimessage)
       setTimeout(() => this.input.onmidimessage({ data: Uint8Array.from([0xF0, 0x7D, 0x46, 0x4C, cmd, ...r, 0xF7]) }), 0);

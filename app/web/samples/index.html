@@ -394,9 +394,12 @@ async function addBreaks() {
 // ---- the FM-1 ----------------------------------------------------------------------
 async function connect() {
   if (!navigator.requestMIDIAccess) throw new Error("This browser can't talk to MIDI devices. Use Chrome or Edge.");
-  const l = await findLink(await navigator.requestMIDIAccess({ sysex: true }));
-  if (!l) throw new Error("No FM-1 running LOOM-8 found. Connect it by USB, and close other apps that use its MIDI port.");
-  return l;
+  let midi;
+  try { midi = await navigator.requestMIDIAccess({ sysex: true }); }
+  catch (_) { throw new Error("MIDI with SysEx was not allowed. Allow MIDI in the site settings (the address bar), then try again."); }
+  const res = await seekLink(midi);
+  if (!res.link) throw new Error(notFound(res));
+  return res.link;
 }
 async function readAll() {
   const bar = $("progress");
