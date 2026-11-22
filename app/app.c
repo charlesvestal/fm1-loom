@@ -12,6 +12,9 @@
 #include "ui.c"
 #include "midicc.c"
 #include "samples.c"
+#ifdef PLAT_WEB
+#include "render.c"                                   /* the WAV export page's render (the browser build only) */
+#endif
 #ifndef PLAT_HOST
 #include "plat_loom.c"
 #else

@@ -94,6 +94,13 @@ void app_splash(void);
 void app_redraw(void);
 #define APP_SYSEX                       /* the user sample bank over USB-MIDI (samples.c: F0 7D 46 4C) */
 int app_sysex(const uint8_t *p, uint32_t n);
+#define APP_WEB                         /* the browser build's own exports (web.c: the WAV export page's render) */
+#ifdef PLAT_WEB
+int loom_render_open(int slot);         /* render.c: a slot loaded, its song's slots (-1 empty) */
+uint32_t loom_render_scenes(void);      /* the scenes that exist, a bit each */
+int loom_render_start(int scene, int loops);   /* the song (scene < 0) or a scene loops times, from the top: its bars */
+int loom_render_playing(void);          /* 0 once it has ended */
+#endif
 
 /* the host simulator's part (host.c): LOOM-8's checks and commands, the screen reader's dump */
 #ifdef PLAT_HOST

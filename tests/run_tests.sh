@@ -81,6 +81,13 @@ for s in tests/scenarios/*.xy; do
     rm -rf "$B/scenarios/$n" && mkdir -p "$B/scenarios/$n"
     run "scenario-$n" $B/host/loom_host "$s" "$B/scenarios/$n"
 done
+# the WAV export page's render in the browser build: the fixture's backup (export_fixture.xy) restored, its song and a
+# scene played to their ends
+if command -v emcc >/dev/null 2>&1 && command -v node >/dev/null 2>&1; then
+    run export-wasm node tests/host/export_wasm.mjs $B/emu/app.wasm $B/scenarios/export_fixture/export.bkp
+else
+    echo "  skip export-wasm (no emcc or node)"
+fi
 # the USB audio input's ten channels as usbtracks.xy recorded them: the tracks in their own, at their level, before their pan
 run usb-channels "$PY" tests/usbtracks_check.py "$B/scenarios/usbtracks"
 # every page, engine and type, through the layout audit (tools/layout_sweep.py)
