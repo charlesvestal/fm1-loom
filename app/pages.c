@@ -5266,12 +5266,7 @@ static void draw_env(int filter)
         return;
     }
     st = mv.of == trk ? (filter ? mv.fst : mv.ast) : 0;   /* MOD VIEW: the newest note's stage and level, a dot */
-    dy = f_floor(base - hh * fm_clampf(filter ? mv.flv : mv.alv, 0.0f, 1.0f) + 0.5f);
-    if (st)
-        h = hash_u(h, (uint32_t)st | (uint32_t)dy << 4);
-    if (!begin_main(h))
-        return;
-    cv_rect(16, 16 + 84, 208, 1, K_LINE);
+    dy = base - hh * fm_clampf(filter ? mv.flv : mv.alv, 0.0f, 1.0f);
     /* the shape as points: each stage a curve (attack easing in, decay and release falling exponentially) */
     if (drum) {                                      /* lag (a delay), attack, then the hit's length */
         a = 2.0f + p[TP_A] * 40.0f / 127.0f;
@@ -5312,6 +5307,22 @@ static void draw_env(int filter)
             px[n] = x + r * t, py[n++] = base - hh * s * ease_exp(t);
         }
     }
+    mv_dot = -1;
+    if (st) {                                        /* the dot where its stage's curve is at its level (sustain: the
+                                                      * decay's end; a release from above the sustain: its start),
+                                                      * between the curve's points, so it glides rather than steps */
+        int i = st == 4 ? 30 : st == 1 ? 1 : 13, e = st == 4 ? 45 : st == 1 ? 12 : 28;
+        float sg = st == 1 ? -1.0f : 1.0f, g;        /* (the attack rises: its y falls) */
+        while (i < e && (py[i] - dy) * sg < 0.0f)
+            i++;
+        g = py[i] - py[i - 1];
+        mv_dot = (int32_t)(px[i] - (px[i] - px[i - 1]) * (g != 0.0f ? fm_maxf((py[i] - dy) / g, 0.0f) : 0.0f) + 0.5f);
+        dy = (float)(int32_t)(dy + 0.5f);
+        h = hash_u(h, (uint32_t)st | (uint32_t)dy << 4 | (uint32_t)mv_dot << 16);
+    }
+    if (!begin_main(h))
+        return;
+    cv_rect(16, 16 + 84, 208, 1, K_LINE);
     for (int i = 1; i < n; i++)                      /* under the curve, the track's colour thinned */
         for (int32_t xi = f_floor(px[i - 1] + 0.5f); xi < f_floor(px[i] + 0.5f); xi++) {
             float t = px[i] > px[i - 1] ? (xi - px[i - 1]) / (px[i] - px[i - 1]) : 0.0f;
@@ -5321,16 +5332,8 @@ static void draw_env(int filter)
         }
     for (int i = 0; i < n; i++)
         pen_to(&pn, px[i], py[i], K_NOW);
-    mv_dot = -1;
-    if (st) {                                        /* the dot where its stage's curve is at its level (sustain: the
-                                                      * decay's end; a release from above the sustain: its start) */
-        int i = st == 4 ? 29 : st == 1 ? 0 : 12, e = st == 4 ? 45 : st == 1 ? 12 : 28;
-        float sg = st == 1 ? -1.0f : 1.0f;           /* (the attack rises: its y falls) */
-        while (i < e && (py[i] - dy) * sg < 0.0f)
-            i++;
-        mv_dot = f_floor(px[i] + 0.5f);
-        cv_round(mv_dot - 4, (int32_t)dy - 4, 9, 9, 4, K_TEXT);
-    }
+    if (st)
+        cv_round(mv_dot - 2, (int32_t)dy - 2, 5, 5, 2, K_NOW);   /* (a bead on the line, its colour) */
     cv_text(16, 16 + 84 + 3, &FONT_XS, drum ? "every key: lag, attack, random, length"
                                               : filter ? "filter envelope" : "amp envelope", K_DIM);
     cv_blit(0, MAIN_Y);

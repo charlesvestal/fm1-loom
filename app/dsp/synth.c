@@ -186,7 +186,8 @@ typedef struct {
     uint8_t o2w;                      /* knit's osc 2: 0 osc 1's wave, 1 its own shape (o[9]), 2 triangle, 3 sine */
     float o[16];                      /* the engine's state */
     float cz[8];                      /* the character stage's: low-pass / hold L R, DC L R, phase, -, the
-                                       * sampler's output filter L R (tape: cz[4..5] its wow's phases) */
+                                       * sampler's output filter L R (tape: cz[4..5] its wow's phases; ring:
+                                       * cz[6] 1 once its amount glides, 0 a new note) */
 } voice_t;
 /* the sample engine's decoded windows (dsp/sample.h), a voice each: beside the struct, in RAM (the pool is
  * the scarcer); each is touched only by its own voice's render, on whichever core renders it */
@@ -2330,6 +2331,21 @@ static float ch_smp_rate(float a) { return 26040.0f * fm_exp2f(-a * 1.243f); }  
 #define CH_DC (FM_TWO_PI * 12.0f * INV_SR)       /* the DC blocker's one-pole: 12 Hz */
 #define CH_REF 0.7f                              /* the drive keeps the level of a peak here (an engine's, about) */
 #define CH_FOLD 0.6f                             /* the fold's level once it folds (a folded wave's RMS: about a saw's) */
+#define CH_RING_SLEW 0.135f                      /* the ring's amount glides, a chunk's step: about 10 ms (a turned knob
+                                                  * clicked: the depth stepped at once) */
+/* the ring's amount a, glided from was (its last) unless it starts (*run 0: a new note or type; then 1), and its gains' starting
+ * values for the ramp across the chunk (cx[4], cx[6]: char_loop goes from them to cx[0], cx[1]) */
+static __attribute__((noinline)) float ring_glide(float a, float was, float *run, float *cx)
+{
+    if (*run == 0.0f) {
+        *run = 1.0f;
+        return a;
+    }
+    cx[4] = cx[0];
+    cx[6] = cx[1];
+    was += (a - was) * CH_RING_SLEW;
+    return fm_fabsf(a - was) < 0.002f ? a : was;
+}
 /* the type's values from the amount and tone (0..1) and the note's frequency (ring). tc: the tone as -1..1,
  * 0 at 64 exactly (the page prints it so: the fold's bias, the crush's balance, the tilt) */
 static void char_coefs(int type, float a, float t, float freq, float *x)
@@ -2364,8 +2380,8 @@ static void char_coefs(int type, float a, float t, float freq, float *x)
         int k = (int)(t * 127.0f + 0.5f) >> 3;   /* (as tp_text_par prints it) */
         float w = fm_minf(freq * RING_R[k < 0 ? 0 : k > 15 ? 15 : k] * INV_SR, 0.45f) * FM_TWO_PI;
         float m = fm_rsqrtf((1.0f - a) * (1.0f - a) + 0.5f * a * a);
-        x[0] = (1.0f - a) * m;
-        x[1] = a * m;
+        x[0] = x[4] = (1.0f - a) * m;           /* (x[4], x[6]: where the chunk's ramp starts; ring_glide moves them) */
+        x[1] = x[6] = a * m;
         x[2] = fm_cosf(w);                       /* the sine as a rotating phasor: cz[4] + i cz[5] */
         x[3] = fm_sinf(w);
         x[5] = CH_DC;
@@ -2416,6 +2432,9 @@ static void char_prep(synth_t *s, voice_t *v, int dest, float off, float gch)   
     {   /* (the coefficients cost exps: made again only when what they come from moved) */
         float a = fm_clampf(pf(s, trk, TP_CAMT, dest, off) + gch, 0.0f, 127.0f) * (1.0f / 127.0f);
         float t = fm_minf((float)P(s, trk, TP_CTONE), 127.0f) * (1.0f / 127.0f), f = type == CT_RING ? c->freq : 0.0f;
+        if (type == CT_RING) {                   /* (cz[6]: 0 a new note or type, so it starts where it is) */
+            a = ring_glide(a, c->cin[0], &v->cz[6], c->cx);
+        }
         if (type != c->cin_type || a != c->cin[0] || t != c->cin[1] || f != c->cin[2]) {
             char_coefs(type, a, t, c->freq, c->cx);
             c->cin_type = (uint8_t)type;
@@ -2543,6 +2562,11 @@ SY_INLINE void char_loop(const float *cx, float *cz, float *xl, float *xr, int k
         cz[7] = fm_flush(z7);
         return;
     }
+    float r0 = cx[4], r1 = cx[6], dr0 = 0.0f, dr1 = 0.0f;   /* (the ring: its gains ramped across the chunk) */
+    if (type == CT_RING && k > 0) {
+        dr0 = (c0 - r0) / (float)k;
+        dr1 = (c1 - r1) / (float)k;
+    }
     for (j = 0; j < k; j++) {
         float mod = 0.0f;
         int upd = 0;
@@ -2550,7 +2574,9 @@ SY_INLINE void char_loop(const float *cx, float *cz, float *xl, float *xr, int k
             float nr = ph * c2 - qi * c3;
             qi = ph * c3 + qi * c2;
             ph = nr;
-            mod = c0 + c1 * qi;
+            r0 += dr0;
+            r1 += dr1;
+            mod = r0 + r1 * qi;
         } else if (type == CT_CRUSH) {
             ph += c2;
             if (ph >= 1.0f) {
@@ -2607,6 +2633,9 @@ void char_bus(chbus_t *c, const uint8_t *par, float *l, float *r, int n)
         return;
     a = (float)(par[TP_CAMT] & 127) * (1.0f / 127.0f);
     t = (float)(par[TP_CTONE] & 127) * (1.0f / 127.0f);
+    if (type == CT_RING) {                       /* (the voices' glide, char_prep, a step a block here) */
+        a = ring_glide(a, c->cin[0], &c->cz[6], c->cx);
+    }
     if (type != c->cin_type || a != c->cin[0] || t != c->cin[1]) {
         char_coefs(type, a, t, KIT_RING_HZ, c->cx);
         c->cin_type = (uint8_t)type;

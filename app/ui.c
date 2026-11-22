@@ -2522,6 +2522,12 @@ static void list_mark(void)
     lst_mem[k].ok = 1;
 }
 static int list_pickable(int r) { return lst.row[r].kind != LK_NOTE && lst.row[r].kind != LK_HEAD; }
+static int eg_swap(int e) { return e >= EG_MIDI ? e ^ (EG_MIDI ^ EG_ACID) : e; }   /* (midi 9, acid 10: swapped) */
+static int eg_step(int e, int d)                 /* the engines in the picker's order: midi last (acid, added after it,
+                                                  * goes before it; saved by number, so only the order moves) */
+{
+    return eg_swap(clampi(eg_swap(e) + d, 0, NENGINE - 1));
+}
 static void list_open(void)
 {
     int a = -1, k;
@@ -2597,7 +2603,7 @@ static void list_change_do(int32_t e)
     }
     case LK_PICK:
         switch (lst.row[lst.sel].id) {
-        case A_ENGINE: ui.pick_engine = (uint8_t)clampi(ui.pick_engine + d, 0, NENGINE - 1); break;
+        case A_ENGINE: ui.pick_engine = (uint8_t)eg_step(ui.pick_engine, d); break;
         case A_CLEAR: ui.pick_clear = (uint8_t)clampi(ui.pick_clear % 3u + d, 0, 2); break;
         case A_ROTATE: case A_SHIFT: {           /* how far: never 0 (left / down past 1 goes to -1) */
             int8_t *v = lst.row[lst.sel].id == A_ROTATE ? &ui.pick_rot : &ui.pick_shift;
@@ -4048,7 +4054,7 @@ static void input(void)
         if (lst.open)
             list_change(e);
         else if (page_btn_held(B_EDIT) && !is_aux(sel_trk())) {   /* EDIT held: ALGORITHM picks the engine */
-            ui.pick_engine = (uint8_t)clampi(proj.trk[sel_trk()].par[TP_ENGINE] + (e > 0 ? 1 : -1), 0, NENGINE - 1);
+            ui.pick_engine = (uint8_t)eg_step(proj.trk[sel_trk()].par[TP_ENGINE], e > 0 ? 1 : -1);
             if (ui.pick_engine != proj.trk[sel_trk()].par[TP_ENGINE])
                 action_run(A_ENGINE);
         } else
