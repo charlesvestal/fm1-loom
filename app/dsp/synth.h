@@ -39,7 +39,7 @@
  * velocity ACID_ACCENT or more is accented; a note that starts while the last one is still held slides to it, and so
  * does a note with a glide (a step's glide trick, the arp's glide) after a short one: on the same pitch, a tie. */
 enum { EG_KNIT, EG_RAYON, EG_JACQUARD, EG_BELLOWS, EG_CANE, EG_VOILE, EG_SAMPLE, EG_SLICE, EG_DRUMLINE, EG_MIDI,
-       EG_ACID, EG_TULLE, NENGINE };                           /* (saved by number: PROJ_FORMAT 10 renumbered them; a new one
+       EG_ACID, EG_TULLE, EG_LACE, EG_VELVET, NENGINE };                           /* (saved by number: PROJ_FORMAT 10 renumbered them; a new one
                                                       * goes last) */
 #define NACID 2
 #define ACID_ACCENT 112
@@ -51,6 +51,24 @@ enum { EG_KNIT, EG_RAYON, EG_JACQUARD, EG_BELLOWS, EG_CANE, EG_VOILE, EG_SAMPLE,
  * TL_POOL, each with its own decode window */
 #define TL_POOL 32                                   /* eight a note: its slot's own (TL_POOL / CN_SLOTS) */
 #define TL_VOICE_MAX 8                               /* a note's grains at most (its voice on one core: the FM-1's budget) */
+/* EG_LACE (2026-11-23): a modal resonator: LC_MODES tuned two-pole resonators, struck, blown or bowed. Its Engine page
+ * E1 the material (the modes' ratios and how long each rings: NLACE of them), E2 bright (the higher modes' share), E3
+ * damp (how fast they die; the higher sooner), E4 position (where it is struck: a comb on the modes); its Exciter page
+ * (TP_X1..X4) the exciter (LX_*), stretch (the modes' spacing, about 64), spread (the modes across the stereo field),
+ * hardness (the mallet's, the noise's color, the bow's pressure). At most CN_SLOTS of its voices (cane's slots: their
+ * resonators' state in lc_mem) */
+#define NLACE 8
+#define LC_MODES 12
+enum { LX_MALLET, LX_NOISE, LX_BOW, NLX };
+/* the modes of a lace sound (the Engine page's picture): each one's ratio to the note, as log2, and its level (0..1, the
+ * loudest 1); how many */
+int lace_modes(const uint8_t *par, float *lratio, float *level);
+/* EG_VELVET (2026-11-23): a string machine: each note a divided-down saw (16', 8', 4' by the register), three times over,
+ * each copy's pitch moved by the ensemble (two LFOs a third of a cycle apart, a slow one and a fast one, as the
+ * Solina's delay lines move it). Its Engine page E1 the register (VR_*), E2 bright, E3 chorus (the ensemble's depth), E4 rate;
+ * its Sub page (TP_X1..X4) shape (saw .. square), width (the copies across the stereo field), detune (the copies apart,
+ * still) */
+enum { VR_VIOLIN, VR_VIOLA, VR_CELLO, VR_BASS, VR_FULL, NVR };
 /* the Braids engines (dsp/braids.h, after Mutable Instruments Braids, MIT): E1 the model, E2 Braids' timbre, E3 its
  * color, E4 cane's damp, voile's breath. cane: pluck, bow, reed, flute, bell, drum, at most CN_SLOTS of its voices
  * (each a slot of CN_LEN int16 for its lines); voile: vosim, vowel, choir, whisper */

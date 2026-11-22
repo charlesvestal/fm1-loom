@@ -613,6 +613,7 @@ static int is_midi(int t) { return t < NTRK && proj.trk[t].par[TP_ENGINE] == EG_
 static int is_knit(int t) { return t < NTRK && proj.trk[t].par[TP_ENGINE] == EG_KNIT; }
 static int is_rayon(int t) { return t < NTRK && proj.trk[t].par[TP_ENGINE] == EG_RAYON; }
 static int is_tulle(int t) { return t < NTRK && proj.trk[t].par[TP_ENGINE] == EG_TULLE; }
+static int is_lace(int t) { return t < NTRK && proj.trk[t].par[TP_ENGINE] == EG_LACE; }
 static int is_acid(int t) { return t < NTRK && proj.trk[t].par[TP_ENGINE] == EG_ACID; }   /* (its 303's own envelope:
                                                                                          * no Filter env page) */
 /* a page's name: a drum track's Play page is its Key page, its Filter env page the kit's envelope */
@@ -638,6 +639,8 @@ static const char *page_name_of(int p, int trk)
         return "Ops";
     if (is_tulle(trk) && p == P_KMOD)                /* (and tulle's grains' shape and direction) */
         return "Grain";
+    if (is_lace(trk) && p == P_SUB)                  /* (lace's: what sets its modes ringing) */
+        return "Exciter";
     if ((is_drum(trk) || is_midi(trk)) && p == P_SUB)
         return "Engine 2";
     return PAGE_NAME[p % NPAGES];
@@ -705,7 +708,8 @@ static int kit_x_page(int t)                         /* a kit whose key shown ha
 static int x_page(int t)                             /* the engine has a second page of knobs (TP_X1..X4) */
 {
     int e = t < NTRK ? proj.trk[t].par[TP_ENGINE] : -1, m = t < NTRK ? proj.trk[t].par[TP_E4] % NSM : 0;
-    return e == EG_RAYON || e == EG_KNIT || e == EG_MIDI || e == EG_ACID || e == EG_TULLE || (e == EG_SAMPLE && (m == SM_LOOP || m == SM_PINGPONG)) ||   /* (the
+    return e == EG_RAYON || e == EG_KNIT || e == EG_MIDI || e == EG_ACID || e == EG_TULLE || e == EG_LACE ||
+           e == EG_VELVET || (e == EG_SAMPLE && (m == SM_LOOP || m == SM_PINGPONG)) ||   /* (the
                                                                                      * sample's loop page: looping) */
            kit_x_page(t);
 }
@@ -4387,6 +4391,47 @@ static void pic_sample(int32_t x0, int32_t y0, int32_t w, int32_t h, const uint8
 static int32_t tl_gpos[TL_SHOWN];                    /* the grains sounding, as draw_engine read them */
 static uint8_t tl_glvl[TL_SHOWN];
 static int tl_ng;
+/* lace: its modes as lines along the picture (their ratios' logs: the lowest left, the highest right), each as tall as
+ * its level (synth.c lace_modes), shrinking as the sound falls (pic_lvl) */
+static void pic_lace(int32_t x0, int32_t y0, int32_t w, int32_t h, const uint8_t *p)
+{
+    float rt[LC_MODES], lv[LC_MODES], lo = 1e9f, hi = 0.0f, base = (float)(y0 + h - 6), k = 0.3f + 0.7f * pic_lvl;
+    int n = lace_modes(p, rt, lv);
+    cv_rect(x0 + 4, (int32_t)base, w - 8, 1, K_LINE);
+    for (int i = 0; i < n; i++) {
+        lo = fm_minf(lo, rt[i]);
+        hi = fm_maxf(hi, rt[i]);
+    }
+    for (int i = 0; i < n; i++) {
+        float x = (float)(x0 + 10) + (rt[i] - lo) / fm_maxf(hi - lo, 0.5f) * (float)(w - 20);
+        int32_t ht = (int32_t)(lv[i] * k * (float)(h - 16));
+        cv_rect((int32_t)x - 1, (int32_t)base - ht, 3, ht, lv[i] > 0.3f ? K_NOW : K_DIM);
+    }
+}
+/* velvet: its three copies' waves, a register's sum each, over two cycles, apart by width, moving by the ensemble */
+static void pic_velvet(int32_t x0, int32_t y0, int32_t w, int32_t h, const uint8_t *p, uint32_t f)
+{
+    static const uint8_t MSK[5] = {6, 2, 3, 1, 7};
+    const uint16_t INK[3] = {K_FAINT, K_NOW, K_DIM};
+    int msk = MSK[p[TP_E1] % 5];
+    float ens = (float)p[TP_E3] / 127.0f, wd = (float)p[TP_X2] / 127.0f, sq = (float)p[TP_X1] / 127.0f;
+    float rate = 0.02f + 0.06f * (float)p[TP_E4] / 127.0f;
+    for (int c = 0; c < 3; c++) {
+        pen_t pn = {0};
+        float cy = (float)(y0 + h / 2) + (float)(c - 1) * (6.0f + 14.0f * wd);
+        float off = ens * 0.06f * fm_sin_turns((float)f * rate + (float)c / 3.0f);
+        for (int x = 0; x <= w - 16; x += 2) {
+            float ph = (float)x / (float)(w - 16) + off, y = 0.0f;
+            for (int r = 0; r < 3; r++)
+                if (msk >> r & 1) {
+                    float q = ph * (float)(1 << r), fr = q - fm_floorf(q), g = fr + 0.5f;
+                    g -= fm_floorf(g);
+                    y += (2.0f * fr - 1.0f) - sq * (2.0f * g - 1.0f);
+                }
+            pen_to(&pn, (float)(x0 + 8 + x), cy - y * 5.0f, INK[c]);
+        }
+    }
+}
 static void pic_tulle(int32_t x0, int32_t y0, int32_t w, int32_t h, const uint8_t *p)
 {
     int idx = p[TP_E1] < smp_slots() ? p[TP_E1] : smp_slots() - 1;
@@ -4646,6 +4691,9 @@ static void draw_engine(void)
             h = hash_u(h, p[TP_DRUM(k, DP_MODEL)] | pad_a(k) << 8);
         }
     }
+    if (eg == EG_LACE || eg == EG_VELVET)            /* (their second pages are drawn: the exciter, stretch; shape, width,
+                                                      * detune) */
+        h = hash_u(h, (uint32_t)p[TP_X1] | (uint32_t)p[TP_X2] << 8 | (uint32_t)p[TP_X3] << 16 | (uint32_t)p[TP_X4] << 24);
     if (eg == EG_KNIT)                               /* (osc 2 and which page: Engine and Osc 2 share the picture) */
         h = hash_u(hash_u(h, (uint32_t)p[TP_X1] | (uint32_t)p[TP_X2] << 8 | (uint32_t)p[TP_O2FINE] << 16 |
                                  (uint32_t)p[TP_O2WAVE] << 24), (uint32_t)p[TP_O2SHAPE] | (uint32_t)(ui.page == P_OSC2) << 8);
@@ -4671,6 +4719,10 @@ static void draw_engine(void)
         }
         cv_text(50, 6, &FONT_S, t, K_DIM);
     }
+    if (eg == EG_LACE) {                             /* what sets it ringing */
+        static const char *const EX[3] = {"struck", "blown", "bowed"};
+        cv_text(50, 6, &FONT_S, EX[p[TP_X1] % 3], K_DIM);
+    }
     if (eg == EG_MIDI) {                             /* where its notes and CCs go */
         char ch[16];
         num_s((uint32_t)trk + 1u, s_cat(ch, "channel "));
@@ -4692,6 +4744,8 @@ static void draw_engine(void)
     case EG_SLICE: pic_slice(20, 24, 200, PIC_H, p, trk); break;
     case EG_TULLE: pic_tulle(20, 24, 200, PIC_H, p); break;
     case EG_CANE: pic_cane(20, 24, 200, PIC_H, p, pic_f); break;
+    case EG_LACE: pic_lace(20, 24, 200, PIC_H, p); break;
+    case EG_VELVET: pic_velvet(20, 24, 200, PIC_H, p, pic_f); break;
     case EG_VOILE: pic_voile(20, 24, 200, PIC_H, p, pic_f); break;
     case EG_KNIT: pic_knit(20, 24, 200, PIC_H, p, pic_f, ui.page == P_OSC2); break;
     case EG_MIDI: pic_midi(24, 30, p, ui.page == P_SUB, eng_midi_hit[trk]); break;
@@ -5313,7 +5367,7 @@ static void draw_sub(void)
         draw_rayon_fall();
     else if (eg == EG_ACID)
         draw_acid_x();
-    else if (eg == EG_SAMPLE || eg == EG_MIDI || eg == EG_TULLE)
+    else if (eg == EG_SAMPLE || eg == EG_MIDI || eg == EG_TULLE || eg == EG_LACE || eg == EG_VELVET)
         draw_engine();                           /* (the sample's loop page: the waveform, its loop marked; MIDI's
                                                   * knobs 5..8: its eight bars) */
     else

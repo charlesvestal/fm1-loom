@@ -1922,6 +1922,87 @@ static void tulle_tests(void)
           !strcmp(tp_info(TP_E4, EG_TULLE)->name, "scan") && !strcmp(tp_info(TP_X1, EG_TULLE)->name, "size") &&
           !strcmp(tp_info(TP_X2, EG_TULLE)->name, "density") && !strcmp(tp_info(TP_X4, EG_TULLE)->name, "width"));
 }
+/* lace (EG_LACE): a note of each material with each exciter, finite and bounded; the mallet's rings down, the bow and the
+ * noise hold; spread makes its left and right differ; at most CN_SLOTS of its voices at once (its own slots). velvet
+ * (EG_VELVET): finite, bounded; its registers and width change it; the ensemble moves it (two runs of a held note differ
+ * from a still one) */
+static float ln_rms(int engine, int e1, int x1, int x3, int blocks, float *late, float *peak, int *finite, float *l, float *r)
+{
+    double e = 0.0, el = 0.0;
+    char_sound(engine, CT_OFF, 0, 64, 127);
+    par[0][TP_E1] = (uint8_t)e1;
+    par[0][TP_X1] = (uint8_t)x1;
+    par[0][TP_X3] = (uint8_t)x3;
+    synth_init(S, par);
+    synth_tempo(S, 120.0f);
+    synth_note_on(S, 0, 60, 100, 0, 1);
+    *peak = 0.0f;
+    for (int b = 0; b < blocks; b++) {
+        block(N, finite);
+        for (int i = 0; i < N; i++) {
+            float a = fabs_f(L[i]) > fabs_f(R[i]) ? fabs_f(L[i]) : fabs_f(R[i]);
+            *peak = a > *peak ? a : *peak;
+            if (b < 20)
+                e += (double)L[i] * (double)L[i];
+            else if (b >= blocks - 20)
+                el += (double)L[i] * (double)L[i];
+        }
+        if (l && b < 20)
+            memcpy(l + b * N, L, sizeof L), memcpy(r + b * N, R, sizeof R);
+    }
+    *late = (float)el;
+    return (float)e;
+}
+static void lace_velvet_tests(void)
+{
+    static float l[20 * N], r[20 * N], l2[20 * N], r2[20 * N];
+    int finite = 1, ok = 1, used;
+    float pk, late, top = 0.0f;
+    for (int m = 0; m < NLACE; m++)
+        for (int x = 0; x < NLX; x++) {
+            float e = ln_rms(EG_LACE, m, x, 64, 200, &late, &pk, &finite, 0, 0);
+            top = pk > top ? pk : top;
+            if (!(e > 1e-4f) || pk > 1.0f)
+                ok = 0, printf("    lace: material %d exciter %d: energy %g peak %.2f\n", m, x, (double)e, (double)pk);
+            if (x == LX_MALLET && m != NLACE - 1 && m != 2 && late > e * 0.5f)   /* (the bell and the gong ring long) */
+                ok = 0, printf("    lace: material %d struck does not ring down (%g then %g)\n", m, (double)e, (double)late);
+            if (x != LX_MALLET && late < e * 0.1f)
+                ok = 0, printf("    lace: material %d exciter %d does not hold (%g then %g)\n", m, x, (double)e, (double)late);
+        }
+    printf("    lace: the loudest note %.2f\n", (double)top);
+    check("lace: every material with every exciter sounds, finite, under full scale; struck rings down, blown and bowed hold",
+          ok && finite);
+    ln_rms(EG_LACE, 0, LX_MALLET, 127, 20, &late, &pk, &finite, l, r);
+    ln_rms(EG_LACE, 0, LX_MALLET, 0, 20, &late, &pk, &finite, l2, r2);
+    check("lace: spread makes its left and right differ; none, the same", memcmp(l, r, sizeof l) != 0 &&
+          memcmp(l2, r2, sizeof l2) == 0);
+    char_sound(EG_LACE, CT_OFF, 0, 64, 127);
+    synth_init(S, par);
+    for (int k = 0; k < 6; k++)
+        synth_note_on(S, 0, 60 + 3 * k, 100, 0, (uint32_t)(1 + k));
+    for (int b = 0; b < 10; b++)
+        block(N, &finite);
+    used = synth_voices_used(S);
+    check("lace: at most four of its voices at once (its slots)", finite && used <= CN_SLOTS && used >= 1);
+    check("lace: its pages' names", !strcmp(tp_info(TP_E1, EG_LACE)->name, "material") &&
+          !strcmp(tp_info(TP_X1, EG_LACE)->name, "exciter") && tp_info(TP_X1, EG_LACE)->hi == NLX - 1 &&
+          !strcmp(tp_info(TP_X4, EG_LACE)->name, "hardness"));
+    ok = 1;
+    top = 0.0f;
+    for (int g = 0; g < NVR; g++) {
+        float e = ln_rms(EG_VELVET, g, 0, 90, 60, &late, &pk, &finite, g == 0 ? l : 0, r);
+        top = pk > top ? pk : top;
+        ok &= e > 1e-4f && pk <= 1.0f;
+    }
+    printf("    velvet: the loudest note %.2f\n", (double)top);
+    check("velvet: every register sounds, finite, under full scale", ok && finite);
+    ln_rms(EG_VELVET, VR_VIOLIN, 0, 127, 20, &late, &pk, &finite, l, r);
+    check("velvet: wide, its left and right differ", memcmp(l, r, sizeof l) != 0);
+    ln_rms(EG_VELVET, VR_VIOLIN, 127, 127, 20, &late, &pk, &finite, l2, r2);
+    check("velvet: shape changes it", memcmp(l, l2, sizeof l) != 0 && finite);
+    check("velvet: its pages' names", !strcmp(tp_info(TP_E1, EG_VELVET)->name, "register") &&
+          !strcmp(tp_info(TP_E3, EG_VELVET)->name, "chorus") && !strcmp(tp_info(TP_X2, EG_VELVET)->name, "width"));
+}
 static void kit_char_tests(void)
 {
     static float l[4096], r[4096], l0[4096];
@@ -2966,6 +3047,7 @@ int main(void)
     rayon_ops_tests();
     knit_analog_tests();
     tulle_tests();
+    lace_velvet_tests();
     kit_char_tests();
     sample_tests();
     slice_tests();

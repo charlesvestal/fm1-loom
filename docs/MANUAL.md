@@ -110,9 +110,9 @@ second.
 - **Scene** (S1 to S32): which pattern each track plays, plus the mutes (a kit's individual sounds too) and the
   conductor's key.
 - **Song**: a chain of scenes, each played for a number of bars.
-- **Engine**: the way a track makes its sound. There are seven synths (knit, rayon, jacquard, bellows, cane, voile
-  and acid), three sample engines (sample, slice and tulle) and the kit, a drum synth.
-- **Preset**: a sound to load. 121 come with LOOM-8, from six to twenty-three for each engine, and 16 are your own.
+- **Engine**: the way a track makes its sound. There are nine synths (knit, rayon, jacquard, bellows, velvet, cane,
+  lace, voile and acid), three sample engines (sample, slice and tulle) and the kit, a drum synth.
+- **Preset**: a sound to load. 143 come with LOOM-8, from seven to twenty-three for each engine, and 16 are your own.
 - **Player**: what the keys do on a track: arp, strum, hold or random.
 - **Conductor**: an aux track that sets the key, scale and chords for the other tracks. It plays its own chords,
   or takes them from a track's notes.
@@ -584,7 +584,9 @@ tonality is **ignore** follows nothing.
 | rayon | bright, ratio, edge, tine | 17 |
 | jacquard | table, scan, bend, ripple | 11 |
 | bellows | stops, pedal, rotor, rate | 9 |
+| velvet | register, bright, chorus, rate | 10 |
 | cane | model, timbre, color, damp | 8 |
+| lace | material, bright, damp, position | 12 |
 | voile | model, timbre, color, breath | 7 |
 | sample | sample, start, length, mode | 18 |
 | slice | sample, slices, pitch, gate | 11 |
@@ -593,7 +595,7 @@ tonality is **ignore** follows nothing.
 | kit | the model knobs of the key shown | |
 | midi | eight knobs, each sending a CC | |
 
-Rayon, acid and tulle have a second set of knobs. To reach them, press **EDIT** and turn **SELECT** once, to the Sub
+Rayon, velvet, lace, acid and tulle have a second set of knobs. To reach them, press **EDIT** and turn **SELECT** once, to the Sub
 page.
 Knit has three more pages instead, Osc 2, Mod and Levels.
 
@@ -671,6 +673,27 @@ wobbles the wave with a second oscillator, slowly at first and then as fast as t
 transistor, combo, jazz, gospel, rock, theater, pipe or church. **pedal** adds the low 16' bar, and 1 leaves it out.
 **rotor** sets how deeply the rotating speaker swirls, with none at 1, and **rate** sets how fast it turns.
 
+### Velvet
+
+**Velvet** is a string machine, the warm, swimming strings of the 1970s. Each note is a saw played in up to three
+octaves at once, three times over, and the ensemble keeps the three copies moving against each other. Use it for
+string pads, slow chords and string basses. Its knobs:
+
+| Knob | What it does |
+| --- | --- |
+| register | Picks the octaves: violin (8' and 4'), viola (8'), cello (16' and 8'), bass (16') or full (all three). |
+| bright | Opens the tone, from muted to bright. |
+| chorus | Sets how deeply the ensemble moves the copies. At 0 they stand still. |
+| rate | Sets how fast the ensemble moves. |
+
+The Sub page shapes the copies. **shape** blends the saw toward a square, for a hollower sound. **width** spreads the
+three copies across the stereo field, and **detune** pulls them apart in pitch, still, under the movement. The
+picture shows the three copies' waves, moving as the ensemble does. There are ten presets: velvet, ensemble, low
+strings, big strings, string bass, hollow pad, dark velvet, eighties, warble and pizzicato.
+
+Each register costs about as much as a rayon voice, so full costs about three. For big chords, viola or violin plays
+the most notes at once.
+
 ### Cane and voile
 
 These two engines come from Mutable Instruments' Braids, Émilie Gillet's macro oscillator. Each one is a family of
@@ -713,6 +736,30 @@ Turn it all the way up for a pure whisper.
 
 Most of these models cost about as much as any other voice, or less. Cane's bell, with its eleven partials, costs
 about a third more.
+
+### Lace
+
+**Lace** is a resonator: a set of twelve tuned modes, the ways a bar, a bell or a string rings. Something sets the
+modes ringing, and each one dies away at its own speed. Use it for mallets, bells, plucked and bowed strings, glass
+and gongs. Its knobs:
+
+| Knob | What it does |
+| --- | --- |
+| material | Picks what rings: bar, marimba, bell, glass, plate, string, wood or gong. |
+| bright | Sets how loud the higher modes are, from dark to bright. |
+| damp | Sets how fast the modes die away. The higher ones always die first. |
+| position | Sets where it's struck, from near the end to the middle. Each spot leaves out different modes. |
+
+The Exciter page sets what makes it ring. **exciter** picks a mallet (a strike on each note), noise (a breath, held
+as long as the note) or a bow (a held, scraping drive that settles into a tone). **stretch** pulls the modes closer
+together or further apart, from glassy to metallic. **spread** sends the modes across the stereo field, and
+**hardness** sets how hard the mallet is, how bright the noise is or how hard the bow presses. Lace rings in the
+release of the amp envelope, so its presets hold the sustain at the top and leave a long release.
+
+The picture shows the modes, each as a line as tall as its level, with the lowest at the left. Up to four lace notes
+play at once across all tracks, and a fifth takes over the oldest. Each note keeps its modes in memory, and a
+repeated note on a ringing voice strikes it again. There are twelve presets: lace, rosewood, kalimba, church bell,
+glass harp, air glass, harp, bowed wire, steel plate, wood block, gong and storm bell.
 
 ### Acid
 
