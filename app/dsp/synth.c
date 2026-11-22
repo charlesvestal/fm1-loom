@@ -259,6 +259,8 @@ struct synth {
     uint32_t g_rng;                   /* (its random steps' generator)*/
     uint8_t grp[NVOICE];              /* this block: a voice on its track's bus, its track + 1 (bus_prepare; 0: on its own) */
     int8_t lead[NTRK];                /* each track's bus's first voice this block, which renders them all (-1 none) */
+    int8_t split[NTRK];               /* a bus split across the cores this block: its pairs' slot (bus_sp), -1 none */
+    uint8_t split_on;                 /* splitting allowed (synth_split: its caller joins, synth_bus_join) */
     volatile uint8_t g_reset;         /* restart at the next prepare (the transport started) */
 };
 uint32_t synth_load_steals;           /* new notes that took a sounding voice to stay inside LOAD_ADMIT (synth.h) */
@@ -2968,7 +2970,7 @@ static void mod_publish(const synth_t *s, const voice_t *v, int trk)
     }
     m->of = (uint8_t)trk;
 }
-static void bus_prepare(synth_t *s);
+static void bus_prepare(synth_t *s, uint32_t n);
 void synth_prepare(synth_t *s, uint32_t n)
 {
     float tpk[NTRK];
@@ -3076,7 +3078,7 @@ void synth_prepare(synth_t *s, uint32_t n)
     for (k = 0; k < NVOICE; k++)
         s->v[k].ck = 0;
     s->pos = (uint16_t)((s->pos + n) % SY_CHUNK);
-    bus_prepare(s);                              /* (after the LFOs: their values this block) */
+    bus_prepare(s, n);                           /* (after the LFOs: their values this block) */
 }
 
 /* ------------------------------------------------------ the character --- */
@@ -4012,10 +4014,6 @@ static void voice_samples(synth_t *s, voice_t *v, float *l, float *r, float *s1,
     }
 }
 
-void synth_render(synth_t *s, int v0, int v1, float *l, float *r, float *s1, float *s2, uint32_t n)
-{
-    synth_render_on(s, v0 == 0 && v1 < NVOICE, v0, v1, l, r, s1, s2, n);   /* (the second core's: [0, k), k < 16) */
-}
 
 /* the queue's order (engine.c ws_take0 / ws_take1: the second core takes from the bottom, the first from the top):
  * the sounding voices by measured cost, the dearest at the bottom and the cheapest at the top: the second core, free
@@ -4031,7 +4029,8 @@ int synth_order(const synth_t *s, int8_t *ord)
     int c[NVOICE], n = 0;
     for (vi = 0; vi < NVOICE; vi++) {
         int ck = synth_voice_cost(s, vi);
-        if (s->grp[vi]) {                        /* a track's bus: its first voice alone, at their summed cost */
+        if (s->grp[vi] && s->split[s->grp[vi] - 1] < 0) {   /* a track's bus: its first voice alone, at their summed
+                                                  * cost (split: each its own) */
             if (s->lead[s->grp[vi] - 1] != vi)
                 continue;
             for (j = vi + 1; j < NVOICE; j++)
@@ -4051,7 +4050,7 @@ int synth_order(const synth_t *s, int8_t *ord)
     return n;
 #else
     for (vi = j = 0; vi < NVOICE; vi++)          /* (a bus's others: with its first) */
-        if (!s->grp[vi] || s->lead[s->grp[vi] - 1] == vi)
+        if (!s->grp[vi] || s->split[s->grp[vi] - 1] >= 0 || s->lead[s->grp[vi] - 1] == vi)
             ord[j++] = (int8_t)vi;
     return j;
 #endif
@@ -4065,7 +4064,7 @@ void synth_idle(synth_t *s, const int8_t *ord, int nord, uint32_t n)
     for (k = 0; k < nord; k++)
         in |= 1u << ord[k];
     for (vi = 0; vi < NVOICE; vi++)              /* (a bus's voices: rendered with its first) */
-        if (s->grp[vi] && in >> s->lead[s->grp[vi] - 1] & 1u)
+        if (s->grp[vi] && s->lead[s->grp[vi] - 1] >= 0 && in >> s->lead[s->grp[vi] - 1] & 1u)
             in |= 1u << vi;
     for (vi = 0; vi < NVOICE; vi++) {
         voice_t *v = &s->v[vi];
@@ -4192,8 +4191,18 @@ static float bus_px[2][2][BUS_N];
 #else
 static float bus_px[2][2][BUS_N] __attribute__((section(".pool")));   /* each core's pair (4 KB) */
 #endif
-/* this block's buses (synth_prepare): each track's type, amount, gains and wow; which voices join which bus */
-static void bus_prepare(synth_t *s)
+/* the busiest buses (two voices or more) split across the cores: each voice its own turn on either core, into that
+ * core's pair of the bus's slot; the stage once the cores are done (synth_bus_join, on the first). A pair a core a
+ * slot: 12 KB for NSPLIT (a bus left over runs on one core, as above) */
+#define NSPLIT 3
+#ifdef PLAT_HOST
+static float bus_sp[2][NSPLIT][2][BUS_N];
+#else
+static float bus_sp[2][NSPLIT][2][BUS_N] __attribute__((section(".pool")));
+#endif
+/* this block's buses (synth_prepare): each track's type, amount, gains and wow; which voices join which bus; the
+ * busiest split */
+static void bus_prepare(synth_t *s, uint32_t n)
 {
     const uint8_t *gp = s->par[SY_GLFO_TRK];
     const int groute = (gp[TP_LX] & 15) | (gp[TP_LX2] & 15) << 4, last = s->nck - 1;
@@ -4233,12 +4242,37 @@ static void bus_prepare(synth_t *s)
                 s->lead[v->trk] = (int8_t)i;
         }
     }
+    for (i = 0; i < NTRK; i++)
+        s->split[i] = -1;
+    if (s->split_on && n <= BUS_N) {             /* the busiest buses of two voices or more: split (by their cost) */
+        int cost[NTRK], cnt[NTRK], k;
+        for (i = 0; i < NTRK; i++)
+            cost[i] = cnt[i] = 0;
+        for (i = 0; i < NVOICE; i++)
+            if (s->grp[i]) {
+                cost[s->grp[i] - 1] += synth_voice_cost(s, i);
+                cnt[s->grp[i] - 1]++;
+            }
+        for (k = 0; k < NSPLIT; k++) {
+            int best = -1;
+            for (i = 0; i < NTRK; i++)
+                if (cnt[i] >= 2 && s->split[i] < 0 && (best < 0 || cost[i] > cost[best]))
+                    best = i;
+            if (best < 0)
+                break;
+            s->split[best] = (int8_t)k;
+            s->lead[best] = -1;                  /* (no group: each voice its own turn) */
+            for (int c = 0; c < 2; c++)
+                for (uint32_t j = 0; j < n; j++)
+                    bus_sp[c][k][0][j] = bus_sp[c][k][1][j] = 0.0f;
+        }
+    }
     for (i = 0; i < NTRK; i++) {                 /* a bus whose voices have ended rings out (a stage's state: the fold's
                                                   * DC blocker, the tape's roll-off; stopped at once it stepped to 0, a
                                                   * click): a silent voice carries its turn, its frames moved on as idle */
         const chbus_t *c = &s->t[i].cb;
         float e;
-        if (s->t[i].bus == CT_OFF || s->lead[i] >= 0 || c->type != s->t[i].bus)
+        if (s->t[i].bus == CT_OFF || s->lead[i] >= 0 || s->split[i] >= 0 || c->type != s->t[i].bus)
             continue;
         e = fm_fabsf(c->cz[0]) + fm_fabsf(c->cz[1]) + fm_fabsf(c->cz[2]) + fm_fabsf(c->cz[3]) + fm_fabsf(c->cz[6]) +
             fm_fabsf(c->cz[7]);                  /* (cz[4], cz[5]: phases, not sound) */
@@ -4255,19 +4289,31 @@ static void bus_prepare(synth_t *s)
 static void voice_render(synth_t *s, int core, int vi, float *l, float *r, float *s1, float *s2, uint32_t n, int tap);
 /* a bus track's voices, its stage, its gains, its sends and its share of the USB audio input's track: n frames, at
  * from frame at of the render (the tap's place) */
+static void bus_out(synth_t *s, int core, int trk, float *bl, float *br, float *l, float *r, float *s1, float *s2,
+                    uint32_t n, uint32_t at);
 static void bus_piece(synth_t *s, int core, int trk, float *l, float *r, float *s1, float *s2, uint32_t n, uint32_t at)
 {
-    trk_t *t = &s->t[trk];
-    chbus_t *c = &t->cb;
-    float *bl = bus_px[core != 0][0], *br = bus_px[core != 0][1], g = t->bus_g, dg;
-    const float k1 = t->bus_s1, k2 = t->bus_s2;
-    int type = t->bus, i;
+    float *bl = bus_px[core != 0][0], *br = bus_px[core != 0][1];
+    int i;
     uint32_t j;
     for (j = 0; j < n; j++)
         bl[j] = br[j] = 0.0f;
     for (i = 0; i < NVOICE; i++)
         if (s->grp[i] == trk + 1)
             voice_render(s, core, i, bl, br, s1, s2, n, 0);
+    bus_out(s, core, trk, bl, br, l, r, s1, s2, n, at);
+}
+/* a bus's pair (bl, br: its voices' sum) through its stage, its gains and sends into l, r, s1, s2, its share of the
+ * USB audio input's track (core's sink) */
+static void bus_out(synth_t *s, int core, int trk, float *bl, float *br, float *l, float *r, float *s1, float *s2,
+                    uint32_t n, uint32_t at)
+{
+    trk_t *t = &s->t[trk];
+    chbus_t *c = &t->cb;
+    float g = t->bus_g, dg;
+    const float k1 = t->bus_s1, k2 = t->bus_s2;
+    int type = t->bus, i;
+    uint32_t j;
     if (type != c->type) {                       /* another type: its states start clean */
         for (i = 0; i < 8; i++)
             c->cz[i] = 0.0f;
@@ -4340,12 +4386,43 @@ void synth_render_on(synth_t *s, int core, int v0, int v1, float *l, float *r, f
     }
     for (oi = 0; oi < no; oi++) {
         vi = ord[oi];
-        if (!s->grp[vi])
+        if (s->grp[vi] && s->split[s->grp[vi] - 1] >= 0) {   /* (a split bus: its pair on this core) */
+            float (*pr)[BUS_N] = bus_sp[core != 0][(int)s->split[s->grp[vi] - 1]];
+            voice_render(s, core, vi, pr[0], pr[1], s1, s2, n, 0);
+        } else if (!s->grp[vi])
             voice_render(s, core, vi, l, r, s1, s2, n, 1);
         else if (s->lead[s->grp[vi] - 1] == vi)  /* (a track's character on its bus: its first voice renders them all;
                                                   * the others are rendered with it) */
             bus_render(s, core, s->grp[vi] - 1, l, r, s1, s2, n);
     }
+}
+
+void synth_render(synth_t *s, int v0, int v1, float *l, float *r, float *s1, float *s2, uint32_t n)
+{
+    synth_render_on(s, v0 == 0 && v1 < NVOICE, v0, v1, l, r, s1, s2, n);   /* (the second core's: [0, k), k < 16) */
+}
+void synth_bus_join(synth_t *s, float *l, float *r, float *s1, float *s2, uint32_t n)
+{
+    for (int trk = 0; trk < NTRK; trk++) {
+        int k = s->split[trk];
+        if (k < 0 || n > BUS_N)
+            continue;
+        float *bl = bus_sp[0][k][0], *br = bus_sp[0][k][1];
+        const float *cl = bus_sp[1][k][0], *cr = bus_sp[1][k][1];
+        for (uint32_t j = 0; j < n; j++) {       /* the second core's share in, then the stage once */
+            bl[j] += cl[j];
+            br[j] += cr[j];
+        }
+        bus_out(s, 0, trk, bl, br, l, r, s1, s2, n, 0);
+    }
+}
+void synth_split(synth_t *s, int on) { s->split_on = (uint8_t)(on != 0); }
+void synth_bus_reset(synth_t *s, int core)
+{
+    for (int trk = 0; trk < NTRK; trk++)
+        if (s->split[trk] >= 0)
+            for (int j = 0; j < BUS_N; j++)
+                bus_sp[core != 0][s->split[trk]][0][j] = bus_sp[core != 0][s->split[trk]][1][j] = 0.0f;
 }
 
 int synth_sounding(const synth_t *s, int v0, int v1)

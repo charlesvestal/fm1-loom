@@ -1442,6 +1442,7 @@ static void render_sub(uint32_t n, uint32_t at)
     pt = plat_cycles();
     fx_done();                                            /* (the voices all done here first: the effects' job) */
     if (on2 && c2_wait()) {                               /* the second failed: what it took, here (it may not have) */
+        synth_bus_reset(SY, 1);
         zerof(c2_l, n);
         zerof(c2_r, n);
         zerof(c2_s1, n);
@@ -1475,6 +1476,8 @@ static void render_sub(uint32_t n, uint32_t at)
     add_in(mel_r, c2_r, n);
     add_in(s1, c2_s1, n);
     add_in(s2, c2_s2, n);
+    synth_bus_join(SY, mel_l, mel_r, s1, s2, n);          /* (the buses split across the cores: their stages, once both
+                                                           * are in) */
     for (t = 0; t < NTRK; t++)                            /* the synth's meters, into the common ones */
         if (!eng_drum[t]) {
             float v = (float)synth_peak[t] * (1.0f / 16383.5f);
@@ -1798,6 +1801,7 @@ void engine_init(patterns_t *P, uint8_t (*par)[NTP])
         seq_prof = &eng_prof[PR_SIX];
     }
     synth_init(SY, par);
+    synth_split(SY, 1);                                   /* (a big bus track's voices on both cores: synth_bus_join below) */
     for (k = 0; k < NDL; k++)
         dl_owner[k] = 0xFF;
     for (t = 0; t < NTRK; t++) {

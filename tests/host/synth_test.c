@@ -1987,6 +1987,50 @@ static void preset_table_tests(void)
     check("the preset table decodes to every preset's fields whole (its engine too)", !bad &&
           (int)(sizeof PRESET_FULL / sizeof PRESET_FULL[0]) == NPRESETS);
 }
+/* a track's character on its bus, split across the cores (synth_split on): a driven chord's voices in two ranges (as
+ * the two cores take them), each into its own pair, then synth_bus_join, sound as the bus on one core within rounding;
+ * the first range's own buffers get none of it (its share went to its pair) */
+static void bus_split_tests(void)
+{
+    static float a[40 * N], la[N], ra[N], sa1[N], sa2[N];
+    int finite = 1, ok = 1, quiet = 1;
+    float top = 0.0f, err = 0.0f;
+    for (int pass = 0; pass < 2; pass++) {
+        reset();
+        par[0][TP_CTYPE] = CT_DRIVE;
+        par[0][TP_CAMT] = 110;
+        par[0][TP_CMIX] = 127;
+        par[0][TP_E3] = 3;                       /* (three saws a voice: some cost) */
+        synth_split(S, pass);
+        for (int k = 0; k < 4; k++)
+            synth_note_on(S, 0, 55 + 4 * k, 100, 0, (uint32_t)(1 + k));
+        for (int b = 0; b < 40; b++) {
+            if (!pass) {
+                block(N, &finite);
+                memcpy(a + b * N, L, sizeof L);
+                continue;
+            }
+            memset(L, 0, sizeof L), memset(R, 0, sizeof R), memset(S1, 0, sizeof S1), memset(S2, 0, sizeof S2);
+            memset(la, 0, sizeof la), memset(ra, 0, sizeof ra), memset(sa1, 0, sizeof sa1), memset(sa2, 0, sizeof sa2);
+            synth_prepare(S, N);
+            synth_render(S, 0, 2, la, ra, sa1, sa2, N);          /* (the second core's: two voices) */
+            for (int i = 0; i < N; i++)
+                quiet &= la[i] == 0.0f && ra[i] == 0.0f;
+            synth_render(S, 2, NVOICE, L, R, S1, S2, N);
+            synth_bus_join(S, L, R, S1, S2, N);
+            for (int i = 0; i < N; i++) {
+                float d = fabs_f(L[i] - a[b * N + i]);
+                err = d > err ? d : err;
+                top = fabs_f(a[b * N + i]) > top ? fabs_f(a[b * N + i]) : top;
+                finite &= finite_f(L[i]);
+            }
+        }
+    }
+    synth_split(S, 0);
+    ok = finite && top > 0.01f && err < 1e-4f * (top > 1.0f ? top : 1.0f);
+    printf("    bus split: largest %.3f, the difference %.2g\n", (double)top, (double)err);
+    check("a driven chord split across the cores sounds as on one (within rounding); its share in its pairs", ok && quiet);
+}
 static void lace_velvet_tests(void)
 {
     static float l[20 * N], r[20 * N], l2[20 * N], r2[20 * N];
@@ -3082,6 +3126,7 @@ int main(void)
     knit_analog_tests();
     tulle_tests();
     lace_velvet_tests();
+    bus_split_tests();
     preset_table_tests();
     kit_char_tests();
     sample_tests();

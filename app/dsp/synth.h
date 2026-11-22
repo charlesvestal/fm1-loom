@@ -376,6 +376,14 @@ void synth_prepare(synth_t *s, uint32_t n);
 /* render n frames (any n; chunks inside): dry L/R and the two sends (mono), added into the buffers.
  * v0..v1 is the range of voices to render (the two cores split the pool) */
 void synth_render(synth_t *s, int v0, int v1, float *l, float *r, float *s1, float *s2, uint32_t n);
+/* a track's character on its bus, split across the cores (synth.c bus_prepare): allowed by synth_split(s, 1) (the engine's;
+ * off, a bus runs on one core and a block renders as it always did, in any ranges and frame splits); then each block,
+ * after every range is rendered, synth_bus_join(n: the prepare's): the second core's share in and each such bus's
+ * stage, gains and sends into the first's l, r, s1, s2. synth_bus_reset: a core's shares cleared (its render failed:
+ * rendered again) */
+void synth_split(synth_t *s, int on);
+void synth_bus_join(synth_t *s, float *l, float *r, float *s1, float *s2, uint32_t n);
+void synth_bus_reset(synth_t *s, int core);
 /* the same, saying which core renders (0 the first, 1 the second: the profiler's halves) */
 void synth_render_on(synth_t *s, int core, int v0, int v1, float *l, float *r, float *s1, float *s2, uint32_t n);
 /* each core's track sink (the USB audio input's track channels, engine.c): while p is set, each voice that core renders
