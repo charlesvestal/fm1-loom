@@ -169,6 +169,20 @@ static void cc_out_param(int trk, int p);         /* midicc.c: a parameter chang
 static void cc_out_master(int m);
 static void cc_out_scene(int n);                  /* midicc.c: the scene playing changed */
 static void cc_out_mutes(void);                   /* midicc.c: a track's mute changed: its CC 9 */
+static void kits_check(void)                      /* three kits sound at once (engine.c NDL): one gone silent, however
+                                                  * (the engine list, a preset, a kit, a load), is said */
+{
+    static uint8_t seen;
+    uint8_t m = eng_kit_silent, n = (uint8_t)(m & ~seen);
+    seen = m;
+    for (int t = 0; t < NTRK; t++)
+        if (n >> t & 1u) {
+            char a[16];
+            s_cat(s_cat(a, TRACK_NAME[t]), " SILENT");
+            say_no(a, "3 kits at most");
+            break;
+        }
+}
 static uint8_t cc_hand;                           /* (midicc.c's: knob() and list_change() running) */
 static void sound_reset(uint8_t *par, int engine)   /* the engine's defaults; MIDI OUT stays (routing, not sound) */
 {
@@ -4861,6 +4875,7 @@ void ui_frame(void)
             rec_off();
     }
     cc_out_mutes();
+    kits_check();
     if (cur_scene() != ui.scene_seen) {
         if (ui.scene_seen != 0xFF)               /* not boot's first catch-up: no Program Change for that */
             cc_out_scene(cur_scene());            /* (MIDI: its Program Change, midicc.c) */

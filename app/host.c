@@ -497,6 +497,8 @@ int app_expect(const char *what, int *got)
         *got = eng_voices;
     else if (!strcmp(what, "drumhits"))             /* the kit's hits so far (sequenced and played) */
         *got = (int)host_drum_hits;
+    else if (!strcmp(what, "kitsilent"))            /* the kit tracks with no drum unit: bit t-1 for track t */
+        *got = eng_kit_silent;
     else if (!strcmp(what, "guard"))
         *got = eng_voices_max;
     else if (!strcmp(what, "model_avg"))            /* the last "meter": the model's mean and peak load, % */

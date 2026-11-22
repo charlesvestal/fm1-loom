@@ -725,7 +725,14 @@ clap, shaker, tambourine, string (a plucked string), conga, tom, fm or sample. I
 (x kick, x snare, x hat, x clap, x tom, x rim, x fm, x noise), sophie, clang, or one of the 909 models (909 kick,
 909 snare, 909 tom, 909 rim, 909 clap, 909 hat, 909 open, 909 ride, 909 crash). The kit is tuned to C: kick G1,
 snare G3, low tom C3, high tom G3, conga C4, string C3, fm C5. To pick the key the knobs edit, press a black key or
-turn **PRESETS**. The four knobs on the Engine page belong to that key's model:
+turn **PRESETS**.
+
+Three kit tracks can play at once, because each kit takes its own share of the FM-1's memory, even with only one
+sound in use. If you make a fourth kit track, LOOM-8 tells you which track is silent (for example "T4 SILENT, 3
+kits at most"), and that track's Engine page says "silent: 3 kits at most". It plays as soon as one of the other
+kits becomes another engine.
+
+The four knobs on the Engine page belong to the key's model:
 
 <img src="img/screen-drum-engine.png" width="240" alt="Engine on T1 kit: the eleven keys as pads, the snare picked; its knobs pitch, length, wires, punch" title="A drum key&#x27;s knobs"> <img src="img/screen-drum-key.png" width="240" alt="The Key page: the snare&#x27;s model, random, pan and volume" title="The Key page"> <img src="img/screen-drum-envelope.png" width="240" alt="ENV&#x27;s Kit env page on a drum track: lag, attack, random and length for the whole kit" title="The kit&#x27;s envelope">
 

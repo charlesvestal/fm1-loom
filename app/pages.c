@@ -4566,6 +4566,8 @@ static void draw_engine(void)
             h = hash_u(h, p[TP_DRUM(k, DP_MODEL)] | pad_a(k) << 8);
         }
     }
+    if (eg == EG_DRUMLINE)
+        h = hash_u(h, eng_kit_silent >> trk & 1u);
     if (eg == EG_KNIT)                               /* (osc 2 and which page: Engine and Osc 2 share the picture) */
         h = hash_u(hash_u(h, (uint32_t)p[TP_X1] | (uint32_t)p[TP_X2] << 8 | (uint32_t)p[TP_O2FINE] << 16 |
                                  (uint32_t)p[TP_O2WAVE] << 24), (uint32_t)p[TP_O2SHAPE] | (uint32_t)(ui.page == P_OSC2) << 8);
@@ -4591,6 +4593,8 @@ static void draw_engine(void)
         }
         cv_text(50, 6, &FONT_S, t, K_DIM);
     }
+    if (eg == EG_DRUMLINE && (eng_kit_silent >> trk & 1u))   /* a fourth kit: no drum unit for it (engine.c NDL) */
+        cv_text(50, 6, &FONT_S, "silent: 3 kits at most", K_REC);
     if (eg == EG_MIDI) {                             /* where its notes and CCs go */
         char ch[16];
         num_s((uint32_t)trk + 1u, s_cat(ch, "channel "));
