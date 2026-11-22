@@ -30,9 +30,9 @@ static int load_force = -1;             /* the script's "load N": the guard sees
 _Static_assert(OBJ_NOBJ == 24 && OBJ_PROJ0 == 2, "the store map lists every object (APP_STORE_MAP)");
 _Static_assert(SMP_REG0 >= 0xC1000u && SMP_REG0 + SMP_REG0_SIZE <= 0xDC000u && SMP_REG0 >= PLAT_DATA_LO,
                "the user sample bank's first window between the project slots and the panel calibration");
-_Static_assert(SMP_REG1 == PLAT_XDATA1_LO && SMP_REG1 + SMP_REG1_SIZE == PLAT_XDATA1_HI &&
-               SMP_REG2 == PLAT_XDATA0_LO && SMP_REG2 + SMP_REG2_SIZE == PLAT_XDATA0_HI,
-               "the user sample bank's other windows: fm1-base's two extra windows, whole (plat.h)");
+_Static_assert(SMP_REG1 == PLAT_XDATA1_LO && SMP_REG1 + SMP_REG1_SIZE == PLAT_XDATA1_HI,
+               "the user sample bank's other window: fm1-base's extra window XDATA1, whole (plat.h)");
+_Static_assert(PLAT_XDATA0_LO == PLAT_XDATA0_HI, "no XDATA0: the app area reaches 0x97000 (fm1.toml app_end)");
 _Static_assert(SMP_HDR_USED <= SMP_BANK_HDR, "the bank's entries fit its header");
 
 /* no store object (the calibration, the presets, the projects: APP_STORE_MAP, two sectors each) in a window of the
@@ -131,7 +131,9 @@ void app_panic(void)
     engine_panic();
 }
 void app_ui_init(void) { ui_init(); }               /* boot; again after an update that did not happen, a restore */
-/* the USB MIDI host (Setup's USB PORT): what changed, said; a session's end releases the notes its keys held */
+#if FM1B_USB_HOST
+/* the USB MIDI host (Setup's USB PORT): what changed, said; a session's end releases the notes its keys held (off
+ * since 0.19, fm1.toml usb_host: its 3.8 KB of flash for the engines) */
 static void usb_host_poll(void)
 {
     static const char *const MSG[][2] = {{0, 0}, {"USB MIDI HOST", "plug in a powered hub"}, {"USB", "to a computer"},
@@ -148,12 +150,15 @@ static void usb_host_poll(void)
             say(MSG[m][0], MSG[m][1]);
     }
 }
+#endif
 void app_frame(void)
 {
     plat_usb_audio_full(proj.usb_full != 0);        /* Setup's USB AUDIO: follows the knob, full, or stereo (full,
                                                      * the master alone) */
     eng_usb_stereo = proj.usb_full == 2;
+#if FM1B_USB_HOST
     usb_host_poll();
+#endif
     ui_frame();
 }
 void app_input_only(void) { ui_input_only(); }

@@ -1337,7 +1337,7 @@ the autosave, Bluetooth audio and the Bluetooth MIDI device (see Bluetooth, belo
 Debug. The **SEL** list on Setup has the FM-1's own settings, in three groups:
 
 - Bluetooth: BT MIDI, MIDI DEVICE, BT AUDIO and AUDIO DEVICE.
-- USB and MIDI: the USB audio level, USB PORT, CLOCK, NOTES, CC IN, CC OUT and SCENES OUT.
+- USB and MIDI: the USB audio level, CLOCK, NOTES, CC IN, CC OUT and SCENES OUT.
 - LOOM-8: LIGHTS, THEME, AUTOSAVE, LOOP THROWS and MOD VIEW (see [The synth pages](#the-synth-pages)).
 
 All of Setup's settings, the theme too, belong to the FM-1, not the project. Every project you load or start keeps
@@ -1465,17 +1465,6 @@ Each track has its own channel. T1 to T8 are on channels 1 to 8, FX I on 9, FX I
 scenes on 11. Notes on channels 12 to 16 play whichever instrument track is selected. If the conductor or the throws
 track is selected, they play the last instrument track you had. LOOM-8 never sends on 12 to 16. Notes on 9 and 10
 do nothing.
-
-**USB keyboards and synths.** LOOM-8 can host a USB MIDI keyboard, controller or synth itself, with no computer
-around. Press **GLO**, open Setup's **SEL** list and set USB PORT to **MIDI host**. Then plug the device in through
-a powered USB hub or a powered USB-C adapter, because the FM-1 gives its USB port no power. It takes one device at
-a time, plugged in directly or behind one hub. The device's notes and CCs play LOOM-8 as a computer's would, by
-channel as above. What LOOM-8 sends goes to it: the tracks' MIDI OUT, the midi engine, and the clock on send. That
-means LOOM-8 can play a hardware synth. The header tells you when a device connects, has no MIDI, or is lost. If
-it's lost, the notes it held are let go. The screen freezes for a moment while a device connects, longer behind a
-hub, but the sound plays on. While USB PORT is MIDI host, there's no computer link, so no USB audio, backup, mirror
-or samples page. Bluetooth MIDI works as before. USB PORT goes back to **computer** at every start, so updating
-always works.
 
 You can also record LOOM-8 on a computer over USB, as an audio input with ten channels at 44.1 kHz. Channels 1
 and 2 carry the master, as you hear it. Channels 3 to 10 carry tracks 1 to 8, one track each, so you can record
@@ -1663,7 +1652,7 @@ and the echoes fade out. Every voice sounds in the file, so a busy song can soun
 | GLO, SELECT | Master color | color | amount | tone | mix | |
 | GLO, SELECT | Master out | drums | melodic | comp | pump | SEL: pump by, release, accent, level |
 | GLO, SELECT | LFO | shape | rate | amount | dest | black: the tracks it moves; white 1-11: a kit's sound, 12 all |
-| GLO, SELECT | Setup | lights | clock | notes | theme | SEL: Bluetooth MIDI and audio, their devices, USB audio, USB port, loop throws, autosave, CC out, scenes out |
+| GLO, SELECT | Setup | lights | clock | notes | theme | SEL: Bluetooth MIDI and audio, their devices, USB audio, loop throws, autosave, CC out, scenes out |
 
 The aux tracks have their own **EDIT** pages:
 

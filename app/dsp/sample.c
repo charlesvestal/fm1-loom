@@ -325,7 +325,8 @@ int smp_user_scan(void)
         fact_init();
     h = vptr(0, &room);
     if (!h || room < SMP_BANK_HDR || rd32(h) != SMP_BANK_MAGIC || !SMP_BANK_VER_OK(h[4]) || h[5] != 0 ||
-        rd32(h + 16) != SMP_BANK_SIZE)
+        (rd32(h + 16) != SMP_BANK_SIZE && rd32(h + 16) != SMP_BANK_SIZE_OLD))   /* (an older bank: its data checked
+                                                                                  * against the two windows below) */
         return 0;
     blk = h[4] == 2u ? SMP_BLK_V2 : SMP_BLK;
     user_blk = blk;                           /* (no user sample plays meanwhile: user_n is 0) */

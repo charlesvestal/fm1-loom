@@ -101,10 +101,12 @@ in a row bring up a safe mode with USB on; the web installer can put M-VAVE's fi
 
 Backup and restore of the projects and the user presets: `python3 base/tools/fm1_backup.py backup FILE --magic LM8B`
 and `restore FILE` (or the site's Backup page). The user sample bank is not in a backup: `tools/loom_samples.py`
-loads it from the WAV files. The bank: 216 KB of flash in three windows (`app/dsp/sample.h`: 0xC1000..0xDBFFF, and
-fm1-base's PLAT_XDATA1 0xE5000..0xFBFFF and PLAT_XDATA0 0x93000..0x96FFF), which nothing else writes: not the store
-(app.c checks the map), not a restore, not an update (the loader writes below 0x93000 and erases a sector above it
-only for an update record, which the bank never holds: `tools/sampleio.py`).
+loads it from the WAV files. The bank: 200 KB of flash in two windows (`app/dsp/sample.h`: 0xC1000..0xDBFFF and
+fm1-base's PLAT_XDATA1 0xE5000..0xFBFFF), which nothing else writes: not the store (app.c checks the map), not a
+restore, not an update (the loader writes below 0x97000, the app area's end: `app_end` in `app/fm1.toml`, and erases a
+sector above it only for an update record, which the bank never holds: `tools/sampleio.py`). Until 0.19 the bank had
+a third window, 0x93000..0x96FFF (16 KB), which the app has since; a bank made then still plays when its data fits
+the two windows.
 
 ## Publishing a release
 

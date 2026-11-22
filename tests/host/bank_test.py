@@ -54,8 +54,8 @@ c = tone(5000, 880, 11025)
 img = sio.user_bank([("long", a, 69, None, 0, rate), ("mid", b, 57, None, 0, 16000), ("short", c, 81, (100, 4000), 2,
                                                                                          11025)])
 h, es = entries(img)
-check("header: magic, version 3, 3 samples, made for 216 KB, CRC of the data",
-      h["magic"] == sio.BANK_MAGIC and h["ver"] == 3 and h["cnt"] == 3 and h["size"] == sio.BANK_SIZE == 221184 and
+check("header: magic, version 3, 3 samples, made for 200 KB, CRC of the data",
+      h["magic"] == sio.BANK_MAGIC and h["ver"] == 3 and h["cnt"] == 3 and h["size"] == sio.BANK_SIZE == 204800 and
       h["len"] == len(img) - sio.BANK_HDR and h["crc"] == (__import__("zlib").crc32(img[sio.BANK_HDR:]) & 0xFFFFFFFF))
 check("each sample's rate, root, loop and bars kept",
       [e["rate"] for e in es] == [22050, 16000, 11025] and [e["root"] for e in es] == [69, 57, 81] and
@@ -76,9 +76,9 @@ room = window_end(e0["adp"]) - e0["adp"]
 part1 = win[r0][e0["adp"] - sio.region_starts()[r0]:]
 part2 = win[r0 + 1][:nb - room]
 check("and through the windows apart (as the FM-1 maps them): the same bytes", part1 + part2 == adp)
-check("the flash offsets: virtual 0 at 0xC1000, the second window at 0xE5000, the third at 0x93000",
+check("the flash offsets: virtual 0 at 0xC1000, the second window at 0xE5000, the bank's end at 0xFBFFF",
       sio.flash_of(0) == 0xC1000 and sio.flash_of(sio.region_starts()[1]) == 0xE5000 and
-      sio.flash_of(sio.region_starts()[2]) == 0x93000 and sio.flash_of(sio.BANK_SIZE - 1) == 0x96FFF)
+      sio.flash_of(sio.BANK_SIZE - 1) == 0xFBFFF)
 dec = sio.ima_decode(img[e0["adp"]:e0["adp"] + nb], 2000)
 check("its decode is the encoder's own state", dec == sio.ima_decode(adp, 2000))
 
@@ -106,8 +106,8 @@ one = int((sio.REGIONS[0][1] - sio.BANK_HDR + sio.REGIONS[1][1]) / sio.bytes_per
 img = sio.user_bank([("one", tone(one, 300, 22050), 60, None)])
 check(f"one sample of {one / 22050:.1f} s at 22050 Hz fits (two windows)", entries(img)[0]["cnt"] == 1)
 secs = {r: sio.BANK_MAX_DATA / sio.bytes_per_second(r) for r in sio.RATES}
-check("in all: 37.4 s at 11025, 25.8 at 16000, 18.7 at 22050, 12.9 at 32000",
-      [round(secs[r], 1) for r in sio.RATES] == [37.4, 25.8, 18.7, 12.9])
+check("in all: 34.6 s at 11025, 23.9 at 16000, 17.3 at 22050, 11.9 at 32000",
+      [round(secs[r], 1) for r in sio.RATES] == [34.6, 23.9, 17.3, 11.9])
 
 # ---- an update record's mark ("AT" at 0xF06 of a sector of an extra window) kept out: make the layout see one
 long = tone(150000, 523, 22050)
@@ -149,16 +149,16 @@ with tempfile.TemporaryDirectory() as d:
     _, es = entries(img)
     check("per sample: %32k, the other auto at 22050 (it fits)", [e["rate"] for e in es] == [32000, 22050])
     check("lengths at those rates (1.0 s, 1.5 s)", abs(es[0]["n"] - 32000) < 40 and abs(es[1]["n"] - 33075) < 40)
-    big = [wav(f"l{i}.wav", 6.0) for i in range(4)]    # 24 s: too long at 22050 (17.7 s), fits at 16000 (24.3)
+    big = [wav(f"l{i}.wav", 5.5) for i in range(4)]    # 22 s: too long at 22050 (17.3 s), fits at 16000 (23.9)
     img = ls.build(big, quiet=True, factory=False)
-    check("auto: 24 s of sound at 16000 Hz (not 22050)", {e["rate"] for e in entries(img)[1]} == {16000})
+    check("auto: 22 s of sound at 16000 Hz (not 22050)", {e["rate"] for e in entries(img)[1]} == {16000})
     img = ls.build(big[:2], rate=11025, quiet=True, factory=False)
     check("--rate 11025 for all", {e["rate"] for e in entries(img)[1]} == {11025})
     try:
         ls.build(big * 2, quiet=True, factory=False)
-        check("48 s is refused, even at 11025 Hz", False)
+        check("44 s is refused, even at 11025 Hz", False)
     except ValueError as e:
-        check("48 s is refused, even at 11025 Hz", str(e).startswith("too long"))
+        check("44 s is refused, even at 11025 Hz", str(e).startswith("too long"))
     img = ls.build(small, quiet=True, factory=False)
     fr = list(ls.frames(img))
     pages = [f for f in fr if f[0] == 12]

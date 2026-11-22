@@ -11,7 +11,7 @@ index << 16, one uint32 each, so a voice can start, loop and play backwards from
 the checkpoint before a window of 32 into the voice's cache). A second of sound takes 0.53125 bytes a sample: 11.4 KB
 at 22050 Hz.
 
-The user bank (216 KB): three flash windows (REGIONS), one virtual space through them end to end, offset 0 the
+The user bank (200 KB): two flash windows (REGIONS), one virtual space through them end to end, offset 0 the
 header (at 0xC1000). The header (2048 bytes): magic "LSMP", version 2, count, flags, data length (from byte 2048),
 CRC-32 of the data, the bank's size it was made for, then from byte 64 up to 44 entries of 40 bytes (32 user
 slots and, since 0.8, the factory set's 12): name (12, NUL-padded), ADPCM offset, checkpoint offset (virtual, from
@@ -35,9 +35,9 @@ BLK = 128                       # samples a checkpoint: a bank's since version 3
 BLK_V2 = 64
 # the bank's windows (dsp/sample.h SMP_REG*), in the order it fills them: flash offset, size
 REGIONS = [(0xC1000, 0x1B000),  # the data area after the projects, up to the calibration (108 KB)
-           (0xE5000, 0x17000),  # fm1-base's PLAT_XDATA1 (92 KB)
-           (0x93000, 0x4000)]   # fm1-base's PLAT_XDATA0 (16 KB)
-XDATA = (1, 2)                  # the windows where no sector may carry an update record's mark
+           (0xE5000, 0x17000)]  # fm1-base's PLAT_XDATA1 (92 KB); until 0.19 also PLAT_XDATA0 (0x93000, 16 KB),
+                                # the app's since (fm1.toml app_end)
+XDATA = (1,)                    # the windows where no sector may carry an update record's mark
 REC_MARK = 0xF06                # "AT" there, in a sector: an update record (base/bsp/loader/ldr_core.c)
 BANK_SIZE = sum(n for _, n in REGIONS)
 BANK_HDR = 2048

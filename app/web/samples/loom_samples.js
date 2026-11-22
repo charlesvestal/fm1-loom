@@ -12,8 +12,8 @@ import { livePorts, pairs, usualName, askAll } from "../../../base/web/fm1ports.
 export const RATES = [11025, 16000, 22050, 32000];
 export const AUTO = [22050, 16000, 11025];
 export const BLK = 128, BLK_V2 = 64;          // a checkpoint every BLK samples: version 3 banks (0.8); 64 in version 2
-export const REGIONS = [[0xC1000, 0x1B000], [0xE5000, 0x17000], [0x93000, 0x4000]];
-const XDATA = [1, 2], REC_MARK = 0xF06;
+export const REGIONS = [[0xC1000, 0x1B000], [0xE5000, 0x17000]];   // (until 0.19 also [0x93000, 0x4000]: the app's since)
+const XDATA = [1], REC_MARK = 0xF06;
 export const BANK_SIZE = REGIONS.reduce((a, r) => a + r[1], 0);
 export const BANK_HDR = 2048, BANK_MAX_DATA = BANK_SIZE - BANK_HDR, BANK_N = 32, BANK_VER = 3;
 // since 0.8 the factory set (the kits' drums, the instruments, the sweep, the vinyl) lives in the bank too: 12 entries

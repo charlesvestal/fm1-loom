@@ -22,9 +22,10 @@
 /* the store, all in the data area: the panel calibration (the platform's, where every fm1-base firmware keeps it),
  * the user presets at 0xDE000, then NPROJ project slots of PROJ_NOBJ objects each (the settings, then the LZ chunks
  * of the patterns), two 4 KB sectors an object, from 0x97000 up to 0xC1000. The user sample bank is raw flash
- * beside them, 216 KB in three windows (dsp/sample.h SMP_REG*, plat_data): 0xC1000..0xDBFFF (108 KB, after the
- * projects, up to the calibration), fm1-base's PLAT_XDATA1 0xE5000..0xFBFFF (92 KB, above the update's staging)
- * and PLAT_XDATA0 0x93000..0x96FFF (16 KB, above the app area); app.c checks that no store object lies in them.
+ * beside them, 200 KB in two windows (dsp/sample.h SMP_REG*, plat_data): 0xC1000..0xDBFFF (108 KB, after the
+ * projects, up to the calibration) and fm1-base's PLAT_XDATA1 0xE5000..0xFBFFF (92 KB, above the update's staging);
+ * app.c checks that no store object lies in them. The app area reaches 0x97000 (fm1.toml app_end, since 0.19: what
+ * was PLAT_XDATA0, the bank's third window, 16 KB).
  * Nothing of LOOM-8's is left free in the data area; above it, 0xE0000..0xE4FFF is the update's staging and
  * 0xFC000.. Felucca's settings pair (neither LOOM-8's). LOOM-8 was never released, so this map did not have to
  * keep its own platform's (four slots); it does, but for the fourth slot: the same numbers at the same places, so

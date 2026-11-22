@@ -2522,11 +2522,16 @@ static void list_mark(void)
     lst_mem[k].ok = 1;
 }
 static int list_pickable(int r) { return lst.row[r].kind != LK_NOTE && lst.row[r].kind != LK_HEAD; }
-static int eg_swap(int e) { return e >= EG_MIDI ? e ^ (EG_MIDI ^ EG_ACID) : e; }   /* (midi 9, acid 10: swapped) */
-static int eg_step(int e, int d)                 /* the engines in the picker's order: midi last (acid, added after it,
-                                                  * goes before it; saved by number, so only the order moves) */
+/* the engines in the picker's order, midi always last: an engine is saved by its number (a new one goes last in
+ * synth.h's enum), its place in the picker is here (a new one before midi) */
+static const uint8_t EG_ORDER[NENGINE] = {EG_KNIT, EG_RAYON, EG_JACQUARD, EG_BELLOWS, EG_CANE, EG_VOILE, EG_SAMPLE,
+                                          EG_SLICE, EG_DRUMLINE, EG_ACID, EG_MIDI};
+static int eg_step(int e, int d)
 {
-    return eg_swap(clampi(eg_swap(e) + d, 0, NENGINE - 1));
+    int i = 0;
+    while (i < NENGINE - 1 && EG_ORDER[i] != e)
+        i++;
+    return EG_ORDER[clampi(i + d, 0, NENGINE - 1)];
 }
 static void list_open(void)
 {
@@ -2654,9 +2659,11 @@ static void list_change_do(int32_t e)
             ui.pick_bt = (uint8_t)(n ? (ui.pick_bt + d + n) % n : 0);
             break;
         }
+#if FM1B_USB_HOST
         case A_USB_HOST:                         /* (not saved: every start is the computer's, as the update needs) */
             plat_usb_host(d > 0);
             break;
+#endif
         case A_AUTOSAVE:                         /* (saved at once when stopped: off, nothing would save it) */
             proj.rsv[2] = (uint8_t)(d > 0 ? proj.rsv[2] & ~AUTOSAVE_OFF : proj.rsv[2] | AUTOSAVE_OFF);
             mark_dirty();
