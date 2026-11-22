@@ -15,6 +15,9 @@
                                 Edge, Web MIDI)
   samples/index.html            the user sample bank in the browser (app/web/samples/: add, replace, rename, reorder,
                                 remove; loom_samples.js inlined)
+  export/index.html             a project's song or a scene as a WAV, from a backup file, in the browser (app/web/export/:
+                                the page, worker.js and render.js; extras.js written beside them for the backup's samples;
+                                the emulator's app.wasm, fetched from ../emu/app.wasm)
   firmware/loom-VERSION.fwsc    the package the installer writes; also the download
   firmware/loom-VERSION-res.bin the resource region beside it (the 909 cymbals), which the installer writes after it
   firmware/m-bootloader-X.Y.fwsc  m-bootloader (MIT, fm1-base's web/m-bootloader), offered after the firmware
@@ -81,7 +84,8 @@ SITE_CSS = """<style>
 </style>""" % (tokens(PALETTE["light"]), tokens(PALETTE["dark"]), tokens(PALETTE["dark"]))
 
 SECTIONS = [("emu/", "Try it"), ("manual/", "Manual"), ("install/", "Install"), ("samples/", "Samples"),
-            ("backup/", "Backup"), ("mirror/", "Mirror")]
+            ("backup/", "Backup"), ("export/", "Export"),
+            ("mirror/", "Mirror")]
 
 
 def dress(page, here):
@@ -163,6 +167,7 @@ firmware, and the installer can always put M-VAVE's own firmware back. Install a
   <a href="install/"><strong>Install</strong><span>Connect your FM-1 by USB and install from Chrome or Edge. There's nothing to install on your computer.</span></a>
   <a href="samples/"><strong>Samples</strong><span>Load up to 32 of your own samples onto the FM-1, and rename, reorder or swap them any time.</span></a>
   <a href="backup/"><strong>Backup</strong><span>Save your projects, presets and samples to a file, and load them back later.</span></a>
+  <a href="export/"><strong>Export</strong><span>Make a WAV of a song or a scene from one of your projects, in your browser.</span></a>
   <a href="mirror/"><strong>Mirror</strong><span>See the FM-1's screen live on your computer, and play its buttons, keys and knobs from there.</span></a>
   <a href="firmware/__PKG__"><strong>Download __PKG__</strong><span>For the command-line installer: <code>python3 base/tools/fm1_install.py __PKG__</code></span></a>
   <a href="__REPO__"><strong>Source</strong><span>On GitHub under GPL-3.0 (most files are MPL-2.0). Built on fm1-base and felucca-bsp, which grew out of Felucca by Leo Kuroshita (Hügelton Instruments).</span></a>
@@ -263,7 +268,7 @@ def main(pkg, version, out):
               (SRC / "app" / "web" / "backup" / "extras.js").read_text(encoding="utf-8") + "})();")
     note = ("\n  <li>The samples go in the file too. A restore sends them after LOOM-8 has said yes on its screen, which "
             "takes about 20 seconds more. An older backup has no samples, so a restore from it leaves the samples as they "
-            "are.</li>")
+            "are.</li>\n  <li>To make a WAV of a song or a scene from a backup, use <a href=\"../export/\">the export page</a>.</li>")
     terminal = ("You can also do it from a terminal, in LOOM-8's repository: <code>python3 base/tools/fm1_backup.py</code> "
                 "for the projects and presets (the same files: it leaves their samples alone), and "
                 "<code>python3 tools/loom_samples.py backup</code> / <code>restore</code> for the samples (its restore "
@@ -300,15 +305,25 @@ def main(pkg, version, out):
     if not (emu / "app.wasm").exists():
         raise SystemExit("no app/build/emu/app.wasm: run ./build.sh --web (needs Emscripten)")
     shutil.copytree(emu, out / "emu")
+    # the export page: its worker and render.js as they are, and extras.js, the backup page's EXTRAS as a module for the
+    # module worker (worker.js imports it: its default export returns them)
+    (out / "export").mkdir()
+    for f in ("index.html", "worker.js", "render.js"):
+        shutil.copy(SRC / "app" / "web" / "export" / f, out / "export" / f)
+    (out / "export" / "extras.js").write_text(
+        "// SPDX-License-Identifier: MPL-2.0\n// written by tools/make_pages.py: app/web/samples/loom_samples.js and "
+        "app/web/backup/extras.js, as the backup page has them\nexport default () => {\n" +
+        strip_module((SRC / "app" / "web" / "samples" / "loom_samples.js").read_text(encoding="utf-8")) + "\n" +
+        (SRC / "app" / "web" / "backup" / "extras.js").read_text(encoding="utf-8") + "};\n", encoding="utf-8")
     # the screen reader's words files (fm1-reader): every one ever made, for the devices that point at them
     shutil.copytree(SRC / "app" / "web" / "words", out / "words")
     for path, here in (("index.html", ""), ("manual/index.html", "manual/"), ("install/index.html", "install/"),
                        ("backup/index.html", "backup/"), ("mirror/index.html", "mirror/"), ("samples/index.html", "samples/"),
-                       ("emu/index.html", "emu/")):
+                       ("export/index.html", "export/"), ("emu/index.html", "emu/")):
         f = out / path
         f.write_text(dress(f.read_text(encoding="utf-8"), here), encoding="utf-8")
     (out / ".nojekyll").write_text("")
-    print(f"site: {out}: index.html, manual/, install/ ({product}), backup/, mirror/, samples/, emu/, words/, firmware/{name} ({len(raw)} B)")
+    print(f"site: {out}: index.html, manual/, install/ ({product}), backup/, mirror/, samples/, export/, emu/, words/, firmware/{name} ({len(raw)} B)")
 
 
 if __name__ == "__main__":

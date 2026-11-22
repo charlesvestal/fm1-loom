@@ -25,6 +25,7 @@ To see it played first, watch the [LOOM-8 video](https://www.youtube.com/watch?v
 - [The aux tracks](#the-aux-tracks)
 - [Mix and master](#mix-and-master)
 - [Saving](#saving)
+- [Export a song](#export-a-song)
 - [Page by page](#page-by-page)
 - [Troubleshooting](#troubleshooting)
 - [Screen reader](#screen-reader)
@@ -160,6 +161,7 @@ Count the white keys 1 to 16 from the left, and the black keys 1 to 11. "Hold **
 | shape one drum | On a drum track, press **ENV** and press the drum's black key to get its own attack, hold, decay and lag. Turn **SELECT** for its filter: **PRESETS** picks low-pass, high-pass or band-pass, and the knobs set cutoff, resonance, envelope and drive. <!-- hint: press ENV; black 1 --> |
 | play a sample | On a drum track, set a key's model to sample. On a synth track, press **SEL** and set ENGINE to sample. The sample knob picks the sample. |
 | load my own samples | Open <https://charlesvestal.github.io/fm1-loom/samples/> in Chrome or Edge with the FM-1 connected by USB. Add, replace, rename, reorder or remove samples, then press Send. They come after the factory samples, as user 1, user 2 ... |
+| make a WAV of a song | Save a backup, then open it on <https://charlesvestal.github.io/fm1-loom/export/>, pick the project and its song or a scene, and press Export. |
 | get the breaks back (0.7 on) | On the samples page, press Add the breaks, then Send. |
 | chop a break | On a synth track, press **SEL** and set ENGINE to slice. Each key plays one slice of the break, with F3 playing the first. Write them on the steps in any order. To load your own break, run `tools/loom_samples.py load "amen.wav@2"` (here, a loop of 2 bars). |
 | change the filter | Press **ENV** and turn **SELECT** to Filter. **PRESETS** changes the filter type. |
@@ -1587,6 +1589,15 @@ busy screen the picture may skip a frame, but the sound never does. From a termi
 To keep a track's sound, go to a sound page, hold **SAVE** and press white key 1 to 16. The sound becomes that
 user preset.
 
+## Export a song
+
+Use the export page to make a WAV file of a project's song, or of one of its scenes played up to 16 times. First
+save a backup on the backup page, or with Save backup in the emulator. Then open
+<https://charlesvestal.github.io/fm1-loom/export/>, open the backup there, pick the project and what to play, and
+press **Export**. Your browser plays it faster than real time, so you don't need the FM-1 for it. The file is
+16-bit, 44.1 kHz stereo, at the level LOOM-8 sends to USB audio, and it goes on after the music until the reverb
+and the echoes fade out. Every voice sounds in the file, so a busy song can sound fuller than it does on the FM-1.
+
 ## Page by page
 
 | Button | Page | KNOB 1 | KNOB 2 | KNOB 3 | KNOB 4 | Keys |
@@ -1687,7 +1698,8 @@ words it uses are published with this site, so every version reads its own scree
 
 LOOM-8's way of working owes a great deal to teenage engineering's OP-XY. LOOM-8 is not affiliated with teenage
 engineering. It is built on fm1-base and felucca-bsp, from Felucca by Leo Kuroshita (Hügelton Instruments), and it
-borrows Polly's menus and X0X's sequencer discipline.
+borrows Polly's menus and X0X's sequencer discipline. The idea for the export page came from Bloomy, gfcalvi's
+fork of LOOM-8.
 
 Cane and voile are Mutable Instruments Braids by Émilie Gillet (MIT). Acid is X0X's 303, from Open303 by Robin
 Schmidt (MIT), with jc303's Devilfish ranges by midilab and dm-Rat's RAT drive by Dave Mollen (GPL-3.0). That

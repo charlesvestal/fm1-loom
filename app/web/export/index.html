@@ -1,0 +1,220 @@
+<!doctype html>
+<!-- SPDX-License-Identifier: MPL-2.0
+     LOOM-8's export page: a backup file opened, a project picked and its song or one of its scenes (played 1 to 16
+     times), rendered to a WAV in the browser, faster than real time (worker.js, render.js: the emulator's app.wasm at
+     ../emu/app.wasm, the backup restored into it). tools/make_pages.py dresses it, and writes extras.js beside the
+     worker for a backup's samples. The idea is from gfcalvi's Bloomy (a fork of LOOM-8); written fresh. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Export · LOOM-8</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;600&family=Barlow+Semi+Condensed:wght@600;700&display=swap">
+<style>
+  :root { --ground: #f4f3f1; --ink: #1c1c20; --muted: #5f5f67; --rule: #dcdbd8; --card: #fff;
+          --accent: #b0285f; --on-accent: #fff; --bad: #b3261e; color-scheme: light; }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) { --ground: #000; --ink: #ebebee; --muted: #a2a2aa; --rule: #2e2e34; --card: #141418;
+      --accent: #ff5caa; --on-accent: #1a0010; --bad: #ff8a80; color-scheme: dark; }
+  }
+  :root[data-theme="dark"] { --ground: #000; --ink: #ebebee; --muted: #a2a2aa; --rule: #2e2e34; --card: #141418;
+    --accent: #ff5caa; --on-accent: #1a0010; --bad: #ff8a80; color-scheme: dark; }
+  body { margin: 0; background: var(--ground); color: var(--ink); padding-inline: 16px; padding-block: 48px 64px;
+         font: 400 16px/1.6 "Barlow", "Helvetica Neue", Arial, sans-serif; }
+  main { max-width: 46rem; margin: 0 auto; }
+  h1 { font: 700 2.4rem/1 "Barlow Semi Condensed", "Barlow", sans-serif; margin: 0 0 1rem; }
+  h2 { font: 700 1.3rem "Barlow Semi Condensed", sans-serif; margin: 2rem 0 .5rem; }
+  p { margin: 0 0 1rem; }
+  a { color: var(--accent); }
+  .small { color: var(--muted); font-size: .9rem; }
+  button, label.pick { font: 600 15px "Barlow", sans-serif; border-radius: 999px; padding: 7px 18px; cursor: pointer;
+                       border: 1px solid transparent; }
+  button { background: var(--accent); color: var(--on-accent); }
+  button[aria-disabled="true"], button:disabled { opacity: .35; cursor: default; }
+  label.pick { display: inline-block; position: relative; background: none; color: var(--ink); border-color: var(--rule); }
+  label.pick:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
+  label.pick input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+  select { font: inherit; font-size: 15px; color: var(--ink); background: var(--card); border: 1px solid var(--rule);
+           border-radius: 6px; padding: 3px 6px; max-width: 100%; }
+  select:disabled { opacity: .5; }
+  ol.steps { list-style: none; counter-reset: step; padding: 0; margin: 0 0 1rem; border-top: 1px solid var(--rule); }
+  ol.steps > li { counter-increment: step; display: grid; grid-template-columns: 2em minmax(0, 1fr); gap: 0 10px;
+                  padding: 12px 0; border-bottom: 1px solid var(--rule); }
+  ol.steps > li::before { content: counter(step); font: 700 1.1rem "Barlow Semi Condensed", sans-serif; color: var(--muted); }
+  .row { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; }
+  .row label { font-weight: 600; }
+  #fileInfo { color: var(--muted); font-size: 15px; }
+  #status { color: var(--muted); font-size: 15px; margin: 0; }
+  #alert { font-weight: 600; font-size: 15px; color: var(--bad); margin: 0; }
+  #status:empty, #alert:empty { display: none; }
+  progress { flex: 1 1 10rem; height: 6px; accent-color: var(--accent); }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Export</h1>
+  <p>Make a WAV file of a project's song, or of one of its scenes. Your browser plays it faster than real time, so you
+    don't need the FM-1 for it.</p>
+
+  <ol class="steps">
+    <li><p style="margin: 0">Save a backup of your FM-1 on <a href="../backup/">the backup page</a>, or press Save backup
+      in <a href="../emu/">the emulator</a>.</p></li>
+    <li><div class="row">
+      <label class="pick">Open the backup&hellip;<input type="file" id="file" accept=".loom8" aria-describedby="fileInfo"></label>
+      <span id="fileInfo"></span>
+    </div></li>
+    <li><div class="row">
+      <label for="proj">Project</label> <select id="proj" disabled><option>Open a backup first</option></select>
+    </div></li>
+    <li><div class="row">
+      <label for="what">Play</label> <select id="what" disabled><option>Pick a project first</option></select>
+      <label for="loops">How many times</label>
+      <select id="loops" disabled>
+        <option value="1">once</option><option value="2">2 times</option><option value="4">4 times</option>
+        <option value="8">8 times</option><option value="16">16 times</option>
+      </select>
+    </div></li>
+    <li><div class="row">
+      <button id="go" aria-disabled="true">Export</button>
+      <progress id="bar" max="1" value="0" hidden aria-label="Export progress"></progress>
+    </div></li>
+  </ol>
+  <p id="status" role="status"></p>
+  <p id="alert" role="alert"></p>
+
+  <h2>What's in the file</h2>
+  <p class="small">The file is 16-bit, 44.1 kHz stereo, at the level LOOM-8 sends to USB audio. A song plays from its
+    first scene to the end of its last, and a scene plays as many times as you pick. After the music ends, the file
+    goes on until the reverb and the echoes fade out, for up to 20 seconds.</p>
+  <p class="small">Every voice sounds in the file, so a busy song can sound fuller than it does on the FM-1. The
+    samples in the backup play too.</p>
+  <p class="small">For details on backups, see <a href="../manual/#saving">the manual's Saving section</a>. The idea
+    for this page came from Bloomy, gfcalvi's fork of LOOM-8.</p>
+</main>
+<script type="module">
+const $ = (id) => document.getElementById(id);
+let worker = null, wasm = null, slots = [], busy = false, ready = false;
+
+function say(t) { $("alert").textContent = ""; $("status").textContent = t; }
+function fail(t) { $("status").textContent = ""; $("alert").textContent = t; }
+let shown = { at: 0, pct: -100 };
+function sayPct(frac) {                             // progress, at most every 2 s or 10 percent (screen readers)
+  const pct = Math.floor(frac * 100), now = performance.now();
+  if (now - shown.at < 2000 && pct - shown.pct < 10) return;
+  say(`Exporting, ${pct} percent`);
+  shown = { at: now, pct };
+}
+
+function bpm(t) { return `${t % 10 ? (t / 10).toFixed(1) : t / 10} bpm`; }
+function slotText(s, i) {
+  if (!s) return `Proj ${i + 1} · empty`;
+  return `Proj ${i + 1} · ${bpm(s.tempo)} · ${s.scenes} scene${s.scenes === 1 ? "" : "s"}`;
+}
+function setGo() {                                  // (aria-disabled: focus stays on it while it exports)
+  $("go").setAttribute("aria-disabled", String(busy || !ready));
+}
+function lock(on) {
+  busy = on;
+  for (const id of ["file", "proj", "what"]) $(id).disabled = on || (id !== "file" && !ready);
+  $("loops").disabled = on || !ready || $("what").value === "song";
+  setGo();
+}
+function clear(projText, whatText) {
+  ready = false;
+  $("proj").innerHTML = `<option>${projText}</option>`;
+  $("what").innerHTML = `<option>${whatText}</option>`;
+  lock(false);
+}
+
+// the worker, one question at a time: post a message, wait for its answer (progress on the way)
+function ask(msg, transfer = [], onProgress = null) {
+  return new Promise((resolve, reject) => {
+    worker.onmessage = (e) => {
+      const m = e.data;
+      if (m.type === "progress") { if (onProgress) onProgress(m.p); return; }
+      if (m.type === "error") reject(new Error(m.message)); else resolve(m);
+    };
+    worker.onerror = (e) => { e.preventDefault(); reject(new Error("The export stopped. Reload the page to try again.")); };
+    worker.postMessage(msg, transfer);
+  });
+}
+
+async function openFile(f) {
+  lock(true);
+  $("fileInfo").textContent = f.name;
+  say("Reading the backup…");
+  try {
+    if (!wasm) {
+      const r = await fetch("../emu/app.wasm");
+      if (!r.ok) throw new Error("This page couldn't load LOOM-8. Reload the page to try again.");
+      wasm = await r.arrayBuffer();
+    }
+    if (!worker) worker = new Worker("worker.js", { type: "module" });
+    const file = await f.arrayBuffer(), w = wasm.slice(0);
+    const m = await ask({ type: "setup", wasm: w, file }, [w, file]);
+    slots = m.slots;
+    const first = slots.findIndex((s) => s);
+    if (first < 0) { clear("No projects in this backup", "Pick a project first"); fail("This backup has no projects in it."); return; }
+    $("proj").innerHTML = slots.map((s, i) => `<option value="${i}"${s ? "" : " disabled"}${i === first ? " selected" : ""}>${slotText(s, i)}</option>`).join("");
+    ready = true;
+    await openProject(first);
+    const n = slots.filter((s) => s).length;
+    say(`${n} project${n === 1 ? "" : "s"} in ${f.name}. Pick what to play, then press Export.`);
+  } catch (e) {
+    clear("Open a backup first", "Pick a project first");
+    fail(e.message);
+  } finally {
+    lock(false);
+  }
+}
+
+async function openProject(slot) {
+  const m = await ask({ type: "open", slot });
+  let h = m.song > 0 ? '<option value="song">Song</option>' : "";
+  for (let s = 0; s < 32; s++) if (m.scenes >>> s & 1) h += `<option value="${s}">Scene ${s + 1}</option>`;
+  $("what").innerHTML = h || '<option value="">Nothing to play</option>';
+  ready = !!h;
+}
+
+async function exportIt() {
+  if (busy || !ready) return;
+  const slot = Number($("proj").value), what = $("what").value;
+  const pick = what === "song" ? { slot, scene: -1 } : { slot, scene: Number(what), loops: Number($("loops").value) };
+  const name = `loom-8-proj-${slot + 1}-` + (what === "song" ? "song" : `scene-${Number(what) + 1}`) + ".wav";
+  lock(true);
+  const bar = $("bar");
+  bar.value = 0; bar.hidden = false;
+  shown = { at: 0, pct: -100 };
+  say("Exporting…");
+  try {
+    const m = await ask({ type: "render", pick }, [], (p) => { bar.value = p; sayPct(p); });
+    const url = URL.createObjectURL(new Blob([m.bytes], { type: "audio/wav" }));
+    const a = document.createElement("a");
+    a.href = url; a.download = name;
+    document.body.append(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
+    say(`Saved ${name}.`);
+  } catch (e) {
+    fail(e.message);
+  } finally {
+    bar.hidden = true;
+    lock(false);
+  }
+}
+
+$("file").onchange = (e) => { const f = e.target.files[0]; e.target.value = ""; if (f) openFile(f); };
+$("proj").onchange = async () => {
+  lock(true);
+  try { await openProject(Number($("proj").value)); say(""); }
+  catch (e) { fail(e.message); }
+  finally { lock(false); }
+};
+$("what").onchange = () => lock(false);
+$("go").onclick = exportIt;
+lock(false);
+</script>
+</body>
+</html>
