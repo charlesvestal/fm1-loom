@@ -1882,6 +1882,42 @@ static void tulle_tests(void)
         check("tulle: one dense note makes a cloud from its own range of the pool (more than four, at most eight), finite",
               finite && most > 4 && most <= TL_VOICE_MAX);
     }
+    {   /* the Grain page: reverse and shape change the sound; finite */
+        static float l3[40 * N], r3[40 * N], l4[40 * N], r4[40 * N];
+        float pk3, pk4;
+        int fin = 1;
+        tl_note(0, 127, 1, l, r, &fin, &pk);
+        par[0][TP_KSWEEP] = 127;                     /* (every grain backwards) */
+        synth_init(S, par);
+        synth_tempo(S, 120.0f);
+        synth_note_on(S, 0, 60, 100, 0, 1);
+        for (int b = 0; b < 80; b++) {
+            block(N, &fin);
+            if (b >= 40)
+                memcpy(l3 + (b - 40) * N, L, sizeof L), memcpy(r3 + (b - 40) * N, R, sizeof R);
+        }
+        par[0][TP_KSWEEP] = 0;
+        par[0][TP_KSYNC] = 127;                      /* (a pluck's window) */
+        synth_init(S, par);
+        synth_tempo(S, 120.0f);
+        synth_note_on(S, 0, 60, 100, 0, 1);
+        pk4 = 0.0f;
+        for (int b = 0; b < 80; b++) {
+            block(N, &fin);
+            for (int i = 0; i < N; i++)
+                pk4 = fabs_f(L[i]) > pk4 ? fabs_f(L[i]) : pk4;
+            if (b >= 40)
+                memcpy(l4 + (b - 40) * N, L, sizeof L), memcpy(r4 + (b - 40) * N, R, sizeof R);
+        }
+        pk3 = pk;
+        check("tulle: reverse and shape each change the sound, finite, bounded",
+              fin && memcmp(l3, l, sizeof l3) != 0 && memcmp(l4, l, sizeof l4) != 0 && pk3 < 1.5f && pk4 < 1.5f);
+        check("tulle: its Grain page's names (shape, reverse) on a tulle track, knit's Mod page's elsewhere",
+              !strcmp(tp_info(TP_KSYNC, EG_TULLE)->name, "shape") && !strcmp(tp_info(TP_KSWEEP, EG_TULLE)->name, "reverse") &&
+              tp_info(TP_KSYNC, EG_TULLE)->hi == 127 && !strcmp(tp_info(TP_KSYNC, EG_KNIT)->name, "sync"));
+        par[0][TP_KSYNC] = 0;
+        (void)r3; (void)r4;
+    }
     check("tulle: its pages' names (the playhead's, the grains')", !strcmp(tp_info(TP_E3, EG_TULLE)->name, "spray") &&
           !strcmp(tp_info(TP_E4, EG_TULLE)->name, "scan") && !strcmp(tp_info(TP_X1, EG_TULLE)->name, "size") &&
           !strcmp(tp_info(TP_X2, EG_TULLE)->name, "density") && !strcmp(tp_info(TP_X4, EG_TULLE)->name, "width"));

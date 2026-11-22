@@ -48,8 +48,9 @@ def c_of(p):
     o2, md, op = p["osc2"], p["mod"], p["ops"]
     ks = "KS_" + md[3].upper().replace(" ", "_")
     ro = f'RO_{op[0].upper()}, {lib.RO_RATIOS.index(op[1])}, {op[2]}, {op[3]}'
-    return (f'    {{"{p["name"]}", {{{body}}}, RL_{p["role"].upper()}, {o2[2]}, O2W_{o2[0].upper()[:3] if o2[0] == "triangle" else o2[0].upper()}, {o2[1]}, '
-            f'{int(md[0])}, {md[1]}, {md[2]}, {ks}, {ro}, {p["analog"]}}},')
+    return (f'    {{"{p["name"]}", {{{body}}}, RL_{p["role"].upper()}, {o2[2]}, O2W_{o2[0].upper()[:3] if o2[0] == "triangle" else o2[0].upper()}, {o2[1]}, ' +
+            (f'{int(md[0])}, {md[1]}, {md[2]}, {ks}, ' if p["engine"] != "tulle" else f'{p["grain"][0]}, {p["grain"][1]}, 0, 0, ') +
+            f'{ro}, {p["analog"]}}},')
 
 
 def main(argv):

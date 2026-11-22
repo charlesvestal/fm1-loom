@@ -214,3 +214,26 @@ key w0 up
 wait 60
 expect lane 3 1 x1 1
 expect lane 3 1 fine 0
+# tulle: Engine (the playhead), Sub (the grains), Grain (shape, reverse), Play, Play 2
+knob 3 engine tulle
+tap EDIT
+expect page Engine
+expect knobs e1 e2 e3 e4
+turn SELECT 1
+expect page Sub
+expect knobs x1 x2 x3 x4
+turn SELECT 1
+expect page Grain
+expect knobs ksync ksweep - -
+spin K1 100
+expect par3.ksync 100
+spin K2 60
+expect par3.ksweep 60
+wait 40
+shot tulle_grain.png
+turn SELECT 1
+expect page Play
+turn SELECT 1
+expect page Play_2
+turn SELECT 1
+expect page Engine

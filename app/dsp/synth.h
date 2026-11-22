@@ -117,7 +117,9 @@ enum {
     TP_O2WAVE,                                      /* knit's osc 2, its wave (O2W_*: same, osc 1's, by default) and */
     TP_O2SHAPE,                                     /* its own saw .. square .. pulse (as osc 1's wave knob: saw, square,
                                                      * pulse only). Last, so format 21's indices stay (format 22) */
-    TP_KSYNC, TP_KSWEEP, TP_KCROSS, TP_KSUB,        /* knit's Mod page: osc 2 hard-synced to osc 1 (0 off, 1 on); the
+    TP_KSYNC, TP_KSWEEP, TP_KCROSS, TP_KSUB,        /* (tulle's Grain page: TP_KSYNC its grains' shape 0 smooth .. 127
+                                                     * percussive, TP_KSWEEP the chance a grain plays backwards; the
+                                                     * rest unused) knit's Mod page: osc 2 hard-synced to osc 1 (0 off, 1 on); the
                                                      * filter envelope on osc 2's pitch (0..48 semitones at its top);
                                                      * osc 2 on osc 1's frequency (FM, 0..127); the sub's type (KS_*).
                                                      * 0 each: as before. Last, so format 22's indices stay (format 23) */

@@ -612,6 +612,7 @@ static int is_midi(int t) { return t < NTRK && proj.trk[t].par[TP_ENGINE] == EG_
                                                                                          * out, synth.h EG_MIDI) */
 static int is_knit(int t) { return t < NTRK && proj.trk[t].par[TP_ENGINE] == EG_KNIT; }
 static int is_rayon(int t) { return t < NTRK && proj.trk[t].par[TP_ENGINE] == EG_RAYON; }
+static int is_tulle(int t) { return t < NTRK && proj.trk[t].par[TP_ENGINE] == EG_TULLE; }
 static int is_acid(int t) { return t < NTRK && proj.trk[t].par[TP_ENGINE] == EG_ACID; }   /* (its 303's own envelope:
                                                                                          * no Filter env page) */
 /* a page's name: a drum track's Play page is its Key page, its Filter env page the kit's envelope */
@@ -635,6 +636,8 @@ static const char *page_name_of(int p, int trk)
         return "Levels";
     if (is_rayon(trk) && p == P_KMOD)                /* (knit's Mod page's place: rayon's ops 3 and 4) */
         return "Ops";
+    if (is_tulle(trk) && p == P_KMOD)                /* (and tulle's grains' shape and direction) */
+        return "Grain";
     if ((is_drum(trk) || is_midi(trk)) && p == P_SUB)
         return "Engine 2";
     return PAGE_NAME[p % NPAGES];
@@ -713,7 +716,7 @@ static int group_n(int g)
         return 1;                                    /* (WEAVE's steps: no Bar page) */
     if (b == B_EDIT)                                 /* (grp_page: the conductor's Sub third; a kit, an FX track: two) */
         return trk == AUX_PUNCH || trk == AUX_WEAVE ? 1 : trk == AUX_BRAIN ? 3 : is_aux(trk) ? 2
-             : is_knit(trk) ? 6 : is_rayon(trk) ? 5 : x_page(trk) ? 4 : 3;   /* (a kit: Engine, Key, Sends: the
+             : is_knit(trk) ? 6 : is_rayon(trk) || is_tulle(trk) ? 5 : x_page(trk) ? 4 : 3;   /* (a kit: Engine, Key, Sends: the
                                           * key's own; Engine 2 after Engine when the key's model has eight knobs;
                                           * knit: Osc 2, Mod, Levels, Play, Play 2; rayon: Sub, Ops, Play, Play 2) */
     if (b == B_ARP)                                  /* (grp_page: Players, Players 2, Hold the arp's, Weave) */
@@ -751,8 +754,9 @@ static int grp_page(int g, int i)
         static const uint8_t KNP[6] = {P_ENGINE, P_OSC2, P_KMOD, P_SUB, P_PLAY, P_PLAY2};
         return KNP[i >= 0 && i < 6 ? i : 0];
     }
-    if (PAGE_BTN[g].btn == B_EDIT && is_rayon(sel_trk())) {   /* rayon: its fall (Sub), its ops 3 and 4, then how
-                                                      * it plays */
+    if (PAGE_BTN[g].btn == B_EDIT && (is_rayon(sel_trk()) || is_tulle(sel_trk()))) {   /* rayon: its fall (Sub), its
+                                                      * ops 3 and 4; tulle: its grains (Sub), their shape (Grain); then
+                                                      * how it plays */
         static const uint8_t RYP[5] = {P_ENGINE, P_SUB, P_KMOD, P_PLAY, P_PLAY2};
         return RYP[i >= 0 && i < 5 ? i : 0];
     }
@@ -857,7 +861,7 @@ static int tp_page_param(int p, int k, int trk)
         return k < 3 ? TP_X2 + k : TP_KANALOG;
     if (p == P_KMOD)                                 /* knit's Mod page: sync, sweep, cross, the sub's type; rayon's
                                                       * Ops page: how ops 3 and 4 join, op 3's ratio, depth, feedback */
-        return is_knit(trk) ? TP_KSYNC + k : is_rayon(trk) ? TP_ROPS + k : -1;
+        return is_knit(trk) ? TP_KSYNC + k : is_rayon(trk) ? TP_ROPS + k : is_tulle(trk) && k < 2 ? TP_KSYNC + k : -1;
     if (p == P_OSC2) {                               /* knit's osc 2: its interval, fine tune, wave, shape (past the
                                                       * int8 table) */
         static const uint16_t O2[4] = {TP_X1, TP_O2FINE, TP_O2WAVE, TP_O2SHAPE};
@@ -5230,6 +5234,34 @@ static void draw_rayon_ops(void)
     text_r(230, LY(100, 64), F_CAP, cap, K_DIM);
     cv_blit(0, MAIN_Y);
 }
+/* tulle's Grain page (P_KMOD): a grain's window as its shape makes it (synth.c tl_win: its peak from the middle toward
+ * its start), and the share of the grains played backwards: arrows, forward and back, as many of each */
+static void draw_tulle_grain(void)
+{
+    int trk = sel_trk();
+    const uint8_t *p = par_now(trk);
+    int sh = p[TP_KSYNC], rv = p[TP_KSWEEP];
+    uint32_t h = hash_u(hash_u(2166136261u, 0xAAu), (uint32_t)trk | (uint32_t)sh << 4 | (uint32_t)rv << 12);
+    float att = 0.5f - 0.47f * (float)sh / 127.0f, x0 = 30.0f, w = 180.0f, base = (float)MY(70), hh = (float)MY(56);
+    pen_t pn = {0};
+    char t[32];
+    if (!begin_main(h))
+        return;
+    cv_rect((int32_t)x0, (int32_t)base, (int32_t)w, 1, K_LINE);
+    for (int i = 0; i <= 180; i++) {
+        float ph = (float)i / 180.0f, u = ph < att ? 0.5f * ph / att : 0.5f + 0.5f * (ph - att) / (1.0f - att);
+        float v = 4.0f * u * (1.0f - u);
+        pen_to(&pn, x0 + (float)i, base - v * v * hh, K_NOW);
+    }
+    {   /* ten grains as arrows: the backward ones by the knob's share */
+        int back = (rv * 10 + 63) / 127;
+        for (int k = 0; k < 10; k++)
+            text_c(36 + k * 18, LY(80, 74), &LFONT_XS, k < 10 - back ? ">" : "<", k < 10 - back ? K_DIM : K_NOW);
+    }
+    s_cat(num_i((rv * 100 + 63) / 127, s_cat(t, sh < 20 ? "smooth, " : sh < 90 ? "sharper, " : "a pluck, ")), "% backwards");
+    text_r(230, LY(100, 64), F_CAP, t, K_DIM);
+    cv_blit(0, MAIN_Y);
+}
 /* acid's Sub page: its drive (TP_X1 amount, TP_X2 off / soft / rat; bass303.c drive_block) on two cycles of a sine,
  * the input faint and what comes out bright, each scaled to the picture's height (the shape, not the level) */
 static void draw_acid_x(void)
@@ -6445,6 +6477,8 @@ static void draw_page(void)
             draw_engine();
         else if (ui.page == P_KMOD && is_rayon(trk))
             draw_rayon_ops();
+        else if (ui.page == P_KMOD && is_tulle(trk))
+            draw_tulle_grain();
         else if (ui.page == P_KMOD)
             draw_knit_mod();
         else if (ui.page == P_PLAY)

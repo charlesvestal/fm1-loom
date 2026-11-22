@@ -112,7 +112,7 @@ second.
 - **Song**: a chain of scenes, each played for a number of bars.
 - **Engine**: the way a track makes its sound. There are seven synths (knit, rayon, jacquard, bellows, cane, voile
   and acid), three sample engines (sample, slice and tulle) and the kit, a drum synth.
-- **Preset**: a sound to load. 119 come with LOOM-8, from six to twenty-three for each engine, and 16 are your own.
+- **Preset**: a sound to load. 121 come with LOOM-8, from six to twenty-three for each engine, and 16 are your own.
 - **Player**: what the keys do on a track: arp, strum, hold or random.
 - **Conductor**: an aux track that sets the key, scale and chords for the other tracks. It plays its own chords,
   or takes them from a track's notes.
@@ -588,7 +588,7 @@ tonality is **ignore** follows nothing.
 | voile | model, timbre, color, breath | 7 |
 | sample | sample, start, length, mode | 18 |
 | slice | sample, slices, pitch, gate | 11 |
-| tulle | sample, position, spray, scan | 7 |
+| tulle | sample, position, spray, scan | 9 |
 | acid | wave, accent, slide, tune | 8 |
 | kit | the model knobs of the key shown | |
 | midi | eight knobs, each sending a CC | |
@@ -1058,12 +1058,16 @@ from 2 (sparse) to 60 (a thick cloud), **pitch** detunes each grain at random, b
 **width** spreads the grains across the stereo field. To move through the sample by hand or with a pattern, put an
 LFO or a lock on **position**.
 
+Turn **SELECT** once more for the Grain page. **shape** changes each grain's fade: at 0 it swells and fades evenly,
+and turned up it starts sharply and rings out, like a pluck. **reverse** sets how many grains play backwards, from
+none to all of them. A new tulle track starts on **bowl**, a singing bowl that comes with LOOM-8 for tulle.
+
 The picture shows the sample's waveform, with the part the grains come from lit and a dot at the position. While
 a note plays, each grain shows as a line at the spot it reads from, rising and fading as the grain does. Up to four
 tulle notes play at once across all tracks, and a fifth takes over the oldest. Each note has up to 8 grains sounding
 at once. When size and density ask for more, the grains spread out evenly instead. Tulle sounds best on a long, changing sample, such as a voice,
-a field recording or a pad of your own. LOOM-8's own sounds are short. There are seven presets: tulle, frozen keys,
-flute glow, brass haze, vinyl dust, hit stutter and thick cloud.
+a field recording or a pad of your own. LOOM-8's own sounds are short. There are nine presets: tulle, frozen keys,
+flute glow, brass haze, vinyl dust, hit stutter, thick cloud, backwards and bowl rain.
 
 ### MIDI
 

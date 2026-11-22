@@ -1198,7 +1198,15 @@ typedef struct {
     float gl, gr;                     /* its pan */
     uint8_t on, own;                  /* sounding; its voice (vi) */
     uint8_t dl;                       /* where in the block it starts (a grain begun mid-block) */
+    int8_t dir;                       /* forward 1, backwards -1 (reverse) */
+    float att;                        /* its window's peak (0.5: the sine-squared; shape moves it toward the start) */
 } tl_grain_t;
+/* a grain's window at phase ph, its peak at att: (4u(1-u))^2 of u, the phase stretched so u = 0.5 at att */
+static inline float tl_win(float ph, float att)
+{
+    float u = ph < att ? 0.5f * ph / att : 0.5f + 0.5f * (ph - att) / (1.0f - att), w = 4.0f * u * (1.0f - u);
+    return w * w;
+}
 #ifdef PLAT_HOST
 static tl_grain_t tl_mem[TL_POOL];
 #else
@@ -1268,6 +1276,10 @@ static tl_grain_t *tl_spawn(voice_t *v, unsigned ranges, int mine)
     if (at + span > c->ex[1] - 1.0f)
         at = fm_maxf(c->ex[1] - 1.0f - span, 0.0f);
     smp_cache_reset(&g->c);
+    g->dir = (int8_t)(c->ex[17] > 0.0f && (float)(xs(&v->rng) >> 8) * (1.0f / 16777216.0f) < c->ex[17] ? -1 : 1);
+    g->att = 0.5f - 0.47f * c->ex[16];          /* shape: the peak from the middle to 3 % in (a pluck) */
+    if (g->dir < 0)                              /* (backwards: from the stretch's end) */
+        at += span - 2.0f;
     g->pos = (int32_t)at;
     g->fr = 0.0f;
     g->ph = 0.0f;
@@ -1336,13 +1348,12 @@ static __attribute__((noinline)) void tl_run(voice_t *v, float *xl, float *xr, i
         s = g->dl < m ? g->dl : m;
         g->dl = 0;
         {   /* its window's power over the block (the level below), at the block's middle */
-            float ph = g->ph + g->dph * (float)(m - s) * 0.5f, w = 4.0f * ph * (1.0f - ph);
-            pw += ph < 1.0f ? w * w * w * w * (float)(m - s) / (float)m : 0.0f;
+            float ph = g->ph + g->dph * (float)(m - s) * 0.5f, w = ph < 1.0f ? tl_win(ph, g->att) : 0.0f;
+            pw += w * w * (float)(m - s) / (float)m;
         }
-        n = smp_play(&g->c, sm, &g->pos, &g->fr, g->inc, 1, 0, end, tmp + s, m - s);
+        n = smp_play(&g->c, sm, &g->pos, &g->fr, g->inc, g->dir, 0, end, tmp + s, m - s);
         for (i = s; i < s + n; i++) {
-            float w = 4.0f * g->ph * (1.0f - g->ph), x;
-            w *= w;
+            float w = tl_win(g->ph, g->att), x;
             x = tmp[i] * w;
             xl[i] += x * g->gl;
             xr[i] += x * g->gr;
@@ -3244,12 +3255,15 @@ static void voice_chunk(synth_t *s, voice_t *v)
                 c->ex[15] = rf;
             }
         }
-        if (v->engine == EG_TULLE) {             /* its Sub page (tl_prep): spray, scan, pitch, width */
+        if (v->engine == EG_TULLE) {             /* its Sub page (tl_prep): size, density, pitch, width; its Grain
+                                                  * page (tl_spawn reads them): shape, reverse */
             for (i = 0; i < 4; i++) {
                 float xv = (float)P(s, trk, TP_X1 + i);
                 moved |= xv != c->ex[10 + i];
                 c->ex[10 + i] = xv;
             }
+            c->ex[16] = (float)P2(s, trk, TP_KSYNC) * (1.0f / 127.0f);
+            c->ex[17] = (float)P2(s, trk, TP_KSWEEP) * (1.0f / 127.0f);
         }
         if (v->engine == EG_SAMPLE) {          /* its loop page (smp_prep) */
             float a = (float)P(s, trk, TP_X1), b = (float)P(s, trk, TP_X2);
@@ -3873,9 +3887,9 @@ int synth_tulle_grains(const synth_t *s, int trk, int32_t *pos, uint8_t *lvl, in
         float w;
         if (!g->on || v->trk != trk || v->engine != EG_TULLE || v->amp.stage == ENV_OFF)
             continue;
-        w = 4.0f * g->ph * (1.0f - g->ph);
+        w = tl_win(g->ph, g->att);
         pos[n] = g->pos;
-        lvl[n] = (uint8_t)(fm_clampf(w * w * v->amp.level, 0.0f, 1.0f) * 255.0f);
+        lvl[n] = (uint8_t)(fm_clampf(w * v->amp.level, 0.0f, 1.0f) * 255.0f);
         n++;
     }
     return n;
@@ -3972,6 +3986,8 @@ static const char *const RO_N[NRO] = {"off", "stack", "layer"};
 static const tp_info_t ROPS_P[4] = {{"ops", 0, NRO - 1, RO_OFF, PK_NAMES, RO_N}, {"ratio", 0, RO_NRATIO - 1, 1, PK_NUM, 0},
                                     {"depth", 0, 127, 0, PK_NN, 0}, {"feedback", 0, 127, 0, PK_NN, 0}};
 static const tp_info_t KANALOG_P = {"analog", 0, 127, 0, PK_NN, 0};
+static const tp_info_t TULLE_G_P[4] = {{"shape", 0, 127, 0, PK_NN, 0}, {"reverse", 0, 127, 0, PK_PCT, 0},
+                                       {"-", 0, 0, 0, PK_NUM, 0}, {"-", 0, 0, 0, PK_NUM, 0}};
 static const tp_info_t KMOD_P[4] = {{"sync", 0, 1, 0, PK_SWITCH, 0}, {"sweep", 0, KSWEEP_MAX, 0, PK_SEMI, 0},
                                     {"cross", 0, 127, 0, PK_NN, 0}, {"sub", 0, NKS - 1, KS_SINE, PK_NAMES, KSUB_N}};
 static const tp_info_t RUP_P = {"oct up", 0, 3, 0, PK_NUM, 0};   /* (TP_RUP: the random player's octaves above) */
@@ -4169,8 +4185,9 @@ const tp_info_t *tp_info(int p, int engine)
         return p == TP_O2FINE ? &O2FINE_P : p == TP_O2WAVE ? &O2WAVE_P : &O2SHAPE_P;
     if (p == TP_RUP)
         return &RUP_P;
-    if (p >= TP_KSYNC && p <= TP_KSUB)            /* knit's Mod page (their ranges on any engine, as osc 2's) */
-        return &KMOD_P[p - TP_KSYNC];
+    if (p >= TP_KSYNC && p <= TP_KSUB)            /* knit's Mod page (their ranges on any engine, as osc 2's); tulle's
+                                                  * Grain page on a tulle track */
+        return engine == EG_TULLE ? &TULLE_G_P[p - TP_KSYNC] : &KMOD_P[p - TP_KSYNC];
     if (p >= TP_ROPS && p <= TP_RFB)              /* rayon's Ops page (the same) */
         return &ROPS_P[p - TP_ROPS];
     if (p == TP_KANALOG)
