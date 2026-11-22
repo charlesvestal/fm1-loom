@@ -610,6 +610,7 @@ static int is_drum(int t) { return t < NTRK && proj.trk[t].par[TP_ENGINE] == EG_
 static int is_midi(int t) { return t < NTRK && proj.trk[t].par[TP_ENGINE] == EG_MIDI; }   /* (no sound: notes and CCs
                                                                                          * out, synth.h EG_MIDI) */
 static int is_knit(int t) { return t < NTRK && proj.trk[t].par[TP_ENGINE] == EG_KNIT; }
+static int is_rayon(int t) { return t < NTRK && proj.trk[t].par[TP_ENGINE] == EG_RAYON; }
 static int is_acid(int t) { return t < NTRK && proj.trk[t].par[TP_ENGINE] == EG_ACID; }   /* (its 303's own envelope:
                                                                                          * no Filter env page) */
 /* a page's name: a drum track's Play page is its Key page, its Filter env page the kit's envelope */
@@ -631,6 +632,8 @@ static const char *page_name_of(int p, int trk)
         return "Loop";
     if (is_knit(trk) && p == P_SUB)                  /* (not "Mix": GLO's Mix is the track's sends, pan, level) */
         return "Levels";
+    if (is_rayon(trk) && p == P_KMOD)                /* (knit's Mod page's place: rayon's ops 3 and 4) */
+        return "Ops";
     if ((is_drum(trk) || is_midi(trk)) && p == P_SUB)
         return "Engine 2";
     return PAGE_NAME[p % NPAGES];
@@ -709,9 +712,9 @@ static int group_n(int g)
         return 1;                                    /* (WEAVE's steps: no Bar page) */
     if (b == B_EDIT)                                 /* (grp_page: the conductor's Sub third; a kit, an FX track: two) */
         return trk == AUX_PUNCH || trk == AUX_WEAVE ? 1 : trk == AUX_BRAIN ? 3 : is_aux(trk) ? 2
-             : is_knit(trk) ? 5 : x_page(trk) ? 4 : 3;   /* (a kit: Engine, Key, Sends: the key's own; Engine 2
-                                          * after Engine when the key's model has eight knobs; knit: Osc 2, Mod,
-                                          * Levels, Play) */
+             : is_knit(trk) || is_rayon(trk) ? 5 : x_page(trk) ? 4 : 3;   /* (a kit: Engine, Key, Sends: the
+                                          * key's own; Engine 2 after Engine when the key's model has eight knobs;
+                                          * knit: Osc 2, Mod, Levels, Play; rayon: Sub, Ops, Play, Play 2) */
     if (b == B_ARP)                                  /* (grp_page: Players, Players 2, Hold the arp's, Weave) */
         return is_aux(trk) ? 1
              : is_drum(trk) || pl_type(trk) == PL_OFF ? 2
@@ -746,6 +749,11 @@ static int grp_page(int g, int i)
                                                       * plays */
         static const uint8_t KNP[5] = {P_ENGINE, P_OSC2, P_KMOD, P_SUB, P_PLAY};
         return KNP[i >= 0 && i < 5 ? i : 0];
+    }
+    if (PAGE_BTN[g].btn == B_EDIT && is_rayon(sel_trk())) {   /* rayon: its fall (Sub), its ops 3 and 4, then how
+                                                      * it plays */
+        static const uint8_t RYP[5] = {P_ENGINE, P_SUB, P_KMOD, P_PLAY, P_PLAY2};
+        return RYP[i >= 0 && i < 5 ? i : 0];
     }
     if (PAGE_BTN[g].btn == B_EDIT && x_page(sel_trk())) {   /* a second page of knobs second, after Engine (rayon's
                                                       * fall, acid's drive, a looping sample's Loop, MIDI's or a
@@ -848,8 +856,9 @@ static int tp_page_param(int p, int k, int trk)
         static const int8_t LV[4] = {TP_X2, TP_X3, TP_X4, TP_VOLUME};
         return LV[k];
     }
-    if (p == P_KMOD)                                 /* knit's Mod page: sync, sweep, cross, the sub's type */
-        return is_knit(trk) ? TP_KSYNC + k : -1;
+    if (p == P_KMOD)                                 /* knit's Mod page: sync, sweep, cross, the sub's type; rayon's
+                                                      * Ops page: how ops 3 and 4 join, op 3's ratio, depth, feedback */
+        return is_knit(trk) ? TP_KSYNC + k : is_rayon(trk) ? TP_ROPS + k : -1;
     if (p == P_OSC2) {                               /* knit's osc 2: its interval, fine tune, wave, shape (past the
                                                       * int8 table) */
         static const uint16_t O2[4] = {TP_X1, TP_O2FINE, TP_O2WAVE, TP_O2SHAPE};
@@ -5097,6 +5106,66 @@ static void draw_knit_mod(void)
     text_r(230, LY(56, 44), F_CAP, t, K_DIM);
     cv_blit(0, MAIN_Y);
 }
+/* rayon's Ops page (P_KMOD): its four operators as boxes, each with its ratio, the modulators (dim) above what they
+ * move, the carriers (bright) on the bottom row into the output line, op 4's feedback a loop when it is up; ops 3 and 4
+ * faint when off */
+static void draw_rayon_ops(void)
+{
+    /* per mode (RO_*): op 1..4's column and row (0 top .. 3 bottom), what modulates each (bit j: op j + 1), the
+     * carriers */
+    static const uint8_t POS[NRO][4][2] = {{{1, 3}, {1, 2}, {2, 3}, {2, 2}}, {{1, 3}, {1, 2}, {1, 1}, {1, 0}},
+                                           {{0, 3}, {0, 2}, {2, 3}, {2, 2}}};
+    static const uint8_t MOD[NRO][4] = {{0x2, 0, 0, 0}, {0x2, 0x4, 0x8, 0}, {0x2, 0, 0x8, 0}};
+    static const uint8_t CAR[NRO] = {0x1, 0x1, 0x5};
+    int trk = sel_trk();
+    const uint8_t *p = par_now(trk);
+    int ro = p[TP_ROPS] % NRO, fb = p[TP_RFB];
+    uint32_t h = hash_u(hash_u(2166136261u, 0xA9u), (uint32_t)trk | (uint32_t)ro << 4 | (uint32_t)p[TP_RRATIO] << 8 |
+                                                    (uint32_t)(fb > 0) << 16 | (uint32_t)p[TP_E2] << 20);
+    int32_t bw = 40, bh = 16, rs = 20, cs = 60, ox = 50, oy = 8, bx[4], by[4];
+    char rt[4][12], num[12], unit[6], cap[48];
+    if (!begin_main(h))
+        return;
+    s_cat(rt[0], "1");
+    tp_text(TP_E2, p[TP_E2], EG_RAYON, num, unit);
+    s_cat(rt[1], num);
+    tp_text(TP_RRATIO, p[TP_RRATIO], EG_RAYON, num, unit);
+    s_cat(rt[2], num);
+    s_cat(rt[3], num);
+    for (int k = 0; k < 4; k++)
+        bx[k] = ox + POS[ro][k][0] * cs, by[k] = oy + POS[ro][k][1] * rs;
+    for (int d = 0; d < 4; d++)
+        for (int s = 0; s < 4; s++)
+            if (MOD[ro][d] >> s & 1u)
+                cv_linef((float)(bx[s] + bw / 2), (float)(by[s] + bh), (float)(bx[d] + bw / 2), (float)by[d], K_DIM, 1.2f);
+    {
+        int32_t lo = 9999, hi = 0, yo = oy + 3 * rs + bh + 5;
+        for (int k = 0; k < 4; k++)
+            if (CAR[ro] >> k & 1u) {
+                cv_rect(bx[k] + bw / 2, by[k] + bh, 1, yo - by[k] - bh, K_DIM);
+                lo = bx[k] + bw / 2 < lo ? bx[k] + bw / 2 : lo;
+                hi = bx[k] + bw / 2 > hi ? bx[k] + bw / 2 : hi;
+            }
+        cv_rect(lo, yo, hi - lo + 1, 1, K_DIM);
+    }
+    if (ro && fb) {                                  /* op 4's feedback: a loop on its right */
+        int32_t fx = bx[3] + bw, fy = by[3] + bh / 2;
+        cv_rect(fx, fy, 6, 1, K_DIM);
+        cv_rect(fx + 6, by[3] - 4, 1, fy - by[3] + 5, K_DIM);
+        cv_rect(bx[3] + bw / 2, by[3] - 4, fx + 6 - bx[3] - bw / 2, 1, K_DIM);
+        cv_rect(bx[3] + bw / 2, by[3] - 4, 1, 4, K_DIM);
+    }
+    for (int k = 0; k < 4; k++) {
+        int car = CAR[ro] >> k & 1u, off = !ro && k >= 2;
+        if (off)
+            continue;
+        cv_round(bx[k], by[k], bw, bh, 3, car ? K_NOW : K_PANEL2);
+        text_c(bx[k] + bw / 2, by[k] + (bh - 12) / 2, &LFONT_XS, rt[k], car ? K_BG : K_DIM);
+    }
+    s_cat(cap, ro == RO_OFF ? "the pair alone" : ro == RO_STACK ? "3 and 4 move the modulator" : "a second pair beside it");
+    text_r(230, LY(100, 64), F_CAP, cap, K_DIM);
+    cv_blit(0, MAIN_Y);
+}
 /* acid's Sub page: its drive (TP_X1 amount, TP_X2 off / soft / rat; bass303.c drive_block) on two cycles of a sine,
  * the input faint and what comes out bright, each scaled to the picture's height (the shape, not the level) */
 static void draw_acid_x(void)
@@ -6310,6 +6379,8 @@ static void draw_page(void)
             draw_fxtrack(trk);
         else if (ui.page == P_ENGINE || ui.page == P_OSC2 || (is_drum(trk) && (ui.page == P_PLAY || ui.page == P_SUB)))
             draw_engine();
+        else if (ui.page == P_KMOD && is_rayon(trk))
+            draw_rayon_ops();
         else if (ui.page == P_KMOD)
             draw_knit_mod();
         else if (ui.page == P_PLAY)

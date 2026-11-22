@@ -482,7 +482,14 @@ float wt_value(int t, float scan, float ph)
  * an octave above C3). o[0..2] the carrier, the modulator, the feedback; o[5] the fall (1 at the note's start); o[6]
  * the tine's phase, o[7] its envelope. ex[0] / ex[1] the increments, ex[2] the index now (rayon_chunk: the fall),
  * ex[3] the feedback, ex[4] the tine's level at the start, ex[5] its increment, ex[8..10] the second page's
- * (voice_chunk), ex[11] the index before the fall */
+ * (voice_chunk), ex[11] the index before the fall.
+ * Its Ops page (TP_ROPS .. TP_RFB; synth.h RO_*): ops 3 and 4 join the pair. Stack: op 4 (its own feedback) moves op 3,
+ * op 3 moves the modulator; layer: op 4 moves op 3, a carrier added beside the pair. depth: op 3's and 4's index
+ * (velocity and keyscale as the pair's, falling with its fall). o[3], o[4] ops 3 and 4's phases, o[8],
+ * o[9] op 4's last two outputs. ex[6], ex[7] their increments, ex[12] the ratio's step, ex[13] depth 0..1, ex[15]
+ * feedback 0..1, ex[16] the mode (voice_chunk), ex[14] the depth before the fall, ex[17] now */
+const float RO_RATIO[RO_NRATIO] = {0.5f, 1.0f, 1.5f, 2.0f, 2.5f, 3.0f, 3.5f, 4.0f, 5.0f, 6.0f, 7.0f, 8.0f, 9.0f, 10.0f,
+                                   11.0f, 12.0f, 14.0f, 16.0f, 1.41f, 1.73f, 2.24f, 2.76f, 3.46f, 5.19f};
 static const float RAYON_RATIO[16] = {0.5f, 0.6666667f, 0.75f, 1.25f, 1.3333334f, 1.4142135f, 1.5f, 1.75f, 2.0f, 2.5f,
                                       3.0f, 3.5f, 4.0f, 5.0f, 7.0f, 8.0f};
 static void rayon_prep(voice_t *v)
@@ -504,6 +511,15 @@ static void rayon_prep(voice_t *v)
     c->ex[3] = c->e[2] * 1.3f;                                  /* feedback */
     c->ex[5] = c->freq * 14.0f * INV_SR;                         /* the tine: 14:1, only while under 0.45 */
     c->ex[4] = c->ex[5] < 0.45f ? c->e[3] * 0.5f * vs : 0.0f;
+    if (c->ex[16] > 0.0f) {                                      /* ops 3 and 4 */
+        int k = (int)c->ex[12];
+        float r3 = RO_RATIO[k < 0 ? 0 : k >= RO_NRATIO ? RO_NRATIO - 1 : k];
+        c->ex[6] = c->ex[7] = fm_minf(c->freq * r3 * INV_SR, 0.45f);
+        c->ex[14] = c->ex[13] * c->ex[13] * 6.0f * vs;          /* (index: as ex[2]'s, turns x 4) */
+        if (c->ex[10] > 0.0f && c->freq > 130.81f)
+            c->ex[14] *= fm_exp2f(-c->ex[10] * fm_log2f(c->freq * (1.0f / 130.81f)));
+        c->ex[17] = c->ex[14];
+    }
     c->stereo = 0;
 }
 /* rayon's sine, sin(2 pi ph) for any phase: folded to a quarter turn, then a degree-7 polynomial in turns (max error
@@ -519,20 +535,58 @@ static inline float sin_q7(float ph)
     x2 = x * x;
     return x * (((-7.099341583e+01f * x2 + 8.134076691e+01f) * x2 - 4.133714294e+01f) * x2 + 6.283164024e+00f);
 }
+/* rayon with its ops 3 and 4 (the Ops page; rayon_run's pair, the tine after it as there) */
+static __attribute__((noinline)) void rayon_ops(voice_t *v, float *xl, int m)
+{
+    const cfg_t *c = &v->c;
+    const int ro = (int)c->ex[16];
+    float cp = v->o[0], mp = v->o[1], fbv = v->o[2], p3 = v->o[3], p4 = v->o[4], y4a = v->o[8], y4b = v->o[9];
+    const float dc = c->ex[0], dm = c->ex[1], idx = c->ex[2] * 0.25f, fb = c->ex[3] * 0.25f, d3 = c->ex[6], d4 = c->ex[7];
+    const float dep = c->ex[17] * 0.25f, f4 = c->ex[15] * 0.35f;
+    for (int i = 0; i < m; i++) {
+        float mo, y4, y3;
+        mp = step1(mp, dm);
+        cp = step1(cp, dc);
+        p3 = step1(p3, d3);
+        p4 = step1(p4, d4);
+        y4 = sin_q7(p4 + f4 * 0.5f * (y4a + y4b));   /* (op 4: its feedback the mean of its last two, the DX's) */
+        y4b = y4a;
+        y4a = y4;
+        y3 = sin_q7(p3 + dep * y4);
+        mo = sin_q7(mp + fbv * fb + (ro == RO_STACK ? dep * y3 : 0.0f));
+        fbv = mo;
+        xl[i] = ro == RO_STACK ? sin_q7(cp + mo * idx) : 0.7f * sin_q7(cp + mo * idx) + 0.5f * y3;
+    }
+    v->o[0] = cp;
+    v->o[1] = mp;
+    v->o[2] = fbv;
+    v->o[3] = p3;
+    v->o[4] = p4;
+    v->o[8] = y4a;
+    v->o[9] = y4b;
+}
 static void rayon_run(voice_t *v, float *xl, float *xr, int m)
 {
     const cfg_t *c = &v->c;
-    float cp = v->o[0], mp = v->o[1], fbv = v->o[2];
-    float dc = c->ex[0], dm = c->ex[1], idx = c->ex[2] * 0.25f, fb = c->ex[3] * 0.25f, tl = c->ex[4] * v->o[7];
+    float tl = c->ex[4] * v->o[7];
     int i;
     (void)xr;
-    for (i = 0; i < m; i++) {
-        float mo;
-        mp = step1(mp, dm);
-        cp = step1(cp, dc);
-        mo = sin_q7(mp + fbv * fb);
-        fbv = mo;
-        xl[i] = sin_q7(cp + mo * idx);
+    if (c->ex[16] > 0.0f)                        /* ops 3 and 4: their own loop */
+        rayon_ops(v, xl, m);
+    else {
+        float cp = v->o[0], mp = v->o[1], fbv = v->o[2];
+        float dc = c->ex[0], dm = c->ex[1], idx = c->ex[2] * 0.25f, fb = c->ex[3] * 0.25f;
+        for (i = 0; i < m; i++) {
+            float mo;
+            mp = step1(mp, dm);
+            cp = step1(cp, dc);
+            mo = sin_q7(mp + fbv * fb);
+            fbv = mo;
+            xl[i] = sin_q7(cp + mo * idx);
+        }
+        v->o[0] = cp;
+        v->o[1] = mp;
+        v->o[2] = fbv;
     }
     if (tl > 1e-4f) {                            /* the tine, added */
         float tp = v->o[6], dt = c->ex[5];
@@ -542,15 +596,14 @@ static void rayon_run(voice_t *v, float *xl, float *xr, int m)
         }
         v->o[6] = tp;
     }
-    v->o[0] = cp;
-    v->o[1] = mp;
-    v->o[2] = fbv;
 }
 static void rayon_chunk(voice_t *v)              /* the fall, the tine's decay */
 {
     cfg_t *c = &v->c;
     if (c->ex[8] > 0.0f) {                       /* the fall: o[5] 1 at the note's start, toward 0 */
         c->ex[2] = c->ex[11] * (c->ex[9] + (1.0f - c->ex[9]) * v->o[5]);
+        if (c->ex[16] > 0.0f)                    /* (ops 3 and 4's index falls with it) */
+            c->ex[17] = c->ex[14] * (c->ex[9] + (1.0f - c->ex[9]) * v->o[5]);
         v->o[5] *= c->ex[8];
     }
     v->o[7] *= 0.994f;                           /* the tine: ~0.25 s (tines') */
@@ -2173,8 +2226,9 @@ int synth_voice_cost(const synth_t *s, int vi)
                                                   * this block holds its last engine's values until its first chunk) */
         return 3 + (int)(1.5f * fm_clampf(v->c.ex[2], 1.0f, (float)KNIT_MAX)) + (v->c.ex[14] > 0.0f) +
                (v->c.ex[16] > 0.0f || v->c.ex[17] > 0.0f);
-    if (v->engine == EG_RAYON)
-        return 5;                                /* (the FM-1, 2026-10-19: a quarter above an ordinary voice) */
+    if (v->engine == EG_RAYON)                   /* (the FM-1, 2026-10-19: a quarter above an ordinary voice; with ops
+                                                  * 3 and 4 two sines more a sample: an estimate) */
+        return v->c.ex[16] > 0.0f ? 7 : 5;
     if (v->engine == EG_ACID)
         return 16;                               /* (the FM-1, 2026-10-30: 17 to 19 % of a core, its 303 oversampled
                                                   * twice: a knit unison voice's) */
@@ -2914,6 +2968,15 @@ static void voice_chunk(synth_t *s, voice_t *v)
             c->ex[8] = fall;
             c->ex[9] = fv;
             c->ex[10] = kv;
+            {   /* its Ops page (rayon_prep, rayon_ops) */
+                float ro = (float)(P2(s, trk, TP_ROPS) % NRO), rr = (float)P2(s, trk, TP_RRATIO);
+                float rd = (float)P2(s, trk, TP_RDEPTH) * (1.0f / 127.0f), rf = (float)P2(s, trk, TP_RFB) * (1.0f / 127.0f);
+                moved |= ro != c->ex[16] || rr != c->ex[12] || rd != c->ex[13];
+                c->ex[16] = ro;
+                c->ex[12] = rr;
+                c->ex[13] = rd;
+                c->ex[15] = rf;
+            }
         }
         if (v->engine == EG_SAMPLE) {          /* its loop page (smp_prep) */
             float a = (float)P(s, trk, TP_X1), b = (float)P(s, trk, TP_X2);
@@ -3612,6 +3675,9 @@ static const tp_info_t O2WAVE_P = {"wave", 0, NO2W - 1, O2W_SAME, PK_NAMES, O2WA
 static const tp_info_t O2SHAPE_P = {"shape", 0, 127, 0, PK_NN, 0};
 static const tp_info_t O2FINE_P = {"fine", 14, 114, 64, PK_CENT, 0};
 static const char *const KSUB_N[NKS] = {"sine", "square", "low square", "low pulse"};
+static const char *const RO_N[NRO] = {"off", "stack", "layer"};
+static const tp_info_t ROPS_P[4] = {{"ops", 0, NRO - 1, RO_OFF, PK_NAMES, RO_N}, {"ratio", 0, RO_NRATIO - 1, 1, PK_NUM, 0},
+                                    {"depth", 0, 127, 0, PK_NN, 0}, {"feedback", 0, 127, 0, PK_NN, 0}};
 static const tp_info_t KMOD_P[4] = {{"sync", 0, 1, 0, PK_SWITCH, 0}, {"sweep", 0, KSWEEP_MAX, 0, PK_SEMI, 0},
                                     {"cross", 0, 127, 0, PK_NN, 0}, {"sub", 0, NKS - 1, KS_SINE, PK_NAMES, KSUB_N}};
 static const tp_info_t RUP_P = {"oct up", 0, 3, 0, PK_NUM, 0};   /* (TP_RUP: the random player's octaves above) */
@@ -3804,6 +3870,8 @@ const tp_info_t *tp_info(int p, int engine)
         return &RUP_P;
     if (p >= TP_KSYNC && p <= TP_KSUB)            /* knit's Mod page (their ranges on any engine, as osc 2's) */
         return &KMOD_P[p - TP_KSYNC];
+    if (p >= TP_ROPS && p <= TP_RFB)              /* rayon's Ops page (the same) */
+        return &ROPS_P[p - TP_ROPS];
     if (p >= 0 && p < (int)(sizeof FIXED / sizeof FIXED[0]))
         return &FIXED[p];
     return &NONE_P;
@@ -3953,6 +4021,22 @@ static void tp_text_i(const tp_info_t *i, int p, int v, int engine, char *num, c
             put_s(unit, "ms");
         } else
             ms_text(0.001f * ms, num, unit);
+        return;
+    }
+    if (p == TP_RRATIO) {                        /* rayon's op 3: "3.5:1" */
+        float q = RO_RATIO[v < 0 ? 0 : v >= RO_NRATIO ? RO_NRATIO - 1 : v];
+        int h = (int)(q * 100.0f + 0.5f);
+        char *e;
+        if (h % 100 == 0)
+            e = put_i(num, h / 100);
+        else if (h % 10 == 0)
+            e = put_f1(num, q);
+        else {                                   /* (two decimals: 1.41, 2.76) */
+            e = put_s(put_i(num, h / 100), ".");
+            *e++ = (char)('0' + h / 10 % 10);
+            *e++ = (char)('0' + h % 10);
+        }
+        put_s(e, ":1");
         return;
     }
     if (p == TP_E2 && engine == EG_RAYON) {       /* the ratio: "1:1 +12c" in the detuned stretch, else "3.5:1" */
@@ -4111,6 +4195,9 @@ void sound_default(uint8_t *par, int engine)
     par[TP_O2WAVE] = O2W_SAME;
     par[TP_O2SHAPE] = 0;
     par[TP_KSYNC] = par[TP_KSWEEP] = par[TP_KCROSS] = par[TP_KSUB] = 0;
+    par[TP_ROPS] = RO_OFF;
+    par[TP_RRATIO] = 1;
+    par[TP_RDEPTH] = par[TP_RFB] = 0;
 }
 
 /* -------------------------------------------------------------- presets --- */
@@ -4132,6 +4219,10 @@ void preset_sound(uint8_t *par, const preset_t *pr)
     par[TP_KSWEEP] = pr->ksweep;
     par[TP_KCROSS] = pr->kcross;
     par[TP_KSUB] = pr->ksub;
+    par[TP_ROPS] = pr->rops;
+    par[TP_RRATIO] = pr->rratio;
+    par[TP_RDEPTH] = pr->rdepth;
+    par[TP_RFB] = pr->rfb;
 }
 int preset_first(int engine)
 {

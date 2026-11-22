@@ -56,3 +56,32 @@ P("glass pad", "pad", "rayon", knobs=dict(bright=35, ratio=ratio(2.0), edge=0, t
 P("toy keys", "keys", "rayon", knobs=dict(bright=45, ratio=ratio(3.0), edge=0, tine=50), volume=91,
   amp=(0, 82, 0, 60), fenv=(0, 64, 0, 64), filter=("lp12", 108, 0, 64, 64), sends=(10, 25), x=(40, 10, 50, 0),
   genres=("lofi",))
+# --- the Ops page (2026-11-23): ops 3 and 4 join the pair (lib.py ops = (mode, op 3's ratio, depth, op 4's feedback)) ---
+# a clav: op 3 at 3:1 on the modulator, bright and quick to fall, a little grit
+P("clav", "keys", "rayon", knobs=dict(bright=70, ratio=ratio(2.0), edge=10, tine=0), volume=86,
+  amp=(0, 76, 40, 40), fenv=(0, 64, 0, 64), filter=("lp24", 104, 10, 64, 64), x=(44, 30, 40, 0),
+  ops=("stack", 3, 64, 20), genres=("house", "synthpop"))
+# a growl bass: three ops stacked under a half-ratio modulator, op 4's feedback heavy, mono
+P("growl bass", "bass", "rayon", knobs=dict(bright=60, ratio=ratio(0.5), edge=20, tine=0), mode="mono", volume=96,
+  amp=(0, 80, 110, 40), fenv=(0, 60, 30, 40), filter=("lp24", 72, 10, 90, 40), x=(0, 0, 20, 0),
+  ops=("stack", 1, 80, 96), genres=("dnb",))
+# a digital lead: the stack an octave up, held bright, legato with a late vibrato
+P("digital", "lead", "rayon", knobs=dict(bright=50, ratio=ratio(1), edge=0, tine=0), mode="legato", glide=12,
+  volume=84, amp=(2, 70, 110, 50), fenv=(0, 64, 0, 64), filter=("lp24", 110, 0, 64, 64), sends=(20, 20),
+  lfo=("wobble", 92, 74, 64, 20, 0), ops=("stack", 2, 70, 40), genres=("synthpop",))
+# brass with grit: op 4's feedback buzzing through the stack, the amp swelling in
+P("grit brass", "brass", "rayon", knobs=dict(bright=55, ratio=ratio(1), edge=10, tine=0), volume=80,
+  amp=(44, 80, 110, 60), fenv=(0, 64, 0, 64), filter=("lp24", 98, 0, 64, 64), sends=(0, 25), x=(0, 0, 40, 0),
+  lfo=("wobble", 92, 74, 64, 30, 0), ops=("stack", 1, 50, 64), genres=("synthpop",))
+# a layer pad: a soft pair, a second pair an octave up beside it, the brightness moving slowly with the LFO
+P("layer pad", "pad", "rayon", knobs=dict(bright=36, ratio=ratio(1), edge=0, tine=0), volume=72,
+  amp=(80, 90, 118, 96), fenv=(0, 64, 0, 64), filter=("lp24", 104, 0, 64, 64), sends=(0, 50),
+  lfo=("wave", 22, 84, "synth free", 0, 1), ops=("layer", 2, 40, 0), genres=("lofi", "synthpop"))
+# a metal hit: an inharmonic op 3 stacked hard on the modulator, falling fast
+P("metal hit", "fx", "rayon", knobs=dict(bright=80, ratio=ratio(3.5), edge=20, tine=0), volume=80,
+  amp=(0, 84, 0, 70), fenv=(0, 64, 0, 64), filter=("lp24", 116, 0, 64, 64), sends=(10, 35), x=(40, 5, 20, 0),
+  ops=("stack", 2.76, 100, 50), genres=("lofi", "house"))
+# a bell layered over a soft body: the second pair at an inharmonic 3.46, ringing longer than the body
+P("bell layer", "bell", "rayon", knobs=dict(bright=40, ratio=ratio(1), edge=0, tine=0), volume=82,
+  amp=(0, 104, 0, 96), fenv=(0, 64, 0, 64), filter=("lp24", 120, 0, 64, 64), sends=(10, 45), x=(90, 15, 40, 0),
+  ops=("layer", 3.46, 70, 0), genres=("lofi",))

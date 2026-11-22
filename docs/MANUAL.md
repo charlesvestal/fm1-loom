@@ -111,7 +111,7 @@ second.
 - **Song**: a chain of scenes, each played for a number of bars.
 - **Engine**: the way a track makes its sound. There are seven synths (knit, rayon, jacquard, bellows, cane, voile
   and acid), two sample engines (sample and slice) and the kit, a drum synth.
-- **Preset**: a sound to load. 102 come with LOOM-8, from seven to twenty for each engine, and 16 are your own.
+- **Preset**: a sound to load. 109 come with LOOM-8, from seven to twenty for each engine, and 16 are your own.
 - **Player**: what the keys do on a track: arp, strum, hold or random.
 - **Conductor**: an aux track that sets the key, scale and chords for the other tracks. It plays its own chords,
   or takes them from a track's notes.
@@ -201,7 +201,7 @@ Count the white keys 1 to 16 from the left, and the black keys 1 to 11. "Hold **
 | **SEL** | Opens a list of this page's settings and actions. Hold a step and press it to see the step's notes. When LOOM-8 asks a question, **SEL** means yes. |
 | **HOME** | Opens Arrange. On Arrange, it opens the Song page. Hold it as a shift key for buttons and knobs: undo and redo, fine tempo, and the scenes on **PRESETS**. When LOOM-8 asks a question, **HOME** means no. |
 | **SEQ** | Opens Steps; page 2 is Bar. Hold it on Steps and the keys play the track and set what a step writes (**PRESETS** sets the track's sound, and **OCT** moves the whole pattern an octave). Hold it on Bar and black keys 1 to 4 jump to a bar or loop bars. Hold it on Steps or Bar and press **PLAY** to start from the bar on screen. |
-| **EDIT** | Opens Engine. The pages go from the sound to how it plays. On most engines, page 2 is Play (mode, glide, bend and octave) and page 3 is Play 2 (volume). On rayon and acid, page 2 is Sub, with the engine's second set of knobs, and Play and Play 2 follow it. On knit, the pages are Engine, Osc 2, Mod, Levels and Play. A sample track in a loop mode has its Loop page second. On a drum track, page 2 holds the key's model, random, pan and volume, and page 3 its sends. On the conductor, the pages are its key, the routing and Follow. |
+| **EDIT** | Opens Engine. The pages go from the sound to how it plays. On most engines, page 2 is Play (mode, glide, bend and octave) and page 3 is Play 2 (volume). On rayon and acid, page 2 is Sub, with the engine's second set of knobs, and Play and Play 2 follow it. Rayon has its Ops page after Sub. On knit, the pages are Engine, Osc 2, Mod, Levels and Play. A sample track in a loop mode has its Loop page second. On a drum track, page 2 holds the key's model, random, pan and volume, and page 3 its sends. On the conductor, the pages are its key, the routing and Follow. |
 | **ENV** | Opens Envelope (on a drum track: lag, attack, random, length), then Filter, then the filter's envelope. |
 | **FX** | Opens Character, the track's own effect. Next come Sends, the track's sends to FX I and FX II, and then FX I and FX II, the two effects. |
 | **LFO** | Opens LFO. Page 2 has the type's fourth and fifth knobs. |
@@ -634,7 +634,8 @@ to seven. A new note beyond that takes over the oldest one.
 
 <img src="img/screen-engine-rayon.png" width="240" alt="Engine on T3 rayon, the glass bell preset: the carrier's circle with the modulator turning on it; knobs bright 47, ratio 3.5:1, edge 00, tine 23" title="Rayon">
 
-Rayon is two-operator FM in the DX style. Use it for e-pianos, bells, mallets and basses. **bright** sets how much
+Rayon is FM synthesis in the DX style: a pair of operators, with an optional second pair. Use it for e-pianos, bells,
+mallets and basses, and with the second pair for growls, clavs, digital leads and layered bells. **bright** sets how much
 the modulator moves the carrier, and a soft note gets less. **ratio** sets the modulator's pitch relative to the
 note. The left half of the knob gives a detuned 1:1 for slow beating. The right half gives ratios from 0.5:1 to 8:1,
 including the inharmonic ones that make bells. **edge** feeds the modulator back into itself, which turns it from a
@@ -643,6 +644,14 @@ quarter of a second. The harder you play, the louder it is. This is an e-piano's
 
 On the Sub page, **fall** sets how fast the brightness falls from the start of the note, and 0 holds it. **floor**
 sets how much brightness is left, and **keyscale** makes high notes less bright.
+
+Turn **SELECT** once more for the Ops page, where ops 3 and 4 join the pair. **ops** picks how. At off, rayon is the
+pair alone. On stack, ops 3 and 4 move the modulator, for denser and harsher sounds: growls, metal and digital leads.
+On layer, they play as a second pair beside the first, such as a bell over a soft body. **ratio** sets op 3's pitch
+relative to the note, from 0.5:1 to 16:1, with inharmonic ratios at the top of the knob. **depth** sets how much op 4
+moves op 3, and op 3 the modulator on stack. It falls with the brightness. **feedback** feeds op 4 back into itself
+for grit. To hear the Ops page, try the presets clav, growl bass, digital, grit brass, layer pad, metal hit and bell
+layer.
 
 ### Jacquard and bellows
 
@@ -1045,7 +1054,7 @@ coming in on its channel do nothing. That way, a synth that echoes CCs back can'
 ### The synth pages
 
 EDIT's pages start with the sound and end with how it plays. On most engines, turn **SELECT** once from the Engine
-page for the Play page. Rayon and acid have their Sub page before it, and knit has Osc 2, Mod and Levels. For details, see
+page for the Play page. Rayon has its Sub and Ops pages before it, acid its Sub page, and knit has Osc 2, Mod and Levels. For details, see
 [Knit](#knit).
 
 The Play page sets poly, mono or legato, portamento, the bend range (off, 1 to 7 semitones, or an octave) and the

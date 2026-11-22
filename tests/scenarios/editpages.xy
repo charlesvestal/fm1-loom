@@ -1,6 +1,6 @@
 # EDIT's pages on each engine, in order, and the parameter on each knob: the sound first, then how it plays. Knit:
-# Engine, Osc 2 (interval, fine, wave, shape), Mod (sync, sweep, cross, sub), Levels (osc 2, sub, noise, volume), Play; rayon and acid: Engine, Sub,
-# Play, Play 2; the others: Engine, Play, Play 2. Play is the same four on every synth engine (mode, glide, bend,
+# Engine, Osc 2 (interval, fine, wave, shape), Mod (sync, sweep, cross, sub), Levels (osc 2, sub, noise, volume), Play;
+# rayon: Engine, Sub, Ops (ops 3 and 4: mode, ratio, depth, feedback), Play, Play 2; acid: Engine, Sub, Play, Play 2; the others: Engine, Play, Play 2. Play is the same four on every synth engine (mode, glide, bend,
 # octave) and Play 2 has the volume alone, on knob 4 where knit's Levels has it. A looping sample keeps its Loop page
 # second; MIDI keeps its Play (volume fourth) and Play 2 (the octave); a kit keeps Engine, Key, Sends
 wait 300
@@ -79,6 +79,21 @@ expect page Engine
 turn SELECT 1
 expect page Sub
 expect knobs x1 x2 x3 x4
+turn SELECT 1
+expect page Ops
+expect knobs rops rratio rdepth rfb
+spin K1 1
+expect par3.rops 1
+spin K2 5
+expect par3.rratio 6
+wait 400
+said ratio 3.5:1
+spin K3 60
+spin K4 40
+wait 40
+shot rayon_ops.png
+spin K1 -1
+expect par3.rops 0
 turn SELECT 1
 expect page Play
 expect knobs vmode porta bend oct

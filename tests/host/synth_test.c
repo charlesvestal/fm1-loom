@@ -1733,6 +1733,54 @@ static void knit_mod_tests(void)
     check("the LFO's wave has a fifth shape, random", tp_info_par(TP_LX2, par[0])->hi == 4 &&
           !strcmp(tp_info_par(TP_LX2, par[0])->names[4], "random"));
 }
+/* rayon's Ops page (TP_ROPS .. TP_RFB): each mode sounds, changes the pair's sound, stays finite and bounded; off is
+ * the pair as it was (dsp_hash) */
+static void ops_render(int ro, int ratio, int depth, int fb, int bright, float *buf, int *finite, float *peak)
+{
+    char_sound(EG_RAYON, CT_OFF, 0, 64, 127);
+    par[0][TP_E1] = (uint8_t)bright;
+    par[0][TP_E4] = 0;
+    par[0][TP_ROPS] = (uint8_t)ro;
+    par[0][TP_RRATIO] = (uint8_t)ratio;
+    par[0][TP_RDEPTH] = (uint8_t)depth;
+    par[0][TP_RFB] = (uint8_t)fb;
+    synth_init(S, par);
+    synth_tempo(S, 120.0f);
+    synth_note_on(S, 0, 60, 100, 0, 1);
+    *peak = 0.0f;
+    for (int b = 0; b < 60; b++) {
+        block(N, finite);
+        for (int i = 0; i < N; i++)
+            if (fabs_f(L[i]) > *peak)
+                *peak = fabs_f(L[i]);
+        if (b >= 20)
+            memcpy(buf + (b - 20) * N, L, sizeof L);
+    }
+}
+static void rayon_ops_tests(void)
+{
+    static float a[40 * N], b[40 * N];
+    int finite = 1, differ = 1;
+    float pk, worst = 0.0f;
+    ops_render(RO_OFF, 1, 0, 0, 60, a, &finite, &pk);
+    for (int ro = RO_STACK; ro < NRO; ro++) {
+        ops_render(ro, 6, 127, 127, 60, b, &finite, &pk);
+        worst = pk > worst ? pk : worst;
+        differ &= memcmp(a, b, sizeof a) != 0;
+    }
+    printf("    rayon's ops 3 and 4, the loudest peak (each mode at full): %.2f\n", (double)worst);
+    check("rayon's ops 3 and 4: stack and layer each change the pair's sound, finite, no peak past 2",
+          finite && differ && worst < 2.0f);
+    {
+        char num[12], unit[6];
+        tp_text(TP_RRATIO, 6, EG_RAYON, num, unit);
+        check("rayon's Ops page: names, ranges, the ratio shown as 3.5:1", !strcmp(num, "3.5:1") &&
+              tp_info(TP_ROPS, EG_RAYON)->hi == NRO - 1 && !strcmp(tp_info(TP_ROPS, EG_RAYON)->names[RO_LAYER], "layer") &&
+              tp_info(TP_RRATIO, EG_RAYON)->hi == RO_NRATIO - 1);
+        tp_text(TP_RRATIO, 18, EG_RAYON, num, unit);
+        check("rayon's Ops page: an inharmonic ratio with two decimals (1.41:1)", !strcmp(num, "1.41:1"));
+    }
+}
 static void kit_char_tests(void)
 {
     static float l[4096], r[4096], l0[4096];
@@ -2048,8 +2096,8 @@ int main(void)
             preset_sound(p, &PRESETS[k]);                /* (and knit's Osc 2 page) */
             for (q = 0; q < NTP; q++) {
                 const tp_info_t *i;
-                if (q >= NTP_SOUND && q != TP_O2FINE && q != TP_O2WAVE && q != TP_O2SHAPE && (q < TP_KSYNC || q > TP_KSUB))
-                    continue;                            /* (past par[]: the Osc 2 and Mod pages' only) */
+                if (q >= NTP_SOUND && q != TP_O2FINE && q != TP_O2WAVE && q != TP_O2SHAPE && (q < TP_KSYNC || q > TP_RFB))
+                    continue;                            /* (past par[]: the Osc 2, Mod and Ops pages' only) */
                 i = tp_info_par(q, p);
                 if ((i->hi > i->lo || i->kind == PK_NAMES) && (p[q] < i->lo || p[q] > i->hi)) {
                     printf("    preset %s: parameter %d = %d outside %d..%d\n", PRESETS[k].name, q, p[q], i->lo, i->hi);
@@ -2774,6 +2822,7 @@ int main(void)
     knit_balance_tests();
     knit_osc2_tests();
     knit_mod_tests();
+    rayon_ops_tests();
     kit_char_tests();
     sample_tests();
     slice_tests();

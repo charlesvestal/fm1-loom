@@ -1,0 +1,21 @@
+# a format 23 project, from before rayon's Ops page (format 24: TP_ROPS .. TP_RFB after TP_KSUB), and its presets
+# (format 13: a user preset without the Ops page): saved by that build, for the migration's test
+# (tests/scenarios/migrate.xy). Track 3 knit with the Mod page set (sync, sweep 24, cross 40, the low square), saved
+# as user preset U1; track 4 rayon (its fall 30).
+# Run by a format 23 build (b177061): its loom_host tests/fixtures/make_v23.xy
+wait 300
+bpm 105
+param 3 engine knit
+param 3 x1 71
+param 3 x2 90
+param 3 ksync 1
+param 3 ksweep 24
+param 3 kcross 40
+param 3 ksub 2
+wait 40
+usersave 3 1
+param 4 engine 1
+param 4 x1 30
+wait 40
+projsave 1 v23_test
+storesave tests/fixtures/store_v23.bin

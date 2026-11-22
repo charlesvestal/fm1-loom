@@ -62,6 +62,7 @@ typedef char raw_fits[(RAW_LEN < 0x100000u) ? 1 : -1];   /* (lz.c packs up to 16
 #define NTP18 ((uint32_t)TP_RUP)                          /* formats 16..18's: up to knit's osc 2 fine */
 #define NTP21 ((uint32_t)TP_O2WAVE)                       /* formats 19..21's: up to the random player's octaves up */
 #define NTP22 ((uint32_t)TP_KSYNC)                        /* format 22's: up to knit's osc 2 shape */
+#define NTP23 ((uint32_t)TP_ROPS)                         /* format 23's: up to knit's Mod page */
 /* the random player's one octave knob before 19 (TP_P4, 0..24: PR #13's path about its centre) as down * 4 + up */
 /* before 21: the arp's speeds without the dotted ones (1/4 1/4T 1/8 1/8T 1/16 1/16T 1/32 1/32T 1/64: old_arp, to
  * synth.h's order), the delay's times 1/32 1/32D 1/16 1/16D 1/8 1/8D 1/4 1/2 (the knob in eighths; now fx.h's, in tenths: 1/2,
@@ -71,10 +72,11 @@ static uint8_t old_arp(uint8_t v) { return v == LOCK_NONE ? v : v > 8u ? 10u : (
 static const uint8_t OLD_OCT[25] = {15, 11, 7, 14, 10, 6, 13, 9, 5, 12, 8, 4, 0, 1, 2, 3, 5, 6, 7, 9, 10, 11, 13, 14, 15};
 typedef char settings_head_fits[(SET_HDR + 4u + 64u <= PLAT_STORE_MAX && SET_OLD == 3804u) ? 1 : -1];   /* (format 14's size) */
 typedef char trk_layout[(offsetof(trk_t, name) == NTP && sizeof(trk_t) == NTP + NAME_LEN + 4u) ? 1 : -1];
-typedef char preset_packed[(sizeof(user_preset_t) == NAME_LEN + 8u + NTP_SOUND) ? 1 : -1];   /* (no padding) */
+typedef char preset_packed[(sizeof(user_preset_t) == NAME_LEN + 12u + NTP_SOUND) ? 1 : -1];   /* (no padding) */
 #define PRESET_OLD (NAME_LEN + 1u + NTP_SOUND)                    /* formats 6..8: a user preset without its fine */
 #define PRESET_V11 (NAME_LEN + 2u + NTP_SOUND)                    /* 9..11: without osc 2's wave and shape */
 #define PRESET_V12 (NAME_LEN + 4u + NTP_SOUND)                    /* 12: without knit's Mod page */
+#define PRESET_V13 (NAME_LEN + 8u + NTP_SOUND)                    /* 13: without rayon's Ops page */
 #define PRESETS_V7 (4u + NUSER_PRESETS * PRESET_OLD)              /* 6, 7: the user presets alone */
 #define OLD_KITS 4u                                               /* formats 8..10: four user kits */
 #define PRESETS_V8 (PRESETS_V7 + OLD_KITS * KIT_LEN)              /* 8: the user kits after them */
@@ -83,10 +85,13 @@ typedef char preset_packed[(sizeof(user_preset_t) == NAME_LEN + 8u + NTP_SOUND) 
 #define PRESETS_V11 (PRESETS_KITS11 + NUSER_KITS * KIT_LEN)      /* 11: eight */
 #define PRESETS_KITS12 (4u + NUSER_PRESETS * PRESET_V12)          /* 12: where the kits start */
 #define PRESETS_V12 (PRESETS_KITS12 + NUSER_KITS * KIT_LEN)
-#define PRESETS_KITS (4u + (uint32_t)sizeof user_presets)         /* 13: where the kits start */
+#define PRESETS_KITS13 (4u + NUSER_PRESETS * PRESET_V13)          /* 13: where the kits start */
+#define PRESETS_V13 (PRESETS_KITS13 + NUSER_KITS * KIT_LEN)
+#define PRESETS_KITS (4u + (uint32_t)sizeof user_presets)         /* 14: where the kits start */
 #define PRESETS_LEN (PRESETS_KITS + NUSER_KITS * KIT_LEN)
 typedef char presets_fit[(PRESETS_LEN <= PLAT_STORE_MAX && PRESETS_V7 == 836u) ? 1 : -1];
-#define PRESETS_FORMAT 13u               /* 13: knit's Mod page (user_preset_t ksync, ksweep, kcross, ksub);
+#define PRESETS_FORMAT 14u               /* 14: rayon's Ops page (user_preset_t rops, rratio, rdepth, rfb);
+                                          * 13: knit's Mod page (user_preset_t ksync, ksweep, kcross, ksub);
                                           * 12: knit's osc 2 wave and shape (user_preset_t o2wave, o2shape);
                                           * 11: eight user kits (10 and 9 held four, loaded as K1..K4);
                                           * 10: as 9, its kits' keys on the new models (11..20: keys_fix leaves them);
@@ -744,11 +749,12 @@ static int settings_unpack(int n)
             return -1;
         for (i = 0; i < SET_HDR; i++)
             ((uint8_t *)&proj)[i] = io_buf[i];
-        uint32_t ntp = fmt >= 23u ? (uint32_t)NTP : fmt >= 22u ? NTP22 : fmt >= 19u ? NTP21 : fmt >= 16u ? NTP18 : NTP15;
+        uint32_t ntp = fmt >= 24u ? (uint32_t)NTP : fmt >= 23u ? NTP23 : fmt >= 22u ? NTP22 : fmt >= 19u ? NTP21
+                     : fmt >= 16u ? NTP18 : NTP15;
         uint32_t tl = ntp + NAME_LEN + 4u;
-        if (fmt >= 23u)
+        if (fmt >= 24u)
             return lz_decompress(&src, (uint8_t *)proj.trk, (uint32_t)sizeof proj.trk) ? -1 : 0;
-        if (lz_decompress(&src, (uint8_t *)proj.trk, NALLTRK * tl))   /* formats 15..22: their tracks shorter, */
+        if (lz_decompress(&src, (uint8_t *)proj.trk, NALLTRK * tl))   /* formats 15..23: their tracks shorter, */
             return -1;
         for (int t = NALLTRK - 1; t >= 0; t--) {  /* spread from the last (each moves up: copied from its end) */
             const uint8_t *o = (const uint8_t *)proj.trk + (uint32_t)t * tl;
@@ -760,6 +766,11 @@ static int settings_unpack(int n)
                 d[i] = o[i];
             if (ntp <= (uint32_t)TP_O2FINE)
                 par[TP_O2FINE] = 64;
+            par[TP_ROPS] = RO_OFF;               /* (no Ops page: rayon as it was) */
+            par[TP_RRATIO] = 1;
+            par[TP_RDEPTH] = par[TP_RFB] = 0;
+            if (ntp > (uint32_t)TP_KSUB)
+                continue;
             par[TP_KSYNC] = par[TP_KSWEEP] = par[TP_KCROSS] = par[TP_KSUB] = 0;   /* (no Mod page: as it was) */
             if (ntp > (uint32_t)TP_O2SHAPE)
                 continue;
@@ -794,6 +805,9 @@ static int settings_unpack(int n)
         tr->par[TP_O2WAVE] = O2W_SAME;
         tr->par[TP_O2SHAPE] = 0;
         tr->par[TP_KSYNC] = tr->par[TP_KSWEEP] = tr->par[TP_KCROSS] = tr->par[TP_KSUB] = 0;
+        tr->par[TP_ROPS] = RO_OFF;
+        tr->par[TP_RRATIO] = 1;
+        tr->par[TP_RDEPTH] = tr->par[TP_RFB] = 0;
     }
     return 0;
 }
@@ -1030,20 +1044,24 @@ int presets_load(void)
         user_presets[k].name[0] = 0;
     for (k = 0; k < NUSER_KITS; k++)
         user_kit_name[k][0] = 0;
-    if (!(fmt == PRESETS_FORMAT && n == (int)PRESETS_LEN) && !(fmt == 12u && n == (int)PRESETS_V12) &&
+    if (!(fmt == PRESETS_FORMAT && n == (int)PRESETS_LEN) && !(fmt == 13u && n == (int)PRESETS_V13) &&
+        !(fmt == 12u && n == (int)PRESETS_V12) &&
         !(fmt == 11u && n == (int)PRESETS_V11) &&
         !((fmt == 10u || fmt == 9u) && n == (int)PRESETS_V10) && !(fmt == 8u && n == (int)PRESETS_V8) &&
         !((fmt == 6u || fmt == 7u) && n == (int)PRESETS_V7))
         return -1;
     {
-        uint32_t len = fmt >= 13u ? (uint32_t)sizeof(user_preset_t) : fmt >= 12u ? PRESET_V12
-                     : fmt >= 9u ? PRESET_V11 : PRESET_OLD;
+        uint32_t len = fmt >= 14u ? (uint32_t)sizeof(user_preset_t) : fmt >= 13u ? PRESET_V13
+                     : fmt >= 12u ? PRESET_V12 : fmt >= 9u ? PRESET_V11 : PRESET_OLD;
         for (k = 0; k < NUSER_PRESETS; k++) {    /* (before 13 without the Mod page, before 12 without osc 2's wave,
                                                   * before 9 its fine too) */
             user_presets[k].o2fine = 64;
             user_presets[k].o2wave = O2W_SAME;
             user_presets[k].o2shape = 0;
             user_presets[k].ksync = user_presets[k].ksweep = user_presets[k].kcross = user_presets[k].ksub = 0;
+            user_presets[k].rops = RO_OFF;
+            user_presets[k].rratio = 1;
+            user_presets[k].rdepth = user_presets[k].rfb = 0;
             for (i = 0; i < len; i++)
                 ((uint8_t *)&user_presets[k])[i] = io_buf[4u + (uint32_t)k * len + i];
         }
@@ -1056,6 +1074,9 @@ int presets_load(void)
         if (user_presets[k].ksync > 1u || user_presets[k].ksweep > KSWEEP_MAX || user_presets[k].kcross > 127u ||
             user_presets[k].ksub >= NKS)
             user_presets[k].ksync = user_presets[k].ksweep = user_presets[k].kcross = user_presets[k].ksub = 0;
+        if (user_presets[k].rops >= NRO || user_presets[k].rratio >= RO_NRATIO || user_presets[k].rdepth > 127u ||
+            user_presets[k].rfb > 127u)
+            user_presets[k].rops = RO_OFF, user_presets[k].rratio = 1, user_presets[k].rdepth = user_presets[k].rfb = 0;
     }
     if (fmt < 7u)                                /* (before 7, off (FT_DYNAMIC) sat at 4 and bp12 at 5: swap) */
         for (k = 0; k < NUSER_PRESETS; k++) {
@@ -1070,8 +1091,8 @@ int presets_load(void)
     }
     if (fmt >= 8u)
         for (k = 0; k < (fmt >= 11u ? NUSER_KITS : (int)OLD_KITS); k++) {
-            const uint8_t *img = io_buf + (fmt == 8u ? PRESETS_V7 : fmt >= 13u ? PRESETS_KITS : fmt == 12u ? PRESETS_KITS12
-                                          : PRESETS_KITS11) +
+            const uint8_t *img = io_buf + (fmt == 8u ? PRESETS_V7 : fmt >= 14u ? PRESETS_KITS : fmt == 13u ? PRESETS_KITS13
+                                          : fmt == 12u ? PRESETS_KITS12 : PRESETS_KITS11) +
                                  (uint32_t)k * KIT_LEN;
             for (i = 0; i < NAME_LEN; i++)
                 user_kit_name[k][i] = (char)img[i];
@@ -1099,6 +1120,8 @@ static void presets_image(void)
         keep = NUSER_KITS * KIT_LEN, from = PRESETS_KITS11;
     else if (fmt == 12u && n == (int)PRESETS_V12)
         keep = NUSER_KITS * KIT_LEN, from = PRESETS_KITS12;
+    else if (fmt == 13u && n == (int)PRESETS_V13)
+        keep = NUSER_KITS * KIT_LEN, from = PRESETS_KITS13;
     else if (fmt == PRESETS_FORMAT && n == (int)PRESETS_LEN)
         keep = NUSER_KITS * KIT_LEN;
     for (i = keep; i-- > 0;)                    /* (up: copied from the end) */
@@ -1126,6 +1149,8 @@ int kit_load(int slot, uint8_t *img)
     fmt = get32(io_buf);
     if (fmt == PRESETS_FORMAT && n == (int)PRESETS_LEN)
         at = PRESETS_KITS;
+    else if (fmt == 13u && n == (int)PRESETS_V13)
+        at = PRESETS_KITS13;
     else if (fmt == 12u && n == (int)PRESETS_V12)
         at = PRESETS_KITS12;
     else if (fmt == 11u && n == (int)PRESETS_V11)

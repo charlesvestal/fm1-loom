@@ -212,3 +212,42 @@ expect par3.ksync 1
 expect par3.ksweep 30
 expect par3.kcross 20
 expect par3.ksub 3
+# a format 23 project and its presets (format 13), from before rayon's Ops page (tests/fixtures/make_v23.xy): the
+# tracks four bytes longer (TP_ROPS .. TP_RFB: off, rayon as it was), knit's Mod page kept; the user preset the same
+storeload tests/fixtures/store_v23.bin
+reboot
+wait 400
+expect tempo 105
+expect par3.engine 0
+expect par3.x1 71
+expect par3.ksync 1
+expect par3.ksweep 24
+expect par3.kcross 40
+expect par3.ksub 2
+expect par4.engine 1
+expect par4.x1 30
+expect par4.rops 0
+expect par4.rratio 1
+expect par4.rdepth 0
+expect par4.rfb 0
+preset 3 reese
+expect par3.ksync 0
+preset 3 U1
+expect par3.ksync 1
+expect par3.ksweep 24
+expect par3.ksub 2
+# a user preset keeps rayon's Ops page now (presets format 14): saved, restarted, loaded
+param 4 rops 2
+param 4 rratio 6
+param 4 rdepth 70
+param 4 rfb 30
+usersave 4 3
+preset 4 rayon
+expect par4.rops 0
+reboot
+wait 400
+preset 4 U3
+expect par4.rops 2
+expect par4.rratio 6
+expect par4.rdepth 70
+expect par4.rfb 30

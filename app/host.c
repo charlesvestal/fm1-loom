@@ -836,6 +836,8 @@ static int param_of(const char *s)                 /* a TP_* name, dK.NAME (drum
         return s[2] == 'w' || s[2] == 'W' ? TP_O2WAVE : TP_O2SHAPE;
     if (ieq(s, "ksync") || ieq(s, "ksweep") || ieq(s, "kcross") || ieq(s, "ksub"))   /* knit's Mod page */
         return ieq(s, "ksync") ? TP_KSYNC : ieq(s, "ksweep") ? TP_KSWEEP : ieq(s, "kcross") ? TP_KCROSS : TP_KSUB;
+    if (ieq(s, "rops") || ieq(s, "rratio") || ieq(s, "rdepth") || ieq(s, "rfb"))   /* rayon's Ops page */
+        return ieq(s, "rops") ? TP_ROPS : ieq(s, "rratio") ? TP_RRATIO : ieq(s, "rdepth") ? TP_RDEPTH : TP_RFB;
     host_die("no parameter", s);
     return 0;
 }

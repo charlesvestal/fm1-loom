@@ -101,5 +101,5 @@ expect page Engine
 expect par3.o2wave 0
 turn SELECT 1
 expect page Sub
-turn SELECT 3
+turn SELECT 4
 expect page Engine

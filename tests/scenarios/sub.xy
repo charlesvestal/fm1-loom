@@ -86,8 +86,8 @@ knob 3 engine rayon
 turn SELECT 1
 expect page Sub
 wait 400
-said Sub, page 2 of 4
+said Sub, page 2 of 5
 spin K1 30
 expect par3.x1 30
-turn SELECT 1
+turn SELECT 2
 expect page Play

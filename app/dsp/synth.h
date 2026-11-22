@@ -113,6 +113,10 @@ enum {
                                                      * filter envelope on osc 2's pitch (0..48 semitones at its top);
                                                      * osc 2 on osc 1's frequency (FM, 0..127); the sub's type (KS_*).
                                                      * 0 each: as before. Last, so format 22's indices stay (format 23) */
+    TP_ROPS, TP_RRATIO, TP_RDEPTH, TP_RFB,          /* rayon's Ops page: how ops 3 and 4 join its pair (RO_*), op 3's
+                                                     * ratio (RO_NRATIO steps), their depth, op 4's feedback.
+                                                     * 0 (off): rayon as before. Last, so format 23's indices stay
+                                                     * (format 24) */
     NTP
 };
 _Static_assert(NTP <= 511, "a parameter's index: nine bits in the engine's queue (engine.c cq_put); a lane's is 16");
@@ -123,6 +127,11 @@ enum { O2W_SAME, O2W_SAW, O2W_SQUARE, O2W_PULSE, O2W_TRI, O2W_SINE, NO2W };
  * pulse two octaves down (the SH-101's three) */
 enum { KS_SINE, KS_SQUARE, KS_LOW_SQUARE, KS_LOW_PULSE, NKS };
 #define KSWEEP_MAX 48                                /* TP_KSWEEP: semitones */
+/* rayon's ops 3 and 4 (TP_ROPS): off (its pair alone, as before); stack (4 -> 3 -> its modulator: growls, metal, digital
+ * leads); layer (4 -> 3, a second pair added: a bell over a body). (No organ: bellows is the organ) */
+enum { RO_OFF, RO_STACK, RO_LAYER, NRO };
+#define RO_NRATIO 24
+extern const float RO_RATIO[RO_NRATIO];            /* op 3's ratios (op 4 at op 3's frequency) */
 static inline int o2w_shaped(int w) { return w >= O2W_SAW && w <= O2W_PULSE; }   /* the shape knob counts */
 /* the random player's octave range: how many octaves below (TP_P4, "oct down") and above (TP_RUP, "oct up") the
  * step's own a note may land, each 0..3 (0 and 0: the step's own octave only) */
@@ -282,12 +291,13 @@ typedef struct {
     uint8_t role;                                 /* RL_* */
     uint8_t o2fine, o2wave, o2shape;              /* knit's Osc 2 page (TP_O2FINE, TP_O2WAVE, TP_O2SHAPE: past par[]) */
     uint8_t ksync, ksweep, kcross, ksub;          /* and its Mod page (TP_KSYNC .. TP_KSUB) */
+    uint8_t rops, rratio, rdepth, rfb;            /* rayon's Ops page (TP_ROPS .. TP_RFB) */
 } preset_t;
 extern const preset_t PRESETS[];
 extern const int NPRESETS;
 int preset_first(int engine);                       /* the first preset of an engine, -1 */
 void preset_sound(uint8_t *par, const preset_t *pr);   /* a preset's sound into a track's par[NTP]: par[0..NTP_SOUND)
-                                                     * and knit's Osc 2 and Mod pages */
+                                                     * and knit's Osc 2 and Mod pages, rayon's Ops page */
 
 /* --------------------------------------------------------------- voices --- */
 /* performance state per track, written by the sequencer / punch-in FX, read by the voices each chunk */
