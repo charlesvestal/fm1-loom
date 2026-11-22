@@ -71,6 +71,12 @@ static void say_no(const char *a, const char *b)
     ui.msg_no = 1;
     ui.msg_until = plat_ms() + 2000u;
 }
+static void say_not_saved(void)                 /* "flash error 7": the number says why (project.c store_err) */
+{
+    char t[24];
+    num_s((uint32_t)project_store_err(), s_cat(t, "flash error "));
+    say_no("NOT SAVED", t);
+}
 void ui_say(const char *a, const char *b) { say(a, b); }
 const char *ui_page_name(void) { return page_name_of(ui.page, sel_trk()); }   /* (the header's: a kit's Key, Sends ...) */
 
@@ -3162,7 +3168,7 @@ static void save_user_preset(int slot)
     if (!user_presets[slot].name[0])
         s_cat(user_presets[slot].name, EG_NAME[proj.trk[trk].par[TP_ENGINE] % NENGINE]);
     if (presets_save() != 0) {
-        say_no("NOT SAVED", "flash error");
+        say_not_saved();
         return;
     }
     num_s((uint32_t)slot + 1u, s_cat(t, "U"));
@@ -3253,7 +3259,7 @@ static void do_save_kit(void)
         num_s((uint32_t)slot + 1u, s_cat(nm, "kit "));
     kit_pack(proj.trk[trk].par, nm, img);
     if (kit_save(slot, img) != 0) {
-        say_no("NOT SAVED", "flash error");
+        say_not_saved();
         return;
     }
     num_s((uint32_t)slot + 1u, s_cat(t, "K"));
@@ -3336,7 +3342,7 @@ static int save_project(int slot)
     }
     rc = project_save(slot);
     if (rc != 0) {
-        say_no("NOT SAVED", "flash error");
+        say_not_saved();
         return rc;
     }
     proj_slot = (uint8_t)slot;
@@ -4623,7 +4629,7 @@ static void sp_print(const char *kind, const char *t) { printf("%s\t%s\n", kind,
 static void speak_dump(void)
 {
     static const char *const MSG[][2] = {
-        {"SAVED", 0}, {"NOT SAVED", "flash error"}, {"UNDO", "T1 P1"}, {"REDO", "T1 P1"}, {"NOTHING TO UNDO", 0},
+        {"SAVED", 0}, {"NOT SAVED", "flash error 7"}, {"UNDO", "T1 P1"}, {"REDO", "T1 P1"}, {"NOTHING TO UNDO", 0},
         {"NOTHING TO REDO", 0}, {"COUNT-IN", "then recording"}, {"RECORDING", "latched"}, {"RECORDING", "on the first note"}, {"SOLO", "T1"}, {"PLAY FROM BAR", "2"},
         {"SOLO OFF", 0}, {"RECORDING", "play to start"},
         {"RECORD OFF", 0}, {"STEP RECORD", "play keys to write"},
