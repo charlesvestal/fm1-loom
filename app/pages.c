@@ -4092,24 +4092,37 @@ static void pic_organ(int32_t x0, int32_t y0, int32_t w, int32_t h, const uint8_
         text_c(rx, y0 + bh + 4, &LFONT_XS, "rotor", K_DIM);
     }
 }
-/* knit: the wave (saw .. square .. pulse) a line a voice, the voices drifting apart as detune opens (one voice:
- * its slow drift) and fanned up and down as width opens */
-static void pic_knit(int32_t x0, int32_t y0, int32_t w, int32_t h, const uint8_t *p, uint32_t f)
+static float knit_y(float fr, const uint8_t *p, int osc2);
+/* knit (Engine and Osc 2, one picture): osc 1's wave (saw .. square .. pulse) a line a voice, the voices drifting apart
+ * as detune opens (one voice: its slow drift) and fanned up and down as width opens; osc 2 at its interval and fine
+ * tune, its own wave (when heard: its level on Levels). The page's oscillator bright and on top (o2: Osc 2's), the
+ * other faint */
+static void pic_knit(int32_t x0, int32_t y0, int32_t w, int32_t h, const uint8_t *p, uint32_t f, int o2)
 {
     static const float OFF[7] = {0.0f, 0.3f, -0.3f, 0.6f, -0.6f, 1.0f, -1.0f};
-    int n = p[TP_E3] < 1 ? 1 : p[TP_E3] > 7 ? 7 : p[TP_E3];
-    float wv = (float)p[TP_E1] / 127.0f, mix = wv < 0.5f ? wv * 2.0f : 1.0f, pw = wv < 0.5f ? 0.5f : 0.5f - (wv - 0.5f) * 0.8f;
+    int n = p[TP_E3] < 1 ? 1 : p[TP_E3] > 7 ? 7 : p[TP_E3], on = p[TP_X2] > 0;
     float det = (float)p[TP_E2] / 127.0f, amp = (float)h / 6.0f, fan = (float)p[TP_E4] / 127.0f * ((float)h / 2.0f - amp - 2.0f);
+    float ratio = fm_exp2f(((float)clampi((int)p[TP_X1] - 64, -24, 24) + (float)((int)p[TP_O2FINE] - 64) * 0.01f) * (1.0f / 12.0f));
     cv_rect(x0, y0 + h / 2, w, 1, K_LINE);
-    for (int j = n - 1; j >= 0; j--) {          /* the centre one last, on top */
-        pen_t pn = {0};
-        float o = n > 1 ? OFF[j] : 0.0f, drift = n > 1 ? o * det * (float)f / 24.0f : det * 0.1f * fm_sin_turns((float)f / 97.0f);
-        float cy = (float)(y0 + h / 2) - o * fan;
-        uint16_t col = j == 0 ? K_NOW : K_DIM;
-        for (int32_t x = 0; x <= w; x++) {
-            float ph = (float)x / (float)w * 3.0f + drift, fr = ph - fm_floorf(ph);
-            float saw = 1.0f - 2.0f * fr, pulse = fr < pw ? 1.0f : -1.0f;
-            pen_to(&pn, (float)(x0 + x), cy - (saw + (pulse - saw) * mix) * amp, col);
+    for (int k = 0; k < 2; k++) {                    /* the other oscillator first, the page's on top */
+        if ((k == 0) == (o2 != 0)) {                 /* osc 1: its voices, the centre one last */
+            for (int j = n - 1; j >= 0; j--) {
+                pen_t pn = {0};
+                float o = n > 1 ? OFF[j] : 0.0f, drift = n > 1 ? o * det * (float)f / 24.0f : det * 0.1f * fm_sin_turns((float)f / 97.0f);
+                float cy = (float)(y0 + h / 2) - o * fan;
+                uint16_t col = o2 ? K_FAINT : j == 0 ? K_NOW : K_DIM;
+                for (int32_t x = 0; x <= w; x++) {
+                    float ph = (float)x / (float)w * 3.0f + drift;
+                    pen_to(&pn, (float)(x0 + x), cy - knit_y(ph - fm_floorf(ph), p, 0) * amp, col);
+                }
+            }
+        } else if (on || o2) {                       /* osc 2 (off: on its own page only, dim) */
+            pen_t pn = {0};
+            for (int32_t x = 0; x <= w; x++) {
+                float ph = (float)x / (float)w * 3.0f * ratio;
+                pen_to(&pn, (float)(x0 + x), (float)(y0 + h / 2) - knit_y(ph - fm_floorf(ph), p, 1) * amp,
+                       !o2 ? K_FAINT : on ? K_NOW : K_DIM);
+            }
         }
     }
 }
@@ -4553,10 +4566,31 @@ static void draw_engine(void)
             h = hash_u(h, p[TP_DRUM(k, DP_MODEL)] | pad_a(k) << 8);
         }
     }
+    if (eg == EG_KNIT)                               /* (osc 2 and which page: Engine and Osc 2 share the picture) */
+        h = hash_u(hash_u(h, (uint32_t)p[TP_X1] | (uint32_t)p[TP_X2] << 8 | (uint32_t)p[TP_O2FINE] << 16 |
+                                 (uint32_t)p[TP_O2WAVE] << 24), (uint32_t)p[TP_O2SHAPE] | (uint32_t)(ui.page == P_OSC2) << 8);
     h = hash_s(h, proj.trk[trk].name);
     if (!begin_main(h))
         return;
     cv_text(10, 2, &FONT_B, EG_NAME[eg], K_TEXT);
+    if (eg == EG_KNIT) {                             /* the page's oscillator: osc 1, or osc 2's tuning */
+        char t[24], *e = t;
+        int st = clampi((int)p[TP_X1] - 64, -24, 24), ct = (int)p[TP_O2FINE] - 64;
+        if (ui.page != P_OSC2)
+            s_cat(t, "osc 1");
+        else if (!p[TP_X2])
+            s_cat(t, "osc 2 is off");
+        else {
+            e = s_cat(t, "osc 2 ");
+            if (st)
+                e = s_cat(num_i(st, s_cat(e, st > 0 ? "+" : "")), " st");
+            else
+                e = s_cat(e, "in unison");
+            if (ct)
+                s_cat(num_i(ct, s_cat(e, ct > 0 ? ", +" : ", ")), " ct");
+        }
+        cv_text(50, 6, &FONT_S, t, K_DIM);
+    }
     if (eg == EG_MIDI) {                             /* where its notes and CCs go */
         char ch[16];
         num_s((uint32_t)trk + 1u, s_cat(ch, "channel "));
@@ -4578,7 +4612,7 @@ static void draw_engine(void)
     case EG_SLICE: pic_slice(20, 24, 200, PIC_H, p, trk); break;
     case EG_CANE: pic_cane(20, 24, 200, PIC_H, p, pic_f); break;
     case EG_VOILE: pic_voile(20, 24, 200, PIC_H, p, pic_f); break;
-    case EG_KNIT: pic_knit(20, 24, 200, PIC_H, p, pic_f); break;
+    case EG_KNIT: pic_knit(20, 24, 200, PIC_H, p, pic_f, ui.page == P_OSC2); break;
     case EG_MIDI: pic_midi(24, 30, p, ui.page == P_SUB, eng_midi_hit[trk]); break;
     case EG_ACID: pic_acid(20, 24, 200, PIC_H, p); break;
     default:                                         /* the kit (large type: the pads fill the band, 4 px in) */
@@ -5015,41 +5049,6 @@ static void draw_knit_x(void)
     else
         s_cat(t, "osc 2 in unison");
     text_r(230, LY(100, 64), F_CAP, t, K_DIM);
-    cv_blit(0, MAIN_Y);
-}
-/* knit's Osc 2 page: osc 2's wave at its interval and fine tune, bright over three cycles of osc 1's (faint); under
- * them its tuning, or where its level is when it is off */
-static void draw_knit_o2(void)
-{
-    int trk = sel_trk();
-    const uint8_t *p = par_now(trk);
-    int st = clampi((int)p[TP_X1] - 64, -24, 24), ct = (int)p[TP_O2FINE] - 64, on = p[TP_X2] > 0;
-    float ratio = fm_exp2f(((float)st + (float)ct * 0.01f) * (1.0f / 12.0f)), cy = (float)MY(48), amp = (float)MY(32);
-    uint32_t h = hash_u(hash_u(2166136261u, 0xA6u), (uint32_t)trk | (uint32_t)p[TP_X1] << 4 | (uint32_t)p[TP_O2FINE] << 12 |
-                                                    (uint32_t)p[TP_O2WAVE] << 20 | (uint32_t)on << 24);
-    pen_t a = {0}, b = {0};
-    char t[32], *e = t;
-    h = hash_u(h, (uint32_t)p[TP_O2SHAPE] | (uint32_t)p[TP_E1] << 8);
-    if (!begin_main(h))
-        return;
-    cv_rect(12, (int32_t)cy, 216, 1, K_LINE);
-    for (int32_t x = 0; x <= 216; x++) {
-        float ph = (float)x / 216.0f * 3.0f, f2 = ph * ratio;
-        pen_to(&a, (float)(12 + x), cy - knit_y(ph - fm_floorf(ph), p, 0) * amp, K_FAINT);
-        pen_to(&b, (float)(12 + x), cy - knit_y(f2 - fm_floorf(f2), p, 1) * amp, on ? K_NOW : K_DIM);
-    }
-    if (!on)
-        s_cat(t, "osc 2 is off: turn it up on Levels");
-    else {
-        e = s_cat(t, "osc 2 ");
-        if (st)
-            e = s_cat(num_i(st, s_cat(e, st > 0 ? "+" : "")), " st");
-        else
-            e = s_cat(e, "in unison");
-        if (ct)
-            s_cat(num_i(ct, s_cat(e, ct > 0 ? ", +" : ", ")), " ct");
-    }
-    text_r(230, LY(100, 64), F_CAP, t, on ? K_DIM : K_FAINT);
     cv_blit(0, MAIN_Y);
 }
 /* acid's Sub page: its drive (TP_X1 amount, TP_X2 off / soft / rat; bass303.c drive_block) on two cycles of a sine,
@@ -6260,7 +6259,7 @@ static void draw_page(void)
             draw_weave_play();
         else if (is_aux(trk))
             draw_fxtrack(trk);
-        else if (ui.page == P_ENGINE || (is_drum(trk) && (ui.page == P_PLAY || ui.page == P_SUB)))
+        else if (ui.page == P_ENGINE || ui.page == P_OSC2 || (is_drum(trk) && (ui.page == P_PLAY || ui.page == P_SUB)))
             draw_engine();
         else if (ui.page == P_PLAY)
             draw_play();
@@ -6272,8 +6271,6 @@ static void draw_page(void)
             draw_volume();
         else if (ui.page == P_SUB)
             draw_sub();
-        else if (ui.page == P_OSC2)
-            draw_knit_o2();
         else if (ui.page == P_ENV && is_drum(trk))
             draw_key_env();
         else if (ui.page == P_ENV || ui.page == P_ENV2)
