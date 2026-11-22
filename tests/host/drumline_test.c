@@ -969,7 +969,9 @@ int main(void)
                         par[TP_DRUM(0, DP_K2)] = (uint8_t)pt;
                         nan_seen = 0;
                         h = one_hit(0, 127, 0, 0, 0, 0);
-                        if (nan_seen || h.peak > 1.0f || h.peak < 0.01f || h.tend < 0.0f) {
+                        int long_one = smp_get(sm) && (float)smp_get(sm)->n / (float)smp_get(sm)->rate * (pt < 64 ? 4.0f : 1.0f)
+                                       > 15.0f;   /* (the bowl, 4 s, two octaves down: past the 16 s window) */
+                        if (nan_seen || h.peak > 1.0f || h.peak < 0.01f || (h.tend < 0.0f && !long_one)) {
                             printf("  sample %s reverse %d pitch %d: peak %.2f ends %.2f nan %d\n", smp_name(sm), rv, pt,
                                    (double)h.peak, (double)h.tend, nan_seen);
                             ok = 0;

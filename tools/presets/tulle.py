@@ -5,8 +5,8 @@ position moving on its own, 0 frozen). x = (size, density, pitch, width), the gr
 grains a second (2 .. 60), each grain detuned at random (up to an octave), the grains across the stereo field."""
 from lib import P, smp
 
-# its sound in a new project: a cloud of the strings, long soft grains, slowly moving through them
-P("tulle", "pad", "tulle", knobs=dict(sample=smp("strings"), position=40, spray=30, scan=12), volume=100,
+# its sound in a new project: a cloud of the singing bowl (its texture), long soft grains, slowly moving through it
+P("tulle", "pad", "tulle", knobs=dict(sample=smp("bowl"), position=40, spray=30, scan=12), volume=100,
   amp=(60, 90, 118, 90), filter=("lp24", 110, 0, 64, 64), sends=(0, 40), x=(80, 70, 0, 90),
   genres=("lofi", "synthpop"))
 # frozen piano: one moment of the piano held still, short dense grains, a little detune

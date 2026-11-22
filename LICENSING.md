@@ -114,6 +114,8 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 - The recorded instruments (`app/samples/piano.wav`, `upright.wav`, `strings.wav`, `brass.wav`, `flute.wav`,
   `orch_hit.wav`) are cut from the Versilian Studios Chamber Orchestra 2 Community Edition (VSCO 2 CE,
   github.com/sgossner/VSCO-2-CE), CC0 1.0, by `tools/prep_recordings.py`.
+- tulle's texture (`app/samples/bowl.wav`, 4 s) is cut from "Singing Bowl, long without reverb" by hollandm
+  (freesound.org/s/573805), CC0 1.0.
 - The reverb's PlayStation modes come from schwung-psxverb, and
   knit's unison from NuSaw (Copyright (c) 2026 Charles Vestal), under the MIT License:
 

@@ -37,7 +37,8 @@
 #define SMP_BLK_V2 64                     /* a version 2 bank's (still read) */
 #define SMP_WIN 32                        /* samples a cache window holds (and the next one's first) */
 #define SMP_NUSER 32                      /* the user bank's slots (user 1 is index SMP_NFACT, as before) */
-#define SMP_NFENT 12                      /* the bank's entries for the factory set (since 0.8: SMP_E_FACTORY) */
+#define SMP_NFENT 13                      /* the bank's entries for the factory set (since 0.8: SMP_E_FACTORY; 13 since 0.19:
+                                           * the texture after the breaks) */
 #define SMP_NENT (SMP_NUSER + SMP_NFENT)  /* the bank's entries: the user slots and the factory set's */
 #define SMP_NAME 12
 #define SMP_NREG 2                        /* the bank's windows, in the order it fills them */
@@ -61,6 +62,8 @@
                                            * (the installer, the samples page): its factory row plays it, and it is
                                            * no user slot */
 #define SMP_BREAK 12                      /* the factory break (tools/gen_samples.py): the slice engine's default */
+#define SMP_NBREAK 4                      /* the breaks (the pack's: rows SMP_BREAK ..) */
+#define SMP_TEXTURE 16                    /* tulle's texture (the bowl), after the breaks: the factory set's */
 #define SMP_BARS_MAX 16                   /* a user entry's bars above this: not stated */
 
 typedef struct {

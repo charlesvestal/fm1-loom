@@ -18,7 +18,7 @@ export const BANK_SIZE = REGIONS.reduce((a, r) => a + r[1], 0);
 export const BANK_HDR = 2048, BANK_MAX_DATA = BANK_SIZE - BANK_HDR, BANK_N = 32, BANK_VER = 3;
 // since 0.8 the factory set (the kits' drums, the instruments, the sweep, the vinyl) lives in the bank too: 12 entries
 // marked E_FACTORY (an entry's flags, byte 33), which its factory rows play and which are no user slots (sample.h)
-export const NFENT = 12, NENT = BANK_N + NFENT, E_FACTORY = 0x01;
+export const NFENT = 13, NENT = BANK_N + NFENT, E_FACTORY = 0x01;
 export const ENT0 = 64, ENT = 40, BANK_MAGIC = 0x504D534C, NAME_LEN = 12, BARS_MAX = 16;
 export const LOOP_ROOT = 53;                  // a loop's slice 1: F3, the lowest key
 export const HDR_USED = ENT0 + NENT * ENT;    // the header's bytes the FM-1 keeps (1824)

@@ -115,14 +115,20 @@ MADE_AFTER = [("vinyl", vinyl, 11025)]               # made here, after the inst
 # or personal projects" (LICENSING.md has the source)
 RECORDINGS = [("classic", "classic.wav", 16000, 1), ("heat", "heat.wav", 16000, 1), ("choke", "choke.wav", 16000, 2),
               ("ecstasy", "ecstasy.wav", 16000, 1)]
-BUDGET = 100 * 1024                                  # B: the image's room for the factory bank
+# after the breaks, a texture for tulle (2026-11-23: a granular engine wants a long, changing sound; the set's are short):
+# a singing bowl, "Singing Bowl, long without reverb" by hollandm, freesound.org/s/573805 (CC0 1.0), 4 s of its ring cut
+# here, at 11025 Hz, root C#5 (547 Hz). In the factory set (the installer puts it in the bank, flagged as the set's); its
+# row after the breaks, so no sample before it moves (projects name samples by number): name, file, rate, root
+AFTER_BREAKS = [("bowl", "bowl.wav", 11025, 73)]
+BUDGET = 128 * 1024                                  # B: the host's and the emulator's built-in factory bank (the FM-1's
+                                                     # rows are empty since 0.8: the bank holds them)
 SAMPLE_DIR = Path(__file__).resolve().parents[1] / "app" / "samples"
 
 
 def names():
     """the factory bank's names, in its order"""
     return ([d[0] for d in DRUMS] + [n for n, _ in SAMPLES] + [i[0] for i in INSTRUMENTS] + [m[0] for m in MADE_AFTER] +
-            [r[0] for r in RECORDINGS])
+            [r[0] for r in RECORDINGS] + [a[0] for a in AFTER_BREAKS])
 
 
 def made(name, fn, rate):
@@ -154,6 +160,15 @@ def build():
     return out
 
 
+def after_breaks():
+    """the factory set's samples after the breaks' rows (the texture), as build()'s rows"""
+    out = []
+    for name, f, rate, root in AFTER_BREAKS:
+        sr, x, _ = sio.read_any_wav(SAMPLE_DIR / f)
+        out.append((name, sio.to_int16(sio.emphasis(sio.resample(x, sr, rate) if sr != rate else x)), root, None, 0, rate))
+    return out
+
+
 def breaks():
     """the break pack's samples, as build()'s rows (for the emulator's build, which keeps them built in)"""
     out = []
@@ -170,7 +185,7 @@ def break_specs():
 
 def factory_set():
     """the factory set (the image's samples until 0.8) as sampleio.user_bank's samples, marked as the factory set's"""
-    return [(name, s, root, loop, bars, rate, sio.E_FACTORY) for name, s, root, loop, bars, rate in build()]
+    return [(name, s, root, loop, bars, rate, sio.E_FACTORY) for name, s, root, loop, bars, rate in build() + after_breaks()]
 
 
 def main():
@@ -185,16 +200,22 @@ def main():
         return
     if len(sys.argv) < 2:
         sys.exit(__doc__)
-    smp = build()
+    smp, extra = build(), after_breaks()
     adp_all, ck_all, rows = bytearray(), [], []
-    for name, s, root, loop, bars, rate in smp:
+
+    def row(name, s, root, loop, bars, rate):
+        nonlocal adp_all
         adp, ck = sio.ima_encode(s)
         ls, le = loop if loop else (0, 0)
         rows.append((name, len(adp_all), len(ck_all), len(s), ls, le, root, bars, rate))
         adp_all += adp
-        ck_all += ck
+        ck_all.extend(ck)
+    for r in smp:
+        row(*r)
     for name, _, rate, bars in RECORDINGS:          # the breaks' places: empty (n 0), found in the user bank by name
         rows.append((name, 0, 0, 0, 0, 0, BREAK_ROOT, bars, rate))
+    for r in extra:                                 # the texture after them (the factory set's, built in as its rows)
+        row(*r)
     total = len(adp_all) + 4 * len(ck_all)
     if total > BUDGET:
         sys.exit(f"gen_samples: {total} B, over the {BUDGET // 1024} KB the factory bank may take (the image's room)")
@@ -207,6 +228,9 @@ def main():
              "of it on the FM-1 */",
              f"#define SMP_FACT_BREAK {[r[0] for r in rows].index(RECORDINGS[0][0])}   /* the first break: the slice "
              "engine's sample */",
+             f"#define SMP_FACT_NBREAK {len(RECORDINGS)}",
+             f"#define SMP_FACT_NEXTRA {len(extra)}   /* the factory set's rows after the breaks (the texture) */",
+             f"#define SMP_FACT_TEXTURE {len(smp) + len(RECORDINGS)}   /* tulle's texture (the bowl) */",
              "#if SMP_FACT_BUILTIN                /* (dsp/sample.c: the host and the emulator) */",
              f"static const uint8_t SMP_FACT_ADP[{len(adp_all)}] = {{"]
     for i in range(0, len(adp_all), 24):

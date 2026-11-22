@@ -12,7 +12,9 @@
 #endif
 #include "samples.h"                      /* build/gen: tools/gen_samples.py */
 _Static_assert(SMP_FACT_BREAK == SMP_BREAK, "the break's place in the factory bank (sample.h SMP_BREAK)");
-_Static_assert(SMP_FACT_NSET == SMP_NFENT && SMP_FACT_NSET == SMP_BREAK, "the factory set: the rows before the breaks, its entries in the bank (sample.h SMP_NFENT)");
+_Static_assert(SMP_FACT_NBREAK == SMP_NBREAK && SMP_FACT_TEXTURE == SMP_TEXTURE, "the breaks and the texture (sample.h)");
+_Static_assert(SMP_FACT_NSET + SMP_FACT_NEXTRA == SMP_NFENT && SMP_FACT_NSET == SMP_BREAK,
+               "the factory set: the rows before the breaks and after them, its entries in the bank (sample.h SMP_NFENT)");
 
 static const int16_t IMA_STEP[89] = {
     7, 8, 9, 10, 11, 12, 13, 14, 16, 17, 19, 21, 23, 25, 28, 31, 34, 37, 41, 45, 50, 55, 60, 66, 73, 80, 88, 97,
@@ -63,7 +65,8 @@ static void fact_init(void)
         s->name[k] = 0;
         moved[i] = -1;
 #ifdef PLAT_WEB
-        if (!s->n && i >= SMP_FACT_BREAK) {   /* the emulator: the breaks built in (samples.h SMP_WEB) */
+        if (!s->n && i >= SMP_FACT_BREAK && i < SMP_FACT_BREAK + SMP_FACT_NBREAK) {   /* the emulator: the breaks
+                                                                                     * built in (samples.h SMP_WEB) */
             s->adp = SMP_WEB_ADP + SMP_WEB[i - SMP_FACT_BREAK][0];
             s->ck = SMP_WEB_CK + SMP_WEB[i - SMP_FACT_BREAK][1];
             s->n = s->split = SMP_WEB[i - SMP_FACT_BREAK][2];

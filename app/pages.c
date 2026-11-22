@@ -4311,7 +4311,8 @@ static void smp_columns(int idx, const smp_t *sm, int w)
 static const char *smp_missing(int idx)
 {
     return idx >= smp_factory() ? "empty: fill it on the samples page"
-         : idx >= SMP_BREAK ? "install the breaks: samples page" : "install the sounds: samples page";
+         : idx >= SMP_BREAK && idx < SMP_BREAK + SMP_NBREAK ? "install the breaks: samples page"
+         : "install the sounds: samples page";
 }
 static void pic_sample(int32_t x0, int32_t y0, int32_t w, int32_t h, const uint8_t *p)
 {

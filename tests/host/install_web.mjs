@@ -115,14 +115,14 @@ console.log("installer: LOOM-8's sounds into the sample bank");
     same(now[2].adpcm, L.keptOf(FACTORY)[0].adpcm) && u.said.at(-1) === "LOOM-8 is installed, with its sounds.");
 }
 {
-  const img = oldBank([["big", 230000, 32000], ["small", 20000, 16000]]);   // 126 + 11 KB: + 86 does not fit
+  const img = oldBank([["big", 230000, 32000], ["small", 20000, 16000]]);   // 126 + 11 KB: + the set's 109 does not fit
   const dev = new Fake(img), was = L.keptOf(img);
   const { u } = await run(dev, "room");
   const now = L.keptOf(dev.image());
   check("2. no room: asked, \"Make room\" offered, naming the sample", u.asked.length === 1 &&
     u.asked[0].choices.join() === "room,skip,cancel" && /<b>big<\/b>/.test(u.asked[0].body) && !/<b>small<\/b>/.test(u.asked[0].body));
-  check("   made room: big at 22 kHz, small kept byte for byte, the factory set after them",
-    now[0].name === "big" && now[0].rate === 22050 && Math.abs(now[0].n - 230000 * 22050 / 32000) < 4 &&
+  check("   made room: big at 16 kHz (22 too long beside the set's 13 since 0.19), small kept byte for byte, the factory set after them",
+    now[0].name === "big" && now[0].rate === 16000 && Math.abs(now[0].n - 230000 * 16000 / 32000) < 4 &&
     now[1].name === "small" && same(now[1].adpcm, was[1].adpcm) && now.slice(2).length === L.NFENT);
 }
 {
@@ -157,7 +157,7 @@ console.log("installer: LOOM-8's sounds into the sample bank");
                           "const REGIONS = [[0xC1000, 0x1B000], [0xE5000, 0x17000], [0x93000, 0x4000]];");
   if (src === LIB) throw new Error("0.18's bank: the library's REGIONS line moved");
   const L18 = new Function(src + "\nreturn { userBank };")();
-  const img = L18.userBank([{ name: "wide", s: Int16Array.from({ length: 240000 }, rnd), root: 60, loop: null, bars: 0,
+  const img = L18.userBank([{ name: "wide", s: Int16Array.from({ length: 190000 }, rnd), root: 60, loop: null, bars: 0,
     rate: 32000 }, ...L.keptOf(FACTORY)]);
   const dev = new Fake(img);
   const { u } = await run(dev, "room");
