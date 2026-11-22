@@ -38,6 +38,23 @@ knob 2 cut 60
 midi B1 4A 42
 wait 20
 expect par2.cut 62
+# a mute is a switch, not a turn: a pad's 127 mutes, its 0 unmutes, endless or not (#39: a toggle pad sending
+# 0 / 127 never muted, 127 being signed -1 and 0 no turn). T3's CC 9 (channel 3: B2), T1's kit hat (CC 16 + 2)
+midi B2 09 7F
+wait 20
+expect mute 4
+midi B2 09 7F
+wait 20
+expect mute 4
+midi B2 09 00
+wait 20
+expect mute 0
+midi B0 12 7F
+wait 20
+expect kmute 4
+midi B0 12 00
+wait 20
+expect kmute 0
 # absolute again: the value is the place
 tap GLO
 turn SELECT 5

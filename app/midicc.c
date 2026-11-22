@@ -34,10 +34,12 @@ static int cc_to(int v, int lo, int hi) { return lo + (v * (hi - lo) + 63) / 127
 #include "midi_rel.h"
 static int cc_rel;                            /* (this message: endless) */
 #define cc_delta midi_rel_delta
-static int cc_on(int v, int cur) { return cc_rel ? (cc_delta(v) > 0 ? 1 : cc_delta(v) < 0 ? 0 : cur) : v >= 64; }
+static int cc_on(int v) { return v >= 64; }  /* a mute: a switch, absolute even when endless (a pad's 0 / 127; #39) */
 
 static void cc_par(int t, int p, int v)       /* a track's parameter from a CC (recorded as a knob turn would be) */
 {
+    if (cc_rel && !cc_delta(v))                /* (endless: 64, or 0, turns nothing) */
+        return;
     if (cc_rel)                                /* endless: the turn on its value, in the knob's own steps */
         set_tp(t, p, proj.trk[t].par[p] + cc_delta(v));   /* (set_tp clamps to the range) */
     else if (is_aux(t))
@@ -78,6 +80,8 @@ static void cc_kit_send(int t, int which, int v)   /* every sound's send moved b
                                                     * send is, from set_tp) */
 {
     int d = cc_rel ? cc_delta(v) : v - cc_ksend[t][which];
+    if (!d)
+        return;
     if (!cc_rel)
         cc_ksend[t][which] = (uint8_t)v;
     for (int k = 0; k < DL_NSOUND; k++) {
@@ -91,12 +95,11 @@ static void cc_track(int t, int cc, int v)
     if (proj.trk[t].par[TP_ENGINE] == EG_MIDI) {  /* a MIDI track: no sound to set (its knobs' CC numbers sit where an
                                                    * envelope would): only its mute */
         if (cc == 9)
-            cc_mute(t, cc_on(v, (int)(seq.mute >> t & 1u)));
+            cc_mute(t, cc_on(v));
         return;
     }
     if (kit && cc >= CC_KMUTE && cc < CC_KMUTE + DL_NSOUND) {
-        int k = kit_slot(t);
-        cc_kmute(t, cc - CC_KMUTE, cc_on(v, k >= 0 && (seq.kmute[k] >> (cc - CC_KMUTE) & 1u)));
+        cc_kmute(t, cc - CC_KMUTE, cc_on(v));
         return;
     }
     if (kit && cc >= CC_KPAN && cc < CC_KPAN + DL_NSOUND) {
@@ -111,7 +114,7 @@ static void cc_track(int t, int cc, int v)
         if (CC_TRK[i].cc == cc) {
             int p = kit ? CC_TRK[i].kit : CC_TRK[i].syn;
             if (p == CC_MUTE)
-                cc_mute(t, cc_on(v, (int)(seq.mute >> t & 1u)));
+                cc_mute(t, cc_on(v));
             else if (p == CC_KSEND1 || p == CC_KSEND2)
                 cc_kit_send(t, p == CC_KSEND2, v);
             else if (p < TP_DRUM0) {
@@ -208,9 +211,7 @@ static void cc_in(uint32_t pkt)
     }
     if (ty != 0xB0)
         return;
-    cc_rel = (proj.rsv[3] & CC_IN_ENDLESS) != 0;
-    if (cc_rel && !cc_delta(v))                /* (endless: 64, or 0, turns nothing) */
-        return;
+    cc_rel = (proj.rsv[3] & CC_IN_ENDLESS) != 0;   /* (a turn of nothing: cc_par, cc_master, cc_kit_send) */
     if (ch == CH_MASTER) {
         for (uint32_t i = 0; i < sizeof CC_MST / sizeof CC_MST[0]; i++)
             if (CC_MST[i].cc == d1)

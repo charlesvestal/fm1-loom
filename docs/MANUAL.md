@@ -1547,8 +1547,9 @@ CC IN, in Setup's **SEL** list (**GLO**), tells LOOM-8 what a controller's knobs
 to start with, for pots and faders: a CC's value is where the parameter goes. **endless** is for endless encoders
 that send relative values. On a Launchkey, set its encoders to relative. Each message turns the parameter by its
 amount, in the knob's own steps, so nothing jumps when the FM-1's value and the encoder's disagree. Both of the
-usual relative codes work: values around 64 (65 is +1, 63 is -1) and signed values (1 is +1, 127 is -1). A mute's
-CC mutes when you turn up and unmutes when you turn down. Like CC OUT, CC IN belongs to the FM-1 and is kept across
+usual relative codes work: values around 64 (65 is +1, 63 is -1) and signed values (1 is +1, 127 is -1). Mutes
+work the same in both settings, because a mute is a switch: 64 or more mutes, less unmutes, so a pad that sends 127
+and 0 mutes and unmutes. Like CC OUT, CC IN belongs to the FM-1 and is kept across
 projects.
 
 CC OUT is in Setup's **SEL** list (**GLO**) and is on to start with. With it on, when you turn a mapped knob or
