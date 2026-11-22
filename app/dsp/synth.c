@@ -118,7 +118,7 @@ static const char *const SLICES_N[SL_NCOUNT] = {"4", "8", "16", "32"};
 static const char *const DFTYPE_N[NDF] = {"off", "lp", "hp", "bp"};
 static const char *const CANE_N[NCANE] = {"pluck", "bow", "reed", "flute", "bell", "drum"};   /* (dsp/braids.h) */
 static const char *const VOILE_N[NVOILE] = {"vosim", "vowel", "choir", "whisper"};
-static const char *const LACE_N[NLACE] = {"bar", "marimba", "bell", "glass", "plate", "string", "wood", "gong"};
+static const char *const LACE_N[NLACE] = {"bar", "marimba", "church", "glass", "plate", "string", "wood", "gong", "bowl"};
 static const char *const LACEX_N[NLX] = {"mallet", "noise", "bow"};
 static const char *const VELVET_N[NVR] = {"violin", "viola", "cello", "bass", "full"};
 static const char *const ACIDW_N[2] = {"saw", "square"};
@@ -1405,14 +1405,17 @@ static __attribute__((noinline)) void tl_run(voice_t *v, float *xl, float *xr, i
 static const float LC_LRATIO[NLACE][LC_MODES] = {   /* the modes' ratios to the note, as log2 */
     {0.0000f, 1.4626f, 2.4340f, 3.1591f, 3.7377f, 4.2203f, 4.6328f, 4.9941f, 5.3151f, 5.6029f, 5.8654f, 6.1064f},   /* bar (free beam) */
     {0.0000f, 1.9964f, 3.3147f, 4.1375f, 4.7655f, 5.2403f, 5.6294f, 5.9565f, 6.2403f, 6.4919f, 6.7142f, 6.9189f},   /* marimba (tuned) */
-    {-2.0000f, -1.0000f, -0.7370f, -0.4150f, 0.0000f, 0.3334f, 0.4114f, 0.5850f, 1.0566f, 1.4436f, 1.7655f, 2.0391f},   /* bell (the hum two octaves down) */
+    {-2.0000f, -1.0000f, -0.7370f, -0.4150f, 0.0000f, 0.3334f, 0.4114f, 0.5850f, 1.0566f, 1.4436f, 1.7655f, 2.0391f},   /* church (its hum two octaves
+                                                                                                    * down) */
     {0.0000f, 1.2141f, 2.0875f, 2.7290f, 3.2296f, 3.6554f, 4.0090f, 4.3219f, 4.5969f, 4.8480f, 5.0747f, 5.2854f},   /* glass */
     {0.0000f, 0.6690f, 1.0976f, 1.2016f, 1.4060f, 1.5460f, 1.6599f, 1.8074f, 1.8480f, 2.0215f, 2.0531f, 2.2079f},   /* plate */
     {0.0000f, 1.0000f, 1.5850f, 2.0000f, 2.3219f, 2.5850f, 2.8074f, 3.0000f, 3.1699f, 3.3219f, 3.4594f, 3.5850f},   /* string */
     {0.0000f, 1.3618f, 2.0738f, 2.5509f, 2.8718f, 3.1538f, 3.4060f, 3.6088f, 3.7970f, 3.9635f, 4.1127f, 4.2479f},   /* wood */
-    {0.0000f, 0.2141f, 0.5059f, 0.6135f, 0.8156f, 1.0144f, 1.1110f, 1.3045f, 1.4222f, 1.5558f, 1.7268f, 1.8197f}};   /* gong */          /* gong */
-static const float LC_DEC[NLACE] = {1.0f, 0.35f, 2.0f, 1.5f, 1.2f, 1.0f, 0.12f, 2.5f};   /* how long it rings */
-static const float LC_HF[NLACE] = {0.15f, 0.3f, 0.25f, 0.1f, 0.4f, 0.3f, 0.6f, 0.3f};     /* its highs sooner */
+    {0.0000f, 0.2141f, 0.5059f, 0.6135f, 0.8156f, 1.0144f, 1.1110f, 1.3045f, 1.4222f, 1.5558f, 1.7268f, 1.8197f},   /* gong */
+    {0.0000f, 0.0043f, 1.4647f, 1.4699f, 2.3785f, 2.3827f, 3.0531f, 3.0566f, 3.5969f, 3.6005f, 4.0531f, 4.0575f}};   /* bowl (a singing bowl: its modes in pairs
+                                                                                                    * that beat) */
+static const float LC_DEC[NLACE] = {1.0f, 0.35f, 2.0f, 1.5f, 1.2f, 1.0f, 0.12f, 2.5f, 2.2f};   /* how long it rings */
+static const float LC_HF[NLACE] = {0.15f, 0.3f, 0.25f, 0.1f, 0.4f, 0.3f, 0.6f, 0.3f, 0.08f};     /* its highs sooner */
 static const float LC_GAIN[NLX] = {0.8f, 0.6f, 0.36f};
 typedef struct {
     float y1[LC_MODES], y2[LC_MODES], a1[LC_MODES], a2[LC_MODES], g[LC_MODES];

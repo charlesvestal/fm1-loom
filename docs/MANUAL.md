@@ -112,7 +112,7 @@ second.
 - **Song**: a chain of scenes, each played for a number of bars.
 - **Engine**: the way a track makes its sound. There are nine synths (knit, rayon, jacquard, bellows, velvet, cane,
   lace, voile and acid), three sample engines (sample, slice and tulle) and the kit, a drum synth.
-- **Preset**: a sound to load. 143 come with LOOM-8, from seven to twenty-three for each engine, and 16 are your own.
+- **Preset**: a sound to load. 145 come with LOOM-8, from seven to twenty-three for each engine, and 16 are your own.
 - **Player**: what the keys do on a track: arp, strum, hold or random.
 - **Conductor**: an aux track that sets the key, scale and chords for the other tracks. It plays its own chords,
   or takes them from a track's notes.
@@ -586,7 +586,7 @@ tonality is **ignore** follows nothing.
 | bellows | stops, pedal, rotor, rate | 9 |
 | velvet | register, bright, chorus, rate | 10 |
 | cane | model, timbre, color, damp | 8 |
-| lace | material, bright, damp, position | 12 |
+| lace | material, bright, damp, position | 14 |
 | voile | model, timbre, color, breath | 7 |
 | sample | sample, start, length, mode | 18 |
 | slice | sample, slices, pitch, gate | 11 |
@@ -688,7 +688,9 @@ string pads, slow chords and string basses. Its knobs:
 
 The Sub page shapes the copies. **shape** blends the saw toward a square, for a hollower sound. **width** spreads the
 three copies across the stereo field, and **detune** pulls them apart in pitch, still, under the movement. The
-picture shows the three copies' waves, moving as the ensemble does. There are ten presets: velvet, ensemble, low
+picture shows a string section, a player for each copy, sized by the register. Their necks grow longer as **bright**
+turns up, and **chorus** spreads them apart and sets them swaying, their bows sawing at the **rate**. There are ten
+presets: velvet, ensemble, low
 strings, big strings, string bass, hollow pad, dark velvet, eighties, warble and pizzicato.
 
 Each register costs about as much as a rayon voice, so full costs about three. For big chords, viola or violin plays
@@ -739,13 +741,13 @@ about a third more.
 
 ### Lace
 
-**Lace** is a resonator: a set of twelve tuned modes, the ways a bar, a bell or a string rings. Something sets the
-modes ringing, and each one dies away at its own speed. Use it for mallets, bells, plucked and bowed strings, glass
-and gongs. Its knobs:
+**Lace** is a resonator: a set of twelve tuned modes, the ways a bar, a bell, a bowl or a string rings. Something sets the
+modes ringing, and each one dies away at its own speed. Use it for mallets, bells, singing bowls, plucked and bowed strings,
+glass and gongs. Its knobs:
 
 | Knob | What it does |
 | --- | --- |
-| material | Picks what rings: bar, marimba, bell, glass, plate, string, wood or gong. |
+| material | Picks what rings: bar, marimba, church (a church bell, its hum two octaves under the note), glass, plate, string, wood, gong or bowl (a singing bowl, its modes in pairs that beat). |
 | bright | Sets how loud the higher modes are, from dark to bright. |
 | damp | Sets how fast the modes die away. The higher ones always die first. |
 | position | Sets where it's struck, from near the end to the middle. Each spot leaves out different modes. |
@@ -756,10 +758,12 @@ together or further apart, from glassy to metallic. **spread** sends the modes a
 **hardness** sets how hard the mallet is, how bright the noise is or how hard the bow presses. Lace rings in the
 release of the amp envelope, so its presets hold the sustain at the top and leave a long release.
 
-The picture shows the modes, each as a line as tall as its level, with the lowest at the left. Up to four lace notes
+The picture shows what rings, shaking as it sounds. The mallet, the breath or the bow sits where it's struck, so
+turning **position** moves it. **bright** sends sparks off it, **damp** presses a felt pad on it, and **hardness**
+gives the mallet a soft, fuzzy head or a small, hard one. Up to four lace notes
 play at once across all tracks, and a fifth takes over the oldest. Each note keeps its modes in memory, and a
-repeated note on a ringing voice strikes it again. There are twelve presets: lace, rosewood, kalimba, church bell,
-glass harp, air glass, harp, bowed wire, steel plate, wood block, gong and storm bell.
+repeated note on a ringing voice strikes it again. There are fourteen presets: lace, rosewood, kalimba, church bell,
+glass harp, air glass, harp, bowed wire, steel plate, wood block, gong, storm bell, prayer bowl and rubbed bowl.
 
 ### Acid
 

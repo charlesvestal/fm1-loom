@@ -1964,7 +1964,7 @@ static void lace_velvet_tests(void)
             top = pk > top ? pk : top;
             if (!(e > 1e-4f) || pk > 1.0f)
                 ok = 0, printf("    lace: material %d exciter %d: energy %g peak %.2f\n", m, x, (double)e, (double)pk);
-            if (x == LX_MALLET && m != NLACE - 1 && m != 2 && late > e * 0.5f)   /* (the bell and the gong ring long) */
+            if (x == LX_MALLET && m != 7 && m != 8 && m != 2 && late > e * 0.5f)   /* (the bell, the gong, the bowl ring long) */
                 ok = 0, printf("    lace: material %d struck does not ring down (%g then %g)\n", m, (double)e, (double)late);
             if (x != LX_MALLET && late < e * 0.1f)
                 ok = 0, printf("    lace: material %d exciter %d does not hold (%g then %g)\n", m, x, (double)e, (double)late);

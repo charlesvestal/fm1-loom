@@ -4397,14 +4397,17 @@ static void pen_oval(float cx, float cy, float rx, float ry, uint16_t c)   /* an
     for (int k = 0; k <= 24; k++)
         pen_to(&pn, cx + rx * fm_sin_turns((float)k / 24.0f + 0.25f), cy + ry * fm_sin_turns((float)k / 24.0f), c);
 }
-/* lace: the thing that rings, by its material (a bar on its cords, the marimba's over its tube, a wood block, a bell, a
- * wine glass, a plate with sand on it, a string, a gong on its frame), shaking as it sounds (pic_lvl), and what sets it
- * ringing at the struck place (position): a mallet that falls as a note strikes, a breath of noise, a bow sawing */
+/* lace: the thing that rings, by its material (a bar on its cords, the marimba's over its tube, a wood block, a church
+ * bell on its headstock and wheel, a wine glass, a plate with sand on it, a string, a gong on its frame), shaking as it
+ * sounds (pic_lvl), and what sets it ringing at the struck place (position): a mallet that falls as a note strikes (its
+ * head soft and fuzzy or small and hard by hardness), a breath of noise, a bow sawing. bright: sparks off the struck
+ * place as it sounds, more and longer; damp: a felt pad pressed on it, wider */
 static void pic_lace(int32_t x0, int32_t y0, int32_t w, int32_t h, const uint8_t *p, uint32_t f)
 {
     int m = p[TP_E1] < NLACE ? p[TP_E1] : NLACE - 1, ex = p[TP_X1] % 3;
     float lv = pic_lvl, pos = 0.03f + 0.47f * (float)p[TP_E4] / 127.0f, cx = (float)(x0 + w / 2);
     float cy = (float)(y0 + h / 2), sh = lv * fm_sin_turns((float)f * 0.37f), sx = cx, sy = cy, k8 = (float)h / 88.0f;
+    float br = (float)p[TP_E2] / 127.0f, dp = (float)p[TP_E3] / 127.0f, hd = (float)p[TP_X4] / 127.0f, dx = cx, dy = cy;
     uint16_t ink = K_NOW;
     pen_t a = {0}, b = {0};
     if (m == 0 || m == 1 || m == 6) {            /* a bar (its first mode: the ends up, the middle down) */
@@ -4426,22 +4429,29 @@ static void pic_lace(int32_t x0, int32_t y0, int32_t w, int32_t h, const uint8_t
                 cv_dotf(l + len * (k ? 0.776f : 0.224f), top + t + 3.0f, 2.0f, K_DIM);
         sx = l + pos * len;
         sy = top;
-    } else if (m == 2) {                         /* a bell, swinging a little, its rings out */
-        float bx = cx + 3.0f * sh, tp = (float)y0 + 10.0f, ht = (float)h - 22.0f;
-        cv_rect((int32_t)cx - 14, y0 + 4, 28, 3, K_DIM);
-        for (int k = 0; k <= 16; k++) {
-            float t = (float)k / 16.0f, hw = 8.0f + 24.0f * t * t * t + 6.0f * t;
-            pen_to(&a, bx - hw, tp + t * ht, ink);
-            pen_to(&b, bx + hw, tp + t * ht, ink);
+        dx = l + len * 0.88f;
+        dy = top + 5.0f * sh;
+    } else if (m == 2) {                         /* a church bell: squat, hung from its headstock on a beam, its wheel
+                                                  * beside, swinging on the pivot */
+        float tp = (float)y0 + 12.0f * k8, ht = (float)h - 20.0f * k8, sw = 5.0f * sh;
+        cv_rect((int32_t)cx - 50, y0 + 3, 100, 4, K_DIM);                       /* the beam */
+        cv_round((int32_t)cx - 12, (int32_t)tp - 6, 24, 6, 2, K_DIM);          /* the headstock */
+        pen_oval(cx + 34.0f, (float)y0 + 5.0f + 9.0f * k8, 9.0f * k8, 9.0f * k8, K_FAINT);   /* the wheel */
+        for (int k = 0; k <= 8; k++)             /* (its crown, rounded) */
+            pen_to(&a, cx - 20.0f + 5.0f * (float)k, tp - 5.0f * k8 * fm_sin_turns(0.0625f * (float)k), ink);
+        pen_up(&a);
+        for (int k = 0; k <= 16; k++) {          /* (its waist, then the flare to the lip) */
+            float t = (float)k / 16.0f, t2 = t * t, hw = 20.0f + 6.0f * t + 15.0f * t2 * t2 * t, x = cx + sw * t;
+            pen_to(&a, x - hw, tp + t * ht, ink);
+            pen_to(&b, x + hw, tp + t * ht, ink);
         }
-        cv_line((int32_t)(bx - 38.0f), (int32_t)(tp + ht), (int32_t)(bx + 38.0f), (int32_t)(tp + ht), ink);
-        for (int k = 0; k < (int)(lv * 4.0f); k++) {
-            float rr = 46.0f + (float)((f * 2u + (uint32_t)k * 9u) % 36u);
-            cv_rect((int32_t)(bx + rr), (int32_t)(tp + ht * 0.6f), 1, 8, K_FAINT);
-            cv_rect((int32_t)(bx - rr), (int32_t)(tp + ht * 0.6f), 1, 8, K_FAINT);
-        }
-        sx = bx + 38.0f - 20.0f * pos;
-        sy = tp + ht - 6.0f;
+        cv_line((int32_t)(cx + sw - 41.0f), (int32_t)(tp + ht), (int32_t)(cx + sw + 41.0f), (int32_t)(tp + ht), ink);
+        cv_line((int32_t)(cx + sw - 38.0f), (int32_t)(tp + ht - 4.0f), (int32_t)(cx + sw + 38.0f), (int32_t)(tp + ht - 4.0f),
+                K_DIM);                                                         /* (its sound bow) */
+        sx = cx + sw + 39.0f - 22.0f * pos;
+        sy = tp + ht - 8.0f;
+        dx = cx + sw - 30.0f;
+        dy = tp + ht - 8.0f;
     } else if (m == 3) {                         /* a wine glass: its rim an ellipse breathing in and out (its mode) */
         float rim = (float)y0 + 14.0f * k8, rx = 26.0f + 3.0f * sh, bh = 36.0f * k8;
         pen_oval(cx, rim, rx, 4.0f - 1.5f * sh, ink);
@@ -4454,6 +4464,8 @@ static void pic_lace(int32_t x0, int32_t y0, int32_t w, int32_t h, const uint8_t
         pen_oval(cx, (float)(y0 + h - 7), 16.0f, 2.5f, ink);
         sx = cx + rx * (1.0f - 2.0f * pos);
         sy = rim;
+        dx = cx - rx * 0.6f;
+        dy = rim + bh * 0.5f;
     } else if (m == 4) {                         /* a plate seen from above, sand gathering on its nodal lines */
         float pl = cx - 70.0f, pt = (float)y0 + 12.0f, pw = 140.0f, ph = (float)h - 26.0f;
         int na = 1 + (int)(pos * 6.0f), nb = na + 2;
@@ -4468,6 +4480,8 @@ static void pic_lace(int32_t x0, int32_t y0, int32_t w, int32_t h, const uint8_t
             }
         sx = pl + pw * pos;
         sy = pt;
+        dx = pl + pw * 0.85f;
+        dy = pt + sh;
     } else if (m == 5) {                         /* a string between its pegs, its first two modes */
         float l = cx - 80.0f, len = 160.0f, sy0 = cy + 10.0f;
         cv_round((int32_t)l - 6, (int32_t)sy0 - 8, 6, 16, 2, K_DIM);
@@ -4479,6 +4493,22 @@ static void pic_lace(int32_t x0, int32_t y0, int32_t w, int32_t h, const uint8_t
         }
         sx = l + pos * len;
         sy = sy0;
+        dx = l + len * 0.92f;
+        dy = sy0;
+    } else if (m == 8) {                         /* a singing bowl on its cushion, its rim breathing (its pairs beat) */
+        float rim = cy - 10.0f * k8, rx = 40.0f + 3.0f * sh, bh = 26.0f * k8;
+        pen_oval(cx, rim, rx, 5.0f - 2.0f * sh, ink);
+        for (int k = 0; k <= 14; k++) {
+            float u = (float)k / 14.0f, hw = rx * fm_sqrtf(fm_maxf(1.0f - u * u * 0.85f, 0.0f));
+            pen_to(&a, cx - hw, rim + u * bh, ink);
+            pen_to(&b, cx + hw, rim + u * bh, ink);
+        }
+        cv_line((int32_t)(cx - 15.0f), (int32_t)(rim + bh), (int32_t)(cx + 15.0f), (int32_t)(rim + bh), ink);
+        cv_round((int32_t)cx - 30, (int32_t)(rim + bh + 1.0f), 60, (int32_t)(8.0f * k8) + 2, 4, K_DIM);   /* its cushion */
+        sx = cx + rx * (1.0f - 2.0f * pos);
+        sy = rim;
+        dx = cx - rx * 0.5f;
+        dy = rim + bh * 0.6f;
     } else {                                     /* a gong on its frame, its rim trembling */
         float gy = cy + 6.0f * k8, r = 28.0f * k8;
         cv_rect((int32_t)cx - 52, y0 + 4, 104, 2, K_DIM);
@@ -4494,11 +4524,28 @@ static void pic_lace(int32_t x0, int32_t y0, int32_t w, int32_t h, const uint8_t
         pen_oval(cx, gy, (18.0f + 2.0f * lv) * k8, (18.0f + 2.0f * lv) * k8, K_FAINT);
         sx = cx - r * (1.0f - 2.0f * pos) * 0.9f;
         sy = gy;
+        dx = cx + r * 0.5f;
+        dy = gy + r * 0.6f;
     }
-    if (ex == 0) {                               /* the mallet: down on the strike, lifting as it rings */
-        float lift = (1.0f - lv) * 14.0f * k8;
-        cv_linef(sx + 26.0f, sy - 30.0f * k8 - lift * 0.5f, sx + 2.0f, sy - 5.0f - lift, K_DIM, 2.0f);
-        cv_dotf(sx, sy - 5.0f - lift, 4.5f, K_NOW);
+    if (dp > 0.08f)                              /* damp: a felt pad on it */
+        cv_round((int32_t)(dx - 2.0f - 7.0f * dp), (int32_t)dy - 3, (int32_t)(4.0f + 14.0f * dp), 6, 3, K_DIM);
+    if (lv > 0.05f)                              /* bright: sparks off the struck place */
+        for (int k = 0; k < 2 + (int)(br * 6.0f); k++) {
+            float an = 0.55f + 0.4f * ((float)k / 7.0f) + 0.03f * fm_sin_turns((float)f * 0.13f + (float)k),
+                  r0 = 6.0f, r1 = 6.0f + (4.0f + 12.0f * br) * lv;
+            cv_line((int32_t)(sx + r0 * fm_sin_turns(an + 0.25f)), (int32_t)(sy - r0 * fm_sin_turns(an)),
+                    (int32_t)(sx + r1 * fm_sin_turns(an + 0.25f)), (int32_t)(sy - r1 * fm_sin_turns(an)), K_FAINT);
+        }
+    if (ex == 0) {                               /* the mallet: down on the strike, lifting as it rings; its head soft
+                                                  * and fuzzy, or small and hard */
+        float lift = (1.0f - lv) * 14.0f * k8, hr = 3.0f + 3.0f * (1.0f - hd), hy = sy - 3.0f - hr - lift;
+        cv_linef(sx + 26.0f, sy - 30.0f * k8 - lift * 0.5f, sx + 2.0f, hy, K_DIM, 2.0f);
+        cv_dotf(sx, hy, hr, K_NOW);
+        if (hd < 0.6f)                           /* (yarn) */
+            for (int k = 0; k < 10; k++) {
+                float t = (float)k / 10.0f, fz = hr + 1.0f + (0.6f - hd) * 3.0f * (0.5f + 0.5f * fm_sin_turns(t * 3.0f + (float)f * 0.05f));
+                cv_rect((int32_t)(sx + fz * fm_sin_turns(t + 0.25f)), (int32_t)(hy + fz * fm_sin_turns(t)), 1, 1, K_DIM);
+            }
     } else if (ex == 1) {                        /* a breath: specks drifting in */
         for (int k = 0; k < 10; k++) {
             float t = (float)k / 10.0f + (float)f * 0.02f;
@@ -4514,19 +4561,22 @@ static void pic_lace(int32_t x0, int32_t y0, int32_t w, int32_t h, const uint8_t
     }
 }
 /* velvet: a string section, a player for each of the ensemble's three copies, the size by the register (violins ..
- * a bass; full: a violin, a cello and a bass), apart by width; their bows saw at the rate, a third of a cycle apart, as
- * far as the chorus takes them, and their strings shake as it sounds */
+ * a bass; full: a violin, a cello and a bass), their necks longer as bright turns up, apart by width and further by
+ * the chorus, which also sways them apart and together at the rate; their bows saw at the rate, a third of a cycle
+ * apart, as far as the chorus takes them, and their strings shake as it sounds */
 static void pic_velvet(int32_t x0, int32_t y0, int32_t w, int32_t h, const uint8_t *p, uint32_t f)
 {
     static const float SZ[NVR][3] = {{0.55f, 0.55f, 0.55f}, {0.65f, 0.65f, 0.65f}, {0.85f, 0.85f, 0.85f},
                                      {1.0f, 1.0f, 1.0f}, {0.55f, 0.85f, 1.0f}};
     int rg = p[TP_E1] < NVR ? p[TP_E1] : NVR - 1;
     float ch = (float)p[TP_E3] / 127.0f, wd = (float)p[TP_X2] / 127.0f, rt = 0.01f + 0.05f * (float)p[TP_E4] / 127.0f;
+    float br = (float)p[TP_E2] / 127.0f;
     float base = (float)(y0 + h - 4), lv = pic_lvl;
     for (int k = 0; k < 3; k++) {
         const uint16_t ink = k == 1 ? K_NOW : K_DIM;
-        float s = SZ[rg][k] * (float)h / 88.0f, x = (float)(x0 + w / 2) + (float)(k - 1) * (34.0f + 28.0f * wd);
-        float lb = base - 16.0f * s, ub = base - 40.0f * s, top = base - 78.0f * s;
+        float s = SZ[rg][k] * (float)h / 88.0f, x = (float)(x0 + w / 2) + (float)(k - 1) * (30.0f + 24.0f * wd + 10.0f * ch) +
+                                                     4.0f * ch * fm_sin_turns((float)f * rt * 0.5f + (float)k / 3.0f);
+        float lb = base - 16.0f * s, ub = base - 40.0f * s, top = base - (52.0f + 30.0f * br) * s;
         float o = (3.0f + 11.0f * ch) * s * (0.4f + 0.6f * lv) * fm_sin_turns((float)f * rt + (float)k / 3.0f);
         float sh = lv * 1.5f * fm_sin_turns((float)f * 0.41f + (float)k * 0.3f);
         pen_oval(x, lb, 15.0f * s, 14.0f * s, ink);            /* the lower bout, the upper, the neck, the scroll */

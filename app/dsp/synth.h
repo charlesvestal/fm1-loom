@@ -57,7 +57,7 @@ enum { EG_KNIT, EG_RAYON, EG_JACQUARD, EG_BELLOWS, EG_CANE, EG_VOILE, EG_SAMPLE,
  * (TP_X1..X4) the exciter (LX_*), stretch (the modes' spacing, about 64), spread (the modes across the stereo field),
  * hardness (the mallet's, the noise's color, the bow's pressure). At most CN_SLOTS of its voices (cane's slots: their
  * resonators' state in lc_mem) */
-#define NLACE 8
+#define NLACE 9
 #define LC_MODES 12
 enum { LX_MALLET, LX_NOISE, LX_BOW, NLX };
 /* EG_VELVET (2026-11-23): a string machine: each note a divided-down saw (16', 8', 4' by the register), three times over,

@@ -7,7 +7,7 @@ pressure). Its own sound rings in the amp's release: a sustain at the top, a lon
 sound at once."""
 from lib import P
 
-BAR, MARIMBA, BELL, GLASS, PLATE, STRING, WOOD, GONG = range(8)
+BAR, MARIMBA, CHURCH, GLASS, PLATE, STRING, WOOD, GONG, BOWL = range(9)
 MALLET, NOISE, BOW = range(3)
 
 # its sound in a new project: a vibraphone-like bar, a soft mallet, ringing
@@ -20,7 +20,7 @@ P("rosewood", "keys", "lace", knobs=dict(material=MARIMBA, bright=56, damp=70, p
 P("kalimba", "pluck", "lace", knobs=dict(material=BAR, bright=70, damp=66, position=20), volume=116,
   amp=(0, 64, 127, 64), sends=(0, 25), x=(MALLET, 30, 40, 96), genres=("lofi",))
 # a church bell: the hum two octaves under, long, in the room
-P("church bell", "bell", "lace", knobs=dict(material=BELL, bright=70, damp=30, position=25), volume=104,
+P("church bell", "bell", "lace", knobs=dict(material=CHURCH, bright=70, damp=30, position=25), volume=104,
   amp=(0, 64, 127, 110), sends=(0, 40), x=(MALLET, 64, 80, 90), genres=("lofi",))
 # a glass harp: glass, bowed, slow in, wide
 P("glass harp", "pad", "lace", knobs=dict(material=GLASS, bright=70, damp=20, position=30), volume=110,
@@ -44,6 +44,12 @@ P("wood block", "drum", "lace", knobs=dict(material=WOOD, bright=80, damp=60, po
 # a gong: soft beater, long, its modes crowded
 P("gong", "fx", "lace", knobs=dict(material=GONG, bright=50, damp=24, position=40), volume=110,
   amp=(0, 64, 127, 112), sends=(0, 45), x=(MALLET, 64, 100, 30), octave=-1, genres=("lofi",))
-# a storm bell: the bell blown with noise, a dark wash
-P("storm bell", "fx", "lace", knobs=dict(material=BELL, bright=40, damp=36, position=30), volume=104,
+# a storm bell: the church bell blown with noise, a dark wash
+P("storm bell", "fx", "lace", knobs=dict(material=CHURCH, bright=40, damp=36, position=30), volume=104,
   amp=(60, 64, 127, 100), sends=(0, 50), x=(NOISE, 64, 110, 50), genres=("lofi",))
+# a prayer bowl: the singing bowl struck soft, its pairs beating as it rings
+P("prayer bowl", "bell", "lace", knobs=dict(material=BOWL, bright=50, damp=20, position=30), volume=110,
+  amp=(0, 64, 127, 118), sends=(0, 40), x=(MALLET, 64, 90, 40), genres=("lofi",))
+# a rubbed bowl: the singing bowl circled with its stick (the bow), swelling, wide
+P("rubbed bowl", "pad", "lace", knobs=dict(material=BOWL, bright=56, damp=16, position=40), volume=106,
+  amp=(80, 64, 127, 100), sends=(0, 45), x=(BOW, 64, 100, 50), genres=("lofi",))

@@ -31,7 +31,7 @@ tapkey w0
 tapkey w1
 wait 50
 shot proj_song.png
-# RANDOMIZE PRESETS (after NEW PROJECT on GLO's list), asked first: T2 a bass, mono; T3 polyphonic; T5 a mono lead
+# RANDOMIZE PRESETS (after NEW PROJECT on GLO's list), asked first: T2 a bass, mono; T3 polyphonic; T5 a lead (acid today: its own one mode)
 tap SEL
 row RANDOMIZE PRESETS
 tap SEL
@@ -41,6 +41,6 @@ tap SEL
 wait 200
 expect par2.vmode 1
 expect par3.vmode 0
-expect par5.vmode 1
+expect par5.engine 10
 expect par1.engine 8
 expect dirty 1
