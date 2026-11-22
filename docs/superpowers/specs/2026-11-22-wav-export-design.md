@@ -13,7 +13,9 @@ A page on LOOM-8's site, beside the samples and backup pages, that makes a WAV f
 2. Pick a project, then what to render:
    - **Song**, offered only when the project has one: from the song's first entry to the end of its last;
    - or **a scene**, any of the project's scenes, played 1, 2, 4, 8 or 16 times.
-3. **Export**: a progress bar, then the browser saves `<project name>.wav` (16-bit, 44.1 kHz, stereo).
+3. **Export**: a progress bar, then the browser saves `loom-8-proj-N-song.wav` or `loom-8-proj-N-scene-S.wav`
+   (projects have no names; 16-bit, 44.1 kHz, stereo). The project list shows each slot's tempo and scenes, as
+   GLO's list does (2026-11-22-glo-projects-design.md).
 
 The page says nothing aloud and plays nothing; it only writes the file.
 
@@ -52,7 +54,7 @@ into fm1-base (an app's extra exports in fm1.toml), kept general.
 
 - A Node test (`tests/host/export_web.mjs`, in `tests/run_tests.sh`) renders a fixture backup through the worker's
   code: checks the length (song bars at the tempo + tail), that it isn't silent, and that it matches the host
-  simulator's render of the same project and song.
+  simulator's render of the same project and song (its level within 1 dB).
 - Bad files: wrong magic, wrong version, a cut-short file, each refused with its message.
 
 ## Not in this

@@ -16,7 +16,7 @@ A "projects" section first, above GLO's knob pages (on every GLO page, Setup inc
 | NEW PROJECT | | as now (its slot the first free one, none free: SAVE TO picks) |
 
 - The value: the slot's tempo, then its scene count when the slot has one ("4 scenes", "1 scene"); "empty" for a
-  slot with nothing saved; a slot of an older format that won't load says "old format".
+  slot with nothing saved (a slot of a format too old to load counts as empty, as LOAD PROJECT treats it now).
 - A load or a new project stops the transport, as LOAD PROJECT does now, and closes the list.
 
 ## HOME's SEL list
