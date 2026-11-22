@@ -26,7 +26,7 @@ P("upright", "bass", "sample", knobs=dict(sample=smp("upright"), start=0, length
   genres=("lofi",))
 # the same, short, the filter plucked, deep in the tape: the jazz-hop bass under a dusty loop
 P("dusty bass", "bass", "sample", knobs=dict(sample=smp("upright"), start=0, length=127, mode=0), mode="mono",
-  volume=127, amp=(0, 74, 0, 50), fenv=(0, 70, 0, 50), filter=("lp24", 60, 20, 92, 40), char=("tape", 95, 30, 127),
+  volume=107, amp=(0, 74, 0, 50), fenv=(0, 70, 0, 50), filter=("lp24", 60, 20, 92, 40), char=("tape", 95, 30, 127),
   genres=("lofi", "garage"))
 # the string section, bowed: a slow bow, the lush room
 P("strings", "strings", "sample", knobs=dict(sample=smp("strings"), start=0, length=127, mode=1), volume=105,

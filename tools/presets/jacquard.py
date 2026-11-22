@@ -19,7 +19,7 @@ P("vowel pad", "pad", "jacquard", knobs=dict(table=VOCAL, scan=40, bend=0, rippl
 P("glass keys", "keys", "jacquard", knobs=dict(table=GLASS, scan=50, bend=0, ripple=0), volume=106,
   amp=(0, 84, 30, 64), fenv=(0, 66, 10, 60), filter=("lp12", 92, 0, 84, 64), sends=(10, 25), genres=("lofi",))
 # the growl: the fold table scanned in sixteenths on a saw, the ladder under it, driven hard (drum and bass)
-P("growl", "bass", "jacquard", knobs=dict(table=FOLD, scan=30, bend=20, ripple=0), mode="mono", volume=100,
+P("growl", "bass", "jacquard", knobs=dict(table=FOLD, scan=30, bend=20, ripple=0), mode="mono", volume=86,
   amp=(0, 70, 120, 30), fenv=(0, 60, 40, 40), filter=("ladder", 74, 40, 84, 40),
   lfo=("wave", 5, 110, "synth", 1, 3), char=("drive", 90, 80, 127), genres=("dnb",))
 # the wobble: the shapes table swept sine to square in quarters, the filter following

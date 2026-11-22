@@ -347,8 +347,8 @@ typedef struct {
 typedef struct synth synth_t;         /* opaque: dsp/synth.c */
 void synth_glfo_restart(synth_t *s);              /* the shared LFO from its start (the transport started) */
 float synth_glfo_now(const synth_t *s);            /* its value now, -1..1 (the page's picture) */
-#define SYNTH_BYTES 12864             /* room for the struct (checked at compile time in synth.c; about 12,780 B with
-                                       * knit's Mod page and analog, 0.19) */
+#define SYNTH_BYTES 14080             /* room for the struct (checked at compile time in synth.c; about 13,990 B with
+                                       * each track's character bus, 2026-11-23) */
 
 void synth_init(synth_t *s, uint8_t (*par)[NTP]);   /* par: the tracks' parameter arrays, NTRK + 1 of them (the conductor's, SY_GLFO_TRK: the shared LFO) */
 void synth_tempo(synth_t *s, float bpm);

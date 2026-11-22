@@ -112,11 +112,20 @@ static int note_test(const char *name, int t, float *peak_out, int level_check)
     for (b = 0; b < 172 * 12; b++) {             /* up to 12 s of release (10 s is the longest) */
         int i;
         block(N, &finite);
-        if (!synth_sounding(S, 0, NVOICE)) {     /* the end of the last block: silence by then */
-            tail = 0.0f;
-            for (i = N - 16; i < N; i++)
-                if (fabs_f(L[i]) > tail)
-                    tail = fabs_f(L[i]);
+        if (!synth_sounding(S, 0, NVOICE)) {     /* the end of the last block: silence by then (a track's character on
+                                                  * its bus rings out a little longer: a block on, no step at its start) */
+            float lastl = L[N - 1];
+            block(N, &finite);
+            if (fabs_f(L[0] - lastl) > 0.01f)
+                tail = 1.0f;
+            else {
+                for (int b2 = 0; b2 < 20; b2++)
+                    block(N, &finite);
+                tail = 0.0f;
+                for (i = N - 16; i < N; i++)
+                    if (fabs_f(L[i]) > tail)
+                        tail = fabs_f(L[i]);
+            }
             break;
         }
     }

@@ -1189,8 +1189,10 @@ under 70 %.
 
 ### Character
 
-Each voice of a synth track has its own effect after the filter and before the sends. This is its character.
-Every voice is shaped on its own, so a chord driven hard still sounds like a chord. Press **FX** to open the
+Each synth track has an effect after its filter and before its sends. This is its character. Drive, fold, crush,
+tilt, tape and sampler work on the whole track, as a pedal would: a chord's notes go through it together, so a
+driven chord growls as one, and turning the track's level down on the Mix page doesn't change how hard it drives.
+Ring works on each note on its own, so its sine follows every note's pitch. Press **FX** to open the
 Character page. It shows the type and what it does, with a picture of either the curve a sample goes through or
 what it does to a wave. The faint line is the sound without it. Turn **PRESETS** to change the type. The knobs
 are type, amount, tone and mix, from dry to wet, and at mix 0 the character is off. Each factory preset has its
@@ -1206,7 +1208,7 @@ own character, so a preset is a whole sound.
 | crush | How far it drops. | What drops: the sample rate to the left, the bits to the right, both in the middle. |
 | ring | How deep the ring modulation goes. | The ratio of the ring's sine to the note, 0.25:1 to 7:1. |
 | tilt | The pivot, 150 Hz to 6 kHz. | The tilt: darker to the left, brighter to the right, 6 dB each way at the ends. |
-| tape | Worn tape: saturation, plus a pitch wow that deepens with it. | The top-end roll-off, 1.5 to 18 kHz. |
+| tape | Worn tape: saturation, plus a pitch wow that deepens with it. Every note wows together. | The top-end roll-off, 1.5 to 18 kHz. |
 | sampler | An old sampler's grain, with a lower rate and fewer bits. | Its output filter, 2 to 20 kHz. |
 
 You can lock the amount, tone or mix on a step like any knob: hold the step and press **FX**. The LFO can reach

@@ -31,7 +31,7 @@ P("house stab", "stab", "knit", knobs=dict(wave=40, detune=22, voices=5, width=1
 # acid: the ladder near self-oscillation, swept hard and fast by the envelope (it moves: the rule's exception), a
 # acid: the ladder near self-oscillation, swept hard and fast by the envelope (it moves: the rule's exception), a
 # short slide on held notes only, driven hard after; the sub under it (a ladder high in resonance loses its lows)
-P("acid", "bass", "knit", knobs=dict(wave=0, detune=0, voices=1, width=0), mode="legato", glide=16, volume=127,
+P("acid", "bass", "knit", knobs=dict(wave=0, detune=0, voices=1, width=0), mode="legato", glide=16, volume=105,
   amp=(0, 90, 100, 30), fenv=(0, 64, 0, 40), filter=("ladder", 48, 100, 112, 50), char=("drive", 90, 100, 127),
   x=(64, 0, 40, 0), genres=("house",))
 # a finger bass: a round saw, plucked by a short filter envelope, the sub under it

@@ -235,6 +235,13 @@ typedef struct {
     int16_t ldest;                    /* the resolved destination: a TP_* index, LD_PITCH or LD_NONE */
     uint32_t rng;
     float loff[NCK], lpitch[NCK], lgain[NCK];   /* the chunk slots: offset (param units), cents, gain */
+    /* its character on its bus (ch_on_bus: every type but ring, a note's own): bus_prepare's for the block, bus_render's */
+    chbus_t cb;                       /* the stage's state (char_bus's) */
+    uint8_t bus;                      /* the type on its bus this block (CT_OFF: none, or ring: on each voice) */
+    float bus_amt;                    /* its amount this block (the LFO, the shared LFO on it), 0..1 */
+    float bus_g, bus_gn;              /* the bus's gain after the stage (the fader, the volume): the last block's, this one's */
+    float bus_s1, bus_s2;             /* its sends */
+    float wow[2], wowc[NCK];          /* tape's wow on its voices: one for the track (its phases, each chunk's cents) */
 } trk_t;
 
 struct synth {
@@ -250,6 +257,8 @@ struct synth {
     float goff[NCK];                  /* the shared LFO's offset at each chunk of the block (knob units, +-127) */
     float g_ph, g_sh, g_now;          /* its phase, its random value, its value at the block's end (-1..1) */
     uint32_t g_rng;                   /* (its random steps' generator)*/
+    uint8_t grp[NVOICE];              /* this block: a voice on its track's bus, its track + 1 (bus_prepare; 0: on its own) */
+    int8_t lead[NTRK];                /* each track's bus's first voice this block, which renders them all (-1 none) */
     volatile uint8_t g_reset;         /* restart at the next prepare (the transport started) */
 };
 uint32_t synth_load_steals;           /* new notes that took a sounding voice to stay inside LOAD_ADMIT (synth.h) */
@@ -2959,6 +2968,7 @@ static void mod_publish(const synth_t *s, const voice_t *v, int trk)
     }
     m->of = (uint8_t)trk;
 }
+static void bus_prepare(synth_t *s);
 void synth_prepare(synth_t *s, uint32_t n)
 {
     float tpk[NTRK];
@@ -2975,8 +2985,9 @@ void synth_prepare(synth_t *s, uint32_t n)
                                                   * and MOD VIEW's track's newest sounding voice */
         voice_t *v = &s->v[k];
         if (v->trk < NTRK) {
-            if (v->peak > tpk[v->trk])
-                tpk[v->trk] = v->peak;
+            float pk = s->grp[k] ? v->peak * s->t[v->trk].bus_g : v->peak;   /* (on a bus: before its gains) */
+            if (pk > tpk[v->trk])
+                tpk[v->trk] = pk;
             v->peak = 0.0f;
             if (v->trk == mt && v_sounding(v) && (!mv || v->age > mv->age))
                 mv = v;
@@ -3065,6 +3076,7 @@ void synth_prepare(synth_t *s, uint32_t n)
     for (k = 0; k < NVOICE; k++)
         s->v[k].ck = 0;
     s->pos = (uint16_t)((s->pos + n) % SY_CHUNK);
+    bus_prepare(s);                              /* (after the LFOs: their values this block) */
 }
 
 /* ------------------------------------------------------ the character --- */
@@ -3180,7 +3192,7 @@ static void char_prep(synth_t *s, voice_t *v, int dest, float off, float gch)   
 {
     cfg_t *c = &v->c;
     int trk = v->trk, type = P(s, trk, TP_CTYPE), mix = P(s, trk, TP_CMIX), i;
-    if (type >= NCT || mix == 0)
+    if (type >= NCT || mix == 0 || s->grp[v->vi])   /* (on its track's bus: the stage there, bus_render) */
         type = CT_OFF;
     if (type != c->ctype) {
         for (i = 0; i < 8; i++)
@@ -3510,7 +3522,10 @@ static void voice_chunk(synth_t *s, voice_t *v)
     lev = tp_level_gain(P(s, trk, TP_LEVEL)) * (100.0f / 127.0f);
     {   /* (acid: the velocity is its accent, the resonance its own: neither here) */
         const int acid = v->engine == EG_ACID;
-        vg = (acid ? 1.0f : 0.25f + 0.75f * v->vel * v->vel) * vol * vol * lev * lg * (acid ? 1.0f : 1.0f - 0.6f * res);
+        vg = (acid ? 1.0f : 0.25f + 0.75f * v->vel * v->vel) * lg *
+             (s->grp[v->vi] ? 1.41421356f : vol * vol * lev * (acid ? 1.0f : 1.0f - 0.6f * res));   /* (on its track's
+                                                  * bus: the volume, the fader and the resonance's make-up after the
+                                                  * stage, bus_prepare; the pan made up for) */
     }
     if (gd == GD_VOL)                            /* (a tremolo: down to silence, up to +6 dB) */
         vg *= fm_clampf(1.0f + g * (1.0f / 127.0f), 0.0f, 2.0f);
@@ -3525,6 +3540,8 @@ static void voice_chunk(synth_t *s, voice_t *v)
     c->gr = v->pan_r * vg;
     c->g1 = fm_clampf((float)(P(s, trk, TP_SEND1) + t->perf.send1) + (gd == GD_SEND1 ? g : 0.0f), 0.0f, 127.0f) * (1.0f / 127.0f);
     c->g2 = fm_clampf((float)(P(s, trk, TP_SEND2) + t->perf.send2) + (gd == GD_SEND2 ? g : 0.0f), 0.0f, 127.0f) * (1.0f / 127.0f);
+    if (s->grp[v->vi])                           /* (on its track's bus: the bus sends, after the stage) */
+        c->g1 = c->g2 = 0.0f;
     /* pitch: the glide, bend, performance pitch, vibrato, an LFO on the pitch (+-12 semitones at 100 %) */
     v->pitch_cur += (v->pitch - v->pitch_cur) * v->glide_k;
     c->pitch_off = (float)t->bend_c + t->pb_base + t->pb_step * (float)(k + 1) + t->lpitch[k] * lenv;
@@ -3538,7 +3555,9 @@ static void voice_chunk(synth_t *s, voice_t *v)
         int oc = P(s, trk, TP_OCT);
         c->pitch_off += (float)((oc > 4 ? 4 : oc) - 2) * 1200.0f;
     }
-    if (c->ctype == CT_TAPE) {                   /* the tape's wow and flutter (char_coefs: cx[3] cents) */
+    if (s->grp[v->vi] && t->bus == CT_TAPE)      /* (on its track's bus: the track's wow, every note's the same) */
+        c->pitch_off += t->wowc[k];
+    else if (c->ctype == CT_TAPE) {              /* the tape's wow and flutter (char_coefs: cx[3] cents) */
         v->cz[4] = wrap1(v->cz[4] + 0.55f * (float)SY_CHUNK * INV_SR);
         v->cz[5] = wrap1(v->cz[5] + 6.1f * (float)SY_CHUNK * INV_SR);
         c->pitch_off += c->cx[3] * c->cx[7] * (fm_sin_turns(v->cz[4]) + 0.25f * fm_sin_turns(v->cz[5]));
@@ -4012,6 +4031,13 @@ int synth_order(const synth_t *s, int8_t *ord)
     int c[NVOICE], n = 0;
     for (vi = 0; vi < NVOICE; vi++) {
         int ck = synth_voice_cost(s, vi);
+        if (s->grp[vi]) {                        /* a track's bus: its first voice alone, at their summed cost */
+            if (s->lead[s->grp[vi] - 1] != vi)
+                continue;
+            for (j = vi + 1; j < NVOICE; j++)
+                ck += s->grp[j] == s->grp[vi] ? synth_voice_cost(s, j) : 0;
+            ck = ck < 1 ? 1 : ck;
+        }
         if (!ck)
             continue;
         for (j = n; j > 0 && (c[j - 1] < ck || (c[j - 1] == ck && s->v[ord[j - 1]].engine > s->v[vi].engine)); j--) {
@@ -4024,11 +4050,10 @@ int synth_order(const synth_t *s, int8_t *ord)
     }
     return n;
 #else
-    for (vi = 0; vi < NVOICE; vi++)
-        ord[vi] = (int8_t)vi;
-    (void)s;
-    (void)j;
-    return NVOICE;
+    for (vi = j = 0; vi < NVOICE; vi++)          /* (a bus's others: with its first) */
+        if (!s->grp[vi] || s->lead[s->grp[vi] - 1] == vi)
+            ord[j++] = (int8_t)vi;
+    return j;
 #endif
 }
 /* the voices left out of the queue (not among ord's first n): n frames on, as synth_render_on moves a silent one (its
@@ -4039,6 +4064,9 @@ void synth_idle(synth_t *s, const int8_t *ord, int nord, uint32_t n)
     int k, vi;
     for (k = 0; k < nord; k++)
         in |= 1u << ord[k];
+    for (vi = 0; vi < NVOICE; vi++)              /* (a bus's voices: rendered with its first) */
+        if (s->grp[vi] && in >> s->lead[s->grp[vi] - 1] & 1u)
+            in |= 1u << vi;
     for (vi = 0; vi < NVOICE; vi++) {
         voice_t *v = &s->v[vi];
         uint32_t i = 0;
@@ -4075,6 +4103,218 @@ static __attribute__((noinline)) void tap_voice(const synth_tap_t *tp, const voi
     }
 }
 
+/* one voice's n frames into l, r, s1, s2 (tap: its share of the USB audio input's track too) */
+static void voice_render(synth_t *s, int core, int vi, float *l, float *r, float *s1, float *s2, uint32_t n, int tap)
+{
+    uint32_t (*clk)(void) = synth_clock;
+    volatile uint32_t *prof = synth_prof[core != 0];
+    voice_t *v = &s->v[vi];
+    uint32_t i = 0, t0 = 0, tc = 0, tk = 0;
+    const int timed = clk && (v_sounding(v) || v->pos == 0);
+    if (timed) {
+        t0 = clk();
+        synth_vinfo[vi] = (uint8_t)((synth_vinfo[vi] & 32u) | (v->engine & 31u) | (v->fresh & 2 ? 32u : 0u) |
+                                    (prof == synth_prof[1] ? 64u : 0u) | 128u);
+    }
+    if (v->fresh & 2) {                      /* a note started since the last render: its parameters now, from
+                                              * this stretch's first slot (at a chunk's start the chunk's own
+                                              * configuration below is the first) */
+        v->fresh &= (uint8_t)~2u;
+        if (v->pos != 0) {
+            uint8_t ck = v->ck;
+            if (timed)
+                tk = clk();
+            voice_chunk(s, v);
+            if (timed)
+                tc += clk() - tk;
+            v->ck = ck;
+            v->nchunk = (uint8_t)(v->nchunk - 1);
+        }
+    }
+    while (i < n) {
+        uint32_t m = SY_CHUNK - v->pos;
+        if (m > n - i)
+            m = n - i;
+        if (v->pos == 0) {
+            if (timed)
+                tk = clk();
+            voice_chunk(s, v);
+            if (timed)
+                tc += clk() - tk;
+        }
+        if (v_sounding(v) && tap && synth_tap[core != 0].p && v->trk < NTRK) {   /* (the USB audio input's tracks) */
+            float *was = tap_was[core != 0];
+            for (uint32_t j = 0; j < m; j++)
+                was[j] = l[i + j] + r[i + j];
+            voice_samples(s, v, l + i, r + i, s1 + i, s2 + i, (int)m);
+            tap_voice(&synth_tap[core != 0], v, l + i, r + i, was, i, (int)m);
+        } else if (v_sounding(v))
+            voice_samples(s, v, l + i, r + i, s1 + i, s2 + i, (int)m);
+        else
+            v->pos = (uint16_t)(v->pos + m);
+        if (v->pos >= SY_CHUNK)
+            v->pos = 0;
+        i += m;
+    }
+    if (timed) {
+        tk = clk() - t0;
+        synth_vblk[vi] += tk;
+        if (n >= 32u && !(synth_vinfo[vi] & 32u) && v_sounding(v)) {   /* the split's costs: a running mean of
+                                                                      * the voice's time a frame, not its first
+                                                                      * render's (its set-up) */
+            float x = (float)tk / (float)n;
+            v->cost_m = v->cost_m > 0.0f ? v->cost_m + (x - v->cost_m) * 0.25f : x;
+            s->t[v->trk < NTRK ? v->trk : 0].cost_m = v->cost_m;
+        }
+        prof[NENGINE] += tc;
+        prof[v->engine < NENGINE ? v->engine : 0] += tk - tc;
+        if (tk > synth_vworst[0]) {
+            synth_vworst[0] = tk;
+            synth_vworst[1] = v->engine;
+            synth_vworst[2] = n;
+        }
+    }
+}
+/* a track's character on its bus (the synth tracks'; the kit's has its own, char_bus): the type's place, the track's
+ * whole sound through one stage (drive, fold, crush, tilt, tape, sampler) or each note through its own (ring: its
+ * modulator follows the note). A bus track's voices render one after another on one core (its first voice's turn:
+ * synth_order queues it alone, at their summed cost) into that core's own pair, before the fader and the volume (their
+ * gains on the stage's output: the fader does not drive it) and with no sends (the stage's output's); the pan's level
+ * made up on the way in (x sqrt 2), so a note in the middle drives the stage as it drove its own */
+static inline int ch_on_bus(int type)
+{
+    return type == CT_DRIVE || type == CT_FOLD || type == CT_CRUSH || type == CT_TILT || type == CT_TAPE ||
+           type == CT_SAMPLER;
+}
+#define BUS_N 256                             /* a bus's frames at a time (the engine's block; a longer render in pieces) */
+#ifdef PLAT_HOST
+static float bus_px[2][2][BUS_N];
+#else
+static float bus_px[2][2][BUS_N] __attribute__((section(".pool")));   /* each core's pair (4 KB) */
+#endif
+/* this block's buses (synth_prepare): each track's type, amount, gains and wow; which voices join which bus */
+static void bus_prepare(synth_t *s)
+{
+    const uint8_t *gp = s->par[SY_GLFO_TRK];
+    const int groute = (gp[TP_LX] & 15) | (gp[TP_LX2] & 15) << 4, last = s->nck - 1;
+    int i;
+    for (i = 0; i < NTRK; i++) {
+        trk_t *t = &s->t[i];
+        int type = P(s, i, TP_CTYPE), dest = t->ldest;
+        float off = t->loff[last], g = groute >> i & 1 ? s->goff[last] : 0.0f, vol, lev;
+        int gd = g != 0.0f ? gp[TP_LDEST] % NGD : -1;
+        s->lead[i] = -1;
+        t->bus = (uint8_t)(type < NCT && P(s, i, TP_CMIX) && ch_on_bus(type) ? type : CT_OFF);
+        if (t->bus == CT_OFF)
+            continue;
+        t->bus_amt = fm_clampf(pf(s, i, TP_CAMT, dest, off) + (gd == GD_CHAR ? g : 0.0f), 0.0f, 127.0f) * (1.0f / 127.0f);
+        vol = pf(s, i, TP_VOLUME, dest, off) * (1.0f / 127.0f);
+        lev = tp_level_gain(P(s, i, TP_LEVEL)) * (100.0f / 127.0f);
+        t->bus_gn = vol * vol * lev * 0.70710678f;
+        if (P(s, i, TP_ENGINE) != EG_ACID)       /* (the resonance's make-up, as each voice's: voice_chunk) */
+            t->bus_gn *= 1.0f - 0.6f * fm_clampf(pf(s, i, TP_RES, dest, off) * (1.0f / 127.0f), 0.0f, 1.0f);
+        t->bus_s1 = fm_clampf((float)(P(s, i, TP_SEND1) + t->perf.send1) + (gd == GD_SEND1 ? g : 0.0f), 0.0f, 127.0f) * (1.0f / 127.0f);
+        t->bus_s2 = fm_clampf((float)(P(s, i, TP_SEND2) + t->perf.send2) + (gd == GD_SEND2 ? g : 0.0f), 0.0f, 127.0f) * (1.0f / 127.0f);
+        if (t->bus == CT_TAPE) {                 /* the wow: the voices' pitch, one for the track (voice_chunk) */
+            float ct = (2.0f + 8.0f * t->bus_amt) * fm_minf((float)P(s, i, TP_CMIX), 127.0f) * (1.0f / 127.0f);
+            for (int k = 0; k < s->nck; k++) {
+                t->wow[0] = wrap1(t->wow[0] + 0.55f * CHUNK_S);
+                t->wow[1] = wrap1(t->wow[1] + 6.1f * CHUNK_S);
+                t->wowc[k] = ct * (fm_sin_turns(t->wow[0]) + 0.25f * fm_sin_turns(t->wow[1]));
+            }
+        }
+    }
+    for (i = 0; i < NVOICE; i++) {
+        const voice_t *v = &s->v[i];
+        s->grp[i] = 0;
+        if (v->trk < NTRK && s->t[v->trk].bus != CT_OFF && v_sounding(v)) {
+            s->grp[i] = (uint8_t)(v->trk + 1);
+            if (s->lead[v->trk] < 0)
+                s->lead[v->trk] = (int8_t)i;
+        }
+    }
+    for (i = 0; i < NTRK; i++) {                 /* a bus whose voices have ended rings out (a stage's state: the fold's
+                                                  * DC blocker, the tape's roll-off; stopped at once it stepped to 0, a
+                                                  * click): a silent voice carries its turn, its frames moved on as idle */
+        const chbus_t *c = &s->t[i].cb;
+        float e;
+        if (s->t[i].bus == CT_OFF || s->lead[i] >= 0 || c->type != s->t[i].bus)
+            continue;
+        e = fm_fabsf(c->cz[0]) + fm_fabsf(c->cz[1]) + fm_fabsf(c->cz[2]) + fm_fabsf(c->cz[3]) + fm_fabsf(c->cz[6]) +
+            fm_fabsf(c->cz[7]);                  /* (cz[4], cz[5]: phases, not sound) */
+        if (e < 1e-5f)
+            continue;
+        for (int vi = 0; vi < NVOICE; vi++)
+            if (!s->grp[vi] && !v_sounding(&s->v[vi])) {
+                s->grp[vi] = (uint8_t)(i + 1);
+                s->lead[i] = (int8_t)vi;
+                break;
+            }
+    }
+}
+static void voice_render(synth_t *s, int core, int vi, float *l, float *r, float *s1, float *s2, uint32_t n, int tap);
+/* a bus track's voices, its stage, its gains, its sends and its share of the USB audio input's track: n frames, at
+ * from frame at of the render (the tap's place) */
+static void bus_piece(synth_t *s, int core, int trk, float *l, float *r, float *s1, float *s2, uint32_t n, uint32_t at)
+{
+    trk_t *t = &s->t[trk];
+    chbus_t *c = &t->cb;
+    float *bl = bus_px[core != 0][0], *br = bus_px[core != 0][1], g = t->bus_g, dg;
+    const float k1 = t->bus_s1, k2 = t->bus_s2;
+    int type = t->bus, i;
+    uint32_t j;
+    for (j = 0; j < n; j++)
+        bl[j] = br[j] = 0.0f;
+    for (i = 0; i < NVOICE; i++)
+        if (s->grp[i] == trk + 1)
+            voice_render(s, core, i, bl, br, s1, s2, n, 0);
+    if (type != c->type) {                       /* another type: its states start clean */
+        for (i = 0; i < 8; i++)
+            c->cz[i] = 0.0f;
+        c->type = (uint8_t)type;
+        c->cin_type = 0xFFu;
+    }
+    {
+        float a = t->bus_amt, tn = fm_minf((float)P(s, trk, TP_CTONE), 127.0f) * (1.0f / 127.0f);
+        if (type != c->cin_type || a != c->cin[0] || tn != c->cin[1]) {
+            char_coefs(type, a, tn, 0.0f, c->cx);
+            c->cin_type = (uint8_t)type;
+            c->cin[0] = a;
+            c->cin[1] = tn;
+        }
+        c->cx[7] = fm_minf((float)P(s, trk, TP_CMIX), 127.0f) * (1.0f / 127.0f);
+    }
+    char_stage(c->cx, c->cz, type, 1, bl, br, (int)n);
+    dg = (t->bus_gn - g) / (float)n;             /* (the gain glides across the block) */
+    for (j = 0; j < n; j++) {
+        float ol = bl[j] * g, or_ = br[j] * g, mono = (ol + or_) * 0.5f;
+        g += dg;
+        l[j] += ol;
+        r[j] += or_;
+        s1[j] += mono * k1;
+        s2[j] += mono * k2;
+        bl[j] = ol + or_;                        /* (for the tap) */
+    }
+    t->bus_g = t->bus_gn;
+    if (synth_tap[core != 0].p) {                /* the track's share of the USB audio input (tap_voice's, the pair's
+                                                  * sum over the centre's gains) */
+        const synth_tap_t *tp = &synth_tap[core != 0];
+        const float k = tp->k * 0.70710678f;
+        for (j = 0; j < n; j++) {
+            uint32_t f = at + j;
+            int16_t *q = (f < tp->run ? tp->p + f * tp->stride : tp->p2 + (f - tp->run) * tp->stride) + trk;
+            float x = fm_clampf(bl[j] * k, -65536.0f, 65536.0f) + (float)*q;
+            *q = (int16_t)(x > 32767.0f ? 32767 : x < -32768.0f ? -32768 : (int32_t)x);
+        }
+    }
+}
+static void bus_render(synth_t *s, int core, int trk, float *l, float *r, float *s1, float *s2, uint32_t n)
+{
+    for (uint32_t at = 0; at < n; at += BUS_N) {
+        uint32_t m = n - at < BUS_N ? n - at : BUS_N;
+        bus_piece(s, core, trk, l + at, r + at, s1 + at, s2 + at, m, at);
+    }
+}
 void synth_render_on(synth_t *s, int core, int v0, int v1, float *l, float *r, float *s1, float *s2, uint32_t n)
 {
     int vi;
@@ -4082,8 +4322,6 @@ void synth_render_on(synth_t *s, int core, int v0, int v1, float *l, float *r, f
         v0 = 0;
     if (v1 > NVOICE)
         v1 = NVOICE;
-    uint32_t (*clk)(void) = synth_clock;
-    volatile uint32_t *prof = synth_prof[core != 0];
     int8_t ord[NVOICE];
     int no = 0, oi;
     for (vi = v0; vi < v1; vi++) {               /* on the FM-1 the voices grouped by engine (each engine's code
@@ -4101,72 +4339,12 @@ void synth_render_on(synth_t *s, int core, int v0, int v1, float *l, float *r, f
         ord[j] = (int8_t)vi;
     }
     for (oi = 0; oi < no; oi++) {
-        voice_t *v = &s->v[vi = ord[oi]];
-        uint32_t i = 0, t0 = 0, tc = 0, tk = 0;
-        const int timed = clk && (v_sounding(v) || v->pos == 0);
-        if (timed) {
-            t0 = clk();
-            synth_vinfo[vi] = (uint8_t)((synth_vinfo[vi] & 32u) | (v->engine & 31u) | (v->fresh & 2 ? 32u : 0u) |
-                                        (prof == synth_prof[1] ? 64u : 0u) | 128u);
-        }
-        if (v->fresh & 2) {                      /* a note started since the last render: its parameters now, from
-                                                  * this stretch's first slot (at a chunk's start the chunk's own
-                                                  * configuration below is the first) */
-            v->fresh &= (uint8_t)~2u;
-            if (v->pos != 0) {
-                uint8_t ck = v->ck;
-                if (timed)
-                    tk = clk();
-                voice_chunk(s, v);
-                if (timed)
-                    tc += clk() - tk;
-                v->ck = ck;
-                v->nchunk = (uint8_t)(v->nchunk - 1);
-            }
-        }
-        while (i < n) {
-            uint32_t m = SY_CHUNK - v->pos;
-            if (m > n - i)
-                m = n - i;
-            if (v->pos == 0) {
-                if (timed)
-                    tk = clk();
-                voice_chunk(s, v);
-                if (timed)
-                    tc += clk() - tk;
-            }
-            if (v_sounding(v) && synth_tap[core != 0].p && v->trk < NTRK) {   /* (the USB audio input's tracks) */
-                float *was = tap_was[core != 0];
-                for (uint32_t j = 0; j < m; j++)
-                    was[j] = l[i + j] + r[i + j];
-                voice_samples(s, v, l + i, r + i, s1 + i, s2 + i, (int)m);
-                tap_voice(&synth_tap[core != 0], v, l + i, r + i, was, i, (int)m);
-            } else if (v_sounding(v))
-                voice_samples(s, v, l + i, r + i, s1 + i, s2 + i, (int)m);
-            else
-                v->pos = (uint16_t)(v->pos + m);
-            if (v->pos >= SY_CHUNK)
-                v->pos = 0;
-            i += m;
-        }
-        if (timed) {
-            tk = clk() - t0;
-            synth_vblk[vi] += tk;
-            if (n >= 32u && !(synth_vinfo[vi] & 32u) && v_sounding(v)) {   /* the split's costs: a running mean of
-                                                                          * the voice's time a frame, not its first
-                                                                          * render's (its set-up) */
-                float x = (float)tk / (float)n;
-                v->cost_m = v->cost_m > 0.0f ? v->cost_m + (x - v->cost_m) * 0.25f : x;
-                s->t[v->trk < NTRK ? v->trk : 0].cost_m = v->cost_m;
-            }
-            prof[NENGINE] += tc;
-            prof[v->engine < NENGINE ? v->engine : 0] += tk - tc;
-            if (tk > synth_vworst[0]) {
-                synth_vworst[0] = tk;
-                synth_vworst[1] = v->engine;
-                synth_vworst[2] = n;
-            }
-        }
+        vi = ord[oi];
+        if (!s->grp[vi])
+            voice_render(s, core, vi, l, r, s1, s2, n, 1);
+        else if (s->lead[s->grp[vi] - 1] == vi)  /* (a track's character on its bus: its first voice renders them all;
+                                                  * the others are rendered with it) */
+            bus_render(s, core, s->grp[vi] - 1, l, r, s1, s2, n);
     }
 }
 
