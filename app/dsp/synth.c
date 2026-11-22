@@ -1185,8 +1185,8 @@ static void knit_init(voice_t *v)                  /* the voices from random pha
  * (4p(1-p))^2), panned at random by width; a note's grains at most TL_VOICE_MAX (its voice runs on one core). A new
  * grain after an interval (density): regular at spray 0, random (exponential, a cloud: Poisson) at its top, between
  * them a mix; its position the knob's plus the scan's offset plus spray's jitter, kept so the grain ends inside the
- * sample. The grains summed at 1 / sqrt(their overlap). o[0] samples to the next grain, o[1] the scan's offset (0..1),
- * o[2] 1: a new note (its grains let go at the next run). ex[0] the rate (the sample engine's), ex[1] the sample's
+ * sample. Their level kept steady by their windows' summed power (tl_run). o[0] samples to the next grain, o[1] the
+ * scan's offset (0..1), o[2] 1: a new note (its grains let go at the next run), o[3] its grain clock's rate (+-6 %). ex[0] the rate (the sample engine's), ex[1] the sample's
  * length, ex[2] position, ex[3] a grain's length (output samples), ex[4] the interval, ex[5] spray, ex[6] the sample,
  * ex[7] the scan a sample, ex[8] pitch, ex[9] width, ex[10..13] the Sub page's (voice_chunk), ex[14] the gain, ex[15]
  * the overlap (grains sounding at once, about: its cost) */
@@ -1280,8 +1280,8 @@ static tl_grain_t *tl_spawn(voice_t *v, unsigned ranges, int mine)
     g->ph = 0.0f;
     g->dph = 1.0f / fm_maxf(c->ex[3], 16.0f);
     p = frand(&v->rng) * c->ex[9];
-    g->gl = (1.0f - p) * 0.7071f * c->ex[14];
-    g->gr = (1.0f + p) * 0.7071f * c->ex[14];
+    g->gl = (1.0f - p) * 0.7071f;                /* (the level: tl_run's, by the grains' windows) */
+    g->gr = (1.0f + p) * 0.7071f;
     g->own = v->vi;
     g->dl = 0;
     g->on = 1;
@@ -1293,14 +1293,22 @@ static __attribute__((noinline)) void tl_run(voice_t *v, float *xl, float *xr, i
     const smp_t *sm = c->ex[0] > 0.0f ? smp_get((int)c->ex[6]) : 0;
     const int32_t end = (int32_t)c->ex[1] - 1;
     const uint8_t me = v->vi;
-    float tmp[SY_CHUNK];
-    int i, k, mine = 0;
+    float tmp[SY_CHUNK], wp[SY_CHUNK], ivl;
+    int i, k, mine = 0, avail;
     unsigned ranges;
     for (i = 0; i < m; i++)
-        xl[i] = xr[i] = 0.0f;
+        xl[i] = xr[i] = wp[i] = 0.0f;
     if (!sm || v->tws >= CN_SLOTS)
         return;
     ranges = tl_ranges(v);
+    avail = 0;                                   /* the grains it may have: its ranges', at most TL_VOICE_MAX */
+    for (unsigned r = ranges; r; r &= r - 1u)
+        avail += TL_POOL / CN_SLOTS;
+    avail = avail > TL_VOICE_MAX ? TL_VOICE_MAX : avail;
+    /* the interval: density's, or, when density and size ask for more grains at once than it may have, a grain's
+     * length over them: the grains spread evenly (asked more, they bunched: each new one waited for an old one to end, so
+     * they began together, a pulse at a few Hz) */
+    ivl = fm_maxf(c->ex[4], c->ex[3] / (float)avail);
     for (k = 0; k < TL_POOL; k++)
         if (tl_mem[k].own == me && tl_mem[k].on) {
             if (v->o[2] != 0.0f)                 /* a new note: its old grains let go */
@@ -1308,19 +1316,25 @@ static __attribute__((noinline)) void tl_run(voice_t *v, float *xl, float *xr, i
             else
                 mine++;
         }
-    if (v->o[2] != 0.0f) {                       /* (and its first grain at once) */
-        v->o[0] = 0.0f;
+    if (v->o[2] != 0.0f) {                       /* (and its grain clock from a point of its own, running a little
+                                                  * faster or slower: a chord's notes never start their grains together,
+                                                  * which pulsed at the grain rate) */
+        v->o[0] = (0.5f + 0.5f * frand(&v->rng)) * ivl * 0.5f;
+        v->o[3] = 1.0f + 0.06f * frand(&v->rng);
         v->o[2] = 0.0f;
     }
     while (v->o[0] < (float)m) {                 /* this block's new grains, each from its sample in the block: the
                                                   * next after an interval, regular or random by spray (exponential) */
         float u = (float)((xs(&v->rng) >> 8) + 1u) * (1.0f / 16777216.0f);
         tl_grain_t *g = tl_spawn(v, ranges, mine);
-        if (g) {
-            g->dl = (uint8_t)(v->o[0] > 0.0f ? (int)v->o[0] : 0);
-            mine++;
+        if (!g) {                                /* none free: again in a moment, not a whole interval on (a skipped
+                                                  * grain at a steady rate is a pulse) */
+            v->o[0] += 32.0f;
+            continue;
         }
-        v->o[0] += c->ex[4] * ((1.0f - c->ex[5]) + c->ex[5] * -0.6931472f * fm_log2f(u));
+        g->dl = (uint8_t)(v->o[0] > 0.0f ? (int)v->o[0] : 0);
+        mine++;
+        v->o[0] += ivl * v->o[3] * ((1.0f - c->ex[5]) + c->ex[5] * -0.6931472f * fm_log2f(u));
     }
     v->o[0] -= (float)m;
     for (k = 0; k < TL_POOL; k++) {              /* each grain: its block read at once (the sample engine's reader),
@@ -1335,6 +1349,7 @@ static __attribute__((noinline)) void tl_run(voice_t *v, float *xl, float *xr, i
         for (i = s; i < s + n; i++) {
             float w = 4.0f * g->ph * (1.0f - g->ph), x;
             w *= w;
+            wp[i] += w * w;                      /* (the windows' power: the level below) */
             x = tmp[i] * w;
             xl[i] += x * g->gl;
             xr[i] += x * g->gr;
@@ -1346,6 +1361,12 @@ static __attribute__((noinline)) void tl_run(voice_t *v, float *xl, float *xr, i
         }
         if (n < m - s)                           /* (the sample's end) */
             g->on = 0;
+    }
+    for (i = 0; i < m; i++) {                    /* the level: steady however the windows overlap (their power summed:
+                                                  * a cloud at one grain's level); a grain alone (under 1) as it is */
+        float n = wp[i] > 1.0f ? fm_rsqrtf(wp[i]) : 1.0f;
+        xl[i] *= n;
+        xr[i] *= n;
     }
     v->o[1] += c->ex[7] * (float)m;              /* the scan */
     v->o[1] -= fm_floorf(v->o[1]);
