@@ -14,7 +14,7 @@
   mirror/index.html             the screen and the panel on the computer (fm1-base's web/mirror/index.html; Chrome or
                                 Edge, Web MIDI)
   samples/index.html            the user sample bank in the browser (app/web/samples/: add, replace, rename, reorder,
-                                remove; loom_samples.js inlined)
+                                remove; fm1ports.js and loom_samples.js inlined)
   export/index.html             a project's song or a scene as a WAV, from a backup file, in the browser (app/web/export/:
                                 the page, worker.js and render.js; extras.js written beside them for the backup's samples;
                                 the emulator's app.wasm, fetched from ../emu/app.wasm)
@@ -277,11 +277,13 @@ def main(pkg, version, out):
                                                      "TERMINAL": terminal})
     (out / "backup" / "index.html").write_text(tools["backup/index.html"], encoding="utf-8")
     (out / "mirror" / "index.html").write_text(tools["mirror/index.html"], encoding="utf-8")
-    # the samples page, its bank code (app/web/samples/loom_samples.js) inlined
+    # the samples page, its bank code (app/web/samples/loom_samples.js) inlined after fm1-base's web/fm1ports.js (it
+    # finds the FM-1 as the installer and the backup page do)
     spage = (SRC / "app" / "web" / "samples" / "index.html").read_text(encoding="utf-8")
     if spage.count("/*LIB*/") != 1:
         raise SystemExit("app/web/samples/index.html must contain /*LIB*/ once")
-    slib = strip_module((SRC / "app" / "web" / "samples" / "loom_samples.js").read_text(encoding="utf-8"))
+    slib = (base_site.ports_js() + "\n" +
+            strip_module((SRC / "app" / "web" / "samples" / "loom_samples.js").read_text(encoding="utf-8")))
     (out / "samples").mkdir()
     (out / "samples" / "index.html").write_text(spage.replace("/*LIB*/", slib), encoding="utf-8")
     # the break pack (out of the firmware since 0.7): the samples page's "Add the breaks" fetches these

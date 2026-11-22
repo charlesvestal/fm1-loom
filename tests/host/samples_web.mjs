@@ -198,34 +198,70 @@ img = Path("${join(dir, "web.bin")}").read_bytes()
 print(json.dumps([[c, a] for c, a, _, _ in ls.frames(img)]))`));
   check(`the upload's frames: as loom_samples.py sends them (${fr.length})`, JSON.stringify(fr) === JSON.stringify(pyFr));
 }
-// findLink: the FM-1's ports as each system names them (a fake FM-1 answers PING; other gear never probed)
+// findLink: the FM-1's ports as each system names them, found as fm1-base's web/fm1ports.js finds FM-1s: every port
+// asked the screen reader's HELLO (F0 7D 53 52 01 01 F7), and only the one that answers as LOOM-8 sent LOOM-8's own
+// SysEx (F0 7D 46 4C ..., PING 25). fw: what the port answers HELLO with (null: other gear, which answers nothing)
 {
   const fm1 = (names, opts = {}) => {
-    const probed = [];
+    const sent = [];                                  // [port name, the SysEx's bytes 1..4]
     const ins = [], outs = [];
-    for (const [inName, outName, isFm1] of names) {
-      const input = { name: inName, state: "connected", onmidimessage: null, open: async () => { if (opts.busy) throw new Error("busy"); } };
+    for (const [inName, outName, fw = null, ping = true] of names) {
+      const ears = new Set();
+      const input = { name: inName, state: "connected", onmidimessage: null,
+        open: async () => { if (opts.busy) throw new Error("busy"); },
+        addEventListener: (t, f) => ears.add(f), removeEventListener: (t, f) => ears.delete(f) };
+      const reply = (data) => setTimeout(() => {
+        if (opts.busy) return;                         // (a port another app holds: nothing reaches the page)
+        for (const f of ears) f({ data });
+        if (input.onmidimessage) input.onmidimessage({ data });
+      }, 1);
       const output = { name: outName, state: "connected", open: async () => {},
-        send: (d) => { probed.push(outName); if (isFm1 && d[4] === 25) setTimeout(() => input.onmidimessage({ data: [0xF0, 0x7D, 0x46, 0x4C, 25, 0, 0xF7] }), 1); } };
+        send: (d) => {
+          sent.push([outName, d.slice(1, 5).join(" ")]);
+          if (!fw) return;
+          if (d[1] === 0x7D && d[2] === 0x53 && d[3] === 0x52 && d[4] === 1)
+            reply([0xF0, 0x7D, 0x53, 0x52, 1, 1, ...[...`${fw}\0https://x/words/1.json`].map((c) => c.charCodeAt(0)), 0xF7]);
+          if (ping && /^LOOM-8/.test(fw) && d[1] === 0x7D && d[2] === 0x46 && d[3] === 0x4C && d[4] === 25)
+            reply([0xF0, 0x7D, 0x46, 0x4C, 25, 0, 0xF7]);
+        } };
       ins.push(input); outs.push(output);
     }
-    return { midi: { inputs: new Map(ins.map((p, i) => [i, p])), outputs: new Map(outs.map((p, i) => [i, p])) }, probed };
+    return { midi: { inputs: new Map(ins.map((p, i) => [i, p])), outputs: new Map(outs.map((p, i) => [i, p])) }, sent };
   };
+  const L8 = "LOOM-8 0.14";
+  // only the HELLO for gear that isn't LOOM-8: never LOOM-8's SysEx (7D 46 4C)
+  const onlyHello = (sent, other) => sent.filter(([n]) => other.test(n)).every(([, h]) => h === "125 83 82 1");
   const cases = [
-    ["macOS: an earlier firmware's name", [["IAC Driver Bus 1", "IAC Driver Bus 1"], ["X0X FM-1", "X0X FM-1", 1]], true],
-    ["Windows: the ends named apart", [["LOOM-8 FM-1", "MIDIOUT2 (LOOM-8 FM-1)", 1], ["loopMIDI", "loopMIDI"]], true],
-    ["Windows: numbered", [["LOOM-8 FM-1 0", "LOOM-8 FM-1 1", 1], ["Digital Piano", "Digital Piano"]], true],
-    ["Windows: USB-MIDI", [["USB-MIDI", "USB-MIDI", 1]], true],
+    ["macOS: an earlier firmware's name", [["IAC Driver Bus 1", "IAC Driver Bus 1"], ["X0X FM-1", "X0X FM-1", L8]], true],
+    ["Windows: the ends named apart", [["LOOM-8 FM-1", "MIDIOUT2 (LOOM-8 FM-1)", L8], ["loopMIDI", "loopMIDI"]], true],
+    ["Windows: numbered", [["LOOM-8 FM-1 0", "LOOM-8 FM-1 1", L8], ["Digital Piano", "Digital Piano"]], true],
+    ["Windows: USB-MIDI", [["USB-MIDI", "USB-MIDI", L8]], true],
+    ["a name no list knows (MIDI Device)", [["MIDI Device", "MIDI Device", L8], ["Digital Piano", "Digital Piano"]], true],
+    ["Windows: a second one (2- Port 1)", [["Digital Piano", "Digital Piano"], ["2- Port 1", "2- Port 1", L8]], true],
+    ["a dev build (LOOM-8 DEV)", [["Port 1", "Port 1", "LOOM-8 DEV"]], true],
     ["other gear only", [["Digital Piano", "Digital Piano"]], false],
+    ["a Bluetooth port passed over", [["LOOM-8 Bluetooth", "LOOM-8 Bluetooth", L8]], false],
   ];
   for (const [what, names, found] of cases) {
-    const { midi, probed } = fm1(names);
+    const { midi, sent } = fm1(names);
     const l = await L.findLink(midi, 50);
-    check(`findLink: ${what}`, !!l === found && !probed.some((n) => /IAC|Piano|loopMIDI/.test(n)));
+    check(`findLink: ${what}`, !!l === found && onlyHello(sent, /IAC|Piano|loopMIDI/) && !sent.some(([n]) => /Bluetooth/.test(n)));
     if (l) l.close();
   }
-  const { midi } = fm1([["LOOM-8 FM-1", "LOOM-8 FM-1", 1]], { busy: true });
-  check("findLink: a port another app holds is passed over", (await L.findLink(midi, 50)) === null);
+  const msg = async (names, opts, re, what) => {
+    const { midi, sent } = fm1(names, opts);
+    const r = await L.seekLink(midi, 50);
+    const m = r.link ? "(found)" : L.notFound(r);
+    check(`seekLink: ${what}: "${m}"`, !r.link && re.test(m) && onlyHello(sent, /MIDI Device|Piano/));
+  };
+  await msg([["MIDI Device", "MIDI Device", "X0X 1.2"], ["Digital Piano", "Digital Piano"]], {},
+    /running X0X 1\.2, not LOOM-8\. Install LOOM-8 on the install page/, "another firmware refused");
+  await msg([["LOOM-8 FM-1", "LOOM-8 FM-1", "LOOM-8 0.4", false]], {}, /LOOM-8 0\.4 didn't answer.*Update LOOM-8 on the install page/,
+    "a LOOM-8 without PING");
+  await msg([["FM-1", "FM-1"]], {}, /An FM-1 is connected, but LOOM-8 didn't answer.*update mode/, "an FM-1 not running LOOM-8 (update mode, stock)");
+  await msg([["LOOM-8 FM-1", "LOOM-8 FM-1", L8]], { busy: true }, /An FM-1 is connected, but LOOM-8 didn't answer.*other apps/,
+    "a port another app holds");
+  await msg([["Digital Piano", "Digital Piano"]], {}, /^No FM-1 running LOOM-8 found/, "nothing");
 }
 console.log(bad ? "SAMPLES WEB FAILED" : "samples web: as loom_samples.py");
 process.exit(bad ? 1 : 0);

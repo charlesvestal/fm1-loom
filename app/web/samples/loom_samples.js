@@ -6,6 +6,9 @@
 //
 // Keep the order of operations of sampleio.py when touching these.
 
+// finding FM-1s on Web MIDI (seekLink): fm1-base's, which the pages inline before this file
+import { livePorts, pairs, usualName, askAll } from "../../../base/web/fm1ports.js";
+
 export const RATES = [11025, 16000, 22050, 32000];
 export const AUTO = [22050, 16000, 11025];
 export const BLK = 128, BLK_V2 = 64;          // a checkpoint every BLK samples: version 3 banks (0.8); 64 in version 2
@@ -474,25 +477,52 @@ export class Link {
   }
   close() { this.input.onmidimessage = null; }
 }
-// the FM-1 running LOOM-8 among midi's ports (it answers SB_SINFO); null: none
-export async function findLink(midi, wait = 1000) {
-  // the names the backup page and the installer take (Windows may call the port "USB-MIDI", or keep an earlier name,
-  // and names the two ends apart: "LOOM-8 FM-1" in, "MIDIOUT2 (LOOM-8 FM-1)" out); never probe other gear
-  const outs = [...midi.outputs.values()].filter((o) => o.state !== "disconnected");
-  const ins = [...midi.inputs.values()].filter((i) => i.state !== "disconnected" &&
-    /loom|fm-?1|felucca|composite|sinco|usb-midi/i.test(i.name || ""))
-    .sort((a, b) => /loom/i.test(b.name) - /loom/i.test(a.name));
-  const base = (s) => (s || "").replace(/\s+\d+$/, "").replace(/^MIDI(?:IN|OUT)\d*\s*\((.*)\)$/i, "$1");
-  for (const input of ins) {
-    const same = outs.filter((o) => base(o.name) === base(input.name));
-    const output = outs.find((o) => o.name === input.name) || (same.length === 1 ? same[0] : null) ||
-      (outs.length === 1 ? outs[0] : null);
-    if (!output) continue;
-    try { await input.open(); await output.open(); } catch (_) { continue; }   // another app holds it: the next
-    const l = new Link(input, output);
-    try { await l.retry(25, [], wait); return l; } catch (_) { l.close(); }
+// ---- finding LOOM-8 as the installer and the backup page find FM-1s (fm1-base's web/fm1ports.js): every port is
+// asked the screen reader's HELLO, whatever it is called (Windows keeps an earlier firmware's name, or numbers it), and
+// LOOM-8 is the one that answers with its name ("LOOM-8 0.14"); only it is sent LOOM-8's own SysEx. Never a Bluetooth
+// MIDI port: the samples go over USB.
+const BLUETOOTH_RE = /bluetooth/i;
+const IS_LOOM = (fw) => /^LOOM-8(\s|$)/.test(fw || "");
+// midi as fm1ports.js pairs its ports, but an output Windows names apart from its input ("LOOM-8 FM-1" in,
+// "MIDIOUT2 (LOOM-8 FM-1)" out) shown under its input's name
+function paired(midi) {
+  const ins = livePorts(midi.inputs), outs = livePorts(midi.outputs);
+  const apart = /^MIDI(?:IN|OUT)\d*\s*\(/i;
+  const bare = (s) => (s || "").replace(/\s+\d+$/, "").replace(/^MIDI(?:IN|OUT)\d*\s*\((.*)\)$/i, "$1");
+  const outputs = new Map();
+  for (const [k, o] of midi.outputs) {
+    const mates = ins.filter((i) => bare(i.name) === bare(o.name));
+    const named = mates.length === 1 && mates[0].name !== o.name && (apart.test(o.name || "") || apart.test(mates[0].name || "")) &&
+      !outs.some((x) => x.name === mates[0].name);
+    outputs.set(k, named ? { id: o.id, name: mates[0].name, state: o.state, open: () => o.open(), send: (d) => o.send(d) } : o);
   }
-  return null;
+  return { inputs: midi.inputs, outputs };
+}
+// the FM-1 running LOOM-8 among midi's ports -> { link, loom, others, fm1 }: link a Link to it (it answered SB_PING
+// within wait ms), or null; then loom: a LOOM-8 that answered HELLO but not PING, others: the other firmwares that
+// answered ("X0X 1.2"), fm1: a port with an FM-1's usual name that answered nothing (update mode, M-VAVE's firmware,
+// or held by another app)
+export async function seekLink(midi, wait = 1000) {
+  const view = paired(midi);
+  const got = await askAll(view, { ms: Math.min(500, wait), skip: (n) => BLUETOOTH_RE.test(n) });
+  const res = { link: null, loom: null, others: got.filter((g) => !IS_LOOM(g.firmware)).map((g) => g.firmware), fm1: false };
+  for (const g of got.filter((g) => IS_LOOM(g.firmware))) {
+    try { await g.input.open(); await g.output.open(); } catch (_) { continue; }   // another app holds it: the next
+    const l = new Link(g.input, g.output);
+    try { await l.retry(25, [], wait); res.link = l; return res; } catch (_) { l.close(); res.loom = res.loom || g.firmware; }
+  }
+  res.fm1 = pairs(view).some((p) => usualName(p.name) && !BLUETOOTH_RE.test(p.name) && !got.some((g) => g.input === p.input));
+  return res;
+}
+// the FM-1 running LOOM-8 among midi's ports (it answers SB_PING); null: none
+export async function findLink(midi, wait = 1000) { return (await seekLink(midi, wait)).link; }
+// what to tell the user when seekLink found no LOOM-8 to talk to
+export function notFound(res) {
+  if (res.loom) return `${res.loom} didn't answer the samples page. Update LOOM-8 on the install page, then connect again.`;
+  if (res.others.length) return `The FM-1 is running ${res.others[0]}, not LOOM-8. Install LOOM-8 on the install page, then connect again.`;
+  if (res.fm1) return "An FM-1 is connected, but LOOM-8 didn't answer. Close other apps that use its MIDI port. If the FM-1 " +
+    "is in update mode, turn it off and on again. If it runs M-VAVE's firmware, install LOOM-8 on the install page.";
+  return "No FM-1 running LOOM-8 found. Connect it by USB, and close other apps that use its MIDI port.";
 }
 // SMP_READ, 224 bytes a request
 export async function readBytes(link, off, n, onPart) {
