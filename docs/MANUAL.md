@@ -201,7 +201,7 @@ Count the white keys 1 to 16 from the left, and the black keys 1 to 11. "Hold **
 | **SEL** | Opens a list of this page's settings and actions. Hold a step and press it to see the step's notes. When LOOM-8 asks a question, **SEL** means yes. |
 | **HOME** | Opens Arrange. On Arrange, it opens the Song page. Hold it as a shift key for buttons and knobs: undo and redo, fine tempo, and the scenes on **PRESETS**. When LOOM-8 asks a question, **HOME** means no. |
 | **SEQ** | Opens Steps; page 2 is Bar. Hold it on Steps and the keys play the track and set what a step writes (**PRESETS** sets the track's sound, and **OCT** moves the whole pattern an octave). Hold it on Bar and black keys 1 to 4 jump to a bar or loop bars. Hold it on Steps or Bar and press **PLAY** to start from the bar on screen. |
-| **EDIT** | Opens Engine. Page 2 is Play and page 3 is Play 2 (the octave). The knit, rayon and acid engines have a page 4, Sub, with the engine's second set of knobs. A sample track in a loop mode has its Loop page second. On a drum track, page 2 holds the key's model, random, pan and volume, and page 3 its sends. On the conductor, the pages are its key, the routing and Follow. |
+| **EDIT** | Opens Engine. Page 2 is Play and page 3 is Play 2 (the octave). The knit, rayon and acid engines have a page 4, Sub, with the engine's second set of knobs, and knit a page 5, Osc 2, with osc 2's wave. A sample track in a loop mode has its Loop page second. On a drum track, page 2 holds the key's model, random, pan and volume, and page 3 its sends. On the conductor, the pages are its key, the routing and Follow. |
 | **ENV** | Opens Envelope (on a drum track: lag, attack, random, length), then Filter, then the filter's envelope. |
 | **FX** | Opens Character, the track's own effect. Next come Sends, the track's sends to FX I and FX II, and then FX I and FX II, the two effects. |
 | **LFO** | Opens LFO. Page 2 has the type's fourth and fifth knobs. |
@@ -591,7 +591,8 @@ tonality is **ignore** follows nothing.
 | kit | the model knobs of the key shown | |
 | midi | eight knobs, each sending a CC | |
 
-Knit and rayon have a second set of knobs. To reach them, press **EDIT** and turn **SELECT** to the Sub page.
+Knit and rayon have a second set of knobs. To reach them, press **EDIT** and turn **SELECT** to the Sub page. Knit
+has a third set on the Osc 2 page after it.
 
 ### Knit
 
@@ -605,9 +606,14 @@ across the stereo field. With a single voice, **detune** gives a slow drift of t
 On the Sub page, **osc 2** adds one more copy of the wave, up to 24 semitones above or below the note. **level**
 sets how loud it is, and 0 turns it off. **sub** adds a sine an octave down, and **noise** adds noise. **detune**
 also tunes osc 2 up to 20 cents above its interval, however many voices you have. For the classic sound of two
-oscillators beating, set osc 2 to 0 semitones and add a little detune. To tune osc 2 finely, hold **HOME** and turn
-**KNOB 1** ("osc 2 fine"). This goes 50 cents either way and tunes osc 2 alone, without the drift or spread that
-detune brings.
+oscillators beating, set osc 2 to 0 semitones and add a little detune.
+
+Knit has one more page, Osc 2, after Sub. Use it to give osc 2 a wave of its own. **wave** starts at same, where osc 2
+plays osc 1's wave and follows an LFO on it. Turn it to saw, square, pulse, triangle or sine to set osc 2's own.
+**shape** sweeps osc 2 from a saw through a square to a narrow pulse, as **wave** does for osc 1. It counts for saw,
+square and pulse, and turning **wave** to one of them sets **shape** there. **fine** tunes osc 2 by up to 50 cents
+either way, without the drift or spread that detune brings. Osc 2 sounds only when its **level** on the Sub page is
+above 0.
 
 A wide unison costs more than an ordinary voice, so knit plays at most six voices, or five when its unison is set
 to seven. A new note beyond that takes over the oldest one.
@@ -1612,6 +1618,7 @@ and the echoes fade out. Every voice sounds in the file, so a busy song can soun
 | EDIT, SELECT | Play | mode | porta | bend | volume | play |
 | EDIT, SELECT twice | Play 2 | octave | | | | play |
 | EDIT, SELECT 3 times (knit) | Sub | osc 2 | level | sub | noise | play |
+| EDIT, SELECT 4 times (knit) | Osc 2 | wave | shape | fine | | play |
 | EDIT, SELECT 3 times (rayon) | Sub | fall | floor | keyscale | | play |
 | EDIT, SELECT (sample, loop modes) | Loop | loop start | loop len | | | play |
 | EDIT, drum track | Engine, Key, Sends | the key's knobs; model, random, pan, volume; its fx I, fx II | | | | black: the key |

@@ -1604,6 +1604,57 @@ static void knit_balance_tests(void)
     printf("    knit's balance: worst %+.2f dB (right over left) at %d voices, width %d\n", (double)worst, worst_n, worst_w);
     check("knit: left and right within 0.5 dB at every voice count and width", finite && fabs_f(worst) <= 0.5f);
 }
+/* knit's osc 2 wave (TP_O2WAVE, its Osc 2 page): a saw at C4, osc 2 a tritone up at full level (its harmonics clear of
+ * the saw's), no detune (no drift). Its
+ * own saw at shape 0 is osc 1's saw to the sample ("same" is osc 1's wave: dsp_hash keeps that); the sine and the
+ * triangle have no second harmonic (the saw has), the square little; a lock takes the wave over as on any knob */
+static double o2_h2(int wave, int shape, int lock, float *buf, int *finite)
+{
+    const double f2 = 261.6256 * 1.4142136;          /* osc 2: C4 + 6 semitones */
+    char_sound(EG_KNIT, CT_OFF, 0, 64, 127);
+    par[0][TP_E1] = 0;
+    par[0][TP_E2] = 0;
+    par[0][TP_E3] = 1;
+    par[0][TP_X1] = 64 + 6;
+    par[0][TP_X2] = 127;
+    par[0][TP_O2WAVE] = (uint8_t)wave;
+    par[0][TP_O2SHAPE] = (uint8_t)shape;
+    synth_init(S, par);
+    synth_tempo(S, 120.0f);
+    if (lock >= 0)
+        synth_lock(S, 0, TP_O2WAVE, lock);
+    synth_note_on(S, 0, 60, 100, 0, 1);
+    for (int b = 0; b < 60; b++) {
+        block(N, finite);
+        if (b >= 20)
+            memcpy(buf + (b - 20) * N, L, sizeof L);
+    }
+    return tone_at(buf, 40 * N, 2.0 * f2) / (tone_at(buf, 40 * N, f2) + 1e-12);
+}
+static void knit_osc2_tests(void)
+{
+    static float a[40 * N], b[40 * N];
+    int finite = 1, same;
+    double saw = o2_h2(O2W_SAME, 0, -1, a, &finite), own, sine, tri, sq, lk;
+    own = o2_h2(O2W_SAW, 0, -1, b, &finite);
+    same = !memcmp(a, b, sizeof a);
+    check("knit's osc 2: its own saw at shape 0 is osc 1's saw, to the sample", same && own == saw);
+    tri = o2_h2(O2W_TRI, 0, -1, b, &finite);
+    sq = o2_h2(O2W_SQUARE, 64, -1, b, &finite);
+    lk = o2_h2(O2W_SAW, 0, O2W_SINE, a, &finite);
+    sine = o2_h2(O2W_SINE, 0, -1, b, &finite);
+    printf("    knit's osc 2, its second harmonic over its first: saw %.3g, square %.3g, triangle %.3g, sine %.3g, "
+           "a lock to sine %.3g\n", saw, sq, tri, sine, lk);
+    check("knit's osc 2: sine and triangle have no second harmonic, the square little",
+          finite && saw > 0.1 && sine < saw * 0.01 && tri < saw * 0.01 && sq < saw * 0.05);
+    check("knit's osc 2: a lock on its wave plays that wave", lk == sine && !memcmp(a, b, sizeof a));
+    check("knit's osc 2: the wave's names and ranges", tp_info(TP_O2WAVE, EG_KNIT)->hi == NO2W - 1 &&
+          !strcmp(tp_info(TP_O2WAVE, EG_KNIT)->names[O2W_TRI], "triangle") && tp_info(TP_O2SHAPE, EG_KNIT)->hi == 127);
+    par[0][TP_O2WAVE] = O2W_SINE;
+    check("knit's osc 2: shape is \"-\" but for saw, square and pulse", tp_info_par(TP_O2SHAPE, par[0])->hi == 0);
+    par[0][TP_O2WAVE] = O2W_PULSE;
+    check("knit's osc 2: shape counts for pulse", tp_info_par(TP_O2SHAPE, par[0])->hi == 127);
+}
 static void kit_char_tests(void)
 {
     static float l[4096], r[4096], l0[4096];
@@ -2640,6 +2691,7 @@ int main(void)
     }
     char_tests();
     knit_balance_tests();
+    knit_osc2_tests();
     kit_char_tests();
     sample_tests();
     slice_tests();

@@ -803,6 +803,8 @@ static int param_of(const char *s)                 /* a TP_* name, dK.NAME (drum
         return TP_O2FINE;
     if (ieq(s, "rup"))                              /* the random player's octaves up (TP_RUP; p4 its octaves down) */
         return TP_RUP;
+    if (ieq(s, "o2wave") || ieq(s, "o2shape"))      /* knit's osc 2 wave and shape (TP_O2WAVE, TP_O2SHAPE) */
+        return s[2] == 'w' || s[2] == 'W' ? TP_O2WAVE : TP_O2SHAPE;
     host_die("no parameter", s);
     return 0;
 }

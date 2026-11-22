@@ -135,7 +135,9 @@ void loom_lights(uint32_t buttons, uint32_t keys, int glow, uint32_t dim_keys, i
 #define DEBUG_BUILD (APP_VERSION[0] == 'D' && APP_VERSION[1] == 'E' && APP_VERSION[2] == 'V' && \
                      (!APP_VERSION[3] || APP_VERSION[3] == 'T'))   /* DEV, or the load test's DEVTEST */
 #define PROJ_MAGIC 0x384D4F4Cu          /* "LOM8" (was "XXY1": XY-1's projects start fresh) */
-#define PROJ_FORMAT 21u                 /* (10, 0.5-beta's, to 12 load too: project.c migrate_old; older ones do not)
+#define PROJ_FORMAT 22u                 /* (10, 0.5-beta's, to 12 load too: project.c migrate_old; older ones do not)
+                                         * 22: knit's osc 2 wave and shape (TP_O2WAVE, TP_O2SHAPE), the tracks' last
+                                         *     parameters (older: osc 1's wave, as before);
                                          * 21: the arp's dotted speeds, the delay's triplet times (project.c OLD_ARP);
                                          * 20: an FX track's PING WIDTH (TP_FX_WIDTH, its TP_X1; older: 127, full);
                                          * 19: the random player's octaves up (TP_RUP), the tracks' last parameter;
@@ -198,6 +200,7 @@ typedef struct {
     uint8_t engine;
     uint8_t par[NTP_SOUND];
     uint8_t o2fine;                     /* knit's osc 2 fine (TP_O2FINE, past par[]: presets format 9) */
+    uint8_t o2wave, o2shape;            /* and its wave and shape (TP_O2WAVE, TP_O2SHAPE: presets format 12) */
 } user_preset_t;
 
 extern settings_t proj;                 /* the project's settings (RAM) */

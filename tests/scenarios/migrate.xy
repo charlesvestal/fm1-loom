@@ -121,3 +121,38 @@ expect par2.p1 10
 expect lock 1 1 1 p1 2
 expect par11.e1 108
 expect epar11.e1 108
+
+# a format 21 project and its presets (format 11), from before knit's Osc 2 page (tests/fixtures/make_v21.xy): the tracks
+# two bytes longer (TP_O2WAVE, TP_O2SHAPE), osc 2 on osc 1's wave as it was; the user preset the same, and the user kit
+# K8 (format 11 kept its kits nearer the presets) still there
+storeload tests/fixtures/store_v21.bin
+reboot
+wait 400
+expect tempo 103
+expect par3.engine 0
+expect par3.e1 40
+expect par3.x1 71
+expect par3.x2 90
+expect par3.fine 84
+expect par3.o2wave 0
+expect par3.o2shape 0
+expect par3.rup 0
+expect par1.d2.model 12
+preset 3 reese
+expect par3.fine 64
+preset 3 U1
+expect par3.x1 71
+expect par3.fine 84
+expect par3.o2wave 0
+expect trk 1
+param 1 d2.model 0
+listen
+tap EDIT
+tap SEL
+row KIT
+turn ALGO -1
+wait 300
+said K8 kit
+tap SEL
+wait 40
+expect par1.d2.model 12

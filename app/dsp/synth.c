@@ -183,6 +183,7 @@ typedef struct {
     float pitch_in, e_in[4];          /* the pitch and the knobs the frequency and increments were made from */
     float kp_w;                       /* knit_prep's pitch-free parts were made from: the width and the voices */
     int8_t kp_n;                      /* (0 or -1: none yet; knit_init) */
+    uint8_t o2w;                      /* knit's osc 2: 0 osc 1's wave, 1 its own shape (o[9]), 2 triangle, 3 sine */
     float o[16];                      /* the engine's state */
     float cz[8];                      /* the character stage's: low-pass / hold L R, DC L R, phase, -, the
                                        * sampler's output filter L R (tape: cz[4..5] its wow's phases) */
@@ -197,8 +198,9 @@ static smp_cache_t smp_xc[SMP_NXF];
 static uint8_t smp_xo[SMP_NXF] = {NVOICE, NVOICE, NVOICE, NVOICE};
 
 #define NTP_LOCK TP_DRUM0             /* the synth's locks: the kit's own parameters never reach a voice */
+#define NTP_LOCK2 (NTP - TP_O2FINE)   /* and the ones after the kit's (knit's osc 2: fine, wave, shape), after them */
 typedef struct {
-    uint8_t lock[NTP_LOCK];
+    uint8_t lock[NTP_LOCK + NTP_LOCK2];
     perf_t perf;
     int16_t bend_c;
     uint8_t pb_snap;                  /* a note started: the performance pitch jumps to its value, no glide */
@@ -336,6 +338,15 @@ static inline void env_step(env_t *e, float ar, float dc, float sl, float rc)
 static inline int P(const synth_t *s, int trk, int p)      /* the knob, or its lock */
 {
     uint8_t l = s->t[trk].lock[p];
+    return l != LOCK_NONE ? l : s->par[trk][p];
+}
+static inline int lock_at(int p)                           /* a parameter's place in lock[], -1 none */
+{
+    return p >= 0 && p < NTP_LOCK ? p : p >= TP_O2FINE && p < NTP ? NTP_LOCK + p - TP_O2FINE : -1;
+}
+static inline int P2(const synth_t *s, int trk, int p)     /* P for one past the kit's (TP_O2FINE on) */
+{
+    uint8_t l = s->t[trk].lock[NTP_LOCK + p - TP_O2FINE];
     return l != LOCK_NONE ? l : s->par[trk][p];
 }
 /* the effective value: the LFO adds to its destination (clamped to the byte; the knob's own range is
@@ -691,9 +702,11 @@ SY_INLINE void knit_hp(float *x, float *lo, float *bp, float f, int m)
  * the LFO on it is PWM); voices 1..7: a unison of that wave, detuned by the JP-8000's offsets (KNIT_COEF) as detune opens, each pair across the field as width opens, all at one power (1 / sqrt n); at one voice
  * detune is a drift instead, the pitch wandering slowly (up to +-12 cents, a fresh target every ~0.4 s). Its second
  * page (TP_X1..X4, KNIT_X_P): osc 2, one more of the wave at an interval (+-24 semitones about 64) and its level (0 off),
- * detune also tuning it up to 20 cents above the interval (two oscillators beating, at any number of voices);
+ * detune also tuning it up to 20 cents above the interval (two oscillators beating, at any number of voices); its
+ * third, Osc 2 (TP_O2WAVE, TP_O2SHAPE, TP_O2FINE): osc 2's own wave, its shape and its fine tune;
  * sub, a sine an octave down; noise. A unison's beating is kept out of the bass by brocade's keytracked high-pass.
- * o[0..6] the voices' phases (random at the start), o[7] osc 2's, o[8] the sub's, o[10] the drift (cents) and o[11]
+ * o[0..6] the voices' phases (random at the start), o[7] osc 2's, o[8] the sub's, o[9] osc 2's own shape (0..1, as
+ * voice_chunk read it: voice_t o2w says whether it counts), o[10] the drift (cents) and o[11]
  * its target, o[12..15] the high-pass (low and band, L then R). ex[0] the increment, ex[1] the detune's, ex[2] the
  * voices, ex[3] the pulse's mix, ex[4] its width, ex[5..10] the pairs' L and R gains, ex[11] the high-pass's, ex[12]
  * a voice's gain, ex[13] osc 2's increment, ex[14] its gain, ex[15] the sub's increment, ex[16] its gain, ex[17]
@@ -827,6 +840,38 @@ SY_INLINE void knit_osc_seg(float *ph, float d, float pw, float mix, float gl, f
     }
     *ph = p;
 }
+/* osc 2's triangle (its corners rounded by the PolyBLAMP: the saw's PolyBLEP integrated; the scale found by measuring the
+ * aliasing) or sine (sin_q7), added */
+static inline float blamp(float t, float dt, float idt)
+{
+    if (t < dt) {
+        t = t * idt - 1.0f;
+        return -t * t * t * (1.0f / 3.0f);
+    }
+    if (t > 1.0f - dt) {
+        t = (t - 1.0f) * idt + 1.0f;
+        return t * t * t * (1.0f / 3.0f);
+    }
+    return 0.0f;
+}
+static __attribute__((noinline)) void knit_osc2_smooth(float *ph, float d, float g, float *xl, float *xr, int m, int stereo, int sine)
+{
+    float p = *ph, id = 1.0f / d;
+    for (int i = 0; i < m; i++) {
+        float x;
+        p = step1(p, d);
+        if (sine)
+            x = sin_q7(p);
+        else {
+            float q = p < 0.5f ? p + 0.5f : p - 0.5f;
+            x = (p < 0.5f ? 4.0f * p - 1.0f : 3.0f - 4.0f * p) + 5.0f * d * (blamp(p, d, id) - blamp(q, d, id));
+        }
+        xl[i] += x * g;
+        if (stereo)
+            xr[i] += x * g;
+    }
+    *ph = p;
+}
 SY_INLINE void knit_loop(voice_t *v, float *xl, float *xr, int m, const int stereo)
 {
     const cfg_t *c = &v->c;
@@ -857,7 +902,16 @@ SY_INLINE void knit_loop(voice_t *v, float *xl, float *xr, int m, const int ster
     }
     if (c->ex[14] > 0.0f) {                      /* osc 2: one more, in the middle */
         float d = fm_clampf(c->ex[13] * dr, 1e-6f, 0.45f);
-        knit_osc_seg(&v->o[7], d, pw, mix, c->ex[14], c->ex[14], xl, xr, m, stereo, 0);
+        if (v->o2w > 1)
+            knit_osc2_smooth(&v->o[7], d, c->ex[14], xl, xr, m, stereo, v->o2w == 3);
+        else {                                   /* osc 1's wave, or its own shape (as knit_prep makes osc 1's) */
+            float s2 = v->o[9], m2 = mix, w2 = pw;
+            if (v->o2w) {
+                m2 = s2 < 0.5f ? s2 * 2.0f : 1.0f;
+                w2 = s2 < 0.5f ? 0.5f : 0.5f - (s2 - 0.5f) * 0.8f;
+            }
+            knit_osc_seg(&v->o[7], d, w2, m2, c->ex[14], c->ex[14], xl, xr, m, stereo, 0);
+        }
     }
     if (c->ex[16] > 0.0f || c->ex[17] > 0.0f) {  /* the sub (a sine an octave down) and the noise */
         float p = v->o[8], d = c->ex[15] * dr, gs = c->ex[16], gn = c->ex[17];
@@ -1933,14 +1987,16 @@ void synth_bend(synth_t *s, int trk, int cents)
 perf_t *synth_perf(synth_t *s, int trk) { return &s->t[trk < 0 ? 0 : trk >= NTRK ? NTRK - 1 : trk].perf; }
 void synth_lock(synth_t *s, int trk, int param, int val)
 {
-    if (trk >= 0 && trk < NTRK && param >= 0 && param < NTP_LOCK)
-        s->t[trk].lock[param] = (uint8_t)(val < 0 ? 0 : val > 255 ? 255 : val);
+    int i = lock_at(param);
+    if (trk >= 0 && trk < NTRK && i >= 0)
+        s->t[trk].lock[i] = (uint8_t)(val < 0 ? 0 : val > 255 ? 255 : val);
 }
 int synth_lock_value(const synth_t *s, int trk, int param)
 {
-    if (trk < 0 || trk >= NTRK || param < 0 || param >= NTP_LOCK || s->t[trk].lock[param] == LOCK_NONE)
+    int i = lock_at(param);
+    if (trk < 0 || trk >= NTRK || i < 0 || s->t[trk].lock[i] == LOCK_NONE)
         return -1;
-    return s->t[trk].lock[param];
+    return s->t[trk].lock[i];
 }
 void synth_tempo(synth_t *s, float bpm) { s->bpm = bpm < 20.0f ? 20.0f : bpm > 400.0f ? 400.0f : bpm; }
 void synth_acid_lite(synth_t *s, int on)
@@ -2005,7 +2061,7 @@ void synth_init(synth_t *s, uint8_t (*par)[NTP])
     s->max_voices = NVOICE;
     for (i = 0; i < NTRK; i++) {
         trk_t *t = &s->t[i];
-        for (j = 0; j < NTP_LOCK; j++)
+        for (j = 0; j < NTP_LOCK + NTP_LOCK2; j++)
             t->lock[j] = LOCK_NONE;
         t->mono_voice = -1;
         t->rng = 0x9E3779B9u * (uint32_t)(i + 1);
@@ -2654,10 +2710,15 @@ static void voice_chunk(synth_t *s, voice_t *v)
         if (v->engine == EG_KNIT) {            /* its second page (knit_prep) */
             for (i = 0; i < 4; i++) {
                 float xv = (float)P(s, trk, TP_X1 + i);
-                if (i == 0)                      /* (osc 2's fine, in cents: TP_O2FINE, past the locks: the knob) */
-                    xv += (float)(s->par[trk][TP_O2FINE] - 64) * 0.01f;
+                if (i == 0)                      /* (osc 2's fine, in cents: TP_O2FINE) */
+                    xv += (float)(P2(s, trk, TP_O2FINE) - 64) * 0.01f;
                 moved |= xv != c->ex[18 + i];
                 c->ex[18 + i] = xv;
+            }
+            {   /* osc 2's wave (knit_loop reads it as it is: no increments move) */
+                int w = P2(s, trk, TP_O2WAVE);
+                v->o2w = (uint8_t)(w >= O2W_TRI && w < NO2W ? w - 2 : o2w_shaped(w));
+                v->o[9] = (float)P2(s, trk, TP_O2SHAPE) * (1.0f / 127.0f);
             }
         }
         for (i = 0; i < 4 && !moved; i++)
@@ -3321,7 +3382,12 @@ static const tp_info_t ACID_FT_P = {"type", 0, 0, 0, PK_NAMES, ACIDFT_N};
 /* knit's second page: osc 2's interval (+-24 semitones about 64) and level, the sub, the noise (knit_prep) */
 static const tp_info_t KNIT_X_P[4] = {{"osc 2", 40, 88, 64, PK_BIPST, 0}, {"level", 0, 127, 0, PK_PCT, 0},
                                     {"sub", 0, 127, 0, PK_PCT, 0}, {"noise", 0, 127, 0, PK_PCT, 0}};
-static const tp_info_t O2FINE_P = {"osc 2 fine", 14, 114, 64, PK_CENT, 0};   /* (TP_O2FINE: +-50 cents) */
+/* its third, Osc 2: osc 2's wave (O2W_*), its own shape (as osc 1's wave knob: "-" but for saw, square, pulse), its fine
+ * tune (+-50 cents) */
+static const char *const O2WAVE_N[NO2W] = {"same", "saw", "square", "pulse", "triangle", "sine"};
+static const tp_info_t O2WAVE_P = {"wave", 0, NO2W - 1, O2W_SAME, PK_NAMES, O2WAVE_N};
+static const tp_info_t O2SHAPE_P = {"shape", 0, 127, 0, PK_NN, 0};
+static const tp_info_t O2FINE_P = {"fine", 14, 114, 64, PK_CENT, 0};
 static const tp_info_t RUP_P = {"oct up", 0, 3, 0, PK_NUM, 0};   /* (TP_RUP: the random player's octaves above) */
 /* the sample engine's second page (its loop modes only): where the loop starts in the region that plays, and how much
  * of the rest it loops (0 auto: the sample's own loop, else to the region's end) (smp_prep) */
@@ -3505,9 +3571,9 @@ const tp_info_t *tp_info(int p, int engine)
         return &DRUMP[(p - TP_DRUM0) % DP_N];
     if (tp_is_dknob2(p))
         return &DRUMX_P;
-    if (p == TP_O2FINE)                          /* (its range on any engine, so a project's check keeps it; knit's
-                                                  * Sub page shows it) */
-        return &O2FINE_P;
+    if (p == TP_O2FINE || p == TP_O2WAVE || p == TP_O2SHAPE)   /* (their ranges on any engine, so a project's check
+                                                  * keeps them; knit's Osc 2 page shows them) */
+        return p == TP_O2FINE ? &O2FINE_P : p == TP_O2WAVE ? &O2WAVE_P : &O2SHAPE_P;
     if (p == TP_RUP)
         return &RUP_P;
     if (p >= 0 && p < (int)(sizeof FIXED / sizeof FIXED[0]))
@@ -3531,6 +3597,8 @@ const tp_info_t *tp_info_par(int p, const uint8_t *par)
     }
     if (p == TP_RUP)                             /* (the random player's second octave knob) */
         return player == PL_RAND ? &RUP_P : &NONE_P;
+    if (p == TP_O2SHAPE && !o2w_shaped(par[TP_O2WAVE]))   /* (osc 2's shape: its saw, square and pulse only) */
+        return &NONE_P;
     if (tp_is_dkey(p)) {
         int s = (p - TP_DRUM0) / DP_N, k = (p - TP_DRUM0) % DP_N;
         if (k >= DP_K1 && k <= DP_K4)
@@ -3812,6 +3880,8 @@ void sound_default(uint8_t *par, int engine)
         par[TP_FTYPE] = FT_DYNAMIC;
     par[TP_O2FINE] = 64;
     par[TP_RUP] = 0;
+    par[TP_O2WAVE] = O2W_SAME;
+    par[TP_O2SHAPE] = 0;
 }
 
 /* -------------------------------------------------------------- presets --- */

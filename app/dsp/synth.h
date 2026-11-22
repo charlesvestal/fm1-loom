@@ -100,14 +100,20 @@ enum {
     TP_DRUMX0 = TP_DRUM0 + 11 * DP_N,               /* the keys' second page of model knobs (a model with eight:
                                                      * drumline.h DM_KNOB2): NDRUM keys * DPX_N; after the
                                                      * keys, so format 14's indices (locks, CCs) stay as they were */
-    TP_O2FINE = TP_DRUMX0 + 11 * 4,                 /* knit's osc 2, fine: cents about 64 (14..114 = -50..+50; the Sub
-                                                     * page's osc 2 knob with HOME held). Last, so format 15's indices
-                                                     * stay (format 16) */
+    TP_O2FINE = TP_DRUMX0 + 11 * 4,                 /* knit's osc 2, fine: cents about 64 (14..114 = -50..+50; its Osc 2
+                                                     * page). Last, so format 15's indices stay (format 16) */
     TP_RUP,                                         /* the random player's octaves up, 0..3 (TP_P4 its octaves down).
                                                      * Last, so format 18's indices stay (format 19) */
+    TP_O2WAVE,                                      /* knit's osc 2, its wave (O2W_*: same, osc 1's, by default) and */
+    TP_O2SHAPE,                                     /* its own saw .. square .. pulse (as osc 1's wave knob: saw, square,
+                                                     * pulse only). Last, so format 21's indices stay (format 22) */
     NTP
 };
 _Static_assert(NTP <= 511, "a parameter's index: nine bits in the engine's queue (engine.c cq_put); a lane's is 16");
+/* knit's osc 2 wave (TP_O2WAVE): osc 1's (its wave knob and the LFO on it), or its own: saw, square and pulse are
+ * points of its shape's sweep (TP_O2SHAPE: turning the wave sets the shape there), triangle and sine */
+enum { O2W_SAME, O2W_SAW, O2W_SQUARE, O2W_PULSE, O2W_TRI, O2W_SINE, NO2W };
+static inline int o2w_shaped(int w) { return w >= O2W_SAW && w <= O2W_PULSE; }   /* the shape knob counts */
 /* the random player's octave range: how many octaves below (TP_P4, "oct down") and above (TP_RUP, "oct up") the
  * step's own a note may land, each 0..3 (0 and 0: the step's own octave only) */
 static inline int rand_oct_lo(int v) { return v < 0 ? 0 : v > 3 ? 3 : v; }

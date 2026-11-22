@@ -60,6 +60,7 @@ typedef char raw_fits[(RAW_LEN < 0x100000u) ? 1 : -1];   /* (lz.c packs up to 16
 #define NTP15 ((uint32_t)TP_O2FINE)                       /* format 15's par[]: up to the keys' knobs 5..8 */
 #define TRK15 (NTP15 + NAME_LEN + 4u)
 #define NTP18 ((uint32_t)TP_RUP)                          /* formats 16..18's: up to knit's osc 2 fine */
+#define NTP21 ((uint32_t)TP_O2WAVE)                       /* formats 19..21's: up to the random player's octaves up */
 /* the random player's one octave knob before 19 (TP_P4, 0..24: PR #13's path about its centre) as down * 4 + up */
 /* before 21: the arp's speeds without the dotted ones (1/4 1/4T 1/8 1/8T 1/16 1/16T 1/32 1/32T 1/64: old_arp, to
  * synth.h's order), the delay's times 1/32 1/32D 1/16 1/16D 1/8 1/8D 1/4 1/2 (the knob in eighths; now fx.h's, in tenths: 1/2,
@@ -69,16 +70,20 @@ static uint8_t old_arp(uint8_t v) { return v == LOCK_NONE ? v : v > 8u ? 10u : (
 static const uint8_t OLD_OCT[25] = {15, 11, 7, 14, 10, 6, 13, 9, 5, 12, 8, 4, 0, 1, 2, 3, 5, 6, 7, 9, 10, 11, 13, 14, 15};
 typedef char settings_head_fits[(SET_HDR + 4u + 64u <= PLAT_STORE_MAX && SET_OLD == 3804u) ? 1 : -1];   /* (format 14's size) */
 typedef char trk_layout[(offsetof(trk_t, name) == NTP && sizeof(trk_t) == NTP + NAME_LEN + 4u) ? 1 : -1];
-typedef char preset_packed[(sizeof(user_preset_t) == NAME_LEN + 2u + NTP_SOUND) ? 1 : -1];   /* (no padding) */
+typedef char preset_packed[(sizeof(user_preset_t) == NAME_LEN + 4u + NTP_SOUND) ? 1 : -1];   /* (no padding) */
 #define PRESET_OLD (NAME_LEN + 1u + NTP_SOUND)                    /* formats 6..8: a user preset without its fine */
+#define PRESET_V11 (NAME_LEN + 2u + NTP_SOUND)                    /* 9..11: without osc 2's wave and shape */
 #define PRESETS_V7 (4u + NUSER_PRESETS * PRESET_OLD)              /* 6, 7: the user presets alone */
 #define OLD_KITS 4u                                               /* formats 8..10: four user kits */
 #define PRESETS_V8 (PRESETS_V7 + OLD_KITS * KIT_LEN)              /* 8: the user kits after them */
-#define PRESETS_KITS (4u + (uint32_t)sizeof user_presets)         /* 9: where the kits start */
+#define PRESETS_KITS11 (4u + NUSER_PRESETS * PRESET_V11)          /* 9..11: where the kits start */
+#define PRESETS_V10 (PRESETS_KITS11 + OLD_KITS * KIT_LEN)        /* 9, 10: four kits */
+#define PRESETS_V11 (PRESETS_KITS11 + NUSER_KITS * KIT_LEN)      /* 11: eight */
+#define PRESETS_KITS (4u + (uint32_t)sizeof user_presets)         /* 12: where the kits start */
 #define PRESETS_LEN (PRESETS_KITS + NUSER_KITS * KIT_LEN)
-#define PRESETS_V10 (PRESETS_KITS + OLD_KITS * KIT_LEN)          /* 9, 10: four kits */
 typedef char presets_fit[(PRESETS_LEN <= PLAT_STORE_MAX && PRESETS_V7 == 836u) ? 1 : -1];
-#define PRESETS_FORMAT 11u               /* 11: eight user kits (10 and 9 held four, loaded as K1..K4);
+#define PRESETS_FORMAT 12u               /* 12: knit's osc 2 wave and shape (user_preset_t o2wave, o2shape);
+                                          * 11: eight user kits (10 and 9 held four, loaded as K1..K4);
                                           * 10: as 9, its kits' keys on the new models (11..20: keys_fix leaves them);
                                           * 9: knit's osc 2 fine (user_preset_t o2fine), the kits after; 8: the user kits;
                                           * 7: the filter type off (FT_DYNAMIC) moved past bp12 (TP_FTYPE 4/5 swap, below);
@@ -98,6 +103,8 @@ static void apply_preset(trk_t *t, int k)
     for (i = 0; i < NTP_SOUND; i++)
         t->par[i] = PRESETS[k].par[i];
     t->par[TP_O2FINE] = 64;
+    t->par[TP_O2WAVE] = O2W_SAME;
+    t->par[TP_O2SHAPE] = 0;
     for (i = 0; i < NAME_LEN - 1 && PRESETS[k].name[i]; i++)
         t->name[i] = PRESETS[k].name[i];
     t->name[i] = 0;
@@ -729,10 +736,11 @@ static int settings_unpack(int n)
             return -1;
         for (i = 0; i < SET_HDR; i++)
             ((uint8_t *)&proj)[i] = io_buf[i];
-        uint32_t ntp = fmt >= 19u ? (uint32_t)NTP : fmt >= 16u ? NTP18 : NTP15, tl = ntp + NAME_LEN + 4u;
-        if (fmt >= 19u)
+        uint32_t ntp = fmt >= 22u ? (uint32_t)NTP : fmt >= 19u ? NTP21 : fmt >= 16u ? NTP18 : NTP15;
+        uint32_t tl = ntp + NAME_LEN + 4u;
+        if (fmt >= 22u)
             return lz_decompress(&src, (uint8_t *)proj.trk, (uint32_t)sizeof proj.trk) ? -1 : 0;
-        if (lz_decompress(&src, (uint8_t *)proj.trk, NALLTRK * tl))   /* formats 15..18: their tracks shorter, */
+        if (lz_decompress(&src, (uint8_t *)proj.trk, NALLTRK * tl))   /* formats 15..21: their tracks shorter, */
             return -1;
         for (int t = NALLTRK - 1; t >= 0; t--) {  /* spread from the last (each moves up: copied from its end) */
             const uint8_t *o = (const uint8_t *)proj.trk + (uint32_t)t * tl;
@@ -744,6 +752,10 @@ static int settings_unpack(int n)
                 d[i] = o[i];
             if (ntp <= (uint32_t)TP_O2FINE)
                 par[TP_O2FINE] = 64;
+            par[TP_O2WAVE] = O2W_SAME;           /* (osc 2 on osc 1's wave, as it was) */
+            par[TP_O2SHAPE] = 0;
+            if (ntp > (uint32_t)TP_RUP)
+                continue;
             par[TP_RUP] = 0;
             if (t < NTRK && par[TP_PLAYER] % NPL == PL_RAND) {   /* (the octave knob: down and up) */
                 uint8_t v = OLD_OCT[par[TP_P4] < 25u ? par[TP_P4] : 12u];
@@ -768,6 +780,8 @@ static int settings_unpack(int n)
                 tr->par[TP_DRUMX(k, j)] = DM_DEFAULT2[tr->par[TP_DRUM(k, DP_MODEL)] % NDM][j];
         tr->par[TP_O2FINE] = 64;
         tr->par[TP_RUP] = 0;
+        tr->par[TP_O2WAVE] = O2W_SAME;
+        tr->par[TP_O2SHAPE] = 0;
     }
     return 0;
 }
@@ -1004,22 +1018,26 @@ int presets_load(void)
         user_presets[k].name[0] = 0;
     for (k = 0; k < NUSER_KITS; k++)
         user_kit_name[k][0] = 0;
-    if (!(fmt == PRESETS_FORMAT && n == (int)PRESETS_LEN) && !((fmt == 10u || fmt == 9u) && n == (int)PRESETS_V10) &&
-        !(fmt == 8u && n == (int)PRESETS_V8) &&
+    if (!(fmt == PRESETS_FORMAT && n == (int)PRESETS_LEN) && !(fmt == 11u && n == (int)PRESETS_V11) &&
+        !((fmt == 10u || fmt == 9u) && n == (int)PRESETS_V10) && !(fmt == 8u && n == (int)PRESETS_V8) &&
         !((fmt == 6u || fmt == 7u) && n == (int)PRESETS_V7))
         return -1;
-    if (fmt >= 9u)
-        for (i = 0; i < sizeof user_presets; i++)
-            ((uint8_t *)user_presets)[i] = io_buf[4u + i];
-    else
-        for (k = 0; k < NUSER_PRESETS; k++) {     /* (before 9: a preset without its fine) */
-            for (i = 0; i < PRESET_OLD; i++)
-                ((uint8_t *)&user_presets[k])[i] = io_buf[4u + (uint32_t)k * PRESET_OLD + i];
+    {
+        uint32_t len = fmt >= 12u ? (uint32_t)sizeof(user_preset_t) : fmt >= 9u ? PRESET_V11 : PRESET_OLD;
+        for (k = 0; k < NUSER_PRESETS; k++) {    /* (before 12 without osc 2's wave, before 9 its fine too) */
             user_presets[k].o2fine = 64;
+            user_presets[k].o2wave = O2W_SAME;
+            user_presets[k].o2shape = 0;
+            for (i = 0; i < len; i++)
+                ((uint8_t *)&user_presets[k])[i] = io_buf[4u + (uint32_t)k * len + i];
         }
-    for (k = 0; k < NUSER_PRESETS; k++)
+    }
+    for (k = 0; k < NUSER_PRESETS; k++) {
         if (user_presets[k].o2fine < 14u || user_presets[k].o2fine > 114u)
             user_presets[k].o2fine = 64;
+        if (user_presets[k].o2wave >= NO2W || user_presets[k].o2shape > 127u)
+            user_presets[k].o2wave = O2W_SAME, user_presets[k].o2shape = 0;
+    }
     if (fmt < 7u)                                /* (before 7, off (FT_DYNAMIC) sat at 4 and bp12 at 5: swap) */
         for (k = 0; k < NUSER_PRESETS; k++) {
             uint8_t ft = user_presets[k].par[TP_FTYPE];
@@ -1032,8 +1050,9 @@ int presets_load(void)
             user_presets[k].name[0] = 0;
     }
     if (fmt >= 8u)
-        for (k = 0; k < (fmt == PRESETS_FORMAT ? NUSER_KITS : (int)OLD_KITS); k++) {
-            const uint8_t *img = io_buf + (fmt == 8u ? PRESETS_V7 : PRESETS_KITS) + (uint32_t)k * KIT_LEN;
+        for (k = 0; k < (fmt >= 11u ? NUSER_KITS : (int)OLD_KITS); k++) {
+            const uint8_t *img = io_buf + (fmt == 8u ? PRESETS_V7 : fmt >= 12u ? PRESETS_KITS : PRESETS_KITS11) +
+                                 (uint32_t)k * KIT_LEN;
             for (i = 0; i < NAME_LEN; i++)
                 user_kit_name[k][i] = (char)img[i];
             user_kit_name[k][NAME_LEN - 1] = 0;
@@ -1051,15 +1070,17 @@ static void presets_image(void)
 {
     int n = plat_store_load(OBJ_PRESETS, io_buf, sizeof io_buf);
     uint32_t i, fmt = get32(io_buf);
-    uint32_t keep = 0;                          /* the kits' bytes kept: the rest of the slots empty */
-    if (fmt == 8u && n == (int)PRESETS_V8) {
-        for (i = OLD_KITS * KIT_LEN; i-- > 0;)       /* (up: copied from the end) */
-            io_buf[PRESETS_KITS + i] = io_buf[PRESETS_V7 + i];
-        keep = OLD_KITS * KIT_LEN;
-    } else if ((fmt == 10u || fmt == 9u) && n == (int)PRESETS_V10)
-        keep = OLD_KITS * KIT_LEN;
+    uint32_t keep = 0, from = PRESETS_KITS;     /* the kits' bytes kept (the rest of the slots empty), and where */
+    if (fmt == 8u && n == (int)PRESETS_V8)
+        keep = OLD_KITS * KIT_LEN, from = PRESETS_V7;
+    else if ((fmt == 10u || fmt == 9u) && n == (int)PRESETS_V10)
+        keep = OLD_KITS * KIT_LEN, from = PRESETS_KITS11;
+    else if (fmt == 11u && n == (int)PRESETS_V11)
+        keep = NUSER_KITS * KIT_LEN, from = PRESETS_KITS11;
     else if (fmt == PRESETS_FORMAT && n == (int)PRESETS_LEN)
         keep = NUSER_KITS * KIT_LEN;
+    for (i = keep; i-- > 0;)                    /* (up: copied from the end) */
+        io_buf[PRESETS_KITS + i] = io_buf[from + i];
     for (i = PRESETS_KITS + keep; i < PRESETS_LEN; i++)
         io_buf[i] = 0;
     put32(io_buf, PRESETS_FORMAT);
@@ -1083,8 +1104,10 @@ int kit_load(int slot, uint8_t *img)
     fmt = get32(io_buf);
     if (fmt == PRESETS_FORMAT && n == (int)PRESETS_LEN)
         at = PRESETS_KITS;
+    else if (fmt == 11u && n == (int)PRESETS_V11)
+        at = PRESETS_KITS11;
     else if ((fmt == 10u || fmt == 9u) && n == (int)PRESETS_V10 && slot < (int)OLD_KITS)
-        at = PRESETS_KITS;
+        at = PRESETS_KITS11;
     else if (fmt == 8u && n == (int)PRESETS_V8 && slot < (int)OLD_KITS)
         at = PRESETS_V7;
     else

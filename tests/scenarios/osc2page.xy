@@ -1,0 +1,101 @@
+# knit's Osc 2 page (testers: more from osc 2): EDIT's fifth page on a knit track, after Sub. wave (same: osc 1's, by
+# default; saw, square, pulse, triangle, sine), shape (osc 2's own saw .. square .. pulse, set where the wave sits when
+# the wave turns to one of those; "-" for the others), fine (+-50 cents, here now: HOME on Sub no longer turns it).
+# Another engine has no such page; the values stay over a restart and in a user preset, a factory preset sets them back
+wait 300
+spin ALGO 2
+expect trk 3
+knob 3 engine knit
+tap EDIT
+turn SELECT 4
+expect page Osc_2
+expect par3.o2wave 0
+expect par3.o2shape 0
+listen
+wait 400
+said Osc 2
+shot osc2_same.png
+# the wave: saw, square, pulse each set the shape where they sit
+spin K1 1
+wait 400
+said wave saw
+expect par3.o2wave 1
+expect par3.o2shape 0
+spin K1 1
+expect par3.o2wave 2
+expect par3.o2shape 64
+spin K1 1
+expect par3.o2wave 3
+expect par3.o2shape 127
+spin K2 -27
+expect par3.o2shape 100
+# with osc 2 heard (its level on Sub) at a fifth: the picture
+knob 3 x1 71
+knob 3 x2 90
+wait 40
+shot osc2_pulse.png
+spin K1 1
+expect par3.o2wave 4
+wait 400
+said wave triangle
+spin K1 1
+expect par3.o2wave 5
+spin K1 1
+expect par3.o2wave 5
+spin K1 -3
+expect par3.o2wave 2
+expect par3.o2shape 64
+# fine: here, in cents
+spin K3 12
+expect par3.fine 76
+wait 400
+said fine +12 ct
+wait 40
+shot osc2_square.png
+# Osc 2 is EDIT's last page: SELECT wraps to Engine
+turn SELECT 1
+expect page Engine
+turn SELECT -1
+expect page Osc_2
+# HOME held on Sub turns osc 2's interval, as without it: the shortcut to fine is gone
+turn SELECT -1
+expect page Sub
+press HOME
+wait 600
+spin K1 2
+release HOME
+wait 40
+expect par3.x1 73
+expect par3.fine 76
+expect page Sub
+# kept over a restart
+projsave 1
+reboot
+wait 400
+expect par3.o2wave 2
+expect par3.o2shape 64
+expect par3.fine 76
+# a user preset keeps them, a factory preset sets them back to osc 1's wave
+usersave 3 3
+preset 3 reese
+expect par3.o2wave 0
+expect par3.o2shape 0
+expect par3.fine 64
+preset 3 U3
+expect par3.o2wave 2
+expect par3.o2shape 64
+expect par3.fine 76
+reboot
+wait 400
+preset 3 U3
+expect par3.o2wave 2
+# another engine: no Osc 2 page (on it: back to the first page)
+tap EDIT
+turn SELECT 4
+expect page Osc_2
+knob 3 engine rayon
+wait 40
+expect page Engine
+expect par3.o2wave 0
+turn SELECT 4
+expect page Engine

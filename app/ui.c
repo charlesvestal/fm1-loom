@@ -239,6 +239,11 @@ static void set_tp(int trk, int p, int v)
         par[TP_RUP] = 0;                                             /* (oct up) */
         engine_set(trk, TP_RUP, 0);
     }
+    if (p == TP_O2WAVE && !is_aux(trk) && o2w_shaped(v)) {          /* knit's osc 2: its shape where the wave sits */
+        static const uint8_t AT[3] = {0, 64, 127};                   /* (saw, square, pulse) */
+        par[TP_O2SHAPE] = AT[v - O2W_SAW];
+        engine_set(trk, TP_O2SHAPE, par[TP_O2SHAPE]);
+    }
     if (was_rand && (is_drum(trk) || par[TP_PLAYER] % NPL != PL_RAND))
         lane_pool_free(pats.lane, trk);              /* (another player, or an engine without one) */
     if (is_aux(trk))
@@ -306,7 +311,9 @@ static void load_preset(int trk, const preset_t *pr)
     uint8_t *par = proj.trk[trk].par;
     undo_sound(trk);
     memcpy(par, pr->par, NTP_SOUND);
-    par[TP_O2FINE] = 64;                         /* (the factory presets: no fine tune) */
+    par[TP_O2FINE] = 64;                         /* (the factory presets: no fine tune, osc 2 on osc 1's wave) */
+    par[TP_O2WAVE] = O2W_SAME;
+    par[TP_O2SHAPE] = 0;
     {                                            /* (the name's string ends at its 0: nothing read past it) */
         int i = 0;
         for (; i < NAME_LEN && pr->name[i]; i++)
@@ -393,6 +400,8 @@ static int preset_apply(int trk, int i)
         memcpy(proj.trk[trk].par, user_presets[u].par, NTP_SOUND);
         proj.trk[trk].par[TP_ENGINE] = user_presets[u].engine;
         proj.trk[trk].par[TP_O2FINE] = user_presets[u].o2fine;
+        proj.trk[trk].par[TP_O2WAVE] = user_presets[u].o2wave;
+        proj.trk[trk].par[TP_O2SHAPE] = user_presets[u].o2shape;
         memcpy(proj.trk[trk].name, user_presets[u].name, NAME_LEN);
         engine_set_all(trk);
         mark_dirty();
@@ -3026,6 +3035,8 @@ static void act_paste_sound(void)
         undo_sound(trk);
         memcpy(par, proj.trk[src].par, NTP_SOUND);
         par[TP_O2FINE] = proj.trk[src].par[TP_O2FINE];
+        par[TP_O2WAVE] = proj.trk[src].par[TP_O2WAVE];
+        par[TP_O2SHAPE] = proj.trk[src].par[TP_O2SHAPE];
         memcpy(proj.trk[trk].name, proj.trk[src].name, NAME_LEN);
         engine_set_all(trk);
         mark_dirty();
@@ -3157,6 +3168,8 @@ static void save_user_preset(int slot)
     user_presets[slot].engine = proj.trk[trk].par[TP_ENGINE];
     memcpy(user_presets[slot].par, proj.trk[trk].par, NTP_SOUND);
     user_presets[slot].o2fine = proj.trk[trk].par[TP_O2FINE];
+    user_presets[slot].o2wave = proj.trk[trk].par[TP_O2WAVE];
+    user_presets[slot].o2shape = proj.trk[trk].par[TP_O2SHAPE];
     memcpy(user_presets[slot].name, proj.trk[trk].name, NAME_LEN);
     if (!user_presets[slot].name[0])
         s_cat(user_presets[slot].name, EG_NAME[proj.trk[trk].par[TP_ENGINE] % NENGINE]);
@@ -4595,7 +4608,7 @@ static void speak(void)
     }
     if (ui.ask || ui.card)
         return;
-    if (home_held()) {                           /* the tempo, else a knob HOME shifts (knit's osc 2 fine) */
+    if (home_held()) {                           /* the tempo, else a knob HOME shifts (Arrange's fine tempo) */
         int tempo = (int)(proj.tempo_x10 / 10u), knobs = sp_knobs_changed(input);
         if (tempo != sp.tempo) {
             sp.tempo = (int16_t)tempo;

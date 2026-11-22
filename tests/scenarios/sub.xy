@@ -14,7 +14,7 @@ expect page Play_2
 expect par3.oct 2
 turn SELECT 1
 expect page Engine
-# knit: osc 2 in unison and off, a fourth page
+# knit: osc 2 in unison and off, a fourth page (and Osc 2 a fifth: tests/scenarios/osc2page.xy)
 knob 3 engine knit
 expect par3.engine 0
 expect par3.x1 64
@@ -55,7 +55,7 @@ expect voices 1
 key 7 up
 wait 300
 turn SELECT 1
-expect page Engine
+expect page Osc_2
 turn SELECT -1
 expect page Sub
 # another track (jacquard: no Sub page): back to the button's first page
@@ -64,7 +64,7 @@ expect trk 4
 expect page Engine
 spin ALGO -1
 expect trk 3
-turn SELECT -1
+turn SELECT -2
 expect page Sub
 # another engine on the Sub page (jacquard): back to Engine, three pages
 knob 3 engine jacquard

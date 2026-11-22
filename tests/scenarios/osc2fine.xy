@@ -1,6 +1,6 @@
-# knit's osc 2 fine tune (TP_O2FINE, a tester: "OSC2 Fine Tune instead of Semitones"): on the Sub page, HOME held
-# turns osc 2's knob in cents (+-50) and the strip shows it; let go, the knob is semitones again and HOME's release
-# opens no page. Kept over a restart; a factory preset sets it back to 0; a user preset keeps it
+# knit's osc 2 fine tune (TP_O2FINE, a tester: "OSC2 Fine Tune instead of Semitones"): on the Osc 2 page (it was HOME
+# held on Sub's osc 2 knob until the page came: tests/scenarios/osc2page.xy), in cents (+-50); osc 2's interval stays on
+# Sub. Kept over a restart; a factory preset sets it back to 0; a user preset keeps it
 wait 300
 spin ALGO 2
 expect trk 3
@@ -11,23 +11,22 @@ expect page Sub
 spin K1 7
 expect par3.x1 71
 expect par3.fine 64
+turn SELECT 1
+expect page Osc_2
 listen
-press HOME
-wait 600
-listen
-spin K1 12
+spin K3 12
 wait 400
-said osc 2 fine +12 ct
-shot fine_held.png
-spin K1 60
+said fine +12 ct
+shot fine_page.png
+spin K3 60
 expect par3.fine 114
-spin K1 -88
+spin K3 -88
 expect par3.fine 26
-spin K1 14
-release HOME
+spin K3 14
 wait 40
 expect par3.fine 40
 expect par3.x1 71
+turn SELECT -1
 expect page Sub
 spin K1 1
 expect par3.x1 72
