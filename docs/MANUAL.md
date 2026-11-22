@@ -1068,6 +1068,15 @@ a module, and the parameter is one of that module's four:
 
 A destination marked "free" keeps running instead of restarting on each note.
 
+MOD VIEW shows what the LFOs and envelopes do to the selected track's newest note while it sounds. A knob that the
+track's LFO or the shared LFO is moving gets a thin tick on its bar, at the value it has now. A lock's red dot can
+show beside it. The Filter page draws its curve at the cutoff as it sounds, with the filter envelope and the LFOs
+added to the knob, and the faint line stays where the knob is. On the Envelope pages, a dot travels along the curve
+as the note goes through its attack, decay, sustain and release. When the track is silent, the pages look as they
+always do. MOD VIEW is on to start with. To turn it off, set MOD VIEW to off in Setup's **SEL** list (**GLO**).
+It pauses while LOOM-8 is busy, when the sound takes more than 80 % of the processor, and comes back once that falls
+under 70 %.
+
 ### Character
 
 Each voice of a synth track has its own effect after the filter and before the sends. This is its character.
@@ -1328,7 +1337,7 @@ Debug. The **SEL** list on Setup has the FM-1's own settings, in three groups:
 
 - Bluetooth: BT MIDI, MIDI DEVICE, BT AUDIO and AUDIO DEVICE.
 - USB and MIDI: the USB audio level, USB PORT, CLOCK, NOTES, CC IN, CC OUT and SCENES OUT.
-- LOOM-8: LIGHTS, THEME, AUTOSAVE and LOOP THROWS.
+- LOOM-8: LIGHTS, THEME, AUTOSAVE, LOOP THROWS and MOD VIEW (see [The synth pages](#the-synth-pages)).
 
 All of Setup's settings, the theme too, belong to the FM-1, not the project. Every project you load or start keeps
 them as you left them. On every page, the header shows the scene playing ("S3") before the tempo. You'll find the

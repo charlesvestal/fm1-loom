@@ -30,7 +30,9 @@
  *                                samples, its data's bytes, user N's rate), punch_drum / punch_mel (the masks in effect,
  *                                PX_* bits), parT.P (P a number or a name: par2.x1, par1.d3.decay), mst.NAME (a
  *                                master value, the mst command's names), pump (the
- *                                pump's duck now, tenths of a dB); and with more words: step T VALUE, page NAME, comp T S VALUE (prints
+ *                                pump's duck now, tenths of a dB), modview (MOD VIEW shows), modcut / envdot (the
+ *                                Filter curve's cutoff and the Envelope dot as last drawn: x, -1 none), modticks (the
+ *                                knobs with MOD VIEW's tick, a bit each); and with more words: step T VALUE, page NAME, comp T S VALUE (prints
  *                                both components; checks the first), note T PAT S VALUE
  * The demos' stems and taps (tools/demos/render.sh --stems), from the environment:
  *   LOOM_SOLO=1,3,fx1,fx2        only these tracks (dry and their sends) and FX returns sound
@@ -429,6 +431,18 @@ int app_expect(const char *what, int *got)
         if (t < 0 || t >= NALLTRK || p < 0 || p >= NTP)
             return 0;
         *got = epar[t][p];
+    } else if (!strcmp(what, "modview"))              /* MOD VIEW shows (Setup's on, the load under its guard) */
+        *got = mod_view();
+    else if (!strcmp(what, "modcut"))               /* the Filter page's curve: its cutoff's x as last drawn */
+        *got = mv_fc;
+    else if (!strcmp(what, "envdot"))               /* the Envelope page's dot: its x as last drawn, -1 none */
+        *got = mv_dot;
+    else if (!strcmp(what, "modticks")) {           /* the knobs with MOD VIEW's tick: a bit each */
+        knob_t k[4];
+        page_knobs(k);
+        *got = 0;
+        for (int i = 0; i < 4; i++)
+            *got |= (k[i].mod != 0) << i;
     } else if (!strcmp(what, "sendnotes"))            /* Setup's NOTES: MIDI notes out */
         *got = seq.send_notes;
     else if (!strcmp(what, "clock"))                /* Setup's CLOCK: SEQ_CLK_* (0 internal, 1 send, 2 receive) */

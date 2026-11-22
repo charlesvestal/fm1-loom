@@ -1,0 +1,125 @@
+# MOD VIEW (Setup, on by default): the LFOs and envelopes of the selected track's newest voice on the screen while
+# it sounds: the Filter page's curve at the cutoff as it sounds (the faint line stays at the knob), a tick on the knob
+# an LFO moves, a dot along the Envelope page's curve. Off in Setup, or while the load is high (over 80 % until under
+# 70 %): the plain pictures
+wait 300
+spin ALGO 2
+expect trk 3
+knob 3 engine knit
+knob 3 cut 64
+knob 3 fenv 64
+knob 3 ltype wave
+knob 3 ldest filter
+knob 3 lx cutoff
+knob 3 lx2 square
+knob 3 lamt 127
+knob 3 lspeed 1
+tap ENV
+turn SELECT 1
+expect page Filter
+expect modview 1
+wait 100
+# silent: the knob's cutoff, no tick
+expect modcut 120
+expect modticks 0
+# a note: the square LFO's first half opens the filter (bar 1 at 120 BPM: a second each half), then closes it
+play 3 C4 on
+wait 300
+expect modcut >200
+expect modticks 1
+shot mod_filter_open.png
+wait 1000
+expect modcut <40
+expect modticks 1
+shot mod_filter_shut.png
+play 3 C4 off
+wait 1500
+expect modcut 120
+expect modticks 0
+# the guard: a load over 80 % and MOD VIEW stops (the curve at the knob while the note sounds), back under 70 %
+play 3 C4 on
+wait 300
+expect modcut >200
+load 90
+wait 300
+expect modview 0
+expect modcut 120
+expect modticks 0
+load 75
+wait 300
+expect modview 0
+load 60
+wait 300
+expect modview 1
+expect modcut <40
+play 3 C4 off
+load -1
+wait 1500
+# the Envelope page: the dot through a note (attack, decay, sustain held, release), none when it ends
+knob 3 ltype off
+knob 3 a 90
+knob 3 d 90
+knob 3 s 64
+knob 3 r 90
+turn SELECT -1
+expect page Envelope
+wait 100
+expect envdot -1
+play 3 C4 on
+wait 60
+expect envdot >16
+expect envdot <60
+shot mod_env_attack.png
+wait 400
+expect envdot >30
+shot mod_env_decay.png
+wait 3000
+expect envdot 109
+shot mod_env_sustain.png
+play 3 C4 off
+wait 200
+expect envdot >140
+shot mod_env_release.png
+wait 6000
+expect envdot -1
+# Setup's MOD VIEW row (the FM-1's setting, as the theme): off, and the Filter page's curve stays at the knob
+tap GLO
+turn SELECT 5
+expect page Setup
+tap SEL
+listen
+row MOD VIEW
+wait 50
+turn ALGO -1
+wait 100
+expect modview 0
+shot mod_setup_off.png
+tap HOME
+wait 100
+tap EDIT
+tap ENV
+turn SELECT 1
+expect trk 3
+expect page Filter
+knob 3 ltype wave
+play 3 C4 on
+wait 300
+expect modcut 120
+expect modticks 0
+play 3 C4 off
+wait 1500
+# kept over a restart (saved with the project), and on again
+wait 5000
+expect dirty 0
+reboot
+wait 400
+expect modview 0
+tap GLO
+turn SELECT 5
+expect page Setup
+tap SEL
+row MOD VIEW
+wait 50
+turn ALGO 1
+wait 100
+expect modview 1

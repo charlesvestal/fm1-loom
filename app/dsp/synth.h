@@ -343,6 +343,18 @@ int synth_slice_now(const synth_t *s, int trk, int *slice, int32_t *pos);
 void synth_limit(synth_t *s, int max_voices);                  /* the overload guard: fewer voices */
 void synth_acid_lite(synth_t *s, int on);                      /* and before it: the 303s without oversampling */
 int synth_lock_value(const synth_t *s, int trk, int param);   /* a lock's value now, -1 none (the UI's dot) */
+/* MOD VIEW (pages.c): the modulation inside one track's newest sounding voice, for the screen. The UI names the
+ * track (trk; 0xFF none: nothing is written), synth_prepare writes the rest once a block, of the track it was
+ * written for (NTRK: none of its voices sounds). No lock: a torn read draws one odd frame. cut: what the
+ * filter envelope and the LFOs add to the cutoff now, in the knob's units; lp / gp: the parameter the
+ * track's LFO / the shared LFO moves (-1 none, or not now), by loff / goff now (the knob's units); ast / fst:
+ * the amp / filter envelope's stage (0 off, 1 attack, 2 decay, 3 sustain, 4 release), alv / flv their levels 0..1 */
+typedef struct {
+    float cut, loff, goff, alv, flv;
+    int16_t lp, gp;
+    uint8_t trk, of, ast, fst;
+} synth_mod_t;
+extern volatile synth_mod_t synth_mod;
 void synth_load_hint(synth_t *s, uint32_t pct);              /* the last block's load, %: the note-start check */
 extern uint32_t synth_load_steals;                            /* notes that took a sounding voice by the load check */
 /* what voice vi costs to render, in rough units for the cores' split (engine.c split_at): 0 silent, 4 an

@@ -62,6 +62,7 @@ static const theme_t *theme = &THEMES[THEME_BW];
                                                         * off by default, old and new projects alike) */
 #define CC_IN_ENDLESS 1u                               /* proj.rsv[3]: CCs in from endless encoders, each a turn
                                                         * (midicc.c cc_delta; absolute by default) */
+#define MOD_VIEW_OFF 2u                                /* proj.rsv[3]: no MOD VIEW (on by default, old FM-1s too) */
 #define K_BG theme->bg
 #define K_PANEL theme->panel
 #define K_PANEL2 theme->panel2
@@ -289,7 +290,7 @@ enum { A_CLEAR_NOTES, A_CLEAR_LOCKS, A_CLEAR_BOTH, A_COPY_PAT, A_PASTE_PAT, A_RO
        A_KIT, A_SAVE_KIT, A_MIDI_CC, A_USB_HOST, A_BT_MIDI, A_BT_AUDIO, A_BT_ADEV, A_BT_DEVICE, A_BT_DEV, A_BT_LOOK,
        A_BT_FORGET, A_BT_DISCONNECT, A_CLEAR, A_ROTATE, A_PASTE, A_COPY_EMPTY, A_CLEAR_BAR,
        A_COPY_SOUND, A_PASTE_SOUND, A_COPY_KEY, A_PASTE_KEY, A_COPY_SCENE, A_PASTE_SCENE, A_DUP_SLOT, A_KIT_FILTER,
-       A_SHIFT, A_LARGE_TYPE, A_CC_IN, A_FX_WIDTH, A_PROJ1, A_PROJ2, A_PROJ3, NACTIONS };
+       A_SHIFT, A_LARGE_TYPE, A_CC_IN, A_FX_WIDTH, A_MOD_VIEW, A_PROJ1, A_PROJ2, A_PROJ3, NACTIONS };
 static const char *const ACTION_NAME[NACTIONS] = {
     "CLEAR NOTES", "CLEAR LOCKS", "CLEAR NOTES AND LOCKS", "COPY PATTERN", "PASTE PATTERN", "ROTATE FORWARD",
     "ROTATE BACK", "DUPLICATE BAR", "ENGINE", "PRESET", "SCRAMBLE", "SAVE AS PRESET", "RESET SOUND", "FOLLOWS CONDUCTOR",
@@ -301,7 +302,7 @@ static const char *const ACTION_NAME[NACTIONS] = {
     "USB PORT", "BT MIDI", "BT AUDIO", "AUDIO DEVICE", "MIDI DEVICE", "DEVICE", "LOOK AGAIN", "FORGET", "DISCONNECT",
     "CLEAR", "ROTATE", "PASTE", "COPY TO EMPTY", "CLEAR BAR", "COPY SOUND", "PASTE SOUND", "COPY DRUM", "PASTE DRUM",
     "COPY SCENE", "PASTE SCENE", "DUPLICATE SLOT", "KIT FILTER", "SHIFT NOTES", "LARGE TYPE", "CC IN", "PING WIDTH",
-    "PROJ 1", "PROJ 2", "PROJ 3"};
+    "MOD VIEW", "PROJ 1", "PROJ 2", "PROJ 3"};
 _Static_assert(NPROJ == 3, "GLO's list: an action a slot (A_PROJ1..A_PROJ3)");
 static const char *const CLEAR_WHAT[3] = {"notes", "locks", "notes and locks"};
 /* a pick ALGORITHM sets at once (a setting: SEL only leaves the list), as against a choice SEL then carries out */
@@ -311,7 +312,7 @@ static int pick_sets(int a)
     case A_FOLLOW: case A_USB_AUDIO: case A_COUNT_IN: case A_THEME: case A_LARGE_TYPE: case A_PLAYMODE: case A_FTYPE:
     case A_FX_HP: case A_FX_LP: case A_FX_SEND: case A_PUMP_BY: case A_PUMP_REL: case A_PUMP_ACC: case A_LEVEL:
     case A_SCENE_AT: case A_AUTOSAVE: case A_MIDI_OUT: case A_LOOP_FREE: case A_CC_OUT: case A_SCENES_OUT: case A_MIDI_CC:
-    case A_USB_HOST: case A_KIT_FILTER: case A_CC_IN: case A_FX_WIDTH:
+    case A_USB_HOST: case A_KIT_FILTER: case A_CC_IN: case A_FX_WIDTH: case A_MOD_VIEW:
         return 1;
     default:
         return 0;
@@ -1187,12 +1188,43 @@ static void draw_header(void)
     cv_blit(0, 0);
 }
 
+/* ------------------------------------------------------- MOD VIEW --- */
+/* MOD VIEW (Setup; proj.rsv[3] MOD_VIEW_OFF): what the LFOs and the envelopes do inside the selected track's newest
+ * voice, drawn while it sounds: a tick on a knob an LFO moves, the Filter page's curve at the cutoff as it sounds,
+ * a dot on the Envelope pages' curves. The engine writes it once a block (synth.h synth_mod); mv is the screen's
+ * copy, taken every other frame (so the pictures redraw at 30 fps at most, and only for a change they show). Off
+ * while the audio's load is high: over MV_GUARD_ON % until under MV_GUARD_OFF % (the guard's average) */
+#define MV_GUARD_ON 80u
+#define MV_GUARD_OFF 70u
+static synth_mod_t mv = {.of = NTRK};
+static uint8_t mv_guard;
+static int32_t mv_fc, mv_dot = -1;                  /* (the host's checks: the Filter curve's cutoff, x; the
+                                                     * Envelope page's dot, x, -1 none) */
+static int mod_view(void) { return !(proj.rsv[3] & MOD_VIEW_OFF) && !mv_guard; }
+static void mod_take(void)
+{
+    int trk = sel_trk(), want;
+    uint32_t ld = guard_avg_q8 >> 8;                 /* (engine.c: the load the overload guard averages) */
+    if (ld > MV_GUARD_ON)
+        mv_guard = 1;
+    else if (ld < MV_GUARD_OFF)
+        mv_guard = 0;
+    want = mod_view() && trk < NTRK;                 /* (a kit or a MIDI track: no voice of its own sounds) */
+    synth_mod.trk = (uint8_t)(want ? trk : 0xFF);
+    if (ui.frame & 1u)
+        return;
+    mv = *(const synth_mod_t *)&synth_mod;           /* (torn by a block at worst: one odd frame) */
+    if (!want || mv.of != trk)
+        mv.of = NTRK;
+}
+
 /* ----------------------------------------------------------- knobs --- */
 typedef struct {
     const char *name;
     char val[24];
     int32_t num, max;
     int32_t live;                                    /* (max > 0) a lock or a motion's value now, as num; -1 none: a dot */
+    int32_t mod;                                     /* (max > 0) MOD VIEW: 1 + an LFO's value now, as num; 0 none: a tick */
 } knob_t;
 static void kv(knob_t *k, const char *name, const char *val, int32_t num, int32_t max)
 {
@@ -1282,6 +1314,11 @@ static void ktp(knob_t *k, int trk, int p)
             const tp_info_t *in = tp_info_par(p, proj.trk[trk].par);
             lv -= in->lo;
             k->live = lv < 0 ? 0 : lv > k->max ? k->max : lv;
+        }
+        if (mv.of == trk && k->max > 0) {            /* MOD VIEW: an LFO moves it, a tick */
+            int m = f_floor((p == mv.lp ? mv.loff : 0.0f) + (p == mv.gp ? mv.goff : 0.0f) + 0.5f);
+            if (p == mv.lp || p == mv.gp)
+                k->mod = 1 + clampi(m + (k->live >= 0 ? k->live : k->num), 0, k->max);
         }
     }
 }
@@ -1851,6 +1888,15 @@ static int knobs_shown(void)
  * 18), the bar at the foot */
 #define KL_LW 55                                     /* large type: a knob's label (with 2 px to spare), its value */
 #define KL_VW 50                                     /* (no separators: the knobs 58 px apart, the gaps between them) */
+static void knob_tick(const knob_t *k, int32_t x, int32_t w, int32_t y)   /* MOD VIEW's tick across a knob's bar (x, w
+                                                                         * wide): 2 px wide, 9 tall, where an LFO has it */
+{
+    if (!k->mod)
+        return;
+    x += w * (k->mod - 1) / k->max;
+    cv_rect(x - 1, y, 4, 11, K_PANEL);
+    cv_rect(x, y + 1, 2, 9, K_TEXT);
+}
 static void knob_large(int32_t cx, const knob_t *k, int hot, uint16_t vc)
 {
     char nm[24], a[24];
@@ -1921,6 +1967,7 @@ static void knob_large(int32_t cx, const knob_t *k, int hot, uint16_t vc)
             cv_round(lx - 1, 60, 8, 10, 4, K_BG);
             cv_round(lx, 61, 6, 8, 3, K_REC);
         }
+        knob_tick(k, cx - 24, 46, 59);
     }
 }
 static void draw_knobs(void)
@@ -1933,6 +1980,8 @@ static void draw_knobs(void)
         h = hash_s(h, k[i].val);
         h = hash_s(h, k[i].name);
         h = hash_u(h, (uint32_t)k[i].num << 8 | (uint32_t)(k[i].name != 0) | (uint32_t)(k[i].live + 1) << 20);
+        if (k[i].mod)
+            h = hash_u(h, (uint32_t)k[i].mod);
     }
     h = hash_u(h, (uint32_t)now_touch | (uint32_t)ui.lockpg << 1);
     if (h == ui.sig[2])
@@ -1987,6 +2036,7 @@ static void draw_knobs(void)
                 cv_round(lx - 1, 39, 8, 10, 4, K_BG);
                 cv_round(lx, 40, 6, 8, 3, K_REC);
             }
+            knob_tick(&k[i], cx - 22, 42, 38);       /* an LFO moves it: where it is now, a tick across the bar */
         }
     }
     cv_blit(0, KNB_Y);
@@ -3048,6 +3098,7 @@ static void list_setup(int g)
     list_add(ACTION_NAME[A_LARGE_TYPE], !large_type() ? "off" : lt_ok ? "on" : "on: reinstall", LK_PICK, A_LARGE_TYPE);
     list_add(ACTION_NAME[A_AUTOSAVE], proj.rsv[2] & AUTOSAVE_OFF ? "off" : "on", LK_PICK, A_AUTOSAVE);
     list_add(ACTION_NAME[A_LOOP_FREE], proj.rsv[2] & LOOP_FREE ? "drift" : "in time", LK_PICK, A_LOOP_FREE);
+    list_add(ACTION_NAME[A_MOD_VIEW], proj.rsv[3] & MOD_VIEW_OFF ? "off" : "on", LK_PICK, A_MOD_VIEW);
     if (group_n(g) > 6)
         list_page_knobs(P_STATUS, 15u);
     list_add(ACTION_NAME[A_PANIC], 0, LK_ACTION, A_PANIC);
@@ -5189,8 +5240,8 @@ static void draw_env(int filter)
     uint32_t h = hash_u(hash_u(2166136261u, 0xE7u), (uint32_t)trk | (uint32_t)filter << 4 | (uint32_t)p[b] << 8 |
                                           (uint32_t)p[b + 1] << 16 | (uint32_t)p[b + 2] << 24);
     float x0 = 16.0f, y0 = 16.0f, w = 208.0f, hh = 84.0f, base = y0 + hh, x = x0, a, d, r, s;
-    float px[64], py[64];
-    int n = 0;
+    float px[64], py[64], dy;
+    int n = 0, st;
     pen_t pn = {0};
     h = hash_u(h, p[b + 3] | (uint32_t)drum << 8);
     if (is_acid(trk) && !filter) {                   /* the 303's: over 3 s, the filter's opening (its attack's rise,
@@ -5214,6 +5265,10 @@ static void draw_env(int filter)
         cv_blit(0, MAIN_Y);
         return;
     }
+    st = mv.of == trk ? (filter ? mv.fst : mv.ast) : 0;   /* MOD VIEW: the newest note's stage and level, a dot */
+    dy = f_floor(base - hh * fm_clampf(filter ? mv.flv : mv.alv, 0.0f, 1.0f) + 0.5f);
+    if (st)
+        h = hash_u(h, (uint32_t)st | (uint32_t)dy << 4);
     if (!begin_main(h))
         return;
     cv_rect(16, 16 + 84, 208, 1, K_LINE);
@@ -5266,6 +5321,16 @@ static void draw_env(int filter)
         }
     for (int i = 0; i < n; i++)
         pen_to(&pn, px[i], py[i], K_NOW);
+    mv_dot = -1;
+    if (st) {                                        /* the dot where its stage's curve is at its level (sustain: the
+                                                      * decay's end; a release from above the sustain: its start) */
+        int i = st == 4 ? 29 : st == 1 ? 0 : 12, e = st == 4 ? 45 : st == 1 ? 12 : 28;
+        float sg = st == 1 ? -1.0f : 1.0f;           /* (the attack rises: its y falls) */
+        while (i < e && (py[i] - dy) * sg < 0.0f)
+            i++;
+        mv_dot = f_floor(px[i] + 0.5f);
+        cv_round(mv_dot - 4, (int32_t)dy - 4, 9, 9, 4, K_TEXT);
+    }
     cv_text(16, 16 + 84 + 3, &FONT_XS, drum ? "every key: lag, attack, random, length"
                                               : filter ? "filter envelope" : "amp envelope", K_DIM);
     cv_blit(0, MAIN_Y);
@@ -5277,11 +5342,16 @@ static void draw_filter(void)
     int ft = p[TP_FTYPE] % NFT, cut = p[TP_CUT], res = p[TP_RES], dyn = ft == FT_DYNAMIC;
     uint32_t h = hash_u(hash_u(2166136261u, 0xF1u), (uint32_t)trk | (uint32_t)ft << 4 | (uint32_t)cut << 8 | (uint32_t)res << 16 |
                                           (uint32_t)p[TP_KTRK] << 24);
-    int32_t x0 = 16, y0 = 12, w = 208, hh = 84, fc = x0 + 10 + cut * (w - 20) / 127, py = -1;
+    int32_t x0 = 16, y0 = 12, w = 208, hh = 84, fc = x0 + 10 + cut * (w - 20) / 127, py = -1, fm = fc;
     if (is_drum(trk) && ui.page == P_FILTER) {       /* a kit's Filter page: the key's own */
         draw_key_filter();
         return;
     }
+    if (mv.of == trk)                                /* MOD VIEW: the curve at the cutoff as it sounds (the line: the knob) */
+        fm = x0 + 10 + f_floor(fm_clampf((float)cut + mv.cut, 0.0f, 127.0f) * (float)(w - 20) * (1.0f / 127.0f));
+    mv_fc = fm;
+    if (fm != fc)
+        h = hash_u(h, (uint32_t)fm);
     if (!begin_main(h))
         return;
     cv_rect(x0, y0 + hh, w, 1, K_LINE);
@@ -5308,7 +5378,7 @@ static void draw_filter(void)
         pen_t pn = {0};
         (void)py;
         for (int32_t x = 0; x <= w; x++) {
-            float y = filt_y(filt_db((float)(x0 + x - fc), q, hp, bp, steep), y0, hh);
+            float y = filt_y(filt_db((float)(x0 + x - fm), q, hp, bp, steep), y0, hh);
             ys[x] = y < (float)y0 ? (float)y0 : y > (float)(y0 + hh) ? (float)(y0 + hh) : y;
         }
         for (int32_t x = 0; x < w; x++) {            /* under the curve, the track's colour thinned */

@@ -243,6 +243,7 @@ int synth_sizeof(void) { return (int)sizeof(struct synth); }
 #endif
 
 volatile uint16_t synth_peak[NTRK];
+volatile synth_mod_t synth_mod = {.trk = 0xFFu, .of = NTRK};
 uint32_t (*synth_clock)(void);
 volatile uint32_t synth_prof[2][NENGINE + 1];
 volatile uint32_t synth_vblk[NVOICE];                 /* each voice's time this block (the profiler; engine.c clears it) */
@@ -2162,10 +2163,44 @@ static void glfo_prepare(synth_t *s)
         s->goff[k] = s->g_now * amt;
     }
 }
+/* MOD VIEW's values (synth.h synth_mod) from voice v of track trk (0: none sounds), the block's first chunk's LFOs:
+ * what voice_chunk adds, as it adds it (the LFO's fade envelope by the voice's time) */
+static void mod_publish(const synth_t *s, const voice_t *v, int trk)
+{
+    static const int8_t GD_TP[NGD] = {TP_CUT, TP_RES, -1, TP_PAN, -1, TP_SEND1, TP_SEND2, TP_CAMT};
+    volatile synth_mod_t *m = &synth_mod;
+    const trk_t *t = &s->t[trk];
+    const uint8_t *gp = s->par[SY_GLFO_TRK];
+    int gd = ((gp[TP_LX] & 15) | (gp[TP_LX2] & 15) << 4) >> trk & 1 ? gp[TP_LDEST] % NGD : -1;
+    float lenv = 1.0f, lo, cut;
+    if (!v) {
+        m->of = NTRK;
+        return;
+    }
+    if (t->lf_in > 0.0f)
+        lenv = fm_minf(v->tsec / t->lf_in, 1.0f);
+    else if (t->lf_out > 0.0f)
+        lenv = fm_maxf(1.0f - v->tsec / t->lf_out, 0.0f);
+    lo = t->loff[0] * lenv;
+    cut = (t->ldest == TP_CUT ? lo : 0.0f) + (gd == GD_CUT ? s->goff[0] : 0.0f);
+    if (v->engine != EG_ACID)                    /* (the 303's envelope is its own) */
+        cut += v->flt.level * v->c.fenv_oct * (127.0f / 8.64385619f);
+    m->cut = cut;
+    m->loff = lo;
+    m->goff = s->goff[0];
+    m->lp = (int16_t)(t->ldest >= 0 && lo != 0.0f ? t->ldest : -1);   /* (an LFO off, or of no amount: 0) */
+    m->gp = (int16_t)(gd >= 0 && s->goff[0] != 0.0f ? GD_TP[gd] : -1);
+    m->ast = v->amp.stage;
+    m->alv = v->amp.level;
+    m->fst = v->flt.stage;
+    m->flv = v->flt.level;
+    m->of = (uint8_t)trk;
+}
 void synth_prepare(synth_t *s, uint32_t n)
 {
     float tpk[NTRK];
-    int i, k, nck = 0;
+    int i, k, nck = 0, mt = synth_mod.trk;
+    const voice_t *mv = 0;
     uint32_t off = (SY_CHUNK - s->pos) % SY_CHUNK;
     for (; off < n && nck < NCK; off += SY_CHUNK)
         nck++;
@@ -2173,12 +2208,15 @@ void synth_prepare(synth_t *s, uint32_t n)
     glfo_prepare(s);
     for (i = 0; i < NTRK; i++)
         tpk[i] = 0.0f;
-    for (k = 0; k < NVOICE; k++) {               /* each track's loudest voice, the voices' peaks cleared: one pass */
+    for (k = 0; k < NVOICE; k++) {               /* each track's loudest voice, the voices' peaks cleared: one pass;
+                                                  * and MOD VIEW's track's newest sounding voice */
         voice_t *v = &s->v[k];
         if (v->trk < NTRK) {
             if (v->peak > tpk[v->trk])
                 tpk[v->trk] = v->peak;
             v->peak = 0.0f;
+            if (v->trk == mt && v_sounding(v) && (!mv || v->age > mv->age))
+                mv = v;
         }
     }
     for (i = 0; i < NTRK; i++) {
@@ -2259,6 +2297,8 @@ void synth_prepare(synth_t *s, uint32_t n)
             synth_peak[i] = (uint16_t)(q > old ? q : old);
         }
     }
+    if (mt < NTRK)
+        mod_publish(s, mv, mt);
     for (k = 0; k < NVOICE; k++)
         s->v[k].ck = 0;
     s->pos = (uint16_t)((s->pos + n) % SY_CHUNK);
