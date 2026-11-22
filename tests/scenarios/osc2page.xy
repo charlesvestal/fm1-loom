@@ -52,12 +52,14 @@ wait 400
 said fine +12 ct
 wait 40
 shot osc2_square.png
-# Osc 2 is EDIT's second page: SELECT back to Engine, on to Levels
+# Osc 2 is EDIT's second page: SELECT back to Engine, on to Mod and Levels
 turn SELECT -1
 expect page Engine
 turn SELECT 2
+expect page Mod
+turn SELECT 1
 expect page Levels
-turn SELECT -1
+turn SELECT -2
 expect page Osc_2
 # HOME held turns osc 2's interval, as without it (the old shortcut to fine is gone)
 press HOME

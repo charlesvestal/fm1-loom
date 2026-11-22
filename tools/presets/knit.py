@@ -67,3 +67,25 @@ P("chime keys", "keys", "knit", knobs=dict(wave=40, detune=12, voices=1, width=0
 P("reed pad", "pad", "knit", knobs=dict(wave=20, detune=28, voices=2, width=90), volume=60,
   amp=(60, 90, 118, 92), fenv=(0, 64, 0, 64), filter=("lp12", 80, 10, 64, 64), sends=(0, 45),
   lfo=("wave", 22, 60, "filter free", 0, 1), x=(76, 90, 0, 0), osc2=("pulse", 96, 64), genres=("lofi", "synthpop"))
+# --- the Mod page (2026-11-23): sync, the filter envelope on osc 2 (sweep), osc 2 on osc 1 (cross), the sub's type ---
+# a sync lead: osc 2 a fifth up and synced, the filter envelope sweeping it an octave and a fifth on every note, legato
+P("sync lead", "lead", "knit", knobs=dict(wave=0, detune=10, voices=1, width=0), mode="legato", glide=14,
+  volume=88, amp=(2, 70, 110, 50), fenv=(0, 76, 30, 60), filter=("lp24", 92, 10, 70, 64), sends=(22, 18),
+  x=(71, 110, 0, 0), osc2=("saw", 0, 64), mod=(True, 19, 0, "sine"), genres=("synthpop",))
+# the 101's bass: a saw and a pulse locked to it (osc 2 synced in unison: one oscillator), the low square two octaves
+# down, the ladder plucked by a short envelope, mono
+P("rubber bass", "bass", "knit", knobs=dict(wave=0, detune=0, voices=1, width=0), mode="mono", volume=98,
+  amp=(0, 76, 90, 30), fenv=(0, 54, 10, 40), filter=("ladder", 52, 40, 96, 50), x=(64, 80, 70, 0),
+  osc2=("pulse", 100, 64), mod=(True, 0, 0, "low square"), genres=("house", "synthpop"))
+# poly sync keys: a synced saw an octave up, swept a little by the filter envelope on each note, two voices wide
+P("poly sync", "keys", "knit", knobs=dict(wave=0, detune=18, voices=2, width=70), volume=74,
+  amp=(0, 84, 80, 64), fenv=(0, 70, 20, 64), filter=("lp24", 80, 8, 80, 64), sends=(20, 30), x=(76, 90, 0, 0),
+  osc2=("saw", 0, 64), mod=(True, 7, 0, "sine"), genres=("synthpop", "house"))
+# a cross growl: a silent sine a fifth up moving osc 1's frequency (FM), a short filter envelope, the low pulse under it
+P("cross growl", "bass", "knit", knobs=dict(wave=0, detune=0, voices=1, width=0), mode="mono", volume=96,
+  amp=(0, 80, 100, 36), fenv=(0, 60, 20, 40), filter=("lp24", 60, 15, 84, 40), x=(71, 0, 50, 0),
+  osc2=("sine", 0, 64), mod=(False, 0, 56, "low pulse"), genres=("dnb",))
+# random steps on the filter, a sixteenth each (the LFO's random shape: the 101's sample and hold), a resonant square
+P("step bleeps", "fx", "knit", knobs=dict(wave=64, detune=0, voices=1, width=0), volume=80,
+  amp=(0, 70, 110, 50), fenv=(0, 64, 0, 40), filter=("lp24", 70, 60, 64, 64), sends=(30, 25),
+  lfo=("wave", 5, 110, "filter", 0, 4), genres=("synthpop", "house"))

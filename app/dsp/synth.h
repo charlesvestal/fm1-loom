@@ -109,12 +109,20 @@ enum {
     TP_O2WAVE,                                      /* knit's osc 2, its wave (O2W_*: same, osc 1's, by default) and */
     TP_O2SHAPE,                                     /* its own saw .. square .. pulse (as osc 1's wave knob: saw, square,
                                                      * pulse only). Last, so format 21's indices stay (format 22) */
+    TP_KSYNC, TP_KSWEEP, TP_KCROSS, TP_KSUB,        /* knit's Mod page: osc 2 hard-synced to osc 1 (0 off, 1 on); the
+                                                     * filter envelope on osc 2's pitch (0..48 semitones at its top);
+                                                     * osc 2 on osc 1's frequency (FM, 0..127); the sub's type (KS_*).
+                                                     * 0 each: as before. Last, so format 22's indices stay (format 23) */
     NTP
 };
 _Static_assert(NTP <= 511, "a parameter's index: nine bits in the engine's queue (engine.c cq_put); a lane's is 16");
 /* knit's osc 2 wave (TP_O2WAVE): osc 1's (its wave knob and the LFO on it), or its own: saw, square and pulse are
  * points of its shape's sweep (TP_O2SHAPE: turning the wave sets the shape there), triangle and sine */
 enum { O2W_SAME, O2W_SAW, O2W_SQUARE, O2W_PULSE, O2W_TRI, O2W_SINE, NO2W };
+/* knit's sub (TP_KSUB): a sine an octave down (as before), a square an octave down, a square two octaves down, a narrow
+ * pulse two octaves down (the SH-101's three) */
+enum { KS_SINE, KS_SQUARE, KS_LOW_SQUARE, KS_LOW_PULSE, NKS };
+#define KSWEEP_MAX 48                                /* TP_KSWEEP: semitones */
 static inline int o2w_shaped(int w) { return w >= O2W_SAW && w <= O2W_PULSE; }   /* the shape knob counts */
 /* the random player's octave range: how many octaves below (TP_P4, "oct down") and above (TP_RUP, "oct up") the
  * step's own a note may land, each 0..3 (0 and 0: the step's own octave only) */
@@ -273,12 +281,13 @@ typedef struct {
     uint8_t par[NTP_SOUND];
     uint8_t role;                                 /* RL_* */
     uint8_t o2fine, o2wave, o2shape;              /* knit's Osc 2 page (TP_O2FINE, TP_O2WAVE, TP_O2SHAPE: past par[]) */
+    uint8_t ksync, ksweep, kcross, ksub;          /* and its Mod page (TP_KSYNC .. TP_KSUB) */
 } preset_t;
 extern const preset_t PRESETS[];
 extern const int NPRESETS;
 int preset_first(int engine);                       /* the first preset of an engine, -1 */
 void preset_sound(uint8_t *par, const preset_t *pr);   /* a preset's sound into a track's par[NTP]: par[0..NTP_SOUND)
-                                                     * and knit's Osc 2 page */
+                                                     * and knit's Osc 2 and Mod pages */
 
 /* --------------------------------------------------------------- voices --- */
 /* performance state per track, written by the sequencer / punch-in FX, read by the voices each chunk */
@@ -296,7 +305,8 @@ typedef struct {
 typedef struct synth synth_t;         /* opaque: dsp/synth.c */
 void synth_glfo_restart(synth_t *s);              /* the shared LFO from its start (the transport started) */
 float synth_glfo_now(const synth_t *s);            /* its value now, -1..1 (the page's picture) */
-#define SYNTH_BYTES 12288             /* room for the struct (checked at compile time in synth.c) */
+#define SYNTH_BYTES 12416             /* room for the struct (checked at compile time in synth.c; 12,304 B with knit's
+                                       * Mod page, 0.19) */
 
 void synth_init(synth_t *s, uint8_t (*par)[NTP]);   /* par: the tracks' parameter arrays, NTRK + 1 of them (the conductor's, SY_GLFO_TRK: the shared LFO) */
 void synth_tempo(synth_t *s, float bpm);

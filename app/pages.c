@@ -103,10 +103,10 @@ static uint16_t col_mix(uint16_t a, uint16_t b, uint32_t s)   /* a moved s/16 of
  * rayon's fall, acid's drive), Play (mode, glide, bend, octave), Play 2 (volume); knit: Engine, Osc 2 (osc 2's
  * interval, fine, wave, shape), Levels (the Sub page: osc 2's level, sub, noise, volume), Play; a kit or an FX track
  * Engine and Play; the conductor Engine, Play (routing), Sub (Follow) */
-enum { P_ARRANGE, P_SONG, P_STEPS, P_BAR, P_ENGINE, P_PLAY, P_PLAY2, P_SUB, P_OSC2, P_ENV, P_FILTER, P_ENV2, P_KITF, P_CHARACTER, P_SENDS,
+enum { P_ARRANGE, P_SONG, P_STEPS, P_BAR, P_ENGINE, P_PLAY, P_PLAY2, P_SUB, P_OSC2, P_KMOD, P_ENV, P_FILTER, P_ENV2, P_KITF, P_CHARACTER, P_SENDS,
        P_FX1, P_FX2, P_THROWS, P_LFO, P_LFO2, P_PLAYERS, P_PLAYERS2, P_PLAYERS3, P_WEAVE, P_MIX, P_MASTER, P_MASTER2, P_MASTER3, P_GLFO, P_SETUP,
        P_STATUS, NPAGES };
-static const char *const PAGE_NAME[NPAGES] = {"Arrange", "Song", "Steps", "Bar", "Engine", "Play", "Play 2", "Sub", "Osc 2",
+static const char *const PAGE_NAME[NPAGES] = {"Arrange", "Song", "Steps", "Bar", "Engine", "Play", "Play 2", "Sub", "Osc 2", "Mod",
                                               "Envelope",
                                               "Filter", "Filter env", "Kit filter", "Character", "Sends", "FX I",
                                               "FX II", "Throws", "LFO", "LFO 2", "Players", "Players 2", "Hold", "Weave", "Mix",
@@ -139,7 +139,7 @@ static uint32_t glfo_route(void)                 /* the tracks it moves: bit t *
 }
 static int mst_base(int p) { return p == P_MASTER ? MS_EQ_LO : p == P_MASTER2 ? MS_CTYPE : MS_PERC; }   /* its first knob */
 static const struct { uint8_t btn, first, n; } PAGE_BTN[] = {
-    {B_HOME, P_ARRANGE, 2}, {B_SEQ, P_STEPS, 2}, {B_EDIT, P_ENGINE, 5}, {B_ENV, P_ENV, 4}, {B_FX, P_CHARACTER, 5},
+    {B_HOME, P_ARRANGE, 2}, {B_SEQ, P_STEPS, 2}, {B_EDIT, P_ENGINE, 6}, {B_ENV, P_ENV, 4}, {B_FX, P_CHARACTER, 5},
     {B_LFO, P_LFO, 2}, {B_ARP, P_PLAYERS, 4}, {B_GLO, P_MIX, 7}};
 #define NPAGE_BTN (sizeof PAGE_BTN / sizeof PAGE_BTN[0])
 static int page_group(int p)
@@ -709,8 +709,9 @@ static int group_n(int g)
         return 1;                                    /* (WEAVE's steps: no Bar page) */
     if (b == B_EDIT)                                 /* (grp_page: the conductor's Sub third; a kit, an FX track: two) */
         return trk == AUX_PUNCH || trk == AUX_WEAVE ? 1 : trk == AUX_BRAIN ? 3 : is_aux(trk) ? 2
-             : x_page(trk) ? 4 : 3;      /* (a kit: Engine, Key, Sends: the key's own; Engine 2 after Engine
-                                          * when the key's model has eight knobs; knit: Osc 2, Levels, Play) */
+             : is_knit(trk) ? 5 : x_page(trk) ? 4 : 3;   /* (a kit: Engine, Key, Sends: the key's own; Engine 2
+                                          * after Engine when the key's model has eight knobs; knit: Osc 2, Mod,
+                                          * Levels, Play) */
     if (b == B_ARP)                                  /* (grp_page: Players, Players 2, Hold the arp's, Weave) */
         return is_aux(trk) ? 1
              : is_drum(trk) || pl_type(trk) == PL_OFF ? 2
@@ -741,9 +742,10 @@ static int grp_page(int g, int i)
         return P_ENGINE;                             /* (a MIDI track has no sound to shape: its knobs instead) */
     if (PAGE_BTN[g].btn == B_EDIT && sel_trk() == AUX_BRAIN)   /* Engine, Play (routing), Sub (Follow) */
         return i == 2 ? P_SUB : P_ENGINE + i;
-    if (PAGE_BTN[g].btn == B_EDIT && is_knit(sel_trk())) {   /* knit: osc 2, the levels, then how it plays */
-        static const uint8_t KNP[4] = {P_ENGINE, P_OSC2, P_SUB, P_PLAY};
-        return KNP[i & 3];
+    if (PAGE_BTN[g].btn == B_EDIT && is_knit(sel_trk())) {   /* knit: osc 2, its Mod page, the levels, then how it
+                                                      * plays */
+        static const uint8_t KNP[5] = {P_ENGINE, P_OSC2, P_KMOD, P_SUB, P_PLAY};
+        return KNP[i >= 0 && i < 5 ? i : 0];
     }
     if (PAGE_BTN[g].btn == B_EDIT && x_page(sel_trk())) {   /* a second page of knobs second, after Engine (rayon's
                                                       * fall, acid's drive, a looping sample's Loop, MIDI's or a
@@ -777,9 +779,9 @@ static int grp_index(int p)
 static int fx_pick_of(int trk);
 static int tp_page_param(int p, int k, int trk)
 {
-    static const int8_t M[][4] = {
+    static const int8_t M[][4] = {                    /* (a row a page, from P_ENGINE to P_MIX) */
         {TP_E1, TP_E2, TP_E3, TP_E4}, {TP_VMODE, TP_PORTA, TP_BEND, TP_OCT}, {-1, -1, -1, TP_VOLUME},
-        {TP_X1, TP_X2, TP_X3, TP_X4}, {-1, -1, -1, -1},
+        {TP_X1, TP_X2, TP_X3, TP_X4}, {-1, -1, -1, -1}, {-1, -1, -1, -1},   /* (Osc 2, Mod: knit's, below) */
         {TP_A, TP_D, TP_S, TP_R},
         {TP_CUT, TP_RES, TP_FENV, TP_KTRK}, {TP_FA, TP_FD, TP_FS, TP_FR}, {TP_CUT, TP_RES, TP_FENV, TP_KTRK},
         {TP_CTYPE, TP_CAMT, TP_CTONE, TP_CMIX},
@@ -846,6 +848,8 @@ static int tp_page_param(int p, int k, int trk)
         static const int8_t LV[4] = {TP_X2, TP_X3, TP_X4, TP_VOLUME};
         return LV[k];
     }
+    if (p == P_KMOD)                                 /* knit's Mod page: sync, sweep, cross, the sub's type */
+        return is_knit(trk) ? TP_KSYNC + k : -1;
     if (p == P_OSC2) {                               /* knit's osc 2: its interval, fine tune, wave, shape (past the
                                                       * int8 table) */
         static const uint16_t O2[4] = {TP_X1, TP_O2FINE, TP_O2WAVE, TP_O2SHAPE};
@@ -2088,8 +2092,8 @@ static void page_tag(char *t)
                 s_cat(s_cat(e, ">"), DL_SOUND_NAME[ui.dsound % DL_NSOUND]);
         }
         break;
-    case P_ENGINE: case P_PLAY: case P_PLAY2: case P_SUB: case P_OSC2: case P_ENV: case P_FILTER: case P_ENV2: case P_KITF:
-    case P_LFO: case P_LFO2:
+    case P_ENGINE: case P_PLAY: case P_PLAY2: case P_SUB: case P_OSC2: case P_KMOD: case P_ENV: case P_FILTER: case P_ENV2:
+    case P_KITF: case P_LFO: case P_LFO2:
         track_crumb(t);
         if (is_drum(sel_trk()))                      /* the key the knobs edit (the kit's own pages: the whole kit) */
             s_cat(s_cat(t + s_len(t), ">"), ui.page == P_ENV2 || ui.page == P_KITF ? "all keys"
@@ -2625,7 +2629,7 @@ static void draw_footer_as(void)
 #define PG(p) (1u << (p))
 #define PG_ANY 0xFFFFFFFFu
 #define PG_STEPS (PG(P_STEPS) | PG(P_BAR))
-#define PG_SOUND (PG(P_ENGINE) | PG(P_PLAY) | PG(P_PLAY2) | PG(P_SUB) | PG(P_OSC2) | PG(P_ENV) | PG(P_ENV2) | PG(P_KITF) | PG(P_FILTER) | \
+#define PG_SOUND (PG(P_ENGINE) | PG(P_PLAY) | PG(P_PLAY2) | PG(P_SUB) | PG(P_OSC2) | PG(P_KMOD) | PG(P_ENV) | PG(P_ENV2) | PG(P_KITF) | PG(P_FILTER) | \
                   PG(P_CHARACTER) | PG(P_LFO) | PG(P_LFO2))
 static const struct { uint8_t btn; uint32_t pages; const char *title, *l1, *l2; } CARD[] = {
     {B_SEQ, PG(P_BAR), "Bars", "Hold SEQ and press black key 1-4 to jump to that bar.",
@@ -5051,6 +5055,48 @@ static void draw_knit_x(void)
     text_r(230, LY(100, 64), F_CAP, t, K_DIM);
     cv_blit(0, MAIN_Y);
 }
+/* knit's Mod page (P_KMOD): osc 2 (bright) over osc 1 (faint), two of osc 1's cycles, synced (starting again with
+ * each of osc 1's) or free; with a sweep, osc 2 at the filter envelope's top too (faint); under them two cycles of the
+ * sub's wave (its type) */
+static void draw_knit_mod(void)
+{
+    int trk = sel_trk();
+    const uint8_t *p = par_now(trk);
+    int st = clampi((int)p[TP_X1] - 64, -24, 24), sync = p[TP_KSYNC] != 0, sw = p[TP_KSWEEP], cr = p[TP_KCROSS];
+    int sub = p[TP_KSUB] % NKS;
+    uint32_t h = hash_u(hash_u(2166136261u, 0xA8u), (uint32_t)trk | (uint32_t)p[TP_X1] << 4 | (uint32_t)sync << 12 |
+                                                    (uint32_t)sw << 13 | (uint32_t)cr << 20);
+    float ratio = fm_exp2f((float)st * (1.0f / 12.0f)), top = ratio * fm_exp2f((float)sw * (1.0f / 12.0f));
+    float cy = (float)MY(32), amp = (float)MY(20), sy = (float)MY(84), samp = (float)MY(10);
+    pen_t a = {0}, b = {0}, c = {0}, d = {0};
+    char t[48], *e;
+    h = hash_u(hash_u(h, (uint32_t)sub | (uint32_t)p[TP_E1] << 4 | (uint32_t)p[TP_O2WAVE] << 12),
+               (uint32_t)p[TP_O2SHAPE]);
+    if (!begin_main(h))
+        return;
+    cv_text(8, (int32_t)cy - LY(6, 7), LY(&FONT_XS, F_CAP), "osc 2", K_DIM);
+    cv_text(8, (int32_t)sy - LY(6, 7), LY(&FONT_XS, F_CAP), "sub", K_DIM);
+    for (int32_t x = 0; x <= 170; x++) {
+        float ph = (float)x / 85.0f, fr = ph - fm_floorf(ph);   /* (osc 1: two cycles) */
+        float q = sync ? fr * ratio : ph * ratio, q2 = sync ? fr * top : ph * top;
+        pen_to(&a, (float)(56 + x), cy - knit_y(fr, p, 0) * amp, K_FAINT);
+        if (sw)
+            pen_to(&c, (float)(56 + x), cy - knit_y(q2 - fm_floorf(q2), p, 1) * amp, K_FAINT);
+        pen_to(&b, (float)(56 + x), cy - knit_y(q - fm_floorf(q), p, 1) * amp, K_NOW);
+        {   /* the sub: two of its own cycles (its name says how far down) */
+            float s = ph, sf = s - fm_floorf(s);
+            float y = sub == KS_SINE ? fm_sin_turns(s) : sf < (sub == KS_LOW_PULSE ? 0.25f : 0.5f) ? 1.0f : -1.0f;
+            pen_to(&d, (float)(56 + x), sy - y * samp, K_NOW);
+        }
+    }
+    e = s_cat(t, sync ? "synced" : "free");
+    if (sw)
+        e = s_cat(num_i(sw, s_cat(e, ", sweep +")), " st");
+    if (cr)
+        num_i((cr * 100 + 64) / 128, s_cat(e, ", cross "));
+    text_r(230, LY(56, 44), F_CAP, t, K_DIM);
+    cv_blit(0, MAIN_Y);
+}
 /* acid's Sub page: its drive (TP_X1 amount, TP_X2 off / soft / rat; bass303.c drive_block) on two cycles of a sine,
  * the input faint and what comes out bright, each scaled to the picture's height (the shape, not the level) */
 static void draw_acid_x(void)
@@ -5520,7 +5566,10 @@ static void draw_lfo(void)
         (void)r;
         for (int32_t x = 0; lt && x <= w; x++) {
             float u = (float)x + scroll, v;              /* v: -1..1 */
-            if (lt == LT_WAVE || lt == LT_WOBBLE)        /* their shapes (synth.c lfo_wave_value, lfo_wave_trem) */
+            if (lt == LT_WAVE && sh == 4) {              /* random: a held value a cycle (128 px), stepped */
+                uint32_t k = (uint32_t)(u / 128.0f), h0 = (k * 2654435761u) >> 8;
+                v = (float)(h0 & 1023u) / 511.5f - 1.0f;
+            } else if (lt == LT_WAVE || lt == LT_WOBBLE) /* their shapes (synth.c lfo_wave_value, lfo_wave_trem) */
                 v = lfo_shape_v(lt == LT_WAVE ? (sh & 3) == 1 ? 0 : (sh & 3) == 0 ? 3 : (sh & 3) == 2 ? 5 : 1 : sh,
                                 u / 128.0f - fm_floorf(u / 128.0f));
             else if (lt == LT_DRIFT) {                   /* a held random value every 24 px, slewed between */
@@ -6249,8 +6298,8 @@ static void draw_page(void)
     case P_SENDS: draw_sends(); break;
     case P_FX1: draw_fxtrack(AUX_FX1); break;
     case P_FX2: draw_fxtrack(AUX_FX2); break;
-    case P_ENGINE: case P_PLAY: case P_PLAY2: case P_SUB: case P_OSC2: case P_ENV: case P_ENV2: case P_KITF: case P_FILTER:
-    case P_LFO: case P_LFO2: case P_PLAYERS: case P_PLAYERS2: case P_PLAYERS3:
+    case P_ENGINE: case P_PLAY: case P_PLAY2: case P_SUB: case P_OSC2: case P_KMOD: case P_ENV: case P_ENV2: case P_KITF:
+    case P_FILTER: case P_LFO: case P_LFO2: case P_PLAYERS: case P_PLAYERS2: case P_PLAYERS3:
         if (trk == AUX_BRAIN)
             draw_brain();
         else if (trk == AUX_PUNCH)
@@ -6261,6 +6310,8 @@ static void draw_page(void)
             draw_fxtrack(trk);
         else if (ui.page == P_ENGINE || ui.page == P_OSC2 || (is_drum(trk) && (ui.page == P_PLAY || ui.page == P_SUB)))
             draw_engine();
+        else if (ui.page == P_KMOD)
+            draw_knit_mod();
         else if (ui.page == P_PLAY)
             draw_play();
         else if (ui.page == P_PLAY2 && is_drum(trk))

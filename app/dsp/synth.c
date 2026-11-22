@@ -81,7 +81,8 @@ static const char *const FTYPE_N[NFT] = {"lp24", "ladder", "lp12", "hp12", "bp12
                                                                           * bus filter (on/off of its own) on a
                                                                           * drum track, never shown by this name */
 static const char *const LTYPE_N[NLT] = {"off", "wave", "wobble", "drift", "pump"};
-static const char *const VSHAPE_N[4] = {"square", "sine", "ramp", "saw"};
+static const char *const VSHAPE_N[5] = {"square", "sine", "ramp", "saw", "random"};   /* (random: a fresh
+                                                                                       * value each cycle, held) */
 static const char *const TSHAPE_N[5] = {"sine", "saw", "expo", "square", "blip"};
 static const char *const LDEST_N[NLD] = {"synth", "envelope", "filter", "voice", "synth free", "env free", "filter free",
                                          "voice free"};
@@ -184,6 +185,8 @@ typedef struct {
     float kp_w;                       /* knit_prep's pitch-free parts were made from: the width and the voices */
     int8_t kp_n;                      /* (0 or -1: none yet; knit_init) */
     uint8_t o2w;                      /* knit's osc 2: 0 osc 1's wave, 1 its own shape (o[9]), 2 triangle, 3 sine */
+    uint8_t ksync, ksub, ksweep, kcross;   /* knit's Mod page as set: osc 2 synced to osc 1, the sub's type (KS_*), the
+                                       * filter envelope's reach on osc 2 (semitones), osc 2's FM on osc 1 (0..127) */
     float o[16];                      /* the engine's state */
     float cz[8];                      /* the character stage's: low-pass / hold L R, DC L R, phase, -, the
                                        * sampler's output filter L R (tape: cz[4..5] its wow's phases; ring:
@@ -743,8 +746,8 @@ static void knit_prep(voice_t *v)
         v->kp_w = w;
     }
     c->ex[11] = fm_minf(2.07345f * f, 0.9f);    /* the high-pass at a third of the note (brocade's) */
-    if (c->ex[19] > 0.0f)                        /* osc 2's increment: only when it sounds (its level: ex[14]; a
-                                                  * level turned up moves a knob, so this runs again) */
+    if (c->ex[19] > 0.0f || v->kcross)           /* osc 2's increment: only when it sounds (its level: ex[14]; a
+                                                  * level turned up moves a knob, so this runs again) or moves osc 1 */
         c->ex[13] = fm_minf(f * fm_exp2f((c->ex[18] - 64.0f) * (1.0f / 12.0f) + c->e[1] * KNIT_OSC2_DETUNE), 0.45f);
     c->ex[14] = c->ex[19] * (1.0f / 127.0f);
     c->ex[15] = f * 0.5f;
@@ -874,6 +877,132 @@ static __attribute__((noinline)) void knit_osc2_smooth(float *ph, float d, float
     }
     *ph = p;
 }
+/* osc 2 alone into x[] (gain 1): the Mod page's path, synced to osc 1 (sync: its phase reset where osc 1's centre
+ * voice wraps, pm its phase and dm its step this call) or not. Its own edges and the sync's jumps are PolyBLEP'd from
+ * the wave's plain values (a jump h at t of a sample before sample i: h/2 * (2t - t^2 - 1) on i, h/2 * (t - 1)^2 on
+ * i - 1, inside this call); the triangle's corners left as they are */
+static float o2_plain(float p, int w, float m2, float a, float c)   /* osc 2's wave at phase p, no BLEP (m2, a, c:
+                                                                     * saw_pulse_k's) */
+{
+    if (w == 3)
+        return sin_q7(p);
+    if (w == 2)
+        return p < 0.5f ? 4.0f * p - 1.0f : 3.0f - 4.0f * p;
+    {
+        float q = p + a;                         /* (the pulse: q = p + 1 - pw, wrapped) */
+        if (q >= 1.0f)
+            q -= 1.0f;
+        return 2.0f * p - m2 * q + c;
+    }
+}
+static inline void blep_at(float *x, int i, float h, float t)   /* a jump h, t of a sample before sample i */
+{
+    x[i] += h * 0.5f * (2.0f * t - t * t - 1.0f);
+    if (i)
+        x[i - 1] += h * 0.5f * (t - 1.0f) * (t - 1.0f);
+}
+static __attribute__((noinline)) void knit_osc2_mod(voice_t *v, float d, float pm, float dm, int sync, float m2,
+                                                    float w2, float *x, int m)
+{
+    const int w = v->o2w > 1 ? v->o2w : 0, edges = w == 0, pulse = edges && m2 > 0.0f;
+    const float a = 1.0f - w2, mm = 2.0f * m2, c = mm * (1.0f - w2) - 1.0f, id = 1.0f / d;   /* (saw_pulse_k's) */
+    float p = v->o[7];
+    for (int i = 0; i < m; i++) {
+        float pu = p + d, ts = -1.0f, pe = pu;   /* (unwrapped; ts: since osc 1's wrap, -1 none) */
+        if (sync) {
+            pm += dm;
+            if (pm >= 1.0f) {
+                pm -= 1.0f;
+                ts = pm / dm;
+                pe = pu - ts * d;                /* osc 2's phase (unwrapped) when osc 1 wrapped */
+            }
+        }
+        x[i] = 0.0f;
+        if (edges && pe >= 1.0f)                 /* its own wrap (before the sync's, if any) */
+            blep_at(x, i, -2.0f, (pu - 1.0f) * id);
+        if (pulse) {                             /* its pulse's edge: q = p + 1 - w2 wrapping */
+            if (p < w2 && pe >= w2)
+                blep_at(x, i, mm, (pu - w2) * id);
+            else if (pe >= 1.0f + w2)
+                blep_at(x, i, mm, (pu - 1.0f - w2) * id);
+        }
+        if (ts >= 0.0f) {                        /* the sync: from where it was to the wave's start */
+            float pw_ = pe >= 1.0f ? pe - 1.0f : pe;
+            blep_at(x, i, o2_plain(0.0f, w, mm, a, c) - o2_plain(pw_, w, mm, a, c), ts);
+            p = ts * d;
+        } else
+            p = pu >= 1.0f ? pu - 1.0f : pu;
+        x[i] += o2_plain(p, w, mm, a, c);
+    }
+    v->o[7] = p;
+}
+/* one of osc 1's voices with its frequency moved by osc 2 each sample (cross: x2 the FM's source, ix its depth): the
+ * full path every sample (the step moves, so no runs) */
+static __attribute__((noinline)) void knit_osc_fm(float *ph, float d, float pw, float mix, float gl, float gr, float *xl,
+                                                  float *xr, int m, int stereo, int first, const float *x2, float ix)
+{
+    float p = *ph;
+    sawp_t k = saw_pulse_k(pw, mix);
+    const int pulse = mix > 0.0f;
+    for (int i = 0; i < m; i++) {
+        float dd = fm_clampf(d * (1.0f + ix * x2[i]), 1e-6f, 0.45f), id = 1.0f / dd, x;
+        p = step1(p, dd);
+        x = !pulse ? 2.0f * p - 1.0f - blep(p, dd, id) : saw_pulse(p, dd, id, k);
+        if (first) {
+            xl[i] = x * gl;
+            if (stereo)
+                xr[i] = x * gr;
+        } else {
+            xl[i] += x * gl;
+            if (stereo)
+                xr[i] += x * gr;
+        }
+    }
+    *ph = p;
+}
+/* knit's Mod page, out of line (knit_loop is made twice, mono and stereo): osc 2 alone into x2 (synced, swept), the
+ * FM depth cross asks for (0: none); osc 2 added at its level; the sub a square an octave or two down or a narrow pulse
+ * two down (the SH-101's), with the noise */
+static __attribute__((noinline)) float knit_mod_osc2(voice_t *v, float d0, float mix, float pw, float dr, float *x2,
+                                                     int m)
+{
+    const cfg_t *c = &v->c;
+    float m2 = mix, w2 = pw;
+    float d2 = fm_clampf(c->ex[13] * dr * (v->ksweep ? fm_exp2f((float)v->ksweep * (1.0f / 12.0f) * v->flt.level)
+                                                     : 1.0f), 1e-6f, 0.45f);
+    if (v->o2w == 1) {                           /* (its own shape: as knit_prep makes osc 1's) */
+        float s2 = v->o[9];
+        m2 = s2 < 0.5f ? s2 * 2.0f : 1.0f;
+        w2 = s2 < 0.5f ? 0.5f : 0.5f - (s2 - 0.5f) * 0.8f;
+    }
+    knit_osc2_mod(v, d2, v->o[0], d0, v->ksync, m2, w2, x2, m);
+    return (float)(v->kcross * v->kcross) * (6.0f / (127.0f * 127.0f));
+}
+static __attribute__((noinline)) void knit_add(const float *x, float g, float *xl, float *xr, int m, int stereo)
+{
+    for (int i = 0; i < m; i++) {
+        xl[i] += x[i] * g;
+        if (stereo)
+            xr[i] += x[i] * g;
+    }
+}
+static __attribute__((noinline)) void knit_sub_sq(voice_t *v, float *xl, float *xr, int m, int stereo)
+{
+    const cfg_t *c = &v->c;
+    const int lo = v->ksub >= KS_LOW_SQUARE;
+    float p = v->o[8], d = fm_minf(c->ex[15] * c->ex[22] * (lo ? 0.5f : 1.0f), 0.45f), id = 1.0f / d;
+    float gs = c->ex[16] * 0.7f, gn = c->ex[17];
+    sawp_t ks = saw_pulse_k(v->ksub == KS_LOW_PULSE ? 0.25f : 0.5f, 1.0f);
+    for (int i = 0; i < m; i++) {
+        float x;
+        p = step1(p, d);
+        x = saw_pulse(p, d, id, ks) * gs + frand(&v->rng) * gn;
+        xl[i] += x;
+        if (stereo)
+            xr[i] += x;
+    }
+    v->o[8] = p;
+}
 SY_INLINE void knit_loop(voice_t *v, float *xl, float *xr, int m, const int stereo)
 {
     const cfg_t *c = &v->c;
@@ -892,8 +1021,12 @@ SY_INLINE void knit_loop(voice_t *v, float *xl, float *xr, int m, const int ster
             gg[2 * k + 1] = g * pn[k & 1];
         }
     }
+    const int mod = v->ksync || v->kcross || v->ksweep;   /* the Mod page: osc 2 first, alone (osc 1 may read it) */
+    float x2[SY_CHUNK], ix = mod ? knit_mod_osc2(v, d[0], mix, pw, dr, x2, m) : 0.0f;
     for (k = 0; k < n; k++)                      /* the voices: the centre first (it sets the buffers), then the pairs */
-        if (k)
+        if (ix > 0.0f)
+            knit_osc_fm(&v->o[k], d[k], pw, mix, gg[2 * k], gg[2 * k + 1], xl, xr, m, stereo, !k, x2, ix);
+        else if (k)
             knit_osc_seg(&v->o[k], d[k], pw, mix, gg[2 * k], gg[2 * k + 1], xl, xr, m, stereo, 0);
         else
             knit_osc_seg(&v->o[0], d[0], pw, mix, gg[0], gg[1], xl, xr, m, stereo, 1);
@@ -902,7 +1035,10 @@ SY_INLINE void knit_loop(voice_t *v, float *xl, float *xr, int m, const int ster
         if (stereo)
             knit_hp(xr, &v->o[14], &v->o[15], c->ex[11], m);
     }
-    if (c->ex[14] > 0.0f) {                      /* osc 2: one more, in the middle */
+    if (mod) {
+        if (c->ex[14] > 0.0f)
+            knit_add(x2, c->ex[14], xl, xr, m, stereo);
+    } else if (c->ex[14] > 0.0f) {               /* osc 2: one more, in the middle */
         float d = fm_clampf(c->ex[13] * dr, 1e-6f, 0.45f);
         if (v->o2w > 1)
             knit_osc2_smooth(&v->o[7], d, c->ex[14], xl, xr, m, stereo, v->o2w == 3);
@@ -915,7 +1051,9 @@ SY_INLINE void knit_loop(voice_t *v, float *xl, float *xr, int m, const int ster
             knit_osc_seg(&v->o[7], d, w2, m2, c->ex[14], c->ex[14], xl, xr, m, stereo, 0);
         }
     }
-    if (c->ex[16] > 0.0f || c->ex[17] > 0.0f) {  /* the sub (a sine an octave down) and the noise */
+    if (v->ksub && c->ex[16] > 0.0f)             /* the sub a square or a narrow pulse (the 101's), and the noise */
+        knit_sub_sq(v, xl, xr, m, stereo);
+    else if (c->ex[16] > 0.0f || c->ex[17] > 0.0f) {  /* the sub (a sine an octave down) and the noise */
         float p = v->o[8], d = c->ex[15] * dr, gs = c->ex[16], gn = c->ex[17];
         for (i = 0; i < m; i++) {
             float x;
@@ -2266,8 +2404,8 @@ void synth_prepare(synth_t *s, uint32_t n)
             }
             t->lfo_ph = ph;
             switch (type) {
-            case LT_WAVE:
-                val = lfo_wave_value(lx2, ph) * (amt - 64.0f) * (127.0f / 63.0f) * t->lscale;
+            case LT_WAVE:                       /* (shape 4, random: the cycle's sample held, the 101's S&H) */
+                val = (lx2 == 4 ? t->lfo_sh : lfo_wave_value(lx2, ph)) * (amt - 64.0f) * (127.0f / 63.0f) * t->lscale;
                 break;
             case LT_DRIFT: {                    /* a wander: slews to each cycle's sample within a quarter cycle */
                 float sm = fm_minf(4.0f * dph, 1.0f);
@@ -2795,6 +2933,14 @@ static void voice_chunk(synth_t *s, voice_t *v)
                 int w = P2(s, trk, TP_O2WAVE);
                 v->o2w = (uint8_t)(w >= O2W_TRI && w < NO2W ? w - 2 : o2w_shaped(w));
                 v->o[9] = (float)P2(s, trk, TP_O2SHAPE) * (1.0f / 127.0f);
+            }
+            {   /* the Mod page (knit_loop reads them as they are; cross also asks for osc 2's increment) */
+                int sw = P2(s, trk, TP_KSWEEP), cr = P2(s, trk, TP_KCROSS);
+                moved |= (cr != 0) != (v->kcross != 0);
+                v->ksync = (uint8_t)(P2(s, trk, TP_KSYNC) != 0);
+                v->ksweep = (uint8_t)(sw > KSWEEP_MAX ? KSWEEP_MAX : sw);
+                v->kcross = (uint8_t)(cr > 127 ? 127 : cr);
+                v->ksub = (uint8_t)(P2(s, trk, TP_KSUB) % NKS);
             }
         }
         for (i = 0; i < 4 && !moved; i++)
@@ -3402,7 +3548,7 @@ static const tp_info_t FIXED[NTP_SOUND + 13] = {
     {"fx II", 0, 127, 0, PK_PCT, 0},
     {"type", 0, NLT - 1, LT_OFF, PK_NAMES, LTYPE_N},    {"speed", 0, 127, 3, PK_HZ_SYNC, 0},
     {"amount", 0, 127, 64, PK_BIP, 0},                  {"dest", 0, NLD - 1, LD_FILTER, PK_NAMES, LDEST_N},
-    {"param", 0, 3, 0, PK_NUM, 0},                      {"shape", 0, 3, 1, PK_NAMES, VSHAPE_N},
+    {"param", 0, 3, 0, PK_NUM, 0},                      {"shape", 0, 4, 1, PK_NAMES, VSHAPE_N},
     /* the character stage: its amount and tone print per type (tp_text_par) */
     {"type", 0, NCT - 1, CT_OFF, PK_NAMES, CTYPE_N},    {"amount", 0, 127, 64, PK_PCT, 0},
     {"tone", 0, 127, 64, PK_BIP, 0},                    {"mix", 0, 127, 127, PK_PCT, 0},
@@ -3465,6 +3611,9 @@ static const char *const O2WAVE_N[NO2W] = {"same", "saw", "square", "pulse", "tr
 static const tp_info_t O2WAVE_P = {"wave", 0, NO2W - 1, O2W_SAME, PK_NAMES, O2WAVE_N};
 static const tp_info_t O2SHAPE_P = {"shape", 0, 127, 0, PK_NN, 0};
 static const tp_info_t O2FINE_P = {"fine", 14, 114, 64, PK_CENT, 0};
+static const char *const KSUB_N[NKS] = {"sine", "square", "low square", "low pulse"};
+static const tp_info_t KMOD_P[4] = {{"sync", 0, 1, 0, PK_SWITCH, 0}, {"sweep", 0, KSWEEP_MAX, 0, PK_SEMI, 0},
+                                    {"cross", 0, 127, 0, PK_NN, 0}, {"sub", 0, NKS - 1, KS_SINE, PK_NAMES, KSUB_N}};
 static const tp_info_t RUP_P = {"oct up", 0, 3, 0, PK_NUM, 0};   /* (TP_RUP: the random player's octaves above) */
 /* the sample engine's second page (its loop modes only): where the loop starts in the region that plays, and how much
  * of the rest it loops (0 auto: the sample's own loop, else to the region's end) (smp_prep) */
@@ -3653,6 +3802,8 @@ const tp_info_t *tp_info(int p, int engine)
         return p == TP_O2FINE ? &O2FINE_P : p == TP_O2WAVE ? &O2WAVE_P : &O2SHAPE_P;
     if (p == TP_RUP)
         return &RUP_P;
+    if (p >= TP_KSYNC && p <= TP_KSUB)            /* knit's Mod page (their ranges on any engine, as osc 2's) */
+        return &KMOD_P[p - TP_KSYNC];
     if (p >= 0 && p < (int)(sizeof FIXED / sizeof FIXED[0]))
         return &FIXED[p];
     return &NONE_P;
@@ -3959,6 +4110,7 @@ void sound_default(uint8_t *par, int engine)
     par[TP_RUP] = 0;
     par[TP_O2WAVE] = O2W_SAME;
     par[TP_O2SHAPE] = 0;
+    par[TP_KSYNC] = par[TP_KSWEEP] = par[TP_KCROSS] = par[TP_KSUB] = 0;
 }
 
 /* -------------------------------------------------------------- presets --- */
@@ -3976,6 +4128,10 @@ void preset_sound(uint8_t *par, const preset_t *pr)
     par[TP_O2FINE] = pr->o2fine;
     par[TP_O2WAVE] = pr->o2wave;
     par[TP_O2SHAPE] = pr->o2shape;
+    par[TP_KSYNC] = pr->ksync;
+    par[TP_KSWEEP] = pr->ksweep;
+    par[TP_KCROSS] = pr->kcross;
+    par[TP_KSUB] = pr->ksub;
 }
 int preset_first(int engine)
 {

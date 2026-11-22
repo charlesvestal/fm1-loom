@@ -405,6 +405,10 @@ static int preset_apply(int trk, int i)
         proj.trk[trk].par[TP_O2FINE] = user_presets[u].o2fine;
         proj.trk[trk].par[TP_O2WAVE] = user_presets[u].o2wave;
         proj.trk[trk].par[TP_O2SHAPE] = user_presets[u].o2shape;
+        proj.trk[trk].par[TP_KSYNC] = user_presets[u].ksync;
+        proj.trk[trk].par[TP_KSWEEP] = user_presets[u].ksweep;
+        proj.trk[trk].par[TP_KCROSS] = user_presets[u].kcross;
+        proj.trk[trk].par[TP_KSUB] = user_presets[u].ksub;
         memcpy(proj.trk[trk].name, user_presets[u].name, NAME_LEN);
         engine_set_all(trk);
         mark_dirty();
@@ -3057,6 +3061,8 @@ static void act_paste_sound(void)
         par[TP_O2FINE] = proj.trk[src].par[TP_O2FINE];
         par[TP_O2WAVE] = proj.trk[src].par[TP_O2WAVE];
         par[TP_O2SHAPE] = proj.trk[src].par[TP_O2SHAPE];
+        for (int q = TP_KSYNC; q <= TP_KSUB; q++)
+            par[q] = proj.trk[src].par[q];
         memcpy(proj.trk[trk].name, proj.trk[src].name, NAME_LEN);
         engine_set_all(trk);
         mark_dirty();
@@ -3190,6 +3196,10 @@ static void save_user_preset(int slot)
     user_presets[slot].o2fine = proj.trk[trk].par[TP_O2FINE];
     user_presets[slot].o2wave = proj.trk[trk].par[TP_O2WAVE];
     user_presets[slot].o2shape = proj.trk[trk].par[TP_O2SHAPE];
+    user_presets[slot].ksync = proj.trk[trk].par[TP_KSYNC];
+    user_presets[slot].ksweep = proj.trk[trk].par[TP_KSWEEP];
+    user_presets[slot].kcross = proj.trk[trk].par[TP_KCROSS];
+    user_presets[slot].ksub = proj.trk[trk].par[TP_KSUB];
     memcpy(user_presets[slot].name, proj.trk[trk].name, NAME_LEN);
     if (!user_presets[slot].name[0])
         s_cat(user_presets[slot].name, EG_NAME[proj.trk[trk].par[TP_ENGINE] % NENGINE]);

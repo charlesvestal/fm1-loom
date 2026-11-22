@@ -1,5 +1,5 @@
 # EDIT's pages on each engine, in order, and the parameter on each knob: the sound first, then how it plays. Knit:
-# Engine, Osc 2 (interval, fine, wave, shape), Levels (osc 2, sub, noise, volume), Play; rayon and acid: Engine, Sub,
+# Engine, Osc 2 (interval, fine, wave, shape), Mod (sync, sweep, cross, sub), Levels (osc 2, sub, noise, volume), Play; rayon and acid: Engine, Sub,
 # Play, Play 2; the others: Engine, Play, Play 2. Play is the same four on every synth engine (mode, glide, bend,
 # octave) and Play 2 has the volume alone, on knob 4 where knit's Levels has it. A looping sample keeps its Loop page
 # second; MIDI keeps its Play (volume fourth) and Play 2 (the octave); a kit keeps Engine, Key, Sends
@@ -15,6 +15,9 @@ turn SELECT 1
 expect page Osc_2
 expect knobs x1 fine o2wave o2shape
 turn SELECT 1
+expect page Mod
+expect knobs ksync ksweep kcross ksub
+turn SELECT 1
 expect page Levels
 expect knobs x2 x3 x4 volume
 turn SELECT 1
@@ -28,15 +31,29 @@ expect page Play
 listen
 turn SELECT -1
 wait 400
-said Levels, page 3 of 4. T3 knit, P1, S1: osc 2 0%, sub 0%, noise 0%, volume
+said Levels, page 4 of 5. T3 knit, P1, S1: osc 2 0%, sub 0%, noise 0%, volume
 turn SELECT -1
 wait 400
-said Osc 2, page 2 of 4. T3 knit, P1, S1: interval 0 st, fine 0 ct, wave same
+said Mod, page 3 of 5. T3 knit, P1, S1: sync off, sweep 0 st, cross 00, sub sine
+turn SELECT -1
+wait 400
+said Osc 2, page 2 of 5. T3 knit, P1, S1: interval 0 st, fine 0 ct, wave same
 # the knobs turn what they show
 spin K1 7
 expect par3.x1 71
 spin K2 10
 expect par3.fine 74
+turn SELECT 1
+spin K1 1
+expect par3.ksync 1
+spin K2 24
+expect par3.ksweep 24
+spin K3 40
+expect par3.kcross 40
+spin K4 2
+expect par3.ksub 2
+wait 400
+said sub low square
 turn SELECT 1
 spin K4 -20
 expect par3.volume 80
@@ -50,6 +67,9 @@ knob 3 x2 90
 knob 3 x3 60
 wait 40
 shot knit_levels.png
+turn SELECT -1
+wait 40
+shot knit_mod.png
 turn SELECT -1
 wait 40
 shot knit_osc2.png

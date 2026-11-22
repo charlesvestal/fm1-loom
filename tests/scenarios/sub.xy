@@ -1,5 +1,5 @@
 # the engine's second page of knobs (TP_X1..X4): EDIT's second page where the engine has one (rayon, acid: Sub), and
-# on knit its Levels page, third after Osc 2: osc 2's level, the sub, the noise, the volume; osc 2's interval is on
+# on knit its Levels page, fourth after Osc 2 and Mod: osc 2's level, the sub, the noise, the volume; osc 2's interval is on
 # Osc 2 (tests/scenarios/editpages.xy has every engine's pages). The screen reader says them; another engine, or
 # another track, takes the page away
 wait 300
@@ -21,13 +21,13 @@ expect par3.engine 0
 expect par3.x1 64
 expect par3.x2 0
 listen
-turn SELECT 2
+turn SELECT 3
 expect page Levels
 wait 400
 said Levels
 shot sub_off.png
 # the interval, on Osc 2: the screen reader says it
-turn SELECT -1
+turn SELECT -2
 expect page Osc_2
 spin K1 7
 expect par3.x1 71
@@ -39,7 +39,7 @@ spin K1 60
 expect par3.x1 88
 spin K1 -17
 expect par3.x1 71
-turn SELECT 1
+turn SELECT 2
 expect page Levels
 spin K1 50
 expect par3.x2 50
@@ -70,7 +70,7 @@ expect trk 4
 expect page Engine
 spin ALGO -1
 expect trk 3
-turn SELECT 2
+turn SELECT 3
 expect page Levels
 # another engine on the Levels page (jacquard): back to Engine, three pages
 knob 3 engine jacquard

@@ -834,6 +834,8 @@ static int param_of(const char *s)                 /* a TP_* name, dK.NAME (drum
         return TP_RUP;
     if (ieq(s, "o2wave") || ieq(s, "o2shape"))      /* knit's osc 2 wave and shape (TP_O2WAVE, TP_O2SHAPE) */
         return s[2] == 'w' || s[2] == 'W' ? TP_O2WAVE : TP_O2SHAPE;
+    if (ieq(s, "ksync") || ieq(s, "ksweep") || ieq(s, "kcross") || ieq(s, "ksub"))   /* knit's Mod page */
+        return ieq(s, "ksync") ? TP_KSYNC : ieq(s, "ksweep") ? TP_KSWEEP : ieq(s, "kcross") ? TP_KCROSS : TP_KSUB;
     host_die("no parameter", s);
     return 0;
 }
