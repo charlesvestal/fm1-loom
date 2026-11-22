@@ -345,7 +345,8 @@ void synth_acid_lite(synth_t *s, int on);                      /* and before it:
 int synth_lock_value(const synth_t *s, int trk, int param);   /* a lock's value now, -1 none (the UI's dot) */
 /* MOD VIEW (pages.c): the modulation inside one track's newest sounding voice, for the screen. The UI names the
  * track (trk; 0xFF none: nothing is written), synth_prepare writes the rest once a block, of the track it was
- * written for (NTRK: none of its voices sounds). No lock: a torn read draws one odd frame. cut: what the
+ * written for (of; none of its voices sounding: the free-running LFO and the shared LFO alone, stages 0). No lock:
+ * a torn read draws one odd frame. cut: what the
  * filter envelope and the LFOs add to the cutoff now, in the knob's units; lp / gp: the parameter the
  * track's LFO / the shared LFO moves (-1 none, or not now), by loff / goff now (the knob's units); ast / fst:
  * the amp / filter envelope's stage (0 off, 1 attack, 2 decay, 3 sustain, 4 release), alv / flv their levels 0..1 */

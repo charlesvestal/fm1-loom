@@ -1072,8 +1072,9 @@ MOD VIEW shows what the LFOs and envelopes do to the selected track's newest not
 track's LFO or the shared LFO is moving gets a thin tick on its bar, at the value it has now. A lock's red dot can
 show beside it. The Filter page draws its curve at the cutoff as it sounds, with the filter envelope and the LFOs
 added to the knob, and the faint line stays where the knob is. On the Envelope pages, a dot travels along the curve
-as the note goes through its attack, decay, sustain and release. When the track is silent, the pages look as they
-always do. MOD VIEW is on to start with. To turn it off, set MOD VIEW to off in Setup's **SEL** list (**GLO**).
+as the note goes through its attack, decay, sustain and release. When the track is silent, you still see a
+free-running LFO and the shared LFO, because they keep moving the sound between notes. An LFO that restarts on each
+note and the envelopes wait for the next note. MOD VIEW is on to start with. To turn it off, set MOD VIEW to off in Setup's **SEL** list (**GLO**).
 It pauses while LOOM-8 is busy, when the sound takes more than 80 % of the processor, and comes back once that falls
 under 70 %.
 

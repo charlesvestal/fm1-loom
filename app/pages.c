@@ -1190,8 +1190,8 @@ static void draw_header(void)
 
 /* ------------------------------------------------------- MOD VIEW --- */
 /* MOD VIEW (Setup; proj.rsv[3] MOD_VIEW_OFF): what the LFOs and the envelopes do inside the selected track's newest
- * voice, drawn while it sounds: a tick on a knob an LFO moves, the Filter page's curve at the cutoff as it sounds,
- * a dot on the Envelope pages' curves. The engine writes it once a block (synth.h synth_mod); mv is the screen's
+ * voice, drawn while it sounds (silent: what its free-running LFO and the shared LFO do): a tick on a knob an LFO
+ * moves, the Filter page's curve at the cutoff as it sounds, a dot on the Envelope pages' curves. The engine writes it once a block (synth.h synth_mod); mv is the screen's
  * copy, taken every other frame (so the pictures redraw at 30 fps at most, and only for a change they show). Off
  * while the audio's load is high: over MV_GUARD_ON % until under MV_GUARD_OFF % (the guard's average) */
 #define MV_GUARD_ON 80u

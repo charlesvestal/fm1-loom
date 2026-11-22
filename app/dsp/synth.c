@@ -2163,8 +2163,10 @@ static void glfo_prepare(synth_t *s)
         s->goff[k] = s->g_now * amt;
     }
 }
-/* MOD VIEW's values (synth.h synth_mod) from voice v of track trk (0: none sounds), the block's first chunk's LFOs:
- * what voice_chunk adds, as it adds it (the LFO's fade envelope by the voice's time) */
+/* MOD VIEW's values (synth.h synth_mod) from voice v of track trk, the block's first chunk's LFOs: what voice_chunk
+ * adds, as it adds it (the LFO's fade envelope by the voice's time). None sounding (v 0): what moves the track's sound
+ * anyway, the free-running LFO (synth_prepare runs it with or without voices; no fade) and the shared LFO; no
+ * envelopes, and a regular LFO nothing (it waits for a note) */
 static void mod_publish(const synth_t *s, const voice_t *v, int trk)
 {
     static const int8_t GD_TP[NGD] = {TP_CUT, TP_RES, -1, TP_PAN, -1, TP_SEND1, TP_SEND2, TP_CAMT};
@@ -2173,27 +2175,29 @@ static void mod_publish(const synth_t *s, const voice_t *v, int trk)
     const uint8_t *gp = s->par[SY_GLFO_TRK];
     int gd = ((gp[TP_LX] & 15) | (gp[TP_LX2] & 15) << 4) >> trk & 1 ? gp[TP_LDEST] % NGD : -1;
     float lenv = 1.0f, lo, cut;
+    m->ast = m->fst = 0;
     if (!v) {
-        m->of = NTRK;
-        return;
-    }
-    if (t->lf_in > 0.0f)
+        if (P(s, trk, TP_LDEST) < LD_FREE)
+            lenv = 0.0f;
+    } else if (t->lf_in > 0.0f)
         lenv = fm_minf(v->tsec / t->lf_in, 1.0f);
     else if (t->lf_out > 0.0f)
         lenv = fm_maxf(1.0f - v->tsec / t->lf_out, 0.0f);
     lo = t->loff[0] * lenv;
     cut = (t->ldest == TP_CUT ? lo : 0.0f) + (gd == GD_CUT ? s->goff[0] : 0.0f);
-    if (v->engine != EG_ACID)                    /* (the 303's envelope is its own) */
+    if (v && v->engine != EG_ACID)               /* (the 303's envelope is its own) */
         cut += v->flt.level * v->c.fenv_oct * (127.0f / 8.64385619f);
     m->cut = cut;
     m->loff = lo;
     m->goff = s->goff[0];
     m->lp = (int16_t)(t->ldest >= 0 && lo != 0.0f ? t->ldest : -1);   /* (an LFO off, or of no amount: 0) */
     m->gp = (int16_t)(gd >= 0 && s->goff[0] != 0.0f ? GD_TP[gd] : -1);
-    m->ast = v->amp.stage;
-    m->alv = v->amp.level;
-    m->fst = v->flt.stage;
-    m->flv = v->flt.level;
+    if (v) {
+        m->ast = v->amp.stage;
+        m->alv = v->amp.level;
+        m->fst = v->flt.stage;
+        m->flv = v->flt.level;
+    }
     m->of = (uint8_t)trk;
 }
 void synth_prepare(synth_t *s, uint32_t n)

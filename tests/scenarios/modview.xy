@@ -1,5 +1,5 @@
 # MOD VIEW (Setup, on by default): the LFOs and envelopes of the selected track's newest voice on the screen while
-# it sounds: the Filter page's curve at the cutoff as it sounds (the faint line stays at the knob), a tick on the knob
+# it sounds (silent: its free-running LFO and the shared LFO, which move the sound anyway): the Filter page's curve at the cutoff as it sounds (the faint line stays at the knob), a tick on the knob
 # an LFO moves, a dot along the Envelope page's curve. Off in Setup, or while the load is high (over 80 % until under
 # 70 %): the plain pictures
 wait 300
@@ -55,6 +55,39 @@ expect modcut <40
 play 3 C4 off
 load -1
 wait 1500
+# silent, the LFO free-running (filter free): it moves the sound with or without a note, so the curve and the tick
+# follow it (its phase runs from the start: the square open now, shut a second later)
+expect modcut 120
+knob 3 ldest 6
+wait 300
+expect modcut >200
+expect modticks 1
+wait 1000
+expect modcut <40
+expect modticks 1
+# back to the regular LFO (it waits for a note): the knob's cutoff, no tick
+knob 3 ldest filter
+wait 300
+expect modcut 120
+expect modticks 0
+wait 1000
+expect modcut 120
+# the shared LFO (GLO's LFO page: T9's LFO slots) on T3's cutoff, a square a bar, silent: it moves too
+knob 9 ltype 5
+knob 9 lspeed 4
+knob 9 lamt 127
+knob 9 ldest 0
+knob 9 lx 4
+wait 300
+expect modcut >200
+expect modticks 1
+wait 1000
+expect modcut <40
+expect modticks 1
+knob 9 ltype 0
+wait 300
+expect modcut 120
+expect modticks 0
 # the Envelope page: the dot through a note (attack, decay, sustain held, release), none when it ends
 knob 3 ltype off
 knob 3 a 90
@@ -108,6 +141,15 @@ expect modcut 120
 expect modticks 0
 play 3 C4 off
 wait 1500
+# nor the free-running LFO while silent
+knob 3 ldest 6
+wait 300
+expect modcut 120
+expect modticks 0
+wait 1000
+expect modcut 120
+expect modticks 0
+knob 3 ldest filter
 # kept over a restart (saved with the project), and on again
 wait 5000
 expect dirty 0
