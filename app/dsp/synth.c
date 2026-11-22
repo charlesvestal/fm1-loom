@@ -4330,7 +4330,18 @@ static void bus_out(synth_t *s, int core, int trk, float *bl, float *br, float *
         }
         c->cx[7] = fm_minf((float)P(s, trk, TP_CMIX), 127.0f) * (1.0f / 127.0f);
     }
-    char_stage(c->cx, c->cz, type, 1, bl, br, (int)n);
+    for (j = 0; j < n && bl[j] == br[j]; j++)
+        ;
+    if (j == n) {                                /* its two sides the same (mono voices in the middle, a bass, a lead):
+                                                  * the stage once, its right side's states the left's */
+        char_stage(c->cx, c->cz, type, 0, bl, br, (int)n);
+        for (j = 0; j < n; j++)
+            br[j] = bl[j];
+        c->cz[1] = c->cz[0];
+        c->cz[3] = c->cz[2];
+        c->cz[7] = c->cz[6];
+    } else
+        char_stage(c->cx, c->cz, type, 1, bl, br, (int)n);
     dg = (t->bus_gn - g) / (float)n;             /* (the gain glides across the block) */
     for (j = 0; j < n; j++) {
         float ol = bl[j] * g, or_ = br[j] * g, mono = (ol + or_) * 0.5f;
