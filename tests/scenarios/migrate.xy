@@ -251,3 +251,31 @@ expect par4.rops 2
 expect par4.rratio 6
 expect par4.rdepth 70
 expect par4.rfb 30
+# a format 24 project and its presets (format 14), from before knit's analog (tests/fixtures/make_v24.xy): the tracks
+# a byte longer (TP_KANALOG: 0, knit as it was), knit's Mod and rayon's Ops pages kept; the user preset the same
+storeload tests/fixtures/store_v24.bin
+reboot
+wait 400
+expect tempo 106
+expect par3.ksync 1
+expect par3.ksweep 24
+expect par3.kanalog 0
+expect par4.engine 1
+expect par4.rops 2
+expect par4.rratio 6
+expect par4.rdepth 70
+expect par4.rfb 30
+preset 4 rayon
+expect par4.rops 0
+preset 4 U1
+expect par4.rops 2
+expect par4.rfb 30
+# a user preset keeps knit's analog now (presets format 15)
+param 3 kanalog 77
+usersave 3 2
+preset 3 reese
+expect par3.kanalog 0
+reboot
+wait 400
+preset 3 U2
+expect par3.kanalog 77

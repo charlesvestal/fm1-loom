@@ -136,7 +136,8 @@ void loom_lights(uint32_t buttons, uint32_t keys, int glow, uint32_t dim_keys, i
 #define DEBUG_BUILD (APP_VERSION[0] == 'D' && APP_VERSION[1] == 'E' && APP_VERSION[2] == 'V' && \
                      (!APP_VERSION[3] || APP_VERSION[3] == 'T'))   /* DEV, or the load test's DEVTEST */
 #define PROJ_MAGIC 0x384D4F4Cu          /* "LOM8" (was "XXY1": XY-1's projects start fresh) */
-#define PROJ_FORMAT 24u                 /* (10, 0.5-beta's, to 12 load too: project.c migrate_old; older ones do not)
+#define PROJ_FORMAT 25u                 /* (10, 0.5-beta's, to 12 load too: project.c migrate_old; older ones do not)
+                                         * 25: knit's analog (TP_KANALOG), the tracks' last parameter (older: 0);
                                          * 24: rayon's Ops page (TP_ROPS, TP_RRATIO, TP_RDEPTH, TP_RFB), the tracks'
                                          *     last parameters (older: off, rayon as before);
                                          * 23: knit's Mod page (TP_KSYNC, TP_KSWEEP, TP_KCROSS, TP_KSUB), the tracks'
@@ -208,6 +209,7 @@ typedef struct {
     uint8_t o2wave, o2shape;            /* and its wave and shape (TP_O2WAVE, TP_O2SHAPE: presets format 12) */
     uint8_t ksync, ksweep, kcross, ksub;   /* and its Mod page (TP_KSYNC .. TP_KSUB: presets format 13) */
     uint8_t rops, rratio, rdepth, rfb;  /* rayon's Ops page (TP_ROPS .. TP_RFB: presets format 14) */
+    uint8_t kanalog;                    /* knit's analog (TP_KANALOG: presets format 15) */
 } user_preset_t;
 
 extern settings_t proj;                 /* the project's settings (RAM) */

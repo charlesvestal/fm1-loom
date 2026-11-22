@@ -117,6 +117,9 @@ enum {
                                                      * ratio (RO_NRATIO steps), their depth, op 4's feedback.
                                                      * 0 (off): rayon as before. Last, so format 23's indices stay
                                                      * (format 24) */
+    TP_KANALOG,                                     /* knit's analog (its Levels page): drift, each note a little off,
+                                                     * softer edges and some saturation (0: knit as before). Last, so
+                                                     * format 24's indices stay (format 25) */
     NTP
 };
 _Static_assert(NTP <= 511, "a parameter's index: nine bits in the engine's queue (engine.c cq_put); a lane's is 16");
@@ -292,6 +295,7 @@ typedef struct {
     uint8_t o2fine, o2wave, o2shape;              /* knit's Osc 2 page (TP_O2FINE, TP_O2WAVE, TP_O2SHAPE: past par[]) */
     uint8_t ksync, ksweep, kcross, ksub;          /* and its Mod page (TP_KSYNC .. TP_KSUB) */
     uint8_t rops, rratio, rdepth, rfb;            /* rayon's Ops page (TP_ROPS .. TP_RFB) */
+    uint8_t kanalog;                              /* knit's analog (TP_KANALOG) */
 } preset_t;
 extern const preset_t PRESETS[];
 extern const int NPRESETS;
@@ -315,8 +319,8 @@ typedef struct {
 typedef struct synth synth_t;         /* opaque: dsp/synth.c */
 void synth_glfo_restart(synth_t *s);              /* the shared LFO from its start (the transport started) */
 float synth_glfo_now(const synth_t *s);            /* its value now, -1..1 (the page's picture) */
-#define SYNTH_BYTES 12416             /* room for the struct (checked at compile time in synth.c; 12,304 B with knit's
-                                       * Mod page, 0.19) */
+#define SYNTH_BYTES 12864             /* room for the struct (checked at compile time in synth.c; about 12,780 B with
+                                       * knit's Mod page and analog, 0.19) */
 
 void synth_init(synth_t *s, uint8_t (*par)[NTP]);   /* par: the tracks' parameter arrays, NTRK + 1 of them (the conductor's, SY_GLFO_TRK: the shared LFO) */
 void synth_tempo(synth_t *s, float bpm);

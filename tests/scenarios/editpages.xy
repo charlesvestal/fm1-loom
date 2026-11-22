@@ -1,5 +1,5 @@
 # EDIT's pages on each engine, in order, and the parameter on each knob: the sound first, then how it plays. Knit:
-# Engine, Osc 2 (interval, fine, wave, shape), Mod (sync, sweep, cross, sub), Levels (osc 2, sub, noise, volume), Play;
+# Engine, Osc 2 (interval, fine, wave, shape), Mod (sync, sweep, cross, sub), Levels (osc 2, sub, noise, analog), Play, Play 2;
 # rayon: Engine, Sub, Ops (ops 3 and 4: mode, ratio, depth, feedback), Play, Play 2; acid: Engine, Sub, Play, Play 2; the others: Engine, Play, Play 2. Play is the same four on every synth engine (mode, glide, bend,
 # octave) and Play 2 has the volume alone, on knob 4 where knit's Levels has it. A looping sample keeps its Loop page
 # second; MIDI keeps its Play (volume fourth) and Play 2 (the octave); a kit keeps Engine, Key, Sends
@@ -19,25 +19,30 @@ expect page Mod
 expect knobs ksync ksweep kcross ksub
 turn SELECT 1
 expect page Levels
-expect knobs x2 x3 x4 volume
+expect knobs x2 x3 x4 kanalog
 turn SELECT 1
 expect page Play
 expect knobs vmode porta bend oct
 turn SELECT 1
+expect page Play_2
+expect knobs - - - volume
+turn SELECT 1
 expect page Engine
+turn SELECT -1
+expect page Play_2
 turn SELECT -1
 expect page Play
 # the screen reader: the page's name, its place, its knobs
 listen
 turn SELECT -1
 wait 400
-said Levels, page 4 of 5. T3 knit, P1, S1: osc 2 0%, sub 0%, noise 0%, volume
+said Levels, page 4 of 6. T3 knit, P1, S1: osc 2 0%, sub 0%, noise 0%, analog 00
 turn SELECT -1
 wait 400
-said Mod, page 3 of 5. T3 knit, P1, S1: sync off, sweep 0 st, cross 00, sub sine
+said Mod, page 3 of 6. T3 knit, P1, S1: sync off, sweep 0 st, cross 00, sub sine
 turn SELECT -1
 wait 400
-said Osc 2, page 2 of 5. T3 knit, P1, S1: interval 0 st, fine 0 ct, wave same
+said Osc 2, page 2 of 6. T3 knit, P1, S1: interval 0 st, fine 0 ct, wave same
 # the knobs turn what they show
 spin K1 7
 expect par3.x1 71
@@ -55,14 +60,17 @@ expect par3.ksub 2
 wait 400
 said sub low square
 turn SELECT 1
-spin K4 -20
-expect par3.volume 80
+spin K4 30
+expect par3.kanalog 30
 turn SELECT 1
 spin K4 -1
 expect par3.oct 1
 wait 40
 shot knit_play.png
-turn SELECT -1
+turn SELECT 1
+spin K4 -20
+expect par3.volume 80
+turn SELECT -2
 knob 3 x2 90
 knob 3 x3 60
 wait 40

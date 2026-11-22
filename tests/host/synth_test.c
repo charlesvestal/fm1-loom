@@ -1781,6 +1781,42 @@ static void rayon_ops_tests(void)
         check("rayon's Ops page: an inharmonic ratio with two decimals (1.41:1)", !strcmp(num, "1.41:1"));
     }
 }
+/* knit's analog (TP_KANALOG): at its top the same note twice is two notes (the spread), the sound changes, stays finite
+ * and bounded; at 0 knit is as it was (dsp_hash) */
+static void analog_note(float *buf, int *finite, float *peak)   /* a C4 in the synth as it is, then its release */
+{
+    synth_note_on(S, 0, 60, 100, 0, 1);
+    for (int b = 0; b < 60; b++) {
+        block(N, finite);
+        for (int i = 0; i < N; i++)
+            if (fabs_f(L[i]) > *peak)
+                *peak = fabs_f(L[i]);
+        if (b >= 20)
+            memcpy(buf + (b - 20) * N, L, sizeof L);
+    }
+    synth_note_off(S, 0, 1);
+    for (int b = 0; b < 200; b++)
+        block(N, finite);
+}
+static void knit_analog_tests(void)
+{
+    static float a[40 * N], b[40 * N], c[40 * N];
+    int finite = 1;
+    float pk = 0.0f;
+    char_sound(EG_KNIT, CT_OFF, 0, 64, 127);
+    par[0][TP_E3] = 3;
+    synth_init(S, par);
+    synth_tempo(S, 120.0f);
+    analog_note(a, &finite, &pk);
+    par[0][TP_KANALOG] = 127;
+    analog_note(b, &finite, &pk);
+    analog_note(c, &finite, &pk);
+    printf("    knit's analog at its top: the loudest peak %.2f\n", (double)pk);
+    check("knit's analog: the sound changes, the same note twice is two notes, finite, no peak past 2",
+          finite && memcmp(a, b, sizeof a) != 0 && memcmp(b, c, sizeof b) != 0 && pk < 2.0f);
+    check("knit's analog: its name and range", tp_info(TP_KANALOG, EG_KNIT)->hi == 127 &&
+          !strcmp(tp_info(TP_KANALOG, EG_KNIT)->name, "analog"));
+}
 static void kit_char_tests(void)
 {
     static float l[4096], r[4096], l0[4096];
@@ -2096,7 +2132,7 @@ int main(void)
             preset_sound(p, &PRESETS[k]);                /* (and knit's Osc 2 page) */
             for (q = 0; q < NTP; q++) {
                 const tp_info_t *i;
-                if (q >= NTP_SOUND && q != TP_O2FINE && q != TP_O2WAVE && q != TP_O2SHAPE && (q < TP_KSYNC || q > TP_RFB))
+                if (q >= NTP_SOUND && q != TP_O2FINE && q != TP_O2WAVE && q != TP_O2SHAPE && (q < TP_KSYNC || q > TP_KANALOG))
                     continue;                            /* (past par[]: the Osc 2, Mod and Ops pages' only) */
                 i = tp_info_par(q, p);
                 if ((i->hi > i->lo || i->kind == PK_NAMES) && (p[q] < i->lo || p[q] > i->hi)) {
@@ -2823,6 +2859,7 @@ int main(void)
     knit_osc2_tests();
     knit_mod_tests();
     rayon_ops_tests();
+    knit_analog_tests();
     kit_char_tests();
     sample_tests();
     slice_tests();

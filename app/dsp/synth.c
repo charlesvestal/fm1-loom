@@ -185,6 +185,10 @@ typedef struct {
     float kp_w;                       /* knit_prep's pitch-free parts were made from: the width and the voices */
     int8_t kp_n;                      /* (0 or -1: none yet; knit_init) */
     uint8_t o2w;                      /* knit's osc 2: 0 osc 1's wave, 1 its own shape (o[9]), 2 triangle, 3 sine */
+    uint8_t kanalog;                  /* knit's analog as set (0..127) */
+    float kan_p, kan_c, kan_e;        /* its spread, drawn at each note (-1..1): pitch, cutoff, envelope times */
+    float kan_w[2];                   /* its drift: two slow random walks (each about -1..1) */
+    float kan_lp[2];                  /* its softer edges: a one-pole low-pass's state, L and R */
     uint8_t ksync, ksub, ksweep, kcross;   /* knit's Mod page as set: osc 2 synced to osc 1, the sub's type (KS_*), the
                                        * filter envelope's reach on osc 2 (semitones), osc 2's FM on osc 1 (0..127) */
     float o[16];                      /* the engine's state */
@@ -813,6 +817,9 @@ static void knit_prep(voice_t *v)
 static void knit_chunk(voice_t *v)                 /* the drift at one voice: toward a fresh target, slowly */
 {
     cfg_t *c = &v->c;
+    if (v->kanalog)                              /* analog's drift: two random walks pulled back to 0 (~0.5 s, ~0.3 s) */
+        for (int j = 0; j < 2; j++)
+            v->kan_w[j] += -v->kan_w[j] * (j ? 0.005f : 0.003f) + frand(&v->rng) * (j ? 0.17f : 0.134f);
     float depth = c->ex[2] < 1.5f ? c->e[1] * 12.0f : 0.0f;
     if (depth <= 0.0f) {
         c->ex[22] = 1.0f;
@@ -1039,11 +1046,11 @@ static __attribute__((noinline)) void knit_add(const float *x, float g, float *x
             xr[i] += x[i] * g;
     }
 }
-static __attribute__((noinline)) void knit_sub_sq(voice_t *v, float *xl, float *xr, int m, int stereo)
+static __attribute__((noinline)) void knit_sub_sq(voice_t *v, float *xl, float *xr, int m, int stereo, float dr)
 {
     const cfg_t *c = &v->c;
     const int lo = v->ksub >= KS_LOW_SQUARE;
-    float p = v->o[8], d = fm_minf(c->ex[15] * c->ex[22] * (lo ? 0.5f : 1.0f), 0.45f), id = 1.0f / d;
+    float p = v->o[8], d = fm_minf(c->ex[15] * dr * (lo ? 0.5f : 1.0f), 0.45f), id = 1.0f / d;
     float gs = c->ex[16] * 0.7f, gn = c->ex[17];
     sawp_t ks = saw_pulse_k(v->ksub == KS_LOW_PULSE ? 0.25f : 0.5f, 1.0f);
     for (int i = 0; i < m; i++) {
@@ -1056,6 +1063,28 @@ static __attribute__((noinline)) void knit_sub_sq(voice_t *v, float *xl, float *
     }
     v->o[8] = p;
 }
+/* knit's analog (TP_KANALOG), out of line: its drift as each oscillator's factor (the two walks in a mix of its own,
+ * up to 6 cents: k 0..6 the unison's voices, 7 osc 2, 8 the sub); its softer edges (a one-pole low-pass, open at 0,
+ * about 6 kHz at the top) and its saturation (soft3, driven up to 2.5 x, the level held about where it was) */
+static const float KAN_W[9][2] = {{0.4f, 0.3f}, {-0.9f, 0.2f}, {0.7f, -0.6f}, {-0.3f, -0.9f}, {1.0f, 0.4f},
+                                  {-0.6f, 0.8f}, {0.2f, -1.0f}, {0.8f, 0.6f}, {-0.5f, 0.5f}};
+static inline float kan_f(const voice_t *v, int k)
+{
+    return 1.0f + (float)v->kanalog * (0.003466f / 127.0f) * (KAN_W[k][0] * v->kan_w[0] + KAN_W[k][1] * v->kan_w[1]);
+}
+static __attribute__((noinline)) void knit_analog(voice_t *v, float *xl, float *xr, int m, int stereo)
+{
+    const float a = (float)v->kanalog * (1.0f / 127.0f), g = 1.0f - 0.2f * a, dv = 1.0f + 1.5f * a;
+    const float og = 1.0f / (1.0f + 0.5f * a);
+    for (int ch = 0; ch < (stereo ? 2 : 1); ch++) {
+        float *x = ch ? xr : xl, y = v->kan_lp[ch];
+        for (int i = 0; i < m; i++) {
+            y += (x[i] - y) * g;
+            x[i] = soft3(y * dv) * og;
+        }
+        v->kan_lp[ch] = fm_flush(y);
+    }
+}
 SY_INLINE void knit_loop(voice_t *v, float *xl, float *xr, int m, const int stereo)
 {
     const cfg_t *c = &v->c;
@@ -1066,7 +1095,7 @@ SY_INLINE void knit_loop(voice_t *v, float *xl, float *xr, int m, const int ster
     for (k = 0; k < n; k++) {                    /* the voices: the centre, then the pairs (upper right, lower left); an
                                                   * even count's last voice has no lower one: the centre is its partner,
                                                   * on the left (fm1-loom#15: it leaned right) */
-        d[k] = fm_clampf((c->ex[0] + co[k] * c->ex[1]) * dr, 1e-6f, 0.45f);
+        d[k] = fm_clampf((c->ex[0] + co[k] * c->ex[1]) * dr * (v->kanalog ? kan_f(v, k) : 1.0f), 1e-6f, 0.45f);
         gg[2 * k] = gg[2 * k + 1] = g;
         if ((k || !(n & 1)) && stereo) {
             const float *pn = &c->ex[3 + 2 * (k ? (k + 1) >> 1 : n >> 1)];
@@ -1075,7 +1104,8 @@ SY_INLINE void knit_loop(voice_t *v, float *xl, float *xr, int m, const int ster
         }
     }
     const int mod = v->ksync || v->kcross || v->ksweep;   /* the Mod page: osc 2 first, alone (osc 1 may read it) */
-    float x2[SY_CHUNK], ix = mod ? knit_mod_osc2(v, d[0], mix, pw, dr, x2, m) : 0.0f;
+    const float dr2 = v->kanalog ? dr * kan_f(v, 7) : dr, drs = v->kanalog ? dr * kan_f(v, 8) : dr;   /* (analog) */
+    float x2[SY_CHUNK], ix = mod ? knit_mod_osc2(v, d[0], mix, pw, dr2, x2, m) : 0.0f;
     for (k = 0; k < n; k++)                      /* the voices: the centre first (it sets the buffers), then the pairs */
         if (ix > 0.0f)
             knit_osc_fm(&v->o[k], d[k], pw, mix, gg[2 * k], gg[2 * k + 1], xl, xr, m, stereo, !k, x2, ix);
@@ -1092,7 +1122,7 @@ SY_INLINE void knit_loop(voice_t *v, float *xl, float *xr, int m, const int ster
         if (c->ex[14] > 0.0f)
             knit_add(x2, c->ex[14], xl, xr, m, stereo);
     } else if (c->ex[14] > 0.0f) {               /* osc 2: one more, in the middle */
-        float d = fm_clampf(c->ex[13] * dr, 1e-6f, 0.45f);
+        float d = fm_clampf(c->ex[13] * dr2, 1e-6f, 0.45f);
         if (v->o2w > 1)
             knit_osc2_smooth(&v->o[7], d, c->ex[14], xl, xr, m, stereo, v->o2w == 3);
         else {                                   /* osc 1's wave, or its own shape (as knit_prep makes osc 1's) */
@@ -1105,9 +1135,9 @@ SY_INLINE void knit_loop(voice_t *v, float *xl, float *xr, int m, const int ster
         }
     }
     if (v->ksub && c->ex[16] > 0.0f)             /* the sub a square or a narrow pulse (the 101's), and the noise */
-        knit_sub_sq(v, xl, xr, m, stereo);
+        knit_sub_sq(v, xl, xr, m, stereo, drs);
     else if (c->ex[16] > 0.0f || c->ex[17] > 0.0f) {  /* the sub (a sine an octave down) and the noise */
-        float p = v->o[8], d = c->ex[15] * dr, gs = c->ex[16], gn = c->ex[17];
+        float p = v->o[8], d = c->ex[15] * drs, gs = c->ex[16], gn = c->ex[17];
         for (i = 0; i < m; i++) {
             float x;
             p = step1(p, d);
@@ -1118,6 +1148,8 @@ SY_INLINE void knit_loop(voice_t *v, float *xl, float *xr, int m, const int ster
         }
         v->o[8] = p;
     }
+    if (v->kanalog)                              /* analog's softer edges and saturation, last */
+        knit_analog(v, xl, xr, m, stereo);
 }
 static void knit_run(voice_t *v, float *xl, float *xr, int m)
 {
@@ -2229,7 +2261,8 @@ int synth_voice_cost(const synth_t *s, int vi)
                (v->ksync || v->ksweep || v->kcross ? 3 : 0) +   /* (the Mod page: the FM-1, 2026-11-23: a synced
                                                   * voice 7.5 % of a core, plain knit's 3 %; cross 9 %, its unison's
                                                   * voices each the full path) */
-               (v->kcross ? 2 + (int)(1.5f * fm_clampf(v->c.ex[2], 1.0f, (float)KNIT_MAX)) : 0);
+               (v->kcross ? 2 + (int)(1.5f * fm_clampf(v->c.ex[2], 1.0f, (float)KNIT_MAX)) : 0) +
+               (v->kanalog != 0);                /* (analog: its low-pass and saturation, an estimate) */
     if (v->engine == EG_RAYON)                   /* (the FM-1, 2026-10-19: a quarter above an ordinary voice; with ops
                                                   * 3 and 4, 2026-11-23: 6.5 .. 7 % of a core a voice, the pair's 4.4) */
         return v->c.ex[16] > 0.0f ? 8 : 5;
@@ -2874,6 +2907,18 @@ static void voice_chunk(synth_t *s, voice_t *v)
     v->nchunk = (uint8_t)(v->nchunk + 1);
     if (!v_sounding(v))
         return;
+    if (v->fresh && v->engine == EG_KNIT) {      /* analog's spread, at the note's first chunk (here, not in the note's
+                                                  * start: that runs from RAM): its own pitch, cutoff, envelope times */
+        int an = P2(s, trk, TP_KANALOG);
+        v->kanalog = (uint8_t)(an > 127 ? 127 : an);
+        if (an) {
+            v->kan_p = frand(&v->rng);
+            v->kan_c = frand(&v->rng);
+            v->kan_e = frand(&v->rng);
+            for (i = 0; i < 8; i++)
+                v->env_in[i] = -1.0f;            /* (its times: made again with this note's spread) */
+        }
+    }
     /* the LFO's fade envelope: this voice's time since its note */
     if (t->lf_in > 0.0f)
         lenv = fm_minf(v->tsec / t->lf_in, 1.0f);
@@ -2901,13 +2946,20 @@ static void voice_chunk(synth_t *s, voice_t *v)
             if (x == v->env_in[i])
                 continue;
             v->env_in[i] = x;
-            *co[i] = (i & 3) == 0 ? env_rate(env_seconds(x)) : (i & 3) == 2 ? x : env_coef(env_seconds(x));
+            {
+                float sec = env_seconds(x);
+                if (v->engine == EG_KNIT && v->kanalog)   /* (analog: this note's times up to 25 % apart) */
+                    sec *= 1.0f + v->kan_e * (float)v->kanalog * (0.25f / 127.0f);
+                *co[i] = (i & 3) == 0 ? env_rate(sec) : (i & 3) == 2 ? x : env_coef(sec);
+            }
         }
     }
     /* the filter: 50 Hz .. 20 kHz over the knob, the performance offset, keytrack, velocity */
     {   /* the cutoff and the resonance glide too (~10 ms), as the engine knobs */
         float co = (pf(s, trk, TP_CUT, dest, off) + (float)t->perf.cut + (gd == GD_CUT ? g : 0.0f)) * (8.64385619f / 127.0f)
                    + pf(s, trk, TP_KTRK, dest, off) * (1.0f / 127.0f) * (v->pitch - 60.0f) * (1.0f / 12.0f);
+        if (v->engine == EG_KNIT && v->kanalog)   /* (analog: this note's cutoff up to 0.35 octave apart) */
+            co += v->kan_c * (float)v->kanalog * (0.35f / 127.0f);
         c->cut_oct = v->fresh ? co : glide_to(c->cut_oct, co);
     }
     c->fenv_oct = (pf(s, trk, TP_FENV, dest, off) - 64.0f) * (6.0f / 64.0f) * (0.5f + 0.5f * v->vel);
@@ -2947,6 +2999,8 @@ static void voice_chunk(synth_t *s, voice_t *v)
     /* pitch: the glide, bend, performance pitch, vibrato, an LFO on the pitch (+-12 semitones at 100 %) */
     v->pitch_cur += (v->pitch - v->pitch_cur) * v->glide_k;
     c->pitch_off = (float)t->bend_c + t->pb_base + t->pb_step * (float)(k + 1) + t->lpitch[k] * lenv;
+    if (v->engine == EG_KNIT && v->kanalog)      /* (analog: this note up to 8 cents off) */
+        c->pitch_off += v->kan_p * (float)v->kanalog * (8.0f / 127.0f);
     if (dest == LD_PITCH)
         c->pitch_off += off * (1200.0f / 127.0f);
     if (gd == GD_PITCH)                          /* (+-12 semitones at 100 %) */
@@ -3008,6 +3062,10 @@ static void voice_chunk(synth_t *s, voice_t *v)
                 v->ksweep = (uint8_t)(sw > KSWEEP_MAX ? KSWEEP_MAX : sw);
                 v->kcross = (uint8_t)(cr > 127 ? 127 : cr);
                 v->ksub = (uint8_t)(P2(s, trk, TP_KSUB) % NKS);
+            }
+            {   /* analog (knit_loop, knit_chunk read it; its spread drawn at the note: voice_start) */
+                int an = P2(s, trk, TP_KANALOG);
+                v->kanalog = (uint8_t)(an > 127 ? 127 : an);
             }
         }
         for (i = 0; i < 4 && !moved; i++)
@@ -3682,6 +3740,7 @@ static const char *const KSUB_N[NKS] = {"sine", "square", "low square", "low pul
 static const char *const RO_N[NRO] = {"off", "stack", "layer"};
 static const tp_info_t ROPS_P[4] = {{"ops", 0, NRO - 1, RO_OFF, PK_NAMES, RO_N}, {"ratio", 0, RO_NRATIO - 1, 1, PK_NUM, 0},
                                     {"depth", 0, 127, 0, PK_NN, 0}, {"feedback", 0, 127, 0, PK_NN, 0}};
+static const tp_info_t KANALOG_P = {"analog", 0, 127, 0, PK_NN, 0};
 static const tp_info_t KMOD_P[4] = {{"sync", 0, 1, 0, PK_SWITCH, 0}, {"sweep", 0, KSWEEP_MAX, 0, PK_SEMI, 0},
                                     {"cross", 0, 127, 0, PK_NN, 0}, {"sub", 0, NKS - 1, KS_SINE, PK_NAMES, KSUB_N}};
 static const tp_info_t RUP_P = {"oct up", 0, 3, 0, PK_NUM, 0};   /* (TP_RUP: the random player's octaves above) */
@@ -3876,6 +3935,8 @@ const tp_info_t *tp_info(int p, int engine)
         return &KMOD_P[p - TP_KSYNC];
     if (p >= TP_ROPS && p <= TP_RFB)              /* rayon's Ops page (the same) */
         return &ROPS_P[p - TP_ROPS];
+    if (p == TP_KANALOG)
+        return &KANALOG_P;
     if (p >= 0 && p < (int)(sizeof FIXED / sizeof FIXED[0]))
         return &FIXED[p];
     return &NONE_P;
@@ -4202,6 +4263,7 @@ void sound_default(uint8_t *par, int engine)
     par[TP_ROPS] = RO_OFF;
     par[TP_RRATIO] = 1;
     par[TP_RDEPTH] = par[TP_RFB] = 0;
+    par[TP_KANALOG] = 0;
 }
 
 /* -------------------------------------------------------------- presets --- */
@@ -4227,6 +4289,7 @@ void preset_sound(uint8_t *par, const preset_t *pr)
     par[TP_RRATIO] = pr->rratio;
     par[TP_RDEPTH] = pr->rdepth;
     par[TP_RFB] = pr->rfb;
+    par[TP_KANALOG] = pr->kanalog;
 }
 int preset_first(int engine)
 {

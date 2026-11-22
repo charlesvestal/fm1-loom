@@ -16,6 +16,8 @@ turns them into app/build/gen/presets.h (the PRESETS table synth.c includes). A 
     osc2=None | (wave, shape, fine),            knit's Osc 2 page: wave same (osc 1's) / saw / square / pulse /
                                                 triangle / sine, its shape 0..127 (saw .. square .. pulse; counts for
                                                 saw, square and pulse only), fine 14..114 (64: none, +-50 cents)
+    analog=0,                                   knit's analog 0..127 (its Levels page): drift, each note a little off,
+                                                softer edges, some saturation
     ops=None | (mode, ratio, depth, feedback),  rayon's Ops page: mode off / stack / layer, op 3's ratio (one of
                                                 RO_RATIOS, as a number), depth 0..127, op 4's feedback 0..127
     mod=None | (sync, sweep, cross, sub),       knit's Mod page: sync True / False (osc 2 hard-synced to osc 1),
@@ -62,7 +64,7 @@ PRESETS = []
 
 def P(name, role, engine, knobs, mode="poly", glide=0, bend=2, volume=100, amp=(0, 64, 127, 40),
       fenv=(0, 64, 0, 40), filter=("lp24", 127, 0, 64, 64), sends=(0, 0), lfo=None, char=None, x=None, osc2=None,
-      mod=None, ops=None, octave=None, genres=()):
+      mod=None, ops=None, analog=0, octave=None, genres=()):
     assert role in ROLES, (name, role)
     assert engine in KNOBS, (name, engine)
     assert len(name) <= 11 and name == name.lower(), name
@@ -85,13 +87,14 @@ def P(name, role, engine, knobs, mode="poly", glide=0, bend=2, volume=100, amp=(
     op = tuple(ops or NOOPS)
     assert len(op) == 4 and op[0] in OPS and op[1] in RO_RATIOS and 0 <= op[2] <= 127 and 0 <= op[3] <= 127, (name, op)
     assert engine == "rayon" or op == NOOPS, (name, "the Ops page is rayon's")
+    assert 0 <= analog <= 127 and (engine == "knit" or analog == 0), (name, "analog is knit's")
     vals = [*[knobs[k] for k in KNOBS[engine]], glide, bend, volume, *amp, *fenv, filter[1], filter[2], filter[3],
             filter[4], *sends, lf[1], lf[2], lf[4], lf[5], ch[1], ch[2], ch[3], *xs]
     assert all(isinstance(v, int) and 0 <= v <= 127 for v in vals), (name, vals)
     assert mode in MODES and filter[0] in FILTERS, name
     PRESETS.append(dict(name=name, role=role, engine=engine, knobs=[knobs[k] for k in KNOBS[engine]], mode=mode,
                         glide=glide, bend=bend, volume=volume, amp=tuple(amp), fenv=tuple(fenv), filter=tuple(filter),
-                        sends=tuple(sends), lfo=tuple(lf), char=tuple(ch), x=tuple(xs), osc2=o2, mod=md, ops=op, octave=oc,
+                        sends=tuple(sends), lfo=tuple(lf), char=tuple(ch), x=tuple(xs), osc2=o2, mod=md, ops=op, analog=analog, octave=oc,
                         genres=tuple(genres)))
 
 

@@ -100,8 +100,9 @@ static uint16_t col_mix(uint16_t a, uint16_t b, uint32_t s)   /* a moved s/16 of
  * envelope and the kit's bus filter: four pages); FX: the instrument's character stage (a kit's on the whole
  * kit, after its bus filter), its sends and the two effects; ARP three with the arp (its page 2, then hold). EDIT on a synth
  * track: the sound first, then how it plays: Engine, Sub where the engine has a second page of knobs (TP_X1..X4:
- * rayon's fall, acid's drive), Play (mode, glide, bend, octave), Play 2 (volume); knit: Engine, Osc 2 (osc 2's
- * interval, fine, wave, shape), Levels (the Sub page: osc 2's level, sub, noise, volume), Play; a kit or an FX track
+ * rayon's fall, acid's drive), Play (mode, glide, bend, octave), Play 2 (volume); rayon: Engine, Sub, Ops (P_KMOD),
+ * Play, Play 2; knit: Engine, Osc 2 (osc 2's interval, fine, wave, shape), Mod (P_KMOD: sync, sweep, cross, the sub's
+ * type), Levels (the Sub page: osc 2's level, sub, noise, analog), Play, Play 2; a kit or an FX track
  * Engine and Play; the conductor Engine, Play (routing), Sub (Follow) */
 enum { P_ARRANGE, P_SONG, P_STEPS, P_BAR, P_ENGINE, P_PLAY, P_PLAY2, P_SUB, P_OSC2, P_KMOD, P_ENV, P_FILTER, P_ENV2, P_KITF, P_CHARACTER, P_SENDS,
        P_FX1, P_FX2, P_THROWS, P_LFO, P_LFO2, P_PLAYERS, P_PLAYERS2, P_PLAYERS3, P_WEAVE, P_MIX, P_MASTER, P_MASTER2, P_MASTER3, P_GLFO, P_SETUP,
@@ -712,9 +713,9 @@ static int group_n(int g)
         return 1;                                    /* (WEAVE's steps: no Bar page) */
     if (b == B_EDIT)                                 /* (grp_page: the conductor's Sub third; a kit, an FX track: two) */
         return trk == AUX_PUNCH || trk == AUX_WEAVE ? 1 : trk == AUX_BRAIN ? 3 : is_aux(trk) ? 2
-             : is_knit(trk) || is_rayon(trk) ? 5 : x_page(trk) ? 4 : 3;   /* (a kit: Engine, Key, Sends: the
+             : is_knit(trk) ? 6 : is_rayon(trk) ? 5 : x_page(trk) ? 4 : 3;   /* (a kit: Engine, Key, Sends: the
                                           * key's own; Engine 2 after Engine when the key's model has eight knobs;
-                                          * knit: Osc 2, Mod, Levels, Play; rayon: Sub, Ops, Play, Play 2) */
+                                          * knit: Osc 2, Mod, Levels, Play, Play 2; rayon: Sub, Ops, Play, Play 2) */
     if (b == B_ARP)                                  /* (grp_page: Players, Players 2, Hold the arp's, Weave) */
         return is_aux(trk) ? 1
              : is_drum(trk) || pl_type(trk) == PL_OFF ? 2
@@ -747,8 +748,8 @@ static int grp_page(int g, int i)
         return i == 2 ? P_SUB : P_ENGINE + i;
     if (PAGE_BTN[g].btn == B_EDIT && is_knit(sel_trk())) {   /* knit: osc 2, its Mod page, the levels, then how it
                                                       * plays */
-        static const uint8_t KNP[5] = {P_ENGINE, P_OSC2, P_KMOD, P_SUB, P_PLAY};
-        return KNP[i >= 0 && i < 5 ? i : 0];
+        static const uint8_t KNP[6] = {P_ENGINE, P_OSC2, P_KMOD, P_SUB, P_PLAY, P_PLAY2};
+        return KNP[i >= 0 && i < 6 ? i : 0];
     }
     if (PAGE_BTN[g].btn == B_EDIT && is_rayon(sel_trk())) {   /* rayon: its fall (Sub), its ops 3 and 4, then how
                                                       * it plays */
@@ -852,10 +853,8 @@ static int tp_page_param(int p, int k, int trk)
         static const int8_t MP[2][4] = {{TP_VMODE, TP_PORTA, TP_BEND, TP_VOLUME}, {TP_OCT, -1, -1, -1}};
         return MP[p == P_PLAY2][k];
     }
-    if (is_knit(trk) && p == P_SUB) {                /* knit's Levels: osc 2, sub, noise, and the track's volume */
-        static const int8_t LV[4] = {TP_X2, TP_X3, TP_X4, TP_VOLUME};
-        return LV[k];
-    }
+    if (is_knit(trk) && p == P_SUB)                  /* knit's Levels: osc 2, sub, noise, analog (its volume: Play 2) */
+        return k < 3 ? TP_X2 + k : TP_KANALOG;
     if (p == P_KMOD)                                 /* knit's Mod page: sync, sweep, cross, the sub's type; rayon's
                                                       * Ops page: how ops 3 and 4 join, op 3's ratio, depth, feedback */
         return is_knit(trk) ? TP_KSYNC + k : is_rayon(trk) ? TP_ROPS + k : -1;
@@ -864,8 +863,6 @@ static int tp_page_param(int p, int k, int trk)
         static const uint16_t O2[4] = {TP_X1, TP_O2FINE, TP_O2WAVE, TP_O2SHAPE};
         return is_knit(trk) ? O2[k] : -1;
     }
-    if (is_knit(trk) && p == P_PLAY2)                /* (knit's volume is on Levels: no Play 2) */
-        return -1;
     if (is_drum(trk) && (p == P_PLAYERS || p == P_PLAYERS2 || p == P_PLAYERS3))
         return -1;                                   /* a kit: no player (its page shows it off) */
     if (pl_type(trk) == PL_RAND) {                  /* random: P1..P3, AP1..AP4, octave */

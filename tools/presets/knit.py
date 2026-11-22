@@ -89,3 +89,16 @@ P("cross growl", "bass", "knit", knobs=dict(wave=0, detune=0, voices=1, width=0)
 P("step bleeps", "fx", "knit", knobs=dict(wave=64, detune=0, voices=1, width=0), volume=80,
   amp=(0, 70, 110, 50), fenv=(0, 64, 0, 40), filter=("lp24", 70, 60, 64, 64), sends=(30, 25),
   lfo=("wave", 5, 110, "filter", 0, 4), genres=("synthpop", "house"))
+# --- analog (2026-11-23, the Levels page): each oscillator drifting, each note a little off, softer edges, saturation ---
+# a warm poly: two saws a little apart, analog well up (every voice its own), a slow filter swell, the room
+P("warm poly", "keys", "knit", knobs=dict(wave=10, detune=22, voices=2, width=60), volume=78,
+  amp=(10, 84, 100, 70), fenv=(20, 76, 40, 64), filter=("lp24", 70, 10, 70, 64), sends=(10, 35), analog=90,
+  genres=("synthpop", "lofi"))
+# old strings: a PWM square, three voices, analog at the top, a gentle ensemble's width, slow in and out
+P("old strings", "strings", "knit", knobs=dict(wave=64, detune=20, voices=3, width=100), volume=66,
+  amp=(80, 90, 118, 96), fenv=(0, 64, 0, 64), filter=("lp12", 80, 0, 64, 64), sends=(0, 45),
+  lfo=("wave", 34, 74, "synth free", 0, 1), analog=120, genres=("lofi", "synthpop"))
+# an old lead: one saw and a sub, analog for the wander and the grit, legato glide, late vibrato
+P("old lead", "lead", "knit", knobs=dict(wave=0, detune=0, voices=1, width=0), mode="legato", glide=20,
+  volume=88, amp=(2, 70, 110, 50), fenv=(0, 72, 40, 60), filter=("ladder", 70, 50, 80, 64), sends=(20, 20),
+  x=(64, 0, 40, 0), lfo=("wobble", 92, 74, 64, 30, 0), analog=100, genres=("synthpop",))
