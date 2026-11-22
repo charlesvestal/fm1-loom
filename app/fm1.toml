@@ -30,6 +30,7 @@ ram_layout = "packed"            # one SRAM budget (the RAM code's unused 12 KB)
 audio_ahead = true             # each half rendered aside a block ahead (fm1-base FM1B_AUDIO_AHEAD): a render may take two halves
                                # without a dropout (a busy song with the ten USB channels and a clock in), for 5.8 ms more latency; 2 KiB of RAM
 cpu2 = true                    # the second core: fm1-base's (felucca-bsp's chip/fm1_cpu1.h, Melodee's), plat_cpu2_*
+cpu2_stack = 4096              # its job stack (2,816 by default): tulle's grains read a block at a time (2026-11-23: a fault on it)
 # the DSP and the sequencer at -O2, apart (as LOOM-8's own build had them); bench.c: the profiler, empty unless XY_BENCH=1
 o2 = ["dsp/synth.c", "dsp/drumline.c", "dsp/digisophie.c", "dsp/sample.c", "dsp/fx.c", "dsp/bass303.c", "dsp/d909.c", "dsp/bench.c", "seq/pattern.c", "seq/seq.c"]
 unity_opt = "z"                                   # the UI and the platform at -Oz (11 KB; the DSP and the sequencer stay -O2)

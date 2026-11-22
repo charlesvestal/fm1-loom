@@ -1879,8 +1879,8 @@ static void tulle_tests(void)
             most = n > most ? n : most;
         }
         printf("    tulle: one dense note, at most %d grains at once\n", most);
-        check("tulle: one note alone makes a cloud from the pool (more than a slot's four grains), finite",
-              finite && most > TL_POOL / CN_SLOTS && most <= TL_POOL);
+        check("tulle: one dense note makes a cloud from its own range of the pool (more than four, at most eight), finite",
+              finite && most > 4 && most <= TL_VOICE_MAX);
     }
     check("tulle: its pages' names (the playhead's, the grains')", !strcmp(tp_info(TP_E3, EG_TULLE)->name, "spray") &&
           !strcmp(tp_info(TP_E4, EG_TULLE)->name, "scan") && !strcmp(tp_info(TP_X1, EG_TULLE)->name, "size") &&

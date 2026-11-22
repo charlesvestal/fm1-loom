@@ -49,8 +49,8 @@ enum { EG_KNIT, EG_RAYON, EG_JACQUARD, EG_BELLOWS, EG_CANE, EG_VOILE, EG_SAMPLE,
  * ms), density (grains a second, 2 .. 60), pitch (each grain detuned at random, up to an octave), width (the grains
  * across the stereo field). At most CN_SLOTS of its voices (cane's slots: a cap), their grains from one pool of
  * TL_POOL, each with its own decode window */
-#define TL_POOL 24                                   /* (six a note in a chord of four) */
-#define TL_VOICE_MAX 10                              /* a note's grains at most (its voice on one core: the FM-1's budget) */
+#define TL_POOL 32                                   /* eight a note: its slot's own (TL_POOL / CN_SLOTS) */
+#define TL_VOICE_MAX 8                               /* a note's grains at most (its voice on one core: the FM-1's budget) */
 /* the Braids engines (dsp/braids.h, after Mutable Instruments Braids, MIT): E1 the model, E2 Braids' timbre, E3 its
  * color, E4 cane's damp, voile's breath. cane: pluck, bow, reed, flute, bell, drum, at most CN_SLOTS of its voices
  * (each a slot of CN_LEN int16 for its lines); voile: vosim, vowel, choir, whisper */
