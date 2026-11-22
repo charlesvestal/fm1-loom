@@ -54,6 +54,6 @@ int loom_render_start(int scene, int loops)      /* scene < 0: the song once; el
     play_press();
     return bars;
 }
-/* the song still going: its end asks the transport to stop (seq.c bar_end), which it does a sixteenth later, after
- * the next bar's first step; the render takes the request as the end (the tail is rendered after) */
-int loom_render_playing(void) { return (seq.playing || seq.req_start) && !seq.req_stop; }
+/* the song still going (or about to start): its end stops the transport at its last bar line (seq.c six_tick);
+ * the tail is rendered after */
+int loom_render_playing(void) { return seq.playing || seq.req_start; }

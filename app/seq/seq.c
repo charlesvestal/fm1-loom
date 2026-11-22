@@ -1407,8 +1407,8 @@ static void scene_read(seq_t *s, int k, uint8_t *next)
 static int song_plays(const seq_t *s) { return s->song_on && s->P->song.len > 0; }
 
 /* the start, or the bar's end: the song, a cued scene or cued patterns decide each track's next
- * pattern. Returns the tracks whose pattern changed (bit t). */
-static uint32_t bar_end(seq_t *s, int start, const seq_sink_t *o)
+ * pattern. Returns the tracks whose pattern changed (bit t); *end = the song (its loop off) is over */
+static uint32_t bar_end(seq_t *s, int start, const seq_sink_t *o, int *end)
 {
     uint8_t next[NSEQT];
     uint32_t changed = 0;
@@ -1426,7 +1426,7 @@ static uint32_t bar_end(seq_t *s, int start, const seq_sink_t *o)
             k = s->song_pos + 1;
             if (k >= sg->len) {
                 if (!sg->loop) {
-                    s->req_stop = 1;
+                    *end = 1;
                     k = s->song_pos;
                 } else
                     k = 0;
@@ -3137,8 +3137,8 @@ static void do_start(seq_t *s, int from_top, const seq_sink_t *o)
 {
     int t;
     if (from_top) {
-        int at = s->req_at;
-        bar_end(s, 1, o);
+        int at = s->req_at, end = 0;
+        bar_end(s, 1, o, &end);
         for (t = 0; t < NSEQT; t++)
             track_reset(s, t);
         s->req_at = 0;
@@ -3218,6 +3218,20 @@ static void do_stop(seq_t *s, const seq_sink_t *o)
         midi(o, 0xFC, 0, 0);
 }
 
+/* a stop (STOP, MIDI's, the song's end); stopped already: the players let go (hold, latched arps) */
+static void stop_now(seq_t *s, const seq_sink_t *o)
+{
+    int t;
+    s->wv_rec = 0;                    /* (the recorded weaves end with the transport) */
+    for (t = 0; t < NSEQT; t++)
+        s->wv_left[t] = 0, s->wv_rec_at[t] = 0xFF;
+    if (s->playing)
+        do_stop(s, o);
+    else
+        for (t = 0; t < NTRK; t++)
+            keys_all_off(s, t, o);
+}
+
 /* the sixteenth: the metronome, the count-in, the bar, the fills */
 /* the WEAVE track, a sixteenth: its step's tracks weave for the step's length (wv_rec); recording, what is held or
  * latched (wv_live) is written: a weave starting marks this step, one going on lengthens the step it started on */
@@ -3288,12 +3302,13 @@ static void six_tick(seq_t *s, const seq_sink_t *o)
         int top = s->bar_six == 0 && !s->bar_fresh;           /* track 1's span came round */
         int line = s->step_tick && !(s->step_tick & 15u);     /* a bar line (16 sixteenths) */
         uint32_t ch = 0;
+        int end = 0;
         if (song_plays(s) ? line && !s->bar_fresh : top)      /* the bar: cues, the song (its slots count bars
                                                                * of 16 sixteenths, whatever track 1's length) */
-            ch = bar_end(s, 0, o);
+            ch = bar_end(s, 0, o, &end);
         else if (line && s->cue < NSCENE && !s->cue_end)   /* a bar line inside a longer pattern: a scene cued
                                                             * to the bar starts here */
-            ch = bar_end(s, 0, o);
+            ch = bar_end(s, 0, o, &end);
         else if (line)                /* the patterns cued per track switch here, not later */
             for (int t = 0; t < NSEQT; t++)
                 if (s->pcue[t] < NPATT) {
@@ -3303,6 +3318,11 @@ static void six_tick(seq_t *s, const seq_sink_t *o)
                     }
                     s->pcue[t] = 0xFF;
                 }
+        if (end) {                    /* the song's over: stopped at its bar line, before this sixteenth's steps (the
+                                       * sixteenth first in seq_advance) and its clock */
+            stop_now(s, o);
+            return;
+        }
         if (ch)
             restart(s, ch);
     }
@@ -3516,14 +3536,7 @@ void seq_advance(seq_t *s, uint32_t k, const seq_sink_t *o)
     brain_follow_par(s);
     if (s->req_stop) {
         s->req_stop = 0;
-        s->wv_rec = 0;                /* (the recorded weaves end with the transport) */
-        for (t = 0; t < NSEQT; t++)
-            s->wv_left[t] = 0, s->wv_rec_at[t] = 0xFF;
-        if (s->playing)
-            do_stop(s, o);
-        else                          /* stopped already: the players let go (hold, latched arps) */
-            for (t = 0; t < NTRK; t++)
-                keys_all_off(s, t, o);
+        stop_now(s, o);
     }
     if (s->req_start) {
         s->req_start = 0;

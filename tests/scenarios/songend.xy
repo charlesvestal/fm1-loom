@@ -1,0 +1,35 @@
+# a song with its loop off ends at its last bar line: nothing of the bar after it sounds (a kick on the beats, two
+# bars: eight hits, not the next bar's downbeat as a ninth); with its loop on it goes round, and PLAY stops it
+wait 300
+master 0
+bpm 120
+wait 50
+hits 1 1 1 x...x...x...x...
+scenedef 1 1 1 1 1 1 1 1 1 1
+song 1:2
+songloop 0
+expect drumhits 0
+tap HOME
+tap SEL
+row PLAY SONG
+tap SEL
+expect playing 1
+bars 2
+wait 200
+expect playing 0
+expect drumhits 8
+wait 500
+expect drumhits 8
+# looped: round again past its end, then stopped by hand
+songloop 1
+tap HOME
+tap SEL
+row PLAY SONG
+tap SEL
+expect playing 1
+bars 3
+expect playing 1
+expect songpos 1
+tap PLAY
+wait 200
+expect playing 0

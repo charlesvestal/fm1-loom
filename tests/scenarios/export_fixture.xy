@@ -29,7 +29,8 @@ row PLAY SONG
 tap SEL
 expect playing 1
 bars 4
-# (the song's end stops the transport a sixteenth later: the next bar's first step sounds, as on the FM-1)
+# ("bars" returns at the last sixteenth's start; the song's end stops the transport at the bar line after it, before
+# anything of a fifth bar sounds)
 wait 200
 expect playing 0
 wait 3000

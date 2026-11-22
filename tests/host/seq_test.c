@@ -1096,6 +1096,32 @@ static void t_song_bars(void)
     printf("ok %s\n", cur);
 }
 
+/* a song with its loop off ends at its last bar line: the next bar's downbeat doesn't sound, and the clock out
+ * stops there (a bar's 96 ticks, no 97th at the line, then the stop) */
+static void t_song_end(void)
+{
+    int i, clocks = 0;
+    cur = "song-end";
+    reset();
+    S.clock = SEQ_CLK_SEND;
+    note(0, 0, 60, 100);
+    note(0, 8, 62, 100);
+    P.song.len = 1;
+    P.song.loop = 0;
+    P.song.slot[0].scene = 0;
+    P.song.slot[0].rep = 1;
+    S.song_on = 1;
+    start();
+    run_blocks(3 * 16 * L16);         /* (as engine_render: the clock goes at a stretch's end) */
+    CHECK(!S.playing && count(E_ON, 0) == 2 && on_n(0)->a == 60 && on_n(1)->a == 62);
+    for (i = 0; i < nev; i++)
+        clocks += ev[i].kind == E_MIDI && ev[i].a == 0xF8;
+    CHECK(clocks == 96 && midi_n(0xFC) == 1);
+    /* (the stop after the start and the 96, at the bar line) */
+    CHECK(nth(E_MIDI, -1, 97)->a == 0xFC && near(nth(E_MIDI, -1, 97)->t, 16 * L16 + 8, 1));
+    printf("ok %s\n", cur);
+}
+
 static void t_brain(void)
 {
     cur = "brain";
@@ -3455,6 +3481,7 @@ int main(void)
     t_ghost();
     t_song();
     t_song_bars();
+    t_song_end();
     t_brain();
     t_arp();
     t_maestro();
