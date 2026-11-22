@@ -1823,7 +1823,7 @@ static void tl_note(int scan, int width, int notes, float *l, float *r, int *fin
 {
     char_sound(EG_TULLE, CT_OFF, 0, 64, 127);
     par[0][TP_E1] = (uint8_t)smp_ix("strings");
-    par[0][TP_X2] = (uint8_t)scan;
+    par[0][TP_E4] = (uint8_t)scan;
     par[0][TP_X4] = (uint8_t)width;
     synth_init(S, par);
     synth_tempo(S, 120.0f);
@@ -1866,9 +1866,9 @@ static void tulle_tests(void)
         int most = 0;
         char_sound(EG_TULLE, CT_OFF, 0, 64, 127);
         par[0][TP_E1] = (uint8_t)smp_ix("strings");
+        par[0][TP_X1] = 127;                         /* (size, density at their top, spray too) */
+        par[0][TP_X2] = 127;
         par[0][TP_E3] = 127;
-        par[0][TP_E4] = 127;
-        par[0][TP_X1] = 127;
         synth_init(S, par);
         synth_tempo(S, 120.0f);
         synth_note_on(S, 0, 60, 100, 0, 1);
@@ -1882,8 +1882,9 @@ static void tulle_tests(void)
         check("tulle: one note alone makes a cloud from the pool (more than a slot's four grains), finite",
               finite && most > TL_POOL / CN_SLOTS && most <= TL_POOL);
     }
-    check("tulle: its Sub page's names", !strcmp(tp_info(TP_X1, EG_TULLE)->name, "spray") &&
-          !strcmp(tp_info(TP_X2, EG_TULLE)->name, "scan") && !strcmp(tp_info(TP_X4, EG_TULLE)->name, "width"));
+    check("tulle: its pages' names (the playhead's, the grains')", !strcmp(tp_info(TP_E3, EG_TULLE)->name, "spray") &&
+          !strcmp(tp_info(TP_E4, EG_TULLE)->name, "scan") && !strcmp(tp_info(TP_X1, EG_TULLE)->name, "size") &&
+          !strcmp(tp_info(TP_X2, EG_TULLE)->name, "density") && !strcmp(tp_info(TP_X4, EG_TULLE)->name, "width"));
 }
 static void kit_char_tests(void)
 {

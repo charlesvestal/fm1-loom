@@ -43,11 +43,12 @@ enum { EG_KNIT, EG_RAYON, EG_JACQUARD, EG_BELLOWS, EG_CANE, EG_VOILE, EG_SAMPLE,
                                                       * goes last) */
 #define NACID 2
 #define ACID_ACCENT 112
-/* EG_TULLE (2026-11-23): grains of a sample of the bank. E1 the sample, E2 position (where in it), E3 size (a grain's
- * length, 10 .. 500 ms), E4 density (grains a second, 2 .. 60); its Sub page (TP_X1..X4): spray (each grain's position
- * jittered, and its start in time: regular at 0, random at the top), scan (the position moving on its own: 0 frozen),
- * pitch (each grain detuned at random, up to an octave), width (the grains across the stereo field). At most CN_SLOTS
- * of its voices (cane's slots: a cap), their grains from one pool of TL_POOL, each with its own decode window */
+/* EG_TULLE (2026-11-23): grains of a sample of the bank. Its Engine page the playhead: E1 the sample, E2 position (where
+ * in it), E3 spray (each grain's position jittered, and its start in time: regular at 0, random at the top), E4 scan
+ * (the position moving on its own: 0 frozen); its Sub page (TP_X1..X4) the grains: size (a grain's length, 10 .. 500
+ * ms), density (grains a second, 2 .. 60), pitch (each grain detuned at random, up to an octave), width (the grains
+ * across the stereo field). At most CN_SLOTS of its voices (cane's slots: a cap), their grains from one pool of
+ * TL_POOL, each with its own decode window */
 #define TL_POOL 16
 #define TL_VOICE_MAX 10                              /* a note's grains at most (its voice on one core: the FM-1's budget) */
 /* the Braids engines (dsp/braids.h, after Mutable Instruments Braids, MIT): E1 the model, E2 Braids' timbre, E3 its

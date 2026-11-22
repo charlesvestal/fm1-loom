@@ -13,9 +13,11 @@ enum { FXT_CHORUS, FXT_DELAY, FXT_LOFI, FXT_PHASER, FXT_REVERB, NFXT };
 extern const char *const FXT_NAME[NFXT];
 /* the reverb's modes: the plate (9W9's combs), then the SPU reverbs of the PlayStation (psx-spx's register
  * sets, as in schwung-psxverb): room, studio small / medium / large, hall, half echo, space echo, chaos echo
- * (almost endless), delay (one echo); then lush, Dattorro's plate at 22.05 kHz (saved by number: a new mode at the end) */
+ * (almost endless), delay (one echo); then lush, Dattorro's plate at 22.05 kHz; shimmer, lush with its own output an
+ * octave up fed back into it (Chordism's, MIT: the tail rises in octaves) (saved by number: a new mode at the end) */
 enum { RV_PLATE, RV_ROOM, RV_STUDIO_S, RV_STUDIO_M, RV_STUDIO_L, RV_HALL, RV_HALF_ECHO, RV_SPACE_ECHO,
-       RV_CHAOS_ECHO, RV_ECHO_ONE, RV_LUSH, NRV };
+       RV_CHAOS_ECHO, RV_ECHO_ONE, RV_LUSH, RV_SHIMMER, NRV };
+static inline int rv_lush(int mode) { return mode == RV_LUSH || mode == RV_SHIMMER; }   /* (shimmer is lush's) */
 #define NSPU RV_ECHO_ONE                           /* the SPU modes: RV_ROOM .. RV_ECHO_ONE */
 extern const char *const RV_NAME[NRV];         /* "plate", "room", "studio S", ... */
 /* a track's TP_ENGINE byte names the effect and, for the reverb, its mode: the "pick", 0..NFXPICK-1:
@@ -36,6 +38,9 @@ const char *fx_knob_name(int pick, int k);     /* the four knobs' names (the pla
  *   lush        size decay tone damp             64 64 56 48    Dattorro's lengths x1 (pre-delay 19 ms), a tail of
  *                                                               ~1.4 s (decay: 0.6 .. 7 s to fall 60 dB, whatever the
  *                                                               size), a little darker, the tank's damping at 0.39
+ *   shimmer     size decay tone shimmer          64 84 72 72    lush's, a longer tail, brighter, the tank's damping
+ *                                                               light (fixed at 0.2), its output an octave up fed back
+ *                                                               at about a quarter (shimmer: 0 .. 0.45)
  * delay time: 1/32 1/16T 1/32D 1/16 1/8T 1/16D 1/8 1/4T 1/8D 1/4 of the tempo (one too long for the line, 0.5 s,
  * halved till it fits: 1/4 below 120 BPM, 1/8D below 90), fine +-25 %; delay tone: the repeats' low-pass,
  * 800 Hz .. 19 kHz; reverb tone: a low-pass below the centre, a high-pass above it; plate damp: the combs' damping.
@@ -46,6 +51,7 @@ const char *fx_knob_name(int pick, int k);     /* the four knobs' names (the pla
 extern const uint8_t FXT_DEFAULT[NFXT][4];      /* the reverb's row: the plate's */
 extern const uint8_t RV_SPU_DEFAULT[4];         /* the SPU modes' */
 extern const uint8_t RV_LUSH_DEFAULT[4];        /* lush's */
+extern const uint8_t RV_SHIMMER_DEFAULT[4];     /* shimmer's */
 
 #define FX_DLY_LEN 11200              /* int16 samples a side, at half rate (22.05 kHz): 0.5 s plus a 128-sample margin
                                        * (the second core's lag, 256 frames at most; the pool's budget) */

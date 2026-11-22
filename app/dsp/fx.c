@@ -50,7 +50,7 @@ static void zero16(int16_t *b, int32_t n);
 
 const char *const FXT_NAME[NFXT] = {"chorus", "delay", "lofi", "phaser", "reverb"};
 const char *const RV_NAME[NRV] = {"plate", "room", "studio S", "studio M", "studio L", "hall", "half echo",
-                                  "space echo", "chaos echo", "one echo", "lush"};
+                                  "space echo", "chaos echo", "one echo", "lush", "shimmer"};
 static const char *const FXT_KNOB[NFXT][4] = {
     {"rate", "depth", "feedback", "width"}, {"time", "fine", "repeats", "tone"},
     {"rate", "bits", "smooth", "width"},    {"freq", "depth", "rate", "feedback"},
@@ -67,6 +67,7 @@ const uint8_t FXT_DEFAULT[NFXT][4] = {
 };
 const uint8_t RV_SPU_DEFAULT[4] = {127, 64, 64, 0};   /* the console's sizes, its decay, flat, its own filter */
 const uint8_t RV_LUSH_DEFAULT[4] = {64, 64, 56, 48};  /* (fx.h) */
+const uint8_t RV_SHIMMER_DEFAULT[4] = {64, 84, 72, 72};
 
 const char *fx_pick_name(int pick)
 {
@@ -77,6 +78,8 @@ const char *fx_knob_name(int pick, int k)
 {
     int t = fx_pick_type(pick);
     k &= 3;
+    if (t == FXT_REVERB && fx_pick_mode(pick) == RV_SHIMMER && k == 3)
+        return "shimmer";                     /* (its fourth knob: the octaves fed back; its damping fixed) */
     return t == FXT_REVERB && fx_pick_mode(pick) != RV_PLATE ? SPU_KNOB[k] : FXT_KNOB[t][k];
 }
 
@@ -104,11 +107,15 @@ static const int32_t LU_OFF[NLU + 1] = {0, 1200, 1397, 1555, 2016, 2363, 3149, 8
 static const float LU_LEN[NLU] = {0.0f, 142.0f, 107.0f, 379.0f, 277.0f, 672.0f, 4453.0f, 1800.0f, 3720.0f, 908.0f,
                                   4217.0f, 2656.0f, 3163.0f};   /* Dattorro's, at 29761 Hz */
 _Static_assert(26672 <= FX_RV_LEN, "lush's lines do not fit FX_RV_LEN");
+#define SH_OFF 26672                          /* shimmer: the plate's output, a line of SH_W after lush's (its two heads) */
+#define SH_W 2048
+_Static_assert(SH_OFF + SH_W <= FX_RV_LEN, "shimmer's line does not fit FX_RV_LEN");
 typedef struct {
     int32_t len[NLU];                 /* the lines' lengths at the size now, 22.05 kHz samples */
     uint32_t base;
     int32_t clear, quiet;             /* (as the SPU's) */
     float lp, hold, lfo, dmp[2], fb[2], prev[2], cur[2], tl, th, tr, thr, scale;
+    float sh_d, sh_lp, sh_hp, sh_x1;          /* shimmer: its heads' distance, its low-pass, its high-pass */
     uint8_t phase;
 } lush_t;
 
@@ -135,6 +142,7 @@ struct fxslot {
     /* reverb */
     int32_t cpos[4], apos[4], rquiet;
     float cdmp[4], cd[4], rph, rhp, rtl[2], rtr[2];   /* rtl / rtr: the tone's low-pass and high-pass a side */
+    float rshm;                               /* shimmer's feedback (0: lush) */
     union {                                   /* the SPU reverb or lush (one mode at a time: fx_states) */
         spu_t spu;
         lush_t lu;
@@ -178,7 +186,7 @@ static void fx_states(fxslot_t *f)              /* a fresh effect: its states at
     f->rtl[0] = f->rtl[1] = f->rtr[0] = f->rtr[1] = 0.0f;
     for (i = 0; i < 6; i++)
         f->pc[i] = f->pt[i];
-    if (f->mode != RV_LUSH) {
+    if (!rv_lush(f->mode)) {
         spu_reset(&f->spu, f->mode);
     } else {
         lush_t *u = &f->lu;
@@ -249,7 +257,7 @@ static void fx_derive(fxslot_t *f)
         f->pt[3] = 0.9f * d;                                          /* feedback */
         break;
     case FXT_REVERB:
-        if (f->mode_t == RV_LUSH) {
+        if (rv_lush(f->mode_t)) {
             f->pt[0] = 0.5f + a;                                      /* size: Dattorro's lengths x0.5 .. x1.5 */
             /* decay: the tail's time, the tank's gain from it and the size (a trip round both halves ~0.715 s x size,
              * the gain met twice: 40 log10(g) = -60 trip / T, T 0.4 .. 19 s); the damping takes more, so measured
@@ -257,7 +265,9 @@ static void fx_derive(fxslot_t *f)
             f->pt[1] = fm_exp2f(-1.5f * 3.32192809f * 0.715f * (0.5f + a) / (0.4f * fm_exp2f(b * 5.6f)));
             f->pt[2] = c < 0.5f ? onepole_k(20000.0f * fm_exp2f(-(0.5f - c) * 9.29f)) : 1.0f;   /* tone: the plate's */
             f->pt[5] = c > 0.5f ? onepole_k(20.0f * fm_exp2f((c - 0.5f) * 13.29f)) : 0.0f;
-            f->pt[3] = 0.05f + 0.85f * d;                             /* damp: the tank's low-pass, 0.05 open .. 0.9 */
+            f->pt[3] = f->mode_t == RV_SHIMMER ? 0.2f : 0.05f + 0.85f * d;   /* damp: the tank's low-pass, 0.05 open .. 0.9
+                                                                               * (shimmer: light, its knob the octaves) */
+            f->rshm = f->mode_t == RV_SHIMMER ? 0.45f * d : 0.0f;
             f->pt[4] = (0.004f + 0.03f * a) * 22050.0f;               /* the pre-delay grows with the size: 4 .. 34 ms */
             break;
         }
@@ -789,6 +799,7 @@ static void do_lush(fxslot_t *f, const float *x, float *ol, float *orr, int m, i
     int16_t *w = f->rv;
     const float sc = f->pc[0] * (22050.0f / 29761.0f), dec = f->pc[1], damp = f->pc[3], tlk = f->pc[2], thk = f->pc[5];
     const float lpk = 0.55f, exc = 12.0f * f->pc[0];      /* (lpk: the send's low-pass, ~5.6 kHz before decimation) */
+    const float shm = f->rshm;                             /* (shimmer's feedback; 0: lush) */
     float tl = u->tl, th = u->th, tr = u->tr, thr = u->thr;
     int i, l;
     if (u->clear > 0) {                       /* a new mode: the line emptied first, silent meanwhile */
@@ -814,6 +825,26 @@ static void do_lush(fxslot_t *f, const float *x, float *ol, float *orr, int m, i
             const uint32_t b = u->base;
             int32_t wz = 0;
             float s = 0.5f * (u->hold + u->lp), a, c, mo, l0, r0;
+            if (shm > 0.0f) {                 /* shimmer: the plate's output an octave up, back into its input: two
+                                               * heads half the window apart closing in a sample a tick (twice the
+                                               * speed: an octave), crossfading; its top softened, its bottom cut
+                                               * (~100 Hz: nothing builds up in the loop) (Chordism's) */
+                float d1, d2, g1, ha, hb;
+                u->sh_d -= 1.0f;
+                if (u->sh_d < 2.0f)
+                    u->sh_d += (float)(SH_W - 4);
+                d1 = u->sh_d;
+                d2 = d1 + (float)(SH_W / 2 - 2);
+                if (d2 >= (float)(SH_W - 2))
+                    d2 -= (float)(SH_W - 4);
+                g1 = 1.0f - fm_fabsf(2.0f * (d1 - 2.0f) / (float)(SH_W - 4) - 1.0f);
+                ha = spu_rd(w, b, SH_OFF + (int32_t)d1);
+                hb = spu_rd(w, b, SH_OFF + (int32_t)d2);
+                u->sh_lp += 0.5f * (ha * g1 + hb * (1.0f - g1) - u->sh_lp);
+                u->sh_hp = 0.97f * (u->sh_hp + u->sh_lp - u->sh_x1);
+                u->sh_x1 = u->sh_lp;
+                s += shm * u->sh_hp;
+            }
             u->lfo += 0.7f / 22050.0f;
             if (u->lfo >= 1.0f)
                 u->lfo -= 1.0f;
@@ -864,6 +895,8 @@ static void do_lush(fxslot_t *f, const float *x, float *ol, float *orr, int m, i
             u->prev[1] = u->cur[1];
             u->cur[0] = l0 * 0.45f;                 /* (0.6 was a little loud beside the dry: Charles) */
             u->cur[1] = r0 * 0.45f;
+            if (shm > 0.0f)                         /* (shimmer's line: the output, for its heads) */
+                wz |= spu_wr(w, b, SH_OFF, (u->cur[0] + u->cur[1]) * 0.5f);
             u->base = b - 1u;
             u->quiet = (wz == 0 && !any) ? u->quiet + 2 : 0;
         }
@@ -934,7 +967,7 @@ void fx_process_lag(fxslot_t *f, const float *in, float *out_l, float *out_r, ui
         case FXT_REVERB:
             if (f->mode == RV_PLATE)
                 do_reverb(f, x, out_l + o, out_r + o, m, any, lag);
-            else if (f->mode == RV_LUSH)
+            else if (rv_lush(f->mode))
                 do_lush(f, x, out_l + o, out_r + o, m, any);
             else
                 do_spu(f, x, out_l + o, out_r + o, m, any);
@@ -950,7 +983,7 @@ int fx_awake(const fxslot_t *f)
     case FXT_DELAY: return f->dquiet < 2 * FX_DLY_LEN;
     case FXT_REVERB:
         return f->mode == RV_PLATE ? f->rquiet < FX_RV_LEN
-             : f->mode == RV_LUSH ? f->lu.clear > 0 || f->lu.quiet < FX_RV_LEN * 2
+             : rv_lush(f->mode) ? f->lu.clear > 0 || f->lu.quiet < FX_RV_LEN * 2
              : f->spu.clear > 0 || f->spu.quiet < FX_RV_LEN * 2;
     case FXT_CHORUS: case FXT_LOFI: case FXT_PHASER: return 1;
     default: return 0;

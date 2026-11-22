@@ -588,7 +588,7 @@ tonality is **ignore** follows nothing.
 | voile | model, timbre, color, breath | 7 |
 | sample | sample, start, length, mode | 18 |
 | slice | sample, slices, pitch, gate | 11 |
-| tulle | sample, position, size, density | 7 |
+| tulle | sample, position, spray, scan | 7 |
 | acid | wave, accent, slide, tune | 8 |
 | kit | the model knobs of the key shown | |
 | midi | eight knobs, each sending a CC | |
@@ -1049,14 +1049,14 @@ the grains at their pitch, as the sample engine plays a sample. Its knobs:
 | --- | --- |
 | sample | Picks the sample: one of LOOM-8's own, or one of yours. |
 | position | Sets where in the sample the grains come from. |
-| size | Sets how long each grain is, from 10 ms (a buzz) to half a second (a smear). |
-| density | Sets how many grains start each second, from 2 (sparse) to 60 (a thick cloud). |
+| spray | Scatters each grain's position around it, and its start in time: at 0 the grains start at a steady rate, for a pitched buzz, and turned up they start at random, for a cloud. |
+| scan | Moves the position through the sample on its own. At 0 it stays still, for a frozen sound. |
 
-On the Sub page, **spray** scatters each grain's position around the knob's, and its start in time: at 0 the grains
-start at a steady rate, for a pitched buzz, and turned up they start at random, for a cloud. **scan** moves the position through the
-sample on its own (at 0 it stays still: a frozen sound), **pitch** detunes each grain at random, by up to an octave at
-the top, and **width** spreads the grains across the stereo field. To move through the sample by hand or with a
-pattern, put an LFO or a lock on **position**.
+The Engine page is the playhead: where the grains come from. The Sub page is the grains themselves: **size** sets
+how long each grain is, from 10 ms (a buzz) to half a second (a smear), **density** sets how many start each second,
+from 2 (sparse) to 60 (a thick cloud), **pitch** detunes each grain at random, by up to an octave at the top, and
+**width** spreads the grains across the stereo field. To move through the sample by hand or with a pattern, put an
+LFO or a lock on **position**.
 
 The picture shows the sample's waveform, with the part the grains come from lit and a dot at the position. While
 a note plays, each grain shows as a line at the spot it reads from, rising and fading as the grain does. Up to four
@@ -1345,6 +1345,7 @@ under **SEQ**.
 | phaser | freq, depth, rate, feedback |
 | reverb, plate | size, motion, tone, damp (how fast the tail darkens) |
 | reverb, the other modes (lush too) | size, decay, tone, damp |
+| reverb, shimmer | size, decay, tone, shimmer |
 
   The effects return only the sound they make. The track's own sound stays on the track.
 
@@ -1352,11 +1353,13 @@ under **SEQ**.
   either way. The delay holds half a second, so it halves a time longer than that and the knob shows what plays. For
   example, below 120 BPM a 1/4 shows "1/4 as 1/8", and below 90 BPM a 1/8D shows "1/8D as 1/16D".
 
-  The reverb has eleven modes, and **PRESETS** steps through them after the phaser. **plate** is LOOM-8's own.
+  The reverb has twelve modes, and **PRESETS** steps through them after the phaser. **plate** is LOOM-8's own.
   Nine come from the PlayStation's sound chip, the reverbs its games used: **room**, **studio S**, **studio M** and
   **studio L** (small, medium and large), **hall**, **half echo**, **space echo**, **chaos echo** and **one echo**.
   Chaos echo almost never stops, and one echo is a single repeat. **lush** is a smooth, wide plate based on Jon
-  Dattorro's, and a new project starts with it.
+  Dattorro's, and a new project starts with it. **shimmer** is lush with its own sound fed back an octave up, so the
+  tail rises in octaves, like Chordism's shimmer. Its fourth knob, **shimmer**, sets how much of the octave goes back
+  in. It's lovely on pads and on tulle.
 
   The console modes keep their grain, because they run at half the sample rate, as lush does. On these, **size**
   stretches their delays, from small and metallic at 0 to the console's own at the top. A mode you've just picked

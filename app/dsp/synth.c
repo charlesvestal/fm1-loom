@@ -44,7 +44,7 @@ static const uint8_t E_GLIDE[NENGINE] = {
     0xE, /* cane: timbre, color, damp */ 0xE,               /* voile: timbre, color, breath */
     0x0, 0x0, 0x0, 0x0,                                    /* sample, slice (where a note starts), the kit, midi */
     0x0,                                                   /* acid (bass303_set: its own) */
-    0x2};                                                  /* tulle: position (not the sample, size or density) */
+    0xE};                                                  /* tulle: position, spray, scan (not the sample) */
 static inline float glide_to(float from, float to)
 {
     float d = to - from;
@@ -70,13 +70,13 @@ const char *const EG_KNOB[NENGINE][4] = {
     {"stops", "pedal", "rotor", "rate"},   {"model", "timbre", "color", "damp"},   {"model", "timbre", "color", "breath"},
     {"sample", "start", "length", "mode"}, {"sample", "slices", "pitch", "gate"},  {"-", "-", "-", "-"},
     {"cc", "cc", "cc", "cc"},                    /* (midi: each knob named by its CC, tp_info_par) */
-    {"wave", "accent", "slide", "tune"},  {"sample", "position", "size", "density"}};
+    {"wave", "accent", "slide", "tune"},  {"sample", "position", "spray", "scan"}};
 /* each engine's plain sound (INIT), 0..127; bellows' four are discrete 1..8, knit's voices 1..7, the Braids engines'
  * models a name each (synth.h NCANE ...) */
 static const uint8_t EG_DEF[NENGINE][4] = {{0, 20, 1, 0},  {40, 25, 0, 0}, {0, 40, 0, 0},  {3, 4, 2, 5},
                                            {0, 64, 64, 0}, {2, 0, 64, 0},  {5, 0, 127, SM_ONESHOT}, {SMP_BREAK, 1, 64, 127},
                                            {0, 0, 0, 0}, {64, 64, 64, 64}, {0, 64, 21, 64},   /* (acid: X0X's) */
-                                           {7, 40, 80, 70}};                /* (tulle: the strings sample) */
+                                           {7, 40, 30, 0}};                 /* (tulle: the strings sample) */
 static const char *const VMODE_N[3] = {"poly", "mono", "legato"};
 static const char *const FTYPE_N[NFT] = {"lp24", "ladder", "lp12", "hp12", "bp12", "off"};   /* FT_DYNAMIC: no
                                                                           * filter on a synth track; the kit's
@@ -1221,12 +1221,12 @@ static void tl_prep(voice_t *v)
                        ((float)sm->rate / SY_SR), 8.0f);
     c->ex[1] = (float)sm->n;
     c->ex[2] = fm_minf(c->e[1], 0.99f);
-    size = 0.01f * fm_exp2f(c->e[2] * 5.643856f);              /* 10 ms .. 500 ms */
-    dens = 2.0f * fm_exp2f(c->e[3] * 4.906891f);               /* 2 .. 60 a second */
+    size = 0.01f * fm_exp2f(c->ex[10] * (5.643856f / 127.0f));   /* 10 ms .. 500 ms (its Sub page) */
+    dens = 2.0f * fm_exp2f(c->ex[11] * (4.906891f / 127.0f));    /* 2 .. 60 a second */
     c->ex[3] = size * SY_SR;
     c->ex[4] = SY_SR / dens;
-    c->ex[5] = c->ex[10] * (1.0f / 127.0f);
-    c->ex[7] = c->ex[11] * c->ex[11] * (0.5f / (127.0f * 127.0f)) * INV_SR;   /* up to half the sample a second */
+    c->ex[5] = c->e[2];                                          /* spray (its Engine page) */
+    c->ex[7] = c->e[3] * c->e[3] * 0.5f * INV_SR;                /* scan: up to half the sample a second */
     c->ex[8] = c->ex[12] * c->ex[12] * (12.0f / (127.0f * 127.0f));           /* semitones, at most an octave */
     c->ex[9] = c->ex[13] * (1.0f / 127.0f);
     ov = fm_clampf(size * dens, 1.0f, (float)TL_VOICE_MAX);
@@ -3964,8 +3964,8 @@ static const tp_info_t RUP_P = {"oct up", 0, 3, 0, PK_NUM, 0};   /* (TP_RUP: the
 static const tp_info_t SAMPLE_X_P[4] = {{"loop start", 0, 127, 0, PK_PCT, 0}, {"loop len", 0, 127, 0, PK_PCT, 0},
                                         {"-", 0, 0, 0, PK_NUM, 0}, {"-", 0, 0, 0, PK_NUM, 0}};
 /* orbit's second page: the index's fall (0 held; 20 ms .. 4 s), its floor, keyscale (rayon_prep) */
-/* tulle's Sub page (tl_prep): spray, scan (0 frozen), pitch (random, up to an octave), width */
-static const tp_info_t TULLE_X_P[4] = {{"spray", 0, 127, 30, PK_PCT, 0}, {"scan", 0, 127, 0, PK_NN, 0},
+/* tulle's Sub page (tl_prep): the grains: size, density, pitch (random, up to an octave), width */
+static const tp_info_t TULLE_X_P[4] = {{"size", 0, 127, 80, PK_NN, 0}, {"density", 0, 127, 70, PK_NN, 0},
                                        {"pitch", 0, 127, 0, PK_NN, 0}, {"width", 0, 127, 90, PK_PCT, 0}};
 static const tp_info_t RAYON_X_P[4] = {{"fall", 0, 127, 0, PK_NUM, 0}, {"floor", 0, 127, 0, PK_PCT, 0},
                                        {"keyscale", 0, 127, 0, PK_PCT, 0}, {"-", 0, 0, 0, PK_NUM, 0}};
@@ -4058,8 +4058,8 @@ static void eknob_init(void)
                 i->hi = (uint8_t)(k == 0 ? 1 : 127);
                 i->names = k == 0 ? ACIDW_N : 0;
             }
-            if (e == EG_TULLE) {               /* sample, position, size, density */
-                i->kind = k == 0 ? PK_SAMPLE : k == 1 ? PK_PCT : PK_NN;
+            if (e == EG_TULLE) {               /* sample, position, spray, scan */
+                i->kind = k == 0 ? PK_SAMPLE : k == 3 ? PK_NN : PK_PCT;
                 i->hi = (uint8_t)(k == 0 ? smp_slots() - 1 : 127);
             }
             if (e == EG_SLICE) {               /* sample, slices (4 8 16 32), pitch (+-24 st), gate */

@@ -4396,8 +4396,8 @@ static void pic_tulle(int32_t x0, int32_t y0, int32_t w, int32_t h, const uint8_
         return;
     }
     {
-        int ms = (int)(10.0f * fm_exp2f((float)p[TP_E3] * (5.643856f / 127.0f)) + 0.5f);
-        int gs = (int)(2.0f * fm_exp2f((float)p[TP_E4] * (4.906891f / 127.0f)) + 0.5f);
+        int ms = (int)(10.0f * fm_exp2f((float)p[TP_X1] * (5.643856f / 127.0f)) + 0.5f);
+        int gs = (int)(2.0f * fm_exp2f((float)p[TP_X2] * (4.906891f / 127.0f)) + 0.5f);
         e = s_cat(t, sm->name);
         text_fit(x0, y0 + 2, &FONT_XS, t, w - 90, K_TEXT);
         e = s_cat(num_i(gs, t), " a second, ");
@@ -4406,8 +4406,8 @@ static void pic_tulle(int32_t x0, int32_t y0, int32_t w, int32_t h, const uint8_
     }
     smp_columns(idx, sm, w);
     {
-        float n = (float)sm->n, pos = (float)p[TP_E2] * (1.0f / 127.0f), spr = (float)p[TP_X1] * (0.5f / 127.0f);
-        float ms = 10.0f * fm_exp2f((float)p[TP_E3] * (5.643856f / 127.0f));
+        float n = (float)sm->n, pos = (float)p[TP_E2] * (1.0f / 127.0f), spr = (float)p[TP_E3] * (0.5f / 127.0f);
+        float ms = 10.0f * fm_exp2f((float)p[TP_X1] * (5.643856f / 127.0f));
         int32_t xp = (int32_t)(pos * (float)w), xa = (int32_t)((pos - spr) * (float)w), xb = (int32_t)((pos + spr) * (float)w);
         int32_t gw = (int32_t)(ms * 0.001f * (float)sm->rate * (float)w / n);
         xa = xa < 0 ? 0 : xa;
@@ -4430,7 +4430,7 @@ static void pic_tulle(int32_t x0, int32_t y0, int32_t w, int32_t h, const uint8_
         }
         gw = gw < 2 ? 2 : gw > w - xp ? w - xp : gw;
         cv_rect(x0 + xp, wy + wh + 3, gw, 2, K_TEXT);  /* a grain's length */
-        if (p[TP_X2])                                 /* the scan moves on: an arrow after the position */
+        if (p[TP_E4])                                 /* the scan moves on: an arrow after the position */
             text_c(x0 + xp + 12 > x0 + w - 6 ? x0 + w - 6 : x0 + xp + 12, wy + wh + 1, &LFONT_XS, ">", K_DIM);
     }
 }
@@ -4612,7 +4612,7 @@ static void draw_engine(void)
     if (eg == EG_SAMPLE || eg == EG_SLICE || eg == EG_TULLE)   /* (the bank: an upload changes what the picture shows) */
         h = hash_u(h, (uint32_t)smp_user_count() << 16 ^ smp_user_bytes());
     if (eg == EG_TULLE) {                            /* (its Sub page's spray and scan are drawn; its grains, live) */
-        h = hash_u(h, (uint32_t)p[TP_X1] | (uint32_t)(p[TP_X2] > 0) << 8);
+        h = hash_u(h, (uint32_t)p[TP_X1] | (uint32_t)p[TP_X2] << 8);
         tl_ng = engine_tulle_grains(trk, tl_gpos, tl_glvl, TL_SHOWN);
         for (int k = 0; k < tl_ng; k++)
             h = hash_u(h, (uint32_t)tl_gpos[k] >> 6 | (uint32_t)(tl_glvl[k] >> 4) << 24);

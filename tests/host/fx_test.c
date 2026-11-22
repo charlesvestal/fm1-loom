@@ -257,9 +257,9 @@ int main(void)
             {"size", "motion", "tone", "damp"}};
         static const char *const picks[NFXPICK] = {"chorus", "delay", "lofi", "phaser", "plate", "room", "studio S",
                                                    "studio M", "studio L", "hall", "half echo", "space echo",
-                                                   "chaos echo", "one echo", "lush"};
+                                                   "chaos echo", "one echo", "lush", "shimmer"};
         int ok = 1, k;
-        check("five send effects (no distortion), the reverb with eleven modes", NFXT == 5 && NRV == 11 && NFXPICK == 15 &&
+        check("five send effects (no distortion), the reverb with twelve modes", NFXT == 5 && NRV == 12 && NFXPICK == 16 &&
                                                                               !strcmp(FXT_NAME[FXT_REVERB], "reverb"));
         for (t = 0; t < NFXT; t++)
             for (k = 0; k < 4; k++)
@@ -269,10 +269,11 @@ int main(void)
         for (t = 0; t < NFXPICK; t++) {
             ok &= !strcmp(fx_pick_name(t), picks[t]);
             for (k = 0; k < 4; k++)
-                ok &= !strcmp(fx_knob_name(t, k), t > FXT_REVERB ? (const char *[]){"size", "decay", "tone", "damp"}[k]
+                ok &= !strcmp(fx_knob_name(t, k), t == FXT_REVERB + RV_SHIMMER && k == 3 ? "shimmer"
+                                                  : t > FXT_REVERB ? (const char *[]){"size", "decay", "tone", "damp"}[k]
                                                                   : names[fx_pick_type(t)][k]);
         }
-        check("picks: chorus .. phaser, plate .. one echo; the SPU modes' knobs size decay tone damp", ok);
+        check("picks: chorus .. phaser, plate .. shimmer; the SPU modes' knobs size decay tone damp (shimmer's last its own)", ok);
         ok = 1;
         for (t = 0; t < NFXPICK; t++)                    /* the strip fits a name in 46 pixels: 8 letters */
             for (k = 0; k < 4; k++)
@@ -938,6 +939,56 @@ int main(void)
             check(name, pk > 0.01f && db(pk) - db(err) > (picks[t] == FXT_REVERB ? 45.0f : 60.0f));   /* (the plate's
                                                    * 12-bit combs: its own rounding, recirculated, is of that size) */
         }
+    }
+    printf("-- shimmer: lush with its output an octave up fed back\n");
+    {   /* a 220 Hz tone for half a second into lush and into shimmer (the same knobs, its own at the top): the tail's
+         * energy at 440 Hz (the octave) over its 220 Hz grows with shimmer; finite, bounded, it ends */
+        static float l[4 * SR], rr[4 * SR];
+        static const int modes[2] = {RV_LUSH, RV_SHIMMER};
+        double oct[2];
+        float pk[2] = {0.0f, 0.0f}, end = 0.0f;
+        for (int q = 0; q < 2; q++) {
+            uint8_t kn[4] = {64, 100, 72, 127};
+            int n = 0;
+            fx_init(fx, dly_l, dly_r, rv);
+            fx_set(fx, FXT_REVERB + modes[q], kn);
+            for (b = 0; b < 30; b++) {                       /* (the line cleared first: a new mode is silent a while) */
+                memset(in, 0, sizeof in);
+                fx_process(fx, in, ol, orr, BLK);
+            }
+            for (b = 0; b < 4 * SR / BLK; b++) {
+                for (i = 0; i < BLK; i++)
+                    in[i] = n + i < SR / 2 ? 0.3f * fm_sinf(6.2831853f * 220.0f * (float)(n + i) / (float)SR) : 0.0f;
+                memset(ol, 0, sizeof ol);
+                memset(orr, 0, sizeof orr);
+                fx_process(fx, in, ol, orr, BLK);
+                for (i = 0; i < BLK; i++) {
+                    l[n + i] = ol[i];
+                    rr[n + i] = orr[i];
+                    pk[q] = fm_maxf(pk[q], fm_maxf(fm_fabsf(ol[i]), fm_fabsf(orr[i])));
+                }
+                n += BLK;
+            }
+            {   /* the tail, 1 .. 2.5 s: 440 over 220 (Goertzel) */
+                double e1 = 0.0, e2 = 0.0;
+                for (int f = 0; f < 2; f++) {
+                    double w = 6.283185307 * (f ? 440.0 : 220.0) / SR, c = 2.0 * (double)fm_cosf((float)w), s1 = 0.0, s2 = 0.0;
+                    for (i = SR; i < 5 * SR / 2; i++) {
+                        double s0 = (double)l[i] + c * s1 - s2;
+                        s2 = s1;
+                        s1 = s0;
+                    }
+                    *(f ? &e2 : &e1) = s1 * s1 + s2 * s2 - c * s1 * s2;
+                }
+                oct[q] = e2 / (e1 + 1e-12);
+            }
+            if (q)
+                for (i = 7 * SR / 2; i < 4 * SR; i++)
+                    end = fm_maxf(end, fm_fabsf(l[i]));
+        }
+        snprintf(name, sizeof name, "  the octave over the note in the tail: lush %.3g, shimmer %.3g; peaks %.2f, %.2f",
+                 oct[0], oct[1], (double)pk[0], (double)pk[1]);
+        check(name, oct[1] > oct[0] * 4.0 && pk[1] < 2.0f && end < pk[1]);
     }
     printf("%s\n", bad ? "FX TESTS FAILED" : "fx tests passed");
     return bad != 0;
