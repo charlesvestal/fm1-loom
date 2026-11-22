@@ -150,9 +150,11 @@ enum {
                                                      * its character. Last, so format 25's indices stay (format 26) */
     NTP
 };
-/* a track's insert (TP_ITYPE): off; tremolo (I1 the rate, the LFO's speed: synced divisions, then free; I2 the depth;
- * I3 pan: 0 a tremolo, both sides together, 127 an auto-pan, the sides opposite) */
-enum { IT_OFF, IT_TREMOLO, NIT };
+/* a track's insert (TP_ITYPE), its knobs I1..I3: off; tremolo (rate: the LFO's speed, synced divisions then free;
+ * depth; pan: 0 a tremolo, both sides together, 127 an auto-pan, the sides opposite); phaser (rate, depth: the sweep's
+ * span, feedback); univibe (rate, depth, vibrato: 0 its chorus, dry and wet, 127 the wet alone); rat (distortion,
+ * filter: darker turned up, level); autowah (sensitivity, resonance, decay) */
+enum { IT_OFF, IT_TREMOLO, IT_PHASER, IT_UNIVIBE, IT_RAT, IT_AUTOWAH, NIT };
 _Static_assert(NTP <= 511, "a parameter's index: nine bits in the engine's queue (engine.c cq_put); a lane's is 16");
 /* knit's osc 2 wave (TP_O2WAVE): osc 1's (its wave knob and the LFO on it), or its own: saw, square and pulse are
  * points of its shape's sweep (TP_O2SHAPE: turning the wave sets the shape there), triangle and sine */
@@ -353,7 +355,7 @@ typedef struct {
 typedef struct synth synth_t;         /* opaque: dsp/synth.c */
 void synth_glfo_restart(synth_t *s);              /* the shared LFO from its start (the transport started) */
 float synth_glfo_now(const synth_t *s);            /* its value now, -1..1 (the page's picture) */
-#define SYNTH_BYTES 14336             /* room for the struct (checked at compile time in synth.c; about 13,990 B with
+#define SYNTH_BYTES 14848             /* room for the struct (checked at compile time in synth.c; about 13,990 B with
                                        * each track's character bus, 2026-11-23) */
 
 void synth_init(synth_t *s, uint8_t (*par)[NTP]);   /* par: the tracks' parameter arrays, NTRK + 1 of them (the conductor's, SY_GLFO_TRK: the shared LFO) */

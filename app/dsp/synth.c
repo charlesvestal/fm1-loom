@@ -244,6 +244,8 @@ typedef struct {
     float wow[2], wowc[NCK];          /* tape's wow on its voices: one for the track (its phases, each chunk's cents) */
     uint8_t ins;                      /* its insert this block (IT_*), after the stage */
     float ins_k[3], ins_ph;           /* its knobs this block (the LFO on them), the tremolo's phase (turns) */
+    float iz[16];                     /* the insert's states (ins_run: per type) */
+    uint8_t iz_type;                  /* the type they are for (another: cleared) */
 } trk_t;
 
 struct synth {
@@ -4314,16 +4316,42 @@ static void bus_piece(synth_t *s, int core, int trk, float *l, float *r, float *
  * USB audio input's track (core's sink) */
 /* a track's insert on its pair (synth.h IT_*), after the stage. tremolo: each side's gain 1 - depth (1 + sin) / 2, the
  * right side's sine pan half a cycle on at the top (an auto-pan), ramped across 16 frames at a time */
+/* (the inserts' control-rate maths, once in 16 frames: out of line, not copied into each type's loop) */
+static __attribute__((noinline)) float in_exp2(float x) { return fm_exp2f(x); }
+static __attribute__((noinline)) float in_sin(float ph) { return fm_sin_turns(ph); }
+static __attribute__((noinline)) float in_tan(float x) { return fm_tanf(x); }
+static __attribute__((noinline)) float ap_coef(float hz)   /* a first-order allpass's coefficient at hz: (tan - 1) / (tan + 1) */
+{
+    float w = in_tan(FM_PI * fm_minf(hz, 0.45f * SY_SR) * INV_SR);
+    return (w - 1.0f) / (w + 1.0f);
+}
+static __attribute__((noinline)) float op_coef(float hz) { return 1.0f - fm_expf(-FM_TWO_PI * hz * INV_SR); }   /* a one-pole's */
+static const float UV_R[4] = {1.0f, 0.068f, 0.032f, 3.19f};   /* the univibe's stages: its four caps' ratios */
+/* a track's insert on its pair (synth.h IT_*), after the stage, 16 frames at a time (their coefficients at each's
+ * start). tremolo: each side's gain 1 - depth (1 + sin) / 2, the right side's sine pan half a cycle on at the top (an
+ * auto-pan). phaser: six first-order allpasses swept together (180 Hz up depth's 4.5 octaves), the right side's sweep a
+ * quarter cycle on, the last stage's output fed back, half dry. univibe: four allpasses at the Uni-Vibe's staggered
+ * caps, swept by its lamp (the LFO squared and lagged: it hangs dark and flashes), dry and wet (chorus) or wet
+ * (vibrato). rat: after the RAT pedal: an op-amp's gain (up to 2000 above 300 Hz, its bandwidth narrowing as it
+ * rises), a soft clip x / (1 + x^4)^(1/4) at twice the rate, the filter (a low-pass, darker turned up), the level.
+ * autowah: a resonant low-pass (TPT state-variable) opened by the pair's level (an envelope: 3 ms up, decay down) */
 static void ins_run(synth_t *s, trk_t *t, float *bl, float *br, uint32_t n)
 {
+    float *z = t->iz;
+    const float k0 = t->ins_k[0] * (1.0f / 127.0f), k1 = t->ins_k[1] * (1.0f / 127.0f), k2 = t->ins_k[2] * (1.0f / 127.0f);
+    float ph = t->ins_ph;
+    if (t->iz_type != t->ins) {                  /* another type: its states clean */
+        for (int i = 0; i < 16; i++)
+            z[i] = 0.0f;
+        t->iz_type = t->ins;
+    }
     switch (t->ins) {
     case IT_TREMOLO: {
-        const float d = t->ins_k[1] * (0.5f / 127.0f), pn = t->ins_k[2] * (0.5f / 127.0f);
-        const float dph = lfo_hz((int)t->ins_k[0], s->bpm) * INV_SR;
-        float ph = t->ins_ph, gl = 1.0f - d - d * fm_sin_turns(ph), gr = 1.0f - d - d * fm_sin_turns(ph + pn);
+        const float d = k1 * 0.5f, pn = k2 * 0.5f, dph = lfo_hz((int)t->ins_k[0], s->bpm) * INV_SR;
+        float gl = 1.0f - d - d * in_sin(ph), gr = 1.0f - d - d * in_sin(ph + pn);
         for (uint32_t j = 0; j < n; j += 16) {
             uint32_t m = n - j < 16u ? n - j : 16u;
-            float ph2 = ph + dph * (float)m, gl2 = 1.0f - d - d * fm_sin_turns(ph2), gr2 = 1.0f - d - d * fm_sin_turns(ph2 + pn);
+            float ph2 = ph + dph * (float)m, gl2 = 1.0f - d - d * in_sin(ph2), gr2 = 1.0f - d - d * in_sin(ph2 + pn);
             float sl = (gl2 - gl) / (float)m, sr = (gr2 - gr) / (float)m;
             for (uint32_t i = j; i < j + m; i++) {
                 bl[i] *= gl;
@@ -4333,12 +4361,120 @@ static void ins_run(synth_t *s, trk_t *t, float *bl, float *br, uint32_t n)
             }
             ph = ph2 - fm_floorf(ph2);
         }
-        t->ins_ph = ph;
+        break;
+    }
+    case IT_PHASER: {                            /* z[0..5] the left's stages, z[6..11] the right's, z[12..13] fed back */
+        const float span = k1 * 4.5f, fb = k2 * 0.8f, dph = lfo_hz((int)t->ins_k[0], s->bpm) * INV_SR;
+        for (uint32_t j = 0; j < n; j += 16) {
+            uint32_t m = n - j < 16u ? n - j : 16u;
+            float a[2];
+            a[0] = ap_coef(180.0f * in_exp2(span * (0.5f + 0.5f * in_sin(ph))));
+            a[1] = ap_coef(180.0f * in_exp2(span * (0.5f + 0.5f * in_sin(ph + 0.25f))));
+            for (int c = 0; c < 2; c++) {
+                float *x = c ? br : bl, *zs = z + 6 * c, ac = a[c], f = z[12 + c];
+                for (uint32_t i = j; i < j + m; i++) {
+                    float v = x[i] + fb * f;
+                    for (int st = 0; st < 6; st++) {
+                        float y = ac * v + zs[st];
+                        zs[st] = v - ac * y;
+                        v = y;
+                    }
+                    f = v;
+                    x[i] = 0.5f * (x[i] + v);
+                }
+                z[12 + c] = fm_flush(f);
+                for (int st = 0; st < 6; st++)
+                    zs[st] = fm_flush(zs[st]);
+            }
+            ph += dph * (float)m;
+            ph -= fm_floorf(ph);
+        }
+        break;
+    }
+    case IT_UNIVIBE: {                           /* z[0..3] the left's stages, z[4..7] the right's, z[8] the lamp */
+        const float span = k1 * 3.2f, wet = 0.5f + 0.5f * k2, dph = lfo_hz((int)t->ins_k[0], s->bpm) * INV_SR;
+        const float kl = op_coef(12.0f * 16.0f);  /* (the lamp's lag: about 12 Hz, a step each 16 frames) */
+        for (uint32_t j = 0; j < n; j += 16) {
+            uint32_t m = n - j < 16u ? n - j : 16u;
+            float l = 0.5f + 0.5f * in_sin(ph), f, a[4];
+            z[8] += (l * l - z[8]) * kl;
+            f = 220.0f * in_exp2(z[8] * span);
+            for (int st = 0; st < 4; st++)
+                a[st] = ap_coef(f * UV_R[st]);
+            for (int c = 0; c < 2; c++) {
+                float *x = c ? br : bl, *zs = z + 4 * c;
+                for (uint32_t i = j; i < j + m; i++) {
+                    float v = x[i];
+                    for (int st = 0; st < 4; st++) {
+                        float y = a[st] * v + zs[st];
+                        zs[st] = v - a[st] * y;
+                        v = y;
+                    }
+                    x[i] += wet * (v - x[i]);
+                }
+                for (int st = 0; st < 4; st++)
+                    zs[st] = fm_flush(zs[st]);
+            }
+            ph += dph * (float)m;
+            ph -= fm_floorf(ph);
+        }
+        break;
+    }
+    case IT_RAT: {                               /* z[4c..4c+3]: the input high-pass's low, the op-amp's, the last input
+                                                  * (the 2x step), the filter */
+        const float g = 1.0f + 2000.0f * k0 * k0 * k0, chp = op_coef(300.0f), cg = op_coef(fm_minf(1.0e6f / g, 18000.0f));
+        const float ct = op_coef(20000.0f * in_exp2(-5.3f * k1)), lv = k2 * k2 * 1.5f;   /* (level 80: about as loud
+                                                  * as the track dry) */
+        for (int c = 0; c < 2; c++) {
+            float *x = c ? br : bl, *zs = z + 4 * c, lo = zs[0], op = zs[1], pv = zs[2], tn = zs[3];
+            for (uint32_t i = 0; i < n; i++) {
+                float u0, u1, y;
+                lo += chp * (x[i] - lo);
+                op += cg * (x[i] + g * (x[i] - lo) - op);
+                u0 = 0.5f * (pv + op);           /* (twice the rate: the step between, then the sample) */
+                u1 = op;
+                pv = op;
+                {
+                    float a2 = u0 * u0, s0 = fm_rsqrtf(1.0f + a2 * a2), b2 = u1 * u1, s1 = fm_rsqrtf(1.0f + b2 * b2);
+                    y = 0.5f * (u0 * s0 * fm_rsqrtf(s0) + u1 * s1 * fm_rsqrtf(s1));
+                }
+                tn += ct * (y - tn);
+                x[i] = tn * lv;
+            }
+            zs[0] = fm_flush(lo), zs[1] = fm_flush(op), zs[2] = fm_flush(pv), zs[3] = fm_flush(tn);
+        }
+        break;
+    }
+    case IT_AUTOWAH: {                           /* z[0..1] the left's integrators, z[2..3] the right's, z[4] the level */
+        const float ka = op_coef(1.0f / (0.003f * FM_TWO_PI)), kr = op_coef(1.0f / ((0.03f + 0.8f * k2 * k2) * FM_TWO_PI));
+        const float sens = 2.0f + 60.0f * k0 * k0, kq = 2.0f - 1.9f * k1;
+        float e = z[4];
+        for (uint32_t j = 0; j < n; j += 16) {
+            uint32_t m = n - j < 16u ? n - j : 16u;
+            float fc = 180.0f * in_exp2(fm_minf(e * sens, 1.0f) * 4.3f), g = in_tan(FM_PI * fm_minf(fc, 0.45f * SY_SR) * INV_SR);
+            float a1 = 1.0f / (1.0f + g * (g + kq)), a2 = g * a1, a3 = g * a2;
+            for (uint32_t i = j; i < j + m; i++) {
+                float lvl = fm_fabsf(0.5f * (bl[i] + br[i]));
+                e += (lvl - e) * (lvl > e ? ka : kr);
+            }
+            for (int c = 0; c < 2; c++) {
+                float *x = c ? br : bl, i1 = z[2 * c], i2 = z[2 * c + 1];
+                for (uint32_t i = j; i < j + m; i++) {
+                    float v3 = x[i] - i2, v1 = a1 * i1 + a2 * v3, v2 = i2 + a2 * i1 + a3 * v3;
+                    i1 = 2.0f * v1 - i1;
+                    i2 = 2.0f * v2 - i2;
+                    x[i] = v2;
+                }
+                z[2 * c] = fm_flush(i1), z[2 * c + 1] = fm_flush(i2);
+            }
+        }
+        z[4] = fm_flush(e);
         break;
     }
     default:
         break;
     }
+    t->ins_ph = ph;
 }
 static void bus_out(synth_t *s, int core, int trk, float *bl, float *br, float *l, float *r, float *s1, float *s2,
                     uint32_t n, uint32_t at)
@@ -4614,12 +4750,16 @@ static const tp_info_t ROPS_P[4] = {{"ops", 0, NRO - 1, RO_OFF, PK_NAMES, RO_N},
                                     {"depth", 0, 127, 0, PK_NN, 0}, {"feedback", 0, 127, 0, PK_NN, 0}};
 static const tp_info_t KANALOG_P = {"analog", 0, 127, 0, PK_NN, 0};
 /* the insert (synth.h IT_*): its type, and its knobs as each type names them (any type's ranges: tp_info) */
-static const char *const ITYPE_N[NIT] = {"off", "tremolo"};
+static const char *const ITYPE_N[NIT] = {"off", "tremolo", "phaser", "univibe", "rat", "autowah"};
 static const tp_info_t ITYPE_P = {"insert", 0, NIT - 1, IT_OFF, PK_NAMES, ITYPE_N};
 static const tp_info_t INS_ANY_P = {"", 0, 127, 0, PK_NN, 0};
 static const tp_info_t INS_P[NIT][3] = {
     {{"-", 0, 0, 0, PK_NUM, 0}, {"-", 0, 0, 0, PK_NUM, 0}, {"-", 0, 0, 0, PK_NUM, 0}},
-    {{"rate", 0, 127, 4, PK_HZ_SYNC, 0}, {"depth", 0, 127, 80, PK_PCT, 0}, {"pan", 0, 127, 0, PK_PCT, 0}}};
+    {{"rate", 0, 127, 4, PK_HZ_SYNC, 0}, {"depth", 0, 127, 80, PK_PCT, 0}, {"pan", 0, 127, 0, PK_PCT, 0}},
+    {{"rate", 0, 127, 40, PK_HZ_SYNC, 0}, {"depth", 0, 127, 90, PK_PCT, 0}, {"feedback", 0, 127, 60, PK_PCT, 0}},
+    {{"rate", 0, 127, 70, PK_HZ_SYNC, 0}, {"depth", 0, 127, 90, PK_PCT, 0}, {"vibrato", 0, 127, 0, PK_PCT, 0}},
+    {{"distort", 0, 127, 70, PK_NN, 0}, {"filter", 0, 127, 50, PK_NN, 0}, {"level", 0, 127, 80, PK_NN, 0}},
+    {{"sense", 0, 127, 80, PK_NN, 0}, {"reso", 0, 127, 70, PK_NN, 0}, {"decay", 0, 127, 50, PK_NN, 0}}};
 static const tp_info_t TULLE_G_P[4] = {{"shape", 0, 127, 0, PK_NN, 0}, {"reverse", 0, 127, 0, PK_PCT, 0},
                                        {"-", 0, 0, 0, PK_NUM, 0}, {"-", 0, 0, 0, PK_NUM, 0}};
 static const tp_info_t KMOD_P[4] = {{"sync", 0, 1, 0, PK_SWITCH, 0}, {"sweep", 0, KSWEEP_MAX, 0, PK_SEMI, 0},
@@ -5170,6 +5310,7 @@ void sound_default(uint8_t *par, int engine)
     par[TP_RRATIO] = 1;
     par[TP_RDEPTH] = par[TP_RFB] = 0;
     par[TP_KANALOG] = 0;
+    par[TP_ITYPE] = par[TP_I1] = par[TP_I2] = par[TP_I3] = 0;   /* (no insert) */
 }
 
 /* -------------------------------------------------------------- presets --- */

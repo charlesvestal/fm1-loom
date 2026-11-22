@@ -2070,6 +2070,38 @@ static void insert_tests(void)
            (double)lo[1], (double)hi[1], (double)corr);
     check("insert tremolo: full depth swings the level; pan at the top swings the sides apart",
           finite && lo[0] < hi[0] * 0.2f && lo[1] < hi[1] * 0.5f && corr > 0.0f);
+    {   /* every type at its knobs' defaults on a chord: it sounds, finite, under 2, not as off */
+        static float off[30 * N];
+        int ok = 1;
+        for (int ty = 0; ty < NIT; ty++) {
+            float pk = 0.0f;
+            double e = 0.0, d = 0.0;
+            reset();
+            par[0][TP_ITYPE] = (uint8_t)ty;
+            for (int q = TP_I1; q <= TP_I3; q++)
+                par[0][q] = tp_info_par(q, par[0])->def;
+            synth_init(S, par);
+            synth_tempo(S, 120.0f);
+            for (int k = 0; k < 3; k++)
+                synth_note_on(S, 0, 55 + 4 * k, 100, 0, (uint32_t)(1 + k));
+            for (int b = 0; b < 30; b++) {
+                float p = block(N, &finite);
+                pk = p > pk ? p : pk;
+                for (int i = 0; i < N; i++) {
+                    e += (double)L[i] * (double)L[i];
+                    if (ty)
+                        d += (double)(L[i] - off[b * N + i]) * (double)(L[i] - off[b * N + i]);
+                    else
+                        off[b * N + i] = L[i];
+                }
+            }
+            printf("    insert %s: peak %.2f, level %.1f dB, from off %.1f dB\n", tp_info(TP_ITYPE, 0)->names[ty],
+                   (double)pk, 10.0 * log10(e / (30.0 * N) + 1e-20), 10.0 * log10(d / (e + 1e-20) + 1e-20));
+            if (!(pk < 2.0f && e > 1e-3) || (ty && !(d > e * 1e-3)))
+                ok = 0;
+        }
+        check("every insert type sounds, finite, under 2, and changes the sound", ok && finite);
+    }
     check("the insert's knobs named by its type", !strcmp(tp_info(TP_ITYPE, EG_KNIT)->name, "insert") &&
           !strcmp(tp_info_par(TP_I1, (const uint8_t[NTP]){[TP_ITYPE] = IT_TREMOLO})->name, "rate"));
 }

@@ -1226,6 +1226,10 @@ a type sets its knobs to their starting values. On a kit, the insert comes after
 | --- | --- | --- | --- |
 | off | | | |
 | tremolo | The rate: synced divisions to the left, free rates to the right, as the LFO's speed. | The depth. | Pan: at 0 both sides rise and fall together, a tremolo; turned up, they move apart until at the top they take turns, an auto-pan. |
+| phaser | The rate, as tremolo's. | The depth: how far the notches sweep. | Feedback: sharper, more ringing notches. The two sides sweep a quarter cycle apart. |
+| univibe | The rate, as tremolo's. | The depth. | Vibrato: at 0 the classic chorus, the dry sound under the swept one; turned up, more of the swept sound alone, a pitch-wobbling vibrato. The sweep follows a lamp: it lingers dark and flashes bright. |
+| rat | Distortion, after the RAT pedal: more gain, and darker as it rises. | Filter: darker turned up. | The level. At its starting value it's about as loud as the track without it. |
+| autowah | Sensitivity: how far your playing opens the filter. | Resonance. | Decay: how slowly it closes again. |
 
 You can lock the insert's knobs on a step, and COPY SOUND carries the insert with the rest of the sound.
 

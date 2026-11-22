@@ -5913,11 +5913,23 @@ static void draw_character(void)
     }
     main_blit();
 }
+static float pic_atan(float x)                       /* atan x, x >= 0 (a picture's: about 0.001 rad) */
+{
+    int inv = x > 1.0f;
+    float y, x2;
+    if (inv)
+        x = 1.0f / x;
+    x2 = x * x;
+    y = x * (0.99997726f + x2 * (-0.33262347f + x2 * (0.19354346f + x2 * (-0.11643287f + x2 * (0.05265332f - x2 * 0.01172120f)))));
+    return inv ? 1.57079633f - y : y;
+}
 /* the Insert page: its type and what it does, after the track's character; tremolo: each side's level over two of its
  * cycles (the left bright, the right faint: apart by pan) */
 static void draw_insert(void)
 {
-    static const char *const ABOUT[NIT] = {"nothing after the character", "the level rising and falling"};
+    static const char *const ABOUT[NIT] = {"nothing more", "the level rising and falling",
+                                           "notches that sweep", "a lamp-swept phase",
+                                           "a pedal's distortion", "a filter your playing opens"};
     int trk = inst_trk();
     const uint8_t *p = par_now(trk);
     int it = p[TP_ITYPE] % NIT;
@@ -5940,6 +5952,48 @@ static void draw_insert(void)
             float gl = 1.0f - d - d * fm_sin_turns(ph), gr = 1.0f - d - d * fm_sin_turns(ph + pn);
             pen_to(&pr, (float)(x0 + i), (float)(y0 + hh - 4) - gr * (float)(hh - 12), K_FAINT);
             pen_to(&pl, (float)(x0 + i), (float)(y0 + hh - 4) - gl * (float)(hh - 12), K_NOW);
+        }
+    } else if (it == IT_PHASER || it == IT_UNIVIBE || it == IT_AUTOWAH) {   /* the response, 20 Hz .. 20 kHz: the sweep's
+                                                      * middle bright, its ends faint */
+        static const float UV[4] = {1.0f, 0.068f, 0.032f, 3.19f};
+        float k1 = (float)p[TP_I2] / 127.0f, k2 = (float)p[TP_I3] / 127.0f;
+        cv_rect(x0, y0 + hh - 4, w, 1, K_LINE);
+        for (int c = 0; c < 3; c++) {
+            pen_t pn = {0};
+            float u = c == 0 ? 0.5f : c == 1 ? 0.0f : 1.0f;   /* (where in the sweep) */
+            float fc = it == IT_PHASER ? 180.0f * fm_exp2f(k1 * 4.5f * u) : it == IT_UNIVIBE ? 220.0f * fm_exp2f(k1 * 3.2f * u * u)
+                                                                  : 180.0f * fm_exp2f(4.3f * u);
+            for (int32_t i = 0; i <= w; i++) {
+                float f = 20.0f * fm_exp2f((float)i / (float)w * 9.97f), m;
+                if (it == IT_AUTOWAH) {
+                    float r = f / fc, kq = 2.0f - 1.9f * k1, a = 1.0f - r * r;
+                    m = fm_minf(fm_rsqrtf(a * a + kq * kq * r * r) * 0.35f, 1.0f);
+                } else {
+                    float ph = 0.0f, wet = it == IT_PHASER ? 0.5f : 0.5f + 0.5f * k2;
+                    for (int st = 0; st < (it == IT_PHASER ? 6 : 4); st++)
+                        ph -= 2.0f * pic_atan(f / (fc * (it == IT_PHASER ? 1.0f : UV[st])));
+                    {
+                        float re = 1.0f - wet + wet * fm_cosf(ph), im = wet * fm_sinf(ph);
+                        m = fm_sqrtf(re * re + im * im);
+                    }
+                }
+                pen_to(&pn, (float)(x0 + i), (float)(y0 + hh - 4) - m * (float)(hh - 12), c ? K_FAINT : K_NOW);
+            }
+        }
+    } else if (it == IT_RAT) {                       /* the clip's curve at its gain, the dry line faint */
+        float g = 1.0f + 60.0f * (float)p[TP_I1] / 127.0f, top;
+        pen_t pd = {0}, pn = {0};
+        int32_t cy = y0 + hh / 2;
+        {
+            float a2 = g * g, sq = fm_rsqrtf(1.0f + a2 * a2);
+            top = g * sq * fm_rsqrtf(sq);
+        }
+        cv_rect(x0, cy, w, 1, K_LINE);
+        cv_rect(x0 + w / 2, y0, 1, hh, K_LINE);
+        for (int32_t i = 0; i <= w; i++) {
+            float x = (float)i * 2.0f / (float)w - 1.0f, u = g * x, a2 = u * u, sq = fm_rsqrtf(1.0f + a2 * a2);
+            pen_to(&pd, (float)(x0 + i), (float)cy - x * (float)(hh / 2 - 6), K_FAINT);
+            pen_to(&pn, (float)(x0 + i), (float)cy - u * sq * fm_rsqrtf(sq) / top * (float)(hh / 2 - 6), K_NOW);
         }
     }
     main_blit();
