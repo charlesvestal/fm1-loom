@@ -156,3 +156,59 @@ said K8 kit
 tap SEL
 wait 40
 expect par1.d2.model 12
+# a format 22 project and its presets (format 12), from before knit's Mod page (tests/fixtures/make_v22.xy): the tracks
+# four bytes longer (TP_KSYNC .. TP_KSUB, 0 each: knit as it was), osc 2's wave kept; the user preset the same, and the
+# user kit K8 (format 12 kept its kits nearer the presets) still there
+storeload tests/fixtures/store_v22.bin
+reboot
+wait 400
+expect tempo 104
+expect par3.engine 0
+expect par3.e1 40
+expect par3.x1 71
+expect par3.x2 90
+expect par3.fine 84
+expect par3.o2wave 2
+expect par3.o2shape 64
+expect par3.ksync 0
+expect par3.ksweep 0
+expect par3.kcross 0
+expect par3.ksub 0
+expect par1.d2.model 12
+preset 3 reese
+expect par3.o2wave 0
+preset 3 U1
+expect par3.x1 71
+expect par3.fine 84
+expect par3.o2wave 2
+expect par3.o2shape 64
+expect par3.ksync 0
+expect trk 1
+param 1 d2.model 0
+listen
+tap EDIT
+tap SEL
+row KIT
+turn ALGO -1
+wait 300
+said K8 kit
+tap SEL
+wait 40
+expect par1.d2.model 12
+# a user preset keeps the Mod page now (presets format 13): saved, restarted, loaded
+spin ALGO 2
+expect trk 3
+param 3 ksync 1
+param 3 ksweep 30
+param 3 kcross 20
+param 3 ksub 3
+usersave 3 2
+preset 3 reese
+expect par3.ksync 0
+reboot
+wait 400
+preset 3 U2
+expect par3.ksync 1
+expect par3.ksweep 30
+expect par3.kcross 20
+expect par3.ksub 3

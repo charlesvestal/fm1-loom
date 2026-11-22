@@ -1,0 +1,31 @@
+# a format 22 project, from before knit's Mod page (format 23: TP_KSYNC .. TP_KSUB after TP_O2SHAPE), and its presets
+# (format 12: a user preset without the Mod page, the user kits after the presets): saved by that build, for the
+# migration's test (tests/scenarios/migrate.xy). Track 3 knit with osc 2 square at +7, level 90, fine +20 cents, saved
+# as user preset U1; track 1's kit, its key 2 on model 12, saved as user kit K8.
+# Run by a format 22 build (22d9613): its loom_host tests/fixtures/make_v22.xy
+wait 300
+bpm 104
+param 3 engine knit
+param 3 e1 40
+param 3 x1 71
+param 3 x2 90
+param 3 fine 84
+param 3 o2wave 2
+param 3 o2shape 64
+wait 40
+usersave 3 1
+spin ALGO -2
+expect trk 1
+param 1 d2.model 12
+listen
+tap EDIT
+tap SEL
+row SAVE KIT
+turn ALGO 7
+wait 300
+said K8 (empty)
+tap SEL
+wait 40
+said KIT SAVED
+projsave 1 v22_test
+storesave tests/fixtures/store_v22.bin

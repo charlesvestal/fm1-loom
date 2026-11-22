@@ -111,7 +111,7 @@ second.
 - **Song**: a chain of scenes, each played for a number of bars.
 - **Engine**: the way a track makes its sound. There are seven synths (knit, rayon, jacquard, bellows, cane, voile
   and acid), two sample engines (sample and slice) and the kit, a drum synth.
-- **Preset**: a sound to load. 97 come with LOOM-8, from seven to eighteen for each engine, and 16 are your own.
+- **Preset**: a sound to load. 102 come with LOOM-8, from seven to twenty for each engine, and 16 are your own.
 - **Player**: what the keys do on a track: arp, strum, hold or random.
 - **Conductor**: an aux track that sets the key, scale and chords for the other tracks. It plays its own chords,
   or takes them from a track's notes.
@@ -201,7 +201,7 @@ Count the white keys 1 to 16 from the left, and the black keys 1 to 11. "Hold **
 | **SEL** | Opens a list of this page's settings and actions. Hold a step and press it to see the step's notes. When LOOM-8 asks a question, **SEL** means yes. |
 | **HOME** | Opens Arrange. On Arrange, it opens the Song page. Hold it as a shift key for buttons and knobs: undo and redo, fine tempo, and the scenes on **PRESETS**. When LOOM-8 asks a question, **HOME** means no. |
 | **SEQ** | Opens Steps; page 2 is Bar. Hold it on Steps and the keys play the track and set what a step writes (**PRESETS** sets the track's sound, and **OCT** moves the whole pattern an octave). Hold it on Bar and black keys 1 to 4 jump to a bar or loop bars. Hold it on Steps or Bar and press **PLAY** to start from the bar on screen. |
-| **EDIT** | Opens Engine. The pages go from the sound to how it plays. On most engines, page 2 is Play (mode, glide, bend and octave) and page 3 is Play 2 (volume). On rayon and acid, page 2 is Sub, with the engine's second set of knobs, and Play and Play 2 follow it. On knit, the pages are Engine, Osc 2, Levels and Play. A sample track in a loop mode has its Loop page second. On a drum track, page 2 holds the key's model, random, pan and volume, and page 3 its sends. On the conductor, the pages are its key, the routing and Follow. |
+| **EDIT** | Opens Engine. The pages go from the sound to how it plays. On most engines, page 2 is Play (mode, glide, bend and octave) and page 3 is Play 2 (volume). On rayon and acid, page 2 is Sub, with the engine's second set of knobs, and Play and Play 2 follow it. On knit, the pages are Engine, Osc 2, Mod, Levels and Play. A sample track in a loop mode has its Loop page second. On a drum track, page 2 holds the key's model, random, pan and volume, and page 3 its sends. On the conductor, the pages are its key, the routing and Follow. |
 | **ENV** | Opens Envelope (on a drum track: lag, attack, random, length), then Filter, then the filter's envelope. |
 | **FX** | Opens Character, the track's own effect. Next come Sends, the track's sends to FX I and FX II, and then FX I and FX II, the two effects. |
 | **LFO** | Opens LFO. Page 2 has the type's fourth and fifth knobs. |
@@ -592,7 +592,7 @@ tonality is **ignore** follows nothing.
 | midi | eight knobs, each sending a CC | |
 
 Rayon and acid have a second set of knobs. To reach them, press **EDIT** and turn **SELECT** once, to the Sub page.
-Knit has two more pages instead, Osc 2 and Levels.
+Knit has three more pages instead, Osc 2, Mod and Levels.
 
 ### Knit
 
@@ -612,8 +612,18 @@ Turn it to saw, square, pulse, triangle or sine to give osc 2 a wave of its own.
 through a square to a narrow pulse, as **wave** does for osc 1. It counts for saw, square and pulse, and turning
 **wave** to one of them sets **shape** there.
 
-Turn **SELECT** again for the Levels page. **osc 2** sets how loud osc 2 is, and 0 turns it off, so osc 2 sounds only
-when this is above 0. **sub** adds a sine an octave down, and **noise** adds noise. **volume** is the track's volume,
+Turn **SELECT** again for the Mod page, where osc 2 shapes osc 1 and the sub gets its wave. **sync** restarts osc 2
+each time osc 1 starts a new cycle, so osc 2 always plays at osc 1's pitch and its interval changes its tone instead.
+With **sync** on, set osc 2 to pulse in unison on the Osc 2 page for the SH-101's saw and pulse from one oscillator.
+**sweep** lets the filter envelope raise osc 2's pitch, by up to 48 semitones at the envelope's peak. With **sync**
+on, a sweep gives the classic sync lead. **cross** lets osc 2 move osc 1's frequency, for metallic and growling
+tones. It works even when osc 2's level is 0, so you hear only its effect. **sub** picks the sub's wave: a sine or a
+square an octave down, or a square or a narrow pulse two octaves down, like the SH-101's. At 0 and off, the four
+knobs leave knit as it was. To hear the Mod page, try the presets sync lead, rubber bass, poly sync, cross growl and
+step bleeps.
+
+Turn **SELECT** once more for the Levels page. **osc 2** sets how loud osc 2 is, and 0 turns it off, so osc 2 sounds
+only when this is above 0. **sub** sets how loud the sub is, and **noise** adds noise. **volume** is the track's volume,
 which the other engines have on Play 2. To hear what osc 2 does, try the presets fifth lead, pulse bass, chime keys and
 reed pad. Knit's Play page comes last, after Levels.
 
@@ -1035,7 +1045,7 @@ coming in on its channel do nothing. That way, a synth that echoes CCs back can'
 ### The synth pages
 
 EDIT's pages start with the sound and end with how it plays. On most engines, turn **SELECT** once from the Engine
-page for the Play page. Rayon and acid have their Sub page before it, and knit has Osc 2 and Levels. For details, see
+page for the Play page. Rayon and acid have their Sub page before it, and knit has Osc 2, Mod and Levels. For details, see
 [Knit](#knit).
 
 The Play page sets poly, mono or legato, portamento, the bend range (off, 1 to 7 semitones, or an octave) and the
@@ -1057,6 +1067,9 @@ then the two effects. **LFO** has the type and its first three knobs on page 1, 
 | drift | speed, amount, destination | parameter, envelope |
 | wobble | speed, vibrato, volume | envelope, shape |
 | pump | source, amount, hold | release |
+
+The wave's shapes are square, sine, ramp, saw and random. Random holds a new value for each cycle, like the
+sample and hold on an SH-101: put it on the filter's cutoff for stepped bleeps.
 
 Turn the speed knob left for synced speeds, from 2/1 to 1/64, or right to run it free in Hz. The destination is
 a module, and the parameter is one of that module's four:

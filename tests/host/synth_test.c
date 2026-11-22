@@ -1659,6 +1659,80 @@ static void knit_osc2_tests(void)
     par[0][TP_O2WAVE] = O2W_PULSE;
     check("knit's osc 2: shape counts for pulse", tp_info_par(TP_O2SHAPE, par[0])->hi == 127);
 }
+/* knit's Mod page (TP_KSYNC .. TP_KSUB): a saw at C4, osc 2 a tritone up (its harmonics clear of the saw's). Synced,
+ * osc 2 starts again with each of osc 1's cycles: the sound repeats at C4, the tritone's own tone gone. Sweep and cross
+ * change the sound and stay finite and bounded; the low square's energy sits two octaves down, the square's one. The
+ * names and ranges; the LFO's random shape */
+static void mod_render(int sync, int sweep, int cross, int sub, int o2lvl, float *buf, int *finite, float *peak)
+{
+    char_sound(EG_KNIT, CT_OFF, 0, 64, 127);
+    par[0][TP_E1] = 0;
+    par[0][TP_E2] = 0;
+    par[0][TP_E3] = 1;
+    par[0][TP_X1] = 64 + 6;
+    par[0][TP_X2] = (uint8_t)o2lvl;
+    par[0][TP_X3] = sub >= 0 ? 127 : 0;
+    par[0][TP_FA] = 0;
+    par[0][TP_FD] = 90;
+    par[0][TP_FS] = 0;
+    par[0][TP_KSYNC] = (uint8_t)sync;
+    par[0][TP_KSWEEP] = (uint8_t)sweep;
+    par[0][TP_KCROSS] = (uint8_t)cross;
+    par[0][TP_KSUB] = (uint8_t)(sub >= 0 ? sub : 0);
+    synth_init(S, par);
+    synth_tempo(S, 120.0f);
+    synth_note_on(S, 0, 60, 100, 0, 1);
+    *peak = 0.0f;
+    for (int b = 0; b < 60; b++) {
+        block(N, finite);
+        for (int i = 0; i < N; i++)
+            if (fabs_f(L[i]) > *peak)
+                *peak = fabs_f(L[i]);
+        if (b >= 20)
+            memcpy(buf + (b - 20) * N, L, sizeof L);
+    }
+}
+static void knit_mod_tests(void)
+{
+    static float a[40 * N], b[40 * N];
+    const double f1 = 261.6256, f2 = f1 * 1.4142136;
+    int finite = 1;
+    float pk, worst = 0.0f;
+    double free2, sync2, syncf, lo, sq, lo1;
+    mod_render(0, 0, 0, -1, 127, a, &finite, &pk);
+    free2 = tone_at(a, 40 * N, f2);
+    mod_render(1, 0, 0, -1, 127, b, &finite, &pk);
+    sync2 = tone_at(b, 40 * N, f2);
+    syncf = tone_at(b, 40 * N, f1);
+    printf("    knit's sync: the tritone's energy free %.3g, synced %.3g (C4's synced %.3g)\n", free2, sync2, syncf);
+    check("knit's sync: osc 2 repeats with osc 1 (its own tone gone, C4 there)", finite && sync2 < free2 * 0.05 &&
+          syncf > sync2 * 20.0);
+    mod_render(1, 24, 0, -1, 127, a, &finite, &pk);
+    worst = pk > worst ? pk : worst;
+    check("knit's sweep: the sound moves, finite", finite && memcmp(a, b, sizeof a) != 0);
+    mod_render(0, 0, 100, -1, 0, a, &finite, &pk);
+    worst = pk > worst ? pk : worst;
+    mod_render(0, 0, 0, -1, 0, b, &finite, &pk);
+    check("knit's cross: a silent osc 2 moves osc 1 (FM), finite", finite && memcmp(a, b, sizeof a) != 0);
+    mod_render(1, 48, 127, KS_LOW_PULSE, 127, a, &finite, &pk);
+    worst = pk > worst ? pk : worst;
+    printf("    knit's Mod page, the loudest peak: %.2f\n", (double)worst);
+    check("knit's Mod page at its extremes: finite, no peak past 2", finite && worst < 2.0f);
+    mod_render(0, 0, 0, KS_LOW_SQUARE, 0, a, &finite, &pk);
+    lo = tone_at(a, 40 * N, f1 / 4.0);
+    lo1 = tone_at(a, 40 * N, f1 / 2.0);
+    mod_render(0, 0, 0, KS_SQUARE, 0, b, &finite, &pk);
+    sq = tone_at(b, 40 * N, f1 / 2.0);
+    printf("    knit's sub: low square at C2 %.3g (C3 %.3g), square at C3 %.3g\n", lo, lo1, sq);
+    check("knit's sub: the low square two octaves down, the square one", finite && lo > lo1 * 10.0 && sq > 0.05);
+    check("knit's Mod page: names and ranges", tp_info(TP_KSYNC, EG_KNIT)->hi == 1 &&
+          tp_info(TP_KSWEEP, EG_KNIT)->hi == KSWEEP_MAX && tp_info(TP_KCROSS, EG_KNIT)->hi == 127 &&
+          tp_info(TP_KSUB, EG_KNIT)->hi == NKS - 1 && !strcmp(tp_info(TP_KSUB, EG_KNIT)->names[KS_LOW_PULSE], "low pulse"));
+    sound_default(par[0], EG_KNIT);
+    par[0][TP_LTYPE] = LT_WAVE;
+    check("the LFO's wave has a fifth shape, random", tp_info_par(TP_LX2, par[0])->hi == 4 &&
+          !strcmp(tp_info_par(TP_LX2, par[0])->names[4], "random"));
+}
 static void kit_char_tests(void)
 {
     static float l[4096], r[4096], l0[4096];
@@ -1974,8 +2048,8 @@ int main(void)
             preset_sound(p, &PRESETS[k]);                /* (and knit's Osc 2 page) */
             for (q = 0; q < NTP; q++) {
                 const tp_info_t *i;
-                if (q >= NTP_SOUND && q != TP_O2FINE && q != TP_O2WAVE && q != TP_O2SHAPE)
-                    continue;                            /* (past par[]: the Osc 2 page's only) */
+                if (q >= NTP_SOUND && q != TP_O2FINE && q != TP_O2WAVE && q != TP_O2SHAPE && (q < TP_KSYNC || q > TP_KSUB))
+                    continue;                            /* (past par[]: the Osc 2 and Mod pages' only) */
                 i = tp_info_par(q, p);
                 if ((i->hi > i->lo || i->kind == PK_NAMES) && (p[q] < i->lo || p[q] > i->hi)) {
                     printf("    preset %s: parameter %d = %d outside %d..%d\n", PRESETS[k].name, q, p[q], i->lo, i->hi);
@@ -2699,6 +2773,7 @@ int main(void)
     char_tests();
     knit_balance_tests();
     knit_osc2_tests();
+    knit_mod_tests();
     kit_char_tests();
     sample_tests();
     slice_tests();
