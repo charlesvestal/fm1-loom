@@ -510,6 +510,11 @@ static uint32_t crc32_of(const uint8_t *p, uint32_t n)       /* zlib CRC-32, 4 b
 /* the object is the n bytes of io_buf; written only if they changed. Not while a backup streams (app_backup_hold:
  * it reads the objects one by one) */
 static uint8_t store_held;
+/* why the last save failed, for the screen's "flash error N" (N = -store_err): the store's own codes (storage.c,
+ * felucca-bsp's FL_ERR_*: 7 written but not read back, 8 the pool full, 9 a flash part not known), or the app's:
+ * 10 the patterns do not fit, 11 no room in the pool, 12 the settings, 13 held by a backup */
+static int store_err;
+int project_store_err(void) { return -store_err; }
 static int save_buf(uint32_t obj, uint32_t n)
 {
     uint32_t h = hash_of(io_buf, n);
@@ -517,8 +522,10 @@ static int save_buf(uint32_t obj, uint32_t n)
     if (stored_known[obj] && stored_hash[obj] == h)
         return 0;                                    /* the flash already holds exactly this */
     if (store_held)
-        return -2;
+        return store_err = -13, -2;
     rc = loom_store_save(obj, io_buf, n);
+    if (rc)
+        store_err = rc;
     slot_known = 0;
     stored_known[obj] = rc == 0;
     stored_hash[obj] = h;
@@ -911,14 +918,14 @@ static int project_write(int slot)
     int rc, n;
     count_next();
     if ((n = settings_pack()) < 0)
-        return -1;
+        return store_err = -12, -1;
     if (stream_measure())
-        return -7;                                    /* would not fit: nothing written (MEMORY FULL) */
+        return store_err = -10, -7;                   /* would not fit: nothing written (MEMORY FULL) */
     {   /* the store's pool (app.h APP_STORE_POOL): room for every object it writes, else nothing written (MEMORY
          * FULL): the three slots' projects share it */
         int room = plat_store_room();
         if (room >= 0 && room < save_objects())
-            return -7;
+            return store_err = -11, -7;
     }
     if ((rc = save_buf(OBJ_PROJ(slot, 0), (uint32_t)n)) != 0)
         return rc < 0 ? -1 : rc;

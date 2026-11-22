@@ -237,6 +237,7 @@ int project_last_slot(void);            /* the slot saved or loaded last (0 when
 int project_touch(int slot);            /* the loaded slot the last: its settings saved again, its count the next */
 int presets_load(void);
 int presets_save(void);
+int project_store_err(void);            /* why the last save failed ("flash error N"): project.c store_err */
 
 void ui_init(void);
 void ui_frame(void);
