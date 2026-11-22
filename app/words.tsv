@@ -6,6 +6,7 @@ Eb	E flat
 Ab	A flat
 Bb	B flat
 T#	track #
+PROJ	project
 P#	pattern #
 S#	scene #
 U#	user preset #
@@ -93,6 +94,7 @@ USB	U S B
 MIDI	midi
 hat	closed hat
 open	open hat
+OPEN)	open)
 ltom	low tom
 htom	high tom
 fm	F M

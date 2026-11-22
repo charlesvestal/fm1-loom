@@ -187,7 +187,7 @@ Count the white keys 1 to 16 from the left, and the black keys 1 to 11. "Hold **
 | get new sounds for the band | Press **HOME**, press **SEL** and pick RANDOMIZE PRESETS: T2 to T8 each get a random preset for their part. Press **SEL** for yes. |
 | save | LOOM-8 saves by itself when it is stopped and quiet. **SAVE** saves at once. Hold **SAVE** and press white key 1 to 3 to save to that slot. <!-- hint: press SAVE --> |
 | keep a sound | On a sound page, hold **SAVE** and press a white key. The sound becomes that user preset. <!-- hint: hold SAVE; white 1 --> |
-| load a project | Press **HOME** and press **SEL**. On LOAD PROJECT, turn **ALGORITHM** to pick the slot, then press **SEL**. NEW PROJECT starts an empty project in a free slot, with its sounds picked at random (new ones, as RANDOMIZE PRESETS gives). <!-- hint: press HOME, SEL; turn ALGORITHM --> |
+| load a project | Press **GLO** and press **SEL**. The list starts with your three projects, each with its tempo and scenes. Pick one with **SELECT** and press **SEL** to load it. An empty slot starts a new project there, with its sounds picked at random. <!-- hint: press GLO, SEL; turn SELECT --> |
 | listen on Bluetooth headphones | Put them in pairing mode. Press **GLO**, turn **SELECT** to Setup and press **SEL**. Turn **SELECT** to AUDIO DEVICE and press **SEL**. Turn **SELECT** to the headphones and press **SEL**. |
 
 ### The buttons
@@ -1318,7 +1318,7 @@ Debug. The **SEL** list on Setup has the FM-1's own settings, in three groups:
 
 All of Setup's settings, the theme too, belong to the FM-1, not the project. Every project you load or start keeps
 them as you left them. On every page, the header shows the scene playing ("S3") before the tempo. You'll find the
-projects in **HOME**'s **SEL** list and the count-in on **REC**'s knobs.
+projects in **GLO**'s **SEL** list and the count-in on **REC**'s knobs.
 
 **LFO** comes after Master out. It's the shared LFO. The project has one, and it moves the tracks you give it. Use
 it to open the filters of a few tracks together in a single sweep, or to breathe across a 16-bar section of a
@@ -1558,8 +1558,9 @@ conductor. To pick another band for T2 to T8, use RANDOMIZE PRESETS on **HOME**'
 and it keeps your patterns, the kit and the mix. A project saves every knob as you left it, not the preset it
 came from.
 
-**Projects have no names.** Each project is its slot. LOAD PROJECT and SAVE TO show them as Proj 1, Proj 2 and
-Proj 3, and mark which slots are empty and which one is open.
+**Projects have no names.** Each project is its slot. **GLO**'s **SEL** list shows them as PROJ 1, PROJ 2 and
+PROJ 3, each with its tempo and scenes, and marks which slots are empty and which one is open. SAVE TO shows the
+slot it will save to the same way.
 
 **Older projects.** Projects saved by 0.5-beta to 0.5.4-beta load and are converted. Their scenes go into the
 thirty-two, MIDI notes are switched on, and T1 to T8 go on channels 1 to 8. Projects saved by this version don't
@@ -1590,7 +1591,7 @@ user preset.
 
 | Button | Page | KNOB 1 | KNOB 2 | KNOB 3 | KNOB 4 | Keys |
 | --- | --- | --- | --- | --- | --- | --- |
-| HOME | Arrange | tempo | groove | amount | the track's pattern | white: scenes (OCT: 17 to 32), black: mutes (hold a kit's: white 1-11 are its sounds); SEL: load, save to, new project, randomize presets, the song, when scenes switch |
+| HOME | Arrange | tempo | groove | amount | the track's pattern | white: scenes (OCT: 17 to 32), black: mutes (hold a kit's: white 1-11 are its sounds); SEL: randomize presets, all notes off, the song, when scenes switch |
 | HOME, SELECT | Song | slot | scene | bars | at end | white: add a scene (OCT: 17 to 32) |
 | SEQ | Steps | pattern | length | scale | groove | white: steps, black: sound (drums); SEQ held: a keyboard |
 | SEQ, a step held | Steps | velocity | length | chance | pitch | white: length or more steps, black: sounds; PRESETS: the step's sound shown (drums: velocity, chance and tricks are its) |
@@ -1619,7 +1620,7 @@ user preset.
 | ARP | Players | player | its first | its second | its third | play, through the player (random: Players 2 has its randomization, Players 3 the octaves down and up) |
 | ARP, SELECT | Players 2, Hold | the arp's length, style, glide, stereo; hold | | | | play |
 | ARP, SELECT (last) | Weave | with | pattern | rule | plays | black: the track woven in, white: its pattern; SEL: KEEP AS PATTERN |
-| GLO | Mix | FX I | FX II | pan | level | black: tap to mute, hold to solo (several together) |
+| GLO | Mix | FX I | FX II | pan | level | black: tap to mute, hold to solo (several together); SEL: the projects, save to, new project |
 | GLO, SELECT | Master EQ | low | mid | high | | |
 | GLO, SELECT | Master color | color | amount | tone | mix | |
 | GLO, SELECT | Master out | drums | melodic | comp | pump | SEL: pump by, release, accent, level |
