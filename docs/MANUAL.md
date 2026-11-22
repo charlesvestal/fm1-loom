@@ -1060,8 +1060,8 @@ LFO or a lock on **position**.
 
 The picture shows the sample's waveform, with the part the grains come from lit and a dot at the position. While
 a note plays, each grain shows as a line at the spot it reads from, rising and fading as the grain does. Up to four
-tulle notes play at once across all tracks, and a fifth takes over the oldest. They share 16 grains, so a note on its
-own can make a thicker cloud, up to 10 grains at once. Tulle sounds best on a long, changing sample, such as a voice,
+tulle notes play at once across all tracks, and a fifth takes over the oldest. Each note has up to 8 grains sounding
+at once. When size and density ask for more, the grains spread out evenly instead. Tulle sounds best on a long, changing sample, such as a voice,
 a field recording or a pad of your own. LOOM-8's own sounds are short. There are seven presets: tulle, frozen keys,
 flute glow, brass haze, vinyl dust, hit stutter and thick cloud.
 
