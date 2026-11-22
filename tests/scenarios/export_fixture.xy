@@ -1,0 +1,36 @@
+# the WAV export's fixture (app/web/export, tests/host/export_wasm.mjs, export_web.mjs): a two-scene project with a
+# song (scene 1 for two bars, scene 2 for two, no loop) at 120 BPM in slot 1, backed up; then the song as the host
+# renders it, the overload guard fed 0 % (as tools/demos/render.sh's LOOM_LOAD=0), for the page's render to be
+# compared with. The simulator's backup is fm1-base's image alone (no LSMP section): the factory samples.
+wait 300
+master 4096
+load 0
+bpm 120
+wait 50
+# scene 1: a kick on the beats and a snare on 2 and 4, a bass note on track 2; scene 2: eighths on the kick
+hits 1 1 1 x...x...x...x...
+hits 1 1 3 ....x.......x...
+notes 2 1 1 4 100 A2
+notes 2 1 9 4 100 C3
+pat 1 2 16
+hits 1 2 1 x.x.x.x.x.x.x.x.
+scenedef 1 1 1 1 1 1 1 1 1 1
+scenedef 2 2 1 1 1 1 1 1 1 1
+song 1:2 2:2
+songloop 0
+projsave 1
+expect slot 1 1200 2
+backup out:export.bkp
+# the song from the top (HOME's PLAY SONG), recorded to its end and the tails after it
+wav export_ref.wav
+tap HOME
+tap SEL
+row PLAY SONG
+tap SEL
+expect playing 1
+bars 4
+# (the song's end stops the transport a sixteenth later: the next bar's first step sounds, as on the FM-1)
+wait 200
+expect playing 0
+wait 3000
+wavstop
