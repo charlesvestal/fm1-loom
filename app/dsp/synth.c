@@ -1432,19 +1432,6 @@ static inline float lc_mode(int m, int k, float stretch, float bright, float pos
            (0.15f + 0.85f * fm_fabsf(fm_sin_turns(0.5f * (float)(k + 1) * (0.03f + 0.47f * pos))));
     return lr;
 }
-int lace_modes(const uint8_t *par, float *ratio, float *level)
-{
-    int m = lc_mat((float)par[TP_E1]), k;
-    float top = 0.0f;
-    for (k = 0; k < LC_MODES; k++) {
-        ratio[k] = lc_mode(m, k, (float)(par[TP_X2] - 64) * (1.0f / 64.0f), (float)par[TP_E2] * (1.0f / 127.0f),
-                           (float)par[TP_E4] * (1.0f / 127.0f), &level[k]);
-        top = fm_maxf(top, level[k]);
-    }
-    for (k = 0; k < LC_MODES; k++)
-        level[k] /= top > 0.0f ? top : 1.0f;
-    return LC_MODES;
-}
 static void lc_init(voice_t *v)
 {
     int i;

@@ -60,9 +60,6 @@ enum { EG_KNIT, EG_RAYON, EG_JACQUARD, EG_BELLOWS, EG_CANE, EG_VOILE, EG_SAMPLE,
 #define NLACE 8
 #define LC_MODES 12
 enum { LX_MALLET, LX_NOISE, LX_BOW, NLX };
-/* the modes of a lace sound (the Engine page's picture): each one's ratio to the note, as log2, and its level (0..1, the
- * loudest 1); how many */
-int lace_modes(const uint8_t *par, float *lratio, float *level);
 /* EG_VELVET (2026-11-23): a string machine: each note a divided-down saw (16', 8', 4' by the register), three times over,
  * each copy's pitch moved by the ensemble (two LFOs a third of a cycle apart, a slow one and a fast one, as the
  * Solina's delay lines move it). Its Engine page E1 the register (VR_*), E2 bright, E3 chorus (the ensemble's depth), E4 rate;
