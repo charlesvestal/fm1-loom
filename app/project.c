@@ -199,7 +199,7 @@ static void aux_defaults(void)
 }
 
 /* a new band: T2-T8 each a random factory preset of a part, so a project starts as one: a bass, a polyphonic synth,
- * a pad, a mono lead, keys, an effect, a pluck or bell. Sample and slice presets are left out (they need the bank's
+ * a pad, a mono lead, keys, an effect, a pluck or bell. Sample, slice and tulle presets are left out (they need the bank's
  * sounds); the kit (T1) stays. The tracks keep their mix, player and following (a preset is the sound part) */
 void project_random_sounds(uint32_t seed)
 {
@@ -215,7 +215,7 @@ void project_random_sounds(uint32_t seed)
         rl = ROLES[t - 1];
         for (k = 0; k < NPRESETS; k++) {                 /* reservoir: one of the matching presets, evenly */
             int eg = PRESETS[k].par[TP_ENGINE], role = PRESETS[k].role;
-            if (eg == EG_SAMPLE || eg == EG_SLICE || eg == EG_DRUMLINE ||
+            if (eg == EG_SAMPLE || eg == EG_SLICE || eg == EG_TULLE || eg == EG_DRUMLINE ||
                 (role != rl[0] && role != rl[1] && role != rl[2]))
                 continue;
             n++;

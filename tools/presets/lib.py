@@ -37,12 +37,12 @@ files list them (gen_presets.py FILES); an engine's first preset is its sound in
 
 ROLES = ["bass", "lead", "pad", "keys", "pluck", "bell", "stab", "strings", "brass", "voice", "chord", "fx", "drum",
          "loop"]                                      # synth.h RL_*, in order
-ENGINES = ["knit", "rayon", "jacquard", "bellows", "cane", "voile", "sample", "slice", "kit", "midi", "acid"]   # synth.h EG_*, in order
+ENGINES = ["knit", "rayon", "jacquard", "bellows", "cane", "voile", "sample", "slice", "kit", "midi", "acid", "tulle"]   # synth.h EG_*, in order
 KNOBS = {"knit": ["wave", "detune", "voices", "width"], "rayon": ["bright", "ratio", "edge", "tine"],
          "jacquard": ["table", "scan", "bend", "ripple"], "bellows": ["stops", "pedal", "rotor", "rate"],
          "cane": ["model", "timbre", "color", "damp"], "voile": ["model", "timbre", "color", "breath"],
          "sample": ["sample", "start", "length", "mode"], "slice": ["sample", "slices", "pitch", "gate"],
-         "acid": ["wave", "accent", "slide", "tune"]}
+         "acid": ["wave", "accent", "slide", "tune"], "tulle": ["sample", "position", "size", "density"]}
 MODES = ["poly", "mono", "legato"]                    # VM_*
 FILTERS = ["lp24", "ladder", "lp12", "hp12", "dynamic", "bp12"]   # FT_*
 LFOS = ["off", "wave", "wobble", "drift", "pump"]    # LT_*
@@ -55,7 +55,7 @@ NOMOD = (False, 0, 0, "sine")
 OPS = ["off", "stack", "layer"]                      # RO_*
 RO_RATIOS = [0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4, 5, 6, 7, 8, 9, 10, 11, 12, 14, 16, 1.41, 1.73, 2.24, 2.76, 3.46, 5.19]   # synth.c RO_RATIO
 NOOPS = ("off", 1, 0, 0)
-X_DEF = {"knit": (64, 0, 0, 0), "acid": (0, 1, 27, 0)}   # the engines' second pages as sound_default leaves them
+X_DEF = {"knit": (64, 0, 0, 0), "acid": (0, 1, 27, 0), "tulle": (30, 0, 0, 90)}   # the engines' second pages as sound_default leaves them
 NOLFO = ("off", 3, 64, "filter", 0, 1)
 NOCHAR = ("off", 64, 64, 127)
 

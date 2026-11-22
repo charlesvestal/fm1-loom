@@ -1817,6 +1817,74 @@ static void knit_analog_tests(void)
     check("knit's analog: its name and range", tp_info(TP_KANALOG, EG_KNIT)->hi == 127 &&
           !strcmp(tp_info(TP_KANALOG, EG_KNIT)->name, "analog"));
 }
+/* tulle (EG_TULLE): grains of the strings sample sound, finite and bounded; wide, its left and right differ; frozen
+ * (scan 0) and scanning differ; at most CN_SLOTS of its voices at once (cane's slots, its own) */
+static void tl_note(int scan, int width, int notes, float *l, float *r, int *finite, float *peak)
+{
+    char_sound(EG_TULLE, CT_OFF, 0, 64, 127);
+    par[0][TP_E1] = (uint8_t)smp_ix("strings");
+    par[0][TP_X2] = (uint8_t)scan;
+    par[0][TP_X4] = (uint8_t)width;
+    synth_init(S, par);
+    synth_tempo(S, 120.0f);
+    for (int k = 0; k < notes; k++)
+        synth_note_on(S, 0, 60 + 3 * k, 100, 0, (uint32_t)(1 + k));
+    *peak = 0.0f;
+    for (int b = 0; b < 80; b++) {
+        block(N, finite);
+        for (int i = 0; i < N; i++) {
+            float a = fabs_f(L[i]) > fabs_f(R[i]) ? fabs_f(L[i]) : fabs_f(R[i]);
+            *peak = a > *peak ? a : *peak;
+        }
+        if (b >= 40) {
+            memcpy(l + (b - 40) * N, L, sizeof L);
+            memcpy(r + (b - 40) * N, R, sizeof R);
+        }
+    }
+}
+static void tulle_tests(void)
+{
+    static float l[40 * N], r[40 * N], l2[40 * N], r2[40 * N];
+    int finite = 1, used;
+    float pk, pk2;
+    double e = 0.0;
+    tl_note(0, 127, 1, l, r, &finite, &pk);
+    for (int i = 0; i < 40 * N; i++)
+        e += (double)l[i] * (double)l[i];
+    tl_note(80, 127, 1, l2, r2, &finite, &pk2);
+    printf("    tulle: a note's peak %.2f (frozen), %.2f (scanning)\n", (double)pk, (double)pk2);
+    check("tulle: its grains sound, finite, no peak past 1.5", finite && e > 1e-3 && pk < 1.5f && pk2 < 1.5f);
+    check("tulle: wide, its left and right differ; frozen and scanning differ",
+          memcmp(l, r, sizeof l) != 0 && memcmp(l, l2, sizeof l) != 0);
+    tl_note(0, 0, 6, l, r, &finite, &pk);
+    used = synth_voices_used(S);
+    printf("    tulle: six notes held, %d voices sounding\n", used);
+    check("tulle: at most four of its voices at once (its slots)", finite && used <= CN_SLOTS && used >= 1);
+    {   /* one note alone, long grains, dense: a cloud from the whole pool */
+        int32_t gp[TL_POOL];
+        uint8_t gl[TL_POOL];
+        int most = 0;
+        char_sound(EG_TULLE, CT_OFF, 0, 64, 127);
+        par[0][TP_E1] = (uint8_t)smp_ix("strings");
+        par[0][TP_E3] = 127;
+        par[0][TP_E4] = 127;
+        par[0][TP_X1] = 127;
+        synth_init(S, par);
+        synth_tempo(S, 120.0f);
+        synth_note_on(S, 0, 60, 100, 0, 1);
+        for (int b = 0; b < 120; b++) {
+            int n;
+            block(N, &finite);
+            n = synth_tulle_grains(S, 0, gp, gl, TL_POOL);
+            most = n > most ? n : most;
+        }
+        printf("    tulle: one dense note, at most %d grains at once\n", most);
+        check("tulle: one note alone makes a cloud from the pool (more than a slot's four grains), finite",
+              finite && most > TL_POOL / CN_SLOTS && most <= TL_POOL);
+    }
+    check("tulle: its Sub page's names", !strcmp(tp_info(TP_X1, EG_TULLE)->name, "spray") &&
+          !strcmp(tp_info(TP_X2, EG_TULLE)->name, "scan") && !strcmp(tp_info(TP_X4, EG_TULLE)->name, "width"));
+}
 static void kit_char_tests(void)
 {
     static float l[4096], r[4096], l0[4096];
@@ -2860,6 +2928,7 @@ int main(void)
     knit_mod_tests();
     rayon_ops_tests();
     knit_analog_tests();
+    tulle_tests();
     kit_char_tests();
     sample_tests();
     slice_tests();

@@ -43,7 +43,8 @@ static const uint8_t E_GLIDE[NENGINE] = {
     0xE, /* jacquard: scan, bend, ripple (not the table) */ 0x0, /* bellows: four switches */
     0xE, /* cane: timbre, color, damp */ 0xE,               /* voile: timbre, color, breath */
     0x0, 0x0, 0x0, 0x0,                                    /* sample, slice (where a note starts), the kit, midi */
-    0x0};                                                  /* acid (bass303_set: its own) */
+    0x0,                                                   /* acid (bass303_set: its own) */
+    0x2};                                                  /* tulle: position (not the sample, size or density) */
 static inline float glide_to(float from, float to)
 {
     float d = to - from;
@@ -63,18 +64,19 @@ static inline float glide_to(float from, float to)
 const char *const RL_NAME[NRL] = {"bass", "lead", "pad", "keys", "pluck", "bell", "stab", "strings", "brass", "voice",
                                   "chord", "fx", "drum", "loop"};
 const char *const EG_NAME[NENGINE] = {"knit", "rayon", "jacquard", "bellows", "cane", "voile", "sample", "slice",
-                                      "kit", "midi", "acid"};
+                                      "kit", "midi", "acid", "tulle"};
 const char *const EG_KNOB[NENGINE][4] = {
     {"wave", "detune", "voices", "width"}, {"bright", "ratio", "edge", "tine"},     {"table", "scan", "bend", "ripple"},
     {"stops", "pedal", "rotor", "rate"},   {"model", "timbre", "color", "damp"},   {"model", "timbre", "color", "breath"},
     {"sample", "start", "length", "mode"}, {"sample", "slices", "pitch", "gate"},  {"-", "-", "-", "-"},
     {"cc", "cc", "cc", "cc"},                    /* (midi: each knob named by its CC, tp_info_par) */
-    {"wave", "accent", "slide", "tune"}};
+    {"wave", "accent", "slide", "tune"},  {"sample", "position", "size", "density"}};
 /* each engine's plain sound (INIT), 0..127; bellows' four are discrete 1..8, knit's voices 1..7, the Braids engines'
  * models a name each (synth.h NCANE ...) */
 static const uint8_t EG_DEF[NENGINE][4] = {{0, 20, 1, 0},  {40, 25, 0, 0}, {0, 40, 0, 0},  {3, 4, 2, 5},
                                            {0, 64, 64, 0}, {2, 0, 64, 0},  {5, 0, 127, SM_ONESHOT}, {SMP_BREAK, 1, 64, 127},
-                                           {0, 0, 0, 0}, {64, 64, 64, 64}, {0, 64, 21, 64}};   /* (acid: X0X's) */
+                                           {0, 0, 0, 0}, {64, 64, 64, 64}, {0, 64, 21, 64},   /* (acid: X0X's) */
+                                           {7, 40, 80, 70}};                /* (tulle: the strings sample) */
 static const char *const VMODE_N[3] = {"poly", "mono", "legato"};
 static const char *const FTYPE_N[NFT] = {"lp24", "ladder", "lp12", "hp12", "bp12", "off"};   /* FT_DYNAMIC: no
                                                                           * filter on a synth track; the kit's
@@ -165,7 +167,8 @@ typedef struct {
                                        * bit 1: started since the last render, its first configuration due there */
     uint8_t vi;                       /* the voice's index (its sample cache, smp_vc) */
     float cost_m;                     /* its render's measured time, clock ticks a frame (a running mean; 0 none yet) */
-    uint8_t tws, tws_pend;            /* cane: the line slot it plays from, and its pending note's (CN_NONE) */
+    uint8_t tws, tws_pend;            /* cane, tulle: the slot it plays from, and its pending note's (CN_NONE) */
+    uint8_t tws_eng;                  /* the engine of its pending note's slot (cane's slots or tulle's) */
     uint8_t as, as_pend;              /* acid: its 303's slot (acid_mem), and its pending note's (ACID_NONE) */
     float amp_cur, amp_step;          /* the amp level, ramped inside the sub-block */
     float steal_gain, sg_step;
@@ -1175,6 +1178,179 @@ static void knit_init(voice_t *v)                  /* the voices from random pha
 #define CN_NONE 0xFFu
 #include "braids.h"
 
+/* tulle: grains of a sample (synth.h EG_TULLE). At most CN_SLOTS of its voices (cane's slot logic: cn_find, cn_reserve:
+ * a cap only); their grains come from one pool of TL_POOL (tl_mem), so one note alone may make a cloud of TL_POOL. A grain
+ * reads the sample from its start position at the note's pitch (the sample engine's rate, detuned at random by pitch),
+ * a block at a time (smp_play, its own decode window: dsp/sample.h smp_cache_t), under a sine-squared window (as
+ * (4p(1-p))^2), panned at random by width; a note's grains at most TL_VOICE_MAX (its voice runs on one core). A new
+ * grain after an interval (density): regular at spray 0, random (exponential, a cloud: Poisson) at its top, between
+ * them a mix; its position the knob's plus the scan's offset plus spray's jitter, kept so the grain ends inside the
+ * sample. The grains summed at 1 / sqrt(their overlap). o[0] samples to the next grain, o[1] the scan's offset (0..1),
+ * o[2] 1: a new note (its grains let go at the next run). ex[0] the rate (the sample engine's), ex[1] the sample's
+ * length, ex[2] position, ex[3] a grain's length (output samples), ex[4] the interval, ex[5] spray, ex[6] the sample,
+ * ex[7] the scan a sample, ex[8] pitch, ex[9] width, ex[10..13] the Sub page's (voice_chunk), ex[14] the gain, ex[15]
+ * the overlap (grains sounding at once, about: its cost) */
+typedef struct {
+    smp_cache_t c;
+    int32_t pos;                      /* where it reads (a whole sample) */
+    float fr, inc;                    /* the fraction, the step */
+    float ph, dph;                    /* its window's phase (0..1), the step */
+    float gl, gr;                     /* its pan */
+    uint8_t on, own;                  /* sounding; its voice (vi) */
+    uint8_t dl;                       /* where in the block it starts (a grain begun mid-block) */
+} tl_grain_t;
+#ifdef PLAT_HOST
+static tl_grain_t tl_mem[TL_POOL];
+#else
+static tl_grain_t tl_mem[TL_POOL] __attribute__((section(".pool")));   /* the pool (zeroed at start, as .bss) */
+#endif
+static const voice_t *tl_voices;                 /* the synth's voices (a grain whose voice no longer plays tulle is free) */
+static void tl_prep(voice_t *v)
+{
+    cfg_t *c = &v->c;
+    int idx = (int)fm_clampf(fm_floorf(c->ek[0] + 0.5f), 0.0f, (float)(smp_slots() - 1));
+    const smp_t *sm = smp_get(idx);
+    float size, dens, ov;
+    c->stereo = 1;
+    c->ex[6] = (float)idx;
+    if (!sm) {
+        c->ex[0] = 0.0f;
+        return;
+    }
+    c->ex[0] = fm_minf(c->freq / (440.0f * fm_exp2f(((float)sm->root - 69.0f) * (1.0f / 12.0f))) *
+                       ((float)sm->rate / SY_SR), 8.0f);
+    c->ex[1] = (float)sm->n;
+    c->ex[2] = fm_minf(c->e[1], 0.99f);
+    size = 0.01f * fm_exp2f(c->e[2] * 5.643856f);              /* 10 ms .. 500 ms */
+    dens = 2.0f * fm_exp2f(c->e[3] * 4.906891f);               /* 2 .. 60 a second */
+    c->ex[3] = size * SY_SR;
+    c->ex[4] = SY_SR / dens;
+    c->ex[5] = c->ex[10] * (1.0f / 127.0f);
+    c->ex[7] = c->ex[11] * c->ex[11] * (0.5f / (127.0f * 127.0f)) * INV_SR;   /* up to half the sample a second */
+    c->ex[8] = c->ex[12] * c->ex[12] * (12.0f / (127.0f * 127.0f));           /* semitones, at most an octave */
+    c->ex[9] = c->ex[13] * (1.0f / 127.0f);
+    ov = fm_clampf(size * dens, 1.0f, (float)TL_VOICE_MAX);
+    c->ex[14] = fm_rsqrtf(ov);
+    c->ex[15] = ov;
+}
+static inline int tl_free(const tl_grain_t *g)   /* a grain no voice plays (its voice gone to another sound) */
+{
+    const voice_t *o;
+    if (!g->on)
+        return 1;
+    o = tl_voices ? &tl_voices[g->own % NVOICE] : 0;
+    return o && (o->engine != EG_TULLE || o->amp.stage == ENV_OFF);
+}
+/* which ranges of the pool a voice may take grains from (bit j: grains j * TL_POOL / CN_SLOTS ..): its slot's own, and
+ * when its slot is the lowest playing, the ranges of the slots no voice plays. So the two cores (each its voices) never
+ * reach for the same grain: a range is one voice's at a time; a note alone has all of them */
+static unsigned tl_ranges(const voice_t *v)
+{
+    unsigned used = 0;
+    for (int i = 0; i < NVOICE && tl_voices; i++) {
+        const voice_t *o = &tl_voices[i];
+        if (o->engine == EG_TULLE && o->amp.stage != ENV_OFF && o->tws < CN_SLOTS)
+            used |= 1u << o->tws;
+    }
+    used |= 1u << v->tws;
+    return (1u << v->tws) | ((used & (0u - used)) == 1u << v->tws ? ~used & ((1u << CN_SLOTS) - 1u) : 0u);
+}
+static tl_grain_t *tl_spawn(voice_t *v, unsigned ranges, int mine)
+{
+    const cfg_t *c = &v->c;
+    tl_grain_t *g = 0;
+    float span, at, p;
+    if (mine >= TL_VOICE_MAX)                    /* (a note's grains at most: its core's budget) */
+        return 0;
+    for (int k = 0; k < TL_POOL && !g; k++)
+        if (ranges >> (k / (TL_POOL / CN_SLOTS)) & 1u && tl_free(&tl_mem[k]))
+            g = &tl_mem[k];
+    if (!g)
+        return 0;
+    g->inc = c->ex[0] * (c->ex[8] > 0.0f ? fm_exp2f(frand(&v->rng) * c->ex[8] * (1.0f / 12.0f)) : 1.0f);
+    span = c->ex[3] * g->inc + 2.0f;             /* the sample it reads */
+    at = c->ex[2] + v->o[1] + c->ex[5] * 0.5f * frand(&v->rng);
+    at -= fm_floorf(at);
+    at *= c->ex[1];
+    if (at + span > c->ex[1] - 1.0f)
+        at = fm_maxf(c->ex[1] - 1.0f - span, 0.0f);
+    smp_cache_reset(&g->c);
+    g->pos = (int32_t)at;
+    g->fr = 0.0f;
+    g->ph = 0.0f;
+    g->dph = 1.0f / fm_maxf(c->ex[3], 16.0f);
+    p = frand(&v->rng) * c->ex[9];
+    g->gl = (1.0f - p) * 0.7071f * c->ex[14];
+    g->gr = (1.0f + p) * 0.7071f * c->ex[14];
+    g->own = v->vi;
+    g->dl = 0;
+    g->on = 1;
+    return g;
+}
+static __attribute__((noinline)) void tl_run(voice_t *v, float *xl, float *xr, int m)
+{
+    const cfg_t *c = &v->c;
+    const smp_t *sm = c->ex[0] > 0.0f ? smp_get((int)c->ex[6]) : 0;
+    const int32_t end = (int32_t)c->ex[1] - 1;
+    const uint8_t me = v->vi;
+    float tmp[SY_CHUNK];
+    int i, k, mine = 0;
+    unsigned ranges;
+    for (i = 0; i < m; i++)
+        xl[i] = xr[i] = 0.0f;
+    if (!sm || v->tws >= CN_SLOTS)
+        return;
+    ranges = tl_ranges(v);
+    for (k = 0; k < TL_POOL; k++)
+        if (tl_mem[k].own == me && tl_mem[k].on) {
+            if (v->o[2] != 0.0f)                 /* a new note: its old grains let go */
+                tl_mem[k].on = 0;
+            else
+                mine++;
+        }
+    if (v->o[2] != 0.0f) {                       /* (and its first grain at once) */
+        v->o[0] = 0.0f;
+        v->o[2] = 0.0f;
+    }
+    while (v->o[0] < (float)m) {                 /* this block's new grains, each from its sample in the block: the
+                                                  * next after an interval, regular or random by spray (exponential) */
+        float u = (float)((xs(&v->rng) >> 8) + 1u) * (1.0f / 16777216.0f);
+        tl_grain_t *g = tl_spawn(v, ranges, mine);
+        if (g) {
+            g->dl = (uint8_t)(v->o[0] > 0.0f ? (int)v->o[0] : 0);
+            mine++;
+        }
+        v->o[0] += c->ex[4] * ((1.0f - c->ex[5]) + c->ex[5] * -0.6931472f * fm_log2f(u));
+    }
+    v->o[0] -= (float)m;
+    for (k = 0; k < TL_POOL; k++) {              /* each grain: its block read at once (the sample engine's reader),
+                                                  * then its window (sin^2 as (4p(1-p))^2) and its pan */
+        tl_grain_t *g = &tl_mem[k];
+        int s, n;
+        if (!g->on || g->own != me)
+            continue;
+        s = g->dl < m ? g->dl : m;
+        g->dl = 0;
+        n = smp_play(&g->c, sm, &g->pos, &g->fr, g->inc, 1, 0, end, tmp + s, m - s);
+        for (i = s; i < s + n; i++) {
+            float w = 4.0f * g->ph * (1.0f - g->ph), x;
+            w *= w;
+            x = tmp[i] * w;
+            xl[i] += x * g->gl;
+            xr[i] += x * g->gr;
+            g->ph += g->dph;
+            if (g->ph >= 1.0f) {
+                g->on = 0;
+                break;
+            }
+        }
+        if (n < m - s)                           /* (the sample's end) */
+            g->on = 0;
+    }
+    v->o[1] += c->ex[7] * (float)m;              /* the scan */
+    v->o[1] -= fm_floorf(v->o[1]);
+}
+
 /* sample: a sample of the bank (dsp/sample.h) at the note's pitch; its root note plays it at its own rate
  * (sm->rate: the factory's 22.05 kHz, half a sample a frame), linearly interpolated. start: where in it
  * (0..99 %); length: how much of the rest (127 = to its end): the region. Modes: one-shot (the region once; then the voice ends), loop
@@ -1625,6 +1801,7 @@ static void eng_prep(voice_t *v, float bpm)
     case EG_CANE: cn_prep(v); break;
     case EG_VOILE: vo_prep(v); break;
     case EG_ACID: v->c.stereo = 0; break;        /* (its own: acid_chunk) */
+    case EG_TULLE: tl_prep(v); break;
     default: knit_prep(v); break;
     }
 }
@@ -1639,6 +1816,7 @@ static void eng_run(voice_t *v, float *xl, float *xr, int m)
     case EG_CANE: cn_run(v, xl, xr, m); break;
     case EG_VOILE: vo_run(v, xl, xr, m); break;
     case EG_ACID: acid_run(v, xl, m); break;
+    case EG_TULLE: tl_run(v, xl, xr, m); break;
     default: knit_run(v, xl, xr, m); break;
     }
 }
@@ -1685,6 +1863,8 @@ static void voice_start(synth_t *s, voice_t *v, int note, int vel, int glide_ms,
         v->o[3] = v->o[4] = 0.0f;
         v->o[6] = v->o[7] = 0.0f;
     }
+    if (v->engine == EG_TULLE)                   /* tulle: its grains afresh (tl_run) */
+        v->o[2] = 1.0f;
     if (v->engine == EG_CANE)                    /* the Braids engines: a strike (Braids' trigger) */
         cn_strike(v, 1);
     else if (v->engine == EG_VOILE)
@@ -1769,27 +1949,30 @@ static int knit_find(const synth_t *s, int trk) /* the knit voice to take when t
 }
 
 /* cane's cap: its waveguides play from CN_SLOTS line slots (dsp/braids.h cn_mem), so at most CN_SLOTS of its
- * voices: one that plays cane (sounding) or will (a steal's pending note that voice_take kept a slot for) */
-static int cn_voice(const voice_t *v)
+ * voices: one that plays cane (sounding) or will (a steal's pending note that voice_take kept a slot for). Tulle's the
+ * same way, CN_SLOTS slots of its own (tl_mem): eg says which engine's slots */
+static inline int sl_engine(int e) { return e == EG_CANE || e == EG_TULLE; }
+static int cn_voice(const voice_t *v, int eg)
 {
-    return (v->engine == EG_CANE && v_sounding(v)) || (v->steal_phase == 1 && v->tws_pend != CN_NONE);
+    return (v->engine == eg && v_sounding(v)) || (v->steal_phase == 1 && v->tws_pend != CN_NONE && v->tws_eng == eg);
 }
-static int cn_holds(const voice_t *v, int j)     /* the voice plays from slot j, or will */
+static int cn_holds(const voice_t *v, int j, int eg)   /* the voice plays from eg's slot j, or will */
 {
-    return (v->engine == EG_CANE && v_sounding(v) && v->tws == j) || (v->steal_phase == 1 && v->tws_pend == j);
+    return (v->engine == eg && v_sounding(v) && v->tws == j) ||
+           (v->steal_phase == 1 && v->tws_pend == j && v->tws_eng == eg);
 }
-static int cn_find(const synth_t *s, int trk)    /* the cane voice to take when the cap is reached; -1 */
+static int cn_find(const synth_t *s, int trk, int eg)   /* the voice of eg to take when its cap is reached; -1 */
 {
     int i, n = 0, best = -1, own = 0;
     float quiet = 1e9f;
     uint32_t oldest = 0xFFFFFFFFu;
     for (i = 0; i < NVOICE; i++)
-        n += cn_voice(&s->v[i]);
+        n += cn_voice(&s->v[i], eg);
     if (n < CN_SLOTS)
         return -1;
     for (i = 0; i < NVOICE; i++) {               /* releasing first (the quietest), then the track's own oldest */
         const voice_t *v = &s->v[i];
-        if (!cn_voice(v) || v->steal_phase == 1)
+        if (!cn_voice(v, eg) || v->steal_phase == 1)
             continue;
         if (v->amp.stage == ENV_RELEASE && v->amp.level < quiet) {
             quiet = v->amp.level;
@@ -1801,7 +1984,7 @@ static int cn_find(const synth_t *s, int trk)    /* the cane voice to take when 
     for (i = 0; i < NVOICE; i++) {
         const voice_t *v = &s->v[i];
         int mine = v->trk == trk;
-        if (!cn_voice(v) || v->steal_phase == 1 || (own && !mine))
+        if (!cn_voice(v, eg) || v->steal_phase == 1 || (own && !mine))
             continue;
         if ((mine && !own) || v->age < oldest) {
             oldest = v->age;
@@ -1811,7 +1994,7 @@ static int cn_find(const synth_t *s, int trk)    /* the cane voice to take when 
     }
     if (best < 0)                                /* all of them fading for a note already: the newest waits */
         for (i = 0; i < NVOICE; i++)
-            if (cn_voice(&s->v[i]) && (best < 0 || s->v[i].age > s->v[best].age))
+            if (cn_voice(&s->v[i], eg) && (best < 0 || s->v[i].age > s->v[best].age))
                 best = i;
     return best;
 }
@@ -1820,18 +2003,19 @@ static int cn_find(const synth_t *s, int trk)    /* the cane voice to take when 
 static void cn_reserve(synth_t *s, int vi, int trk)
 {
     voice_t *v = &s->v[vi];
-    int j, i;
+    int j, i, eg = P(s, trk, TP_ENGINE);
     v->tws_pend = CN_NONE;
-    if (P(s, trk, TP_ENGINE) != EG_CANE)
+    if (!sl_engine(eg))
         return;
-    if (v->engine == EG_CANE && v_sounding(v) && v->tws < CN_SLOTS) {
+    v->tws_eng = (uint8_t)eg;
+    if (v->engine == eg && v_sounding(v) && v->tws < CN_SLOTS) {
         v->tws_pend = v->tws;
         return;
     }
     for (j = 0; j < CN_SLOTS; j++) {
         int used = 0;
         for (i = 0; i < NVOICE && !used; i++)
-            used = i != vi && cn_holds(&s->v[i], j);
+            used = i != vi && cn_holds(&s->v[i], j, eg);
         if (!used) {
             v->tws_pend = (uint8_t)j;
             return;
@@ -1929,7 +2113,7 @@ static int find_voice(synth_t *s, int trk)
     uint32_t oldest = 0xFFFFFFFFu;
     if (P(s, trk, TP_ENGINE) == EG_KNIT && (best = knit_find(s, trk)) >= 0)
         return best;
-    if (P(s, trk, TP_ENGINE) == EG_CANE && (best = cn_find(s, trk)) >= 0)
+    if (sl_engine(P(s, trk, TP_ENGINE)) && (best = cn_find(s, trk, P(s, trk, TP_ENGINE))) >= 0)
         return best;
     if (P(s, trk, TP_ENGINE) == EG_ACID && (best = acid_find(s, trk)) >= 0)
         return best;
@@ -2270,6 +2454,9 @@ int synth_voice_cost(const synth_t *s, int vi)
     if (v->engine == EG_RAYON)                   /* (the FM-1, 2026-10-19: a quarter above an ordinary voice; with ops
                                                   * 3 and 4, 2026-11-23: 6.5 .. 7 % of a core a voice, the pair's 4.4) */
         return v->c.ex[16] > 0.0f ? 8 : 5;
+    if (v->engine == EG_TULLE)                   /* (the FM-1, 2026-11-23: about 2 % of a core a grain, read a block at
+                                                  * a time: 3 units each, its overlap sounding) */
+        return 2 + 3 * (int)(fm_clampf(v->c.ex[15], 1.0f, (float)TL_VOICE_MAX) + 0.5f);
     if (v->engine == EG_ACID)
         return 16;                               /* (the FM-1, 2026-10-30: 17 to 19 % of a core, its 303 oversampled
                                                   * twice: a knit unison voice's) */
@@ -2289,6 +2476,7 @@ void synth_init(synth_t *s, uint8_t (*par)[NTP])
 {
     int i, j;
     uint8_t *b = (uint8_t *)s;
+    tl_voices = s->v;                            /* (tulle's grains: whose voice still plays them) */
     for (i = 0; i < (int)sizeof *s; i++)
         b[i] = 0;
     s->par = par;
@@ -3040,6 +3228,13 @@ static void voice_chunk(synth_t *s, voice_t *v)
                 c->ex[15] = rf;
             }
         }
+        if (v->engine == EG_TULLE) {             /* its Sub page (tl_prep): spray, scan, pitch, width */
+            for (i = 0; i < 4; i++) {
+                float xv = (float)P(s, trk, TP_X1 + i);
+                moved |= xv != c->ex[10 + i];
+                c->ex[10 + i] = xv;
+            }
+        }
         if (v->engine == EG_SAMPLE) {          /* its loop page (smp_prep) */
             float a = (float)P(s, trk, TP_X1), b = (float)P(s, trk, TP_X2);
             moved |= a != c->ex[8] || b != c->ex[9];
@@ -3653,6 +3848,22 @@ int synth_slice_now(const synth_t *s, int trk, int *slice, int32_t *pos)
     *pos = (int32_t)s->v[best].o[0];
     return 1;
 }
+int synth_tulle_grains(const synth_t *s, int trk, int32_t *pos, uint8_t *lvl, int max)
+{
+    int n = 0;
+    for (int k = 0; k < TL_POOL && n < max; k++) {
+        const tl_grain_t *g = &tl_mem[k];
+        const voice_t *v = &s->v[g->own % NVOICE];
+        float w;
+        if (!g->on || v->trk != trk || v->engine != EG_TULLE || v->amp.stage == ENV_OFF)
+            continue;
+        w = 4.0f * g->ph * (1.0f - g->ph);
+        pos[n] = g->pos;
+        lvl[n] = (uint8_t)(fm_clampf(w * w * v->amp.level, 0.0f, 1.0f) * 255.0f);
+        n++;
+    }
+    return n;
+}
 int synth_voices_used(const synth_t *s)
 {
     int i, n = 0;
@@ -3753,6 +3964,9 @@ static const tp_info_t RUP_P = {"oct up", 0, 3, 0, PK_NUM, 0};   /* (TP_RUP: the
 static const tp_info_t SAMPLE_X_P[4] = {{"loop start", 0, 127, 0, PK_PCT, 0}, {"loop len", 0, 127, 0, PK_PCT, 0},
                                         {"-", 0, 0, 0, PK_NUM, 0}, {"-", 0, 0, 0, PK_NUM, 0}};
 /* orbit's second page: the index's fall (0 held; 20 ms .. 4 s), its floor, keyscale (rayon_prep) */
+/* tulle's Sub page (tl_prep): spray, scan (0 frozen), pitch (random, up to an octave), width */
+static const tp_info_t TULLE_X_P[4] = {{"spray", 0, 127, 30, PK_PCT, 0}, {"scan", 0, 127, 0, PK_NN, 0},
+                                       {"pitch", 0, 127, 0, PK_NN, 0}, {"width", 0, 127, 90, PK_PCT, 0}};
 static const tp_info_t RAYON_X_P[4] = {{"fall", 0, 127, 0, PK_NUM, 0}, {"floor", 0, 127, 0, PK_PCT, 0},
                                        {"keyscale", 0, 127, 0, PK_PCT, 0}, {"-", 0, 0, 0, PK_NUM, 0}};
 /* the MIDI engine (EG_MIDI): its second page's knobs (each named by its CC: tp_info_par), and the eight knobs' CC
@@ -3844,6 +4058,10 @@ static void eknob_init(void)
                 i->hi = (uint8_t)(k == 0 ? 1 : 127);
                 i->names = k == 0 ? ACIDW_N : 0;
             }
+            if (e == EG_TULLE) {               /* sample, position, size, density */
+                i->kind = k == 0 ? PK_SAMPLE : k == 1 ? PK_PCT : PK_NN;
+                i->hi = (uint8_t)(k == 0 ? smp_slots() - 1 : 127);
+            }
             if (e == EG_SLICE) {               /* sample, slices (4 8 16 32), pitch (+-24 st), gate */
                 static const uint8_t KIND[4] = {PK_SAMPLE, PK_NAMES, PK_BIPST, PK_PCT};
                 i->kind = KIND[k];
@@ -3909,7 +4127,7 @@ const tp_info_t *tp_info(int p, int engine)
     if (p >= TP_X1 && p <= TP_X4)                /* the engine's second page: knit's, rayon's, else none */
         return engine == EG_MIDI ? &MIDI_X_P[p - TP_X1] : engine == EG_RAYON ? &RAYON_X_P[p - TP_X1]
              : engine == EG_KNIT ? &KNIT_X_P[p - TP_X1] : engine == EG_SAMPLE ? &SAMPLE_X_P[p - TP_X1]
-             : engine == EG_ACID ? &ACID_X_P[p - TP_X1] : &NONE_P;
+             : engine == EG_ACID ? &ACID_X_P[p - TP_X1] : engine == EG_TULLE ? &TULLE_X_P[p - TP_X1] : &NONE_P;
     if (engine == EG_ACID) {                     /* its 303's filter and envelope; no glide, one mode, one filter */
         if (p >= TP_CUT && p <= TP_KTRK)
             return &ACID_F_P[p - TP_CUT];

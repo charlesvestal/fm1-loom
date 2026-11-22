@@ -1,7 +1,7 @@
 # LOOM-8 for the M-VAVE FM-1
 
 LOOM-8 turns the M-VAVE FM-1 into a pocket groovebox: eight instrument tracks, each in its own colour, on
-eleven engines (seven synths: knit, rayon, jacquard, bellows, cane, voile and acid, a TB-303; a sample player, a break slicer, a drum kit, and MIDI out to drive another synth), 112 factory presets; a 64-step sequencer with step tricks and parameter locks; players (arp,
+twelve engines (seven synths: knit, rayon, jacquard, bellows, cane, voile and acid, a TB-303; a sample player, a break slicer, a grain cloud, a drum kit, and MIDI out to drive another synth), 119 factory presets; a 64-step sequencer with step tricks and parameter locks; players (arp,
 strum, hold); weave, which crosses two patterns (bar by bar, step by step, or one's rhythm with the other's
 notes); throws (momentary effects); a conductor track that moves the song through a progression; two
 send-effect tracks (the reverb with the PlayStation's reverbs among its modes), a mixer with EQ
@@ -20,8 +20,7 @@ firmware back, and an FM-1 that keeps crashing starts in a safe mode.
 
 The design is in `docs/superpowers/specs/2026-10-15-xy1-design.md`.
 
-Your projects and presets can be backed up to a computer and put back (the site's Backup page), and the screen
-mirrored to it and played from there (the Mirror page); your own
+Your projects and presets can be backed up to a computer and put back (the site's Backup page); your own
 samples load from their WAV files with `tools/loom_samples.py` (see the manual).
 
 ## Building and testing

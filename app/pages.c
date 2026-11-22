@@ -702,7 +702,7 @@ static int kit_x_page(int t)                         /* a kit whose key shown ha
 static int x_page(int t)                             /* the engine has a second page of knobs (TP_X1..X4) */
 {
     int e = t < NTRK ? proj.trk[t].par[TP_ENGINE] : -1, m = t < NTRK ? proj.trk[t].par[TP_E4] % NSM : 0;
-    return e == EG_RAYON || e == EG_KNIT || e == EG_MIDI || e == EG_ACID || (e == EG_SAMPLE && (m == SM_LOOP || m == SM_PINGPONG)) ||   /* (the
+    return e == EG_RAYON || e == EG_KNIT || e == EG_MIDI || e == EG_ACID || e == EG_TULLE || (e == EG_SAMPLE && (m == SM_LOOP || m == SM_PINGPONG)) ||   /* (the
                                                                                      * sample's loop page: looping) */
            kit_x_page(t);
 }
@@ -4375,6 +4375,65 @@ static void pic_sample(int32_t x0, int32_t y0, int32_t w, int32_t h, const uint8
     }
 }
 
+/* tulle: the sample's waveform (faint), where its grains come from tinted (the position, spray's width about it) and
+ * bright, a grain's length marked under the position; above, the sample's name and the grains: how many a second, how
+ * long, and the scan's arrow when it moves */
+#define TL_SHOWN 16                                  /* grains drawn at most (four notes of four) */
+static int32_t tl_gpos[TL_SHOWN];                    /* the grains sounding, as draw_engine read them */
+static uint8_t tl_glvl[TL_SHOWN];
+static int tl_ng;
+static void pic_tulle(int32_t x0, int32_t y0, int32_t w, int32_t h, const uint8_t *p)
+{
+    int idx = p[TP_E1] < smp_slots() ? p[TP_E1] : smp_slots() - 1;
+    const smp_t *sm = smp_get(idx);
+    int32_t wy = y0 + 20, wh = h - 30, cy = wy + wh / 2;
+    char t[40], *e;
+    if (w > 200)
+        w = 200;
+    if (!sm) {
+        text_c(x0 + w / 2, cy - 16, &FONT_S, smp_name(idx), K_DIM);
+        text_c(x0 + w / 2, cy + 4, &FONT_XS, smp_missing(idx), K_DIM);
+        return;
+    }
+    {
+        int ms = (int)(10.0f * fm_exp2f((float)p[TP_E3] * (5.643856f / 127.0f)) + 0.5f);
+        int gs = (int)(2.0f * fm_exp2f((float)p[TP_E4] * (4.906891f / 127.0f)) + 0.5f);
+        e = s_cat(t, sm->name);
+        text_fit(x0, y0 + 2, &FONT_XS, t, w - 90, K_TEXT);
+        e = s_cat(num_i(gs, t), " a second, ");
+        s_cat(num_i(ms, e), " ms");
+        text_r(x0 + w, y0 + 2, &FONT_XS, t, K_DIM);
+    }
+    smp_columns(idx, sm, w);
+    {
+        float n = (float)sm->n, pos = (float)p[TP_E2] * (1.0f / 127.0f), spr = (float)p[TP_X1] * (0.5f / 127.0f);
+        float ms = 10.0f * fm_exp2f((float)p[TP_E3] * (5.643856f / 127.0f));
+        int32_t xp = (int32_t)(pos * (float)w), xa = (int32_t)((pos - spr) * (float)w), xb = (int32_t)((pos + spr) * (float)w);
+        int32_t gw = (int32_t)(ms * 0.001f * (float)sm->rate * (float)w / n);
+        xa = xa < 0 ? 0 : xa;
+        xb = xb > w - 1 ? w - 1 : xb;
+        if (xb > xa)
+            cv_rect(x0 + xa, wy, xb - xa + 1, wh, K_TINT);
+        cv_rect(x0, cy, w, 1, K_LINE);
+        for (int32_t x = 0; x < w; x++) {
+            int32_t yl = cy - smp_col_hi[x] * (wh / 2 - 1) / 127, yh = cy - smp_col_lo[x] * (wh / 2 - 1) / 127;
+            cv_rect(x0 + x, yl, 1, yh - yl + 1, x >= xa && x <= xb ? K_NOW : K_FAINT);
+        }
+        cv_round(x0 + xp - 3 < x0 ? x0 : x0 + xp - 3, wy, 6, 6, 3, K_TEXT);
+        for (int k = 0; k < tl_ng; k++) {            /* each grain sounding: a line where it reads, as tall as it is
+                                                      * loud (its window rising and falling) */
+            int32_t gx = (int32_t)((float)tl_gpos[k] * (float)w / n), gh = 4 + tl_glvl[k] * (wh - 4) / 255;
+            if (gx >= 0 && gx < w) {
+                cv_rect(x0 + gx - 1, cy - gh / 2, 3, gh, K_TEXT);
+                cv_round(x0 + gx - 3, cy - gh / 2 - 3, 7, 7, 3, K_TEXT);   /* (its head: easy to follow) */
+            }
+        }
+        gw = gw < 2 ? 2 : gw > w - xp ? w - xp : gw;
+        cv_rect(x0 + xp, wy + wh + 3, gw, 2, K_TEXT);  /* a grain's length */
+        if (p[TP_X2])                                 /* the scan moves on: an arrow after the position */
+            text_c(x0 + xp + 12 > x0 + w - 6 ? x0 + w - 6 : x0 + xp + 12, wy + wh + 1, &LFONT_XS, ">", K_DIM);
+    }
+}
 /* the slice engine: the loop's waveform cut by its slice lines, each slice's gated part drawn and what the gate
  * leaves out faint; the slice playing tinted and bright, a line where it plays; a dot on slice 1 (the root's).
  * Above: the loop's name and bars (or its own speed), the count or the slice playing */
@@ -4535,7 +4594,7 @@ static void draw_engine(void)
     uint32_t h;
     pic_clock(trk);
     h = hash_u(hash_u(2166136261u, 0xE0u), (uint32_t)trk | (uint32_t)eg << 4 | (uint32_t)ui.dsound << 8 |
-                                          (eg == EG_SAMPLE || eg == EG_SLICE ? 0u : (pic_f / 2) << 12));
+                                          (eg == EG_SAMPLE || eg == EG_SLICE || eg == EG_TULLE ? 0u : (pic_f / 2) << 12));
     h = hash_u(h, (uint32_t)(pic_lvl * 32.0f));
     for (int i = 0; i < 4; i++)
         h = hash_u(h, p[TP_E1 + i]);
@@ -4550,8 +4609,14 @@ static void draw_engine(void)
         for (int k = 0; k < 8; k++)
             h = hash_u(h, (uint32_t)p[k < 4 ? TP_E1 + k : TP_X1 + k - 4] | (uint32_t)p[midi_cc_par(k)] << 8 |
                               (uint32_t)ui.page << 16);
-    if (eg == EG_SAMPLE || eg == EG_SLICE)           /* (the bank: an upload changes what the picture shows) */
+    if (eg == EG_SAMPLE || eg == EG_SLICE || eg == EG_TULLE)   /* (the bank: an upload changes what the picture shows) */
         h = hash_u(h, (uint32_t)smp_user_count() << 16 ^ smp_user_bytes());
+    if (eg == EG_TULLE) {                            /* (its Sub page's spray and scan are drawn; its grains, live) */
+        h = hash_u(h, (uint32_t)p[TP_X1] | (uint32_t)(p[TP_X2] > 0) << 8);
+        tl_ng = engine_tulle_grains(trk, tl_gpos, tl_glvl, TL_SHOWN);
+        for (int k = 0; k < tl_ng; k++)
+            h = hash_u(h, (uint32_t)tl_gpos[k] >> 6 | (uint32_t)(tl_glvl[k] >> 4) << 24);
+    }
     if (eg == EG_SAMPLE)                             /* (its loop page's knobs mark the loop) */
         h = hash_u(h, (uint32_t)p[TP_X1] | (uint32_t)p[TP_X2] << 8 | (uint32_t)ui.page << 16);
     if (eg == EG_SLICE) {                            /* the slice playing and where (a column of the picture) */
@@ -4620,6 +4685,7 @@ static void draw_engine(void)
     case EG_BELLOWS: pic_organ(20, 24, 200, PIC_H, p, pic_f); break;
     case EG_SAMPLE: pic_sample(20, 24, 200, PIC_H, p); break;
     case EG_SLICE: pic_slice(20, 24, 200, PIC_H, p, trk); break;
+    case EG_TULLE: pic_tulle(20, 24, 200, PIC_H, p); break;
     case EG_CANE: pic_cane(20, 24, 200, PIC_H, p, pic_f); break;
     case EG_VOILE: pic_voile(20, 24, 200, PIC_H, p, pic_f); break;
     case EG_KNIT: pic_knit(20, 24, 200, PIC_H, p, pic_f, ui.page == P_OSC2); break;
@@ -5214,7 +5280,7 @@ static void draw_sub(void)
         draw_rayon_fall();
     else if (eg == EG_ACID)
         draw_acid_x();
-    else if (eg == EG_SAMPLE || eg == EG_MIDI)
+    else if (eg == EG_SAMPLE || eg == EG_MIDI || eg == EG_TULLE)
         draw_engine();                           /* (the sample's loop page: the waveform, its loop marked; MIDI's
                                                   * knobs 5..8: its eight bars) */
     else

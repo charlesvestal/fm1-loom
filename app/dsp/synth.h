@@ -39,10 +39,17 @@
  * velocity ACID_ACCENT or more is accented; a note that starts while the last one is still held slides to it, and so
  * does a note with a glide (a step's glide trick, the arp's glide) after a short one: on the same pitch, a tie. */
 enum { EG_KNIT, EG_RAYON, EG_JACQUARD, EG_BELLOWS, EG_CANE, EG_VOILE, EG_SAMPLE, EG_SLICE, EG_DRUMLINE, EG_MIDI,
-       EG_ACID, NENGINE };                           /* (saved by number: PROJ_FORMAT 10 renumbered them; a new one
+       EG_ACID, EG_TULLE, NENGINE };                           /* (saved by number: PROJ_FORMAT 10 renumbered them; a new one
                                                       * goes last) */
 #define NACID 2
 #define ACID_ACCENT 112
+/* EG_TULLE (2026-11-23): grains of a sample of the bank. E1 the sample, E2 position (where in it), E3 size (a grain's
+ * length, 10 .. 500 ms), E4 density (grains a second, 2 .. 60); its Sub page (TP_X1..X4): spray (each grain's position
+ * jittered, and its start in time: regular at 0, random at the top), scan (the position moving on its own: 0 frozen),
+ * pitch (each grain detuned at random, up to an octave), width (the grains across the stereo field). At most CN_SLOTS
+ * of its voices (cane's slots: a cap), their grains from one pool of TL_POOL, each with its own decode window */
+#define TL_POOL 16
+#define TL_VOICE_MAX 10                              /* a note's grains at most (its voice on one core: the FM-1's budget) */
 /* the Braids engines (dsp/braids.h, after Mutable Instruments Braids, MIT): E1 the model, E2 Braids' timbre, E3 its
  * color, E4 cane's damp, voile's breath. cane: pluck, bow, reed, flute, bell, drum, at most CN_SLOTS of its voices
  * (each a slot of CN_LEN int16 for its lines); voile: vosim, vowel, choir, whisper */
@@ -364,6 +371,9 @@ int synth_voices_used(const synth_t *s);
 /* the slice engine's newest playing voice on a track (the picture): its slice (0-based) and the position in
  * the sample; 0 when none plays. Called from the main loop: a racy read of the voices, for the screen only */
 int synth_slice_now(const synth_t *s, int trk, int *slice, int32_t *pos);
+/* tulle's grains sounding on a track (the picture): each one's place in the sample and its level now (its window times
+ * the voice's envelope, 0..255), at most max; how many */
+int synth_tulle_grains(const synth_t *s, int trk, int32_t *pos, uint8_t *lvl, int max);
 void synth_limit(synth_t *s, int max_voices);                  /* the overload guard: fewer voices */
 void synth_acid_lite(synth_t *s, int on);                      /* and before it: the 303s without oversampling */
 int synth_lock_value(const synth_t *s, int trk, int param);   /* a lock's value now, -1 none (the UI's dot) */

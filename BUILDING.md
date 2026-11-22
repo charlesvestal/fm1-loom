@@ -108,6 +108,11 @@ sector above it only for an update record, which the bank never holds: `tools/sa
 a third window, 0x93000..0x96FFF (16 KB), which the app has since; a bank made then still plays when its data fits
 the two windows.
 
+## A development build with mirroring
+
+Releases have no screen mirroring (since 0.19: its RAM went to tulle's grains). To work with the screen on a computer,
+build without Bluetooth, which leaves room for it: `FM1B_MIRROR=1 ./build.sh --no-ble` makes `app/build/loom-usb.fwsc`.
+
 ## Publishing a release
 
 A release is built on GitHub from its tag, so anyone can check that the package came from this source:

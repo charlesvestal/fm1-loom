@@ -14,7 +14,7 @@
   "hardware": {
     "models": ["FM-1"],
     "flash": ["856014", "B36014"],
-    "features": ["bluetooth-midi", "bluetooth-midi-devices", "bluetooth-audio", "usb-audio-in", "second-core", "screen-reader", "screen-mirror", "backup", "resources"]
+    "features": ["bluetooth-midi", "bluetooth-midi-devices", "bluetooth-audio", "usb-audio-in", "second-core", "screen-reader", "backup", "resources"]
   },
   "credits": "Built on fm1-base and felucca-bsp, from Felucca by Leo Kuroshita (Hügelton Instruments). Knit's unison (the supersaw): after NuSaw (MIT). Cane and voile: Mutable Instruments Braids by Emilie Gillet (MIT). Acid: X0X's 303, from Open303 by Robin Schmidt (MIT), with jc303's Devilfish ranges by midilab and dm-Rat's RAT drive by Dave Mollen (GPL-3.0). Reverb: the plate after 9W9 by athousanddetails (with permission), the PlayStation modes PSXVerb (MIT). The 909 kick, snare and clap: renders of 9W9 by athousanddetails (with permission); the 909 models: 9W9's circuits (GPL-3.0); the hat and the 909 cymbals: ER-99's samples by Matthew Cieplak, through 9W9 (GPL-3.0). The x drums: after MACHINEDRUM by Omodaka9375 (MIT); sophie: Sophie by Matt Estela (MIT); clang: digisophie (MIT). Bluetooth: Optimist's stack by Henri David (MPL-2.0), with Android's SBC encoder (Apache-2.0), micro-ecc by Kenneth MacKay (BSD-2-Clause) and the radio's set-up after JieLi's AC79 SDK (Apache-2.0). Fonts: Barlow, Terminus (SIL OFL 1.1)."
 }

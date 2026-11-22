@@ -104,4 +104,5 @@ extern volatile uint8_t eng_scene_now, eng_scene_cue;
 extern int16_t eng_scope[SCOPE_N];                       /* the last output samples, for the screen */
 extern volatile uint32_t eng_scope_w;
 int engine_core2_state(void);
+int engine_tulle_grains(int trk, int32_t *pos, uint8_t *lvl, int max);   /* tulle's grains sounding (synth.h) */
 int engine_slice_now(int trk, int *slice, int32_t *pos);  /* the slice engine's slice playing on a track (the picture) */                            /* 0 one core (never had), 1 two, 2 lost, 3 barred */

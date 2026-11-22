@@ -2,7 +2,8 @@
 
 LOOM-8 turns your M-VAVE FM-1 into a pocket groovebox: eight threads of sound on a 64-step loom.
 
-Each track can play one of seven synths, a sample, a chopped-up break, a drum kit, or another synth over MIDI.
+Each track can play one of seven synths, a sample, a chopped-up break, a cloud of grains, a drum kit, or another
+synth over MIDI.
 Write patterns of up to 64 steps, then give any step a trick, or lock a knob to its own value there. Use the
 conductor to lead the band through a chord progression, and hold a key to throw in a momentary effect while it
 plays. Weave two patterns into a third: bar by bar, step by step, or with one's rhythm and the other's notes. Mix
@@ -110,8 +111,8 @@ second.
   conductor's key.
 - **Song**: a chain of scenes, each played for a number of bars.
 - **Engine**: the way a track makes its sound. There are seven synths (knit, rayon, jacquard, bellows, cane, voile
-  and acid), two sample engines (sample and slice) and the kit, a drum synth.
-- **Preset**: a sound to load. 112 come with LOOM-8, from seven to twenty for each engine, and 16 are your own.
+  and acid), three sample engines (sample, slice and tulle) and the kit, a drum synth.
+- **Preset**: a sound to load. 119 come with LOOM-8, from six to twenty-three for each engine, and 16 are your own.
 - **Player**: what the keys do on a track: arp, strum, hold or random.
 - **Conductor**: an aux track that sets the key, scale and chords for the other tracks. It plays its own chords,
   or takes them from a track's notes.
@@ -579,19 +580,21 @@ tonality is **ignore** follows nothing.
 
 | Engine | Knobs | Presets |
 | --- | --- | --- |
-| knit | wave, detune, voices, width | 15 |
-| rayon | bright, ratio, edge, tine | 10 |
+| knit | wave, detune, voices, width | 23 |
+| rayon | bright, ratio, edge, tine | 17 |
 | jacquard | table, scan, bend, ripple | 11 |
 | bellows | stops, pedal, rotor, rate | 9 |
 | cane | model, timbre, color, damp | 8 |
 | voile | model, timbre, color, breath | 7 |
 | sample | sample, start, length, mode | 18 |
 | slice | sample, slices, pitch, gate | 11 |
+| tulle | sample, position, size, density | 7 |
 | acid | wave, accent, slide, tune | 8 |
 | kit | the model knobs of the key shown | |
 | midi | eight knobs, each sending a CC | |
 
-Rayon and acid have a second set of knobs. To reach them, press **EDIT** and turn **SELECT** once, to the Sub page.
+Rayon, acid and tulle have a second set of knobs. To reach them, press **EDIT** and turn **SELECT** once, to the Sub
+page.
 Knit has three more pages instead, Osc 2, Mod and Levels.
 
 ### Knit
@@ -1035,6 +1038,32 @@ up to about 16 seconds long at 22050 Hz.
 The sound stops while the FM-1 writes the samples, and a fuller bank takes longer. When the screen says LOADED,
 the FM-1 has checked every byte. A track that was playing a sample keeps pointing at the same slot, so user 2 is
 still user 2, whatever is in it now.
+
+### Tulle
+
+**Tulle** plays a sample as a cloud of grains: short, overlapping pieces of it, each with its own fade, place, pitch
+and position in the stereo field. Use it for pads, drones, frozen moments, shimmers and smeared textures. Notes play
+the grains at their pitch, as the sample engine plays a sample. Its knobs:
+
+| Knob | What it does |
+| --- | --- |
+| sample | Picks the sample: one of LOOM-8's own, or one of yours. |
+| position | Sets where in the sample the grains come from. |
+| size | Sets how long each grain is, from 10 ms (a buzz) to half a second (a smear). |
+| density | Sets how many grains start each second, from 2 (sparse) to 60 (a thick cloud). |
+
+On the Sub page, **spray** scatters each grain's position around the knob's, and its start in time: at 0 the grains
+start at a steady rate, for a pitched buzz, and turned up they start at random, for a cloud. **scan** moves the position through the
+sample on its own (at 0 it stays still: a frozen sound), **pitch** detunes each grain at random, by up to an octave at
+the top, and **width** spreads the grains across the stereo field. To move through the sample by hand or with a
+pattern, put an LFO or a lock on **position**.
+
+The picture shows the sample's waveform, with the part the grains come from lit and a dot at the position. While
+a note plays, each grain shows as a line at the spot it reads from, rising and fading as the grain does. Up to four
+tulle notes play at once across all tracks, and a fifth takes over the oldest. They share 16 grains, so a note on its
+own can make a thicker cloud, up to 10 grains at once. Tulle sounds best on a long, changing sample, such as a voice,
+a field recording or a pad of your own. LOOM-8's own sounds are short. There are seven presets: tulle, frozen keys,
+flute glow, brass haze, vinyl dust, hit stutter and thick cloud.
 
 ### MIDI
 
@@ -1615,12 +1644,6 @@ they are. To do the same from a terminal, run these in the firmware's folder:
 - projects and presets: `python3 base/tools/fm1_backup.py backup FILE --magic LM8B` and `restore FILE`
 - samples: `python3 tools/loom_samples.py backup FILE` and `restore FILE` (its `restore` also takes the backup
   page's file)
-
-**Mirror.** To see LOOM-8's screen live on a computer, open <https://charlesvestal.github.io/fm1-loom/mirror/> in
-Chrome or Edge with the FM-1 connected by USB. Use it for a video, a lesson, or a bigger view. The page
-shows the buttons, keys and knobs too, and you can play them from there. The music always comes first, so on a
-busy screen the picture may skip a frame, but the sound never does. From a terminal,
-`python3 base/tools/fm1_mirror.py screen.png` saves the screen as a PNG.
 
 To keep a track's sound, go to a sound page, hold **SAVE** and press white key 1 to 16. The sound becomes that
 user preset.

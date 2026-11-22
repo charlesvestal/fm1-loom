@@ -11,8 +11,6 @@
                                 the package's metadata inlined; Chrome or Edge, Web MIDI)
   backup/index.html             backup and restore in the browser (fm1-base's web/backup/index.html: the projects and
                                 the user presets; the samples, app/web/backup/extras.js, in a section of the file)
-  mirror/index.html             the screen and the panel on the computer (fm1-base's web/mirror/index.html; Chrome or
-                                Edge, Web MIDI)
   samples/index.html            the user sample bank in the browser (app/web/samples/: add, replace, rename, reorder,
                                 remove; fm1ports.js and loom_samples.js inlined)
   export/index.html             a project's song or a scene as a WAV, from a backup file or read from the FM-1, in the
@@ -85,8 +83,7 @@ SITE_CSS = """<style>
 </style>""" % (tokens(PALETTE["light"]), tokens(PALETTE["dark"]), tokens(PALETTE["dark"]))
 
 SECTIONS = [("emu/", "Try it"), ("manual/", "Manual"), ("install/", "Install"), ("samples/", "Samples"),
-            ("backup/", "Backup"), ("export/", "Export"),
-            ("mirror/", "Mirror")]
+            ("backup/", "Backup"), ("export/", "Export")]   # (no Mirror since 0.19: the firmware has no mirroring)
 
 
 def dress(page, here):
@@ -169,14 +166,13 @@ firmware, and the installer can always put M-VAVE's own firmware back. Install a
   <a href="samples/"><strong>Samples</strong><span>Load up to 32 of your own samples onto the FM-1, and rename, reorder or swap them any time.</span></a>
   <a href="backup/"><strong>Backup</strong><span>Save your projects, presets and samples to a file, and load them back later.</span></a>
   <a href="export/"><strong>Export</strong><span>Make a WAV of a song or a scene from one of your projects, in your browser.</span></a>
-  <a href="mirror/"><strong>Mirror</strong><span>See the FM-1's screen live on your computer, and play its buttons, keys and knobs from there.</span></a>
   <a href="firmware/__PKG__"><strong>Download __PKG__</strong><span>For the command-line installer: <code>python3 base/tools/fm1_install.py __PKG__</code></span></a>
   <a href="__REPO__"><strong>Source</strong><span>On GitHub under GPL-3.0 (most files are MPL-2.0). Built on fm1-base and felucca-bsp, which grew out of Felucca by Leo Kuroshita (Hügelton Instruments).</span></a>
 </nav>
 
 <h2>What's in it</h2>
 <ul class="feat">
-  <li><b>Eight tracks</b>, each with eight patterns of up to 64 steps. Give a track one of seven synths: knit (an everyday subtractive voice with supersaw unison, oscillator sync and cross-modulation), rayon (FM, with an optional second pair of operators), jacquard (wavetables), bellows (an organ), cane and voile (physical models and voices from Mutable Instruments Braids) or acid (a TB-303 bass line, with accent and slide). Or play the sample bank with sample, chop up breaks with slice, put eleven drums on the black keys with the kit, or play another synth over USB or Bluetooth with midi. Start from 112 factory presets, and save 16 of your own.</li>
+  <li><b>Eight tracks</b>, each with eight patterns of up to 64 steps. Give a track one of seven synths: knit (an everyday subtractive voice with supersaw unison, oscillator sync, cross-modulation and an analog knob), rayon (FM, with an optional second pair of operators), jacquard (wavetables), bellows (an organ), cane and voile (physical models and voices from Mutable Instruments Braids) or acid (a TB-303 bass line, with accent and slide). Or play the sample bank with sample, chop up breaks with slice, spin it into clouds of grains with tulle, put eleven drums on the black keys with the kit, or play another synth over USB or Bluetooth with midi. Start from 119 factory presets, and save 16 of your own.</li>
   <li>Add <b>tricks</b> to any step: pulse, hold, multiply, ramps, bends, jumps, skips and more. <b>Lock</b> any knob to its own value on any step.</li>
   <li><b>Weave</b> two patterns together. They can take turns bar by bar or step by step, or one can play its rhythm with the other's notes.</li>
   <li>Use the <b>players</b> to arpeggiate, to strum a recorded chord from a single key, or to hold notes.</li>
@@ -197,7 +193,7 @@ owners; LOOM-8 is not affiliated with any of them.</p>
 
 def backup_tools(conf=None):
     """fm1-base's tool pages filled in for LOOM-8 (base_site.tool_pages): the backup page with its sample section
-    (app/web/backup/extras.js on the samples page's code), and the mirror"""
+    (app/web/backup/extras.js on the samples page's code)"""
     conf = conf or base_site.read_conf(SRC / "app" / "fm1.toml")
     extras = ("const EXTRAS = (() => {\n" +
               strip_module((SRC / "app" / "web" / "samples" / "loom_samples.js").read_text(encoding="utf-8")) + "\n" +
@@ -242,7 +238,7 @@ def main(pkg, version, out):
     name = f"loom-{re.sub(r'[^A-Za-z0-9.-]', '-', version)}.fwsc"
     if out.exists():
         shutil.rmtree(out)
-    for d in ("install", "firmware", "backup", "mirror"):
+    for d in ("install", "firmware", "backup"):
         (out / d).mkdir(parents=True)
     shutil.copy(pkg, out / "firmware" / name)
     # the resource region (the 909 cymbals: fm1.toml resources), checked, beside it: the installer writes it after
@@ -302,7 +298,6 @@ def main(pkg, version, out):
     # the backup page's own section: the sample bank (app/web/backup/extras.js on the samples page's code)
     tools = backup_tools(conf)
     (out / "backup" / "index.html").write_text(tools["backup/index.html"], encoding="utf-8")
-    (out / "mirror" / "index.html").write_text(tools["mirror/index.html"], encoding="utf-8")
     # the samples page, its bank code (app/web/samples/loom_samples.js) inlined after fm1-base's web/fm1ports.js (it
     # finds the FM-1 as the installer and the backup page do)
     spage = (SRC / "app" / "web" / "samples" / "index.html").read_text(encoding="utf-8")
@@ -351,12 +346,12 @@ def main(pkg, version, out):
     # the screen reader's words files (fm1-reader): every one ever made, for the devices that point at them
     shutil.copytree(SRC / "app" / "web" / "words", out / "words")
     for path, here in (("index.html", ""), ("manual/index.html", "manual/"), ("install/index.html", "install/"),
-                       ("backup/index.html", "backup/"), ("mirror/index.html", "mirror/"), ("samples/index.html", "samples/"),
+                       ("backup/index.html", "backup/"), ("samples/index.html", "samples/"),
                        ("export/index.html", "export/"), ("emu/index.html", "emu/")):
         f = out / path
         f.write_text(dress(f.read_text(encoding="utf-8"), here), encoding="utf-8")
     (out / ".nojekyll").write_text("")
-    print(f"site: {out}: index.html, manual/, install/ ({product}), backup/, mirror/, samples/, export/, emu/, words/, firmware/{name} ({len(raw)} B)")
+    print(f"site: {out}: index.html, manual/, install/ ({product}), backup/, samples/, export/, emu/, words/, firmware/{name} ({len(raw)} B)")
 
 
 if __name__ == "__main__":
