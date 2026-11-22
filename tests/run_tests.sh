@@ -85,8 +85,10 @@ done
 # scene played to their ends
 if command -v emcc >/dev/null 2>&1 && command -v node >/dev/null 2>&1; then
     run export-wasm node tests/host/export_wasm.mjs $B/emu/app.wasm $B/scenarios/export_fixture/export.bkp
+    # the page's worker code: the song to a WAV at the host's level; a backup with build/gen/user_bank.bin as its samples
+    run export-web node tests/host/export_web.mjs $B/emu/app.wasm $B/scenarios/export_fixture build/gen/user_bank.bin
 else
-    echo "  skip export-wasm (no emcc or node)"
+    echo "  skip export-wasm, export-web (no emcc or node)"
 fi
 # the USB audio input's ten channels as usbtracks.xy recorded them: the tracks in their own, at their level, before their pan
 run usb-channels "$PY" tests/usbtracks_check.py "$B/scenarios/usbtracks"
