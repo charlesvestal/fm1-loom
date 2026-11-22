@@ -260,7 +260,7 @@ static int smp_frame(const uint8_t *p, uint32_t n)
         }
         load_preset((int)t, &PRESETS[k]);
         proj.trk_sel = (uint8_t)t;
-        rp_byte(PRESETS[k].par[TP_ENGINE]);
+        rp_byte(PRESETS[k].engine);
         rp_text(PRESETS[k].name, SMP_NAME);
         break;
     }

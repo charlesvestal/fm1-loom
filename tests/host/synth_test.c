@@ -1953,6 +1953,31 @@ static float ln_rms(int engine, int e1, int x1, int x3, int blocks, float *late,
     *late = (float)el;
     return (float)e;
 }
+/* the preset table (each engine's template and each preset's differences: tools/gen_presets.py) decodes to every
+ * preset's fields whole (gen_presets.py --full) */
+#include "presets_full.h"
+static void preset_table_tests(void)
+{
+    static const uint16_t X[PS_N - NTP_SOUND] = {TP_O2FINE, TP_O2WAVE, TP_O2SHAPE, TP_KSYNC, TP_KSWEEP, TP_KCROSS,
+                                                 TP_KSUB, TP_ROPS, TP_RRATIO, TP_RDEPTH, TP_RFB, TP_KANALOG};
+    int bad = 0;
+    _Static_assert(sizeof PRESET_FULL / sizeof PRESET_FULL[0] > 0, "presets_full.h");
+    for (int k = 0; k < NPRESETS; k++) {
+        uint8_t p[NTP];
+        memset(p, 0xEE, sizeof p);
+        preset_sound(p, &PRESETS[k]);
+        for (int i = 0; i < PS_N; i++)
+            if (p[i < NTP_SOUND ? i : X[i - NTP_SOUND]] != PRESET_FULL[k][i]) {
+                if (bad++ < 4)
+                    printf("    preset %s: field %d is %d, wants %d\n", PRESETS[k].name, i,
+                           p[i < NTP_SOUND ? i : X[i - NTP_SOUND]], PRESET_FULL[k][i]);
+            }
+        if (p[TP_ENGINE] != PRESETS[k].engine)
+            bad++;
+    }
+    check("the preset table decodes to every preset's fields whole (its engine too)", !bad &&
+          (int)(sizeof PRESET_FULL / sizeof PRESET_FULL[0]) == NPRESETS);
+}
 static void lace_velvet_tests(void)
 {
     static float l[20 * N], r[20 * N], l2[20 * N], r2[20 * N];
@@ -2277,7 +2302,7 @@ int main(void)
         {
             int sub = 0;                         /* (project.c: a new project's track 2 is knit's sub) */
             for (k = 0; k < NPRESETS; k++)
-                sub |= PRESETS[k].par[TP_ENGINE] == EG_KNIT && strstr(PRESETS[k].name, "sub") != 0;
+                sub |= PRESETS[k].engine == EG_KNIT && strstr(PRESETS[k].name, "sub") != 0;
             check("knit has a sub (a new project's track 2)", sub);
         }
     }
@@ -2286,15 +2311,15 @@ int main(void)
             continue;
         int n = 0;
         for (k = 0; k < NPRESETS; k++)
-            n += PRESETS[k].par[TP_ENGINE] == e;
+            n += PRESETS[k].engine == e;
         if (n < 1) {                             /* (the bank by role and genre: as many as each engine earns) */
             printf("    engine %s has no presets\n", EG_NAME[e]);
             check("every engine has presets", 0);
         }
-        if (preset_first(e) < 0 || PRESETS[preset_first(e)].par[TP_ENGINE] != e)
+        if (preset_first(e) < 0 || PRESETS[preset_first(e)].engine != e)
             check("preset_first", 0);
         for (k = preset_first(e); k >= 0 && k < preset_first(e) + n; k++)   /* together: PRESETS steps through them */
-            if (k >= NPRESETS || PRESETS[k].par[TP_ENGINE] != e) {
+            if (k >= NPRESETS || PRESETS[k].engine != e) {
                 printf("    engine %s's presets are not together\n", EG_NAME[e]);
                 check("an engine's presets together", 0);
                 break;
@@ -3048,6 +3073,7 @@ int main(void)
     knit_analog_tests();
     tulle_tests();
     lace_velvet_tests();
+    preset_table_tests();
     kit_char_tests();
     sample_tests();
     slice_tests();

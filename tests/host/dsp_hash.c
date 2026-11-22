@@ -110,7 +110,7 @@ static void synth_cases(void)
     }
     for (k = 0; k < NPRESETS; k++) {   /* (by name, beside the next engine's first preset: a preset added keeps the
                                         * others' fingerprints) */
-        int t, e = PRESETS[k].par[TP_ENGINE], j = -1;
+        int t, e = PRESETS[k].engine, j = -1;
         for (t = 1; t <= NENGINE && j < 0; t++)
             j = preset_first((e + t) % NENGINE);
         for (t = 0; t < NTRK; t++)

@@ -347,7 +347,7 @@ static const char *preset_name(int i, char *t)
 static int preset_engine(int i)                  /* a preset's engine (a user slot never saved: -1) */
 {
     if (i < NPRESETS)
-        return PRESETS[i].par[TP_ENGINE];
+        return PRESETS[i].engine;
     i -= NPRESETS;
     return user_presets[i].name[0] ? user_presets[i].engine : -1;
 }

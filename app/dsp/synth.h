@@ -313,14 +313,17 @@ static inline int tp_bend_semi(int v) { return v >= 8 ? 12 : v; }   /* TP_BEND a
 enum { RL_BASS, RL_LEAD, RL_PAD, RL_KEYS, RL_PLUCK, RL_BELL, RL_STAB, RL_STRINGS, RL_BRASS, RL_VOICE, RL_CHORD, RL_FX,
        RL_DRUM, RL_LOOP, NRL };
 extern const char *const RL_NAME[NRL];            /* "bass", "lead", ... */
+/* a preset's sound is its fields (PS_N: par[0..NTP_SOUND), then knit's Osc 2 and Mod pages, rayon's Ops page, knit's
+ * analog), kept as its engine's template (the value most of the engine's presets have) and its own differences from it
+ * (tools/gen_presets.py: 4.5 KB for the 8 KB the whole fields took, 2026-11-23): at its place in the table, a mask of
+ * PS_MASK bytes (bit i: field i differs), then the values of the fields that do */
+#define PS_N (NTP_SOUND + 12)
+#define PS_MASK ((PS_N + 7) / 8)
 typedef struct {
     const char *name;
-    uint8_t par[NTP_SOUND];
+    uint8_t engine;                               /* EG_* */
     uint8_t role;                                 /* RL_* */
-    uint8_t o2fine, o2wave, o2shape;              /* knit's Osc 2 page (TP_O2FINE, TP_O2WAVE, TP_O2SHAPE: past par[]) */
-    uint8_t ksync, ksweep, kcross, ksub;          /* and its Mod page (TP_KSYNC .. TP_KSUB) */
-    uint8_t rops, rratio, rdepth, rfb;            /* rayon's Ops page (TP_ROPS .. TP_RFB) */
-    uint8_t kanalog;                              /* knit's analog (TP_KANALOG) */
+    uint16_t at;                                  /* its differences' place (synth.c PRESET_DATA) */
 } preset_t;
 extern const preset_t PRESETS[];
 extern const int NPRESETS;

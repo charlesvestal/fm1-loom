@@ -127,7 +127,7 @@ static int preset_named(int engine, const char *word)   /* the engine's first pr
     for (k = 0; k < NPRESETS; k++) {
         const char *n = PRESETS[k].name, *w;
         int j;
-        if (PRESETS[k].par[TP_ENGINE] != engine)
+        if (PRESETS[k].engine != engine)
             continue;
         for (j = 0; n[j]; j++) {
             int m = 0;
@@ -214,7 +214,7 @@ void project_random_sounds(uint32_t seed)
         r ^= r << 13, r ^= r >> 17, r ^= r << 5;
         rl = ROLES[t - 1];
         for (k = 0; k < NPRESETS; k++) {                 /* reservoir: one of the matching presets, evenly */
-            int eg = PRESETS[k].par[TP_ENGINE], role = PRESETS[k].role;
+            int eg = PRESETS[k].engine, role = PRESETS[k].role;
             if (eg == EG_SAMPLE || eg == EG_SLICE || eg == EG_TULLE || eg == EG_DRUMLINE ||
                 (role != rl[0] && role != rl[1] && role != rl[2]))
                 continue;
@@ -226,7 +226,7 @@ void project_random_sounds(uint32_t seed)
         if (pick < 0)
             continue;
         apply_preset(&proj.trk[t], pick);
-        if (VMODE[t - 1] != 0xFF && PRESETS[pick].par[TP_ENGINE] != EG_ACID)   /* (acid: its one mode) */
+        if (VMODE[t - 1] != 0xFF && PRESETS[pick].engine != EG_ACID)   /* (acid: its one mode) */
             proj.trk[t].par[TP_VMODE] = VMODE[t - 1];
     }
 }

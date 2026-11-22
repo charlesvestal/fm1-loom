@@ -4858,27 +4858,17 @@ const int NPRESETS = (int)(sizeof PRESETS / sizeof PRESETS[0]);
 
 void preset_sound(uint8_t *par, const preset_t *pr)
 {
-    int i;
-    for (i = 0; i < NTP_SOUND; i++)
-        par[i] = pr->par[i];
-    par[TP_O2FINE] = pr->o2fine;
-    par[TP_O2WAVE] = pr->o2wave;
-    par[TP_O2SHAPE] = pr->o2shape;
-    par[TP_KSYNC] = pr->ksync;
-    par[TP_KSWEEP] = pr->ksweep;
-    par[TP_KCROSS] = pr->kcross;
-    par[TP_KSUB] = pr->ksub;
-    par[TP_ROPS] = pr->rops;
-    par[TP_RRATIO] = pr->rratio;
-    par[TP_RDEPTH] = pr->rdepth;
-    par[TP_RFB] = pr->rfb;
-    par[TP_KANALOG] = pr->kanalog;
+    static const uint16_t PS_X[PS_N - NTP_SOUND] = {TP_O2FINE, TP_O2WAVE, TP_O2SHAPE, TP_KSYNC, TP_KSWEEP, TP_KCROSS,
+                                                    TP_KSUB, TP_ROPS, TP_RRATIO, TP_RDEPTH, TP_RFB, TP_KANALOG};
+    const uint8_t *t = PRESET_TPL[pr->engine % NENGINE], *m = PRESET_DATA + pr->at, *v = m + PS_MASK;
+    for (int i = 0; i < PS_N; i++)
+        par[i < NTP_SOUND ? i : PS_X[i - NTP_SOUND]] = m[i >> 3] >> (i & 7) & 1u ? *v++ : t[i];
 }
 int preset_first(int engine)
 {
     int i;
     for (i = 0; i < NPRESETS; i++)
-        if (PRESETS[i].par[TP_ENGINE] == engine)
+        if (PRESETS[i].engine == engine)
             return i;
     return -1;
 }

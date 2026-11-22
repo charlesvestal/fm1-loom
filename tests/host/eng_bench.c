@@ -37,7 +37,7 @@ static void full(int k, double *ins, double *ns)
         sound_default(par[t], EG_KNIT);
     preset_sound(par[0], &PRESETS[k]);
     par[0][TP_VMODE] = VM_POLY;                  /* (a chord of four even for the mono presets) */
-    if (getenv("BENCH_MONO") && PRESETS[k].par[TP_ENGINE] == EG_KNIT)
+    if (getenv("BENCH_MONO") && PRESETS[k].engine == EG_KNIT)
         par[0][TP_E4] = 0;                       /* (BENCH_MONO: width 0, the voice path mono) */
     synth_init(S, par);
     synth_tempo(S, 120.0f);
@@ -108,7 +108,7 @@ int main(int argc, char **argv)
         int n = 0;
         for (k = 0; k < NPRESETS; k++) {
             double fi, fn, ei, en;
-            if (PRESETS[k].par[TP_ENGINE] != engines[a])
+            if (PRESETS[k].engine != engines[a])
                 continue;
             full(k, &fi, &fn);
             alone(&ei, &en);
