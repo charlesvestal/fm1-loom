@@ -3,8 +3,9 @@
 // drums, the instruments, the sweep, the vinyl) live in the user sample bank, marked as the factory set's, after the
 // user's samples. Before writing: the bank read from the LOOM-8 running (if one is), and whether the factory set fits
 // beside it; if not, asked: the user's samples made smaller to fit (makeRoom), the install without the set, or
-// nothing. After: the set added, the bank sent. tools/make_pages.py inlines app/web/samples/loom_samples.js before this
-// and wraps both into one expression: ({ before, after }).
+// nothing. A bank too full for 0.19's windows (200 KB; 216 before) is handled the same way: made smaller to fit, or
+// only the set kept. After: the set added, the bank sent. tools/make_pages.py inlines app/web/samples/loom_samples.js
+// before this and wraps both into one expression: ({ before, after }).
 
 const FACTORY_URL = "../samples/factory.bin";
 const esc = (t) => String(t).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
@@ -33,11 +34,35 @@ async function readItems(midi, ui, wait) {
   }
 }
 
-// what to do when the set does not fit as it is: "room" (r.items), "skip" or "cancel"
-async function decide(ui, kept, factory, r) {
+// the bank as it is fits the windows of the firmware being installed (a bank from 0.18 or older was made for 216 KB,
+// the bank is 200 KB since 0.19: the new firmware refuses a fuller one whole, LOOM-8's own sounds with it)
+function fitsBank(items) {
+  if (!items.length) return true;                           // (an empty bank)
+  try { userBank(items); return true; } catch (e) { if (e instanceof TooLong) return false; throw e; }
+}
+
+// what to do when the set does not fit as it is (or the bank is too full for 0.19's): "room" (r.items), "skip" or
+// "cancel"
+async function decide(ui, kept, factory, r, tooBig) {
   const own = kept.filter((it) => !isFactory(it));
   const ownBytes = own.reduce((a, it) => a + sampleBytes(it.n), 0);
   const setBytes = factoryMissing(kept, factory).reduce((a, it) => a + sampleBytes(it.n), 0);
+  if (tooBig) {
+    const intro = `<p>From 0.19 the sample bank holds 200 KB, 16 KB less than before, to make room for new sounds.
+      Your samples take ${kb(ownBytes)}, so they don't fit beside LOOM-8's own sounds as they are.</p>`;
+    if (r) {
+      return ui.ask("Make room in the sample bank?", intro +
+        `<p>They fit if ${r.changed.map((n) => `<b>${esc(n)}</b>`).join(", ")} ${r.changed.length > 1 ? "are" : "is"}
+        stored at ${r.cap / 1000 | 0} kHz: what is above ${r.cap / 2000 | 0} kHz goes. That can't be undone on the
+        FM-1, so keep a backup (or the original files). The rest stays as it is.</p>
+        <p>If you install without your samples, the bank keeps only LOOM-8's own sounds.</p>`,
+        [["room", "Make room"], ["skip", "Install without my samples"], ["cancel", "Cancel"]]);
+    }
+    return ui.ask("Your samples don't fit", intro +
+      `<p>Even at 11 kHz they don't fit. To keep them, cancel, remove some samples on the samples page and install
+      again. If you install now, the bank keeps only LOOM-8's own sounds.</p>`,
+      [["skip", "Install without my samples"], ["cancel", "Cancel"]]);
+  }
   const intro = `<p>From 0.8, LOOM-8's own sounds (the kits' drums, the instruments, the sweep and the vinyl:
     ${kb(setBytes)}) live in the sample bank, after your samples. Your samples take ${kb(ownBytes)}, so they
     don't fit beside them as they are.</p>`;
@@ -62,12 +87,13 @@ async function before(midi, ui) {
   const kept = await readItems(midi, ui, 800);
   ui.say("");
   if (kept === null) return { factory, later: true };       // (no LOOM-8 running, or too old: looked at after)
-  if (!factoryMissing(kept, factory).length) return { factory, items: null };   // (nothing to add)
+  const tooBig = !fitsBank(kept);                           // (a bank from 0.18 or older: up to 216 KB)
+  if (!tooBig && !factoryMissing(kept, factory).length) return { factory, items: null };   // (nothing to add)
   const r = makeRoom(kept, factory);
   if (r && !r.cap) return { factory, items: r.items };
-  const how = await decide(ui, kept, factory, r);
+  const how = await decide(ui, kept, factory, r, tooBig);
   if (how === "cancel") return false;
-  if (how === "skip") return { factory, skipped: true };
+  if (how === "skip") return tooBig ? { factory, items: factoryMissing([], factory) } : { factory, skipped: true };
   return { factory, items: r.items };
 }
 

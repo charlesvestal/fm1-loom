@@ -8,6 +8,8 @@
 //   3. no room even at 11 kHz: asked, "Install without them": nothing sent
 //   4. no LOOM-8 answering before (another firmware, or an old one): looked at after, from the one installed
 //   5. the factory set already there: nothing asked, nothing sent; "Cancel" before: the install stops (false)
+//   6. a bank from 0.18 (made for 216 KB) too full for 0.19's 200 KB, the set in it: asked; "Make room": the 32 kHz
+//      sample at 22 kHz, the set kept; "Install without my samples": the set alone
 //   node tests/host/install_web.mjs [PYTHON]
 import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
@@ -33,7 +35,7 @@ const same = (a, b) => a.length === b.length && a.every((v, i) => v === b[i]);
 // a simulated FM-1 behind a Web MIDI port pair: the bank (virtual offsets), samples.c's answers; quiet: not LOOM-8
 class Fake {
   constructor(img) {
-    this.bank = new Uint8Array(L.BANK_SIZE).fill(0xFF);
+    this.bank = new Uint8Array(Math.max(L.BANK_SIZE, img ? img.length : 0)).fill(0xFF);   // (0.18's bank: 216 KB)
     if (img) this.bank.set(img);
     this.quiet = false; this.sent = 0; this.open = false; this.hdr = null;
     const self = this;
@@ -148,6 +150,30 @@ console.log("installer: LOOM-8's sounds into the sample bank");
   const full = new Fake(oldBank([["big", 230000, 32000], ["small", 20000, 16000]]));
   const { st } = await run(full, "cancel");
   check("   \"Cancel\": before returns false (the install stops), nothing sent", st === false && full.sent === 0);
+}
+{
+  // 0.18's bank: three windows (216 KB), its header made for them; the user's sample and the set, 211 KB in all
+  const src = LIB.replace("const REGIONS = [[0xC1000, 0x1B000], [0xE5000, 0x17000]];",
+                          "const REGIONS = [[0xC1000, 0x1B000], [0xE5000, 0x17000], [0x93000, 0x4000]];");
+  if (src === LIB) throw new Error("0.18's bank: the library's REGIONS line moved");
+  const L18 = new Function(src + "\nreturn { userBank };")();
+  const img = L18.userBank([{ name: "wide", s: Int16Array.from({ length: 240000 }, rnd), root: 60, loop: null, bars: 0,
+    rate: 32000 }, ...L.keptOf(FACTORY)]);
+  const dev = new Fake(img);
+  const { u } = await run(dev, "room");
+  const now = L.keptOf(dev.image()), h = L.parseHeader(dev.bank.subarray(0, L.BANK_HDR));
+  check(`6. 0.18's bank too full for 0.19's (${Math.round(img.length / 1024)} KB): asked, "Make room" offered, naming it`,
+    img.length > L.BANK_SIZE && u.asked.length === 1 && u.asked[0].choices.join() === "room,skip,cancel" &&
+    /0\.19/.test(u.asked[0].body) && /<b>wide<\/b>/.test(u.asked[0].body));
+  check("   made room: wide at 22 kHz, the set after it, the bank made for 200 KB",
+    dev.sent === 1 && now[0].name === "wide" && now[0].rate === 22050 && now.slice(1).length === L.NFENT &&
+    now.slice(1).every(L.isFactory) && new DataView(dev.bank.buffer).getUint32(16, true) === L.BANK_SIZE &&
+    h.dataLen <= L.BANK_SIZE - L.BANK_HDR);
+  const dev2 = new Fake(img);
+  const r2 = await run(dev2, "skip");
+  const now2 = L.keptOf(dev2.image());
+  check("   \"Install without my samples\": the set alone, sent", r2.u.asked.length === 1 && dev2.sent === 1 &&
+    now2.length === L.NFENT && now2.every(L.isFactory));
 }
 console.log(bad ? "INSTALL WEB FAILED" : "install web: the factory set added as the installer adds it");
 process.exit(bad ? 1 : 0);
