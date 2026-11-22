@@ -179,10 +179,12 @@ typedef struct {
                                          * (SCENES_AT_END), 4 AUTOSAVE_OFF, 8 LOOP_FREE, 16 CC_OUT_OFF, 32 SCENES_OUT, 64 BT_AUDIO_ON, 128 BT_MIDI_OFF (bt.c);
                                          * [3] bits: 1 CC_IN_ENDLESS;
                                          * [4..7] the save count (project.c: the slot saved or loaded last opens at
-                                         * power-on) */
+                                         * power-on); [8] the scenes used, written by every save (GLO's list shows
+                                         * it without unpacking the patterns) */
     uint8_t master[NMS];                /* fx.h MS_*: format 4's twelve end where these sixteen end */
     trk_t trk[NALLTRK];
 } settings_t;
+#define RSV_SCENES 8                    /* proj.rsv[RSV_SCENES]: the scenes used when saved (0: saved before 0.15) */
 
 typedef struct {
     char name[NAME_LEN];
@@ -219,6 +221,8 @@ int project_load(int slot);             /* 0 = loaded; else defaults are in plac
 int project_save(int slot);             /* 0 = saved and verified; -1 = full / failed */
 void project_apply(void);               /* every value to the engine (boot, load) */
 int project_exists(int slot);
+int project_slot_info(int slot, uint16_t *tempo_x10, uint8_t *scenes);   /* a slot's tempo and scenes (as saved):
+                                                                           * 1, or 0 for an empty slot */
 int project_last_slot(void);            /* the slot saved or loaded last (0 when none holds a project) */
 int project_touch(int slot);            /* the loaded slot the last: its settings saved again, its count the next */
 int presets_load(void);

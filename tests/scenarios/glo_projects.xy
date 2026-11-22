@@ -1,0 +1,18 @@
+# GLO's projects (docs/superpowers/specs/2026-11-22-glo-projects-design.md): each slot's tempo and scene count, read
+# from its saved settings (the scene count written by every save into rsv[8])
+wait 300
+bpm 122
+wait 50
+expect used 1
+projsave 1
+expect slot 1 1220 1
+# a second scene (white key 2 on Arrange copies the one playing), another tempo, saved into slot 2
+tap HOME
+tapkey w1
+wait 50
+expect used 3
+bpm 98.5
+wait 50
+projsave 2
+expect slot 2 985 2
+expect projslot 2

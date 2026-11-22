@@ -928,8 +928,12 @@ static uint32_t slot_count(int slot)
 static void count_next(void)
 {
     uint32_t c = ++count_max;
+    uint8_t ns = 0;
     for (uint32_t i = 0; i < 4u; i++)
         proj.rsv[4 + i] = (uint8_t)(c >> (8u * i));
+    for (int s = 0; s < NSCENE; s++)              /* (GLO's list reads it from the header: RSV_SCENES) */
+        ns = (uint8_t)(ns + (pats.scene[s].used != 0));
+    proj.rsv[RSV_SCENES] = ns;
 }
 int project_last_slot(void)
 {
@@ -959,6 +963,9 @@ int project_touch(int slot)                       /* (only the settings change: 
 #ifdef PLAT_HOST
 static uint32_t slot_reads;                           /* (the simulator's count: expect slot_reads) */
 #endif
+#define SLOT_HEAD ((uint32_t)offsetof(settings_t, master))   /* the raw header: magic .. rsv */
+static uint16_t slot_tempo[NPROJ];
+static uint8_t slot_scenes[NPROJ];
 int project_exists(int slot)
 {
     int n;
@@ -969,11 +976,24 @@ int project_exists(int slot)
 #ifdef PLAT_HOST
     slot_reads++;
 #endif
-    n = plat_store_load(OBJ_PROJ(slot, 0), io_buf, 8);
-    n = n >= 8 && get32(io_buf) == PROJ_MAGIC && FORMAT_OK(get32(io_buf + 4));
+    n = plat_store_load(OBJ_PROJ(slot, 0), io_buf, SLOT_HEAD);
+    n = n >= (int)SLOT_HEAD && get32(io_buf) == PROJ_MAGIC && FORMAT_OK(get32(io_buf + 4));
+    if (n) {                                      /* (the tempo and scenes for GLO's list, read with it) */
+        const uint8_t *t = io_buf + offsetof(settings_t, tempo_x10);
+        slot_tempo[slot] = (uint16_t)(t[0] | t[1] << 8);
+        slot_scenes[slot] = io_buf[offsetof(settings_t, rsv) + RSV_SCENES];
+    }
     slot_known |= (uint8_t)(1u << slot);
     slot_have = (uint8_t)(n ? slot_have | 1u << slot : slot_have & ~(1u << slot));
     return n;
+}
+int project_slot_info(int slot, uint16_t *tempo_x10, uint8_t *scenes)
+{
+    if (!project_exists(slot))
+        return 0;
+    *tempo_x10 = slot_tempo[slot];
+    *scenes = slot_scenes[slot];
+    return 1;
 }
 
 int presets_load(void)

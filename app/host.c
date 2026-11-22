@@ -451,6 +451,8 @@ int app_expect(const char *what, int *got)
         *got = lst.open;
     else if (!strcmp(what, "slot_reads"))           /* project_exists's reads of the flash so far */
         *got = (int)slot_reads;
+    else if (!strcmp(what, "projslot"))             /* the open project's slot, from 1 (0: none yet) */
+        *got = proj_slot < NPROJ ? proj_slot + 1 : 0;
     else if (!strncmp(what, "pad", 3) && what[3] >= '1' && what[3] <= '9')   /* padK: kit pad K's flash as drawn, 0..16 */
         *got = (int)pad_a((atoi(what + 3) - 1) % NDRUM);
     else if (!strncmp(what, "kvel", 4)) {          /* kvelT.PAT.S.K: kit sound K's own velocity on that step (0 none) */
@@ -565,6 +567,13 @@ static int expect_more(const char *what, const char *a, const char *b, const cha
 {
     if (!strcmp(what, "step")) {                    /* expect step T VALUE: the playhead of track T (0-based) */
         host_fails += expect_val(what, eng_step[(atoi(a) - 1) % NSEQT], b);
+    } else if (!strcmp(what, "slot")) {             /* expect slot S TEMPO_X10 SCENES: slot S's summary (GLO's list) */
+        uint16_t tx = 0;
+        uint8_t ns = 0;
+        int have = project_slot_info(atoi(a) - 1, &tx, &ns), bad = !have || tx != atoi(b) || ns != atoi(c);
+        printf("%s slot %s: %s, tempo_x10 %u, scenes %u\n", bad ? "FAIL" : "  ok", a, have ? "saved" : "empty",
+               (unsigned)tx, (unsigned)ns);
+        host_fails += bad;
     } else if (!strcmp(what, "page")) {             /* expect page NAME ('_' for a space: Play_2) */
         const char *p = ui_page_name();
         int bad = 0, i;
