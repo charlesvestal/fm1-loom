@@ -100,11 +100,7 @@ static void apply_preset(trk_t *t, int k)
     int i;
     if (k < 0 || k >= NPRESETS)
         return;
-    for (i = 0; i < NTP_SOUND; i++)
-        t->par[i] = PRESETS[k].par[i];
-    t->par[TP_O2FINE] = 64;
-    t->par[TP_O2WAVE] = O2W_SAME;
-    t->par[TP_O2SHAPE] = 0;
+    preset_sound(t->par, &PRESETS[k]);
     for (i = 0; i < NAME_LEN - 1 && PRESETS[k].name[i]; i++)
         t->name[i] = PRESETS[k].name[i];
     t->name[i] = 0;

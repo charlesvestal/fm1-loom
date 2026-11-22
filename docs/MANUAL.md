@@ -111,7 +111,7 @@ second.
 - **Song**: a chain of scenes, each played for a number of bars.
 - **Engine**: the way a track makes its sound. There are seven synths (knit, rayon, jacquard, bellows, cane, voile
   and acid), two sample engines (sample and slice) and the kit, a drum synth.
-- **Preset**: a sound to load. 93 come with LOOM-8, from seven to eighteen for each engine, and 16 are your own.
+- **Preset**: a sound to load. 97 come with LOOM-8, from seven to eighteen for each engine, and 16 are your own.
 - **Player**: what the keys do on a track: arp, strum, hold or random.
 - **Conductor**: an aux track that sets the key, scale and chords for the other tracks. It plays its own chords,
   or takes them from a track's notes.
@@ -579,7 +579,7 @@ tonality is **ignore** follows nothing.
 
 | Engine | Knobs | Presets |
 | --- | --- | --- |
-| knit | wave, detune, voices, width | 11 |
+| knit | wave, detune, voices, width | 15 |
 | rayon | bright, ratio, edge, tine | 10 |
 | jacquard | table, scan, bend, ripple | 11 |
 | bellows | stops, pedal, rotor, rate | 9 |
@@ -613,7 +613,7 @@ plays osc 1's wave and follows an LFO on it. Turn it to saw, square, pulse, tria
 **shape** sweeps osc 2 from a saw through a square to a narrow pulse, as **wave** does for osc 1. It counts for saw,
 square and pulse, and turning **wave** to one of them sets **shape** there. **fine** tunes osc 2 by up to 50 cents
 either way, without the drift or spread that detune brings. Osc 2 sounds only when its **level** on the Sub page is
-above 0.
+above 0. To hear what it does, try the presets fifth lead, pulse bass, chime keys and reed pad.
 
 A wide unison costs more than an ordinary voice, so knit plays at most six voices, or five when its unison is set
 to seven. A new note beyond that takes over the oldest one.

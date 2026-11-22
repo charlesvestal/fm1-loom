@@ -108,13 +108,16 @@ static void synth_cases(void)
                 synth_case(name);
             }
     }
-    for (k = 0; k < NPRESETS; k++) {
-        int t;
+    for (k = 0; k < NPRESETS; k++) {   /* (by name, beside the next engine's first preset: a preset added keeps the
+                                        * others' fingerprints) */
+        int t, e = PRESETS[k].par[TP_ENGINE], j = -1;
+        for (t = 1; t <= NENGINE && j < 0; t++)
+            j = preset_first((e + t) % NENGINE);
         for (t = 0; t < NTRK; t++)
             sound_default(par[t], EG_KNIT);
-        memcpy(par[0], PRESETS[k].par, NTP_SOUND);
-        memcpy(par[1], PRESETS[(k + 7) % NPRESETS].par, NTP_SOUND);
-        snprintf(name, sizeof name, "preset %d %s", k, PRESETS[k].name);
+        preset_sound(par[0], &PRESETS[k]);
+        preset_sound(par[1], &PRESETS[j]);
+        snprintf(name, sizeof name, "preset %s", PRESETS[k].name);
         synth_case(name);
     }
 }

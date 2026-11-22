@@ -45,7 +45,8 @@ def c_of(p):
     f += [("CTYPE", "CT_" + ch[0].upper()), ("CAMT", ch[1]), ("CTONE", ch[2]), ("CMIX", ch[3])]
     f += [(f"X{i + 1}", v) for i, v in enumerate(p["x"])] + [("OCT", p["octave"] + 2)]
     body = ", ".join(f"[TP_{k}] = {v}" for k, v in f)
-    return f'    {{"{p["name"]}", {{{body}}}, RL_{p["role"].upper()}}},'
+    o2 = p["osc2"]
+    return (f'    {{"{p["name"]}", {{{body}}}, RL_{p["role"].upper()}, {o2[2]}, O2W_{o2[0].upper()[:3] if o2[0] == "triangle" else o2[0].upper()}, {o2[1]}}},')
 
 
 def main(argv):

@@ -35,7 +35,7 @@ static void full(int k, double *ins, double *ns)
     uint64_t i0, n0, ti = 0, tn = 0;
     for (t = 0; t < NTRK; t++)
         sound_default(par[t], EG_KNIT);
-    memcpy(par[0], PRESETS[k].par, NTP_SOUND);
+    preset_sound(par[0], &PRESETS[k]);
     par[0][TP_VMODE] = VM_POLY;                  /* (a chord of four even for the mono presets) */
     if (getenv("BENCH_MONO") && PRESETS[k].par[TP_ENGINE] == EG_KNIT)
         par[0][TP_E4] = 0;                       /* (BENCH_MONO: width 0, the voice path mono) */

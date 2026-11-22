@@ -13,6 +13,9 @@ turns them into app/build/gen/presets.h (the PRESETS table synth.c includes). A 
                                                 for wobble (its volume amount) and pump (its hold)
     char=None | (type, amount, tone, mix),     type: drive fold crush ring tilt tape sampler
     x=(x1, x2, x3, x4),                         the engine's second page (knit's osc 2 .., rayon's fall ..)
+    osc2=None | (wave, shape, fine),            knit's Osc 2 page: wave same (osc 1's) / saw / square / pulse /
+                                                triangle / sine, its shape 0..127 (saw .. square .. pulse; counts for
+                                                saw, square and pulse only), fine 14..114 (64: none, +-50 cents)
     octave=None,                                -2 .. +2; None: by the role (a bass -2: on the FM-1's middle keys,
                                                 F3 .. G5, it plays around C2; at -1 most had nothing under 100 Hz)
     genres=())                                  what it is for (lofi, synthpop, dnb, house, garage ...): the
@@ -37,6 +40,8 @@ FILTERS = ["lp24", "ladder", "lp12", "hp12", "dynamic", "bp12"]   # FT_*
 LFOS = ["off", "wave", "wobble", "drift", "pump"]    # LT_*
 DESTS = ["synth", "envelope", "filter", "voice", "synth free", "envelope free", "filter free", "voice free"]   # LD_*
 CHARS = ["off", "drive", "fold", "crush", "ring", "tilt", "tape", "sampler"]   # CT_*
+O2WAVES = ["same", "saw", "square", "pulse", "triangle", "sine"]   # O2W_*
+NOOSC2 = ("same", 0, 64)
 X_DEF = {"knit": (64, 0, 0, 0), "acid": (0, 1, 27, 0)}   # the engines' second pages as sound_default leaves them
 NOLFO = ("off", 3, 64, "filter", 0, 1)
 NOCHAR = ("off", 64, 64, 127)
@@ -45,8 +50,8 @@ PRESETS = []
 
 
 def P(name, role, engine, knobs, mode="poly", glide=0, bend=2, volume=100, amp=(0, 64, 127, 40),
-      fenv=(0, 64, 0, 40), filter=("lp24", 127, 0, 64, 64), sends=(0, 0), lfo=None, char=None, x=None, octave=None,
-      genres=()):
+      fenv=(0, 64, 0, 40), filter=("lp24", 127, 0, 64, 64), sends=(0, 0), lfo=None, char=None, x=None, osc2=None,
+      octave=None, genres=()):
     assert role in ROLES, (name, role)
     assert engine in KNOBS, (name, engine)
     assert len(name) <= 11 and name == name.lower(), name
@@ -60,13 +65,16 @@ def P(name, role, engine, knobs, mode="poly", glide=0, bend=2, volume=100, amp=(
     oc = octave if octave is not None else (-2 if role == "bass" else 0)
     assert -2 <= oc <= 2, (name, oc)
     xs = x if x is not None else X_DEF.get(engine, (0, 0, 0, 0))
+    o2 = tuple(osc2 or NOOSC2)
+    assert len(o2) == 3 and o2[0] in O2WAVES and 0 <= o2[1] <= 127 and 14 <= o2[2] <= 114, (name, o2)
+    assert engine == "knit" or o2 == NOOSC2, (name, "the Osc 2 page is knit's")
     vals = [*[knobs[k] for k in KNOBS[engine]], glide, bend, volume, *amp, *fenv, filter[1], filter[2], filter[3],
             filter[4], *sends, lf[1], lf[2], lf[4], lf[5], ch[1], ch[2], ch[3], *xs]
     assert all(isinstance(v, int) and 0 <= v <= 127 for v in vals), (name, vals)
     assert mode in MODES and filter[0] in FILTERS, name
     PRESETS.append(dict(name=name, role=role, engine=engine, knobs=[knobs[k] for k in KNOBS[engine]], mode=mode,
                         glide=glide, bend=bend, volume=volume, amp=tuple(amp), fenv=tuple(fenv), filter=tuple(filter),
-                        sends=tuple(sends), lfo=tuple(lf), char=tuple(ch), x=tuple(xs), octave=oc,
+                        sends=tuple(sends), lfo=tuple(lf), char=tuple(ch), x=tuple(xs), osc2=o2, octave=oc,
                         genres=tuple(genres)))
 
 

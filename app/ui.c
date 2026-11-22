@@ -316,10 +316,7 @@ static void load_preset(int trk, const preset_t *pr)
 {
     uint8_t *par = proj.trk[trk].par;
     undo_sound(trk);
-    memcpy(par, pr->par, NTP_SOUND);
-    par[TP_O2FINE] = 64;                         /* (the factory presets: no fine tune, osc 2 on osc 1's wave) */
-    par[TP_O2WAVE] = O2W_SAME;
-    par[TP_O2SHAPE] = 0;
+    preset_sound(par, pr);                       /* (knit's Osc 2 page too) */
     {                                            /* (the name's string ends at its 0: nothing read past it) */
         int i = 0;
         for (; i < NAME_LEN && pr->name[i]; i++)

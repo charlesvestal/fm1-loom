@@ -3891,6 +3891,15 @@ void sound_default(uint8_t *par, int engine)
 #include "presets.h"
 const int NPRESETS = (int)(sizeof PRESETS / sizeof PRESETS[0]);
 
+void preset_sound(uint8_t *par, const preset_t *pr)
+{
+    int i;
+    for (i = 0; i < NTP_SOUND; i++)
+        par[i] = pr->par[i];
+    par[TP_O2FINE] = pr->o2fine;
+    par[TP_O2WAVE] = pr->o2wave;
+    par[TP_O2SHAPE] = pr->o2shape;
+}
 int preset_first(int engine)
 {
     int i;

@@ -89,7 +89,7 @@ static void reset(void)
 
 static void load_preset(int t, int k)
 {
-    memcpy(par[t], PRESETS[k].par, NTP_SOUND);
+    preset_sound(par[t], &PRESETS[k]);
 }
 
 static float db(float x) { return x > 0.0f ? 20.0f * (float)log10((double)x) : -200.0f; }
@@ -1966,10 +1966,13 @@ int main(void)
         for (k = 0; k < NPRESETS; k++) {
             uint8_t p[NTP];
             int q;
-            memcpy(p, PRESETS[k].par, NTP_SOUND);
-            memset(p + NTP_SOUND, 0, NTP - NTP_SOUND);
-            for (q = 0; q < NTP_SOUND; q++) {
-                const tp_info_t *i = tp_info_par(q, p);
+            memset(p, 0, sizeof p);
+            preset_sound(p, &PRESETS[k]);                /* (and knit's Osc 2 page) */
+            for (q = 0; q < NTP; q++) {
+                const tp_info_t *i;
+                if (q >= NTP_SOUND && q != TP_O2FINE && q != TP_O2WAVE && q != TP_O2SHAPE)
+                    continue;                            /* (past par[]: the Osc 2 page's only) */
+                i = tp_info_par(q, p);
                 if ((i->hi > i->lo || i->kind == PK_NAMES) && (p[q] < i->lo || p[q] > i->hi)) {
                     printf("    preset %s: parameter %d = %d outside %d..%d\n", PRESETS[k].name, q, p[q], i->lo, i->hi);
                     ok = 0;

@@ -50,3 +50,20 @@ P("soft lead", "lead", "knit", knobs=dict(wave=64, detune=15, voices=1, width=0)
 P("dusty pad", "pad", "knit", knobs=dict(wave=0, detune=35, voices=4, width=100), volume=81,
   amp=(85, 90, 120, 96), fenv=(0, 64, 0, 64), filter=("lp24", 70, 0, 64, 64), sends=(0, 45),
   lfo=("wave", 20, 72, "filter free", 0, 1), char=("tape", 60, 50, 127), genres=("lofi",))
+# --- the Osc 2 page (2026-11-22): osc 2 on a wave of its own (lib.py osc2) ---
+# a fifth lead: a saw with a triangle a fifth up, a few cents sharp: softer than a saw stack, legato, a late vibrato
+P("fifth lead", "lead", "knit", knobs=dict(wave=0, detune=15, voices=1, width=0), mode="legato", glide=18,
+  volume=96, amp=(4, 70, 115, 60), fenv=(0, 70, 30, 60), filter=("lp24", 76, 10, 80, 64), sends=(20, 15),
+  lfo=("wobble", 92, 74, 64, 20, 0), x=(71, 100, 0, 0), osc2=("triangle", 0, 70), genres=("synthpop", "lofi"))
+# a pulse bass: a saw, a thin pulse an octave under it for the weight (no sub sine), a short filter envelope
+P("pulse bass", "bass", "knit", knobs=dict(wave=0, detune=10, voices=1, width=0), mode="mono", volume=100,
+  amp=(0, 80, 100, 36), fenv=(0, 56, 10, 40), filter=("lp24", 56, 8, 80, 40), x=(52, 90, 0, 0),
+  osc2=("pulse", 127, 64), genres=("house", "synthpop"))
+# chime keys: a square-ish saw, a quiet sine two octaves up, the filter's short envelope
+P("chime keys", "keys", "knit", knobs=dict(wave=40, detune=12, voices=1, width=0), volume=86,
+  amp=(0, 84, 70, 64), fenv=(0, 54, 0, 50), filter=("lp24", 64, 5, 92, 90), sends=(20, 35), x=(88, 70, 0, 0),
+  osc2=("sine", 0, 64), genres=("synthpop", "lofi"))
+# a reed pad: two saws, osc 2 an octave up between square and pulse (its shape), nasal through a gentle filter
+P("reed pad", "pad", "knit", knobs=dict(wave=20, detune=28, voices=2, width=90), volume=60,
+  amp=(60, 90, 118, 92), fenv=(0, 64, 0, 64), filter=("lp12", 80, 10, 64, 64), sends=(0, 45),
+  lfo=("wave", 22, 60, "filter free", 0, 1), x=(76, 90, 0, 0), osc2=("pulse", 96, 64), genres=("lofi", "synthpop"))

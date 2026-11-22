@@ -270,10 +270,13 @@ typedef struct {
     const char *name;
     uint8_t par[NTP_SOUND];
     uint8_t role;                                 /* RL_* */
+    uint8_t o2fine, o2wave, o2shape;              /* knit's Osc 2 page (TP_O2FINE, TP_O2WAVE, TP_O2SHAPE: past par[]) */
 } preset_t;
 extern const preset_t PRESETS[];
 extern const int NPRESETS;
 int preset_first(int engine);                       /* the first preset of an engine, -1 */
+void preset_sound(uint8_t *par, const preset_t *pr);   /* a preset's sound into a track's par[NTP]: par[0..NTP_SOUND)
+                                                     * and knit's Osc 2 page */
 
 /* --------------------------------------------------------------- voices --- */
 /* performance state per track, written by the sequencer / punch-in FX, read by the voices each chunk */
