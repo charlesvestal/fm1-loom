@@ -57,7 +57,12 @@ COLD = {
     "dsp/synth.c": ["tp_text_i", "tp_text_par", "tp_info_par", "tp_text", "char_picture",
                     "synth_note_off", "synth_duck_trigger", "synth_all_off",
                     "sound_default", "synth_init", "eknob_init", "synth_prepare",
-                    "hz_text", "ms_text", "organ_bars", "synth_cut"],
+                    "hz_text", "ms_text", "organ_bars", "synth_cut",
+                    # (2026-11-23: the engines' set-up, when a knob or the pitch moves, a chunk's at most; the
+                    # character's coefficients, the buses' and inserts' per block)
+                    "eng_prep", "wt_prep", "rayon_prep", "organ_prep", "knit_prep", "tl_prep", "lc_prep", "vv_prep",
+                    "smp_prep", "slc_prep", "cn_prep", "vo_prep", "eng_init", "knit_init", "char_coefs",
+                    "bus_prepare", "ins_alloc"],
     "seq/pattern.c": ["pattern_init", "patterns_init", "lane_alloc", "lane_clear", "lane_count", "lane_pool_set",
                       "lane_pool_free", "step_clear_locks", "pattern_clear_locks", "step_set_notes",
                       "step_toggle_note", "kit_set", "kit_toggle", "kit_add", "pattern_woven", "weave_step",
