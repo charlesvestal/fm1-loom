@@ -100,8 +100,9 @@ A slot is nine values: effect, knobs 1-3, mix, extras 1-4.
 
 ## Phases (each tested, each shippable)
 
-1. **The library**: `efx.c` with every effect ported. The released sounds (character, FX, master color) bit-exact
-   in `tests/host/dsp_hash.sh`; the inserts' chorus and phaser take the FX sound. Flash and SRAM measured: must not
+1. **The library**: `efx.c` with every effect ported. The released sounds (character, FX) bit-exact in
+   `tests/host/dsp_hash.sh`; the inserts' chorus and phaser take the FX sound; master color's tape and sampler take
+   the version the user picks by ear (A/B renders first: the character's, unless the master's wins). Flash and SRAM measured: must not
    grow.
 2. **Track slots** (synth and kits) on the library; project format 28 and presets format 17 for the tracks.
 3. **The sends and the one pool**; the FX tracks' conversion.
