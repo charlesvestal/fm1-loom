@@ -1966,7 +1966,8 @@ static float ln_rms(int engine, int e1, int x1, int x3, int blocks, float *late,
 static void preset_table_tests(void)
 {
     static const uint16_t X[PS_N - NTP_SOUND] = {TP_O2FINE, TP_O2WAVE, TP_O2SHAPE, TP_KSYNC, TP_KSWEEP, TP_KCROSS,
-                                                 TP_KSUB, TP_ROPS, TP_RRATIO, TP_RDEPTH, TP_RFB, TP_KANALOG};
+                                                 TP_KSUB, TP_ROPS, TP_RRATIO, TP_RDEPTH, TP_RFB, TP_KANALOG,
+                                                 TP_ITYPE, TP_I1, TP_I2, TP_I3};
     int bad = 0;
     _Static_assert(sizeof PRESET_FULL / sizeof PRESET_FULL[0] > 0, "presets_full.h");
     for (int k = 0; k < NPRESETS; k++) {

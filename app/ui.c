@@ -428,6 +428,10 @@ static int preset_apply(int trk, int i)
         proj.trk[trk].par[TP_RDEPTH] = user_presets[u].rdepth;
         proj.trk[trk].par[TP_RFB] = user_presets[u].rfb;
         proj.trk[trk].par[TP_KANALOG] = user_presets[u].kanalog;
+        proj.trk[trk].par[TP_ITYPE] = user_presets[u].itype;
+        proj.trk[trk].par[TP_I1] = user_presets[u].i1;
+        proj.trk[trk].par[TP_I2] = user_presets[u].i2;
+        proj.trk[trk].par[TP_I3] = user_presets[u].i3;
         memcpy(proj.trk[trk].name, user_presets[u].name, NAME_LEN);
         engine_set_all(trk);
         mark_dirty();
@@ -3242,6 +3246,10 @@ static void save_user_preset(int slot)
     user_presets[slot].rdepth = proj.trk[trk].par[TP_RDEPTH];
     user_presets[slot].rfb = proj.trk[trk].par[TP_RFB];
     user_presets[slot].kanalog = proj.trk[trk].par[TP_KANALOG];
+    user_presets[slot].itype = proj.trk[trk].par[TP_ITYPE];
+    user_presets[slot].i1 = proj.trk[trk].par[TP_I1];
+    user_presets[slot].i2 = proj.trk[trk].par[TP_I2];
+    user_presets[slot].i3 = proj.trk[trk].par[TP_I3];
     memcpy(user_presets[slot].name, proj.trk[trk].name, NAME_LEN);
     if (!user_presets[slot].name[0])
         s_cat(user_presets[slot].name, EG_NAME[proj.trk[trk].par[TP_ENGINE] % NENGINE]);

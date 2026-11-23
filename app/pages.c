@@ -5980,7 +5980,8 @@ static void draw_insert(void)
     static const char *const ABOUT[NIT] = {"nothing more", "the level rising and falling",
                                            "notches that sweep", "a lamp-swept phase",
                                            "a pedal's distortion", "a filter your playing opens",
-                                           "two voices swaying apart", "a tape's fading repeats"};
+                                           "two voices swaying apart", "a tape's fading repeats",
+                                           "the Juno's chorus"};
     int trk = inst_trk();
     const uint8_t *p = par_now(trk);
     int it = p[TP_ITYPE] % NIT;
@@ -6002,7 +6003,8 @@ static void draw_insert(void)
         char *e = s_cat(t, "no memory: ");
         int n = 0;
         for (int k = 0; k < NTRK; k++)
-            if (k != trk && (proj.trk[k].par[TP_ITYPE] == IT_CHORUS || proj.trk[k].par[TP_ITYPE] == IT_ECHO))
+            if (k != trk && (proj.trk[k].par[TP_ITYPE] == IT_CHORUS || proj.trk[k].par[TP_ITYPE] == IT_ECHO ||
+                             proj.trk[k].par[TP_ITYPE] == IT_JUNO))
                 e = s_cat(s_cat(e, n++ ? " " : ""), TRACK_NAME[k]);
         cv_text(12, 74, &FONT_XS, t, K_TEXT);
     }
@@ -6043,8 +6045,8 @@ static void draw_insert(void)
                 pen_to(&pn, (float)(x0 + i), (float)(y0 + hh - 4) - m * (float)(hh - 12), c ? K_FAINT : K_NOW);
             }
         }
-    } else if (it == IT_CHORUS) {                    /* its two taps' delays over two cycles, crossing */
-        float dm = 0.1f + 0.9f * (float)p[TP_I2] / 127.0f;
+    } else if (it == IT_CHORUS || it == IT_JUNO) {   /* its two taps' delays over two cycles, crossing */
+        float dm = it == IT_JUNO ? (p[TP_I1] % 3 == 2 ? 0.15f : 0.9f) : 0.1f + 0.9f * (float)p[TP_I2] / 127.0f;
         pen_t pl = {0}, pr = {0};
         int32_t cy = y0 + hh / 2;
         cv_rect(x0, cy, w, 1, K_LINE);

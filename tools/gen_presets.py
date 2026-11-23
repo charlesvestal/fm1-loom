@@ -60,10 +60,13 @@ def fields(p):
         f += [("KSYNC", p["grain"][0]), ("KSWEEP", p["grain"][1]), ("KCROSS", 0), ("KSUB", 0)]
     f += [("ROPS", "RO_" + op[0].upper()), ("RRATIO", lib.RO_RATIOS.index(op[1])), ("RDEPTH", op[2]), ("RFB", op[3]),
           ("KANALOG", p["analog"])]
+    ins = p["insert"]
+    f += [("ITYPE", "IT_" + ins[0].upper()), ("I1", ins[1]), ("I2", ins[2]), ("I3", ins[3])]
     return {k: str(v) for k, v in f}
 
 
-EXTRA = ["O2FINE", "O2WAVE", "O2SHAPE", "KSYNC", "KSWEEP", "KCROSS", "KSUB", "ROPS", "RRATIO", "RDEPTH", "RFB", "KANALOG"]
+EXTRA = ["O2FINE", "O2WAVE", "O2SHAPE", "KSYNC", "KSWEEP", "KCROSS", "KSUB", "ROPS", "RRATIO", "RDEPTH", "RFB", "KANALOG",
+         "ITYPE", "I1", "I2", "I3"]
 
 
 def sound_order():

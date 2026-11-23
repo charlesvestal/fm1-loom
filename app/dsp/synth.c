@@ -4354,7 +4354,7 @@ static int16_t ins_pool[INS_SLOTS][INS_SLOT_N];
 #else
 static int16_t ins_pool[INS_SLOTS][INS_SLOT_N] __attribute__((section(".pool")));
 #endif
-static inline int ins_slots(int type) { return type == IT_CHORUS ? 1 : type == IT_ECHO ? 2 : 0; }
+static inline int ins_slots(int type) { return type == IT_CHORUS || type == IT_JUNO ? 1 : type == IT_ECHO ? 2 : 0; }
 static void ins_alloc(synth_t *s)
 {
     uint8_t used = 0;
@@ -4672,10 +4672,16 @@ static void ins_run(synth_t *s, trk_t *t, float *bl, float *br, uint32_t n)
         z[4] = fm_flush(e);
         break;
     }
-    case IT_CHORUS: {                            /* z[0] where it writes; the line: its slot, the pair's middle at 1/8192 */
+    case IT_CHORUS: case IT_JUNO: {              /* z[0] where it writes; the line: its slot, the pair's middle at 1/8192;
+                                                  * juno: the Juno-60's modes (I 0.513 Hz, II 0.863 Hz: 1.66 .. 5.35 ms;
+                                                  * I+II 9.75 Hz: 3.3 .. 3.7 ms), its wet darkened (z[1], z[2]) */
+        static const float JR[3] = {0.513f, 0.863f, 9.75f}, JD0[3] = {3.505f, 3.505f, 3.5f}, JDM[3] = {1.845f, 1.845f, 0.2f};
+        const int juno = t->ins == IT_JUNO, jm = (int)t->ins_k[0] % 3;
         int16_t *ln = t->pool_at >= 0 ? ins_pool[(int)t->pool_at] : 0;
-        const float dph = lfo_hz((int)t->ins_k[0], s->bpm) * INV_SR, d0 = 0.007f * SY_SR, dm = (0.0004f + 0.004f * k1) * SY_SR;
-        const float wet = k2;
+        const float dph = (juno ? JR[jm] : lfo_hz((int)t->ins_k[0], s->bpm)) * INV_SR;
+        const float d0 = (juno ? JD0[jm] * 0.001f : 0.007f) * SY_SR, dm = (juno ? JDM[jm] * 0.001f : 0.0004f + 0.004f * k1) * SY_SR;
+        const float wet = juno ? k1 : k2, kt = juno ? op_coef(3000.0f + 9000.0f * k2) : 1.0f;
+        float tl = z[1], tr = z[2];
         int w = (int)z[0];
         if (!ln)
             break;
@@ -4697,14 +4703,16 @@ static void ins_run(synth_t *s, trk_t *t, float *bl, float *br, uint32_t n)
                     yl = ((float)ln[il] + ((float)ln[(il + 1) & (INS_SLOT_N - 1)] - (float)ln[il]) * fl) * (1.0f / 8192.0f);
                     yr = ((float)ln[ir] + ((float)ln[(ir + 1) & (INS_SLOT_N - 1)] - (float)ln[ir]) * fr) * (1.0f / 8192.0f);
                 }
-                bl[i] += wet * (yl - bl[i]);
-                br[i] += wet * (yr - br[i]);
+                tl += kt * (yl - tl);            /* (juno: the bucket brigade's darkening; chorus: kt 1, none) */
+                tr += kt * (yr - tr);
+                bl[i] += wet * (tl - bl[i]);
+                br[i] += wet * (tr - br[i]);
                 w = (w + 1) & (INS_SLOT_N - 1);
             }
             ph += dph * (float)m;
             ph -= fm_floorf(ph);
         }
-        z[0] = (float)w;
+        z[0] = (float)w, z[1] = fm_flush(tl), z[2] = fm_flush(tr);
         break;
     }
     case IT_ECHO: {                              /* a tape echo at half the rate, 8-bit companded (sqrt) in its two slots:
@@ -5034,7 +5042,9 @@ static const tp_info_t ROPS_P[4] = {{"ops", 0, NRO - 1, RO_OFF, PK_NAMES, RO_N},
                                     {"depth", 0, 127, 0, PK_NN, 0}, {"feedback", 0, 127, 0, PK_NN, 0}};
 static const tp_info_t KANALOG_P = {"analog", 0, 127, 0, PK_NN, 0};
 /* the insert (synth.h IT_*): its type, and its knobs as each type names them (any type's ranges: tp_info) */
-static const char *const ITYPE_N[NIT] = {"off", "tremolo", "phaser", "univibe", "rat", "autowah", "chorus", "echo"};
+static const char *const ITYPE_N[NIT] = {"off", "tremolo", "phaser", "univibe", "rat", "autowah", "chorus", "echo",
+                                         "juno"};
+static const char *const JUNO_N[3] = {"I", "II", "I+II"};
 static const char *const ECHO_T_N[8] = {"1/32", "1/16T", "1/16", "1/8T", "1/16D", "1/8", "1/8D", "1/4"};
 static const tp_info_t ITYPE_P = {"insert", 0, NIT - 1, IT_OFF, PK_NAMES, ITYPE_N};
 static const tp_info_t INS_ANY_P = {"", 0, 127, 0, PK_NN, 0};
@@ -5046,7 +5056,8 @@ static const tp_info_t INS_P[NIT][3] = {
     {{"distort", 0, 127, 70, PK_NN, 0}, {"filter", 0, 127, 50, PK_NN, 0}, {"level", 0, 127, 80, PK_NN, 0}},
     {{"sense", 0, 127, 80, PK_NN, 0}, {"reso", 0, 127, 70, PK_NN, 0}, {"decay", 0, 127, 50, PK_NN, 0}},
     {{"rate", 0, 127, 30, PK_HZ_SYNC, 0}, {"depth", 0, 127, 70, PK_PCT, 0}, {"mix", 0, 127, 64, PK_PCT, 0}},
-    {{"time", 0, 7, 5, PK_NAMES, ECHO_T_N}, {"feedback", 0, 127, 60, PK_PCT, 0}, {"mix", 0, 127, 45, PK_PCT, 0}}};
+    {{"time", 0, 7, 5, PK_NAMES, ECHO_T_N}, {"feedback", 0, 127, 60, PK_PCT, 0}, {"mix", 0, 127, 45, PK_PCT, 0}},
+    {{"mode", 0, 2, 0, PK_NAMES, JUNO_N}, {"mix", 0, 127, 64, PK_PCT, 0}, {"tone", 0, 127, 70, PK_NN, 0}}};
 static const tp_info_t TULLE_G_P[4] = {{"shape", 0, 127, 0, PK_NN, 0}, {"reverse", 0, 127, 0, PK_PCT, 0},
                                        {"-", 0, 0, 0, PK_NUM, 0}, {"-", 0, 0, 0, PK_NUM, 0}};
 static const tp_info_t KMOD_P[4] = {{"sync", 0, 1, 0, PK_SWITCH, 0}, {"sweep", 0, KSWEEP_MAX, 0, PK_SEMI, 0},
@@ -5620,7 +5631,8 @@ const int NPRESETS = (int)(sizeof PRESETS / sizeof PRESETS[0]);
 void preset_sound(uint8_t *par, const preset_t *pr)
 {
     static const uint16_t PS_X[PS_N - NTP_SOUND] = {TP_O2FINE, TP_O2WAVE, TP_O2SHAPE, TP_KSYNC, TP_KSWEEP, TP_KCROSS,
-                                                    TP_KSUB, TP_ROPS, TP_RRATIO, TP_RDEPTH, TP_RFB, TP_KANALOG};
+                                                    TP_KSUB, TP_ROPS, TP_RRATIO, TP_RDEPTH, TP_RFB, TP_KANALOG,
+                                                    TP_ITYPE, TP_I1, TP_I2, TP_I3};
     const uint8_t *t = PRESET_TPL[pr->engine % NENGINE], *m = PRESET_DATA + pr->at, *v = m + PS_MASK;
     for (int i = 0; i < PS_N; i++)
         par[i < NTP_SOUND ? i : PS_X[i - NTP_SOUND]] = m[i >> 3] >> (i & 7) & 1u ? *v++ : t[i];

@@ -164,7 +164,9 @@ enum {
  * depth; pan: 0 a tremolo, both sides together, 127 an auto-pan, the sides opposite); phaser (rate, depth: the sweep's
  * span, feedback); univibe (rate, depth, vibrato: 0 its chorus, dry and wet, 127 the wet alone); rat (distortion,
  * filter: darker turned up, level); autowah (sensitivity, resonance, decay) */
-enum { IT_OFF, IT_TREMOLO, IT_PHASER, IT_UNIVIBE, IT_RAT, IT_AUTOWAH, IT_CHORUS, IT_ECHO, NIT };
+enum { IT_OFF, IT_TREMOLO, IT_PHASER, IT_UNIVIBE, IT_RAT, IT_AUTOWAH, IT_CHORUS, IT_ECHO, IT_JUNO, NIT };
+/* juno: the Juno-60's chorus (mode I, II or I+II: its rates and delays; mix; tone, the bucket brigade's darkening): a
+ * chorus's slot */
 /* chorus (rate, depth, mix) and echo (time: IE_* divisions, feedback, mix) take memory from a pool shared by every
  * track's insert: INS_SLOTS of 2 KB, a chorus one, an echo two. A track whose insert finds none passes dry
  * (synth_insert_room) */
@@ -339,7 +341,7 @@ extern const char *const RL_NAME[NRL];            /* "bass", "lead", ... */
  * analog), kept as its engine's template (the value most of the engine's presets have) and its own differences from it
  * (tools/gen_presets.py: 4.5 KB for the 8 KB the whole fields took, 2026-11-23): at its place in the table, a mask of
  * PS_MASK bytes (bit i: field i differs), then the values of the fields that do */
-#define PS_N (NTP_SOUND + 12)
+#define PS_N (NTP_SOUND + 16)
 #define PS_MASK ((PS_N + 7) / 8)
 typedef struct {
     const char *name;

@@ -80,6 +80,7 @@ typedef char preset_packed[(sizeof(user_preset_t) == NAME_LEN + 13u + NTP_SOUND)
 #define PRESET_V12 (NAME_LEN + 4u + NTP_SOUND)                    /* 12: without knit's Mod page */
 #define PRESET_V13 (NAME_LEN + 8u + NTP_SOUND)                    /* 13: without rayon's Ops page */
 #define PRESET_V14 (NAME_LEN + 12u + NTP_SOUND)                   /* 14: without knit's analog */
+#define PRESET_V15 (NAME_LEN + 13u + NTP_SOUND)                   /* 15: without the insert */
 #define PRESETS_V7 (4u + NUSER_PRESETS * PRESET_OLD)              /* 6, 7: the user presets alone */
 #define OLD_KITS 4u                                               /* formats 8..10: four user kits */
 #define PRESETS_V8 (PRESETS_V7 + OLD_KITS * KIT_LEN)              /* 8: the user kits after them */
@@ -92,10 +93,13 @@ typedef char preset_packed[(sizeof(user_preset_t) == NAME_LEN + 13u + NTP_SOUND)
 #define PRESETS_V13 (PRESETS_KITS13 + NUSER_KITS * KIT_LEN)
 #define PRESETS_KITS14 (4u + NUSER_PRESETS * PRESET_V14)          /* 14: where the kits start */
 #define PRESETS_V14 (PRESETS_KITS14 + NUSER_KITS * KIT_LEN)
+#define PRESETS_KITS15 (4u + NUSER_PRESETS * PRESET_V15)          /* 15: where the kits start */
+#define PRESETS_V15 (PRESETS_KITS15 + NUSER_KITS * KIT_LEN)
 #define PRESETS_KITS (4u + (uint32_t)sizeof user_presets)         /* 15: where the kits start */
 #define PRESETS_LEN (PRESETS_KITS + NUSER_KITS * KIT_LEN)
 typedef char presets_fit[(PRESETS_LEN <= PLAT_STORE_MAX && PRESETS_V7 == 836u) ? 1 : -1];
-#define PRESETS_FORMAT 15u               /* 15: knit's analog (user_preset_t kanalog);
+#define PRESETS_FORMAT 16u               /* 16: the insert (user_preset_t itype, i1, i2, i3);
+                                          * 15: knit's analog (user_preset_t kanalog);
                                           * 14: rayon's Ops page (user_preset_t rops, rratio, rdepth, rfb);
                                           * 13: knit's Mod page (user_preset_t ksync, ksweep, kcross, ksub);
                                           * 12: knit's osc 2 wave and shape (user_preset_t o2wave, o2shape);
@@ -1058,7 +1062,8 @@ int presets_load(void)
         user_presets[k].name[0] = 0;
     for (k = 0; k < NUSER_KITS; k++)
         user_kit_name[k][0] = 0;
-    if (!(fmt == PRESETS_FORMAT && n == (int)PRESETS_LEN) && !(fmt == 14u && n == (int)PRESETS_V14) &&
+    if (!(fmt == PRESETS_FORMAT && n == (int)PRESETS_LEN) && !(fmt == 15u && n == (int)PRESETS_V15) &&
+        !(fmt == 14u && n == (int)PRESETS_V14) &&
         !(fmt == 13u && n == (int)PRESETS_V13) &&
         !(fmt == 12u && n == (int)PRESETS_V12) &&
         !(fmt == 11u && n == (int)PRESETS_V11) &&
@@ -1066,7 +1071,7 @@ int presets_load(void)
         !((fmt == 6u || fmt == 7u) && n == (int)PRESETS_V7))
         return -1;
     {
-        uint32_t len = fmt >= 15u ? (uint32_t)sizeof(user_preset_t) : fmt >= 14u ? PRESET_V14 : fmt >= 13u ? PRESET_V13
+        uint32_t len = fmt >= 16u ? (uint32_t)sizeof(user_preset_t) : fmt >= 15u ? PRESET_V15 : fmt >= 14u ? PRESET_V14 : fmt >= 13u ? PRESET_V13
                      : fmt >= 12u ? PRESET_V12 : fmt >= 9u ? PRESET_V11 : PRESET_OLD;
         for (k = 0; k < NUSER_PRESETS; k++) {    /* (before 13 without the Mod page, before 12 without osc 2's wave,
                                                   * before 9 its fine too) */
@@ -1078,6 +1083,7 @@ int presets_load(void)
             user_presets[k].rratio = 1;
             user_presets[k].rdepth = user_presets[k].rfb = 0;
             user_presets[k].kanalog = 0;
+            user_presets[k].itype = user_presets[k].i1 = user_presets[k].i2 = user_presets[k].i3 = 0;
             for (i = 0; i < len; i++)
                 ((uint8_t *)&user_presets[k])[i] = io_buf[4u + (uint32_t)k * len + i];
         }
@@ -1095,6 +1101,8 @@ int presets_load(void)
             user_presets[k].rops = RO_OFF, user_presets[k].rratio = 1, user_presets[k].rdepth = user_presets[k].rfb = 0;
         if (user_presets[k].kanalog > 127u)
             user_presets[k].kanalog = 0;
+        if (user_presets[k].itype >= NIT || user_presets[k].i1 > 127u || user_presets[k].i2 > 127u || user_presets[k].i3 > 127u)
+            user_presets[k].itype = user_presets[k].i1 = user_presets[k].i2 = user_presets[k].i3 = 0;
     }
     if (fmt < 7u)                                /* (before 7, off (FT_DYNAMIC) sat at 4 and bp12 at 5: swap) */
         for (k = 0; k < NUSER_PRESETS; k++) {
@@ -1109,7 +1117,8 @@ int presets_load(void)
     }
     if (fmt >= 8u)
         for (k = 0; k < (fmt >= 11u ? NUSER_KITS : (int)OLD_KITS); k++) {
-            const uint8_t *img = io_buf + (fmt == 8u ? PRESETS_V7 : fmt >= 15u ? PRESETS_KITS : fmt == 14u ? PRESETS_KITS14
+            const uint8_t *img = io_buf + (fmt == 8u ? PRESETS_V7 : fmt >= 16u ? PRESETS_KITS : fmt == 15u ? PRESETS_KITS15
+                                          : fmt == 14u ? PRESETS_KITS14
                                           : fmt == 13u ? PRESETS_KITS13
                                           : fmt == 12u ? PRESETS_KITS12 : PRESETS_KITS11) +
                                  (uint32_t)k * KIT_LEN;
@@ -1143,6 +1152,8 @@ static void presets_image(void)
         keep = NUSER_KITS * KIT_LEN, from = PRESETS_KITS13;
     else if (fmt == 14u && n == (int)PRESETS_V14)
         keep = NUSER_KITS * KIT_LEN, from = PRESETS_KITS14;
+    else if (fmt == 15u && n == (int)PRESETS_V15)
+        keep = NUSER_KITS * KIT_LEN, from = PRESETS_KITS15;
     else if (fmt == PRESETS_FORMAT && n == (int)PRESETS_LEN)
         keep = NUSER_KITS * KIT_LEN;
     for (i = keep; i-- > 0;)                    /* (up: copied from the end) */

@@ -18,6 +18,9 @@ turns them into app/build/gen/presets.h (the PRESETS table synth.c includes). A 
                                                 saw, square and pulse only), fine 14..114 (64: none, +-50 cents)
     morph=None | (morph, amount, pan, sway),      tartan's Morph page (knit's Mod page's bytes): the voices' levels (Chordism's
                                                 level morph), its amount, their places (its pan morph), the sway 0..127
+    insert=None | (type, k1, k2, k3),           the track's insert (FX's Insert page): type off / tremolo / phaser / univibe / rat /
+                                                autowah / chorus / echo / juno, its three knobs 0..127 (echo's time 0..7: 1/32 ..
+                                                1/4); with it the sound's chorus, echo or grit comes with the preset
     grain=None | (shape, reverse),              tulle's Grain page: its grains' shape 0 smooth .. 127 a pluck, the chance a
                                                 grain plays backwards 0..127 (stored in knit's Mod page's bytes)
     analog=0,                                   knit's analog 0..127 (its Levels page): drift, each note a little off,
@@ -59,7 +62,8 @@ O2WAVES = ["same", "saw", "square", "pulse", "triangle", "sine"]   # O2W_*
 NOOSC2 = ("same", 0, 64)
 SUBS = ["sine", "square", "low square", "low pulse"]   # KS_*
 NOMOD = (False, 0, 0, "sine")
-OPS = ["off", "stack", "layer"]                      # RO_*
+OPS = ["off", "stack", "layer"]
+INSERTS = ["off", "tremolo", "phaser", "univibe", "rat", "autowah", "chorus", "echo", "juno"]   # synth.h IT_*                      # RO_*
 RO_RATIOS = [0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4, 5, 6, 7, 8, 9, 10, 11, 12, 14, 16, 1.41, 1.73, 2.24, 2.76, 3.46, 5.19]   # synth.c RO_RATIO
 NOOPS = ("off", 1, 0, 0)
 X_DEF = {"knit": (64, 0, 0, 0), "acid": (0, 1, 27, 0), "tulle": (80, 70, 0, 90), "lace": (0, 64, 64, 80),
@@ -72,7 +76,7 @@ PRESETS = []
 
 def P(name, role, engine, knobs, mode="poly", glide=0, bend=2, volume=100, amp=(0, 64, 127, 40),
       fenv=(0, 64, 0, 40), filter=("lp24", 127, 0, 64, 64), sends=(0, 0), lfo=None, char=None, x=None, osc2=None,
-      mod=None, ops=None, analog=0, grain=None, morph=None, octave=None, genres=()):
+      mod=None, ops=None, analog=0, grain=None, morph=None, insert=None, octave=None, genres=()):
     assert role in ROLES, (name, role)
     assert engine in KNOBS, (name, engine)
     assert len(name) <= 11 and name == name.lower(), name
@@ -98,6 +102,8 @@ def P(name, role, engine, knobs, mode="poly", glide=0, bend=2, volume=100, amp=(
     assert 0 <= analog <= 127 and (engine == "knit" or analog == 0), (name, "analog is knit's")
     mo = tuple(morph or (0, 0, 0, 0))
     assert len(mo) == 4 and all(0 <= m <= 127 for m in mo) and (engine == "tartan" or mo == (0, 0, 0, 0)), (name, mo)
+    ins = tuple(insert or ("off", 0, 0, 0))
+    assert len(ins) == 4 and ins[0] in INSERTS and all(0 <= k <= 127 for k in ins[1:]), (name, ins)
     gr = tuple(grain or (0, 0))
     assert len(gr) == 2 and all(0 <= g <= 127 for g in gr) and (engine == "tulle" or gr == (0, 0)), (name, gr)
     vals = [*[knobs[k] for k in KNOBS[engine]], glide, bend, volume, *amp, *fenv, filter[1], filter[2], filter[3],
@@ -106,7 +112,7 @@ def P(name, role, engine, knobs, mode="poly", glide=0, bend=2, volume=100, amp=(
     assert mode in MODES and filter[0] in FILTERS, name
     PRESETS.append(dict(name=name, role=role, engine=engine, knobs=[knobs[k] for k in KNOBS[engine]], mode=mode,
                         glide=glide, bend=bend, volume=volume, amp=tuple(amp), fenv=tuple(fenv), filter=tuple(filter),
-                        sends=tuple(sends), lfo=tuple(lf), char=tuple(ch), x=tuple(xs), osc2=o2, mod=md, ops=op, analog=analog, grain=gr, morph=mo, octave=oc,
+                        sends=tuple(sends), lfo=tuple(lf), char=tuple(ch), x=tuple(xs), osc2=o2, mod=md, ops=op, analog=analog, grain=gr, morph=mo, insert=ins, octave=oc,
                         genres=tuple(genres)))
 
 
