@@ -1341,8 +1341,8 @@ static void render_drums(uint32_t n)                    /* the drum tracks (the 
     for (t = 0; t < NTRK; t++) {
         float g, gl, gr;
         uint32_t pt1;
-        if (!eng_drum[t] || !drumline_sounding(DL(t)))
-            continue;
+        if (!eng_drum[t] || !synth_insert_rings(SY, t, drumline_sounding(DL(t)), n))
+            continue;                                     /* (silent, its insert rung out) */
         pt1 = plat_cycles();
         zerof(tl, n);
         zerof(tr, n);

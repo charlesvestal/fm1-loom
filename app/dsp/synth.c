@@ -4354,8 +4354,8 @@ static int16_t ins_pool[INS_SLOTS][INS_SLOT_N];
 #else
 static int16_t ins_pool[INS_SLOTS][INS_SLOT_N] __attribute__((section(".pool")));
 #endif
-static __attribute__((noinline)) float rb_decay(float k) { return 0.4f * fm_exp2f(k * (4.3f / 127.0f)); }   /* rumble's RT60: 0.4 .. 8 s */
-static inline int ins_slots(int type) { return type == IT_CHORUS || type == IT_JUNO ? 1 : type == IT_ECHO || type == IT_RUMBLE ? 2 : 0; }
+static __attribute__((noinline)) float rb_decay(float k) { return 0.6f * fm_exp2f(k * (3.7f / 127.0f)); }   /* rumble's RT60: 0.6 .. 8 s */
+static inline int ins_slots(int type) { return type == IT_CHORUS || type == IT_JUNO ? 1 : type == IT_ECHO ? 2 : type == IT_RUMBLE ? 3 : 0; }
 static void ins_alloc(synth_t *s)
 {
     uint8_t used = 0;
@@ -4387,6 +4387,19 @@ static void ins_alloc(synth_t *s)
             }
         }
     }
+}
+/* how long a track's insert rings on once its sound has ended, in blocks of n (ins_tail) */
+static void ins_tail_set(const synth_t *s, trk_t *t, uint32_t n)
+{
+    float sec = 0.1f;
+    if (t->ins == IT_ECHO) {                     /* (its repeats to -60 dB, at most 8 s) */
+        static const float BT[8] = {0.125f, 1.0f / 6.0f, 0.25f, 1.0f / 3.0f, 0.375f, 0.5f, 0.75f, 1.0f};
+        float fb = t->ins_k[1] * (0.95f / 127.0f), d = BT[(int)t->ins_k[0] & 7] * 60.0f / fm_maxf(s->bpm, 20.0f);
+        sec = fm_minf(d * (1.0f + (fb > 0.01f ? 3.0f / -fm_log2f(fb) * 3.3219f : 1.0f)), 8.0f);
+    }
+    if (t->ins == IT_RUMBLE)                     /* (its decay) */
+        sec = rb_decay(t->ins_k[0]);
+    t->ins_tail = (uint16_t)(sec * SY_SR / (float)(n ? n : 256u) + 1.0f);
 }
 int synth_insert_room(const synth_t *s, int trk)
 {
@@ -4470,18 +4483,10 @@ static void bus_prepare(synth_t *s, uint32_t n)
         trk_t *t = &s->t[i];
         const chbus_t *c = &t->cb;
         float e = 0.0f;
-        if (t->bus == CT_OFF && t->ins == IT_OFF)
-            continue;
+        if ((t->bus == CT_OFF && t->ins == IT_OFF) || P(s, i, TP_ENGINE) == EG_DRUMLINE)
+            continue;                            /* (a kit's insert rings on in the engine: synth_insert_rings) */
         if (s->lead[i] >= 0 || s->split[i] >= 0) {   /* (playing: its insert's tail from here, in blocks) */
-            float sec = 0.1f;
-            if (t->ins == IT_ECHO) {             /* (its repeats to -60 dB, at most 8 s) */
-                static const float BT[8] = {0.125f, 1.0f / 6.0f, 0.25f, 1.0f / 3.0f, 0.375f, 0.5f, 0.75f, 1.0f};
-                float fb = t->ins_k[1] * (0.95f / 127.0f), d = BT[(int)t->ins_k[0] & 7] * 60.0f / fm_maxf(s->bpm, 20.0f);
-                sec = fm_minf(d * (1.0f + (fb > 0.01f ? 3.0f / -fm_log2f(fb) * 3.3219f : 1.0f)), 8.0f);
-            }
-            if (t->ins == IT_RUMBLE)             /* (its decay) */
-                sec = rb_decay(t->ins_k[0]);
-            t->ins_tail = (uint16_t)(sec * SY_SR / (float)(n ? n : 256u) + 1.0f);
+            ins_tail_set(s, t, n);
             continue;
         }
         if (t->bus != CT_OFF && c->type == t->bus)
@@ -4531,7 +4536,15 @@ static __attribute__((noinline)) float ap_coef(float hz)   /* a first-order allp
 }
 static __attribute__((noinline)) float op_coef(float hz) { return 1.0f - fm_expf(-FM_TWO_PI * hz * INV_SR); }   /* a one-pole's */
 /* rumble's four lines (at an eighth of the rate: 5.5 kHz), mutually prime, in its two slots (2048) */
-static const int16_t RB_LEN[4] = {293, 401, 503, 613}, RB_AT[4] = {0, 293, 694, 1197};
+/* rumble's memory (three slots, int16 at 1/8192): its places (the delay's, the diffusers', the lines'), the delay (an
+ * eighth: down to 69 BPM), the two diffusers, the four lines (mutually prime, at 2.76 kHz: 106 .. 182 ms) */
+#define RB_P 0
+#define RB_D 8
+#define RB_DN 1200
+static const int16_t RB_AA[2] = {RB_D + RB_DN, RB_D + RB_DN + 89}, RB_AL[2] = {89, 137};
+static const int16_t RB_LEN[4] = {293, 359, 431, 503},
+                     RB_L[4] = {RB_D + RB_DN + 226, RB_D + RB_DN + 226 + 293, RB_D + RB_DN + 226 + 652,
+                                RB_D + RB_DN + 226 + 1083};
 static const float UV_R[4] = {1.0f, 0.068f, 0.032f, 3.19f};   /* the univibe's stages: its four caps' ratios */
 /* a track's insert on its pair (synth.h IT_*), after the stage, 16 frames at a time (their coefficients at each's
  * start). tremolo: each side's gain 1 - depth (1 + sin) / 2, the right side's sine pan half a cycle on at the top (an
@@ -4768,50 +4781,95 @@ static void ins_run(synth_t *s, trk_t *t, float *bl, float *br, uint32_t n)
         z[0] = (float)w, z[1] = fm_flush(lp), z[2] = fm_flush(last), z[3] = a, z[4] = (float)odd;
         break;
     }
-    case IT_RUMBLE: {                            /* z[0..3] the lines' places, z[4] the eighth's sum, z[5] its count,
-                                                  * z[6..7] the low-pass in, z[8..9] the last two ticks' outputs, z[10] the
-                                                  * level (the duck), z[11] the low-pass out. A Hadamard feedback network
-                                                  * of four lines at 5.5 kHz (its decay: each line's gain), its output
-                                                  * saturated, ducked by the track's level (3 ms up, 150 ms down) */
-        int16_t *ln = t->pool_at >= 0 ? ins_pool[(int)t->pool_at] : 0;
-        const float rt = rb_decay(t->ins_k[0]), fc = 40.0f * in_exp2(k1 * 3.32f), kl = op_coef(fc),
-                    ko = op_coef(fc * 1.5f), wet = k2 * 1.6f, rel = 1.0f - op_coef(1.0f / 0.15f);
-        float g[4], a = z[6], b = z[7], sum = z[4], y0 = z[8], y1 = z[9], env = z[10], o = z[11];
-        int cnt = (int)z[5];
-        if (!ln)
+    case IT_RUMBLE: {                            /* the techno rumble, a smeared copy of the track under it: at a
+                                                  * sixteenth of the rate (2.76 kHz), a tape delay on the offbeat (an
+                                                  * eighth) into two diffusers and a Hadamard network of four lines
+                                                  * (two of them wobbling, so its modes smear), driven hard, low-passed
+                                                  * (tone), ducked each hit and swelling back within the beat.
+                                                  * z[0] the sixteenth's sum, z[1] its count, z[2..3] the low-pass in,
+                                                  * z[4..5] the last two ticks, z[6..7] the low-pass out, z[8] the
+                                                  * level, z[9] its peak, z[10] the beat since the last hit, z[11]
+                                                  * armed, z[12] the wobble's phase; the places: the memory's first */
+        int16_t *m = t->pool_at >= 0 ? ins_pool[(int)t->pool_at] : 0;
+        const float rt = rb_decay(t->ins_k[0]), fc = 50.0f * in_exp2(k1 * 3.0f), kl = op_coef(250.0f), ko = op_coef(fc);
+        const float wet = k2 * 1.2f, rel = 1.0f - op_coef(1.0f / 0.03f), prel = 1.0f - op_coef(1.0f / 3.0f);
+        const float beat = 60.0f / fm_maxf(s->bpm, 20.0f), dbt = INV_SR / beat;
+        float g[4], a = z[2], b = z[3], sum = z[0], y0 = z[4], y1 = z[5], o1 = z[6], o2 = z[7], env = z[8], pk = z[9];
+        float dph = z[10], wph = z[12], dl;
+        int cnt = (int)z[1], armed = (int)z[11];
+        if (!m)
             break;
-        for (int q = 0; q < 4; q++)              /* (-60 dB in rt: 10^(-3 len / (sr/8 rt))) */
-            g[q] = in_exp2(-9.966f * (float)RB_LEN[q] / (SY_SR * 0.125f * rt));
+        for (int q = 0; q < 4; q++)              /* (-60 dB in rt: 10^(-3 len / (sr/16 rt))) */
+            g[q] = in_exp2(-9.966f * (float)RB_LEN[q] / (SY_SR * (1.0f / 16.0f) * rt));
+        dl = fm_clampf(beat * 0.5f * SY_SR * (1.0f / 16.0f), 16.0f, (float)(RB_DN - 2));
         for (uint32_t i = 0; i < n; i++) {
             float x = 0.5f * (bl[i] + br[i]), ax = fm_fabsf(x), y, du;
             a += kl * (x - a);
             b += kl * (a - b);
             sum += b;
-            env = ax > env ? env + 0.2f * (ax - env) : env * rel;
-            if (++cnt == 8) {                    /* a tick of the network */
-                float v[4], h0, h1, h2, h3, in = sum;   /* (the eighth's sum: its mean, eight times) */
-                for (int q = 0; q < 4; q++)
-                    v[q] = (float)ln[RB_AT[q] + (int)z[q]] * (1.0f / 8192.0f);
+            env = ax > env ? env + 0.3f * (ax - env) : env * rel;
+            pk = fm_maxf(env, pk * prel);
+            if (armed && env > 0.5f * pk && env > 1e-3f)
+                dph = 0.0f, armed = 0;           /* a hit: the duck from the top of the beat */
+            else if (env < 0.2f * pk)
+                armed = 1;
+            dph = fm_minf(dph + dbt, 4.0f);
+            if (++cnt == 16) {                   /* a tick */
+                float in = sum * (1.0f / 16.0f), v[4], h0, h1, h2, h3, r, w;
+                int p = m[RB_P], d = (int)dl;
+                r = (float)m[RB_D + (p - d + RB_DN) % RB_DN] * (1.0f / 8192.0f);   /* the offbeat delay */
+                m[RB_D + p] = (int16_t)fm_clampf((in + 0.45f * r) * 8192.0f, -32767.0f, 32767.0f);
+                m[RB_P] = (int16_t)(p + 1 < RB_DN ? p + 1 : 0);
+                w = in + 0.8f * r;
+                for (int q = 0; q < 2; q++) {    /* the diffusers */
+                    int16_t *ap = m + RB_AA[q];
+                    int pq = m[RB_P + 1 + q];
+                    float vv = (float)ap[pq] * (1.0f / 8192.0f), yy = vv - 0.6f * w;
+                    ap[pq] = (int16_t)fm_clampf((w + 0.6f * yy) * 8192.0f, -32767.0f, 32767.0f);
+                    m[RB_P + 1 + q] = (int16_t)(pq + 1 < RB_AL[q] ? pq + 1 : 0);
+                    w = yy;
+                }
+                wph += 0.37f * (16.0f * INV_SR);
+                wph -= fm_floorf(wph);
+                for (int q = 0; q < 4; q++) {    /* (lines 0 and 2 read a wobbling 0..4 samples late) */
+                    int pq = m[RB_P + 3 + q], L = RB_LEN[q];
+                    float md = (q & 1) ? 0.0f : 2.0f + 2.0f * in_sin(wph + 0.25f * (float)q), fp = (float)pq + md, fr;
+                    int i0;
+                    fp -= fp >= (float)L ? (float)L : 0.0f;
+                    i0 = (int)fp;
+                    fr = fp - (float)i0;
+                    v[q] = ((float)m[RB_L[q] + i0] + ((float)m[RB_L[q] + (i0 + 1 < L ? i0 + 1 : 0)] -
+                                                       (float)m[RB_L[q] + i0]) * fr) * (1.0f / 8192.0f);
+                }
                 h0 = v[0] + v[1], h1 = v[0] - v[1], h2 = v[2] + v[3], h3 = v[2] - v[3];
-                v[0] = 0.5f * (h0 + h2), v[1] = 0.5f * (h1 + h3), v[2] = 0.5f * (h0 - h2), v[3] = 0.5f * (h1 - h3);
-                for (int q = 0; q < 4; q++) {
-                    int p = (int)z[q];
-                    ln[RB_AT[q] + p] = (int16_t)fm_clampf((in + g[q] * v[q]) * 8192.0f, -32767.0f, 32767.0f);
-                    z[q] = (float)(p + 1 < RB_LEN[q] ? p + 1 : 0);
+                {
+                    float u0 = 0.5f * (h0 + h2), u1 = 0.5f * (h1 + h3), u2 = 0.5f * (h0 - h2), u3 = 0.5f * (h1 - h3);
+                    float u[4] = {u0, u1, u2, u3};
+                    for (int q = 0; q < 4; q++) {
+                        int pq = m[RB_P + 3 + q];
+                        m[RB_L[q] + pq] = (int16_t)fm_clampf((w + g[q] * u[q]) * 8192.0f, -32767.0f, 32767.0f);
+                        m[RB_P + 3 + q] = (int16_t)(pq + 1 < RB_LEN[q] ? pq + 1 : 0);
+                    }
                 }
                 y0 = y1;
-                y1 = soft3(1.5f * (v[0] + v[1] + v[2] + v[3]));   /* (saturated: the rumble's grit) */
+                {                                /* driven hard (as hard at any level: by the track's peak): the
+                                                  * grit, its harmonics what a small speaker plays */
+                    float pr = fm_maxf(pk, 1e-3f);
+                    y1 = soft3((v[0] + v[1] + v[2] + v[3] + 0.5f * r) * (4.0f / pr)) * (2.5f * pr);
+                }
                 sum = 0.0f, cnt = 0;
             }
-            y = y0 + (y1 - y0) * (float)cnt * 0.125f;
-            o += ko * (y - o);
-            du = 1.0f - fm_minf(env * 4.0f, 1.0f);
-            du *= du;
-            bl[i] += wet * du * o;
-            br[i] += wet * du * o;
+            y = y0 + (y1 - y0) * (float)cnt * (1.0f / 16.0f);
+            o1 += ko * (y - o1);
+            o2 += ko * (o1 - o2);
+            du = fm_clampf((dph - 0.05f) * 2.5f, 0.0f, 1.0f);   /* (0 on the hit, back by half the beat) */
+            du = du * du * (3.0f - 2.0f * du);
+            bl[i] += wet * du * o2;
+            br[i] += wet * du * o2;
         }
-        z[4] = sum, z[5] = (float)cnt, z[6] = fm_flush(a), z[7] = fm_flush(b), z[8] = fm_flush(y0), z[9] = fm_flush(y1);
-        z[10] = fm_flush(env), z[11] = fm_flush(o);
+        z[0] = sum, z[1] = (float)cnt, z[2] = fm_flush(a), z[3] = fm_flush(b), z[4] = fm_flush(y0), z[5] = fm_flush(y1);
+        z[6] = fm_flush(o1), z[7] = fm_flush(o2), z[8] = fm_flush(env), z[9] = fm_flush(pk), z[10] = dph;
+        z[11] = (float)armed, z[12] = wph;
         break;
     }
     default:
@@ -4950,6 +5008,22 @@ void synth_insert(synth_t *s, int trk, float *l, float *r, uint32_t n)
 {
     if (trk >= 0 && trk < NTRK && s->t[trk].ins != IT_OFF)
         ins_run(s, &s->t[trk], l, r, n);
+}
+int synth_insert_rings(synth_t *s, int trk, int sounding, uint32_t n)
+{
+    trk_t *t;
+    if (trk < 0 || trk >= NTRK)
+        return 0;
+    t = &s->t[trk];                              /* (its type and knobs: bus_prepare's, this block's) */
+    if (t->ins == IT_OFF)
+        return t->ins_tail = 0, sounding;
+    if (sounding) {
+        ins_tail_set(s, t, n);
+        return 1;
+    }
+    if (t->ins_tail)
+        t->ins_tail--;
+    return t->ins_tail != 0;
 }
 void synth_bus_reset(synth_t *s, int core)
 {
@@ -5109,7 +5183,7 @@ static const tp_info_t INS_P[NIT][3] = {
     {{"rate", 0, 127, 30, PK_HZ_SYNC, 0}, {"depth", 0, 127, 70, PK_PCT, 0}, {"mix", 0, 127, 64, PK_PCT, 0}},
     {{"time", 0, 7, 5, PK_NAMES, ECHO_T_N}, {"feedback", 0, 127, 60, PK_PCT, 0}, {"mix", 0, 127, 45, PK_PCT, 0}},
     {{"mode", 0, 2, 0, PK_NAMES, JUNO_N}, {"mix", 0, 127, 64, PK_PCT, 0}, {"tone", 0, 127, 70, PK_NN, 0}},
-    {{"decay", 0, 127, 80, PK_NN, 0}, {"tone", 0, 127, 50, PK_NN, 0}, {"mix", 0, 127, 70, PK_PCT, 0}}};
+    {{"decay", 0, 127, 80, PK_NN, 0}, {"tone", 0, 127, 80, PK_NN, 0}, {"mix", 0, 127, 70, PK_PCT, 0}}};
 static const tp_info_t TULLE_G_P[4] = {{"shape", 0, 127, 0, PK_NN, 0}, {"reverse", 0, 127, 0, PK_PCT, 0},
                                        {"-", 0, 0, 0, PK_NUM, 0}, {"-", 0, 0, 0, PK_NUM, 0}};
 static const tp_info_t KMOD_P[4] = {{"sync", 0, 1, 0, PK_SWITCH, 0}, {"sweep", 0, KSWEEP_MAX, 0, PK_SEMI, 0},

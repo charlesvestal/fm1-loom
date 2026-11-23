@@ -2162,6 +2162,55 @@ static void insert_tests(void)
             check("rumble: a low tail goes on after the note's voice has ended",
                   ended > 0 && late > 0.005f && late < 2.0f && nn && zc * 44100 / nn < 1000 && finite);
         }
+        {   /* rumble on a kick every beat at 120 (a short low note): between the kicks (0.25 .. 0.45 s on) the rumble
+             * stands near the kick's level; on the hit (its first 20 ms) the duck keeps it out */
+            static float buf[86 * N * 2];
+            double ehit = 0.0, egap = 0.0, ehit0 = 0.0;
+            reset();
+            par[0][TP_A] = 0;
+            par[0][TP_D] = 40;
+            par[0][TP_S] = 0;
+            par[0][TP_R] = 10;
+            par[0][TP_ITYPE] = IT_RUMBLE;
+            for (int q = TP_I1; q <= TP_I3; q++)
+                par[0][q] = tp_info_par(q, par[0])->def;
+            for (int pass = 0; pass < 2; pass++) {
+                double eh = 0.0, eg = 0.0;
+                par[0][TP_ITYPE] = (uint8_t)(pass ? IT_RUMBLE : IT_OFF);
+                synth_init(S, par);
+                synth_tempo(S, 120.0f);
+                for (int beat = 0; beat < 8; beat++) {
+                    synth_note_on(S, 0, 36, 120, 0, (uint32_t)(beat + 1));
+                    for (int b = 0; b < 86; b++) {   /* (86 blocks of 256: 0.4993 s) */
+                        block(N, &finite);
+                        if (b == 3)
+                            synth_note_off(S, 0, (uint32_t)(beat + 1));
+                        for (int i2 = 0; i2 < N; i2++)
+                            buf[b * N + i2] = L[i2];
+                    }
+                    if (beat >= 3)
+                        for (int i2 = 0; i2 < 86 * N; i2++) {
+                            float tt = (float)i2 / 44100.0f;
+                            if (tt < 0.02f)
+                                eh += (double)buf[i2] * (double)buf[i2];
+                            else if (tt > 0.25f && tt < 0.45f)
+                                eg += (double)buf[i2] * (double)buf[i2];
+                        }
+                }
+                if (pass)
+                    ehit = eh, egap = eg;
+                else
+                    ehit0 = eh;
+            }
+            {
+                double hit = 10.0 * log10(ehit / (5.0 * 0.02 * 44100.0) + 1e-20),
+                       gap = 10.0 * log10(egap / (5.0 * 0.2 * 44100.0) + 1e-20),
+                       hit0 = 10.0 * log10(ehit0 / (5.0 * 0.02 * 44100.0) + 1e-20);
+                printf("    rumble on a kick: the hit %.1f dB (dry %.1f), between the kicks %.1f dB\n", hit, hit0, gap);
+                check("rumble: between the kicks it stands within 12 dB of the hit, the hit itself as dry",
+                      finite && gap > hit - 12.0 && fabs(hit - hit0) < 1.5);
+            }
+        }
         reset();
         for (int t = 0; t < 5; t++) {
             par[t][TP_ITYPE] = IT_CHORUS;
