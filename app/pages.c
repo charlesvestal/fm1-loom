@@ -1880,8 +1880,6 @@ static void page_knobs(knob_t *k)
     case P_MASTER: case P_MASTER2: case P_MASTER3:
         for (int i = 0; i < 4; i++) {
             int m = mst_base(p) + i;
-            if (m == MS_CLIP)
-                continue;                            /* (EQ: three knobs) */
             if (m == MS_CTYPE)
                 kname(&k[i], MS_NAME[m], MC_NAME, proj.master[m] % NMC, NMC);
             else if (m >= MS_CAMT && m <= MS_CMIX)

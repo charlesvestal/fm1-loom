@@ -2235,8 +2235,6 @@ static void glfo_knob(int k, int32_t e)          /* the shared LFO's knobs (synt
 static void master_knob(int k, int32_t e)
 {
     int m = mst_base(ui.page) + k, v;
-    if (m == MS_CLIP)
-        return;                                  /* (EQ: three knobs) */
     v = clampi(proj.master[m] + e, 0, master_max(m));
     if (v == proj.master[m])
         return;                                  /* (a knob past its end: no undo step, no CC) */

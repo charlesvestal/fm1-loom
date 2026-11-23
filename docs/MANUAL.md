@@ -1492,7 +1492,8 @@ of **FX**.
 
 Turn **SELECT** for more pages:
 
-- Master EQ has low, mid and high. 64 is flat.
+- Master EQ has low, mid and high (64 is flat) and **clip**: 0 is off; turning it up drives the mix into a soft
+  clipper before the limiter, so it gets louder and denser, the kick's and snare's peaks rounded off.
 - Master color is described below.
 - Master out has the drums' level, the melodic tracks' level, the compressor and the pump. The **SEL** list on
   these pages lists their knobs, page by page, along with what the pump follows, its release and accent, and the
@@ -1685,7 +1686,7 @@ the selected instrument track.
 | CC | FX I / FX II | Master |
 | --- | --- | --- |
 | 7 | return level | level |
-| 16-19 | the effect's four knobs | EQ low / mid / high |
+| 16-19 | the effect's four knobs | EQ low / mid / high / clip |
 | 20-23 | - | color type / amount / tone / mix |
 | 24-27 | - | drums level / melodic level / comp / pump |
 | 28 | - | pump release |

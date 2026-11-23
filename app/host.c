@@ -414,7 +414,7 @@ static void steps_print(int t, int p)
 static int isnum(const char *s);
 static int ieq(const char *a, const char *b);
 static int param_of(const char *s);
-static const char *const MN[NMS] = {"lo", "mid", "hi", "-", "color", "camount", "ctone", "cmix", "perc", "mel",
+static const char *const MN[NMS] = {"lo", "mid", "hi", "clip", "color", "camount", "ctone", "cmix", "perc", "mel",
                                     "comp", "pump", "pumpby", "release", "accent", "level"};
 /* fm1-base's expect, for LOOM-8's own state with one value */
 int app_expect(const char *what, int *got)
