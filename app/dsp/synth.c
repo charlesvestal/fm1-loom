@@ -45,7 +45,8 @@ static const uint8_t E_GLIDE[NENGINE] = {
     0x0, 0x0, 0x0, 0x0,                                    /* sample, slice (where a note starts), the kit, midi */
     0x0,                                                   /* acid (bass303_set: its own) */
     0xE,                                                   /* tulle: position, spray, scan (not the sample) */
-    0xE, 0xE};                                             /* lace, velvet: not the material, the register */
+    0xE, 0xE,                                              /* lace, velvet: not the material, the register */
+    0x8};                                                  /* tartan: detune (the chord's steps jump) */
 static inline float glide_to(float from, float to)
 {
     float d = to - from;
@@ -65,21 +66,23 @@ static inline float glide_to(float from, float to)
 const char *const RL_NAME[NRL] = {"bass", "lead", "pad", "keys", "pluck", "bell", "stab", "strings", "brass", "voice",
                                   "chord", "fx", "drum", "loop"};
 const char *const EG_NAME[NENGINE] = {"knit", "rayon", "jacquard", "bellows", "cane", "voile", "sample", "slice",
-                                      "kit", "midi", "acid", "tulle", "lace", "velvet"};
+                                      "kit", "midi", "acid", "tulle", "lace", "velvet", "tartan"};
 const char *const EG_KNOB[NENGINE][4] = {
     {"wave", "detune", "voices", "width"}, {"bright", "ratio", "edge", "tine"},     {"table", "scan", "bend", "ripple"},
     {"stops", "pedal", "rotor", "rate"},   {"model", "timbre", "color", "damp"},   {"model", "timbre", "color", "breath"},
     {"sample", "start", "length", "mode"}, {"sample", "slices", "pitch", "gate"},  {"-", "-", "-", "-"},
     {"cc", "cc", "cc", "cc"},                    /* (midi: each knob named by its CC, tp_info_par) */
     {"wave", "accent", "slide", "tune"},  {"sample", "position", "spray", "scan"},
-    {"material", "bright", "damp", "position"}, {"register", "bright", "chorus", "rate"}};
+    {"material", "bright", "damp", "position"}, {"register", "bright", "chorus", "rate"},
+    {"chord", "spread", "rotate", "detune"}};
 /* each engine's plain sound (INIT), 0..127; bellows' four are discrete 1..8, knit's voices 1..7, the Braids engines'
  * models a name each (synth.h NCANE ...) */
 static const uint8_t EG_DEF[NENGINE][4] = {{0, 20, 1, 0},  {40, 25, 0, 0}, {0, 40, 0, 0},  {3, 4, 2, 5},
                                            {0, 64, 64, 0}, {2, 0, 64, 0},  {5, 0, 127, SM_ONESHOT}, {SMP_BREAK, 1, 64, 127},
                                            {0, 0, 0, 0}, {64, 64, 64, 64}, {0, 64, 21, 64},   /* (acid: X0X's) */
                                            {SMP_TEXTURE, 40, 30, 0},        /* (tulle: the bowl, its texture) */
-                                           {0, 64, 50, 30}, {VR_VIOLIN, 70, 70, 40}};   /* (lace: a bar; velvet) */
+                                           {0, 64, 50, 30}, {VR_VIOLIN, 70, 70, 40},   /* (lace: a bar; velvet) */
+                                           {6, 64, 0, 10}};   /* (tartan: Chordism's major, as it was) */
 static const char *const VMODE_N[3] = {"poly", "mono", "legato"};
 static const char *const FTYPE_N[NFT] = {"lp24", "ladder", "lp12", "hp12", "bp12", "off"};   /* FT_DYNAMIC: no
                                                                           * filter on a synth track; the kit's
@@ -121,6 +124,10 @@ static const char *const VOILE_N[NVOILE] = {"vosim", "vowel", "choir", "whisper"
 static const char *const LACE_N[NLACE] = {"bar", "marimba", "church", "glass", "plate", "string", "wood", "gong", "bowl"};
 static const char *const LACEX_N[NLX] = {"mallet", "noise", "bow"};
 static const char *const VELVET_N[NVR] = {"violin", "viola", "cello", "bass", "full"};
+static const char *const TT_CHORD_N[TT_NCHORD] = {"octaves", "fifth", "minor", "min7", "min9", "min11", "major", "maj7",
+                                                  "maj9", "sus4", "6/9", "min6", "10th", "dom7", "7b9", "half-dim"};
+static const char *const TT_WAVES_N[TT_NWAVES] = {"saws", "sines", "pulses", "squares", "glass", "harmonic", "saw sine",
+                                                  "pls sine", "sine pls", "pls saw", "saw duo", "mixed"};
 static const char *const ACIDW_N[2] = {"saw", "square"};
 static const char *const ACIDD_N[3] = {"off", "soft", "rat"};
 /* ring: the modulator's ratios to the note, tone / 8 */
@@ -428,6 +435,9 @@ static void eng_init(voice_t *v)
         lc_init(v);
     else if (v->engine == EG_VELVET)
         vv_init(v);
+    else if (v->engine == EG_TARTAN)
+        for (i = 0; i < 5; i++)                  /* (tartan: its voices, its shimmer from points of their own) */
+            v->o[i] = (float)(xs(&v->rng) >> 8) * (1.0f / 16777216.0f);
     else if (v->engine == EG_VOILE)
         vo_init(v);
     else if (v->engine == EG_ACID)
@@ -1689,6 +1699,153 @@ static __attribute__((noinline)) void vv_run(voice_t *v, float *xl, float *xr, i
     v->o[6] = fm_flush(r);
 }
 
+/* tartan: Chordism (schwung-chordism, the user's, MIT: its chords, morphs and oscillators; synth.h EG_TARTAN). A
+ * note is a chord of four oscillators in one voice: the chord's intervals (its type's, scaled by spread and rounded
+ * to semitones, rotated), each voice detuned on by its place, its wave from the set, its level by the level morph
+ * (Chordism's sixteen rows, eased between, by the amount), its place by the width and the pan morph (its sixteen),
+ * voice 1 the FM's modulator on the others' phase, the shimmer a triangle on each voice's shape a quarter cycle on.
+ * o[0..3] the voices' phases, o[4] the shimmer's (turns), o[8..11] the Morph page as it was made from (voice_chunk).
+ * ex[0..3] the voices' increments, ex[4] the wave set, ex[5] shape, ex[6] FM, ex[7] the shimmer's depth, ex[10..13]
+ * the Sub page (voice_chunk), ex[14..17] the voices' left gains, ex[18..21] their right */
+static const int8_t TT_CHORD[TT_NCHORD][4] = {
+    {0, 12, 24, 36}, {0, 7, 12, 19}, {0, 3, 7, 12}, {0, 3, 7, 10}, {0, 3, 7, 14}, {0, 3, 7, 17},
+    {0, 4, 7, 12},   {0, 4, 7, 11},  {0, 4, 7, 14}, {0, 5, 7, 12}, {0, 4, 9, 14}, {0, 3, 7, 9},
+    {0, 4, 7, 16},   {0, 4, 7, 10},  {0, 4, 7, 13}, {0, 3, 6, 10}};
+static const uint8_t TT_LEVEL[16][4] = {     /* (Chordism's LEVEL_MORPH_LUT, in tenths) */
+    {10, 10, 10, 10}, {2, 5, 8, 10}, {10, 8, 5, 2}, {10, 0, 0, 0}, {0, 0, 0, 10}, {10, 0, 0, 10}, {0, 10, 10, 0},
+    {10, 0, 10, 0},   {0, 10, 0, 10}, {1, 3, 7, 10}, {3, 10, 10, 3}, {10, 3, 3, 10}, {0, 0, 5, 10}, {10, 7, 3, 0},
+    {10, 10, 5, 5},   {5, 5, 10, 10}};
+static const int8_t TT_PAN[16][4] = {        /* (its PAN_MORPH_LUT, in tenths) */
+    {0, 0, 0, 0},     {-10, -3, 3, 10}, {10, 3, -3, -10}, {-10, 10, -10, 10}, {10, -10, 10, -10}, {-10, -10, 10, 10},
+    {-10, 0, 0, 10},  {0, -10, 10, 0},  {-5, 5, -5, 5},   {5, -5, 5, -5},     {-10, -5, 5, 10},   {0, -10, 0, 10},
+    {0, 10, 0, -10},  {-10, 10, 0, 0},  {0, 0, 10, -10},  {7, -7, -7, 7}};
+enum { TW_OFF, TW_SINE, TW_TRI, TW_SAW, TW_SQUARE, TW_PULSE, TW_WT };
+static const uint8_t TT_WAVES[TT_NWAVES][4] = {   /* (the sets Chordism's presets use) */
+    {TW_SAW, TW_SAW, TW_SAW, TW_SAW},       {TW_SINE, TW_SINE, TW_SINE, TW_SINE},   {TW_PULSE, TW_PULSE, TW_PULSE, TW_PULSE},
+    {TW_SQUARE, TW_SQUARE, TW_SQUARE, TW_SQUARE}, {TW_SINE, TW_TRI, TW_TRI, TW_SINE}, {TW_WT, TW_WT, TW_WT, TW_WT},
+    {TW_SAW, TW_SAW, TW_SINE, TW_SINE},     {TW_PULSE, TW_PULSE, TW_SINE, TW_SINE}, {TW_SINE, TW_SINE, TW_PULSE, TW_PULSE},
+    {TW_PULSE, TW_PULSE, TW_SAW, TW_SAW},   {TW_SAW, TW_SAW, TW_OFF, TW_OFF},       {TW_SINE, TW_PULSE, TW_SQUARE, TW_PULSE}};
+/* the chord a tartan sound plays (the Engine page's picture): its four voices' intervals (semitones), levels (0..1)
+ * and places (0 left .. 1 right), as tt_prep makes them */
+void tartan_voices(const uint8_t *par, float *semis, float *lvl, float *pan)
+{
+    int ch = par[TP_E1] < TT_NCHORD ? par[TP_E1] : TT_NCHORD - 1, rot = par[TP_E3] & 3;
+    float sp = (float)par[TP_E2] / 64.0f, mi = (float)par[TP_KSYNC] * (15.0f / 127.0f), ma = (float)par[TP_KSWEEP] / 127.0f;
+    float pi = (float)par[TP_KCROSS] * (15.0f / 127.0f), w = (float)par[TP_X3] / 127.0f;
+    int ml = (int)mi, pl = (int)pi;
+    for (int k = 0; k < 4; k++) {
+        float lv = 0.1f * ((float)TT_LEVEL[ml][k] + ((float)TT_LEVEL[ml < 15 ? ml + 1 : 15][k] - (float)TT_LEVEL[ml][k]) * (mi - (float)ml));
+        float pn = 0.1f * ((float)TT_PAN[pl][k] + ((float)TT_PAN[pl < 15 ? pl + 1 : 15][k] - (float)TT_PAN[pl][k]) * (pi - (float)pl));
+        semis[k] = (float)(int)((float)TT_CHORD[ch][(k + rot) & 3] * sp);
+        lvl[k] = TT_WAVES[par[TP_X1] < TT_NWAVES ? par[TP_X1] : 0][k] == TW_OFF ? 0.0f : 1.0f + (lv - 1.0f) * ma;
+        pan[k] = fm_clampf(0.5f + ((float)k / 3.0f - 0.5f) * w + pn * 0.5f, 0.0f, 1.0f);
+    }
+}
+static void tt_prep(voice_t *v)
+{
+    cfg_t *c = &v->c;
+    int ch = (int)(c->ek[0] + 0.5f), rot = (int)(c->ek[2] + 0.5f), k;
+    float sp = c->e[1] * (127.0f / 64.0f), mi = v->o[8] * (15.0f / 127.0f), ma = v->o[9] * (1.0f / 127.0f);
+    float pi = v->o[10] * (15.0f / 127.0f), w = c->ex[12] * (1.0f / 127.0f);
+    int ml = (int)mi, pl = (int)pi;
+    float mf = mi - (float)ml, pf = pi - (float)pl;
+    ch = ch < 0 ? 0 : ch >= TT_NCHORD ? TT_NCHORD - 1 : ch;
+    rot = rot < 0 ? 0 : rot > 3 ? 3 : rot;
+    c->stereo = 1;
+    c->ex[4] = fm_minf(c->ex[10], (float)(TT_NWAVES - 1));
+    c->ex[5] = c->ex[11] * (1.0f / 127.0f);
+    c->ex[6] = c->ex[13] * (1.0f / 127.0f);
+    c->ex[7] = v->o[11] * (0.5f / 127.0f);
+    for (k = 0; k < 4; k++) {
+        int iv = (int)((float)TT_CHORD[ch][(k + rot) & 3] * sp);   /* (Chordism's: scaled, then whole semitones) */
+        float hz = c->freq * fm_exp2f(((float)iv + (float)k * c->e[3] * 0.5f) * (1.0f / 12.0f));
+        float lv = 0.1f * ((float)TT_LEVEL[ml][k] + ((float)TT_LEVEL[ml < 15 ? ml + 1 : 15][k] - (float)TT_LEVEL[ml][k]) * mf);
+        float pn = 0.1f * ((float)TT_PAN[pl][k] + ((float)TT_PAN[pl < 15 ? pl + 1 : 15][k] - (float)TT_PAN[pl][k]) * pf);
+        float g = 0.35f * (1.0f + (lv - 1.0f) * ma), p = fm_clampf(0.5f + ((float)k / 3.0f - 0.5f) * w + pn * 0.5f, 0.0f, 1.0f);
+        c->ex[k] = fm_minf(hz * INV_SR, 0.45f);
+        c->ex[14 + k] = g * fm_sqrtf(1.0f - p);
+        c->ex[18 + k] = g * fm_sqrtf(p);
+    }
+}
+SY_INLINE float tt_osc(int w, float ph, float dt, float sh)   /* Chordism's osc_sample, on synth.c's blep */
+{
+    switch (w) {
+    case TW_SINE: {
+        float x = (1.0f + sh * 5.0f) * fm_sin_turns(ph);
+        for (int i = 0; i < 8 && (x > 1.0f || x < -1.0f); i++)   /* (folded back inside +-1) */
+            x = x > 1.0f ? 2.0f - x : -2.0f - x;
+        return x;
+    }
+    case TW_TRI: {
+        float pk = fm_maxf(0.5f * (1.0f - sh), 1e-4f);
+        return ph < pk ? ph / pk * 2.0f - 1.0f : 1.0f - (ph - pk) / (1.0f - pk) * 2.0f;
+    }
+    case TW_SAW: {
+        float s = 2.0f * ph - 1.0f - blep(ph, dt, 1.0f / dt);
+        if (sh > 0.0f) {
+            float p2 = ph * 2.0f;
+            p2 -= p2 >= 1.0f ? 1.0f : 0.0f;
+            s += sh * (2.0f * p2 - 1.0f - blep(p2, 2.0f * dt, 0.5f / dt) - s);
+        }
+        return s;
+    }
+    case TW_SQUARE: case TW_PULSE: {
+        float pw = w == TW_SQUARE ? 0.05f + sh * 0.9f : 0.02f + sh * 0.28f, t2 = ph + 1.0f - pw, idt = 1.0f / dt;
+        t2 -= t2 >= 1.0f ? 1.0f : 0.0f;
+        return (ph < pw ? 1.0f : -1.0f) + blep(ph, dt, idt) - blep(t2, dt, idt);
+    }
+    case TW_WT: {                                /* the partials by sin(h t) = 2 cos t sin((h-1) t) - sin((h-2) t) */
+        float s1 = fm_sin_turns(ph), s = s1, c2 = 2.0f * fm_sin_turns(ph + 0.25f), a = 0.0f, b = s1;
+        int n = 1 + (int)(sh * 7.0f);
+        for (int h = 2; h <= n; h++) {
+            float x = c2 * b - a;
+            a = b;
+            b = x;
+            s += x / (float)h;
+        }
+        return s * 0.5f;
+    }
+    default:
+        return 0.0f;
+    }
+}
+static __attribute__((noinline)) void tt_run(voice_t *v, float *xl, float *xr, int m)
+{
+    const cfg_t *c = &v->c;
+    const uint8_t *ws = TT_WAVES[(int)c->ex[4]];
+    const float fm = c->ex[6] * 0.5f;
+    float sh[4], m0[SUB];
+    int i, k;
+    for (k = 0; k < 4; k++) {                    /* (the shimmer: each voice's shape a quarter cycle on, a block a step) */
+        float ph = v->o[4] + 0.25f * (float)k, tri = 4.0f * fm_fabsf(ph - fm_floorf(ph + 0.5f)) - 1.0f;
+        sh[k] = fm_clampf(c->ex[5] + c->ex[7] * tri, 0.0f, 1.0f);
+    }
+    v->o[4] = wrap1(v->o[4] + 0.4f * INV_SR * (float)m);
+    for (i = 0; i < m; i++)
+        xl[i] = xr[i] = m0[i] = 0.0f;
+    for (k = 0; k < 4; k++) {                    /* (a voice at a time: its state in registers; voice 1 first, the FM's) */
+        const float dt = c->ex[k], gl = c->ex[14 + k], gr = c->ex[18 + k];
+        float ph = v->o[k];
+        const int w = ws[k];
+        if (w == TW_OFF)
+            continue;
+        for (i = 0; i < m; i++) {
+            float pu = ph, s;
+            if (k && fm > 0.0f) {
+                pu += m0[i] * fm;
+                pu -= fm_floorf(pu);
+            }
+            s = tt_osc(w, pu, dt, sh[k]);
+            if (!k)
+                m0[i] = s;
+            ph = step1(ph, dt);
+            xl[i] += s * gl;
+            xr[i] += s * gr;
+        }
+        v->o[k] = ph;
+    }
+}
+
 /* sample: a sample of the bank (dsp/sample.h) at the note's pitch; its root note plays it at its own rate
  * (sm->rate: the factory's 22.05 kHz, half a sample a frame), linearly interpolated. start: where in it
  * (0..99 %); length: how much of the rest (127 = to its end): the region. Modes: one-shot (the region once; then the voice ends), loop
@@ -2143,6 +2300,7 @@ static void eng_prep(voice_t *v, float bpm)
     case EG_TULLE: tl_prep(v); break;
     case EG_LACE: lc_prep(v); break;
     case EG_VELVET: vv_prep(v); break;
+    case EG_TARTAN: tt_prep(v); break;
     default: knit_prep(v); break;
     }
 }
@@ -2160,6 +2318,7 @@ static void eng_run(voice_t *v, float *xl, float *xr, int m)
     case EG_TULLE: tl_run(v, xl, xr, m); break;
     case EG_LACE: lc_run(v, xl, xr, m); break;
     case EG_VELVET: vv_run(v, xl, xr, m); break;
+    case EG_TARTAN: tt_run(v, xl, xr, m); break;
     default: knit_run(v, xl, xr, m); break;
     }
 }
@@ -2807,6 +2966,11 @@ int synth_voice_cost(const synth_t *s, int vi)
     if (v->engine == EG_LACE)                    /* (the host's count against rayon's 5, 2026-11-23: struck about 6; the
                                                   * bow's a sample at a time, an estimate; not yet the FM-1's) */
         return (int)v->c.ex[3] == LX_BOW ? 8 : 6;
+    if (v->engine == EG_TARTAN) {                /* (an estimate: its voices as knit's unison, a unit and a half each) */
+        const uint8_t *ws = TT_WAVES[(int)v->c.ex[4] < TT_NWAVES ? (int)v->c.ex[4] : 0];
+        return 3 + 3 * ((ws[0] != TW_OFF) + (ws[1] != TW_OFF) + (ws[2] != TW_OFF) + (ws[3] != TW_OFF)) / 2;   /* (the
+                                                  * host's count, 2026-11-23: four saws about velvet's, 9) */
+    }
     if (v->engine == EG_VELVET) {                /* (the same: two registers about 9, three units a register's three saws,
                                                   * two more for shape's second saw) */
         int msk = (int)v->c.ex[1];
@@ -3601,12 +3765,19 @@ static void voice_chunk(synth_t *s, voice_t *v)
                 c->ex[15] = rf;
             }
         }
-        if (v->engine == EG_LACE || v->engine == EG_VELVET)   /* their Sub page (lc_prep: exciter, stretch, spread,
-                                                  * hardness; vv_prep: shape, width, detune) */
+        if (v->engine == EG_LACE || v->engine == EG_VELVET || v->engine == EG_TARTAN)   /* their Sub page (lc_prep:
+                                                  * exciter, stretch, spread, hardness; vv_prep: shape, width, detune;
+                                                  * tt_prep: waves, shape, width, FM) */
             for (i = 0; i < 4; i++) {
                 float xv = (float)P(s, trk, TP_X1 + i);
                 moved |= xv != c->ex[10 + i];
                 c->ex[10 + i] = xv;
+            }
+        if (v->engine == EG_TARTAN)              /* its Morph page (knit's Mod page's bytes: tt_prep) */
+            for (i = 0; i < 4; i++) {
+                float mv = (float)P2(s, trk, TP_KSYNC + i);
+                moved |= mv != v->o[8 + i];
+                v->o[8 + i] = mv;
             }
         if (v->engine == EG_TULLE) {             /* its Sub page (tl_prep): size, density, pitch, width; its Grain
                                                   * page (tl_spawn reads them): shape, reverse */
@@ -4929,6 +5100,11 @@ static const tp_info_t LACE_X_P[4] = {{"exciter", 0, NLX - 1, LX_MALLET, PK_NAME
                                       {"spread", 0, 127, 64, PK_PCT, 0}, {"hardness", 0, 127, 80, PK_NN, 0}};
 static const tp_info_t VELVET_X_P[4] = {{"shape", 0, 127, 0, PK_NN, 0}, {"width", 0, 127, 90, PK_PCT, 0},
                                         {"detune", 0, 127, 30, PK_NN, 0}, {"-", 0, 0, 0, PK_NUM, 0}};
+/* tartan's Sub page (tt_prep): the waves, shape, width, FM; its Morph page (knit's Mod page's bytes) */
+static const tp_info_t TARTAN_X_P[4] = {{"waves", 0, TT_NWAVES - 1, 0, PK_NAMES, TT_WAVES_N}, {"shape", 0, 127, 0, PK_NN, 0},
+                                        {"width", 0, 127, 90, PK_PCT, 0}, {"fm", 0, 127, 0, PK_NN, 0}};
+static const tp_info_t TARTAN_M_P[4] = {{"morph", 0, 127, 0, PK_NN, 0}, {"amount", 0, 127, 0, PK_PCT, 0},
+                                        {"pan", 0, 127, 0, PK_NN, 0}, {"shimmer", 0, 127, 0, PK_NN, 0}};
 static const tp_info_t RAYON_X_P[4] = {{"fall", 0, 127, 0, PK_NUM, 0}, {"floor", 0, 127, 0, PK_PCT, 0},
                                        {"keyscale", 0, 127, 0, PK_PCT, 0}, {"-", 0, 0, 0, PK_NUM, 0}};
 /* the MIDI engine (EG_MIDI): its second page's knobs (each named by its CC: tp_info_par), and the eight knobs' CC
@@ -5020,6 +5196,11 @@ static void eknob_init(void)
                 i->hi = (uint8_t)(k == 0 ? 1 : 127);
                 i->names = k == 0 ? ACIDW_N : 0;
             }
+            if (e == EG_TARTAN && (k == 0 || k == 2)) {   /* the chord, the rotation */
+                i->hi = (uint8_t)(k ? 3 : TT_NCHORD - 1);
+                i->kind = k ? PK_NUM : PK_NAMES;
+                i->names = k ? 0 : TT_CHORD_N;
+            }
             if ((e == EG_LACE || e == EG_VELVET) && k == 0) {   /* the material, the register */
                 i->hi = (uint8_t)(e == EG_LACE ? NLACE - 1 : NVR - 1);
                 i->kind = PK_NAMES;
@@ -5095,7 +5276,8 @@ const tp_info_t *tp_info(int p, int engine)
         return engine == EG_MIDI ? &MIDI_X_P[p - TP_X1] : engine == EG_RAYON ? &RAYON_X_P[p - TP_X1]
              : engine == EG_KNIT ? &KNIT_X_P[p - TP_X1] : engine == EG_SAMPLE ? &SAMPLE_X_P[p - TP_X1]
              : engine == EG_ACID ? &ACID_X_P[p - TP_X1] : engine == EG_TULLE ? &TULLE_X_P[p - TP_X1]
-             : engine == EG_LACE ? &LACE_X_P[p - TP_X1] : engine == EG_VELVET ? &VELVET_X_P[p - TP_X1] : &NONE_P;
+             : engine == EG_LACE ? &LACE_X_P[p - TP_X1] : engine == EG_VELVET ? &VELVET_X_P[p - TP_X1]
+             : engine == EG_TARTAN ? &TARTAN_X_P[p - TP_X1] : &NONE_P;
     if (engine == EG_ACID) {                     /* its 303's filter and envelope; no glide, one mode, one filter */
         if (p >= TP_CUT && p <= TP_KTRK)
             return &ACID_F_P[p - TP_CUT];
@@ -5123,7 +5305,8 @@ const tp_info_t *tp_info(int p, int engine)
         return &RUP_P;
     if (p >= TP_KSYNC && p <= TP_KSUB)            /* knit's Mod page (their ranges on any engine, as osc 2's); tulle's
                                                   * Grain page on a tulle track */
-        return engine == EG_TULLE ? &TULLE_G_P[p - TP_KSYNC] : &KMOD_P[p - TP_KSYNC];
+        return engine == EG_TULLE ? &TULLE_G_P[p - TP_KSYNC] : engine == EG_TARTAN ? &TARTAN_M_P[p - TP_KSYNC]
+             : &KMOD_P[p - TP_KSYNC];
     if (p >= TP_ROPS && p <= TP_RFB)              /* rayon's Ops page (the same) */
         return &ROPS_P[p - TP_ROPS];
     if (p == TP_KANALOG)

@@ -39,7 +39,7 @@
  * velocity ACID_ACCENT or more is accented; a note that starts while the last one is still held slides to it, and so
  * does a note with a glide (a step's glide trick, the arp's glide) after a short one: on the same pitch, a tie. */
 enum { EG_KNIT, EG_RAYON, EG_JACQUARD, EG_BELLOWS, EG_CANE, EG_VOILE, EG_SAMPLE, EG_SLICE, EG_DRUMLINE, EG_MIDI,
-       EG_ACID, EG_TULLE, EG_LACE, EG_VELVET, NENGINE };                           /* (saved by number: PROJ_FORMAT 10 renumbered them; a new one
+       EG_ACID, EG_TULLE, EG_LACE, EG_VELVET, EG_TARTAN, NENGINE };                           /* (saved by number: PROJ_FORMAT 10 renumbered them; a new one
                                                       * goes last) */
 #define NACID 2
 #define ACID_ACCENT 112
@@ -66,6 +66,15 @@ enum { LX_MALLET, LX_NOISE, LX_BOW, NLX };
  * its Sub page (TP_X1..X4) shape (saw .. square), width (the copies across the stereo field), detune (the copies apart,
  * still) */
 enum { VR_VIOLIN, VR_VIOLA, VR_CELLO, VR_BASS, VR_FULL, NVR };
+/* EG_TARTAN (2026-11-23): Chordism (schwung-chordism, the user's, MIT) as an engine: each note a chord of four
+ * oscillators, each its own wave, level and place in the stereo field. Its Engine page E1 the chord (TT_NCHORD types),
+ * E2 spread (the intervals scaled, 64 as the type has them), E3 rotation (the inversions, 0..3), E4 detune (each voice
+ * on, up to 50 cents); its Sub page (TP_X1..X4) the waves (TT_NWAVES sets of four), shape, width, FM (voice 1 on the
+ * others' phase); its Morph page (TP_KSYNC..TP_KSUB, knit's Mod page's bytes) morph (the voices' levels, Chordism's
+ * sixteen), its amount, pan morph (their places, its sixteen), shimmer (each voice's shape swept, a quarter cycle on) */
+#define TT_NCHORD 16
+#define TT_NWAVES 12
+void tartan_voices(const uint8_t *par, float *semis, float *lvl, float *pan);   /* its chord's voices (the picture) */
 /* the Braids engines (dsp/braids.h, after Mutable Instruments Braids, MIT): E1 the model, E2 Braids' timbre, E3 its
  * color, E4 cane's damp, voile's breath. cane: pluck, bow, reed, flute, bell, drum, at most CN_SLOTS of its voices
  * (each a slot of CN_LEN int16 for its lines); voile: vosim, vowel, choir, whisper */

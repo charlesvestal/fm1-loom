@@ -18,7 +18,8 @@ HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE / "presets"))
 import lib  # noqa: E402
 
-FILES = ["knit", "rayon", "jacquard", "bellows", "cane", "voile", "sample", "slice", "acid", "tulle", "lace", "velvet"]
+FILES = ["knit", "rayon", "jacquard", "bellows", "cane", "voile", "sample", "slice", "acid", "tulle", "lace", "velvet",
+         "tartan"]
 
 
 def load():
@@ -51,7 +52,9 @@ def fields(p):
     o2, md, op = p["osc2"], p["mod"], p["ops"]
     f += [("O2FINE", o2[2]), ("O2WAVE", "O2W_" + (o2[0].upper()[:3] if o2[0] == "triangle" else o2[0].upper())),
           ("O2SHAPE", o2[1])]
-    if p["engine"] != "tulle":                   # (tulle's Grain page in knit's Mod page's bytes)
+    if p["engine"] == "tartan":                  # (tartan's Morph page in knit's Mod page's bytes)
+        f += list(zip(("KSYNC", "KSWEEP", "KCROSS", "KSUB"), p["morph"]))
+    elif p["engine"] != "tulle":                 # (tulle's Grain page in knit's Mod page's bytes)
         f += [("KSYNC", int(md[0])), ("KSWEEP", md[1]), ("KCROSS", md[2]), ("KSUB", "KS_" + md[3].upper().replace(" ", "_"))]
     else:
         f += [("KSYNC", p["grain"][0]), ("KSWEEP", p["grain"][1]), ("KCROSS", 0), ("KSUB", 0)]

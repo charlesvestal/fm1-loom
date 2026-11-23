@@ -110,9 +110,9 @@ second.
 - **Scene** (S1 to S32): which pattern each track plays, plus the mutes (a kit's individual sounds too) and the
   conductor's key.
 - **Song**: a chain of scenes, each played for a number of bars.
-- **Engine**: the way a track makes its sound. There are nine synths (knit, rayon, jacquard, bellows, velvet, cane,
-  lace, voile and acid), three sample engines (sample, slice and tulle) and the kit, a drum synth.
-- **Preset**: a sound to load. 145 come with LOOM-8, from seven to twenty-three for each engine, and 16 are your own.
+- **Engine**: the way a track makes its sound. There are ten synths (knit, rayon, jacquard, bellows, velvet, tartan,
+  cane, lace, voile and acid), three sample engines (sample, slice and tulle) and the kit, a drum synth.
+- **Preset**: a sound to load. 161 come with LOOM-8, from seven to twenty-three for each engine, and 16 are your own.
 - **Player**: what the keys do on a track: arp, strum, hold or random.
 - **Conductor**: an aux track that sets the key, scale and chords for the other tracks. It plays its own chords,
   or takes them from a track's notes.
@@ -585,6 +585,7 @@ tonality is **ignore** follows nothing.
 | jacquard | table, scan, bend, ripple | 11 |
 | bellows | stops, pedal, rotor, rate | 9 |
 | velvet | register, bright, chorus, rate | 10 |
+| tartan | chord, spread, rotate, detune | 16 |
 | cane | model, timbre, color, damp | 8 |
 | lace | material, bright, damp, position | 14 |
 | voile | model, timbre, color, breath | 7 |
@@ -595,7 +596,7 @@ tonality is **ignore** follows nothing.
 | kit | the model knobs of the key shown | |
 | midi | eight knobs, each sending a CC | |
 
-Rayon, velvet, lace, acid and tulle have a second set of knobs. To reach them, press **EDIT** and turn **SELECT** once, to the Sub
+Rayon, velvet, tartan, lace, acid and tulle have a second set of knobs. To reach them, press **EDIT** and turn **SELECT** once, to the Sub
 page.
 Knit has three more pages instead, Osc 2, Mod and Levels.
 
@@ -695,6 +696,31 @@ strings, big strings, string bass, hollow pad, dark velvet, eighties, warble and
 
 Each register costs about as much as a rayon voice, so full costs about three. For big chords, viola or violin plays
 the most notes at once.
+
+### Tartan
+
+**Tartan** is Chordism, the chord synth, as an engine. Each key plays a chord of four voices, and each voice has its
+own wave, level and place in the stereo field. Use it for chord stabs, pads and keys from single notes. Its knobs:
+
+| Knob | What it does |
+| --- | --- |
+| chord | Picks the chord: octaves, fifth, minor, min7, min9, min11, major, maj7, maj9, sus4, 6/9, min6, 10th, dom7, 7b9 or half-dim. |
+| spread | Spreads the voicing: at 50 the chord as it is, lower closer, higher wider, in whole semitones. |
+| rotate | Turns the chord's voices around, from 0 to 3, so the levels and places below fall on other notes. |
+| detune | Detunes each voice a little more than the one before. |
+
+The Voices page sets the sound of the four. **waves** picks their waves together: saws, sines, pulses, squares,
+glass, harmonic, or one of the mixes. **shape** changes every wave: the sine folds, the triangle leans, the saw blends
+with its octave, the pulses narrow, harmonic adds partials. **width** spreads the voices across the stereo field,
+and **fm** lets the first voice bend the other three's phase, for bells and metal.
+
+The Morph page moves the voices. **morph** picks how loud each voice is, from sixteen shapes (all equal, rising,
+falling, the outer two, the inner two and so on), and **amount** sets how far. **pan** picks where each voice sits,
+from sixteen patterns, and **shimmer** sweeps each voice's shape a quarter cycle apart, so the chord's color slowly
+moves. The picture shows the chord: each voice at its place, as high as its note, as big as it is loud.
+
+Tartan is a track like any other: follow the conductor to move its chords with the song, use the filter, envelopes,
+LFO and players as usual, and send it to the effects. Its presets are sixteen of Chordism's own, converted.
 
 ### Cane and voile
 

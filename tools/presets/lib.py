@@ -16,6 +16,8 @@ turns them into app/build/gen/presets.h (the PRESETS table synth.c includes). A 
     osc2=None | (wave, shape, fine),            knit's Osc 2 page: wave same (osc 1's) / saw / square / pulse /
                                                 triangle / sine, its shape 0..127 (saw .. square .. pulse; counts for
                                                 saw, square and pulse only), fine 14..114 (64: none, +-50 cents)
+    morph=None | (morph, amount, pan, shimmer),  tartan's Morph page (knit's Mod page's bytes): the voices' levels (Chordism's
+                                                level morph), its amount, their places (its pan morph), the shimmer 0..127
     grain=None | (shape, reverse),              tulle's Grain page: its grains' shape 0 smooth .. 127 a pluck, the chance a
                                                 grain plays backwards 0..127 (stored in knit's Mod page's bytes)
     analog=0,                                   knit's analog 0..127 (its Levels page): drift, each note a little off,
@@ -40,13 +42,14 @@ files list them (gen_presets.py FILES); an engine's first preset is its sound in
 ROLES = ["bass", "lead", "pad", "keys", "pluck", "bell", "stab", "strings", "brass", "voice", "chord", "fx", "drum",
          "loop"]                                      # synth.h RL_*, in order
 ENGINES = ["knit", "rayon", "jacquard", "bellows", "cane", "voile", "sample", "slice", "kit", "midi", "acid", "tulle", "lace",
-           "velvet"]   # synth.h EG_*, in order
+           "velvet", "tartan"]   # synth.h EG_*, in order
 KNOBS = {"knit": ["wave", "detune", "voices", "width"], "rayon": ["bright", "ratio", "edge", "tine"],
          "jacquard": ["table", "scan", "bend", "ripple"], "bellows": ["stops", "pedal", "rotor", "rate"],
          "cane": ["model", "timbre", "color", "damp"], "voile": ["model", "timbre", "color", "breath"],
          "sample": ["sample", "start", "length", "mode"], "slice": ["sample", "slices", "pitch", "gate"],
          "acid": ["wave", "accent", "slide", "tune"], "tulle": ["sample", "position", "spray", "scan"],
-         "lace": ["material", "bright", "damp", "position"], "velvet": ["register", "bright", "chorus", "rate"]}
+         "lace": ["material", "bright", "damp", "position"], "velvet": ["register", "bright", "chorus", "rate"],
+         "tartan": ["chord", "spread", "rotate", "detune"]}
 MODES = ["poly", "mono", "legato"]                    # VM_*
 FILTERS = ["lp24", "ladder", "lp12", "hp12", "dynamic", "bp12"]   # FT_*
 LFOS = ["off", "wave", "wobble", "drift", "pump"]    # LT_*
@@ -60,7 +63,7 @@ OPS = ["off", "stack", "layer"]                      # RO_*
 RO_RATIOS = [0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4, 5, 6, 7, 8, 9, 10, 11, 12, 14, 16, 1.41, 1.73, 2.24, 2.76, 3.46, 5.19]   # synth.c RO_RATIO
 NOOPS = ("off", 1, 0, 0)
 X_DEF = {"knit": (64, 0, 0, 0), "acid": (0, 1, 27, 0), "tulle": (80, 70, 0, 90), "lace": (0, 64, 64, 80),
-         "velvet": (0, 90, 30, 0)}   # the engines' second pages as sound_default leaves them
+         "velvet": (0, 90, 30, 0), "tartan": (0, 0, 114, 0)}   # the engines' second pages as sound_default leaves them
 NOLFO = ("off", 3, 64, "filter", 0, 1)
 NOCHAR = ("off", 64, 64, 127)
 
@@ -69,7 +72,7 @@ PRESETS = []
 
 def P(name, role, engine, knobs, mode="poly", glide=0, bend=2, volume=100, amp=(0, 64, 127, 40),
       fenv=(0, 64, 0, 40), filter=("lp24", 127, 0, 64, 64), sends=(0, 0), lfo=None, char=None, x=None, osc2=None,
-      mod=None, ops=None, analog=0, grain=None, octave=None, genres=()):
+      mod=None, ops=None, analog=0, grain=None, morph=None, octave=None, genres=()):
     assert role in ROLES, (name, role)
     assert engine in KNOBS, (name, engine)
     assert len(name) <= 11 and name == name.lower(), name
@@ -93,6 +96,8 @@ def P(name, role, engine, knobs, mode="poly", glide=0, bend=2, volume=100, amp=(
     assert len(op) == 4 and op[0] in OPS and op[1] in RO_RATIOS and 0 <= op[2] <= 127 and 0 <= op[3] <= 127, (name, op)
     assert engine == "rayon" or op == NOOPS, (name, "the Ops page is rayon's")
     assert 0 <= analog <= 127 and (engine == "knit" or analog == 0), (name, "analog is knit's")
+    mo = tuple(morph or (0, 0, 0, 0))
+    assert len(mo) == 4 and all(0 <= m <= 127 for m in mo) and (engine == "tartan" or mo == (0, 0, 0, 0)), (name, mo)
     gr = tuple(grain or (0, 0))
     assert len(gr) == 2 and all(0 <= g <= 127 for g in gr) and (engine == "tulle" or gr == (0, 0)), (name, gr)
     vals = [*[knobs[k] for k in KNOBS[engine]], glide, bend, volume, *amp, *fenv, filter[1], filter[2], filter[3],
@@ -101,7 +106,7 @@ def P(name, role, engine, knobs, mode="poly", glide=0, bend=2, volume=100, amp=(
     assert mode in MODES and filter[0] in FILTERS, name
     PRESETS.append(dict(name=name, role=role, engine=engine, knobs=[knobs[k] for k in KNOBS[engine]], mode=mode,
                         glide=glide, bend=bend, volume=volume, amp=tuple(amp), fenv=tuple(fenv), filter=tuple(filter),
-                        sends=tuple(sends), lfo=tuple(lf), char=tuple(ch), x=tuple(xs), osc2=o2, mod=md, ops=op, analog=analog, grain=gr, octave=oc,
+                        sends=tuple(sends), lfo=tuple(lf), char=tuple(ch), x=tuple(xs), osc2=o2, mod=md, ops=op, analog=analog, grain=gr, morph=mo, octave=oc,
                         genres=tuple(genres)))
 
 

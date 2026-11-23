@@ -614,6 +614,7 @@ static int is_knit(int t) { return t < NTRK && proj.trk[t].par[TP_ENGINE] == EG_
 static int is_rayon(int t) { return t < NTRK && proj.trk[t].par[TP_ENGINE] == EG_RAYON; }
 static int is_tulle(int t) { return t < NTRK && proj.trk[t].par[TP_ENGINE] == EG_TULLE; }
 static int is_lace(int t) { return t < NTRK && proj.trk[t].par[TP_ENGINE] == EG_LACE; }
+static int is_tartan(int t) { return t < NTRK && proj.trk[t].par[TP_ENGINE] == EG_TARTAN; }
 static int is_acid(int t) { return t < NTRK && proj.trk[t].par[TP_ENGINE] == EG_ACID; }   /* (its 303's own envelope:
                                                                                          * no Filter env page) */
 /* a page's name: a drum track's Play page is its Key page, its Filter env page the kit's envelope */
@@ -641,6 +642,10 @@ static const char *page_name_of(int p, int trk)
         return "Grain";
     if (is_lace(trk) && p == P_SUB)                  /* (lace's: what sets its modes ringing) */
         return "Exciter";
+    if (is_tartan(trk) && p == P_SUB)                /* (tartan's: its voices; then their levels and places) */
+        return "Voices";
+    if (is_tartan(trk) && p == P_KMOD)
+        return "Morph";
     if ((is_drum(trk) || is_midi(trk)) && p == P_SUB)
         return "Engine 2";
     return PAGE_NAME[p % NPAGES];
@@ -710,7 +715,7 @@ static int x_page(int t)                             /* the engine has a second 
 {
     int e = t < NTRK ? proj.trk[t].par[TP_ENGINE] : -1, m = t < NTRK ? proj.trk[t].par[TP_E4] % NSM : 0;
     return e == EG_RAYON || e == EG_KNIT || e == EG_MIDI || e == EG_ACID || e == EG_TULLE || e == EG_LACE ||
-           e == EG_VELVET || (e == EG_SAMPLE && (m == SM_LOOP || m == SM_PINGPONG)) ||   /* (the
+           e == EG_VELVET || e == EG_TARTAN || (e == EG_SAMPLE && (m == SM_LOOP || m == SM_PINGPONG)) ||   /* (the
                                                                                      * sample's loop page: looping) */
            kit_x_page(t);
 }
@@ -759,7 +764,7 @@ static int grp_page(int g, int i)
         static const uint8_t KNP[6] = {P_ENGINE, P_OSC2, P_KMOD, P_SUB, P_PLAY, P_PLAY2};
         return KNP[i >= 0 && i < 6 ? i : 0];
     }
-    if (PAGE_BTN[g].btn == B_EDIT && (is_rayon(sel_trk()) || is_tulle(sel_trk()))) {   /* rayon: its fall (Sub), its
+    if (PAGE_BTN[g].btn == B_EDIT && (is_rayon(sel_trk()) || is_tulle(sel_trk()) || is_tartan(sel_trk()))) {   /* rayon: its fall (Sub), its
                                                       * ops 3 and 4; tulle: its grains (Sub), their shape (Grain); then
                                                       * how it plays */
         static const uint8_t RYP[5] = {P_ENGINE, P_SUB, P_KMOD, P_PLAY, P_PLAY2};
@@ -869,7 +874,8 @@ static int tp_page_param(int p, int k, int trk)
         return k < 3 ? TP_X2 + k : TP_KANALOG;
     if (p == P_KMOD)                                 /* knit's Mod page: sync, sweep, cross, the sub's type; rayon's
                                                       * Ops page: how ops 3 and 4 join, op 3's ratio, depth, feedback */
-        return is_knit(trk) ? TP_KSYNC + k : is_rayon(trk) ? TP_ROPS + k : is_tulle(trk) && k < 2 ? TP_KSYNC + k : -1;
+        return is_knit(trk) || is_tartan(trk) ? TP_KSYNC + k : is_rayon(trk) ? TP_ROPS + k
+             : is_tulle(trk) && k < 2 ? TP_KSYNC + k : -1;
     if (p == P_OSC2) {                               /* knit's osc 2: its interval, fine tune, wave, shape (past the
                                                       * int8 table) */
         static const uint16_t O2[4] = {TP_X1, TP_O2FINE, TP_O2WAVE, TP_O2SHAPE};
@@ -4624,6 +4630,23 @@ static void pic_velvet(int32_t x0, int32_t y0, int32_t w, int32_t h, const uint8
         cv_dotf(x + 26.0f * s + o, lb - 3.0f * s, 2.0f, ink); /* (the bow, its frog) */
     }
 }
+/* tartan: the chord: each voice a stem at its place in the field (left .. right), as high as its interval above the note,
+ * its head as big as its level (dim at none), the shimmer swaying the heads as the sound plays */
+static void pic_tartan(int32_t x0, int32_t y0, int32_t w, int32_t h, const uint8_t *p, uint32_t f)
+{
+    float semis[4], lvl[4], pan[4], top = 12.0f, base = (float)(y0 + h - 6);
+    tartan_voices(p, semis, lvl, pan);
+    for (int k = 0; k < 4; k++)
+        top = fm_maxf(top, semis[k]);
+    cv_rect(x0 + 6, (int32_t)base, w - 12, 1, K_LINE);
+    cv_rect(x0 + w / 2, y0 + 4, 1, h - 10, K_FAINT);   /* (the middle) */
+    for (int k = 0; k < 4; k++) {
+        float sway = (float)p[TP_KSUB] / 127.0f * pic_lvl * 3.0f * fm_sin_turns((float)f * 0.02f + (float)k * 0.25f);
+        float x = (float)(x0 + 14) + pan[k] * (float)(w - 28) + sway, y = base - 8.0f - semis[k] / top * (float)(h - 24);
+        cv_line((int32_t)x, (int32_t)base, (int32_t)x, (int32_t)y, lvl[k] > 0.05f ? K_DIM : K_FAINT);
+        cv_dotf(x, y, 2.0f + 5.0f * lvl[k], lvl[k] > 0.05f ? K_NOW : K_FAINT);
+    }
+}
 static void pic_tulle(int32_t x0, int32_t y0, int32_t w, int32_t h, const uint8_t *p)
 {
     int idx = p[TP_E1] < smp_slots() ? p[TP_E1] : smp_slots() - 1;
@@ -4885,8 +4908,11 @@ static void draw_engine(void)
             h = hash_u(h, p[TP_DRUM(k, DP_MODEL)] | pad_a(k) << 8);
         }
     }
-    if (eg == EG_LACE || eg == EG_VELVET)            /* (their second pages are drawn: the exciter, stretch; shape, width,
-                                                      * detune) */
+    if (eg == EG_TARTAN)                             /* (its Morph page is drawn too: the voices' levels and places) */
+        h = hash_u(h, (uint32_t)p[TP_KSYNC] | (uint32_t)p[TP_KSWEEP] << 8 | (uint32_t)p[TP_KCROSS] << 16 |
+                          (uint32_t)p[TP_KSUB] << 24);
+    if (eg == EG_LACE || eg == EG_VELVET || eg == EG_TARTAN)   /* (their second pages are drawn: the exciter, stretch;
+                                                      * shape, width, detune; the waves, width) */
         h = hash_u(h, (uint32_t)p[TP_X1] | (uint32_t)p[TP_X2] << 8 | (uint32_t)p[TP_X3] << 16 | (uint32_t)p[TP_X4] << 24);
     if (eg == EG_KNIT)                               /* (osc 2 and which page: Engine and Osc 2 share the picture) */
         h = hash_u(hash_u(h, (uint32_t)p[TP_X1] | (uint32_t)p[TP_X2] << 8 | (uint32_t)p[TP_O2FINE] << 16 |
@@ -4940,6 +4966,7 @@ static void draw_engine(void)
     case EG_CANE: pic_cane(20, 24, 200, PIC_H, p, pic_f); break;
     case EG_LACE: pic_lace(20, 24, 200, PIC_H, p, pic_f); break;
     case EG_VELVET: pic_velvet(20, 24, 200, PIC_H, p, pic_f); break;
+    case EG_TARTAN: pic_tartan(20, 24, 200, PIC_H, p, pic_f); break;
     case EG_VOILE: pic_voile(20, 24, 200, PIC_H, p, pic_f); break;
     case EG_KNIT: pic_knit(20, 24, 200, PIC_H, p, pic_f, ui.page == P_OSC2); break;
     case EG_MIDI: pic_midi(24, 30, p, ui.page == P_SUB, eng_midi_hit[trk]); break;
@@ -5561,7 +5588,7 @@ static void draw_sub(void)
         draw_rayon_fall();
     else if (eg == EG_ACID)
         draw_acid_x();
-    else if (eg == EG_SAMPLE || eg == EG_MIDI || eg == EG_TULLE || eg == EG_LACE || eg == EG_VELVET)
+    else if (eg == EG_SAMPLE || eg == EG_MIDI || eg == EG_TULLE || eg == EG_LACE || eg == EG_VELVET || eg == EG_TARTAN)
         draw_engine();                           /* (the sample's loop page: the waveform, its loop marked; MIDI's
                                                   * knobs 5..8: its eight bars) */
     else
@@ -6855,6 +6882,8 @@ static void draw_main(int trk)
             draw_rayon_ops();
         else if (ui.page == P_KMOD && is_tulle(trk))
             draw_tulle_grain();
+        else if (ui.page == P_KMOD && is_tartan(trk))
+            draw_engine();                       /* (its morphs: the chord's levels and places, the Engine page's) */
         else if (ui.page == P_KMOD)
             draw_knit_mod();
         else if (ui.page == P_PLAY)

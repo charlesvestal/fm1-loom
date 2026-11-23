@@ -45,7 +45,7 @@ wait 20
 # no notes (0x50, note 80: outside the master's scene notes 36-67, so it picks no scene either)
 turn ALGO 1
 expect trk 2
-wait 300
+wait 3000
 midi 9B 3E 64
 wait 20
 expect voices 1
@@ -53,8 +53,9 @@ expect midi_out 4
 midi 8B 3E 00
 wait 20
 expect midi_out 4
-# the synth's release tail: T2's voice needs this long to die down after the note off, before "voices" reads 0
-wait 300
+# the synth's release tail: T2's voice needs this long to die down after the note off, before "voices" reads 0 (the
+# band's presets: some pads release over a few seconds)
+wait 3000
 expect voices 0
 midi 98 50 64
 midi 99 50 64
@@ -70,8 +71,9 @@ play 3 64 off
 wait 20
 expect midi_out 4
 
-# the map in: a synth (T2 on channel 2)
+# the map in: a synth (T2 on channel 2; knit, whatever the band gave it: acid has no glide for CC 5)
 projnew
+param 2 engine 0
 midi B1 07 40
 midi B1 0A 00
 midi B1 5B 7F

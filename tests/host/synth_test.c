@@ -2145,6 +2145,82 @@ static void insert_tests(void)
     check("the insert's knobs named by its type", !strcmp(tp_info(TP_ITYPE, EG_KNIT)->name, "insert") &&
           !strcmp(tp_info_par(TP_I1, (const uint8_t[NTP]){[TP_ITYPE] = IT_TREMOLO})->name, "rate"));
 }
+/* tartan (EG_TARTAN): a major chord of sines on C4 sounds C4 E4 G4 C5 (each well above what lies between them); width
+ * makes its sides differ; every chord type and wave set finite and under full scale */
+static float dft_mag(const float *x, int n, float hz)
+{
+    double re = 0.0, im = 0.0;
+    for (int i = 0; i < n; i++) {                /* (Hann-windowed: a note's leakage off its neighbours) */
+        double a = 6.283185307179586 * (double)hz * (double)i / 44100.0, wn = 0.5 - 0.5 * cos(6.283185307179586 * i / n);
+        re += (double)x[i] * wn * cos(a);
+        im += (double)x[i] * wn * sin(a);
+    }
+    return (float)sqrt(re * re + im * im) / (float)n;
+}
+static void tartan_tests(void)
+{
+    static float l[16 * N], r[16 * N];
+    int finite = 1, ok = 1;
+    float top = 0.0f;
+    reset();
+    sound_default(par[0], EG_TARTAN);
+    par[0][TP_E1] = 6;                           /* major: 0 4 7 12 */
+    par[0][TP_X1] = 1;                           /* sines */
+    par[0][TP_X3] = 0;                           /* (width 0: the sides the same) */
+    par[0][TP_E4] = 0;
+    par[0][TP_A] = 0;
+    par[0][TP_S] = 127;
+    par[0][TP_CUT] = 127;
+    synth_init(S, par);
+    synth_tempo(S, 120.0f);
+    synth_note_on(S, 0, 60, 100, 0, 1);
+    for (int b = 0; b < 30; b++) {
+        block(N, &finite);
+        if (b >= 14)
+            memcpy(l + (b - 14) * N, L, sizeof L), memcpy(r + (b - 14) * N, R, sizeof R);
+    }
+    {
+        const float on[4] = {261.63f, 329.63f, 392.0f, 523.25f}, off[3] = {293.66f, 360.0f, 466.16f};
+        float lo = 1e9f, hi = 0.0f;
+        for (int k = 0; k < 4; k++)
+            lo = fminf(lo, dft_mag(l, 16 * N, on[k]));
+        for (int k = 0; k < 3; k++)
+            hi = fmaxf(hi, dft_mag(l, 16 * N, off[k]));
+        printf("    tartan: its major chord's notes at least %.4f, between them at most %.4f\n", (double)lo, (double)hi);
+        check("tartan: a major chord of sines on C4 sounds C4 E4 G4 C5, nothing between", finite && lo > hi * 10.0f);
+        check("tartan: width 0, its sides the same", !memcmp(l, r, sizeof l));
+    }
+    par[0][TP_X3] = 127;
+    synth_init(S, par);
+    synth_note_on(S, 0, 60, 100, 0, 1);
+    for (int b = 0; b < 16; b++) {
+        block(N, &finite);
+        memcpy(l + b * N, L, sizeof L), memcpy(r + b * N, R, sizeof R);
+    }
+    check("tartan: width at the top, its sides differ", memcmp(l, r, sizeof l) != 0);
+    for (int ch = 0; ch < TT_NCHORD; ch++)
+        for (int w = 0; w < TT_NWAVES; w += 1) {
+            reset();
+            sound_default(par[0], EG_TARTAN);
+            par[0][TP_E1] = (uint8_t)ch;
+            par[0][TP_X1] = (uint8_t)w;
+            par[0][TP_X2] = 127;
+            par[0][TP_X4] = 127;
+            par[0][TP_KSUB] = 127;
+            synth_init(S, par);
+            synth_note_on(S, 0, 48, 127, 0, 1);
+            synth_note_on(S, 0, 67, 127, 0, 2);
+            for (int b = 0; b < 6; b++) {
+                float pk = block(N, &finite);
+                top = pk > top ? pk : top;
+            }
+            ok &= finite;
+        }
+    printf("    tartan: every chord, every wave set, shape and FM at the top: loudest %.2f\n", (double)top);
+    check("tartan: every chord and wave set finite, under full scale", ok && top < 1.0f);
+    check("tartan: its pages' names", !strcmp(tp_info(TP_E1, EG_TARTAN)->name, "chord") &&
+          !strcmp(tp_info(TP_X1, EG_TARTAN)->name, "waves") && !strcmp(tp_info(TP_KSYNC, EG_TARTAN)->name, "morph"));
+}
 static void lace_velvet_tests(void)
 {
     static float l[20 * N], r[20 * N], l2[20 * N], r2[20 * N];
@@ -3240,6 +3316,7 @@ int main(void)
     knit_analog_tests();
     tulle_tests();
     lace_velvet_tests();
+    tartan_tests();
     bus_split_tests();
     insert_tests();
     preset_table_tests();

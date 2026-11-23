@@ -2550,8 +2550,9 @@ static void list_mark(void)
 static int list_pickable(int r) { return lst.row[r].kind != LK_NOTE && lst.row[r].kind != LK_HEAD; }
 /* the engines in the picker's order, midi always last: an engine is saved by its number (a new one goes last in
  * synth.h's enum), its place in the picker is here (a new one before midi) */
-static const uint8_t EG_ORDER[NENGINE] = {EG_KNIT, EG_RAYON, EG_JACQUARD, EG_BELLOWS, EG_VELVET, EG_CANE, EG_LACE,
-                                          EG_VOILE, EG_SAMPLE, EG_SLICE, EG_TULLE, EG_DRUMLINE, EG_ACID, EG_MIDI};
+static const uint8_t EG_ORDER[NENGINE] = {EG_KNIT, EG_RAYON, EG_JACQUARD, EG_BELLOWS, EG_VELVET, EG_TARTAN, EG_CANE,
+                                          EG_LACE, EG_VOILE, EG_SAMPLE, EG_SLICE, EG_TULLE, EG_DRUMLINE, EG_ACID,
+                                          EG_MIDI};
 static int eg_step(int e, int d)
 {
     int i = 0;
