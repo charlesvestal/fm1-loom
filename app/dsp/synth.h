@@ -71,7 +71,8 @@ enum { VR_VIOLIN, VR_VIOLA, VR_CELLO, VR_BASS, VR_FULL, NVR };
  * E2 spread (the intervals scaled, 64 as the type has them), E3 rotation (the inversions, 0..3), E4 detune (each voice
  * on, up to 50 cents); its Sub page (TP_X1..X4) the waves (TT_NWAVES sets of four), shape, width, FM (voice 1 on the
  * others' phase); its Morph page (TP_KSYNC..TP_KSUB, knit's Mod page's bytes) morph (the voices' levels, Chordism's
- * sixteen), its amount, pan morph (their places, its sixteen), shimmer (each voice's shape swept, a quarter cycle on) */
+ * sixteen), its amount, pan morph (their places, its sixteen), sway (each voice's shape swept, a quarter cycle on: Chordism's
+ * shape LFO) */
 #define TT_NCHORD 16
 #define TT_NWAVES 12
 void tartan_voices(const uint8_t *par, float *semis, float *lvl, float *pan);   /* its chord's voices (the picture) */

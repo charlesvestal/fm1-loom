@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: MPL-2.0
 """tartan's presets (2026-11-23): sixteen of Chordism's (schwung-chordism, the user's, MIT), converted by chd() from its
-values (0..100 where Chordism's run 0..10000): the chord and its voicing, the waves, the morphs and the shimmer onto
+values (0..100 where Chordism's run 0..10000): the chord and its voicing, the waves, the morphs and the sway (its shape LFO) onto
 tartan's three pages; its filter, envelope, vibrato, delay and reverb onto LOOM-8's own pages (its times, 1 ms .. 16 s,
 onto LOOM-8's 1 ms .. 10 s; its cutoff, 20 Hz .. 20 kHz, onto LOOM-8's 50 Hz .. 20 kHz; its AD mode a sustain of 0)."""
 import math

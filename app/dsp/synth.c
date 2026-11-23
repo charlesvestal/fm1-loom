@@ -436,7 +436,7 @@ static void eng_init(voice_t *v)
     else if (v->engine == EG_VELVET)
         vv_init(v);
     else if (v->engine == EG_TARTAN)
-        for (i = 0; i < 5; i++)                  /* (tartan: its voices, its shimmer from points of their own) */
+        for (i = 0; i < 5; i++)                  /* (tartan: its voices, its sway from points of their own) */
             v->o[i] = (float)(xs(&v->rng) >> 8) * (1.0f / 16777216.0f);
     else if (v->engine == EG_VOILE)
         vo_init(v);
@@ -1703,9 +1703,9 @@ static __attribute__((noinline)) void vv_run(voice_t *v, float *xl, float *xr, i
  * note is a chord of four oscillators in one voice: the chord's intervals (its type's, scaled by spread and rounded
  * to semitones, rotated), each voice detuned on by its place, its wave from the set, its level by the level morph
  * (Chordism's sixteen rows, eased between, by the amount), its place by the width and the pan morph (its sixteen),
- * voice 1 the FM's modulator on the others' phase, the shimmer a triangle on each voice's shape a quarter cycle on.
- * o[0..3] the voices' phases, o[4] the shimmer's (turns), o[8..11] the Morph page as it was made from (voice_chunk).
- * ex[0..3] the voices' increments, ex[4] the wave set, ex[5] shape, ex[6] FM, ex[7] the shimmer's depth, ex[10..13]
+ * voice 1 the FM's modulator on the others' phase, the sway a triangle on each voice's shape a quarter cycle on.
+ * o[0..3] the voices' phases, o[4] the sway's (turns), o[8..11] the Morph page as it was made from (voice_chunk).
+ * ex[0..3] the voices' increments, ex[4] the wave set, ex[5] shape, ex[6] FM, ex[7] the sway's depth, ex[10..13]
  * the Sub page (voice_chunk), ex[14..17] the voices' left gains, ex[18..21] their right */
 static const int8_t TT_CHORD[TT_NCHORD][4] = {
     {0, 12, 24, 36}, {0, 7, 12, 19}, {0, 3, 7, 12}, {0, 3, 7, 10}, {0, 3, 7, 14}, {0, 3, 7, 17},
@@ -1839,7 +1839,7 @@ static __attribute__((noinline)) void tt_run(voice_t *v, float *xl, float *xr, i
     const float fm = c->ex[6] * 0.5f;
     float sh[4], m0[SUB];
     int i, k;
-    for (k = 0; k < 4; k++) {                    /* (the shimmer: each voice's shape a quarter cycle on, a block a step) */
+    for (k = 0; k < 4; k++) {                    /* (the sway: each voice's shape a quarter cycle on, a block a step) */
         float ph = v->o[4] + 0.25f * (float)k, tri = 4.0f * fm_fabsf(ph - fm_floorf(ph + 0.5f)) - 1.0f;
         sh[k] = fm_clampf(c->ex[5] + c->ex[7] * tri, 0.0f, 1.0f);
     }
@@ -5121,7 +5121,7 @@ static const tp_info_t VELVET_X_P[4] = {{"shape", 0, 127, 0, PK_NN, 0}, {"width"
 static const tp_info_t TARTAN_X_P[4] = {{"waves", 0, TT_NWAVES - 1, 0, PK_NAMES, TT_WAVES_N}, {"shape", 0, 127, 0, PK_NN, 0},
                                         {"width", 0, 127, 90, PK_PCT, 0}, {"fm", 0, 127, 0, PK_NN, 0}};
 static const tp_info_t TARTAN_M_P[4] = {{"morph", 0, 127, 0, PK_NN, 0}, {"amount", 0, 127, 0, PK_PCT, 0},
-                                        {"pan", 0, 127, 0, PK_NN, 0}, {"shimmer", 0, 127, 0, PK_NN, 0}};
+                                        {"pan", 0, 127, 0, PK_NN, 0}, {"sway", 0, 127, 0, PK_NN, 0}};
 static const tp_info_t RAYON_X_P[4] = {{"fall", 0, 127, 0, PK_NUM, 0}, {"floor", 0, 127, 0, PK_PCT, 0},
                                        {"keyscale", 0, 127, 0, PK_PCT, 0}, {"-", 0, 0, 0, PK_NUM, 0}};
 /* the MIDI engine (EG_MIDI): its second page's knobs (each named by its CC: tp_info_par), and the eight knobs' CC

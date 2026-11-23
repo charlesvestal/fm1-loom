@@ -16,8 +16,8 @@ turns them into app/build/gen/presets.h (the PRESETS table synth.c includes). A 
     osc2=None | (wave, shape, fine),            knit's Osc 2 page: wave same (osc 1's) / saw / square / pulse /
                                                 triangle / sine, its shape 0..127 (saw .. square .. pulse; counts for
                                                 saw, square and pulse only), fine 14..114 (64: none, +-50 cents)
-    morph=None | (morph, amount, pan, shimmer),  tartan's Morph page (knit's Mod page's bytes): the voices' levels (Chordism's
-                                                level morph), its amount, their places (its pan morph), the shimmer 0..127
+    morph=None | (morph, amount, pan, sway),      tartan's Morph page (knit's Mod page's bytes): the voices' levels (Chordism's
+                                                level morph), its amount, their places (its pan morph), the sway 0..127
     grain=None | (shape, reverse),              tulle's Grain page: its grains' shape 0 smooth .. 127 a pluck, the chance a
                                                 grain plays backwards 0..127 (stored in knit's Mod page's bytes)
     analog=0,                                   knit's analog 0..127 (its Levels page): drift, each note a little off,

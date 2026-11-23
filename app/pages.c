@@ -4631,7 +4631,7 @@ static void pic_velvet(int32_t x0, int32_t y0, int32_t w, int32_t h, const uint8
     }
 }
 /* tartan: the chord: each voice a stem at its place in the field (left .. right), as high as its interval above the note,
- * its head as big as its level (dim at none), the shimmer swaying the heads as the sound plays */
+ * its head as big as its level (dim at none), the sway swinging the heads as the sound plays */
 static void pic_tartan(int32_t x0, int32_t y0, int32_t w, int32_t h, const uint8_t *p, uint32_t f)
 {
     float semis[4], lvl[4], pan[4], top = 12.0f, base = (float)(y0 + h - 6);

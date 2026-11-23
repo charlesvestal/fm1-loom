@@ -716,7 +716,7 @@ and **fm** lets the first voice bend the other three's phase, for bells and meta
 
 The Morph page moves the voices. **morph** picks how loud each voice is, from sixteen shapes (all equal, rising,
 falling, the outer two, the inner two and so on), and **amount** sets how far. **pan** picks where each voice sits,
-from sixteen patterns, and **shimmer** sweeps each voice's shape a quarter cycle apart, so the chord's color slowly
+from sixteen patterns, and **sway** sweeps each voice's shape a quarter cycle apart, so the chord's color slowly
 moves. The picture shows the chord: each voice at its place, as high as its note, as big as it is loud.
 
 Tartan is a track like any other: follow the conductor to move its chords with the song, use the filter, envelopes,
