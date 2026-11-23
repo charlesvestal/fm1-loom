@@ -1,0 +1,182 @@
+# LOOM-8 demo: techno (2026-11-25), after Attack Magazine's Beat Dissected patterns (Dark Techno Rumble, Dark Berlin
+# Techno, the Phase Fatale-inspired hypnotic techno): four to the floor at 132, the kick's rumble (the kit's rumble
+# insert: the kick's reverb as a low instrument, ducked by each kick), open hats on the offbeats, a clap on 2 and 4,
+# a shaker, a low tom closing the bar, a conga answering. On it the new dance presets: T2 "hypnotic" (a square on
+# the ladder, a slow phaser), T3 "dub chord" (into its tape echo), T4 "noise burst" before the drops, T5 "liquid
+# pad" in the breakdown. A minor, off the conductor. Song: intro 4, groove 8, build 8, breakdown 8 (no kick),
+# main 16, outro 4. The factory bank only: app/build/host/loom_host tools/demos/techno.xy DIR
+master 4096
+bpm 132
+
+# ---- the sounds
+# T1 the kit: the 909's kick, a little longer and darker, its rumble; the 909's clap, hats; the low tom tuned low
+knob 1 d1.model 21
+knob 1 d1.k1 40
+knob 1 d1.k2 82
+knob 1 d1.k3 24
+knob 1 d1.k4 40
+knob 1 d1.k5 0
+knob 1 d1.k6 30
+knob 1 d1.k7 0
+knob 1 d5.model 25
+knob 1 d5.k1 63
+knob 1 d5.k2 60
+knob 1 d5.k3 30
+knob 1 d5.k4 0
+knob 1 d5.volume 64
+knob 1 d5.send2 40
+knob 1 d4.model 27
+knob 1 d4.k1 64
+knob 1 d4.k2 62
+knob 1 d4.k3 0
+knob 1 d4.k4 0
+knob 1 d4.volume 66
+knob 1 d3.model 26
+knob 1 d3.k1 64
+knob 1 d3.k2 70
+knob 1 d3.k3 0
+knob 1 d3.k4 0
+knob 1 d3.volume 56
+knob 1 d6.k1 30
+knob 1 d6.volume 64
+knob 1 d6.send2 30
+knob 1 d8.volume 52
+knob 1 d8.send1 40
+knob 1 d9.k1 50
+knob 1 d9.volume 50
+knob 1 level 100
+# the rumble: decay 2.5 s, tone deep (about 140 Hz), mix
+param 1 itype 9
+param 1 i1 70
+param 1 i2 50
+param 1 i3 85
+# T2 "hypnotic": the line, off the conductor
+preset 2 hypnotic knit
+knob 2 brain no
+knob 2 cut 54
+knob 2 level 96
+# T3 "dub chord": the stab into its echo, the room
+preset 3 dub_chord knit
+knob 3 brain no
+knob 3 level 88
+knob 3 send2 30
+# T4 "noise burst": before the drops
+preset 4 noise_burst knit
+knob 4 brain no
+knob 4 level 80
+# T5 "liquid pad": the breakdown's bed
+preset 5 liquid_pad knit
+knob 5 brain no
+knob 5 cut 64
+knob 5 level 84
+# FX I a dotted-eighth echo, dark; FX II a long dark hall
+knob 11 engine delay
+knob 11 e1 85
+knob 11 e3 60
+knob 11 e4 40
+knob 12 engine hall
+knob 12 e2 80
+knob 12 e3 50
+# the master: the low end a little up, a gentle compressor; no master pump (the rumble ducks itself)
+mst lo 70
+mst hi 66
+mst comp 60
+mst level 110
+
+# ---- T1 the kit: kick 1, hat 3, open 4, clap 5, low tom 6, conga 8, shaker 9
+# P1 the intro: the kick, the open hat on the offbeats, closed hats between
+pat 1 1 16 1 50 0
+hits 1 1 1 x...x...x...x...
+hits 1 1 4 ..o...o...o...o.
+hits 1 1 3 g.g.g.g.g.g.g.g.
+# P2 the groove: the clap on 2 and 4, the shaker, the low tom closing the bar, the conga answering
+pat 1 2 16 1 50 0
+hits 1 2 1 x...x...x...x...
+hits 1 2 4 ..o...o...o...o.
+hits 1 2 3 g.g.g.g.g.g.g.g.
+hits 1 2 5 ....x.......x...
+hits 1 2 9 .g.g.g.g.g.g.g.g
+hits 1 2 6 ..............o.
+hits 1 2 8 .......g.....g..
+chance 1 2 8 50 8
+# P3 the breakdown: no kick, the hats and the shaker
+pat 1 3 16 1 50 0
+hits 1 3 4 ..o...o...o...o.
+hits 1 3 9 .g.g.g.g.g.g.g.g
+# P4 the main: the groove, the low tom twice, the clap's ghost
+pat 1 4 16 1 50 0
+hits 1 4 1 x...x...x...x...
+hits 1 4 4 ..o...o...o...o.
+hits 1 4 3 g.g.g.g.g.g.g.g.
+hits 1 4 5 ....x.......x..g
+hits 1 4 9 .g.g.g.g.g.g.g.g
+hits 1 4 6 .......g......o.
+hits 1 4 8 ...g...g.....g..
+chance 1 4 8 50 8
+
+# ---- T2 the hypnotic line: offbeat sixteenths on A, a C and a G turning it
+pat 2 1 16 1 50 0
+notes 2 1 3 0.5 110 A2
+notes 2 1 4 0.5 80 A2
+notes 2 1 7 0.5 105 A2
+notes 2 1 8 0.5 85 C3
+notes 2 1 11 0.5 110 A2
+notes 2 1 12 0.5 80 A2
+notes 2 1 15 0.5 100 G2
+notes 2 1 16 0.5 85 A2
+
+# ---- T3 the dub chord: Am7 on the "and" of 1, an answer on the "and" of 3 now and then
+pat 3 1 32 1 50 0
+notes 3 1 3 0.5 100 A3 C4 E4 G4
+notes 3 1 19 0.5 100 A3 C4 E4 G4
+notes 3 1 27 0.5 80 A3 C4 E4 G4
+chance 3 1 27 1:2
+
+# ---- T4 the noise burst: the last beat of four bars
+pat 4 1 64 1 100 0
+notes 4 1 61 3 100 C4
+
+# ---- T5 the pad: Am held, then F
+pat 5 1 32 1 100 0
+notes 5 1 1 16 70 A2 E3 C4
+notes 5 1 17 16 70 F2 C3 A3
+
+# ---- scenes and the song (tracks 1-8, COND, THROW)
+scenedef 1 1 1 1 1 1 1 1 1 1 1
+scenemute 1 .xxxxxxx
+scenedef 2 2 1 1 1 1 1 1 1 1 1
+scenemute 2 ..xxxxxx
+scenedef 3 2 1 1 1 1 1 1 1 1 1
+scenemute 3 ....xxxx
+scenedef 4 3 1 1 1 1 1 1 1 1 1
+scenemute 4 .xx..xxx
+scenedef 5 4 1 1 1 1 1 1 1 1 1
+scenemute 5 .....xxx
+scenedef 6 1 1 1 1 1 1 1 1 1 1
+scenemute 6 ..xxxxxx
+song 1:4 2:8 3:8 4:8 5:16 6:4
+songloop 0
+
+# ---- play the song, and perform: the line's filter opened through the groove and the build, closed for the outro
+tap HOME
+turn SELECT 1
+stats reset
+wav loom_demo_techno.wav
+tap PLAY
+bars 4
+knob 2 cut 58
+bars 4
+knob 2 cut 62
+bars 4
+knob 2 cut 66
+bars 4
+knob 2 cut 70
+bars 8
+bars 8
+knob 2 cut 74
+bars 8
+knob 2 cut 66
+bars 4
+wait 3000
+wavstop
+stats
