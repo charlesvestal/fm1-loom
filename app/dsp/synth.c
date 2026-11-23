@@ -23,6 +23,7 @@
  * models (Copyright 2012 Emilie Gillet, MIT), ported in dsp/braids.h (MIT), included below. acid is X0X's TB-303
  * (dsp/bass303.c, GPL-3.0-only: its own unit, so a LOOM-8 built with it is GPL-3.0 as a whole). */
 #include "synth.h"
+#include "efx.h"
 #include "bass303.h"
 #include "fastmath.h"
 #include "drumline.h"
@@ -129,9 +130,7 @@ static const char *const TT_WAVES_N[TT_NWAVES] = {"saws", "sines", "pulses", "sq
                                                   "pls sine", "sine pls", "pls saw", "saw duo", "mixed"};
 static const char *const ACIDW_N[2] = {"saw", "square"};
 static const char *const ACIDD_N[3] = {"off", "soft", "rat"};
-/* ring: the modulator's ratios to the note, tone / 8 */
-static const float RING_R[16] = {0.25f, 0.5f, 0.75f, 1.0f, 1.25f, 1.414f, 1.5f, 1.75f, 2.0f, 2.5f, 2.76f, 3.0f, 3.5f,
-                                 4.0f, 5.0f, 7.0f};
+/* ring: the modulator's ratios to the note, tone / 8 (dsp/efx.c RING_R) */
 static const char *const RING_N[16] = {"0.25:1", "0.5:1", "0.75:1", "1:1", "1.25:1", "1.41:1", "1.5:1", "1.75:1", "2:1",
                                        "2.5:1", "2.76:1", "3:1", "3.5:1", "4:1", "5:1", "7:1"};   /* (as stack's ratio) */
 /* the LFO's module / knob to a parameter index */
@@ -3224,119 +3223,15 @@ void synth_prepare(synth_t *s, uint32_t n)
 }
 
 /* ------------------------------------------------------ the character --- */
-/* the character stage's chunk values (synth.h CT_*): c.cx[] from the four knobs, the LFO's offset on the
- * amount, and the note's frequency (ring). The state (cz) starts from 0 when the type changes. */
-static inline float sat_c(float x)               /* a soft saturation (tanh-like, cubic): flat at +-1 from |x| = 1.5 */
-{
-    x = fm_minf(fm_maxf(x, -1.5f), 1.5f);
-    return x - x * x * x * (4.0f / 27.0f);
-}
-static inline float sin_q(float ph)              /* a quick sine of a phase in turns (any), within 0.1 %: the folder's */
-{
-    float x = ph - fm_floorf(ph + 0.5f), y = 8.0f * x - 16.0f * x * fm_fabsf(x);
-    return y + 0.225f * (y * fm_fabsf(y) - y);
-}
-static __attribute__((noinline)) float ch_exp2(float x) { return fm_exp2f(x); }   /* (the coefficients': made only
-                                                                                        * when a knob moves, so one copy) */
-static __attribute__((noinline)) float ch_exp(float x) { return fm_expf(x); }
-static float ch_lp_hz(float t) { return 400.0f * ch_exp2(t * 5.64385619f); }      /* tone 0..1: 400 Hz .. 20 kHz */
-static float ch_pivot_hz(float a) { return 150.0f * ch_exp2(a * 5.32192809f); }   /* amount 0..1: 150 Hz .. 6 kHz */
-static float ch_alpha(float hz) { return hz >= 19000.0f ? 1.0f : 1.0f - ch_exp(-FM_TWO_PI * hz * INV_SR); }
-static float ch_tape_hz(float t) { return 1500.0f * ch_exp2(t * 3.585f); }        /* tone 0..1: 1.5 .. 18 kHz */
-static float ch_smp_hz(float t) { return 2000.0f * ch_exp2(t * 3.322f); }         /* tone 0..1: 2 .. 20 kHz */
-static float ch_smp_rate(float a) { return 26040.0f * ch_exp2(-a * 1.243f); }     /* amount 0..1: 26 .. 11 kHz */
-#define CH_DC (FM_TWO_PI * 12.0f * INV_SR)       /* the DC blocker's one-pole: 12 Hz */
-#define CH_REF 0.7f                              /* the drive keeps the level of a peak here (an engine's, about) */
-#define CH_FOLD 0.6f                             /* the fold's level once it folds (a folded wave's RMS: about a saw's) */
-#define CH_RING_SLEW 0.135f                      /* the ring's amount glides, a chunk's step: about 10 ms (a turned knob
-                                                  * clicked: the depth stepped at once) */
-/* the ring's amount a, glided from was (its last) unless it starts (*run 0: a new note or type; then 1), and its gains' starting
- * values for the ramp across the chunk (cx[4], cx[6]: char_loop goes from them to cx[0], cx[1]) */
-static __attribute__((noinline)) float ring_glide(float a, float was, float *run, float *cx)
-{
-    if (*run == 0.0f) {
-        *run = 1.0f;
-        return a;
-    }
-    cx[4] = cx[0];
-    cx[6] = cx[1];
-    was += (a - was) * CH_RING_SLEW;
-    return fm_fabsf(a - was) < 0.002f ? a : was;
-}
+/* the character stage (dsp/efx.c: the catalog's drive .. sampler): a voice's chunk values (c.cx[]) from the four
+ * knobs, the LFO's offset on the amount, and the note's frequency (ring). The state (cz) starts from 0 when the type
+ * changes */
+static const uint8_t CT_EF[NCT] = {EF_OFF, EF_DRIVE, EF_FOLD, EF_CRUSH, EF_RING, EF_TILT, EF_TAPE, EF_SAMPLER};
 /* a type on the track's bus (bus_render), not on each voice (ring: its sine follows the note) */
 static inline int ch_on_bus(int type)
 {
     return type == CT_DRIVE || type == CT_FOLD || type == CT_CRUSH || type == CT_TILT || type == CT_TAPE ||
            type == CT_SAMPLER;
-}
-/* the type's values from the amount and tone (0..1) and the note's frequency (ring). tc: the tone as -1..1,
- * 0 at 64 exactly (the page prints it so: the fold's bias, the crush's balance, the tilt) */
-static void char_coefs(int type, float a, float t, float freq, float *x)
-{
-    float tc = fm_clampf((t * 127.0f - 64.0f) * (1.0f / 63.0f), -1.0f, 1.0f);
-    switch (type) {
-    case CT_DRIVE: {                             /* gain 0.25 .. 32 (-12 .. +30 dB), made up at CH_REF */
-        float g = 0.25f * ch_exp2(a * 7.0f);
-        x[0] = g;
-        x[1] = CH_REF / sat_c(g * CH_REF) * (1.0f - 0.25f * a);   /* (squarer as it drives: a little less) */
-        x[2] = ch_alpha(ch_lp_hz(t));
-        break;
-    }
-    case CT_FOLD: {                              /* sin(pi/2 (g x + bias)): g 0.3 .. 8, the bias +-1 */
-        float g = 0.3f * ch_exp2(a * 4.74f), b = tc;
-        x[0] = g * 0.25f;                        /* (in turns) */
-        x[1] = fm_maxf(CH_FOLD, 2.0f / (FM_PI * g));   /* small g: linear, unity; large: about the input's level */
-        x[3] = b * 0.25f;
-        x[4] = fm_sin_turns(b * 0.25f);          /* the output at x = 0: taken off, so silence stays silent */
-        x[5] = CH_DC;
-        break;
-    }
-    case CT_CRUSH: {                             /* bits 16 .. 3 and the rate / 1 .. / 45, by the balance */
-        float wb = fm_minf(1.0f, 1.0f + tc), wr = fm_minf(1.0f, 1.0f - tc);
-        float q = ch_exp2(15.0f - a * wb * 13.0f);
-        x[0] = q;
-        x[1] = 1.0f / q;
-        x[2] = ch_exp2(-a * wr * 5.5f);
-        break;
-    }
-    case CT_RING: {                              /* x (1 - d + d sin): the level made up for the depth */
-        int k = (int)(t * 127.0f + 0.5f) >> 3;   /* (as tp_text_par prints it) */
-        float w = fm_minf(freq * RING_R[k < 0 ? 0 : k > 15 ? 15 : k] * INV_SR, 0.45f) * FM_TWO_PI;
-        float m = fm_rsqrtf((1.0f - a) * (1.0f - a) + 0.5f * a * a);
-        x[0] = x[4] = (1.0f - a) * m;           /* (x[4], x[6]: where the chunk's ramp starts; ring_glide moves them) */
-        x[1] = x[6] = a * m;
-        x[2] = fm_cosf(w);                       /* the sine as a rotating phasor: cz[4] + i cz[5] */
-        x[3] = fm_sinf(w);
-        x[5] = CH_DC;
-        break;
-    }
-    case CT_TAPE: {                              /* the drive's curve, gentler; a two-pole roll-off; the wow's depth */
-        float g = 0.5f * ch_exp2(a * 4.0f);
-        x[0] = g;
-        x[1] = CH_REF / sat_c(g * CH_REF) * (1.0f - 0.15f * a);
-        x[2] = ch_alpha(ch_tape_hz(t));
-        x[3] = 2.0f + 8.0f * a;                  /* cents (voice_chunk) */
-        break;
-    }
-    case CT_SAMPLER: {                           /* rate and bits by the amount; the input and output filters */
-        float r = ch_smp_rate(a), q = ch_exp2(13.0f - 3.0f * a);   /* (14 .. 11 bits: a voice sits well under 0 dB) */
-        x[0] = q;
-        x[1] = 1.0f / q;
-        x[2] = r * INV_SR;
-        x[3] = ch_alpha(0.45f * r);
-        x[4] = ch_alpha(ch_smp_hz(t));
-        break;
-    }
-    case CT_TILT: {                              /* lows x 2^-tilt, highs x 2^tilt about the pivot */
-        float tl = tc;
-        x[0] = ch_alpha(ch_pivot_hz(a));
-        x[1] = ch_exp2(-tl);
-        x[2] = ch_exp2(tl);
-        break;
-    }
-    default:
-        break;
-    }
 }
 static void char_prep(synth_t *s, voice_t *v, int dest, float off, float gch)   /* (gch: the shared LFO on the amount) */
 {
@@ -3357,187 +3252,25 @@ static void char_prep(synth_t *s, voice_t *v, int dest, float off, float gch)   
         float a = fm_clampf(pf(s, trk, TP_CAMT, dest, off) + gch, 0.0f, 127.0f) * (1.0f / 127.0f);
         float t = fm_minf((float)P(s, trk, TP_CTONE), 127.0f) * (1.0f / 127.0f), f = type == CT_RING ? c->freq : 0.0f;
         if (type == CT_RING) {                   /* (cz[6]: 0 a new note or type, so it starts where it is) */
-            a = ring_glide(a, c->cin[0], &v->cz[6], c->cx);
+            a = efx_ring_glide(a, c->cin[0], &v->cz[6], c->cx);
         }
         if (type != c->cin_type || a != c->cin[0] || t != c->cin[1] || f != c->cin[2]) {
-            char_coefs(type, a, t, c->freq, c->cx);
+            efx_char_coefs(CT_EF[type], a, t, c->freq, c->cx);
             c->cin_type = (uint8_t)type;
             c->cin[0] = a;
             c->cin[1] = t;
             c->cin[2] = f;
         }
     }
-    if (type == CT_RING) {                       /* the phasor back to unit length, once a chunk (or at 1 + 0i) */
-        float re = v->cz[4], im = v->cz[5], r2 = re * re + im * im, g = r2 > 0.5f ? fm_rsqrtf(r2) : 0.0f;
-        v->cz[4] = g > 0.0f ? re * g : 1.0f;
-        v->cz[5] = im * g;
-    }
+    if (type == CT_RING)                         /* the phasor back to unit length, once a chunk (or at 1 + 0i) */
+        efx_ring_norm(v->cz);
 }
 
 /* the Character page's picture (synth.h) */
 float char_picture(const uint8_t *par, float u)
 {
     int type = par[TP_CTYPE] < NCT ? par[TP_CTYPE] : CT_OFF;
-    float a = (float)(par[TP_CAMT] & 127) * (1.0f / 127.0f), t = (float)(par[TP_CTONE] & 127) * (1.0f / 127.0f);
-    float wet = (float)(par[TP_CMIX] & 127) * (1.0f / 127.0f), x[8], d = u, y = u;
-    char_coefs(type, a, t, 220.0f, x);
-    switch (type) {
-    case CT_DRIVE: case CT_TAPE: y = sat_c(u * x[0]) * x[1]; break;
-    case CT_FOLD: y = (sin_q(u * x[0] + x[3]) - x[4]) * x[1]; break;
-    case CT_CRUSH: case CT_SAMPLER: {            /* a cycle of 200 samples, held and quantised */
-        float hold = 1.0f / x[2], n = fm_floorf(u * 200.0f / hold) * hold;
-        d = 0.9f * fm_sin_turns(u);
-        y = fm_floorf(0.9f * fm_sin_turns(n * (1.0f / 200.0f)) * x[0] + 0.5f) * x[1];
-        break;
-    }
-    case CT_RING: {                              /* two cycles of a sine, times the modulator (its peak at 1) */
-        int k = (par[TP_CTONE] & 127) >> 3;
-        d = fm_sin_turns(2.0f * u);
-        y = d * (x[0] + x[1] * fm_sin_turns(2.0f * u * RING_R[k])) / (x[0] + x[1]);
-        break;
-    }
-    case CT_TILT: {                              /* the response, 50 Hz .. 20 kHz: dB / 6 */
-        float w = 50.0f * fm_exp2f(u * 8.64385619f) / ch_pivot_hz(a), w2 = w * w;
-        d = 0.0f;
-        y = 3.01029996f * fm_log2f((x[1] * x[1] + x[2] * x[2] * w2) / (1.0f + w2)) * (1.0f / 6.0f);
-        break;
-    }
-    default: return u;
-    }
-    return d + wet * (y - d);
-}
-
-/* one sample of one side through the stage: d dry, back the mix of it and the effect. lp / dc: that side's
- * states; mod: the ring's gain this sample; upd: the crush's hold takes a new sample */
-SY_INLINE float char_one(float d, const int type, float c0, float c1, float c2, float c3, float c4, float c5, float wet,
-                         float *lp, float *dc, float mod, int upd)
-{
-    float y;
-    switch (type) {
-    case CT_DRIVE:
-        y = sat_c(d * c0) * c1;
-        *lp += c2 * (y - *lp);
-        y = *lp;
-        break;
-    case CT_FOLD:
-        y = (sin_q(d * c0 + c3) - c4) * c1;
-        *dc += c5 * (y - *dc);
-        y -= *dc;
-        break;
-    case CT_CRUSH:
-        if (upd)
-            *lp = fm_floorf(d * c0 + 0.5f) * c1;
-        y = *lp;
-        break;
-    case CT_RING:                                /* (a sine times its own pitch has DC: blocked) */
-        y = d * mod;
-        *dc += c5 * (y - *dc);
-        y -= *dc;
-        break;
-    case CT_TILT:
-        *lp += c0 * (d - *lp);
-        y = *lp * c1 + (d - *lp) * c2;
-        break;
-    case CT_TAPE:                                /* lp, dc: the roll-off's two poles */
-        y = sat_c(d * c0) * c1;
-        *lp += c2 * (y - *lp);
-        *dc += c2 * (*lp - *dc);
-        y = *dc;
-        break;
-    default:
-        y = d;
-        break;
-    }
-    (void)c4;
-    return d + wet * (y - d);
-}
-SY_INLINE void char_loop(const float *cx, float *cz, float *xl, float *xr, int k, const int type, const int stereo)
-{
-    const float c0 = cx[0], c1 = cx[1], c2 = cx[2], c3 = cx[3], c4 = cx[4], c5 = cx[5], wet = cx[7];
-    float z0 = cz[0], z1 = cz[1], z2 = cz[2], z3 = cz[3], ph = cz[4], qi = cz[5];
-    int j;
-    if (type == CT_SAMPLER) {                    /* z0 / z1 the input filter, z2 / z3 the held sample, z6 / z7 the output's */
-        float z6 = cz[6], z7 = cz[7];
-        for (j = 0; j < k; j++) {
-            int upd;
-            ph += c2;
-            upd = ph >= 1.0f;
-            if (upd)
-                ph -= 1.0f;
-            z0 += c3 * (xl[j] - z0);
-            if (upd)
-                z2 = fm_floorf(z0 * c0 + 0.5f) * c1;
-            z6 += c4 * (z2 - z6);
-            xl[j] += wet * (z6 - xl[j]);
-            if (stereo) {
-                z1 += c3 * (xr[j] - z1);
-                if (upd)
-                    z3 = fm_floorf(z1 * c0 + 0.5f) * c1;
-                z7 += c4 * (z3 - z7);
-                xr[j] += wet * (z7 - xr[j]);
-            }
-        }
-        cz[0] = fm_flush(z0);
-        cz[1] = fm_flush(z1);
-        cz[2] = z2;
-        cz[3] = z3;
-        cz[4] = ph;
-        cz[6] = fm_flush(z6);
-        cz[7] = fm_flush(z7);
-        return;
-    }
-    float r0 = cx[4], r1 = cx[6], dr0 = 0.0f, dr1 = 0.0f;   /* (the ring: its gains ramped across the chunk) */
-    if (type == CT_RING && k > 0) {
-        dr0 = (c0 - r0) / (float)k;
-        dr1 = (c1 - r1) / (float)k;
-    }
-    for (j = 0; j < k; j++) {
-        float mod = 0.0f;
-        int upd = 0;
-        if (type == CT_RING) {                   /* (ph, qi): the phasor, turned a step */
-            float nr = ph * c2 - qi * c3;
-            qi = ph * c3 + qi * c2;
-            ph = nr;
-            r0 += dr0;
-            r1 += dr1;
-            mod = r0 + r1 * qi;
-        } else if (type == CT_CRUSH) {
-            ph += c2;
-            if (ph >= 1.0f) {
-                ph -= 1.0f;
-                upd = 1;
-            }
-        }
-        xl[j] = char_one(xl[j], type, c0, c1, c2, c3, c4, c5, wet, &z0, &z2, mod, upd);
-        if (stereo)
-            xr[j] = char_one(xr[j], type, c0, c1, c2, c3, c4, c5, wet, &z1, &z3, mod, upd);
-    }
-    cz[0] = fm_flush(z0);
-    cz[1] = fm_flush(z1);
-    cz[2] = fm_flush(z2);
-    cz[3] = fm_flush(z3);
-    cz[4] = ph;
-    cz[5] = qi;
-}
-static void char_stage(const float *cx, float *cz, int type, int stereo, float *xl, float *xr, int k)
-{
-    switch (type * 2 + (stereo != 0)) {
-    case CT_DRIVE * 2: char_loop(cx, cz, xl, xr, k, CT_DRIVE, 0); break;
-    case CT_DRIVE * 2 + 1: char_loop(cx, cz, xl, xr, k, CT_DRIVE, 1); break;
-    case CT_FOLD * 2: char_loop(cx, cz, xl, xr, k, CT_FOLD, 0); break;
-    case CT_FOLD * 2 + 1: char_loop(cx, cz, xl, xr, k, CT_FOLD, 1); break;
-    case CT_CRUSH * 2: char_loop(cx, cz, xl, xr, k, CT_CRUSH, 0); break;
-    case CT_CRUSH * 2 + 1: char_loop(cx, cz, xl, xr, k, CT_CRUSH, 1); break;
-    case CT_RING * 2: char_loop(cx, cz, xl, xr, k, CT_RING, 0); break;
-    case CT_RING * 2 + 1: char_loop(cx, cz, xl, xr, k, CT_RING, 1); break;
-    case CT_TILT * 2: char_loop(cx, cz, xl, xr, k, CT_TILT, 0); break;
-    case CT_TILT * 2 + 1: char_loop(cx, cz, xl, xr, k, CT_TILT, 1); break;
-    case CT_TAPE * 2: char_loop(cx, cz, xl, xr, k, CT_TAPE, 0); break;
-    case CT_TAPE * 2 + 1: char_loop(cx, cz, xl, xr, k, CT_TAPE, 1); break;
-    case CT_SAMPLER * 2: char_loop(cx, cz, xl, xr, k, CT_SAMPLER, 0); break;
-    case CT_SAMPLER * 2 + 1: char_loop(cx, cz, xl, xr, k, CT_SAMPLER, 1); break;
-    default: break;
-    }
+    return efx_char_picture(CT_EF[type], par[TP_CAMT], par[TP_CTONE], par[TP_CMIX], u);
 }
 
 /* a kit's character (synth.h char_bus): the stage on the kit's summed pair */
@@ -3558,21 +3291,18 @@ void char_bus(chbus_t *c, const uint8_t *par, float *l, float *r, int n)
     a = (float)(par[TP_CAMT] & 127) * (1.0f / 127.0f);
     t = (float)(par[TP_CTONE] & 127) * (1.0f / 127.0f);
     if (type == CT_RING) {                       /* (the voices' glide, char_prep, a step a block here) */
-        a = ring_glide(a, c->cin[0], &c->cz[6], c->cx);
+        a = efx_ring_glide(a, c->cin[0], &c->cz[6], c->cx);
     }
     if (type != c->cin_type || a != c->cin[0] || t != c->cin[1]) {
-        char_coefs(type, a, t, KIT_RING_HZ, c->cx);
+        efx_char_coefs(CT_EF[type], a, t, KIT_RING_HZ, c->cx);
         c->cin_type = (uint8_t)type;
         c->cin[0] = a;
         c->cin[1] = t;
     }
     c->cx[7] = (float)(par[TP_CMIX] & 127) * (1.0f / 127.0f);
-    if (type == CT_RING) {                       /* the phasor back to unit length (char_prep) */
-        float re = c->cz[4], im = c->cz[5], r2 = re * re + im * im, g = r2 > 0.5f ? fm_rsqrtf(r2) : 0.0f;
-        c->cz[4] = g > 0.0f ? re * g : 1.0f;
-        c->cz[5] = im * g;
-    }
-    char_stage(c->cx, c->cz, type, 1, l, r, n);
+    if (type == CT_RING)                         /* the phasor back to unit length (char_prep) */
+        efx_ring_norm(c->cz);
+    efx_char_stage(c->cx, c->cz, CT_EF[type], 1, l, r, n);
 }
 
 /* ------------------------------------------------------------ the chunk --- */
@@ -3712,7 +3442,7 @@ static void voice_chunk(synth_t *s, voice_t *v)
     }
     if (s->grp[v->vi] && t->bus == CT_TAPE)      /* (on its track's bus: the track's wow, every note's the same) */
         c->pitch_off += t->wowc[k];
-    else if (c->ctype == CT_TAPE) {              /* the tape's wow and flutter (char_coefs: cx[3] cents) */
+    else if (c->ctype == CT_TAPE) {              /* the tape's wow and flutter (efx_char_coefs: cx[3] cents) */
         v->cz[4] = wrap1(v->cz[4] + 0.55f * (float)SY_CHUNK * INV_SR);
         v->cz[5] = wrap1(v->cz[5] + 6.1f * (float)SY_CHUNK * INV_SR);
         c->pitch_off += c->cx[3] * c->cx[7] * (fm_sin_turns(v->cz[4]) + 0.25f * fm_sin_turns(v->cz[5]));
@@ -3913,7 +3643,7 @@ static void voice_subblock(synth_t *s, voice_t *v, int aligned)
 /* the sample loop for one sub-block: the filter (one of six), the ramps, the outputs. Instantiated
  * for each filter type and for mono / stereo with constant arguments, so the compiler folds the
  * branches away; the generic switch is in voice_samples. chr: the filter only, its output back into
- * xl / xr for the character stage (char_stage), then out_loop does the rest.
+ * xl / xr for the character stage (efx_char_stage), then out_loop does the rest.
  *   lp24:    a TPT state-variable low-pass (resonant) into a second, flat one: 24 dB, aggressive
  *   ladder:  four one-poles in series with the last one's output fed back through a soft clip
  *   lp12:    the one resonant TPT stage, 12 dB
@@ -4166,7 +3896,7 @@ static void voice_samples(synth_t *s, voice_t *v, float *l, float *r, float *s1,
             flt_channel(v, xl, k, 0);
             flt_channel(v, xr, k, 1);
             if (v->c.ctype != CT_OFF)
-                char_stage(v->c.cx, v->cz, v->c.ctype, v->c.stereo, xl, xr, k);
+                efx_char_stage(v->c.cx, v->cz, CT_EF[v->c.ctype], v->c.stereo, xl, xr, k);
             out_stereo(v, xl, xr, l + i, r + i, s1 + i, s2 + i, k);
         } else if (v->c.ctype == CT_OFF) {
             switch (v->c.ftype) {
@@ -4186,7 +3916,7 @@ static void voice_samples(synth_t *s, voice_t *v, float *l, float *r, float *s1,
             case FT_BP12: SL(FT_BP12, 1); break;
             default: break;                      /* (dynamic: a bypass, xl / xr as they are) */
             }
-            char_stage(v->c.cx, v->cz, v->c.ctype, v->c.stereo, xl, xr, k);
+            efx_char_stage(v->c.cx, v->cz, CT_EF[v->c.ctype], v->c.stereo, xl, xr, k);
             out_mono(v, xl, l + i, r + i, s1 + i, s2 + i, k);
         }
 #undef SL
@@ -4945,7 +4675,7 @@ static void bus_out(synth_t *s, int core, int trk, float *bl, float *br, float *
     if (type != CT_OFF) {
         float a = t->bus_amt, tn = fm_minf((float)P(s, trk, TP_CTONE), 127.0f) * (1.0f / 127.0f);
         if (type != c->cin_type || a != c->cin[0] || tn != c->cin[1]) {
-            char_coefs(type, a, tn, 0.0f, c->cx);
+            efx_char_coefs(CT_EF[type], a, tn, 0.0f, c->cx);
             c->cin_type = (uint8_t)type;
             c->cin[0] = a;
             c->cin[1] = tn;
@@ -4958,14 +4688,14 @@ static void bus_out(synth_t *s, int core, int trk, float *bl, float *br, float *
         ;
     else if (j == n) {                                /* its two sides the same (mono voices in the middle, a bass, a lead):
                                                   * the stage once, its right side's states the left's */
-        char_stage(c->cx, c->cz, type, 0, bl, br, (int)n);
+        efx_char_stage(c->cx, c->cz, CT_EF[type], 0, bl, br, (int)n);
         for (j = 0; j < n; j++)
             br[j] = bl[j];
         c->cz[1] = c->cz[0];
         c->cz[3] = c->cz[2];
         c->cz[7] = c->cz[6];
     } else
-        char_stage(c->cx, c->cz, type, 1, bl, br, (int)n);
+        efx_char_stage(c->cx, c->cz, CT_EF[type], 1, bl, br, (int)n);
     if (t->ins != IT_OFF)
         ins_run(s, t, bl, br, n);
     dg = (t->bus_gn - g) / (float)n;             /* (the gain glides across the block) */
@@ -5763,15 +5493,13 @@ void tp_text(int p, int v, int engine, char *num, char *unit) { tp_text_i(tp_inf
 void tp_text_par(int p, int v, const uint8_t *par, char *num, char *unit)
 {
     int ct = par[TP_CTYPE];
-    if ((p == TP_CTONE && (ct == CT_DRIVE || ct == CT_TAPE || ct == CT_SAMPLER)) || (p == TP_CAMT && ct == CT_TILT)) {
-        float t = (float)(v > 127 ? 127 : v) * (1.0f / 127.0f);   /* a low-pass, the tilt's pivot: Hz */
-        hz_text(p == TP_CAMT ? ch_pivot_hz(t) : ct == CT_TAPE ? ch_tape_hz(t) : ct == CT_SAMPLER ? ch_smp_hz(t) : ch_lp_hz(t),
-                num, unit);
-        return;
-    }
-    if (p == TP_CAMT && ct == CT_SAMPLER) {                       /* the rate */
-        hz_text(ch_smp_rate((float)(v > 127 ? 127 : v) * (1.0f / 127.0f)), num, unit);
-        return;
+    if ((p == TP_CAMT || p == TP_CTONE) && ct < NCT) {            /* a low-pass, the tilt's pivot, the sampler's rate:
+                                                                   * Hz */
+        float hz = efx_char_hz(CT_EF[ct], p == TP_CTONE, (float)(v > 127 ? 127 : v) * (1.0f / 127.0f));
+        if (hz > 0.0f) {
+            hz_text(hz, num, unit);
+            return;
+        }
     }
     if (p == TP_CTONE && ct == CT_RING) {                         /* the ratio */
         put_s(num, RING_N[(v > 127 ? 127 : v) * 16 / 128]);

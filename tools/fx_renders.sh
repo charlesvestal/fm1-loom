@@ -7,5 +7,5 @@ set -eu
 cd "$(dirname "$0")/.."
 mkdir -p build/host build/fx_renders
 ${CC:-cc} -O2 -ffp-contract=off -std=c99 -Wall -Wextra -Wdouble-promotion -Werror -DPLAT_HOST -Iapp/dsp -Ibase/include \
-    -o build/host/fx_render tests/host/fx_render.c app/dsp/fx.c
+    -o build/host/fx_render tests/host/fx_render.c app/dsp/fx.c app/dsp/efx.c
 build/host/fx_render

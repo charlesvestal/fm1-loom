@@ -61,8 +61,11 @@ COLD = {
                     # (2026-11-23: the engines' set-up, when a knob or the pitch moves, a chunk's at most; the
                     # character's coefficients, the buses' and inserts' per block)
                     "eng_prep", "wt_prep", "rayon_prep", "organ_prep", "knit_prep", "tl_prep", "lc_prep", "tt_prep",
-                    "smp_prep", "slc_prep", "cn_prep", "vo_prep", "eng_init", "knit_init", "char_coefs",
+                    "smp_prep", "slc_prep", "cn_prep", "vo_prep", "eng_init", "knit_init",
                     "bus_prepare", "ins_alloc"],
+    # (the effects' coefficients, when a knob moves; the pages' pictures and texts)
+    "dsp/efx.c": ["efx_char_coefs", "efx_char_picture", "efx_char_hz", "efx_knob_name", "efx_list_name", "ch_lp_hz",
+                  "ch_pivot_hz", "ch_alpha", "ch_tape_hz", "ch_smp_hz", "ch_smp_rate"],
     "seq/pattern.c": ["pattern_init", "patterns_init", "lane_alloc", "lane_clear", "lane_count", "lane_pool_set",
                       "lane_pool_free", "step_clear_locks", "pattern_clear_locks", "step_set_notes",
                       "step_toggle_note", "kit_set", "kit_toggle", "kit_add", "pattern_woven", "weave_step",
