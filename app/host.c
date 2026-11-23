@@ -840,6 +840,8 @@ static int param_of(const char *s)                 /* a TP_* name, dK.NAME (drum
         return ieq(s, "ksync") ? TP_KSYNC : ieq(s, "ksweep") ? TP_KSWEEP : ieq(s, "kcross") ? TP_KCROSS : TP_KSUB;
     if (ieq(s, "kanalog"))                          /* knit's analog */
         return TP_KANALOG;
+    if (ieq(s, "lowcut") || ieq(s, "hpf"))
+        return TP_HPF;
     if (ieq(s, "itype") || ieq(s, "i1") || ieq(s, "i2") || ieq(s, "i3"))   /* the insert: its type, its knobs */
         return ieq(s, "itype") ? TP_ITYPE : TP_I1 + (s[1] - '1');
     if (ieq(s, "rops") || ieq(s, "rratio") || ieq(s, "rdepth") || ieq(s, "rfb"))   /* rayon's Ops page */

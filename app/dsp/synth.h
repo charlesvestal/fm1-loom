@@ -158,6 +158,8 @@ enum {
     TP_ITYPE, TP_I1, TP_I2, TP_I3,                  /* the track's insert (FX's Insert page): its type (IT_*: 0 off) and
                                                      * its three knobs (per type: tp_info_par), on the track's bus after
                                                      * its character. Last, so format 25's indices stay (format 26) */
+    TP_HPF,                                         /* its low cut (Play 2): 0 off, 1..127 a 12 dB high-pass at 20 Hz ..
+                                                     * 2 kHz on each voice before its filter (the Juno-106's HPF) */
     NTP
 };
 /* a track's insert (TP_ITYPE), its knobs I1..I3: off; tremolo (rate: the LFO's speed, synced divisions then free;
@@ -290,7 +292,8 @@ enum { PK_NUM, PK_PCT, PK_BIP, PK_NAMES, PK_SEMI, PK_SWITCH, PK_MS, PK_HZ_SYNC, 
        PK_DECAY,                                   /* the same, 127 = "off" */
        PK_LAGMS,                                   /* 0..127 = 0..60 ms */
        PK_FADER,                                   /* a track's level: dB by tp_level_gain, 0 = "off" */
-       PK_CENT };                                  /* cents about 64: "+12 ct" */
+       PK_CENT,                                    /* cents about 64: "+12 ct" */
+       PK_LOWCUT };                                /* the low cut: 0 = "off", else 20 Hz .. 2 kHz */
 typedef struct {
     const char *name;                 /* short, as on the knob row (<= 8 chars) */
     uint8_t lo, hi, def;
@@ -342,7 +345,7 @@ extern const char *const RL_NAME[NRL];            /* "bass", "lead", ... */
  * analog), kept as its engine's template (the value most of the engine's presets have) and its own differences from it
  * (tools/gen_presets.py: 4.5 KB for the 8 KB the whole fields took, 2026-11-23): at its place in the table, a mask of
  * PS_MASK bytes (bit i: field i differs), then the values of the fields that do */
-#define PS_N (NTP_SOUND + 16)
+#define PS_N (NTP_SOUND + 17)
 #define PS_MASK ((PS_N + 7) / 8)
 typedef struct {
     const char *name;
@@ -372,7 +375,7 @@ typedef struct {
 typedef struct synth synth_t;         /* opaque: dsp/synth.c */
 void synth_glfo_restart(synth_t *s);              /* the shared LFO from its start (the transport started) */
 float synth_glfo_now(const synth_t *s);            /* its value now, -1..1 (the page's picture) */
-#define SYNTH_BYTES 14912             /* room for the struct (checked at compile time in synth.c; about 13,990 B with
+#define SYNTH_BYTES 15232             /* room for the struct (checked at compile time in synth.c; about 13,990 B with
                                        * each track's character bus, 2026-11-23) */
 
 void synth_init(synth_t *s, uint8_t (*par)[NTP]);   /* par: the tracks' parameter arrays, NTRK + 1 of them (the conductor's, SY_GLFO_TRK: the shared LFO) */

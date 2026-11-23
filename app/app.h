@@ -214,6 +214,7 @@ typedef struct {
     uint8_t rops, rratio, rdepth, rfb;  /* rayon's Ops page (TP_ROPS .. TP_RFB: presets format 14) */
     uint8_t kanalog;                    /* knit's analog (TP_KANALOG: presets format 15) */
     uint8_t itype, i1, i2, i3;          /* the insert (TP_ITYPE, TP_I1..I3: presets format 16) */
+    uint8_t hpf;                        /* the low cut (TP_HPF: presets format 16 too, before any release) */
 } user_preset_t;
 
 extern settings_t proj;                 /* the project's settings (RAM) */

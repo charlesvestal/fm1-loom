@@ -1967,7 +1967,7 @@ static void preset_table_tests(void)
 {
     static const uint16_t X[PS_N - NTP_SOUND] = {TP_O2FINE, TP_O2WAVE, TP_O2SHAPE, TP_KSYNC, TP_KSWEEP, TP_KCROSS,
                                                  TP_KSUB, TP_ROPS, TP_RRATIO, TP_RDEPTH, TP_RFB, TP_KANALOG,
-                                                 TP_ITYPE, TP_I1, TP_I2, TP_I3};
+                                                 TP_ITYPE, TP_I1, TP_I2, TP_I3, TP_HPF};
     int bad = 0;
     _Static_assert(sizeof PRESET_FULL / sizeof PRESET_FULL[0] > 0, "presets_full.h");
     for (int k = 0; k < NPRESETS; k++) {
@@ -2227,6 +2227,35 @@ static void insert_tests(void)
     }
     check("the insert's knobs named by its type", !strcmp(tp_info(TP_ITYPE, EG_KNIT)->name, "insert") &&
           !strcmp(tp_info_par(TP_I1, (const uint8_t[NTP]){[TP_ITYPE] = IT_TREMOLO})->name, "rate"));
+}
+/* the low cut (TP_HPF): a C2 saw's level falls as it rises (off: as it was), and its top stays */
+static void lowcut_tests(void)
+{
+    float lv[3];
+    int finite = 1;
+    static const uint8_t HV[3] = {0, 60, 110};
+    for (int q = 0; q < 3; q++) {
+        double e = 0.0;
+        reset();
+        par[0][TP_A] = 0;
+        par[0][TP_S] = 127;
+        par[0][TP_CUT] = 127;
+        par[0][TP_HPF] = HV[q];
+        synth_init(S, par);
+        synth_note_on(S, 0, 36, 100, 0, 1);
+        for (int b = 0; b < 40; b++) {
+            block(N, &finite);
+            if (b >= 10)
+                for (int i = 0; i < N; i++)
+                    e += (double)L[i] * (double)L[i];
+        }
+        synth_note_off(S, 0, 1);
+        lv[q] = (float)(10.0 * log10(e + 1e-20));
+    }
+    printf("    low cut: a C2 saw off %.1f dB, at 60 (%.0f Hz) %.1f dB, at 110 (%.0f Hz) %.1f dB\n", (double)lv[0],
+           20.0 * pow(2.0, 60 * 6.64 / 127), (double)(lv[1] - lv[0]), 20.0 * pow(2.0, 110 * 6.64 / 127),
+           (double)(lv[2] - lv[0]));
+    check("low cut: the higher it is, the less of a low note is left", finite && lv[1] < lv[0] - 1.0f && lv[2] < lv[1] - 3.0f);
 }
 /* tartan (EG_TARTAN): a major chord of sines on C4 sounds C4 E4 G4 C5 (each well above what lies between them); width
  * makes its sides differ; every chord type and wave set finite and under full scale */
@@ -3420,6 +3449,7 @@ int main(void)
     tartan_tests();
     bus_split_tests();
     insert_tests();
+    lowcut_tests();
     preset_table_tests();
     kit_char_tests();
     sample_tests();

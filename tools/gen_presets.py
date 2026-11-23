@@ -61,12 +61,12 @@ def fields(p):
     f += [("ROPS", "RO_" + op[0].upper()), ("RRATIO", lib.RO_RATIOS.index(op[1])), ("RDEPTH", op[2]), ("RFB", op[3]),
           ("KANALOG", p["analog"])]
     ins = p["insert"]
-    f += [("ITYPE", "IT_" + ins[0].upper()), ("I1", ins[1]), ("I2", ins[2]), ("I3", ins[3])]
+    f += [("ITYPE", "IT_" + ins[0].upper()), ("I1", ins[1]), ("I2", ins[2]), ("I3", ins[3]), ("HPF", p["lowcut"])]
     return {k: str(v) for k, v in f}
 
 
 EXTRA = ["O2FINE", "O2WAVE", "O2SHAPE", "KSYNC", "KSWEEP", "KCROSS", "KSUB", "ROPS", "RRATIO", "RDEPTH", "RFB", "KANALOG",
-         "ITYPE", "I1", "I2", "I3"]
+         "ITYPE", "I1", "I2", "I3", "HPF"]
 
 
 def sound_order():

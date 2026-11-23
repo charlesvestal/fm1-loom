@@ -202,7 +202,7 @@ Count the white keys 1 to 16 from the left, and the black keys 1 to 11. "Hold **
 | **SEL** | Opens a list of this page's settings and actions. Hold a step and press it to see the step's notes. When LOOM-8 asks a question, **SEL** means yes. |
 | **HOME** | Opens Arrange. On Arrange, it opens the Song page. Hold it as a shift key for buttons and knobs: undo and redo, fine tempo, and the scenes on **PRESETS**. When LOOM-8 asks a question, **HOME** means no. |
 | **SEQ** | Opens Steps; page 2 is Bar. Hold it on Steps and the keys play the track and set what a step writes (**PRESETS** sets the track's sound, and **OCT** moves the whole pattern an octave). Hold it on Bar and black keys 1 to 4 jump to a bar or loop bars. Hold it on Steps or Bar and press **PLAY** to start from the bar on screen. |
-| **EDIT** | Opens Engine. The pages go from the sound to how it plays. On most engines, page 2 is Play (mode, glide, bend and octave) and page 3 is Play 2 (volume). On rayon and acid, page 2 is Sub, with the engine's second set of knobs, and Play and Play 2 follow it. Rayon has its Ops page after Sub. On knit, the pages are Engine, Osc 2, Mod, Levels, Play and Play 2. A sample track in a loop mode has its Loop page second. On a drum track, page 2 holds the key's model, random, pan and volume, and page 3 its sends. On the conductor, the pages are its key, the routing and Follow. |
+| **EDIT** | Opens Engine. The pages go from the sound to how it plays. On most engines, page 2 is Play (mode, glide, bend and octave) and page 3 is Play 2 (low cut and volume). On rayon and acid, page 2 is Sub, with the engine's second set of knobs, and Play and Play 2 follow it. Rayon has its Ops page after Sub. On knit, the pages are Engine, Osc 2, Mod, Levels, Play and Play 2. A sample track in a loop mode has its Loop page second. On a drum track, page 2 holds the key's model, random, pan and volume, and page 3 its sends. On the conductor, the pages are its key, the routing and Follow. |
 | **ENV** | Opens Envelope (on a drum track: lag, attack, random, length), then Filter, then the filter's envelope. |
 | **FX** | Opens Character, the track's own effect. Next come Sends, the track's sends to FX I and FX II, and then FX I and FX II, the two effects. |
 | **LFO** | Opens LFO. Page 2 has the type's fourth and fifth knobs. |
@@ -1167,7 +1167,9 @@ page for the Play page. Rayon has its Sub and Ops pages before it, acid its Sub 
 The Play page sets poly, mono or legato, portamento, the bend range (off, 1 to 7 semitones, or an octave) and the
 sound's octave, from two down to two up. Bass presets come an octave or two down. The octave moves every note the
 track plays, including the steps. These four knobs are the same on every synth engine. Turn **SELECT** once more for
-Play 2, which has the track's volume on KNOB 4.
+Play 2. **low cut** (KNOB 3) takes the lows out of each note before the filter, like the Juno-106's high-pass
+slider: off at 0, then from 20 Hz up to 2 kHz. Use it to thin out pads, strings and stabs so they sit above the
+bass. KNOB 4 is the track's volume.
 
 <img src="img/screen-envelope.png" width="240" alt="ENV: the amp envelope&#x27;s attack, decay, sustain and release, drawn" title="The Envelope page"> <img src="img/screen-filter.png" width="240" alt="ENV&#x27;s Filter page: an lp24 filter at 481 Hz, its curve drawn; PRESETS turns the type" title="The Filter page"> <img src="img/screen-lfo.png" width="240" alt="LFO: a wave LFO at 1/4 moving the filter cutoff, its shape drawn" title="The LFO page">
 
@@ -1784,7 +1786,7 @@ and the echoes fade out. Every voice sounds in the file, so a busy song can soun
 | SEQ, SELECT | Bar | quant | note | groove | shape | black: scale; SEQ held, black 1-4: jump or loop bars |
 | EDIT | Engine | the engine's four | | | | play |
 | EDIT, SELECT | Play | mode | porta | bend | octave | play |
-| EDIT, SELECT twice | Play 2 | | | | volume | play |
+| EDIT, SELECT twice | Play 2 | | | low cut | volume | play |
 | EDIT, SELECT (rayon) | Sub | fall | floor | keyscale | | play |
 | EDIT, SELECT twice (rayon) | Ops | ops | ratio | depth | feedback | play |
 | EDIT, SELECT (acid) | Sub | drive | type | shaper | | play |
@@ -1792,7 +1794,7 @@ and the echoes fade out. Every voice sounds in the file, so a busy song can soun
 | EDIT, SELECT twice (knit) | Mod | sync | sweep | cross | sub | play |
 | EDIT, SELECT 3 times (knit) | Levels | osc 2 | sub | noise | analog | play |
 | EDIT, SELECT 4 times (knit) | Play | mode | porta | bend | octave | play |
-| EDIT, SELECT 5 times (knit) | Play 2 | | | | volume | play |
+| EDIT, SELECT 5 times (knit) | Play 2 | | | low cut | volume | play |
 | EDIT, SELECT (sample, loop modes) | Loop | loop start | loop len | | | play |
 | EDIT, drum track | Engine, Key, Sends | the key's knobs; model, random, pan, volume; its fx I, fx II | | | | black: the key |
 | ENV | Envelope | attack | decay | sustain | release | play |

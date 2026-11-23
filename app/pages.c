@@ -870,6 +870,8 @@ static int tp_page_param(int p, int k, int trk)
         static const int8_t MP[2][4] = {{TP_VMODE, TP_PORTA, TP_BEND, TP_VOLUME}, {TP_OCT, -1, -1, -1}};
         return MP[p == P_PLAY2][k];
     }
+    if (p == P_PLAY2 && k == 2)                      /* a synth's low cut, beside its volume (a kit: none) */
+        return is_drum(trk) || is_midi(trk) ? -1 : TP_HPF;
     if (is_knit(trk) && p == P_SUB)                  /* knit's Levels: osc 2, sub, noise, analog (its volume: Play 2) */
         return k < 3 ? TP_X2 + k : TP_KANALOG;
     if (p == P_KMOD)                                 /* knit's Mod page: sync, sweep, cross, the sub's type; rayon's

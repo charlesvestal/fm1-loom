@@ -432,6 +432,7 @@ static int preset_apply(int trk, int i)
         proj.trk[trk].par[TP_I1] = user_presets[u].i1;
         proj.trk[trk].par[TP_I2] = user_presets[u].i2;
         proj.trk[trk].par[TP_I3] = user_presets[u].i3;
+        proj.trk[trk].par[TP_HPF] = user_presets[u].hpf;
         memcpy(proj.trk[trk].name, user_presets[u].name, NAME_LEN);
         engine_set_all(trk);
         mark_dirty();
@@ -3102,7 +3103,8 @@ static void act_paste_sound(void)
         par[TP_O2FINE] = proj.trk[src].par[TP_O2FINE];
         par[TP_O2WAVE] = proj.trk[src].par[TP_O2WAVE];
         par[TP_O2SHAPE] = proj.trk[src].par[TP_O2SHAPE];
-        for (int q = TP_KSYNC; q <= TP_I3; q++)   /* (knit's Mod page, rayon's Ops page, knit's analog, the insert) */
+        for (int q = TP_KSYNC; q <= TP_HPF; q++)   /* (knit's Mod page, rayon's Ops page, knit's analog, the insert,
+                                                    * the low cut) */
             par[q] = proj.trk[src].par[q];
         memcpy(proj.trk[trk].name, proj.trk[src].name, NAME_LEN);
         engine_set_all(trk);
@@ -3250,6 +3252,7 @@ static void save_user_preset(int slot)
     user_presets[slot].i1 = proj.trk[trk].par[TP_I1];
     user_presets[slot].i2 = proj.trk[trk].par[TP_I2];
     user_presets[slot].i3 = proj.trk[trk].par[TP_I3];
+    user_presets[slot].hpf = proj.trk[trk].par[TP_HPF];
     memcpy(user_presets[slot].name, proj.trk[trk].name, NAME_LEN);
     if (!user_presets[slot].name[0])
         s_cat(user_presets[slot].name, EG_NAME[proj.trk[trk].par[TP_ENGINE] % NENGINE]);

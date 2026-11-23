@@ -25,7 +25,7 @@ expect page Play
 expect knobs vmode porta bend oct
 turn SELECT 1
 expect page Play_2
-expect knobs - - - volume
+expect knobs - - hpf volume
 turn SELECT 1
 expect page Engine
 turn SELECT -1
@@ -107,7 +107,7 @@ expect page Play
 expect knobs vmode porta bend oct
 turn SELECT 1
 expect page Play_2
-expect knobs - - - volume
+expect knobs - - hpf volume
 wait 40
 shot play2.png
 turn SELECT 1
@@ -120,7 +120,7 @@ expect page Play
 expect knobs vmode porta bend oct
 turn SELECT 1
 expect page Play_2
-expect knobs - - - volume
+expect knobs - - hpf volume
 turn SELECT 1
 expect page Engine
 # the others: Engine, Play, Play 2
@@ -130,7 +130,7 @@ expect page Play
 expect knobs vmode porta bend oct
 turn SELECT 1
 expect page Play_2
-expect knobs - - - volume
+expect knobs - - hpf volume
 turn SELECT 1
 expect page Engine
 knob 3 engine bellows
@@ -161,7 +161,7 @@ expect page Play
 expect knobs vmode porta bend oct
 turn SELECT 1
 expect page Play_2
-expect knobs - - - volume
+expect knobs - - hpf volume
 turn SELECT 1
 expect page Engine
 knob 3 e4 loop

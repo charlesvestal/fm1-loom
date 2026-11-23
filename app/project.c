@@ -74,7 +74,7 @@ static uint8_t old_arp(uint8_t v) { return v == LOCK_NONE ? v : v > 8u ? 10u : (
 static const uint8_t OLD_OCT[25] = {15, 11, 7, 14, 10, 6, 13, 9, 5, 12, 8, 4, 0, 1, 2, 3, 5, 6, 7, 9, 10, 11, 13, 14, 15};
 typedef char settings_head_fits[(SET_HDR + 4u + 64u <= PLAT_STORE_MAX && SET_OLD == 3804u) ? 1 : -1];   /* (format 14's size) */
 typedef char trk_layout[(offsetof(trk_t, name) == NTP && sizeof(trk_t) == NTP + NAME_LEN + 4u) ? 1 : -1];
-typedef char preset_packed[(sizeof(user_preset_t) == NAME_LEN + 17u + NTP_SOUND) ? 1 : -1];   /* (no padding) */
+typedef char preset_packed[(sizeof(user_preset_t) == NAME_LEN + 18u + NTP_SOUND) ? 1 : -1];   /* (no padding) */
 #define PRESET_OLD (NAME_LEN + 1u + NTP_SOUND)                    /* formats 6..8: a user preset without its fine */
 #define PRESET_V11 (NAME_LEN + 2u + NTP_SOUND)                    /* 9..11: without osc 2's wave and shape */
 #define PRESET_V12 (NAME_LEN + 4u + NTP_SOUND)                    /* 12: without knit's Mod page */
@@ -777,6 +777,7 @@ static int settings_unpack(int n)
             if (ntp <= (uint32_t)TP_O2FINE)
                 par[TP_O2FINE] = 64;
             par[TP_ITYPE] = par[TP_I1] = par[TP_I2] = par[TP_I3] = 0;   /* (no insert) */
+            par[TP_HPF] = 0;                     /* (no low cut) */
             if (ntp > (uint32_t)TP_KANALOG)
                 continue;
             par[TP_KANALOG] = 0;                 /* (no analog: knit as it was) */
@@ -826,6 +827,7 @@ static int settings_unpack(int n)
         tr->par[TP_RDEPTH] = tr->par[TP_RFB] = 0;
         tr->par[TP_KANALOG] = 0;
         tr->par[TP_ITYPE] = tr->par[TP_I1] = tr->par[TP_I2] = tr->par[TP_I3] = 0;
+        tr->par[TP_HPF] = 0;
     }
     return 0;
 }
@@ -1084,6 +1086,7 @@ int presets_load(void)
             user_presets[k].rdepth = user_presets[k].rfb = 0;
             user_presets[k].kanalog = 0;
             user_presets[k].itype = user_presets[k].i1 = user_presets[k].i2 = user_presets[k].i3 = 0;
+            user_presets[k].hpf = 0;
             for (i = 0; i < len; i++)
                 ((uint8_t *)&user_presets[k])[i] = io_buf[4u + (uint32_t)k * len + i];
         }
@@ -1103,6 +1106,8 @@ int presets_load(void)
             user_presets[k].kanalog = 0;
         if (user_presets[k].itype >= NIT || user_presets[k].i1 > 127u || user_presets[k].i2 > 127u || user_presets[k].i3 > 127u)
             user_presets[k].itype = user_presets[k].i1 = user_presets[k].i2 = user_presets[k].i3 = 0;
+        if (user_presets[k].hpf > 127u)
+            user_presets[k].hpf = 0;
     }
     if (fmt < 7u)                                /* (before 7, off (FT_DYNAMIC) sat at 4 and bp12 at 5: swap) */
         for (k = 0; k < NUSER_PRESETS; k++) {

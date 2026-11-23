@@ -163,6 +163,7 @@ typedef struct {
     uint8_t cin_type;                 /* and the type (0xFF: none yet) */
     uint8_t ftype, stereo, mute, eng;
     uint8_t ctype;                    /* the character stage running (CT_OFF: skipped, also at mix 0) */
+    float hpk;                        /* the low cut's one-pole coefficient (TP_HPF; 0 off) */
 } cfg_t;
 
 typedef struct {
@@ -190,6 +191,7 @@ typedef struct {
     float fco, flv, ffe;              /* and what fhz was (the cutoff, the filter envelope's level and reach) */
     uint8_t fty;
     float f[8];                       /* filter: ic1 ic2 jc1 jc2 of L, then R (the ladder: its four poles a side) */
+    float hp[4];                      /* the low cut's two lows, L then R */
     float peak;
     float tsec;                       /* seconds since the note (the LFO's fade envelope counts on it) */
     uint32_t rng;
@@ -2658,6 +2660,8 @@ static void voice_take(synth_t *s, int vi, int trk, int note, int vel, int glide
             v->f[i] = 0.0f;
         for (i = 0; i < 8; i++)
             v->cz[i] = 0.0f;
+        for (i = 0; i < 4; i++)
+            v->hp[i] = 0.0f;
         v->amp_cur = 0.0f;
         v->glc = v->grc = 0.0f;
         voice_start(s, v, note, vel, glide_ms, tag, 1, 0);
@@ -3659,6 +3663,10 @@ static void voice_chunk(synth_t *s, voice_t *v)
     c->ftype = (uint8_t)P(s, trk, TP_FTYPE);
     if (c->ftype >= NFT)
         c->ftype = FT_LP24;
+    {   /* the low cut: 20 Hz .. 2 kHz over 1..127 (0 off) */
+        const int hv = P2(s, trk, TP_HPF);
+        c->hpk = hv ? 1.0f - fm_expf(-FM_TWO_PI * 20.0f * fm_exp2f((float)hv * (6.64f / 127.0f)) * INV_SR) : 0.0f;
+    }
     c->mute = t->perf.mute;
 #ifdef PLAT_HOST
     if (!(synth_host_solo >> trk & 1u))          /* the host's stems (LOOM_SOLO): a track left out is muted */
@@ -3842,6 +3850,8 @@ static void voice_subblock(synth_t *s, voice_t *v, int aligned)
             v->f[i] = 0.0f;
         for (i = 0; i < 8; i++)
             v->cz[i] = 0.0f;
+        for (i = 0; i < 4; i++)
+            v->hp[i] = 0.0f;
     }
     c = &v->c;
     v->fresh = 0;
@@ -4106,6 +4116,20 @@ static void out_stereo(voice_t *v, const float *xl, const float *xr, float *l, f
 }
 
 /* m samples (inside a chunk) of one voice into the buffers */
+static __attribute__((noinline)) void low_cut(float k, float *h, float *x, int n)   /* a 12 dB high-pass: x less its
+                                                  * one-pole low, twice */
+{
+    float a = h[0], b = h[1];
+    for (int j = 0; j < n; j++) {
+        float u;
+        a += k * (x[j] - a);
+        u = x[j] - a;
+        b += k * (u - b);
+        x[j] = u - b;
+    }
+    h[0] = fm_flush(a);
+    h[1] = fm_flush(b);
+}
 static void voice_samples(synth_t *s, voice_t *v, float *l, float *r, float *s1, float *s2, int m)
 {
     float bl[SY_CHUNK], br[SY_CHUNK], *xl = bl, *xr = br;
@@ -4131,6 +4155,11 @@ static void voice_samples(synth_t *s, voice_t *v, float *l, float *r, float *s1,
             xl = bl;
             xr = br;
             eng_run(v, xl, xr, k);
+        }
+        if (v->c.hpk > 0.0f) {                   /* the low cut, before the filter (twice the lows taken out) */
+            low_cut(v->c.hpk, v->hp, xl, k);
+            if (v->c.stereo)
+                low_cut(v->c.hpk, v->hp + 2, xr, k);
         }
 #define SL(ft, ch) sample_loop(v, xl, xr, l + i, r + i, s1 + i, s2 + i, k, ft, 0, ch)
         if (v->c.stereo) {                       /* the filter a channel at a time, the character, the outputs */
@@ -5173,6 +5202,7 @@ static const char *const RO_N[NRO] = {"off", "stack", "layer"};
 static const tp_info_t ROPS_P[4] = {{"ops", 0, NRO - 1, RO_OFF, PK_NAMES, RO_N}, {"ratio", 0, RO_NRATIO - 1, 1, PK_NUM, 0},
                                     {"depth", 0, 127, 0, PK_NN, 0}, {"feedback", 0, 127, 0, PK_NN, 0}};
 static const tp_info_t KANALOG_P = {"analog", 0, 127, 0, PK_NN, 0};
+static const tp_info_t HPF_P = {"low cut", 0, 127, 0, PK_LOWCUT, 0};
 /* the insert (synth.h IT_*): its type, and its knobs as each type names them (any type's ranges: tp_info) */
 static const char *const ITYPE_N[NIT] = {"off", "tremolo", "phaser", "univibe", "rat", "autowah", "chorus", "echo",
                                          "juno", "rumble"};
@@ -5418,6 +5448,8 @@ const tp_info_t *tp_info(int p, int engine)
         return &ROPS_P[p - TP_ROPS];
     if (p == TP_KANALOG)
         return &KANALOG_P;
+    if (p == TP_HPF)
+        return &HPF_P;
     if (p == TP_ITYPE)
         return &ITYPE_P;
     if (p >= TP_I1 && p <= TP_I3)                 /* (its type's names: tp_info_par) */
@@ -5642,6 +5674,12 @@ static void tp_text_i(const tp_info_t *i, int p, int v, int engine, char *num, c
         break;
     }
     case PK_HZ: hz_text(50.0f * fm_exp2f((float)v * (8.64385619f / 127.0f)), num, unit); break;
+    case PK_LOWCUT:
+        if (v == 0)
+            put_s(num, "off");
+        else
+            hz_text(20.0f * fm_exp2f((float)v * (6.64f / 127.0f)), num, unit);
+        break;
     case PK_FADE:
         if (v == 64) {
             put_s(num, "off");
@@ -5752,6 +5790,7 @@ void sound_default(uint8_t *par, int engine)
     par[TP_RDEPTH] = par[TP_RFB] = 0;
     par[TP_KANALOG] = 0;
     par[TP_ITYPE] = par[TP_I1] = par[TP_I2] = par[TP_I3] = 0;   /* (no insert) */
+    par[TP_HPF] = 0;                             /* (no low cut) */
 }
 
 /* -------------------------------------------------------------- presets --- */
@@ -5765,7 +5804,7 @@ void preset_sound(uint8_t *par, const preset_t *pr)
 {
     static const uint16_t PS_X[PS_N - NTP_SOUND] = {TP_O2FINE, TP_O2WAVE, TP_O2SHAPE, TP_KSYNC, TP_KSWEEP, TP_KCROSS,
                                                     TP_KSUB, TP_ROPS, TP_RRATIO, TP_RDEPTH, TP_RFB, TP_KANALOG,
-                                                    TP_ITYPE, TP_I1, TP_I2, TP_I3};
+                                                    TP_ITYPE, TP_I1, TP_I2, TP_I3, TP_HPF};
     const uint8_t *t = PRESET_TPL[pr->engine % NENGINE], *m = PRESET_DATA + pr->at, *v = m + PS_MASK;
     for (int i = 0; i < PS_N; i++)
         par[i < NTP_SOUND ? i : PS_X[i - NTP_SOUND]] = m[i >> 3] >> (i & 7) & 1u ? *v++ : t[i];
