@@ -4630,7 +4630,7 @@ static void pic_velvet(int32_t x0, int32_t y0, int32_t w, int32_t h, const uint8
         cv_dotf(x + 26.0f * s + o, lb - 3.0f * s, 2.0f, ink); /* (the bow, its frog) */
     }
 }
-/* tartan: the chord as an aurora (after Chordism's): over a night sky of a few twinkling stars, each voice a curtain of
+/* tartan: the chord as an aurora (after Chordism's): over a few twinkling stars on the background, each voice a curtain of
  * light in the track's ink, hanging at its place in the field, its foot higher for a higher note,
  * as tall and bright as its level (the morphs: the relative levels read first), drifting as the sound plays (pic_f: at
  * rest in silence), more by sway; the chord's name above */
@@ -4666,9 +4666,6 @@ static void pic_tartan(int32_t x0, int32_t y0, int32_t w, int32_t h, const uint8
     const uint16_t ink[4] = {K_NOW, K_NOW, K_NOW, K_NOW};   /* (the track's own ink, every voice: its place, height and
                                                       * brightness tell them apart) */
     tartan_voices(p, semis, lvl, pan);
-    for (int32_t y = 0; y < h; y++)              /* the sky: the background, a little lighter toward the horizon (the band's
-                                                  * width: no edges) */
-        cv_rect(0, y0 + y, 240, 1, col_mix(K_BG, K_PANEL, (uint32_t)(y * 12 / h)));
     for (uint32_t i = 0; i < 22u; i++) {         /* the stars, a few twinkling */
         uint32_t r = (i + 7u) * 2654435761u, a = 60u + (r >> 25);
         if ((r >> 12 & 3u) == 0)
