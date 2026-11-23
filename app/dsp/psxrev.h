@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: MIT */
-/* The PlayStation's SPU reverb, for LOOM-8's reverb modes. Included by fx.c only (static code, no unit of
+/* The PlayStation's SPU reverb, for LOOM-8's reverb modes. Included by efx.c only (static code, no unit of
  * its own).
  *
  * Ported from schwung-psxverb (src/dsp/psxverb.c), Copyright (c) 2025 Charles Vestal, MIT License (the
@@ -78,19 +78,8 @@ static const float SPU_HB[10] = {0x2806 / 32768.0f, -0x0B90 / 32768.0f, 0x0534 /
                                  0x010A / 32768.0f, -0x0067 / 32768.0f, 0x0023 / 32768.0f, -0x000A / 32768.0f,
                                  0x0002 / 32768.0f, -0x0001 / 32768.0f};
 
-typedef struct {
-    int32_t a[NREG];                  /* the addresses at the size now (samples) and the dAPF displacements */
-    float viir, vwall, vapf1, vapf2, vcomb[4];
-    float in[128];                    /* the decimator's input, 44.1 kHz (mono): a ring of 64, each sample written
-                                       * twice (at ip and ip + 64) so the taps read it straight, without a mask */
-    float up[2][64];                  /* the interpolators' input, 22.05 kHz: rings of 32, written twice the same way */
-    float out[2][2];                  /* the two samples a tick gives, a side */
-    float tl, th, tr, thr;            /* the tone's states */
-    uint32_t base;
-    int32_t clear;                    /* samples of the work area still to clear */
-    int32_t quiet;                    /* 44.1 kHz samples since anything but zero was written or came in */
-    uint8_t ip, up_w, phase, mode;
-} spu_t;
+typedef efx_spu_t spu_t;                      /* (efx.h: its states) */
+_Static_assert(NREG == EFX_SPU_NREG, "efx.h EFX_SPU_NREG: the SPU's registers");
 
 /* the registers at a size (x1 .. x4) and the volumes at decay / damp */
 static void spu_derive(spu_t *s, int mode, float size, float decay, float damp)

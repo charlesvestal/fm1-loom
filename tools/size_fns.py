@@ -46,7 +46,7 @@ SIZE_FILES = ["app/ui.c", "app/pages.c", "app/project.c", "app/lz.c", "app/sampl
 COLD = {
     "dsp/drumline.c": ["start", "knob", "drumline_filter", "drumline_hit", "reso_set", "drumline_init"],
     "dsp/fx.c": ["fx_derive", "eq_coefs", "fx_filter", "master_set", "master_init", "comp_coefs",
-                 "fx_set", "fx_init", "delay_time", "delay_secs", "fx_delay_halves", "color_coefs", "biq_shelf",
+                 "fx_set", "fx_init", "fx_delay_halves", "color_coefs", "biq_shelf",
                  "fx_clear", "master_clear", "coef_ms", "master_pump_ms"],
     "dsp/sample.c": ["smp_user_scan", "fact_init", "smp_bank_crc", "smp_name"],
     "dsp/digisophie.c": [],
@@ -65,7 +65,8 @@ COLD = {
                     "bus_prepare", "ins_alloc"],
     # (the effects' coefficients, when a knob moves; the pages' pictures and texts)
     "dsp/efx.c": ["efx_char_coefs", "efx_char_picture", "efx_char_hz", "efx_knob_name", "efx_list_name", "ch_lp_hz",
-                  "ch_pivot_hz", "ch_alpha", "ch_tape_hz", "ch_smp_hz", "ch_smp_rate"],
+                  "ch_pivot_hz", "ch_alpha", "ch_tape_hz", "ch_smp_hz", "ch_smp_rate", "efx_send_nums",
+                  "efx_delay_secs"],
     "seq/pattern.c": ["pattern_init", "patterns_init", "lane_alloc", "lane_clear", "lane_count", "lane_pool_set",
                       "lane_pool_free", "step_clear_locks", "pattern_clear_locks", "step_set_notes",
                       "step_toggle_note", "kit_set", "kit_toggle", "kit_add", "pattern_woven", "weave_step",

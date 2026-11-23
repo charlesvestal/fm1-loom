@@ -59,3 +59,100 @@ float efx_char_hz(int ef, int knob, float u);   /* a knob (0 amount, 1 tone; 0..
  * transfer at u (-1..1); crush and sampler a cycle of a sine (u 0..1) held and quantised; ring two cycles of a sine
  * ring-modulated (its peak at 1); tilt the response in dB / 6 from 50 Hz (u 0) to 20 kHz (u 1). The mix is in it */
 float efx_char_picture(int ef, int amt, int tone, int mix, float u);
+
+/* ---- the sends' effects: chorus, delay, lofi, phaser, reverb (FX I / II's, fx.c) ----
+ * Each takes a mono block x (filtered: the slot's) and adds its stereo return, wet only. Their numbers (pt: targets,
+ * pc: gliding toward them, the slot's ~10 ms) from the knobs: efx_send_nums. The reverb in one of its modes: the
+ * plate (9W9's combs), the PlayStation's SPU reverbs (psxrev.h, from schwung-psxverb: MIT), lush (Dattorro's plate at
+ * 22.05 kHz) and shimmer (lush with its output an octave up fed back: Chordism's, MIT). Saved by number: a new mode
+ * at the end */
+enum { RV_PLATE, RV_ROOM, RV_STUDIO_S, RV_STUDIO_M, RV_STUDIO_L, RV_HALL, RV_HALF_ECHO, RV_SPACE_ECHO,
+       RV_CHAOS_ECHO, RV_ECHO_ONE, RV_LUSH, RV_SHIMMER, NRV };
+static inline int rv_lush(int mode) { return mode == RV_LUSH || mode == RV_SHIMMER; }   /* (shimmer is lush's) */
+#define NSPU RV_ECHO_ONE                           /* the SPU modes: RV_ROOM .. RV_ECHO_ONE */
+extern const char *const RV_NAME[NRV];         /* "plate", "room", "studio S", ... */
+#define FX_DLY_LEN 11200              /* the delay's lines: int16 samples a side, at half rate (22.05 kHz): 0.5 s plus a
+                                       * 128-sample margin (the second core's lag, 256 frames at most; the pool's budget) */
+#define FX_RV_LEN 32768               /* int16 samples: the reverb's line (the plate uses 11.4 k of it; an SPU mode at x4
+                                       * up to 32766: the chaos echo's and the delay's 1FFFh x 4) */
+#define EFX_CHO_N 2048                /* the chorus's line: 46 ms (int16; the lofi's spread and smear's allpasses read it) */
+/* the delay's time: one of FX_DL_N divisions of the tempo (1/32 .. 1/4; fx_delay_div), its name's note and mark (T, D
+ * or none) */
+#define FX_DL_N 10
+static inline int fx_delay_div(int time) { return (time < 0 ? 0 : time > 127 ? 127 : time) * FX_DL_N >> 7; }
+extern const uint8_t FX_DL_NOTE[FX_DL_N];
+extern const char FX_DL_MARK[FX_DL_N];
+float efx_delay_secs(int time, int fine, float bpm, int *halves);   /* the delay's time at a tempo, and the times the line
+                                                                     * halves it to fit (0: as set) */
+float fx_delay_fb(int v);                    /* the delay's REPEATS 0..127: its feedback (127: 1, held) */
+
+typedef struct { int32_t w; float ph, s1, s2, hl, hr, fz; } efx_chorus_t;
+typedef struct { int32_t w; float ph, hold, in1, out1, wph; } efx_lofi_t;
+typedef struct { float xl, yl[4], xr, yr[4], ph, zl, zr, al, ar; } efx_phaser_t;
+typedef struct {
+    int16_t *l, *r;                           /* its lines (FX_DLY_LEN a side) */
+    int32_t w, quiet, ph;                     /* (the line at half rate: ph, the pair's second frame) */
+    float cur, lpl, lpr, al, ar;              /* (the pair being summed into the slot at w) */
+    float wa, wb;                             /* PING WIDTH: a side's echo into its own side, into the other (fx_width) */
+    float wph, wdl, wdr, wsl, wsr, hl, hr;    /* wobble: the LFO's phase, the drifts, the offsets as they glide; the loop's
+                                               * high-pass a side */
+    uint32_t rnd;                             /* (the drift's noise) */
+    int32_t sap[5];                           /* smear: its allpasses' places in the chorus line (idle while a delay), the
+                                               * send's wait's */
+} efx_delay_t;
+#define EFX_SPU_NREG 30
+typedef struct {                              /* an SPU mode's (psxrev.h) */
+    int32_t a[EFX_SPU_NREG];                  /* the addresses at the size now (samples) and the dAPF displacements */
+    float viir, vwall, vapf1, vapf2, vcomb[4];
+    float in[128];                            /* the decimator's input, 44.1 kHz (mono): a ring of 64, each sample written
+                                               * twice (at ip and ip + 64) so the taps read it straight, without a mask */
+    float up[2][64];                          /* the interpolators' input, 22.05 kHz: rings of 32, written twice the same
+                                               * way */
+    float out[2][2];                          /* the two samples a tick gives, a side */
+    float tl, th, tr, thr;                    /* the tone's states */
+    uint32_t base;
+    int32_t clear;                            /* samples of the work area still to clear */
+    int32_t quiet;                            /* 44.1 kHz samples since anything but zero was written or came in */
+    uint8_t ip, up_w, phase, mode;
+} efx_spu_t;
+#define EFX_LU_N 13
+typedef struct {                              /* lush's */
+    int32_t len[EFX_LU_N];                    /* the lines' lengths at the size now, 22.05 kHz samples */
+    uint32_t base;
+    int32_t clear, quiet;                     /* (as the SPU's) */
+    float lp, hold, lfo, dmp[2], fb[2], prev[2], cur[2], tl, th, tr, thr, scale;
+    float sh_d, sh_lp, sh_hp, sh_x1;          /* shimmer: its heads' distance, its low-pass, its high-pass */
+    uint8_t phase;
+} efx_lush_t;
+typedef struct {
+    int16_t *line;                            /* FX_RV_LEN */
+    uint8_t mode;                             /* RV_*, running */
+    float shm;                                /* shimmer's feedback (0: lush) */
+    int32_t cpos[4], apos[4], quiet;          /* the plate */
+    float cdmp[4], cd[4], ph, hp, tl[2], tr[2];   /* (tl / tr: the tone's low-pass and high-pass a side) */
+    union {                                   /* the SPU reverb or lush (one mode at a time) */
+        efx_spu_t spu;
+        efx_lush_t lu;
+    };
+} efx_reverb_t;
+typedef struct {                              /* a send's effects (one runs at a time: its states, its numbers) */
+    int16_t *cho;                             /* the chorus's line (EFX_CHO_N), the lofi's and smear's */
+    float pt[6], pc[6];                       /* the effect's numbers: targets, and gliding */
+    efx_chorus_t chorus;
+    efx_lofi_t lofi;
+    efx_phaser_t phaser;
+    efx_delay_t delay;
+    efx_reverb_t reverb;
+} efx_send_t;
+/* the knobs (four, 0..127) of effect ef (EF_CHORUS, EF_DELAY, EF_LOFI, EF_PHASER, EF_REVERB in mode) to its numbers
+ * (pt; the reverb's shimmer too); the delay's wobble and smear 0..127 */
+void efx_send_nums(efx_send_t *e, int ef, int mode, const uint8_t *k, float bpm, int wobble, int smear);
+void efx_send_reset(efx_send_t *e, int mode);   /* a fresh effect: its states at rest (its numbers as pt; the reverb's
+                                                 * mode); not the lines (but the SPU's and lush's clear themselves) */
+void efx_send_run(efx_send_t *e, int ef, const float *x, float *ol, float *orr, int m, int any, int lag);
+int efx_send_awake(const efx_send_t *e, int ef);
+/* the chorus and the phaser on their own (a track's insert): p the numbers as efx_send_t pc's (chorus: rate Hz, depth
+ * in samples, feedback, width 0..1; phaser: centre Hz, depth octaves, rate Hz, feedback); the
+ * phaser on two inputs (a send: the same twice) */
+void efx_chorus(efx_chorus_t *c, int16_t *line, const float *p, const float *x, float *ol, float *orr, int m, int lag);
+void efx_phaser(efx_phaser_t *s, const float *p, const float *xl, const float *xr, float *ol, float *orr, int m);

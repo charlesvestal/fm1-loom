@@ -8,18 +8,11 @@
  * the caller passes them in (their sizes are the memory plan's). Float, fastmath.h. */
 #pragma once
 #include <stdint.h>
+#include "efx.h"                             /* the effects themselves (dsp/efx.c), the reverb's modes, the lines' sizes */
 
 enum { FXT_CHORUS, FXT_DELAY, FXT_LOFI, FXT_PHASER, FXT_REVERB, NFXT };
 extern const char *const FXT_NAME[NFXT];
-/* the reverb's modes: the plate (9W9's combs), then the SPU reverbs of the PlayStation (psx-spx's register
- * sets, as in schwung-psxverb): room, studio small / medium / large, hall, half echo, space echo, chaos echo
- * (almost endless), delay (one echo); then lush, Dattorro's plate at 22.05 kHz; shimmer, lush with its own output an
- * octave up fed back into it (Chordism's, MIT: the tail rises in octaves) (saved by number: a new mode at the end) */
-enum { RV_PLATE, RV_ROOM, RV_STUDIO_S, RV_STUDIO_M, RV_STUDIO_L, RV_HALL, RV_HALF_ECHO, RV_SPACE_ECHO,
-       RV_CHAOS_ECHO, RV_ECHO_ONE, RV_LUSH, RV_SHIMMER, NRV };
-static inline int rv_lush(int mode) { return mode == RV_LUSH || mode == RV_SHIMMER; }   /* (shimmer is lush's) */
-#define NSPU RV_ECHO_ONE                           /* the SPU modes: RV_ROOM .. RV_ECHO_ONE */
-extern const char *const RV_NAME[NRV];         /* "plate", "room", "studio S", ... */
+/* the reverb's modes (RV_*, rv_lush, RV_NAME): efx.h */
 /* a track's TP_ENGINE byte names the effect and, for the reverb, its mode: the "pick", 0..NFXPICK-1:
  * chorus, delay, lofi, phaser, then the reverb's modes in order (FXT_REVERB + mode) */
 #define NFXPICK (FXT_REVERB + NRV)
@@ -53,10 +46,6 @@ extern const uint8_t RV_SPU_DEFAULT[4];         /* the SPU modes' */
 extern const uint8_t RV_LUSH_DEFAULT[4];        /* lush's */
 extern const uint8_t RV_SHIMMER_DEFAULT[4];     /* shimmer's */
 
-#define FX_DLY_LEN 11200              /* int16 samples a side, at half rate (22.05 kHz): 0.5 s plus a 128-sample margin
-                                       * (the second core's lag, 256 frames at most; the pool's budget) */
-#define FX_RV_LEN 32768               /* int16 samples: the reverb's lines (the plate uses 11.4 k of them; an SPU mode at
-                                       * x4 up to 32766: the chaos echo's and the delay's 1FFFh x 4) */
 typedef struct fxslot fxslot_t;
 #define FXSLOT_BYTES 5760             /* the chorus line (2048 int16: 4 KB, the lofi's spread reads it too) and the states */
 
@@ -66,12 +55,8 @@ void fx_init(fxslot_t *f, int16_t *dly_l, int16_t *dly_r, int16_t *rv);   /* a s
 void fx_set(fxslot_t *f, int pick, const uint8_t knob[4]);  /* the slot's effect (a pick: the type and the reverb's
                                                              * mode) and its four knobs (0..127) */
 void fx_tempo(fxslot_t *f, float bpm);
-#define FX_DL_N 10                                          /* the delay's times */
-static inline int fx_delay_div(int time) { return (time < 0 ? 0 : time > 127 ? 127 : time) * FX_DL_N >> 7; }
-extern const uint8_t FX_DL_NOTE[FX_DL_N];                  /* a time's name: 1/note and its mark (T, D or none) */
-extern const char FX_DL_MARK[FX_DL_N];
-int fx_delay_halves(int time, int fine, float bpm);          /* the times the line halves it (0: as set) */
-float fx_delay_fb(int v);                                   /* the delay's REPEATS 0..127: its feedback (127: 1, held) */
+int fx_delay_halves(int time, int fine, float bpm);          /* the times the line halves it (0: as set; the delay's
+                                                             * divisions FX_DL_N, its REPEATS' feedback: efx.h) */
 void fx_delay_mod(fxslot_t *f, int wobble, int smear);      /* the delay's WOBBLE and SMEAR, 0..127 (0: off) */
 void fx_filter(fxslot_t *f, int hp, int lp);                /* the slot's filter page: high-pass, low-pass 0..127 */
 void fx_width(fxslot_t *f, int w);                          /* the delay's PING WIDTH: 0 the echoes centred .. 127 hard
