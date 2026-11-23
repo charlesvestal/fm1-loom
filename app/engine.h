@@ -87,6 +87,7 @@ int engine_cc_take(uint32_t *pkt);                       /* the main loop: the n
                                                           * note-on from MIDI in (a USB-MIDI packet), 0 none */
 extern volatile uint16_t eng_peak[NALLTRK];              /* meters after the faders, Q14 (to +6 dB): the loudest
                                                           * since the UI took it (and set it to 0) */
+extern volatile uint8_t eng_kit_silent;                  /* bit t: track t is a kit with no drum unit (three at once) */
 extern volatile uint8_t eng_drum_hit[NDRUM];             /* the selected drum track's last hits (255 = full) */
 extern volatile uint8_t eng_midi_hit[NTRK];              /* a note on gone out on track t's channel (255, eased out) */
 extern volatile uint8_t eng_ghost[NTRK];                 /* a muted track's step that would have played: its velocity

@@ -50,8 +50,9 @@ volatile uint16_t eng_quiet;
 
 /* the units, in the pool (their structs are opaque: a byte array each, 8-aligned for their floats) */
 static uint8_t synth_mem[SYNTH_BYTES] POOL __attribute__((aligned(8)));
-/* drumline units: NDL of them for the pool's sake (three drum tracks at once; a fourth drum track stays silent
- * until one of the others changes engine). Three, not four, since step_t grew to twelve bytes. */
+/* drumline units: NDL of them for the pool's sake (three drum tracks at once; a fourth drum track stays silent,
+ * eng_kit_silent, until one of the others changes engine: dl_rehome). Three, not four, since step_t grew to twelve
+ * bytes. */
 #define NDL 3
 static uint8_t dl_mem[NDL][DRUMLINE_BYTES] POOL __attribute__((aligned(8)));
 static uint8_t dl_slot[NTRK];                              /* the unit a drum track owns, 0xFF none */
@@ -430,6 +431,22 @@ static void dl_filter_update(int t)
     }
     drumline_filter(DL(t), type, locut, comp, drive, hicut);
 }
+volatile uint8_t eng_kit_silent;
+static void dl_rehome(void)                                /* a freed unit to the first kit track without one; the
+                                                            * silent ones for the UI (3 KITS AT MOST, the picture) */
+{
+    uint8_t m = 0;
+    for (int t = 0; t < NTRK; t++)
+        if (epar[t][TP_ENGINE] == EG_DRUMLINE && !eng_drum[t]) {
+            if (dl_take(t)) {
+                eng_drum[t] = 1;
+                drumline_init(DL(t), epar[t]);
+                dl_filter_update(t);
+            } else
+                m |= (uint8_t)(1u << t);
+        }
+    eng_kit_silent = m;
+}
 static int is_filter_param(int param)
 {
     return param == TP_FTYPE || param == TP_CUT || param == TP_RES || param == TP_FENV || param == TP_KTRK;
@@ -471,6 +488,7 @@ static void apply_param(int trk, int param, int val)       /* ISR: C_PARAM */
                 drumline_init(DL(trk), epar[trk]);
                 dl_filter_update(trk);
             }
+            dl_rehome();
         }
     } else if (trk < NTRK && eng_drum[trk] && is_filter_param(param) && !locked) {
         dl_filter_update(trk);
@@ -500,6 +518,7 @@ static void apply_all(int trk)                             /* ISR: C_ALL (a load
             drumline_init(DL(trk), epar[trk]);
             dl_filter_update(trk);
         }
+        dl_rehome();
     } else {
         if (trk == AUX_BRAIN)
             seq.brain_link = (uint8_t)(epar[trk][TP_E4] > NTRK ? NTRK : epar[trk][TP_E4]);
@@ -1824,6 +1843,7 @@ void engine_init(patterns_t *P, uint8_t (*par)[NTP])
         bend_c[t] = 0;
         midi_cc_forget(t);
     }
+    dl_rehome();                                          /* (the silent kits: none takes a unit here) */
     for (k = 0; k < 2; k++)
         ret_glide[k][0].cur = ret_glide[k][1].cur = -1.0f;
     fx_init(FXS(0), dly1_l, dly1_r, 0);                   /* FX I: the delay lines, no reverb */

@@ -4790,12 +4790,17 @@ static void pic_slice(int32_t x0, int32_t y0, int32_t w, int32_t h, const uint8_
 /* the drumline: eleven pads, each key's model, the shown one ringed, hits flashing */
 static uint8_t pad_lvl[NDRUM];                       /* each pad's flash as draw_engine last eased it */
 static uint32_t pad_a(int k) { return pad_lvl[k] >= 200u ? 16u : pad_lvl[k] * 16u / 200u; }   /* its ink, of 16 */
+#define PIC_VEILED 0xFFFFFFFFu                      /* pic_drumline's f: a silent kit's faint pads */
 static void pic_drumline(int32_t x0, int32_t y0, int32_t w, int32_t h, const uint8_t *p, uint32_t f)
 {
     int32_t pw = w / 6, ph = h / 2;
     (void)f;
     for (int k = 0; k < DL_NSOUND; k++) {
         int32_t x = x0 + (k % 6) * pw + 2, y = y0 + (k / 6) * ph + 2;
+        if (f == PIC_VEILED) {                       /* a silent kit: the pads faint and bare, under kit_silent_veil */
+            cv_rect(x, y, pw - 4, ph - 4, col_mix(K_PANEL, K_BG, 10));
+            continue;
+        }
         uint32_t a = pad_a(k);                       /* the flash fades (a retrigger brightens it: no dark frame
                                                       * between two hits); the text dark on a pad lit past half */
         uint16_t base = k == ui.dsound ? K_PANEL2 : K_PANEL;
@@ -4884,6 +4889,14 @@ static void pic_midi(int32_t x0, int32_t y0, const uint8_t *p, int second, int h
     for (int i = 0; i < 5; i++)
         cv_round(cx + PIN[i][0] - 2, cy + PIN[i][1] - 2, 5, 5, 2, hit > 40 ? K_BG : K_TEXT);
 }
+/* a silent kit (three kits sound at once): over its faint pads (pic_drumline PIC_VEILED), a box saying why */
+static void kit_silent_veil(int32_t x0, int32_t y0, int32_t w, int32_t h)
+{
+    int32_t bw = w - 40, bh = LARGE ? 64 : 46, bx = x0 + (w - bw) / 2, by = y0 + (h - bh) / 2;
+    cv_frame(bx, by, bw, bh, 6, K_REC, K_PANEL2);
+    text_c(bx + bw / 2, by + (LARGE ? 8 : 6), &FONT_B, "SILENT", K_REC);
+    text_c(bx + bw / 2, by + (LARGE ? 36 : 26), &FONT_S, "3 kits at most", K_TEXT);
+}
 static void draw_engine(void)
 {
     int trk = sel_trk(), eg = proj.trk[trk].par[TP_ENGINE] % NENGINE;
@@ -4946,6 +4959,8 @@ static void draw_engine(void)
     if (eg == EG_LACE || eg == EG_VELVET || eg == EG_TARTAN)   /* (their second pages are drawn: the exciter, stretch;
                                                       * shape, width, detune; the waves, width) */
         h = hash_u(h, (uint32_t)p[TP_X1] | (uint32_t)p[TP_X2] << 8 | (uint32_t)p[TP_X3] << 16 | (uint32_t)p[TP_X4] << 24);
+    if (eg == EG_DRUMLINE)
+        h = hash_u(h, eng_kit_silent >> trk & 1u);
     if (eg == EG_KNIT)                               /* (osc 2 and which page: Engine and Osc 2 share the picture) */
         h = hash_u(hash_u(h, (uint32_t)p[TP_X1] | (uint32_t)p[TP_X2] << 8 | (uint32_t)p[TP_O2FINE] << 16 |
                                  (uint32_t)p[TP_O2WAVE] << 24), (uint32_t)p[TP_O2SHAPE] | (uint32_t)(ui.page == P_OSC2) << 8);
@@ -5006,10 +5021,15 @@ static void draw_engine(void)
     case EG_MIDI: pic_midi(24, 30, p, ui.page == P_SUB, eng_midi_hit[trk]); break;
     case EG_ACID: pic_acid(20, 24, 200, PIC_H, p); break;
     default:                                         /* the kit (large type: the pads fill the band, 4 px in) */
+    {
+        int silent = eng_kit_silent >> trk & 1u;     /* a fourth kit: no drum unit for it (engine.c NDL) */
         if (LARGE)
-            pic_drumline(2, 26, 236, MAIN_H - 26, p, pic_f);
+            pic_drumline(2, 26, 236, MAIN_H - 26, p, silent ? PIC_VEILED : pic_f);
         else
-            pic_drumline(10, 26, 220, 90, p, pic_f);
+            pic_drumline(10, 26, 220, 90, p, silent ? PIC_VEILED : pic_f);
+        if (silent)
+            kit_silent_veil(LARGE ? 2 : 10, 26, LARGE ? 236 : 220, LARGE ? MAIN_H - 26 : 90);
+    }
         break;
     }
     main_blit();

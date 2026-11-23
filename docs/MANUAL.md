@@ -833,7 +833,14 @@ clap, shaker, tambourine, string (a plucked string), conga, tom, fm or sample. I
 (x kick, x snare, x hat, x clap, x tom, x rim, x fm, x noise), sophie, clang, or one of the 909 models (909 kick,
 909 snare, 909 tom, 909 rim, 909 clap, 909 hat, 909 open, 909 ride, 909 crash). The kit is tuned to C: kick G1,
 snare G3, low tom C3, high tom G3, conga C4, string C3, fm C5. To pick the key the knobs edit, press a black key or
-turn **PRESETS**. The four knobs on the Engine page belong to that key's model:
+turn **PRESETS**.
+
+Three kit tracks can play at once, because each kit takes its own share of the FM-1's memory, even with only one
+sound in use. If you make a fourth kit track, LOOM-8 tells you which track is silent (for example "T4 SILENT, 3
+kits at most"), and that track's Engine page shows its pads faded behind "SILENT, 3 kits at most". It plays as soon
+as one of the other kits becomes another engine.
+
+The four knobs on the Engine page belong to the key's model:
 
 <img src="img/screen-drum-engine.png" width="240" alt="Engine on T1 kit: the eleven keys as pads, the snare picked; its knobs pitch, length, wires, punch" title="A drum key&#x27;s knobs"> <img src="img/screen-drum-key.png" width="240" alt="The Key page: the snare&#x27;s model, random, pan and volume" title="The Key page"> <img src="img/screen-drum-envelope.png" width="240" alt="ENV&#x27;s Kit env page on a drum track: lag, attack, random and length for the whole kit" title="The kit&#x27;s envelope">
 
@@ -1706,8 +1713,9 @@ CC IN, in Setup's **SEL** list (**GLO**), tells LOOM-8 what a controller's knobs
 to start with, for pots and faders: a CC's value is where the parameter goes. **endless** is for endless encoders
 that send relative values. On a Launchkey, set its encoders to relative. Each message turns the parameter by its
 amount, in the knob's own steps, so nothing jumps when the FM-1's value and the encoder's disagree. Both of the
-usual relative codes work: values around 64 (65 is +1, 63 is -1) and signed values (1 is +1, 127 is -1). A mute's
-CC mutes when you turn up and unmutes when you turn down. Like CC OUT, CC IN belongs to the FM-1 and is kept across
+usual relative codes work: values around 64 (65 is +1, 63 is -1) and signed values (1 is +1, 127 is -1). Mutes
+work the same in both settings, because a mute is a switch: 64 or more mutes, less unmutes, so a pad that sends 127
+and 0 mutes and unmutes. Like CC OUT, CC IN belongs to the FM-1 and is kept across
 projects.
 
 CC OUT is in Setup's **SEL** list (**GLO**) and is on to start with. With it on, when you turn a mapped knob or

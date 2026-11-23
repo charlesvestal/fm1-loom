@@ -1,0 +1,43 @@
+# three kits sound at once (engine.c NDL, the RAM): a fourth, however picked (here SEL's list), says "T4 SILENT 3 kits
+# at most" and its Engine page's pads fade behind a box, SILENT, 3 kits at most (two themes' shots); it sounds once
+# another kit changes engine (dl_rehome), and a kit made from a synth track then is the fourth again. T1 is a kit
+wait 300
+listen
+param 2 0 8
+param 3 0 8
+wait 20
+expect kitsilent 0
+spin ALGO 3
+expect trk 4
+tap EDIT
+expect page Engine
+tap SEL
+row ENGINE
+turn ALGO 6 30
+tap SEL
+expect par4.0 8
+wait 20
+expect kitsilent 8
+said T4 SILENT
+wait 2200
+shot kit4_silent.png
+tap GLO
+turn SELECT 5
+expect page Setup
+tap SEL
+row THEME
+turn ALGO 1
+tap HOME
+tap EDIT
+expect page Engine
+wait 100
+shot kit4_silent_theme.png
+# T2 a synth again: its unit goes to T4
+param 2 0 0
+wait 20
+expect kitsilent 0
+unsaid SILENT
+param 2 0 8
+wait 20
+expect kitsilent 2
+said T2 SILENT
