@@ -16,7 +16,8 @@ the comp would pull the level back down), before the limiter, which then catches
 
 ## The sound
 
-- Drive 0 .. +12 dB (the knob 0..127, in dB: 0 at 0, 12 dB at 127), into a symmetric soft knee: below the knee
+- Drive 0 .. +8 dB (the knob 0..127, in dB: 0 at 0, 8 dB at 127; first +12, but on the techno demo 80 and up
+  flattened it: -5.4 .. -3.7 LUFS, 3.8 .. 2.2 dB peak to RMS), into a symmetric soft knee: below the knee
   the signal passes as is, above it rounded towards a ceiling at the limiter's threshold (0.8). Odd harmonics only;
   no filter, no wow, no level matching (on the master, louder is the point; the limiter keeps the output safe).
 - CLIP 0 is the current master bit for bit (the stage skipped).

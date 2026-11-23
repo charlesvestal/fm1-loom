@@ -1004,7 +1004,7 @@ struct master {
     uint8_t pot[NMS];
     float gp, gm, glev;                       /* the group and master levels (targets) */
     float gp_c, gm_c, lev_c;                  /* gliding */
-    float cg;                                 /* CLIP's drive (1 .. 4x); 0: off */
+    float cg;                                 /* CLIP's drive (1 .. 2.5x); 0: off */
     /* EQ */
     biq_t eq[3];
     biqs_t eqs[2][3];
@@ -1261,7 +1261,8 @@ void master_set(master_t *m, int p, int v)
     if (p <= MS_EQ_HI)
         eq_coefs(m);
     else if (p == MS_CLIP)
-        m->cg = v ? fm_exp2f((float)v * (2.0f / 127.0f)) : 0.0f;   /* 0 .. +12 dB of drive; 0: the stage skipped */
+        m->cg = v ? fm_exp2f((float)v * (1.3288f / 127.0f)) : 0.0f;   /* 0 .. +8 dB of drive (at +12 the top half
+                                                                     * flattened a mix); 0: the stage skipped */
     else if (p <= MS_CMIX)
         color_coefs(m);
     else if (p == MS_PERC)
