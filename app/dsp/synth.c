@@ -1767,7 +1767,9 @@ static void tt_prep(voice_t *v)
         c->ex[18 + k] = g * fm_sqrtf(p);
     }
 }
-SY_INLINE float tt_osc(int w, float ph, float dt, float sh)   /* Chordism's osc_sample, on synth.c's blep */
+static const float TT_INV[9] = {0.0f, 1.0f, 0.5f, 1.0f / 3.0f, 0.25f, 0.2f, 1.0f / 6.0f, 1.0f / 7.0f, 0.125f};
+SY_INLINE float tt_osc(const int w, float ph, float dt, float idt, float sh)   /* Chordism's osc_sample, on synth.c's
+                                                  * blep (idt: 1 / dt, the voice's) */
 {
     switch (w) {
     case TW_SINE: {
@@ -1781,16 +1783,16 @@ SY_INLINE float tt_osc(int w, float ph, float dt, float sh)   /* Chordism's osc_
         return ph < pk ? ph / pk * 2.0f - 1.0f : 1.0f - (ph - pk) / (1.0f - pk) * 2.0f;
     }
     case TW_SAW: {
-        float s = 2.0f * ph - 1.0f - blep(ph, dt, 1.0f / dt);
+        float s = 2.0f * ph - 1.0f - blep(ph, dt, idt);
         if (sh > 0.0f) {
             float p2 = ph * 2.0f;
             p2 -= p2 >= 1.0f ? 1.0f : 0.0f;
-            s += sh * (2.0f * p2 - 1.0f - blep(p2, 2.0f * dt, 0.5f / dt) - s);
+            s += sh * (2.0f * p2 - 1.0f - blep(p2, 2.0f * dt, 0.5f * idt) - s);
         }
         return s;
     }
     case TW_SQUARE: case TW_PULSE: {
-        float pw = w == TW_SQUARE ? 0.05f + sh * 0.9f : 0.02f + sh * 0.28f, t2 = ph + 1.0f - pw, idt = 1.0f / dt;
+        float pw = w == TW_SQUARE ? 0.05f + sh * 0.9f : 0.02f + sh * 0.28f, t2 = ph + 1.0f - pw;
         t2 -= t2 >= 1.0f ? 1.0f : 0.0f;
         return (ph < pw ? 1.0f : -1.0f) + blep(ph, dt, idt) - blep(t2, dt, idt);
     }
@@ -1801,13 +1803,34 @@ SY_INLINE float tt_osc(int w, float ph, float dt, float sh)   /* Chordism's osc_
             float x = c2 * b - a;
             a = b;
             b = x;
-            s += x / (float)h;
+            s += x * TT_INV[h];
         }
         return s * 0.5f;
     }
     default:
         return 0.0f;
     }
+}
+/* one voice of the chord over m samples, its wave w a constant (tt_run instantiates one for each) */
+SY_INLINE float tt_loop(const voice_t *v, const int k, float ph, const int w, const float sh, const float fm, float *m0,
+                        float *xl, float *xr, const int m)
+{
+    const cfg_t *c = &v->c;
+    const float dt = c->ex[k], idt = 1.0f / dt, gl = c->ex[14 + k], gr = c->ex[18 + k];
+    for (int i = 0; i < m; i++) {
+        float pu = ph, s;
+        if (k && fm > 0.0f) {
+            pu += m0[i] * fm;
+            pu -= fm_floorf(pu);
+        }
+        s = tt_osc(w, pu, dt, idt, sh);
+        if (!k)
+            m0[i] = s;
+        ph = step1(ph, dt);
+        xl[i] += s * gl;
+        xr[i] += s * gr;
+    }
+    return ph;
 }
 static __attribute__((noinline)) void tt_run(voice_t *v, float *xl, float *xr, int m)
 {
@@ -1823,24 +1846,17 @@ static __attribute__((noinline)) void tt_run(voice_t *v, float *xl, float *xr, i
     v->o[4] = wrap1(v->o[4] + 0.4f * INV_SR * (float)m);
     for (i = 0; i < m; i++)
         xl[i] = xr[i] = m0[i] = 0.0f;
-    for (k = 0; k < 4; k++) {                    /* (a voice at a time: its state in registers; voice 1 first, the FM's) */
-        const float dt = c->ex[k], gl = c->ex[14 + k], gr = c->ex[18 + k];
+    for (k = 0; k < 4; k++) {                    /* (a voice at a time: its state in registers; voice 1 first, the FM's;
+                                                  * a loop for each wave, its choice made once) */
         float ph = v->o[k];
-        const int w = ws[k];
-        if (w == TW_OFF)
-            continue;
-        for (i = 0; i < m; i++) {
-            float pu = ph, s;
-            if (k && fm > 0.0f) {
-                pu += m0[i] * fm;
-                pu -= fm_floorf(pu);
-            }
-            s = tt_osc(w, pu, dt, sh[k]);
-            if (!k)
-                m0[i] = s;
-            ph = step1(ph, dt);
-            xl[i] += s * gl;
-            xr[i] += s * gr;
+        switch (ws[k]) {
+        case TW_SINE: ph = tt_loop(v, k, ph, TW_SINE, sh[k], fm, m0, xl, xr, m); break;
+        case TW_TRI: ph = tt_loop(v, k, ph, TW_TRI, sh[k], fm, m0, xl, xr, m); break;
+        case TW_SAW: ph = tt_loop(v, k, ph, TW_SAW, sh[k], fm, m0, xl, xr, m); break;
+        case TW_SQUARE: ph = tt_loop(v, k, ph, TW_SQUARE, sh[k], fm, m0, xl, xr, m); break;
+        case TW_PULSE: ph = tt_loop(v, k, ph, TW_PULSE, sh[k], fm, m0, xl, xr, m); break;
+        case TW_WT: ph = tt_loop(v, k, ph, TW_WT, sh[k], fm, m0, xl, xr, m); break;
+        default: break;
         }
         v->o[k] = ph;
     }
@@ -2966,10 +2982,11 @@ int synth_voice_cost(const synth_t *s, int vi)
     if (v->engine == EG_LACE)                    /* (the host's count against rayon's 5, 2026-11-23: struck about 6; the
                                                   * bow's a sample at a time, an estimate; not yet the FM-1's) */
         return (int)v->c.ex[3] == LX_BOW ? 8 : 6;
-    if (v->engine == EG_TARTAN) {                /* (an estimate: its voices as knit's unison, a unit and a half each) */
+    if (v->engine == EG_TARTAN) {                /* (the FM-1, 2026-11-23: a chord of four saws 18 % of a block on its
+                                                  * core, of sines 15 %, of the harmonic table 24 %: rayon's 7.9 % is 5) */
         const uint8_t *ws = TT_WAVES[(int)v->c.ex[4] < TT_NWAVES ? (int)v->c.ex[4] : 0];
-        return 3 + 3 * ((ws[0] != TW_OFF) + (ws[1] != TW_OFF) + (ws[2] != TW_OFF) + (ws[3] != TW_OFF)) / 2;   /* (the
-                                                  * host's count, 2026-11-23: four saws about velvet's, 9) */
+        int n = (ws[0] != TW_OFF) + (ws[1] != TW_OFF) + (ws[2] != TW_OFF) + (ws[3] != TW_OFF);
+        return 3 + 2 * n + (ws[0] == TW_WT ? n : 0);
     }
     if (v->engine == EG_VELVET) {                /* (the same: two registers about 9, three units a register's three saws,
                                                   * two more for shape's second saw) */
