@@ -1411,6 +1411,8 @@ static void render_sub(uint32_t n, uint32_t at)
 #if TRK_TAP
     tap_set(n, at);                                       /* the USB audio input's tracks: this stretch's sinks */
 #endif
+    synth_conductor(seq.brain_key, BRAIN_SCALE[seq.brain_scale % NBS], seq.brain_chord);   /* (tartan's in key and
+                                                           * conductor chords) */
     synth_prepare(SY, n);                                 /* the shared per-chunk values, before either core renders */
     ws_n = synth_order(SY, ws_ord);
     synth_idle(SY, ws_ord, ws_n, n);                      /* (the silent voices: moved on here, not taken) */

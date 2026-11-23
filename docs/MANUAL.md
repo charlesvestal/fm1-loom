@@ -704,7 +704,7 @@ own wave, level and place in the stereo field. Use it for chord stabs, pads and 
 
 | Knob | What it does |
 | --- | --- |
-| chord | Picks the chord: octaves, fifth, minor, min7, min9, min11, major, maj7, maj9, sus4, 6/9, min6, 10th, dom7, 7b9 or half-dim. |
+| chord | Picks the chord: octaves, fifth, minor, min7, min9, min11, major, maj7, maj9, sus4, 6/9, min6, 10th, dom7, 7b9 or half-dim, or one of the two that follow the conductor, in key and conductor. |
 | spread | Spreads the voicing: at 50 the chord as it is, lower closer, higher wider, in whole semitones. |
 | rotate | Turns the chord's voices around, from 0 to 3, so the levels and places below fall on other notes. |
 | detune | Detunes each voice a little more than the one before. |
@@ -718,6 +718,12 @@ The Morph page moves the voices. **morph** picks how loud each voice is, from si
 falling, the outer two, the inner two and so on), and **amount** sets how far. **pan** picks where each voice sits,
 from sixteen patterns, and **sway** sweeps each voice's shape a quarter cycle apart, so the chord's color slowly
 moves. The picture shows the chord: each voice at its place, as high as its note, as big as it is loud.
+
+The last two chords follow the conductor. **in key** stacks the conductor's scale in thirds on each note you play:
+in C major, D plays D minor 7, G plays G7, B plays B half-diminished, so every note's chord belongs to the key.
+**conductor** plays the conductor's chord of the moment, voiced from your note up: whichever key you press, you hear
+the song's chord at that height, and a chord you hold moves to the next one when the conductor changes. Until the
+conductor has a chord, conductor plays as in key.
 
 Tartan is a track like any other: follow the conductor to move its chords with the song, use the filter, envelopes,
 LFO and players as usual, and send it to the effects. Its presets are sixteen of Chordism's own, converted.

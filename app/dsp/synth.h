@@ -73,8 +73,14 @@ enum { VR_VIOLIN, VR_VIOLA, VR_CELLO, VR_BASS, VR_FULL, NVR };
  * others' phase); its Morph page (TP_KSYNC..TP_KSUB, knit's Mod page's bytes) morph (the voices' levels, Chordism's
  * sixteen), its amount, pan morph (their places, its sixteen), sway (each voice's shape swept, a quarter cycle on: Chordism's
  * shape LFO) */
-#define TT_NCHORD 16
+#define TT_NCHORD 18                         /* Chordism's 16, then "in key" (thirds stacked in the conductor's scale on
+                                              * the note) and "conductor" (its chord now, voiced from the note up) */
+#define TT_INKEY 16
+#define TT_COND 17
 #define TT_NWAVES 12
+/* the conductor, for tartan's "in key" and "conductor" (the engine's, each block): its key (0..11), its scale (a
+ * 12-bit mask from the key), its chord now (up to four MIDI notes in a word's bytes, 0 none: seq.h brain_chord) */
+void synth_conductor(int key, uint16_t scale_mask, uint32_t chord);
 void tartan_voices(const uint8_t *par, float *semis, float *lvl, float *pan);   /* its chord's voices (the picture) */
 /* the Braids engines (dsp/braids.h, after Mutable Instruments Braids, MIT): E1 the model, E2 Braids' timbre, E3 its
  * color, E4 cane's damp, voile's breath. cane: pluck, bow, reed, flute, bell, drum, at most CN_SLOTS of its voices

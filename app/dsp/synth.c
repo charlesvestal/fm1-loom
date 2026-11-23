@@ -125,7 +125,8 @@ static const char *const LACE_N[NLACE] = {"bar", "marimba", "church", "glass", "
 static const char *const LACEX_N[NLX] = {"mallet", "noise", "bow"};
 static const char *const VELVET_N[NVR] = {"violin", "viola", "cello", "bass", "full"};
 static const char *const TT_CHORD_N[TT_NCHORD] = {"octaves", "fifth", "minor", "min7", "min9", "min11", "major", "maj7",
-                                                  "maj9", "sus4", "6/9", "min6", "10th", "dom7", "7b9", "half-dim"};
+                                                  "maj9", "sus4", "6/9", "min6", "10th", "dom7", "7b9", "half-dim",
+                                                  "in key", "conductor"};
 static const char *const TT_WAVES_N[TT_NWAVES] = {"saws", "sines", "pulses", "squares", "glass", "harmonic", "saw sine",
                                                   "pls sine", "sine pls", "pls saw", "saw duo", "mixed"};
 static const char *const ACIDW_N[2] = {"saw", "square"};
@@ -1725,18 +1726,73 @@ static const uint8_t TT_WAVES[TT_NWAVES][4] = {   /* (the sets Chordism's preset
     {TW_SQUARE, TW_SQUARE, TW_SQUARE, TW_SQUARE}, {TW_SINE, TW_TRI, TW_TRI, TW_SINE}, {TW_WT, TW_WT, TW_WT, TW_WT},
     {TW_SAW, TW_SAW, TW_SINE, TW_SINE},     {TW_PULSE, TW_PULSE, TW_SINE, TW_SINE}, {TW_SINE, TW_SINE, TW_PULSE, TW_PULSE},
     {TW_PULSE, TW_PULSE, TW_SAW, TW_SAW},   {TW_SAW, TW_SAW, TW_OFF, TW_OFF},       {TW_SINE, TW_PULSE, TW_SQUARE, TW_PULSE}};
+/* the conductor as the engine gave it (synth_conductor): read by tt_iv only, written between blocks */
+static uint8_t cd_key;
+static uint16_t cd_mask = 0xFFFu;
+static uint32_t cd_chord;
+void synth_conductor(int key, uint16_t scale_mask, uint32_t chord)
+{
+    cd_key = (uint8_t)(((key % 12) + 12) % 12);
+    cd_mask = scale_mask & 0xFFFu ? (uint16_t)(scale_mask & 0xFFFu) : 0xFFFu;
+    cd_chord = chord;
+}
+/* a chord's four intervals above the note n (before spread and rotation): its type's; "in key", thirds stacked in the
+ * conductor's scale from the note's degree (the note itself if outside the scale, the scale's notes above it); 
+ * "conductor", its chord's notes each at its first place at or above the note, ascending (a triad's root again an
+ * octave up; no chord yet: in key) */
+static void tt_iv(int ch, int n, int *iv)
+{
+    int k;
+    if (ch < TT_INKEY) {
+        for (k = 0; k < 4; k++)
+            iv[k] = TT_CHORD[ch][k];
+        return;
+    }
+    if (ch == TT_COND && cd_chord) {
+        int pc[4], np = 0;
+        for (k = 0; k < 4; k++) {
+            int note = (int)(cd_chord >> (8 * k) & 0xFFu);
+            if (note)
+                pc[np++] = note % 12;
+        }
+        for (k = 0; k < np; k++)                 /* each above the note, the nearest */
+            iv[k] = ((pc[k] - n % 12) % 12 + 12) % 12;
+        for (int a = 0; a < np; a++)             /* (ascending) */
+            for (int b = a + 1; b < np; b++)
+                if (iv[b] < iv[a]) {
+                    int t = iv[a];
+                    iv[a] = iv[b];
+                    iv[b] = t;
+                }
+        for (k = np; k < 4; k++)                 /* (fewer than four: the lowest again, octaves up) */
+            iv[k] = iv[k - np] + 12;
+        return;
+    }
+    {   /* in key: the scale's notes above the note, every other one (thirds) */
+        int up = 0, found = 0;
+        iv[0] = 0;
+        for (int st = 1; found < 3 && st < 48; st++)
+            if (cd_mask >> (((n + st - cd_key) % 12 + 12) % 12) & 1u) {
+                if (++up % 2 == 0)
+                    iv[++found] = st;
+            }
+        for (k = found + 1; k < 4; k++)
+            iv[k] = iv[k - 1] + 12;
+    }
+}
 /* the chord a tartan sound plays (the Engine page's picture): its four voices' intervals (semitones), levels (0..1)
  * and places (0 left .. 1 right), as tt_prep makes them */
 void tartan_voices(const uint8_t *par, float *semis, float *lvl, float *pan)
 {
-    int ch = par[TP_E1] < TT_NCHORD ? par[TP_E1] : TT_NCHORD - 1, rot = par[TP_E3] & 3;
+    int ch = par[TP_E1] < TT_NCHORD ? par[TP_E1] : TT_NCHORD - 1, rot = par[TP_E3] & 3, base[4];
     float sp = (float)par[TP_E2] / 64.0f, mi = (float)par[TP_KSYNC] * (15.0f / 127.0f), ma = (float)par[TP_KSWEEP] / 127.0f;
     float pi = (float)par[TP_KCROSS] * (15.0f / 127.0f), w = (float)par[TP_X3] / 127.0f;
     int ml = (int)mi, pl = (int)pi;
+    tt_iv(ch, 60 + cd_key, base);                /* (the picture's: the chord on the key's tonic) */
     for (int k = 0; k < 4; k++) {
         float lv = 0.1f * ((float)TT_LEVEL[ml][k] + ((float)TT_LEVEL[ml < 15 ? ml + 1 : 15][k] - (float)TT_LEVEL[ml][k]) * (mi - (float)ml));
         float pn = 0.1f * ((float)TT_PAN[pl][k] + ((float)TT_PAN[pl < 15 ? pl + 1 : 15][k] - (float)TT_PAN[pl][k]) * (pi - (float)pl));
-        semis[k] = (float)(int)((float)TT_CHORD[ch][(k + rot) & 3] * sp);
+        semis[k] = (float)(int)((float)base[(k + rot) & 3] * sp);
         lvl[k] = TT_WAVES[par[TP_X1] < TT_NWAVES ? par[TP_X1] : 0][k] == TW_OFF ? 0.0f : 1.0f + (lv - 1.0f) * ma;
         pan[k] = fm_clampf(0.5f + ((float)k / 3.0f - 0.5f) * w + pn * 0.5f, 0.0f, 1.0f);
     }
@@ -1749,15 +1805,17 @@ static void tt_prep(voice_t *v)
     float pi = v->o[10] * (15.0f / 127.0f), w = c->ex[12] * (1.0f / 127.0f);
     int ml = (int)mi, pl = (int)pi;
     float mf = mi - (float)ml, pf = pi - (float)pl;
+    int base[4];
     ch = ch < 0 ? 0 : ch >= TT_NCHORD ? TT_NCHORD - 1 : ch;
     rot = rot < 0 ? 0 : rot > 3 ? 3 : rot;
+    tt_iv(ch, (int)(v->pitch + 0.5f), base);
     c->stereo = 1;
     c->ex[4] = fm_minf(c->ex[10], (float)(TT_NWAVES - 1));
     c->ex[5] = c->ex[11] * (1.0f / 127.0f);
     c->ex[6] = c->ex[13] * (1.0f / 127.0f);
     c->ex[7] = v->o[11] * (0.5f / 127.0f);
     for (k = 0; k < 4; k++) {
-        int iv = (int)((float)TT_CHORD[ch][(k + rot) & 3] * sp);   /* (Chordism's: scaled, then whole semitones) */
+        int iv = (int)((float)base[(k + rot) & 3] * sp);   /* (Chordism's: scaled, then whole semitones) */
         float hz = c->freq * fm_exp2f(((float)iv + (float)k * c->e[3] * 0.5f) * (1.0f / 12.0f));
         float lv = 0.1f * ((float)TT_LEVEL[ml][k] + ((float)TT_LEVEL[ml < 15 ? ml + 1 : 15][k] - (float)TT_LEVEL[ml][k]) * mf);
         float pn = 0.1f * ((float)TT_PAN[pl][k] + ((float)TT_PAN[pl < 15 ? pl + 1 : 15][k] - (float)TT_PAN[pl][k]) * pf);

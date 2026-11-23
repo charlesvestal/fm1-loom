@@ -2218,6 +2218,39 @@ static void tartan_tests(void)
         }
     printf("    tartan: every chord, every wave set, shape and FM at the top: loudest %.2f\n", (double)top);
     check("tartan: every chord and wave set finite, under full scale", ok && top < 1.0f);
+    {   /* the conductor's chords: in C major, "in key" on D plays D F A C (a minor seventh); "conductor" on a G chord, C
+         * played, voices G B D from C up: D G B and D again */
+        static const struct { int ch, note; uint32_t chord; float on[4], off; } C[2] = {
+            {TT_INKEY, 62, 0, {293.66f, 349.23f, 440.0f, 523.25f}, 369.99f},
+            {TT_COND, 60, 67u | 71u << 8 | 74u << 16, {293.66f, 392.0f, 493.88f, 587.33f}, 261.63f}};
+        for (int c = 0; c < 2; c++) {
+            float lo = 1e9f, off;
+            synth_conductor(0, 0xAB5u, C[c].chord);
+            reset();
+            sound_default(par[0], EG_TARTAN);
+            par[0][TP_E1] = (uint8_t)C[c].ch;
+            par[0][TP_X1] = 1;                   /* (sines) */
+            par[0][TP_E4] = 0;
+            par[0][TP_A] = 0;
+            par[0][TP_S] = 127;
+            par[0][TP_CUT] = 127;
+            synth_init(S, par);
+            synth_note_on(S, 0, C[c].note, 100, 0, 1);
+            for (int b = 0; b < 30; b++) {
+                block(N, &finite);
+                if (b >= 14)
+                    memcpy(l + (b - 14) * N, L, sizeof L);
+            }
+            for (int k = 0; k < 4; k++)
+                lo = fminf(lo, dft_mag(l, 16 * N, C[c].on[k]));
+            off = dft_mag(l, 16 * N, C[c].off);
+            printf("    tartan %s: its notes at least %.4f, the note not in it %.4f\n", c ? "conductor" : "in key",
+                   (double)lo, (double)off);
+            check(c ? "tartan conductor: C played on a G chord voices D G B D" : "tartan in key: D in C major plays D F A C",
+                  finite && lo > off * 10.0f);
+        }
+        synth_conductor(0, 0xFFFu, 0);
+    }
     check("tartan: its pages' names", !strcmp(tp_info(TP_E1, EG_TARTAN)->name, "chord") &&
           !strcmp(tp_info(TP_X1, EG_TARTAN)->name, "waves") && !strcmp(tp_info(TP_KSYNC, EG_TARTAN)->name, "morph"));
 }
