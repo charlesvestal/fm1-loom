@@ -1,8 +1,8 @@
 /* SPDX-License-Identifier: MPL-2.0 */
 /* Fingerprints of the DSP's output, for refactors that must not change a sample: every synth engine through
- * every filter type and character type, every factory preset, every drum model through every key filter and
- * the dynamic filter, every send effect and reverb mode, the master at its EQ / compressor's
- * settings. One line per case: its name and a 64-bit FNV-1a of the output's float bits. Run it before and
+ * every filter type and character type, every insert type, every factory preset, every drum model through every
+ * key filter and the dynamic filter, a kit's character, every send effect and reverb mode, the master at its EQ /
+ * compressor's settings and its color. One line per case: its name and a 64-bit FNV-1a of the output's float bits. Run it before and
  * after a change and compare (tests/host/dsp_hash.sh does both: `dsp_hash.sh save`, then `dsp_hash.sh`).
  * Nothing here plays audio. */
 #include <stdio.h>
@@ -82,7 +82,7 @@ static void synth_case(const char *name)
 }
 static void synth_cases(void)
 {
-    int e, ft, ct, k;
+    int e, ft, ct, k, it;
     char name[64];
     for (e = 0; e < NENGINE; e++) {
         if (!eg_synth(e))
@@ -108,6 +108,19 @@ static void synth_cases(void)
                 synth_case(name);
             }
     }
+    for (it = 1; it < NIT; it++)                  /* every insert on knit (its knobs at their defaults, then moved) */
+        for (k = 0; k < 2; k++) {
+            int t;
+            for (t = 0; t < NTRK; t++)
+                sound_default(par[t], EG_KNIT);
+            par[0][TP_ITYPE] = (uint8_t)it;
+            for (t = 0; t < 3; t++)
+                par[0][TP_I1 + t] = k ? (uint8_t)(t == 0 && it == IT_ECHO ? 2 : t == 0 && it == IT_JUNO ? 2 : 100 - 30 * t)
+                                      : tp_info_par(TP_I1 + t, par[0])->def;
+            par[0][TP_SEND1] = 60;
+            snprintf(name, sizeof name, "insert %s %d", tp_info(TP_ITYPE, EG_KNIT)->names[it], k);
+            synth_case(name);
+        }
     for (k = 0; k < NPRESETS; k++) {   /* (by name, beside the next engine's first preset: a preset added keeps the
                                         * others' fingerprints) */
         int t, e = PRESETS[k].engine, j = -1;
@@ -326,6 +339,38 @@ static void fx_cases(void)
             out(name);
         }
 }
+/* a kit's character (char_bus) on a stereo pair: every type, a noisy chord in, then silence (its tails) */
+static void kitchar_cases(void)
+{
+    static chbus_t cb;
+    static uint8_t kp[NTP];
+    int ct, b, i, v;
+    char name[64];
+    for (ct = 1; ct < NCT; ct++)
+        for (v = 0; v < 2; v++) {
+            memset(&cb, 0, sizeof cb);
+            memset(kp, 0, sizeof kp);
+            kp[TP_CTYPE] = (uint8_t)ct;
+            kp[TP_CAMT] = v ? 30 : 100;
+            kp[TP_CTONE] = v ? 20 : 90;
+            kp[TP_CMIX] = v ? 127 : 90;
+            rng = 4242;
+            hash_init();
+            for (b = 0; b < 120; b++) {
+                for (i = 0; i < N; i++) {
+                    float u = (float)(b * N + i) * (1.0f / 44100.0f), g = b < 80 ? 0.6f : 0.0f;
+                    L[i] = g * (fm_sin_turns(u * 98.0f) + 0.3f * noise());
+                    R[i] = g * (fm_sin_turns(u * 147.0f) + 0.3f * noise());
+                }
+                if (b == 60)
+                    kp[TP_CAMT] = (uint8_t)(kp[TP_CAMT] + 20);   /* (a turn: the ring's glide) */
+                char_bus(&cb, kp, L, R, b % 3 ? N : 100);
+                hash_buf(L, N); hash_buf(R, N);
+            }
+            snprintf(name, sizeof name, "kit char %d %d", ct, v);
+            out(name);
+        }
+}
 static void master_case(const char *name, const int *set)
 {
     int b, i;
@@ -359,6 +404,16 @@ static void master_cases(void)
     master_case("master eq comp", eq);
     master_case("master levels comp", lev);
     master_case("master clip 90", clip);
+    {
+        static const int tape[] = {MS_CTYPE, MC_TAPE, MS_CAMT, 90, MS_CTONE, 60, MS_CMIX, 127, -1};
+        static const int tape2[] = {MS_CTYPE, MC_TAPE, MS_CAMT, 20, MS_CTONE, 110, MS_CMIX, 70, MS_COMP, 50, -1};
+        static const int smp[] = {MS_CTYPE, MC_SAMPLER, MS_CAMT, 90, MS_CTONE, 40, MS_CMIX, 127, -1};
+        static const int smp2[] = {MS_CTYPE, MC_SAMPLER, MS_CAMT, 30, MS_CTONE, 100, MS_CMIX, 64, -1};
+        master_case("master color tape", tape);
+        master_case("master color tape 2", tape2);
+        master_case("master color sampler", smp);
+        master_case("master color sampler 2", smp2);
+    }
 }
 
 int main(void)
@@ -369,6 +424,7 @@ int main(void)
     smp_cases();
     acid_cases();
     fx_cases();
+    kitchar_cases();
     master_cases();
     return 0;
 }
