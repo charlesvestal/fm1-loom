@@ -4385,6 +4385,16 @@ static int16_t ins_pool[INS_SLOTS][INS_SLOT_N];
 static int16_t ins_pool[INS_SLOTS][INS_SLOT_N] __attribute__((section(".pool")));
 #endif
 static __attribute__((noinline)) float rb_decay(float k) { return 0.6f * fm_exp2f(k * (3.7f / 127.0f)); }   /* rumble's RT60: 0.6 .. 8 s */
+/* below its default (55) the decay also gates rumble's output once the duck has let it back (the producers' volume
+ * shaping after the reverb: the lines alone, 213 ms and more, rang on ~0.6 s past the kick at any decay): to -60 dB in
+ * 0.15 s at 0 .. 6 s at 54 (long: on top of the network's own fall, 54 and 55 sound alike); 0 from 55 up (no
+ * gate: the network's own decay) */
+#define RB_GATE_K 55
+static __attribute__((noinline)) float rb_gate(float k)
+{
+    return k < (float)RB_GATE_K ? 0.15f * fm_exp2f(k * (5.32f / (float)RB_GATE_K)) : 0.0f;
+}
+#define RB_BACK (0.03f + 1.0f / 2.4f)            /* the duck's end, beats after the hit (ins_run's du) */
 static inline int ins_slots(int type) { return type == IT_CHORUS || type == IT_JUNO ? 1 : type == IT_ECHO || type == IT_RUMBLE ? 2 : 0; }
 static void ins_alloc(synth_t *s)
 {
@@ -4836,6 +4846,11 @@ static void ins_run(synth_t *s, trk_t *t, float *bl, float *br, uint32_t n)
         float g[4], sum = z[0], h1 = z[2], h2 = z[3], a = z[4], b = z[5], y0 = z[6], y1 = z[7];
         float o1 = z[8], o2 = z[9], o3 = z[10], o4 = z[11], tm = z[12], env = z[13], pk = z[14], hb = z[15];
         int cnt = (int)z[1] & 31, armed = (int)z[1] >> 5;
+        const float gtt = rb_gate(t->ins_k[0]);  /* the gate: its -60 dB time (0: none), its fall a sample, where it is
+                                                  * (from ph: no state of its own) */
+        const float gd = gtt > 0.0f ? in_exp2(-9.966f * INV_SR / gtt) : 1.0f;
+        float gt = gtt > 0.0f && ph > RB_BACK ? in_exp2(-9.966f * (ph - RB_BACK) * 60.0f / (fm_maxf(s->bpm, 20.0f) * gtt))
+                                              : 1.0f;
         if (!m)
             break;
         for (int q = 0; q < 4; q++)              /* (-60 dB in rt: 10^(-3 len / (sr/32 rt))) */
@@ -4845,10 +4860,12 @@ static void ins_run(synth_t *s, trk_t *t, float *bl, float *br, uint32_t n)
             env = ax > env ? env + 0.3f * (ax - env) : env * rel;
             pk = fm_maxf(env, pk * prel);
             if (armed && env > 0.5f * pk && env > 1e-4f)
-                ph = 0.0f, armed = 0;            /* a hit: the duck from its top */
+                ph = 0.0f, armed = 0, gt = 1.0f; /* a hit: the duck from its top, the gate open */
             else if (env < 0.2f * pk)
                 armed = 1;
-            ph = fm_minf(ph + dbt, 4.0f);
+            ph = fm_minf(ph + dbt, 64.0f);       /* (64: the gate's place, up to 8 s at any tempo) */
+            if (ph > RB_BACK)
+                gt *= gd;
             h1 += kh * (x - h1);                 /* (the kick's sub out, 12 dB an octave: in the reverb it holds the
                                                   * kick's note, a drone; its body and click smear) */
             u = x - h1;
@@ -4896,8 +4913,8 @@ static void ins_run(synth_t *s, trk_t *t, float *bl, float *br, uint32_t n)
             }
             du = fm_clampf((ph - 0.03f) * 2.4f, 0.0f, 1.0f);   /* (0 on the hit, back by an eighth or so) */
             du = du * du * (3.0f - 2.0f * du);
-            bl[i] += wet * du * tm;
-            br[i] += wet * du * tm;
+            bl[i] += wet * du * gt * tm;
+            br[i] += wet * du * gt * tm;
         }
         z[0] = sum, z[1] = (float)(cnt + 32 * armed), z[2] = fm_flush(h1), z[3] = fm_flush(h2), z[4] = fm_flush(a);
         z[5] = fm_flush(b), z[6] = fm_flush(y0), z[7] = fm_flush(y1), z[8] = fm_flush(o1), z[9] = fm_flush(o2);

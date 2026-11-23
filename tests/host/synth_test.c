@@ -2212,6 +2212,36 @@ static void insert_tests(void)
                       finite && gap > hit - 18.0 && fabs(hit - hit0) < 1.5);
             }
         }
+        {   /* rumble's decay at 0 gates it: one kick at 120, the tail 0.6 .. 1 s on at least 30 dB under the default's
+             * (the lines alone rang ~0.6 s past the kick at any decay) */
+            double e[2] = {0.0, 0.0};
+            for (int pass = 0; pass < 2; pass++) {
+                reset();
+                par[0][TP_A] = 0;
+                par[0][TP_D] = 40;
+                par[0][TP_S] = 0;
+                par[0][TP_R] = 10;
+                par[0][TP_ITYPE] = IT_RUMBLE;
+                for (int q = TP_I1; q <= TP_I3; q++)
+                    par[0][q] = tp_info_par(q, par[0])->def;
+                if (pass)
+                    par[0][TP_I1] = 0;
+                synth_init(S, par);
+                synth_tempo(S, 120.0f);
+                synth_note_on(S, 0, 36, 120, 0, 1);
+                for (int b = 0; b < 180; b++) {     /* (172 blocks: 1 s) */
+                    block(N, &finite);
+                    if (b == 3)
+                        synth_note_off(S, 0, 1);
+                    if (b >= 103 && b < 172)
+                        for (int i2 = 0; i2 < N; i2++)
+                            e[pass] += (double)L[i2] * (double)L[i2];
+                }
+            }
+            printf("    rumble's tail 0.6 .. 1 s: default %.1f dB, decay 0 %.1f dB\n", 10.0 * log10(e[0] + 1e-20),
+                   10.0 * log10(e[1] + 1e-20));
+            check("rumble: decay 0 gates its tail (30 dB under the default's by 0.6 s)", finite && e[1] < e[0] * 1e-3);
+        }
         reset();
         for (int t = 0; t < 5; t++) {
             par[t][TP_ITYPE] = IT_CHORUS;
