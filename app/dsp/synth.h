@@ -39,7 +39,7 @@
  * velocity ACID_ACCENT or more is accented; a note that starts while the last one is still held slides to it, and so
  * does a note with a glide (a step's glide trick, the arp's glide) after a short one: on the same pitch, a tie. */
 enum { EG_KNIT, EG_RAYON, EG_JACQUARD, EG_BELLOWS, EG_CANE, EG_VOILE, EG_SAMPLE, EG_SLICE, EG_DRUMLINE, EG_MIDI,
-       EG_ACID, EG_TULLE, EG_LACE, EG_VELVET, EG_TARTAN, NENGINE };                           /* (saved by number: PROJ_FORMAT 10 renumbered them; a new one
+       EG_ACID, EG_TULLE, EG_LACE, EG_TARTAN, NENGINE };                           /* (saved by number: PROJ_FORMAT 10 renumbered them; a new one
                                                       * goes last) */
 #define NACID 2
 #define ACID_ACCENT 112
@@ -60,12 +60,6 @@ enum { EG_KNIT, EG_RAYON, EG_JACQUARD, EG_BELLOWS, EG_CANE, EG_VOILE, EG_SAMPLE,
 #define NLACE 9
 #define LC_MODES 12
 enum { LX_MALLET, LX_NOISE, LX_BOW, NLX };
-/* EG_VELVET (2026-11-23): a string machine: each note a divided-down saw (16', 8', 4' by the register), three times over,
- * each copy's pitch moved by the ensemble (two LFOs a third of a cycle apart, a slow one and a fast one, as the
- * Solina's delay lines move it). Its Engine page E1 the register (VR_*), E2 bright, E3 chorus (the ensemble's depth), E4 rate;
- * its Sub page (TP_X1..X4) shape (saw .. square), width (the copies across the stereo field), detune (the copies apart,
- * still) */
-enum { VR_VIOLIN, VR_VIOLA, VR_CELLO, VR_BASS, VR_FULL, NVR };
 /* EG_TARTAN (2026-11-23): Chordism (schwung-chordism, the user's, MIT) as an engine: each note a chord of four
  * oscillators, each its own wave, level and place in the stereo field. Its Engine page E1 the chord (TT_NCHORD types),
  * E2 spread (the intervals scaled, 64 as the type has them), E3 rotation (the inversions, 0..3), E4 detune (each voice

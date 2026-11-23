@@ -6,7 +6,7 @@ each frame's peak, below what the linear read itself leaves). Each frame is made
 (halve): its 40 harmonics fit 128 points whole, and each is lifted by what the device's linear read takes from it at
 128 points less what it took at 256 (sinc^2), so a frame plays as its 256-point table did at its level, within -26 dB
 (octaves) to -42 dB, the difference the read's own images; a few of nasal's frames 0.8 dB quieter, where the lift
-would clip (2026-11-23: 18 KB for lace and velvet).
+would clip (2026-11-23: 18 KB for the new engines).
 
     tools/gen_wavetables.py build/gen/wavetables.h
 

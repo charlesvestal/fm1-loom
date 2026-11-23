@@ -45,7 +45,7 @@ static const uint8_t E_GLIDE[NENGINE] = {
     0x0, 0x0, 0x0, 0x0,                                    /* sample, slice (where a note starts), the kit, midi */
     0x0,                                                   /* acid (bass303_set: its own) */
     0xE,                                                   /* tulle: position, spray, scan (not the sample) */
-    0xE, 0xE,                                              /* lace, velvet: not the material, the register */
+    0xE,                                                   /* lace: not the material */
     0x8};                                                  /* tartan: detune (the chord's steps jump) */
 static inline float glide_to(float from, float to)
 {
@@ -66,22 +66,21 @@ static inline float glide_to(float from, float to)
 const char *const RL_NAME[NRL] = {"bass", "lead", "pad", "keys", "pluck", "bell", "stab", "strings", "brass", "voice",
                                   "chord", "fx", "drum", "loop"};
 const char *const EG_NAME[NENGINE] = {"knit", "rayon", "jacquard", "bellows", "cane", "voile", "sample", "slice",
-                                      "kit", "midi", "acid", "tulle", "lace", "velvet", "tartan"};
+                                      "kit", "midi", "acid", "tulle", "lace", "tartan"};
 const char *const EG_KNOB[NENGINE][4] = {
     {"wave", "detune", "voices", "width"}, {"bright", "ratio", "edge", "tine"},     {"table", "scan", "bend", "ripple"},
     {"stops", "pedal", "rotor", "rate"},   {"model", "timbre", "color", "damp"},   {"model", "timbre", "color", "breath"},
     {"sample", "start", "length", "mode"}, {"sample", "slices", "pitch", "gate"},  {"-", "-", "-", "-"},
     {"cc", "cc", "cc", "cc"},                    /* (midi: each knob named by its CC, tp_info_par) */
     {"wave", "accent", "slide", "tune"},  {"sample", "position", "spray", "scan"},
-    {"material", "bright", "damp", "position"}, {"register", "bright", "chorus", "rate"},
-    {"chord", "spread", "rotate", "detune"}};
+    {"material", "bright", "damp", "position"}, {"chord", "spread", "rotate", "detune"}};
 /* each engine's plain sound (INIT), 0..127; bellows' four are discrete 1..8, knit's voices 1..7, the Braids engines'
  * models a name each (synth.h NCANE ...) */
 static const uint8_t EG_DEF[NENGINE][4] = {{0, 20, 1, 0},  {40, 25, 0, 0}, {0, 40, 0, 0},  {3, 4, 2, 5},
                                            {0, 64, 64, 0}, {2, 0, 64, 0},  {5, 0, 127, SM_ONESHOT}, {SMP_BREAK, 1, 64, 127},
                                            {0, 0, 0, 0}, {64, 64, 64, 64}, {0, 64, 21, 64},   /* (acid: X0X's) */
                                            {SMP_TEXTURE, 40, 30, 0},        /* (tulle: the bowl, its texture) */
-                                           {0, 64, 50, 30}, {VR_VIOLIN, 70, 70, 40},   /* (lace: a bar; velvet) */
+                                           {0, 64, 50, 30},                 /* (lace: a bar) */
                                            {6, 64, 0, 10}};   /* (tartan: Chordism's major, as it was) */
 static const char *const VMODE_N[3] = {"poly", "mono", "legato"};
 static const char *const FTYPE_N[NFT] = {"lp24", "ladder", "lp12", "hp12", "bp12", "off"};   /* FT_DYNAMIC: no
@@ -123,7 +122,6 @@ static const char *const CANE_N[NCANE] = {"pluck", "bow", "reed", "flute", "bell
 static const char *const VOILE_N[NVOILE] = {"vosim", "vowel", "choir", "whisper"};
 static const char *const LACE_N[NLACE] = {"bar", "marimba", "church", "glass", "plate", "string", "wood", "gong", "bowl"};
 static const char *const LACEX_N[NLX] = {"mallet", "noise", "bow"};
-static const char *const VELVET_N[NVR] = {"violin", "viola", "cello", "bass", "full"};
 static const char *const TT_CHORD_N[TT_NCHORD] = {"octaves", "fifth", "minor", "min7", "min9", "min11", "major", "maj7",
                                                   "maj9", "sus4", "6/9", "min6", "10th", "dom7", "7b9", "half-dim",
                                                   "in key", "conductor"};
@@ -410,7 +408,6 @@ static inline float pf(const synth_t *s, int trk, int p, int dest, float off)
 static void knit_init(voice_t *v);
 static void cn_init(voice_t *v);
 static void lc_init(voice_t *v);
-static void vv_init(voice_t *v);
 static void vo_init(voice_t *v);
 static void eng_init(voice_t *v)
 {
@@ -434,8 +431,6 @@ static void eng_init(voice_t *v)
         cn_init(v);
     else if (v->engine == EG_LACE)
         lc_init(v);
-    else if (v->engine == EG_VELVET)
-        vv_init(v);
     else if (v->engine == EG_TARTAN)
         for (i = 0; i < 5; i++)                  /* (tartan: its voices, its sway from points of their own) */
             v->o[i] = (float)(xs(&v->rng) >> 8) * (1.0f / 16777216.0f);
@@ -1603,103 +1598,6 @@ static __attribute__((noinline)) void lc_run(voice_t *v, float *xl, float *xr, i
     }
 }
 
-/* velvet: a string machine (synth.h EG_VELVET). A note's saw divided down (16' at half the note, 8' at it, 4' an octave
- * up: one phase at 16', the others its double and its quadruple, each PolyBLEP'd at its own wraps), the registers
- * summed, three times over: three copies, each its own phase and pitch, the ensemble's (a slow LFO and a fast one, each
- * copy a third of a cycle on: the Solina's three delay lines move the pitch so; a delay moved is a pitch moved, so no
- * lines here) plus detune (the copies apart, still). Shape blends in the saw half a cycle on, less it (a square); the
- * copies left, centre, right by width; bright a one-pole low-pass on the pair. o[0..2] the copies' phases (16'), o[3]
- * o[4] the LFOs' (turns), o[5] o[6] the low-pass, L R. ex[0] the 16' increment, ex[1] the registers (bit 0 16', 1 8', 2
- * 4'), ex[2] bright's coefficient, ex[3] the ensemble's depth, ex[4] ex[5] the LFOs' steps a chunk, ex[6] shape, ex[7..9]
- * the copies' increments now (vv_chunk), ex[10..13] the Sub page (voice_chunk), ex[14] the gain, ex[15] width, ex[16]
- * detune (cents) */
-static const uint8_t VR_MASK[NVR] = {6, 2, 3, 1, 7};   /* violin 8' 4', viola 8', cello 16' 8', bass 16', full */
-static void vv_init(voice_t *v)
-{
-    int k;
-    for (k = 0; k < 5; k++)                      /* (the copies, the LFOs: from points of their own) */
-        v->o[k] = (float)(xs(&v->rng) >> 8) * (1.0f / 16777216.0f);
-}
-static void vv_prep(voice_t *v)
-{
-    cfg_t *c = &v->c;
-    int r = (int)(c->ek[0] + 0.5f), msk, n;
-    r = r < 0 ? 0 : r >= NVR ? NVR - 1 : r;
-    msk = VR_MASK[r];
-    n = (msk & 1) + (msk >> 1 & 1) + (msk >> 2 & 1);
-    c->stereo = 1;
-    c->ex[0] = fm_minf(c->freq * 0.5f * INV_SR, 0.11f);
-    c->ex[1] = (float)msk;
-    c->ex[2] = 1.0f - fm_expf(-FM_TWO_PI * 800.0f * fm_exp2f(c->e[1] * 4.5f) * INV_SR);   /* 800 Hz .. 18 kHz */
-    c->ex[3] = c->e[2];
-    c->ex[4] = 0.2f * fm_exp2f(c->e[3] * 3.6f) * CHUNK_S;                            /* 0.2 .. 2.4 Hz */
-    c->ex[5] = c->ex[4] * 8.3f;                                                      /* (the fast one: 1.7 .. 20 Hz) */
-    c->ex[6] = c->ex[10] * (1.0f / 127.0f);
-    c->ex[14] = 0.3f * fm_rsqrtf(3.0f * (float)n);   /* (the other engines' level: about -13 dBFS a note) */
-    c->ex[15] = c->ex[11] * (1.0f / 127.0f);
-    c->ex[16] = c->ex[12] * (20.0f / 127.0f);
-}
-static void vv_chunk(voice_t *v)                 /* the ensemble: each copy's pitch now */
-{
-    cfg_t *c = &v->c;
-    int k;
-    v->o[3] = wrap1(v->o[3] + c->ex[4]);
-    v->o[4] = wrap1(v->o[4] + c->ex[5]);
-    for (k = 0; k < 3; k++) {
-        float th = (float)k * (1.0f / 3.0f);
-        float ct = c->ex[3] * (16.0f * fm_sin_turns(v->o[3] + th) + 6.0f * fm_sin_turns(v->o[4] + th)) +
-                   c->ex[16] * (float)(k - 1);
-        c->ex[7 + k] = c->ex[0] * fm_exp2f(ct * (1.0f / 1200.0f));
-    }
-}
-SY_INLINE float vv_saw(float p, float dt, float idt, float mix)   /* a register: saw, less mix of it half a cycle on */
-{
-    float s = p + p - 1.0f - blep(p, dt, idt), q;
-    if (mix <= 0.0f)
-        return s;
-    q = p < 0.5f ? p + 0.5f : p - 0.5f;
-    return s - mix * (q + q - 1.0f - blep(q, dt, idt));
-}
-static __attribute__((noinline)) void vv_run(voice_t *v, float *xl, float *xr, int m)
-{
-    const cfg_t *c = &v->c;
-    const int msk = (int)c->ex[1];
-    const float mix = c->ex[6], w = c->ex[15], g = c->ex[14], a = c->ex[2];
-    float l = v->o[5], r = v->o[6];
-    int i, k;
-    for (i = 0; i < m; i++)
-        xl[i] = xr[i] = 0.0f;
-    for (k = 0; k < 3; k++) {
-        float p = v->o[k], dt = fm_maxf(c->ex[7 + k], 1e-5f), id = 1.0f / dt, pan = (float)(k - 1) * w;
-        float gl = g * (1.0f - pan), gr = g * (1.0f + pan);
-        for (i = 0; i < m; i++) {
-            float s = 0.0f, p2, p4;
-            p = step1(p, dt);
-            if (msk & 1)
-                s += vv_saw(p, dt, id, mix);
-            if (msk & 2) {
-                p2 = p + p;
-                s += vv_saw(p2 >= 1.0f ? p2 - 1.0f : p2, dt + dt, 0.5f * id, mix);
-            }
-            if (msk & 4) {
-                p4 = 4.0f * p;
-                s += vv_saw(p4 - fm_floorf(p4), 4.0f * dt, 0.25f * id, mix);
-            }
-            xl[i] += s * gl;
-            xr[i] += s * gr;
-        }
-        v->o[k] = p;
-    }
-    for (i = 0; i < m; i++) {                    /* bright */
-        l += (xl[i] - l) * a;
-        r += (xr[i] - r) * a;
-        xl[i] = l;
-        xr[i] = r;
-    }
-    v->o[5] = fm_flush(l);
-    v->o[6] = fm_flush(r);
-}
-
 /* tartan: Chordism (schwung-chordism, the user's, MIT: its chords, morphs and oscillators; synth.h EG_TARTAN). A
  * note is a chord of four oscillators in one voice: the chord's intervals (its type's, scaled by spread and rounded
  * to semitones, rotated), each voice detuned on by its place, its wave from the set, its level by the level morph
@@ -2356,7 +2254,6 @@ static void eng_chunk(voice_t *v)                /* every chunk: the engines' ow
     case EG_KNIT: knit_chunk(v); break;
     case EG_VOILE: vo_chunk(v); break;
     case EG_ACID: acid_chunk(v); break;
-    case EG_VELVET: vv_chunk(v); break;
     default: break;
     }
 }
@@ -2373,7 +2270,6 @@ static void eng_prep(voice_t *v, float bpm)
     case EG_ACID: v->c.stereo = 0; break;        /* (its own: acid_chunk) */
     case EG_TULLE: tl_prep(v); break;
     case EG_LACE: lc_prep(v); break;
-    case EG_VELVET: vv_prep(v); break;
     case EG_TARTAN: tt_prep(v); break;
     default: knit_prep(v); break;
     }
@@ -2391,7 +2287,6 @@ static void eng_run(voice_t *v, float *xl, float *xr, int m)
     case EG_ACID: acid_run(v, xl, m); break;
     case EG_TULLE: tl_run(v, xl, xr, m); break;
     case EG_LACE: lc_run(v, xl, xr, m); break;
-    case EG_VELVET: vv_run(v, xl, xr, m); break;
     case EG_TARTAN: tt_run(v, xl, xr, m); break;
     default: knit_run(v, xl, xr, m); break;
     }
@@ -3045,11 +2940,6 @@ int synth_voice_cost(const synth_t *s, int vi)
         const uint8_t *ws = TT_WAVES[(int)v->c.ex[4] < TT_NWAVES ? (int)v->c.ex[4] : 0];
         int n = (ws[0] != TW_OFF) + (ws[1] != TW_OFF) + (ws[2] != TW_OFF) + (ws[3] != TW_OFF);
         return 3 + 2 * n + (ws[0] == TW_WT ? n : 0);
-    }
-    if (v->engine == EG_VELVET) {                /* (the same: two registers about 9, three units a register's three saws,
-                                                  * two more for shape's second saw) */
-        int msk = (int)v->c.ex[1];
-        return 3 + 3 * ((msk & 1) + (msk >> 1 & 1) + (msk >> 2 & 1)) + (v->c.ex[6] > 0.0f ? 2 : 0);
     }
     if (v->engine == EG_ACID)
         return 16;                               /* (the FM-1, 2026-10-30: 17 to 19 % of a core, its 303 oversampled
@@ -3840,8 +3730,8 @@ static void voice_chunk(synth_t *s, voice_t *v)
                 c->ex[15] = rf;
             }
         }
-        if (v->engine == EG_LACE || v->engine == EG_VELVET || v->engine == EG_TARTAN)   /* their Sub page (lc_prep:
-                                                  * exciter, stretch, spread, hardness; vv_prep: shape, width, detune;
+        if (v->engine == EG_LACE || v->engine == EG_TARTAN)   /* their Sub page (lc_prep:
+                                                  * exciter, stretch, spread, hardness;
                                                   * tt_prep: waves, shape, width, FM) */
             for (i = 0; i < 4; i++) {
                 float xv = (float)P(s, trk, TP_X1 + i);
@@ -5170,11 +5060,9 @@ static const tp_info_t SAMPLE_X_P[4] = {{"loop start", 0, 127, 0, PK_PCT, 0}, {"
 /* tulle's Sub page (tl_prep): the grains: size, density, pitch (random, up to an octave), width */
 static const tp_info_t TULLE_X_P[4] = {{"size", 0, 127, 80, PK_NN, 0}, {"density", 0, 127, 70, PK_NN, 0},
                                        {"pitch", 0, 127, 0, PK_NN, 0}, {"width", 0, 127, 90, PK_PCT, 0}};
-/* lace's Exciter page (lc_prep): the exciter, stretch (about 64), spread, hardness; velvet's Sub page (vv_prep) */
+/* lace's Exciter page (lc_prep): the exciter, stretch (about 64), spread, hardness */
 static const tp_info_t LACE_X_P[4] = {{"exciter", 0, NLX - 1, LX_MALLET, PK_NAMES, LACEX_N}, {"stretch", 0, 127, 64, PK_BIP, 0},
                                       {"spread", 0, 127, 64, PK_PCT, 0}, {"hardness", 0, 127, 80, PK_NN, 0}};
-static const tp_info_t VELVET_X_P[4] = {{"shape", 0, 127, 0, PK_NN, 0}, {"width", 0, 127, 90, PK_PCT, 0},
-                                        {"detune", 0, 127, 30, PK_NN, 0}, {"-", 0, 0, 0, PK_NUM, 0}};
 /* tartan's Sub page (tt_prep): the waves, shape, width, FM; its Morph page (knit's Mod page's bytes) */
 static const tp_info_t TARTAN_X_P[4] = {{"waves", 0, TT_NWAVES - 1, 0, PK_NAMES, TT_WAVES_N}, {"shape", 0, 127, 0, PK_NN, 0},
                                         {"width", 0, 127, 90, PK_PCT, 0}, {"fm", 0, 127, 0, PK_NN, 0}};
@@ -5276,10 +5164,10 @@ static void eknob_init(void)
                 i->kind = k ? PK_NUM : PK_NAMES;
                 i->names = k ? 0 : TT_CHORD_N;
             }
-            if ((e == EG_LACE || e == EG_VELVET) && k == 0) {   /* the material, the register */
-                i->hi = (uint8_t)(e == EG_LACE ? NLACE - 1 : NVR - 1);
+            if (e == EG_LACE && k == 0) {      /* the material */
+                i->hi = (uint8_t)(NLACE - 1);
                 i->kind = PK_NAMES;
-                i->names = e == EG_LACE ? LACE_N : VELVET_N;
+                i->names = LACE_N;
             }
             if (e == EG_TULLE) {               /* sample, position, spray, scan */
                 i->kind = k == 0 ? PK_SAMPLE : k == 3 ? PK_NN : PK_PCT;
@@ -5351,7 +5239,7 @@ const tp_info_t *tp_info(int p, int engine)
         return engine == EG_MIDI ? &MIDI_X_P[p - TP_X1] : engine == EG_RAYON ? &RAYON_X_P[p - TP_X1]
              : engine == EG_KNIT ? &KNIT_X_P[p - TP_X1] : engine == EG_SAMPLE ? &SAMPLE_X_P[p - TP_X1]
              : engine == EG_ACID ? &ACID_X_P[p - TP_X1] : engine == EG_TULLE ? &TULLE_X_P[p - TP_X1]
-             : engine == EG_LACE ? &LACE_X_P[p - TP_X1] : engine == EG_VELVET ? &VELVET_X_P[p - TP_X1]
+             : engine == EG_LACE ? &LACE_X_P[p - TP_X1]
              : engine == EG_TARTAN ? &TARTAN_X_P[p - TP_X1] : &NONE_P;
     if (engine == EG_ACID) {                     /* its 303's filter and envelope; no glide, one mode, one filter */
         if (p >= TP_CUT && p <= TP_KTRK)

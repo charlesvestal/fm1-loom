@@ -715,7 +715,7 @@ static int x_page(int t)                             /* the engine has a second 
 {
     int e = t < NTRK ? proj.trk[t].par[TP_ENGINE] : -1, m = t < NTRK ? proj.trk[t].par[TP_E4] % NSM : 0;
     return e == EG_RAYON || e == EG_KNIT || e == EG_MIDI || e == EG_ACID || e == EG_TULLE || e == EG_LACE ||
-           e == EG_VELVET || e == EG_TARTAN || (e == EG_SAMPLE && (m == SM_LOOP || m == SM_PINGPONG)) ||   /* (the
+           e == EG_TARTAN || (e == EG_SAMPLE && (m == SM_LOOP || m == SM_PINGPONG)) ||   /* (the
                                                                                      * sample's loop page: looping) */
            kit_x_page(t);
 }
@@ -4600,36 +4600,6 @@ static void pic_lace(int32_t x0, int32_t y0, int32_t w, int32_t h, const uint8_t
         cv_round((int32_t)(sx + 36.0f + o), (int32_t)sy - 9, 7, 7, 2, K_DIM);
     }
 }
-/* velvet: a string section, a player for each of the ensemble's three copies, the size by the register (violins ..
- * a bass; full: a violin, a cello and a bass), their necks longer as bright turns up, apart by width and further by
- * the chorus, which also sways them apart and together at the rate; their bows saw at the rate, a third of a cycle
- * apart, as far as the chorus takes them, and their strings shake as it sounds */
-static void pic_velvet(int32_t x0, int32_t y0, int32_t w, int32_t h, const uint8_t *p, uint32_t f)
-{
-    static const float SZ[NVR][3] = {{0.55f, 0.55f, 0.55f}, {0.65f, 0.65f, 0.65f}, {0.85f, 0.85f, 0.85f},
-                                     {1.0f, 1.0f, 1.0f}, {0.55f, 0.85f, 1.0f}};
-    int rg = p[TP_E1] < NVR ? p[TP_E1] : NVR - 1;
-    float ch = (float)p[TP_E3] / 127.0f, wd = (float)p[TP_X2] / 127.0f, rt = 0.01f + 0.05f * (float)p[TP_E4] / 127.0f;
-    float br = (float)p[TP_E2] / 127.0f;
-    float base = (float)(y0 + h - 4), lv = pic_lvl;
-    for (int k = 0; k < 3; k++) {
-        const uint16_t ink = k == 1 ? K_NOW : K_DIM;
-        float s = SZ[rg][k] * (float)h / 88.0f, x = (float)(x0 + w / 2) + (float)(k - 1) * (30.0f + 24.0f * wd + 10.0f * ch) +
-                                                     4.0f * ch * fm_sin_turns((float)f * rt * 0.5f + (float)k / 3.0f);
-        float lb = base - 16.0f * s, ub = base - 40.0f * s, top = base - (52.0f + 30.0f * br) * s;
-        float o = (3.0f + 11.0f * ch) * s * (0.4f + 0.6f * lv) * fm_sin_turns((float)f * rt + (float)k / 3.0f);
-        float sh = lv * 1.5f * fm_sin_turns((float)f * 0.41f + (float)k * 0.3f);
-        pen_oval(x, lb, 15.0f * s, 14.0f * s, ink);            /* the lower bout, the upper, the neck, the scroll */
-        pen_oval(x, ub, 11.0f * s, 11.0f * s, ink);
-        cv_line((int32_t)x, (int32_t)(ub - 11.0f * s), (int32_t)x, (int32_t)top, ink);
-        cv_dotf(x, top - 2.0f, 2.5f * s + 0.5f, ink);
-        for (int j = -1; j <= 1; j += 2)                       /* its strings, from the tailpiece to the scroll */
-            cv_line((int32_t)(x + (float)j * 2.0f * s + sh), (int32_t)(lb + 8.0f * s), (int32_t)(x + (float)j * s),
-                    (int32_t)top, K_FAINT);
-        cv_linef(x - 26.0f * s + o, lb - 9.0f * s, x + 26.0f * s + o, lb - 3.0f * s, k == 1 ? K_NOW : K_DIM, 1.5f);
-        cv_dotf(x + 26.0f * s + o, lb - 3.0f * s, 2.0f, ink); /* (the bow, its frog) */
-    }
-}
 /* tartan: the chord as an aurora (after Chordism's): over a few twinkling stars on the background, each voice a curtain of
  * light in the track's ink, hanging at its place in the field, its foot higher for a higher note,
  * as tall and bright as its level (the morphs: the relative levels read first), drifting as the sound plays (pic_f: at
@@ -4956,7 +4926,7 @@ static void draw_engine(void)
     if (eg == EG_TARTAN)                             /* (its Morph page is drawn too: the voices' levels and places) */
         h = hash_u(h, (uint32_t)p[TP_KSYNC] | (uint32_t)p[TP_KSWEEP] << 8 | (uint32_t)p[TP_KCROSS] << 16 |
                           (uint32_t)p[TP_KSUB] << 24);
-    if (eg == EG_LACE || eg == EG_VELVET || eg == EG_TARTAN)   /* (their second pages are drawn: the exciter, stretch;
+    if (eg == EG_LACE || eg == EG_TARTAN)   /* (their second pages are drawn: the exciter, stretch;
                                                       * shape, width, detune; the waves, width) */
         h = hash_u(h, (uint32_t)p[TP_X1] | (uint32_t)p[TP_X2] << 8 | (uint32_t)p[TP_X3] << 16 | (uint32_t)p[TP_X4] << 24);
     if (eg == EG_DRUMLINE)
@@ -5014,7 +4984,6 @@ static void draw_engine(void)
     case EG_TULLE: pic_tulle(20, 24, 200, PIC_H, p); break;
     case EG_CANE: pic_cane(20, 24, 200, PIC_H, p, pic_f); break;
     case EG_LACE: pic_lace(20, 24, 200, PIC_H, p, pic_f); break;
-    case EG_VELVET: pic_velvet(20, 24, 200, PIC_H, p, pic_f); break;
     case EG_TARTAN: pic_tartan(20, 24, 200, PIC_H, p, pic_f); break;
     case EG_VOILE: pic_voile(20, 24, 200, PIC_H, p, pic_f); break;
     case EG_KNIT: pic_knit(20, 24, 200, PIC_H, p, pic_f, ui.page == P_OSC2); break;
@@ -5642,7 +5611,7 @@ static void draw_sub(void)
         draw_rayon_fall();
     else if (eg == EG_ACID)
         draw_acid_x();
-    else if (eg == EG_SAMPLE || eg == EG_MIDI || eg == EG_TULLE || eg == EG_LACE || eg == EG_VELVET || eg == EG_TARTAN)
+    else if (eg == EG_SAMPLE || eg == EG_MIDI || eg == EG_TULLE || eg == EG_LACE || eg == EG_TARTAN)
         draw_engine();                           /* (the sample's loop page: the waveform, its loop marked; MIDI's
                                                   * knobs 5..8: its eight bars) */
     else

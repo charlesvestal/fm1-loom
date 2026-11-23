@@ -18,7 +18,7 @@ HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE / "presets"))
 import lib  # noqa: E402
 
-FILES = ["knit", "rayon", "jacquard", "bellows", "cane", "voile", "sample", "slice", "acid", "tulle", "lace", "velvet",
+FILES = ["knit", "rayon", "jacquard", "bellows", "cane", "voile", "sample", "slice", "acid", "tulle", "lace",
          "tartan"]
 
 

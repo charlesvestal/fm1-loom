@@ -60,7 +60,7 @@ COLD = {
                     "hz_text", "ms_text", "organ_bars", "synth_cut",
                     # (2026-11-23: the engines' set-up, when a knob or the pitch moves, a chunk's at most; the
                     # character's coefficients, the buses' and inserts' per block)
-                    "eng_prep", "wt_prep", "rayon_prep", "organ_prep", "knit_prep", "tl_prep", "lc_prep", "vv_prep",
+                    "eng_prep", "wt_prep", "rayon_prep", "organ_prep", "knit_prep", "tl_prep", "lc_prep", "tt_prep",
                     "smp_prep", "slc_prep", "cn_prep", "vo_prep", "eng_init", "knit_init", "char_coefs",
                     "bus_prepare", "ins_alloc"],
     "seq/pattern.c": ["pattern_init", "patterns_init", "lane_alloc", "lane_clear", "lane_count", "lane_pool_set",

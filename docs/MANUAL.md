@@ -110,8 +110,8 @@ second.
 - **Scene** (S1 to S32): which pattern each track plays, plus the mutes (a kit's individual sounds too) and the
   conductor's key.
 - **Song**: a chain of scenes, each played for a number of bars.
-- **Engine**: the way a track makes its sound. There are ten synths (knit, rayon, jacquard, bellows, velvet, tartan,
-  cane, lace, voile and acid), three sample engines (sample, slice and tulle) and the kit, a drum synth.
+- **Engine**: the way a track makes its sound. There are nine synths (knit, rayon, jacquard, bellows, tartan, cane,
+  lace, voile and acid), three sample engines (sample, slice and tulle) and the kit, a drum synth.
 - **Preset**: a sound to load. 161 come with LOOM-8, from seven to twenty-three for each engine, and 16 are your own.
 - **Player**: what the keys do on a track: arp, strum, hold or random.
 - **Conductor**: an aux track that sets the key, scale and chords for the other tracks. It plays its own chords,
@@ -584,7 +584,6 @@ tonality is **ignore** follows nothing.
 | rayon | bright, ratio, edge, tine | 17 |
 | jacquard | table, scan, bend, ripple | 11 |
 | bellows | stops, pedal, rotor, rate | 9 |
-| velvet | register, bright, chorus, rate | 10 |
 | tartan | chord, spread, rotate, detune | 16 |
 | cane | model, timbre, color, damp | 8 |
 | lace | material, bright, damp, position | 14 |
@@ -596,7 +595,7 @@ tonality is **ignore** follows nothing.
 | kit | the model knobs of the key shown | |
 | midi | eight knobs, each sending a CC | |
 
-Rayon, velvet, tartan, lace, acid and tulle have a second set of knobs. To reach them, press **EDIT** and turn **SELECT** once, to the Sub
+Rayon, tartan, lace, acid and tulle have a second set of knobs. To reach them, press **EDIT** and turn **SELECT** once, to the Sub
 page.
 Knit has three more pages instead, Osc 2, Mod and Levels.
 
@@ -673,29 +672,6 @@ wobbles the wave with a second oscillator, slowly at first and then as fast as t
 **Bellows** is the organ, with six drawbars. Its four knobs go from 1 to 8. **stops** picks the registration:
 transistor, combo, jazz, gospel, rock, theater, pipe or church. **pedal** adds the low 16' bar, and 1 leaves it out.
 **rotor** sets how deeply the rotating speaker swirls, with none at 1, and **rate** sets how fast it turns.
-
-### Velvet
-
-**Velvet** is a string machine, the warm, swimming strings of the 1970s. Each note is a saw played in up to three
-octaves at once, three times over, and the ensemble keeps the three copies moving against each other. Use it for
-string pads, slow chords and string basses. Its knobs:
-
-| Knob | What it does |
-| --- | --- |
-| register | Picks the octaves: violin (8' and 4'), viola (8'), cello (16' and 8'), bass (16') or full (all three). |
-| bright | Opens the tone, from muted to bright. |
-| chorus | Sets how deeply the ensemble moves the copies. At 0 they stand still. |
-| rate | Sets how fast the ensemble moves. |
-
-The Sub page shapes the copies. **shape** blends the saw toward a square, for a hollower sound. **width** spreads the
-three copies across the stereo field, and **detune** pulls them apart in pitch, still, under the movement. The
-picture shows a string section, a player for each copy, sized by the register. Their necks grow longer as **bright**
-turns up, and **chorus** spreads them apart and sets them swaying, their bows sawing at the **rate**. There are ten
-presets: velvet, ensemble, low
-strings, big strings, string bass, hollow pad, dark velvet, eighties, warble and pizzicato.
-
-Each register costs about as much as a rayon voice, so full costs about three. For big chords, viola or violin plays
-the most notes at once.
 
 ### Tartan
 

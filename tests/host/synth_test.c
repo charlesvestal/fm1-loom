@@ -1932,9 +1932,7 @@ static void tulle_tests(void)
           !strcmp(tp_info(TP_X2, EG_TULLE)->name, "density") && !strcmp(tp_info(TP_X4, EG_TULLE)->name, "width"));
 }
 /* lace (EG_LACE): a note of each material with each exciter, finite and bounded; the mallet's rings down, the bow and the
- * noise hold; spread makes its left and right differ; at most CN_SLOTS of its voices at once (its own slots). velvet
- * (EG_VELVET): finite, bounded; its registers and width change it; the ensemble moves it (two runs of a held note differ
- * from a still one) */
+ * noise hold; spread makes its left and right differ; at most CN_SLOTS of its voices at once (its own slots) */
 static float ln_rms(int engine, int e1, int x1, int x3, int blocks, float *late, float *peak, int *finite, float *l, float *r)
 {
     double e = 0.0, el = 0.0;
@@ -2254,7 +2252,7 @@ static void tartan_tests(void)
     check("tartan: its pages' names", !strcmp(tp_info(TP_E1, EG_TARTAN)->name, "chord") &&
           !strcmp(tp_info(TP_X1, EG_TARTAN)->name, "waves") && !strcmp(tp_info(TP_KSYNC, EG_TARTAN)->name, "morph"));
 }
-static void lace_velvet_tests(void)
+static void lace_tests(void)
 {
     static float l[20 * N], r[20 * N], l2[20 * N], r2[20 * N];
     int finite = 1, ok = 1, used;
@@ -2288,21 +2286,6 @@ static void lace_velvet_tests(void)
     check("lace: its pages' names", !strcmp(tp_info(TP_E1, EG_LACE)->name, "material") &&
           !strcmp(tp_info(TP_X1, EG_LACE)->name, "exciter") && tp_info(TP_X1, EG_LACE)->hi == NLX - 1 &&
           !strcmp(tp_info(TP_X4, EG_LACE)->name, "hardness"));
-    ok = 1;
-    top = 0.0f;
-    for (int g = 0; g < NVR; g++) {
-        float e = ln_rms(EG_VELVET, g, 0, 90, 60, &late, &pk, &finite, g == 0 ? l : 0, r);
-        top = pk > top ? pk : top;
-        ok &= e > 1e-4f && pk <= 1.0f;
-    }
-    printf("    velvet: the loudest note %.2f\n", (double)top);
-    check("velvet: every register sounds, finite, under full scale", ok && finite);
-    ln_rms(EG_VELVET, VR_VIOLIN, 0, 127, 20, &late, &pk, &finite, l, r);
-    check("velvet: wide, its left and right differ", memcmp(l, r, sizeof l) != 0);
-    ln_rms(EG_VELVET, VR_VIOLIN, 127, 127, 20, &late, &pk, &finite, l2, r2);
-    check("velvet: shape changes it", memcmp(l, l2, sizeof l) != 0 && finite);
-    check("velvet: its pages' names", !strcmp(tp_info(TP_E1, EG_VELVET)->name, "register") &&
-          !strcmp(tp_info(TP_E3, EG_VELVET)->name, "chorus") && !strcmp(tp_info(TP_X2, EG_VELVET)->name, "width"));
 }
 static void kit_char_tests(void)
 {
@@ -3348,7 +3331,7 @@ int main(void)
     rayon_ops_tests();
     knit_analog_tests();
     tulle_tests();
-    lace_velvet_tests();
+    lace_tests();
     tartan_tests();
     bus_split_tests();
     insert_tests();
