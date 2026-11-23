@@ -49,6 +49,13 @@ discuss-features-first); no release until the user says so.
    motion (REC held while turning), locks, the THROW aux track, scenes and the song (MANUAL "Arrange, scenes and the
    song", "The aux tracks"). Questions: per scene or per song section? one lane or several? drawn shapes (rise,
    fall, rise-fall) or recorded? what a scene change does to a sweep in progress?
+   Prior art: PR #5 "LOOM-8: Song Automation" (charlesvestal/fm1-loom#5, by KrisGelero; closed unmerged
+   2026-11-09; local branch `pr5-song-automation`, worktree `fm1-xy-pr5`, one commit 2043e20 on an old main, project
+   format 15). It records a macro's curve per song slot (`song_auto_t slot_map[NSONG]`): each slot's curve tagged
+   with the macro it was recorded with, REC arms and PLAY records from the picked slot after the count-in, writing
+   from the first knob move, an "Auto" view beside "Song" (ALGO toggles), black key 11 deletes a slot's curve,
+   format-14 stores migrated. Read it before designing (memory: check-open-prs-first; build on a contributor's work
+   where it fits, and credit them); no other PR touches automation or delays.
 3. **A master that can go loud**: a drive or clip stage before the limiter.
 4. **Drum-bus glue**: check whether the kit's character (drive) and its dynamic filter's compression already give
    it; the demo may simply not use them.
