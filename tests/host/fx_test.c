@@ -597,6 +597,46 @@ int main(void)
             check(name, ok && pk <= 1.0f);
         }
         MS_INIT();
+        {   /* CLIP: a soft clip before the limiter. At 127 a 4x signal still never passes 1.0; a -12 dBFS sine
+             * (0.25 peak, this build's bus at unity: MST_HEADROOM=1.0f) comes out louder by more than 6 dB */
+            float pk = 0.0f, e0 = 0.0f, e1 = 0.0f;
+            int pass;
+            master_set(ms, MS_CLIP, 127);
+            master_set(ms, MS_LEVEL, 127);
+            for (b = 0; b < 400; b++) {
+                for (i = 0; i < BLK; i++) {
+                    pl[i] = pr[i] = 2.0f * noise();
+                    mll[i] = mlr[i] = 2.0f * ((b & 8) ? 1.0f : -1.0f);
+                }
+                master_process(ms, pl, pr, mll, mlr, ol2, or2, BLK);
+                for (i = 0; i < BLK; i++) {
+                    ok &= ol2[i] == ol2[i];
+                    pk = fm_maxf(pk, fm_maxf(fm_fabsf(ol2[i]), fm_fabsf(or2[i])));
+                }
+            }
+            snprintf(name, sizeof name, "clip 127 on a 4x signal: peak %.3f, no NaN", (double)pk);
+            check(name, ok && pk <= 1.0f);
+            for (pass = 0; pass < 2; pass++) {
+                float ph = 0.0f, *e = pass ? &e1 : &e0;
+                MS_INIT();
+                master_set(ms, MS_CLIP, pass ? 127 : 0);
+                for (b = 0; b < 200; b++) {
+                    for (i = 0; i < BLK; i++) {
+                        ph += 220.0f / SR;
+                        if (ph >= 1.0f) ph -= 1.0f;
+                        pl[i] = pr[i] = 0.0f;
+                        mll[i] = mlr[i] = 0.25f * fm_sin_turns(ph);    /* 0.25 peak on the bus */
+                    }
+                    master_process(ms, pl, pr, mll, mlr, ol2, or2, BLK);
+                    if (b >= 100)
+                        for (i = 0; i < BLK; i++)
+                            *e += ol2[i] * ol2[i];
+                }
+            }
+            snprintf(name, sizeof name, "clip 127 on a -12 dB sine: %+.1f dB", (double)(10.0f * 0.30103f * fm_log2f(e1 / e0)));
+            check(name, e1 > e0 * 4.0f);
+        }
+        MS_INIT();
         {   /* the compressor at 100: a loud sine is pulled down, the meter shows it */
             float g0 = 0.0f, g1 = 0.0f;
             master_set(ms, MS_COMP, 100);

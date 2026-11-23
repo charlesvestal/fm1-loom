@@ -326,7 +326,7 @@ void project_defaults(void)
      * of compression */
     for (k = 0; k < NMS; k++)
         proj.master[k] = 64;
-    proj.master[MS_RSV3] = 0;
+    proj.master[MS_CLIP] = 0;
     proj.master[MS_CTYPE] = MC_OFF;
     proj.master[MS_CAMT] = 40;
     proj.master[MS_CMIX] = 127;

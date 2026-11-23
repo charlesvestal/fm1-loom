@@ -353,10 +353,12 @@ static void master_cases(void)
                                MS_PERC, 80, MS_MEL, 120, MS_LEVEL, 110, -1};
     static const int eq[] = {MS_EQ_LO, 80, MS_COMP, 80, -1};
     static const int lev[] = {MS_PERC, 30, MS_MEL, 127, MS_LEVEL, 127, MS_COMP, 40, -1};
+    static const int clip[] = {MS_CLIP, 90, MS_COMP, 60, -1};
     master_case("master off", off);
     master_case("master eq comp levels 127", full);
     master_case("master eq comp", eq);
     master_case("master levels comp", lev);
+    master_case("master clip 90", clip);
 }
 
 int main(void)
