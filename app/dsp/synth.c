@@ -4540,12 +4540,12 @@ static __attribute__((noinline)) float op_coef(float hz) { return 1.0f - fm_expf
 /* rumble's memory (three slots, int16 at 1/8192): its places (the delay's, the diffusers', the lines'), the delay (an
  * eighth: down to 69 BPM), the two diffusers, the four lines (mutually prime, at 2.76 kHz: 106 .. 182 ms) */
 #ifndef RB_DRIVE
-#define RB_DRIVE 2.5f                            /* rumble's saturation: soft3's gain on the low-passed reverb over the
+#define RB_DRIVE 1.5f                            /* rumble's saturation: soft3's gain on the low-passed reverb over the
                                                   * track's peak (light: its 2nd and 3rd harmonics) */
 #endif
-#define RB_GAIN 8.0f                             /* its make-up: the reverb's tail, low-passed, near the track's level */
+#define RB_GAIN 4.0f                             /* its make-up: the reverb's tail, low-passed, near the track's level */
 /* rumble's memory (two slots, int16 at 1/8192): its places (the diffusers', the lines'), the two diffusers, the four
- * lines (mutually prime, at 2.76 kHz: 106 .. 182 ms) */
+ * lines (mutually prime, at 1.38 kHz: 213 .. 365 ms) */
 #define RB_P 0
 static const int16_t RB_AA[2] = {8, 8 + 89}, RB_AL[2] = {89, 137};
 static const int16_t RB_LEN[4] = {293, 359, 431, 503}, RB_L[4] = {234, 234 + 293, 234 + 652, 234 + 1083};
@@ -4788,28 +4788,29 @@ static void ins_run(synth_t *s, trk_t *t, float *bl, float *br, uint32_t n)
     case IT_RUMBLE: {                            /* the techno rumble, the track's reverb as a low instrument (the
                                                   * producers' chain: no sub into the reverb, no modulation, a steep
                                                   * low-pass after, light saturation tamed by a low-pass, a sidechain):
-                                                  * the track high-passed (6 dB at 90 Hz), at a sixteenth of the
-                                                  * rate (2.76 kHz) into two diffusers and a Hadamard network of four
+                                                  * the track high-passed (12 dB at 120 Hz), at a 32nd of the
+                                                  * rate (1.38 kHz: twice the lines' time, their low modes twice as
+                                                  * dense, a smear, not tones) into two diffusers and a Hadamard network of four
                                                   * lines (its decay), out through four poles at tone, saturated by
                                                   * the track's peak, a pole at three times tone; ducked on each hit
                                                   * (the track's level rising past half its peak), back by an eighth.
-                                                  * z[0] the sixteenth's sum, z[1] its count + 32 armed, z[2..3] the
+                                                  * z[0] the 32nd's sum, z[1] its count + 32 armed, z[2..3] the
                                                   * high-pass's low and its output's peak, z[4..5] the low-pass in, z[6..7] the last two
                                                   * ticks, z[8..11] the low-pass out, z[12] the tame pole, z[13] the
-                                                  * level, z[14] its peak; ph the beats since the hit; the places: the
+                                                  * level, z[14] its peak, z[15] the second high-pass; ph the beats since the hit; the places: the
                                                   * memory's first */
         int16_t *m = t->pool_at >= 0 ? ins_pool[(int)t->pool_at] : 0;
         const float rt = rb_decay(t->ins_k[0]), fc = 80.0f * in_exp2(k1 * 2.0f), ko = op_coef(fc), kt = op_coef(3.0f * fc);
-        const float kh = op_coef(90.0f), ka = op_coef(400.0f), wet = k2 * 1.5f;
+        const float kh = op_coef(120.0f), ka = op_coef(300.0f), wet = k2 * 1.5f;
         const float rel = 1.0f - op_coef(1.0f / 0.03f), prel = 1.0f - op_coef(1.0f / 3.0f);
         const float dbt = INV_SR * fm_maxf(s->bpm, 20.0f) * (1.0f / 60.0f);
         float g[4], sum = z[0], h1 = z[2], h2 = z[3], a = z[4], b = z[5], y0 = z[6], y1 = z[7];
-        float o1 = z[8], o2 = z[9], o3 = z[10], o4 = z[11], tm = z[12], env = z[13], pk = z[14];
+        float o1 = z[8], o2 = z[9], o3 = z[10], o4 = z[11], tm = z[12], env = z[13], pk = z[14], hb = z[15];
         int cnt = (int)z[1] & 31, armed = (int)z[1] >> 5;
         if (!m)
             break;
-        for (int q = 0; q < 4; q++)              /* (-60 dB in rt: 10^(-3 len / (sr/16 rt))) */
-            g[q] = in_exp2(-9.966f * (float)RB_LEN[q] / (SY_SR * (1.0f / 16.0f) * rt));
+        for (int q = 0; q < 4; q++)              /* (-60 dB in rt: 10^(-3 len / (sr/32 rt))) */
+            g[q] = in_exp2(-9.966f * (float)RB_LEN[q] / (SY_SR * (1.0f / 32.0f) * rt));
         for (uint32_t i = 0; i < n; i++) {
             float x = t->ins_in ? t->ins_in[i] : 0.5f * (bl[i] + br[i]), ax = fm_fabsf(x), u, y, du;
             env = ax > env ? env + 0.3f * (ax - env) : env * rel;
@@ -4819,17 +4820,19 @@ static void ins_run(synth_t *s, trk_t *t, float *bl, float *br, uint32_t n)
             else if (env < 0.2f * pk)
                 armed = 1;
             ph = fm_minf(ph + dbt, 4.0f);
-            h1 += kh * (x - h1);                 /* (the lowest out: x minus its low-pass, 6 dB an octave: a deep kick
-                                                  * keeps some of its body) */
+            h1 += kh * (x - h1);                 /* (the kick's sub out, 12 dB an octave: in the reverb it holds the
+                                                  * kick's note, a drone; its body and click smear) */
             u = x - h1;
+            hb += kh * (u - hb);
+            u -= hb;
             h2 = fm_maxf(fm_fabsf(u), h2 * prel);   /* (and its peak: the reverb's input over it) */
             a += ka * (u - a);
             b += ka * (a - b);
             sum += b;
-            if (++cnt == 16) {                   /* a tick */
+            if (++cnt == 32) {                   /* a tick */
                 const float pr = fm_maxf(pk, 1e-4f);   /* (the lines hold the high-passed track over its own peak:
                                                   * full scale at any level and any kick; out again at the track's) */
-                float w = sum * (1.0f / 16.0f) / fm_maxf(h2, 1e-4f), v[4], q0, q1, q2, q3;
+                float w = sum * (1.0f / 32.0f) / fm_maxf(h2, 1e-4f), v[4], q0, q1, q2, q3;
                 for (int q = 0; q < 2; q++) {    /* the diffusers */
                     int16_t *ap = m + RB_AA[q];
                     int pq = m[RB_P + q];
@@ -4853,14 +4856,14 @@ static void ins_run(synth_t *s, trk_t *t, float *bl, float *br, uint32_t n)
                 y1 = (v[0] + v[1] + v[2] + v[3]) * pr;
                 sum = 0.0f, cnt = 0;
             }
-            y = y0 + (y1 - y0) * (float)cnt * (1.0f / 16.0f);
+            y = y0 + (y1 - y0) * (float)cnt * (1.0f / 32.0f);
             o1 += ko * (y - o1);                 /* (four poles: 24 dB an octave above tone) */
             o2 += ko * (o1 - o2);
             o3 += ko * (o2 - o3);
             o4 += ko * (o3 - o4);
-            {                                    /* light saturation (its 2nd and 3rd), as hard at any level */
+            {                                    /* light saturation (odd: no tone of its own), as hard at any level */
                 const float pr = fm_maxf(pk, 1e-4f), sv = o4 * (RB_DRIVE / pr);
-                tm += kt * (soft3(sv + 0.15f * sv * sv) * (RB_GAIN * pr / RB_DRIVE) - tm);   /* (then its make-up) */
+                tm += kt * (soft3(sv) * (RB_GAIN * pr / RB_DRIVE) - tm);   /* (then its make-up) */
             }
             du = fm_clampf((ph - 0.03f) * 2.4f, 0.0f, 1.0f);   /* (0 on the hit, back by an eighth or so) */
             du = du * du * (3.0f - 2.0f * du);
@@ -4870,6 +4873,7 @@ static void ins_run(synth_t *s, trk_t *t, float *bl, float *br, uint32_t n)
         z[0] = sum, z[1] = (float)(cnt + 32 * armed), z[2] = fm_flush(h1), z[3] = fm_flush(h2), z[4] = fm_flush(a);
         z[5] = fm_flush(b), z[6] = fm_flush(y0), z[7] = fm_flush(y1), z[8] = fm_flush(o1), z[9] = fm_flush(o2);
         z[10] = fm_flush(o3), z[11] = fm_flush(o4), z[12] = fm_flush(tm), z[13] = fm_flush(env), z[14] = fm_flush(pk);
+        z[15] = fm_flush(hb);
         break;
     }
     default:
@@ -5186,7 +5190,7 @@ static const tp_info_t INS_P[NIT][3] = {
     {{"rate", 0, 127, 30, PK_HZ_SYNC, 0}, {"depth", 0, 127, 70, PK_PCT, 0}, {"mix", 0, 127, 64, PK_PCT, 0}},
     {{"time", 0, 7, 5, PK_NAMES, ECHO_T_N}, {"feedback", 0, 127, 60, PK_PCT, 0}, {"mix", 0, 127, 45, PK_PCT, 0}},
     {{"mode", 0, 2, 0, PK_NAMES, JUNO_N}, {"mix", 0, 127, 64, PK_PCT, 0}, {"tone", 0, 127, 70, PK_NN, 0}},
-    {{"decay", 0, 127, 70, PK_NN, 0}, {"tone", 0, 127, 50, PK_NN, 0}, {"mix", 0, 127, 70, PK_PCT, 0}}};
+    {{"decay", 0, 127, 55, PK_NN, 0}, {"tone", 0, 127, 80, PK_NN, 0}, {"mix", 0, 127, 70, PK_PCT, 0}}};
 static const tp_info_t TULLE_G_P[4] = {{"shape", 0, 127, 0, PK_NN, 0}, {"reverse", 0, 127, 0, PK_PCT, 0},
                                        {"-", 0, 0, 0, PK_NUM, 0}, {"-", 0, 0, 0, PK_NUM, 0}};
 static const tp_info_t KMOD_P[4] = {{"sync", 0, 1, 0, PK_SWITCH, 0}, {"sweep", 0, KSWEEP_MAX, 0, PK_SEMI, 0},

@@ -1253,7 +1253,7 @@ a type sets its knobs to their starting values. On a kit, the insert comes after
 | chorus | The rate, as tremolo's. | The depth. | Mix. Two copies sway against each other, one on each side, as in the Juno's chorus. |
 | echo | The time: 1/32, 1/16T, 1/16, 1/8T, 1/16D, 1/8, 1/8D or 1/4, at the song's tempo. | Feedback: more repeats. Each repeat comes back darker and a little saturated, with a slight wow, like tape. | Mix: how loud the repeats are. |
 | juno | Mode: I, II or I+II, the Juno-60's three buttons: I slow and gentle, II faster and deeper, I+II a quick shimmer. | Mix. | Tone: turned down, the chorused copies are darker, like the Juno's bucket-brigade chips. |
-| rumble | Decay: how long the reverb rings, from about half a second to eight seconds; about 2.5 s to start. | Tone: its low-pass, from 80 Hz at 0 to 320 Hz at the top; about 140 Hz to start, a deep, hypnotic rumble. | Mix: how loud the rumble is. |
+| rumble | Decay: how long the reverb rings, from about half a second to eight seconds; about 1.8 s to start. | Tone: its low-pass, from 80 Hz at 0 to 320 Hz at the top; about 190 Hz to start. Turn it down for a deeper, more hypnotic rumble. | Mix: how loud the rumble is. |
 
 Use rumble on a kick for the low, pumping tail under a techno beat. It is the kick's reverb treated as a bass
 instrument: the lowest of the kick is kept out of the reverb so it doesn't turn into a drone, the reverb is filtered

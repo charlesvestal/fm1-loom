@@ -2160,10 +2160,11 @@ static void insert_tests(void)
             printf("    rumble: its tail up to %.3f, %.0f zero crossings a second\n", (double)late,
                    nn ? (double)zc * 44100.0 / (double)nn : 0.0);
             check("rumble: a low tail goes on after the note's voice has ended",
-                  ended > 0 && late > 0.005f && late < 2.0f && nn && zc * 44100 / nn < 1000 && finite);
+                  ended > 0 && late > 0.002f && late < 2.0f && nn && zc * 44100 / nn < 1000 && finite);
         }
         {   /* rumble on a kick every beat at 120 (a short low note): between the kicks (0.25 .. 0.45 s on) the rumble
-             * stands near the kick's level; on the hit (its first 20 ms) the duck keeps it out */
+             * is there, under the kick (the producers' balance: a 909 kick's about 5 dB under, a dark one's more); on
+             * the hit (its first 20 ms) the duck keeps it out */
             static float buf[86 * N * 2];
             double ehit = 0.0, egap = 0.0, ehit0 = 0.0;
             reset();
@@ -2207,8 +2208,8 @@ static void insert_tests(void)
                        gap = 10.0 * log10(egap / (5.0 * 0.2 * 44100.0) + 1e-20),
                        hit0 = 10.0 * log10(ehit0 / (5.0 * 0.02 * 44100.0) + 1e-20);
                 printf("    rumble on a kick: the hit %.1f dB (dry %.1f), between the kicks %.1f dB\n", hit, hit0, gap);
-                check("rumble: between the kicks it stands within 12 dB of the hit, the hit itself as dry",
-                      finite && gap > hit - 12.0 && fabs(hit - hit0) < 1.5);
+                check("rumble: between the kicks it stands within 18 dB of the hit, the hit itself as dry",
+                      finite && gap > hit - 18.0 && fabs(hit - hit0) < 1.5);
             }
         }
         reset();

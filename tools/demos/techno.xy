@@ -45,11 +45,11 @@ knob 1 d8.send1 40
 knob 1 d9.k1 50
 knob 1 d9.volume 50
 knob 1 level 100
-# the rumble: decay 2.5 s, tone deep (about 140 Hz), mix
+# the rumble: its defaults (decay 1.8 s, tone about 190 Hz, mix)
 param 1 itype 9
-param 1 i1 70
-param 1 i2 50
-param 1 i3 85
+param 1 i1 55
+param 1 i2 80
+param 1 i3 70
 # T2 "hypnotic": the line, off the conductor
 preset 2 hypnotic knit
 knob 2 brain no
