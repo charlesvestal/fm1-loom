@@ -16,7 +16,7 @@ static const int BK_IMA_S[89] = {7, 8, 9, 10, 11, 12, 13, 14, 16, 17, 19, 21, 23
 static const int BK_IMA_I[8] = {-1, -1, -1, -1, 2, 4, 6, 8};
 static void put32(uint8_t *p, uint32_t v) { p[0] = (uint8_t)v; p[1] = (uint8_t)(v >> 8); p[2] = (uint8_t)(v >> 16); p[3] = (uint8_t)(v >> 24); }
 static uint8_t bank[SMP_BANK_SIZE];
-static uint8_t bank_w0[SMP_REG0_SIZE], bank_w1[SMP_REG1_SIZE], bank_w2[SMP_REG2_SIZE];
+static uint8_t bank_w0[SMP_REG0_SIZE], bank_w1[SMP_REG1_SIZE], bank_w2[SMP_REG2_SIZE], bank_w3[SMP_REG3_SIZE];
 static uint32_t bank_end;
 static int bank_cnt;
 static int bank_blk = SMP_BLK;                   /* samples a checkpoint: SMP_BLK (version 3) or SMP_BLK_V2 (2) */
@@ -88,12 +88,13 @@ static void bank_seal(void)                      /* the header: magic, version, 
     put32(bank + 12, smp_crc32(bank + SMP_BANK_HDR, bank_end - SMP_BANK_HDR));
     put32(bank + 16, SMP_BANK_SIZE);
 }
-static void bank_attach(void)                    /* the image into its three windows, apart; the reader on them */
+static void bank_attach(void)                    /* the image into its four windows, apart; the reader on them */
 {
-    static const uint8_t *w[SMP_NREG] = {bank_w0, bank_w1, bank_w2};
+    static const uint8_t *w[SMP_NREG] = {bank_w0, bank_w1, bank_w2, bank_w3};
     memcpy(bank_w0, bank + smp_reg_v(0), SMP_REG0_SIZE);
     memcpy(bank_w1, bank + smp_reg_v(1), SMP_REG1_SIZE);
     memcpy(bank_w2, bank + smp_reg_v(2), SMP_REG2_SIZE);
+    memcpy(bank_w3, bank + smp_reg_v(3), SMP_REG3_SIZE);
     smp_user_attach(w);
 }
 static void bank_detach(void)                    /* back to the break pack (breaks.h) */

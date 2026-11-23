@@ -22,9 +22,10 @@
 /* the store, all in the data area: the panel calibration (the platform's, where every fm1-base firmware keeps it),
  * the user presets at 0xDE000, then NPROJ project slots of PROJ_NOBJ objects each (the settings, then the LZ chunks
  * of the patterns), two 4 KB sectors an object, from 0x97000 up to 0xC1000. The user sample bank is raw flash
- * beside them, 216 KB in three windows (dsp/sample.h SMP_REG*, plat_data): 0xC1000..0xDBFFF (108 KB, after the
- * projects, up to the calibration), fm1-base's PLAT_XDATA1 0xE5000..0xFBFFF (92 KB, above the update's staging)
- * and PLAT_XDATA0 0x93000..0x96FFF (16 KB, above the app area); app.c checks that no store object lies in them.
+ * beside them, 204 KB in four windows (dsp/sample.h SMP_REG*, plat_data): 0xC1000..0xDBFFF (108 KB, after the
+ * projects, up to the calibration), fm1-base's PLAT_XDATA1 0xE5000..0xE6FFF (8 KB, above the update's staging),
+ * PLAT_XDATA0 0x93000..0x96FFF (16 KB, above the app area) and PLAT_XDATA3 0xEA000..0xFBFFF (72 KB, the SDK's USR
+ * area; never PLAT_SYS 0xE7000..0xE9FFF, the FM-1's VM and BTIF); app.c checks that no store object lies in them.
  * Nothing of LOOM-8's is left free in the data area; above it, 0xE0000..0xE4FFF is the update's staging and
  * 0xFC000.. Felucca's settings pair (neither LOOM-8's). LOOM-8 was never released, so this map did not have to
  * keep its own platform's (four slots); it does, but for the fourth slot: the same numbers at the same places, so

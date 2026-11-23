@@ -101,10 +101,13 @@ in a row bring up a safe mode with USB on; the web installer can put M-VAVE's fi
 
 Backup and restore of the projects and the user presets: `python3 base/tools/fm1_backup.py backup FILE --magic LM8B`
 and `restore FILE` (or the site's Backup page). The user sample bank is not in a backup: `tools/loom_samples.py`
-loads it from the WAV files. The bank: 216 KB of flash in three windows (`app/dsp/sample.h`: 0xC1000..0xDBFFF, and
-fm1-base's PLAT_XDATA1 0xE5000..0xFBFFF and PLAT_XDATA0 0x93000..0x96FFF), which nothing else writes: not the store
+loads it from the WAV files. The bank: 204 KB of flash in four windows (`app/dsp/sample.h`: 0xC1000..0xDBFFF, and
+fm1-base's PLAT_XDATA1 0xE5000..0xE6FFF, PLAT_XDATA0 0x93000..0x96FFF and PLAT_XDATA3 0xEA000..0xFBFFF), which nothing else writes: not the store
 (app.c checks the map), not a restore, not an update (the loader writes below 0x93000 and erases a sector above it
-only for an update record, which the bank never holds: `tools/sampleio.py`).
+only for an update record, which the bank never holds: `tools/sampleio.py`). The bank never touches 0xE7000..0xE9FFF
+(PLAT_SYS: the SDK's VM with the radio's calibration, and BTIF with the Bluetooth pairing). Before this change the bank was
+216 KB and used 0xE5000..0xFBFFF whole, which erased those sectors; a bank uploaded with the old layout is not read by the
+new firmware: upload it again (`tools/loom_samples.py`, the samples page or the installer).
 
 ## Publishing a release
 

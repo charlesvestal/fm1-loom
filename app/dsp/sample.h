@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: MPL-2.0 */
 /* LOOM-8 samples: the factory bank compiled into the image (build/gen/samples.h, tools/gen_samples.py, mono IMA
- * ADPCM at 22050 Hz) and the user bank in flash (216 KB over three windows, uploaded over USB with
+ * ADPCM at 22050 Hz) and the user bank in flash (204 KB over four windows, uploaded over USB with
  * tools/loom_samples.py), mono IMA ADPCM at each sample's own rate (4000..48000 Hz: the tool offers 11025, 16000,
  * 22050 and 32000), read in place (the user bank through the XIP plaintext window). One index space:
  * 0..SMP_NFACT-1 the factory samples, then SMP_NUSER user slots (empty ones play nothing).
@@ -12,9 +12,10 @@
  * format and the user bank's layout: tools/sampleio.py.
  *
  * The user bank's windows (SMP_REG*): the data area from the projects' end to the panel calibration, and
- * fm1-base's two extra windows (plat.h PLAT_XDATA1, PLAT_XDATA0), in that order. An offset in the bank is
+ * fm1-base's three extra windows (plat.h PLAT_XDATA1, PLAT_XDATA0, PLAT_XDATA3), in that order (never PLAT_SYS,
+ * 0xE7000..0xE9FFF: the SDK's VM and BTIF, the FM-1's own). An offset in the bank is
  * virtual: it runs through the windows end to end (0 = the header, at 0xC1000). A sample's checkpoints lie
- * in one window; its ADPCM may run on from one window into the next (once: smp_t adp2 / split). In the two
+ * in one window; its ADPCM may run on from one window into the next (once: smp_t adp2 / split). In the three
  * extra windows no sector holds an update record at 0xF00 (plat.h; tools/sampleio.py keeps "AT" from bytes
  * 0xF06..0xF07, the commit refuses a bank that has it there).
  *
@@ -38,14 +39,16 @@
 #define SMP_NFENT 12                      /* the bank's entries for the factory set (since 0.8: SMP_E_FACTORY) */
 #define SMP_NENT (SMP_NUSER + SMP_NFENT)  /* the bank's entries: the user slots and the factory set's */
 #define SMP_NAME 12
-#define SMP_NREG 3                        /* the bank's windows, in the order it fills them */
+#define SMP_NREG 4                        /* the bank's windows, in the order it fills them */
 #define SMP_REG0 0xC1000u                 /* the data area after the projects, up to the calibration: 108 KB */
 #define SMP_REG0_SIZE 0x1B000u
-#define SMP_REG1 0xE5000u                 /* PLAT_XDATA1: 92 KB */
-#define SMP_REG1_SIZE 0x17000u
+#define SMP_REG1 0xE5000u                 /* PLAT_XDATA1: 8 KB */
+#define SMP_REG1_SIZE 0x2000u
 #define SMP_REG2 0x93000u                 /* PLAT_XDATA0: 16 KB */
 #define SMP_REG2_SIZE 0x4000u
-#define SMP_BANK_SIZE (SMP_REG0_SIZE + SMP_REG1_SIZE + SMP_REG2_SIZE)   /* 216 KB */
+#define SMP_REG3 0xEA000u                 /* PLAT_XDATA3 (the SDK's USR area): 72 KB */
+#define SMP_REG3_SIZE 0x12000u
+#define SMP_BANK_SIZE (SMP_REG0_SIZE + SMP_REG1_SIZE + SMP_REG2_SIZE + SMP_REG3_SIZE)   /* 204 KB */
 #define SMP_BANK_BASE SMP_REG0            /* flash offset of the bank's header */
 #define SMP_BANK_HDR 2048u                /* the header; the data follows */
 #define SMP_BANK_MAGIC 0x504D534Cu        /* "LSMP" */
@@ -112,9 +115,16 @@ int smp_play(smp_cache_t *c, const smp_t *s, int32_t *pos, float *fr, float inc,
              float *out, int m);
 
 /* the user bank's windows: flash offset, size and first virtual offset of window r */
-static inline uint32_t smp_reg_off(int r) { return r == 0 ? SMP_REG0 : r == 1 ? SMP_REG1 : SMP_REG2; }
-static inline uint32_t smp_reg_size(int r) { return r == 0 ? SMP_REG0_SIZE : r == 1 ? SMP_REG1_SIZE : SMP_REG2_SIZE; }
-static inline uint32_t smp_reg_v(int r) { return r == 0 ? 0u : r == 1 ? SMP_REG0_SIZE : SMP_REG0_SIZE + SMP_REG1_SIZE; }
+static inline uint32_t smp_reg_off(int r) { return r == 0 ? SMP_REG0 : r == 1 ? SMP_REG1 : r == 2 ? SMP_REG2 : SMP_REG3; }
+static inline uint32_t smp_reg_size(int r)
+{
+    return r == 0 ? SMP_REG0_SIZE : r == 1 ? SMP_REG1_SIZE : r == 2 ? SMP_REG2_SIZE : SMP_REG3_SIZE;
+}
+static inline uint32_t smp_reg_v(int r)
+{
+    return r == 0 ? 0u : r == 1 ? SMP_REG0_SIZE : r == 2 ? SMP_REG0_SIZE + SMP_REG1_SIZE :
+                                                  SMP_REG0_SIZE + SMP_REG1_SIZE + SMP_REG2_SIZE;
+}
 /* the window of virtual offset v (-1: past the bank), *off its flash offset */
 static inline int smp_reg_of(uint32_t v, uint32_t *off)
 {

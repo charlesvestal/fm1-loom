@@ -10,9 +10,9 @@
 
 static void breaks_attach(void)
 {
-    static uint8_t w0[SMP_REG0_SIZE], w1[SMP_REG1_SIZE], w2[SMP_REG2_SIZE];
-    static const uint8_t *w[SMP_NREG] = {w0, w1, w2};
-    uint8_t *const dst[SMP_NREG] = {w0, w1, w2};
+    static uint8_t w0[SMP_REG0_SIZE], w1[SMP_REG1_SIZE], w2[SMP_REG2_SIZE], w3[SMP_REG3_SIZE];
+    static const uint8_t *w[SMP_NREG] = {w0, w1, w2, w3};
+    uint8_t *const dst[SMP_NREG] = {w0, w1, w2, w3};
     FILE *f = fopen("build/gen/breaks.bin", "rb");
     if (!f) {
         fprintf(stderr, "no build/gen/breaks.bin (tools/loom_samples.py build build/gen/breaks.bin breaks)\n");

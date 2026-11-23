@@ -499,27 +499,27 @@ static void sample_tests(void)
         gen_hz = 300.0f;
         gen_rate = 16000;
         bank_reset();
-        bank_add_at("seam", gen_sine, 30000, 60, 0, 16000, at);
-        for (i = 0; i < 30000; i++)
+        bank_add_at("seam", gen_sine, 20000, 60, 0, 16000, at);
+        for (i = 0; i < 20000; i++)
             fwd[i] = (float)bank_pcm[i] * (1.0f / 32768.0f);
         gen_hz = 500.0f;
         bank_add_at("last", gen_sine, 8000, 60, 0, 11025, smp_reg_v(2) + 64u);
         bank_seal();
         bank_attach();
-        check("a bank over the three windows: read, two samples", smp_user_scan() == 2);
+        check("a bank over the four windows: read, two samples", smp_user_scan() == 2);
         sm = smp_get(smp_factory());
         sprintf(what, "the seam's sample runs on into the next window (split at %u of %u)", sm ? sm->split : 0u,
                 sm ? sm->n : 0u);
         check(what, sm && sm->adp2 && sm->split > 0u && sm->split < sm->n && !(sm->split & 1u));
         smp_cache_reset(&c);
-        for (i = 0; sm && i < 30000; i++)
+        for (i = 0; sm && i < 20000; i++)
             if (smp_one(&c, sm, i) != fwd[i]) {
                 printf("    sample %d: %f, encoded %f\n", i, (double)smp_one(&c, sm, i), (double)fwd[i]);
                 ok2 = 0;
                 break;
             }
         smp_cache_reset(&c);
-        for (i = 29999; sm && ok2 && i >= 0; i--)    /* backwards: each window again from its checkpoint */
+        for (i = 19999; sm && ok2 && i >= 0; i--)    /* backwards: each window again from its checkpoint */
             if (smp_one(&c, sm, i) != fwd[i]) {
                 printf("    backwards, sample %d differs\n", i);
                 ok2 = 0;
@@ -532,12 +532,12 @@ static void sample_tests(void)
             bank_blk = SMP_BLK_V2;
             gen_hz = 300.0f;
             bank_reset();
-            bank_add_at("seam", gen_sine, 30000, 60, 0, 16000, at);
+            bank_add_at("seam", gen_sine, 20000, 60, 0, 16000, at);
             bank_seal();
             bank_attach();
             s2 = smp_user_scan() == 1 ? smp_get(smp_factory()) : 0;
             smp_cache_reset(&c2);
-            for (i = 29999; i >= 0 && s2; i--)
+            for (i = 19999; i >= 0 && s2; i--)
                 if (smp_one(&c2, s2, i) != fwd[i]) {
                     printf("    version 2, backwards, sample %d differs\n", i);
                     ok3 = 0;
@@ -548,7 +548,7 @@ static void sample_tests(void)
             gen_hz = 500.0f;
             bank_reset();
             gen_hz = 300.0f;
-            bank_add_at("seam", gen_sine, 30000, 60, 0, 16000, at);
+            bank_add_at("seam", gen_sine, 20000, 60, 0, 16000, at);
             gen_hz = 500.0f;
             bank_add_at("last", gen_sine, 8000, 60, 0, 11025, smp_reg_v(2) + 64u);
             bank_seal();
@@ -558,10 +558,10 @@ static void sample_tests(void)
         par[0][TP_E1] = (uint8_t)smp_factory();
         par[0][TP_E4] = SM_ONESHOT;
         stop = sample_run(60, 2.5f, &n);
-        sprintf(what, "and the engine plays it whole at 16 kHz: %d frames (%d)", stop, 30000 * 44100 / 16000);
-        check(what, abs(stop - 30000 * 44100 / 16000) < 200);
+        sprintf(what, "and the engine plays it whole at 16 kHz: %d frames (%d)", stop, 20000 * 44100 / 16000);
+        check(what, abs(stop - 20000 * 44100 / 16000) < 200);
         sm = smp_get(smp_factory() + 1);
-        check("a sample in the last window (PLAT_XDATA0) at 11025 Hz", sm && sm->rate == 11025 && sm->n == 8000 &&
+        check("a sample in the third window (PLAT_XDATA0) at 11025 Hz", sm && sm->rate == 11025 && sm->n == 8000 &&
                                                                    !sm->adp2);
         /* bounds: checkpoints across a seam, three windows for one sample, too long, the wrong size or version */
         bank_reset();

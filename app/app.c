@@ -31,8 +31,11 @@ _Static_assert(OBJ_NOBJ == 24 && OBJ_PROJ0 == 2, "the store map lists every obje
 _Static_assert(SMP_REG0 >= 0xC1000u && SMP_REG0 + SMP_REG0_SIZE <= 0xDC000u && SMP_REG0 >= PLAT_DATA_LO,
                "the user sample bank's first window between the project slots and the panel calibration");
 _Static_assert(SMP_REG1 == PLAT_XDATA1_LO && SMP_REG1 + SMP_REG1_SIZE == PLAT_XDATA1_HI &&
-               SMP_REG2 == PLAT_XDATA0_LO && SMP_REG2 + SMP_REG2_SIZE == PLAT_XDATA0_HI,
-               "the user sample bank's other windows: fm1-base's two extra windows, whole (plat.h)");
+               SMP_REG2 == PLAT_XDATA0_LO && SMP_REG2 + SMP_REG2_SIZE == PLAT_XDATA0_HI &&
+               SMP_REG3 == PLAT_XDATA3_LO && SMP_REG3 + SMP_REG3_SIZE == PLAT_XDATA3_HI,
+               "the user sample bank's other windows: fm1-base's three extra windows, whole (plat.h)");
+_Static_assert(SMP_REG1 + SMP_REG1_SIZE <= PLAT_SYS_LO && SMP_REG3 >= PLAT_SYS_HI,
+               "no window of the user sample bank touches PLAT_SYS (0xE7000..0xE9FFF: the SDK's VM and BTIF)");
 _Static_assert(SMP_HDR_USED <= SMP_BANK_HDR, "the bank's entries fit its header");
 
 /* no store object (the calibration, the presets, the projects: APP_STORE_MAP, two sectors each) in a window of the

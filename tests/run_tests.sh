@@ -66,7 +66,7 @@ fi
 run host-build sh build.sh --host
 run lookahead sh tests/host/lookahead_test.sh    # (needs the simulator just built)
 # a bank image larger than the bank's windows is refused by the simulator's loader (as the tool and the FM-1 refuse it)
-run bank-too-big sh -c "mkdir -p $OUT/big && head -c 221185 /dev/zero > $OUT/big.bin && \
+run bank-too-big sh -c "mkdir -p $OUT/big && head -c 208897 /dev/zero > $OUT/big.bin && \
     printf 'samples $OUT/big.bin\n' > $OUT/big.xy && ! $B/host/loom_host $OUT/big.xy $OUT/big > $OUT/big.out 2>&1 && \
     grep -q 'larger than' $OUT/big.out"
 if command -v emcc >/dev/null 2>&1 && command -v node >/dev/null 2>&1; then   # the browser build, when it can be built

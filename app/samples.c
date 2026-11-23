@@ -3,7 +3,7 @@
 /* LOOM-8's user sample bank over USB-MIDI SysEx (tools/loom_samples.py): F0 7D 46 4C cmd args.. F7, the
  * the framing X0X's and Felucca's editors also speak, 7-bit bytes, data packed 7 to 8 (a byte of high bits, then up
  * to seven bytes).
- * One bank (slot 0), 216 KB over three flash windows (dsp/sample.h SMP_REG*); an offset is virtual, through the
+ * One bank (slot 0), 204 KB over four flash windows (dsp/sample.h SMP_REG*); an offset is virtual, through the
  * windows end to end: a 2048-byte header (at 0xC1000), then the data.
  *   INFO        1                    -> "LOOM-8 <version>", 0 0 0 0 0 0
  *   SMP_BEGIN  11 slot               -> slot, rc     the bank's user samples vanish, its first sector is erased
@@ -39,7 +39,7 @@
  *                                       pre (14 bits) put on track trk (0-based), which is selected (USB MIDI in
  *                                       plays it); pre past the table: only the count. tools/preset_prof.py
  * rc: 0 ok, 1 size / offset, 2 erase, 3 write, 4 not begun (the bank is live), 5 header, 6 CRC, 7 no samples,
- * 8 an update record's mark ("AT" at 0xF06 of a sector in PLAT_XDATA0 / 1: the loader would erase it).
+ * 8 an update record's mark ("AT" at 0xF06 of a sector in PLAT_XDATA0 / 1 / 3: the loader would erase it).
  * Every frame is answered (the tool waits for each). The erases and writes run with the interrupts off a
  * sector or a page at a time (the audio drops out while a bank is written): fm1-base's plat_data_erase /
  * plat_data_write (the data area and its extra windows); the bank is read in place (plat_data). Part of the app's

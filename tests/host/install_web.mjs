@@ -113,18 +113,18 @@ console.log("installer: LOOM-8's sounds into the sample bank");
     same(now[2].adpcm, L.keptOf(FACTORY)[0].adpcm) && u.said.at(-1) === "LOOM-8 is installed, with its sounds.");
 }
 {
-  const img = oldBank([["big", 230000, 32000], ["small", 20000, 16000]]);   // 126 + 11 KB: + 86 does not fit
+  const img = oldBank([["big", 200000, 32000], ["small", 20000, 16000]]);   // 112 + 11 KB: + 86 does not fit (the bank holds 202)
   const dev = new Fake(img), was = L.keptOf(img);
   const { u } = await run(dev, "room");
   const now = L.keptOf(dev.image());
   check("2. no room: asked, \"Make room\" offered, naming the sample", u.asked.length === 1 &&
     u.asked[0].choices.join() === "room,skip,cancel" && /<b>big<\/b>/.test(u.asked[0].body) && !/<b>small<\/b>/.test(u.asked[0].body));
   check("   made room: big at 22 kHz, small kept byte for byte, the factory set after them",
-    now[0].name === "big" && now[0].rate === 22050 && Math.abs(now[0].n - 230000 * 22050 / 32000) < 4 &&
+    now[0].name === "big" && now[0].rate === 22050 && Math.abs(now[0].n - 200000 * 22050 / 32000) < 4 &&
     now[1].name === "small" && same(now[1].adpcm, was[1].adpcm) && now.slice(2).length === L.NFENT);
 }
 {
-  const img = oldBank([["huge", 252000, 11025]]);                         // 131 KB at 11 kHz already: + 86 does not fit
+  const img = oldBank([["huge", 198000, 11025], ["pad", 40000, 11025]]);   // 134 KB at 11 kHz already: + 86 does not fit
   const dev = new Fake(img);
   const { u, st } = await run(dev, "skip");
   check("3. no room at all: asked (install without them, or cancel), nothing sent",
@@ -145,7 +145,7 @@ console.log("installer: LOOM-8's sounds into the sample bank");
   const sent = dev.sent;
   const { u } = await run(dev, "cancel");
   check("5. the set already there: nothing asked, nothing sent again", sent === 1 && dev.sent === 1 && u.asked.length === 0);
-  const full = new Fake(oldBank([["big", 230000, 32000], ["small", 20000, 16000]]));
+  const full = new Fake(oldBank([["big", 200000, 32000], ["small", 20000, 16000]]));
   const { st } = await run(full, "cancel");
   check("   \"Cancel\": before returns false (the install stops), nothing sent", st === false && full.sent === 0);
 }
