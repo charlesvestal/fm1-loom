@@ -372,7 +372,7 @@ typedef struct {
 typedef struct synth synth_t;         /* opaque: dsp/synth.c */
 void synth_glfo_restart(synth_t *s);              /* the shared LFO from its start (the transport started) */
 float synth_glfo_now(const synth_t *s);            /* its value now, -1..1 (the page's picture) */
-#define SYNTH_BYTES 14848             /* room for the struct (checked at compile time in synth.c; about 13,990 B with
+#define SYNTH_BYTES 14912             /* room for the struct (checked at compile time in synth.c; about 13,990 B with
                                        * each track's character bus, 2026-11-23) */
 
 void synth_init(synth_t *s, uint8_t (*par)[NTP]);   /* par: the tracks' parameter arrays, NTRK + 1 of them (the conductor's, SY_GLFO_TRK: the shared LFO) */
@@ -409,7 +409,9 @@ void synth_render(synth_t *s, int v0, int v1, float *l, float *r, float *s1, flo
 void synth_split(synth_t *s, int on);
 /* a track's insert (TP_ITYPE) on a pair of its own: the kit's bus (engine.c, after its character); this block's knobs
  * (synth_prepare) */
-void synth_insert(synth_t *s, int trk, float *l, float *r, uint32_t n);
+void synth_insert_kick(synth_t *s, int trk, float *l, float *r, const float *kick, uint32_t n);   /* a kit's: its
+                                                  * rumble hears its kicks alone (drumline_render_kick), the others
+                                                  * the whole kit */
 int synth_insert_rings(synth_t *s, int trk, int sounding, uint32_t n);   /* a kit's insert: 1 while it sounds or its
                                                   * insert rings on after it (the echo's repeats, the rumble), counted
                                                   * in calls of n frames */

@@ -1257,7 +1257,8 @@ a type sets its knobs to their starting values. On a kit, the insert comes after
 
 Use rumble on a kick for the low, pumping tail under a techno beat. It smears the track with a delay on the
 offbeat and a big reverb, drives it hard, keeps it low, and ducks it on each hit so it swells back within the beat.
-On a kit, it takes the whole kit, so give the kick a kit track of its own for the cleanest rumble.
+On a kit, rumble hears only the kicks (the first key, and any key with the kick model), so the snare and hats stay
+out of it and only a kick starts its duck.
 
 Chorus, juno, echo and rumble need memory, which all the tracks' inserts share: four choruses, two echoes, an
 echo and two choruses, or a rumble and one chorus at once. When it runs out, the Insert page says "no memory" and which tracks hold it, and that insert

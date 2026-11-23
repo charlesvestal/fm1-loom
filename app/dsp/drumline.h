@@ -96,6 +96,9 @@ void drumline_filter(drumline_t *d, int type, int locut, int comp, int drive, in
 /* render n frames: dry L/R (through the dynamic filter when on) and sends (the track's TP_SEND*), added into
  * the buffers. Stack: about 400 bytes (three 32-sample sub-block buffers) */
 void drumline_render(drumline_t *d, float *l, float *r, float *s1, float *s2, uint32_t n);
+/* and the kicks alone (the first key, any key of the kick model: mono, before pan, the bus filter and the sends),
+ * added into kick: what a rumble insert on the kit hears */
+void drumline_render_kick(drumline_t *d, float *l, float *r, float *s1, float *s2, float *kick, uint32_t n);
 int drumline_sounding(const drumline_t *d);
 int drumline_voices(const drumline_t *d);              /* the voices sounding (the engine's core split) */
 extern volatile uint8_t drumline_hitv[DL_NSOUND];      /* the last hit of each sound, 255 = full (UI lets it fall) */

@@ -254,6 +254,7 @@ typedef struct {
     uint8_t iz_type;                  /* the type they are for (another: cleared) */
     int8_t pool_at;                   /* its insert's memory: its first slot of ins_pool (-1 none) */
     uint16_t ins_tail;                /* blocks its insert rings on once its voices are done (the echo's repeats) */
+    const float *ins_in;              /* a kit's rumble: its kicks alone, what it hears (synth_insert_kick; 0 the track) */
     uint8_t pool_n;                   /* how many */
 } trk_t;
 
@@ -4803,7 +4804,7 @@ static void ins_run(synth_t *s, trk_t *t, float *bl, float *br, uint32_t n)
             g[q] = in_exp2(-9.966f * (float)RB_LEN[q] / (SY_SR * (1.0f / 16.0f) * rt));
         dl = fm_clampf(beat * 0.5f * SY_SR * (1.0f / 16.0f), 16.0f, (float)(RB_DN - 2));
         for (uint32_t i = 0; i < n; i++) {
-            float x = 0.5f * (bl[i] + br[i]), ax = fm_fabsf(x), y, du;
+            float x = t->ins_in ? t->ins_in[i] : 0.5f * (bl[i] + br[i]), ax = fm_fabsf(x), y, du;
             a += kl * (x - a);
             b += kl * (a - b);
             sum += b;
@@ -5004,10 +5005,13 @@ void synth_bus_join(synth_t *s, float *l, float *r, float *s1, float *s2, uint32
     }
 }
 void synth_split(synth_t *s, int on) { s->split_on = (uint8_t)(on != 0); }
-void synth_insert(synth_t *s, int trk, float *l, float *r, uint32_t n)
+void synth_insert_kick(synth_t *s, int trk, float *l, float *r, const float *kick, uint32_t n)
 {
-    if (trk >= 0 && trk < NTRK && s->t[trk].ins != IT_OFF)
+    if (trk >= 0 && trk < NTRK && s->t[trk].ins != IT_OFF) {
+        s->t[trk].ins_in = s->t[trk].ins == IT_RUMBLE ? kick : 0;
         ins_run(s, &s->t[trk], l, r, n);
+        s->t[trk].ins_in = 0;
+    }
 }
 int synth_insert_rings(synth_t *s, int trk, int sounding, uint32_t n)
 {

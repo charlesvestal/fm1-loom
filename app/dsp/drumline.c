@@ -1957,6 +1957,10 @@ static void dynf_run(dynf_t *f, float *l, float *r, int m)
  * filters l / r in place) */
 void drumline_render(drumline_t *d, float *l, float *r, float *s1, float *s2, uint32_t n)
 {
+    drumline_render_kick(d, l, r, s1, s2, 0, n);
+}
+void drumline_render_kick(drumline_t *d, float *l, float *r, float *s1, float *s2, float *kick, uint32_t n)
+{
     uint32_t c, any = 0;
     int vi;
     for (vi = 0; vi < NDVOICE; vi++) {
@@ -2006,6 +2010,14 @@ void drumline_render(drumline_t *d, float *l, float *r, float *s1, float *s2, ui
                     pr[i] += x * gr;
                     p1[i] += x * gs1;
                     p2[i] += x * gs2;
+                }
+                if (kick && (v->sound == 0 || v->model == DM_KICK)) {   /* (the kicks again, alone: the first key or a
+                                                       * kick model, as the master's PUMP hears them) */
+                    float *pk = kick + c + o, a2 = v->att;
+                    for (i = 0; i < mm; i++) {
+                        pk[i] += t[i] * a2 * 0.70710678f;
+                        a2 = fm_minf(a2 + attk, 1.0f);
+                    }
                 }
                 v->gl = gl;
                 v->gr = gr;

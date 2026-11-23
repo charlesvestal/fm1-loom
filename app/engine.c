@@ -1051,6 +1051,7 @@ static float perc_l[STRETCH_MAX] POOL, perc_r[STRETCH_MAX] POOL, mel_l[STRETCH_M
 static float s1[STRETCH_MAX] POOL, s2[STRETCH_MAX] POOL;
 static float c2_l[STRETCH_MAX] POOL, c2_r[STRETCH_MAX] POOL, c2_s1[STRETCH_MAX] POOL, c2_s2[STRETCH_MAX] POOL;
 static float tl[STRETCH_MAX] POOL, tr[STRETCH_MAX] POOL, ts1[STRETCH_MAX] POOL, ts2[STRETCH_MAX] POOL;
+static float tk[STRETCH_MAX] POOL;                       /* a kit's kicks alone, for its rumble (synth_insert_kick) */
 static float mix_l[256] POOL, mix_r[256] POOL;
 /* the USB audio input's track channels (fm1.toml usb_audio_channels = 10: fm1-base plat_usb_ch): channels 3..10 are
  * tracks 1..8, each at its level and before its pan, after its sound's own filter and character, without the sends'
@@ -1348,9 +1349,13 @@ static void render_drums(uint32_t n)                    /* the drum tracks (the 
         zerof(tr, n);
         zerof(ts1, n);
         zerof(ts2, n);
-        drumline_render(DL(t), tl, tr, ts1, ts2, n);
+        if (epar[t][TP_ITYPE] == IT_RUMBLE) {             /* (its rumble hears the kicks alone) */
+            zerof(tk, n);
+            drumline_render_kick(DL(t), tl, tr, ts1, ts2, tk, n);
+        } else
+            drumline_render(DL(t), tl, tr, ts1, ts2, n);
         char_bus(&dl_ch[dl_slot[t]], epar[t], tl, tr, (int)n);   /* the kit's character, after its bus filter */
-        synth_insert(SY, t, tl, tr, n);                   /* and its insert (the keys' sends taken before both) */
+        synth_insert_kick(SY, t, tl, tr, tk, n);          /* and its insert (the keys' sends taken before both) */
         g = perf_mute[t] || !HOST_ON(t) ? 0.0f : tp_level_gain(epar[t][TP_LEVEL]);
         pan_gains(epar[t][TP_PAN] + perf_pan[t], &gl, &gr);
         glide_set(&trk_glide[t][GL_L], g * gl);
