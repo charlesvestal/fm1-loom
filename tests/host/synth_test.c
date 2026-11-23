@@ -118,9 +118,9 @@ static int note_test(const char *name, int t, float *peak_out, int level_check)
             block(N, &finite);
             if (fabs_f(L[0] - lastl) > 0.01f)
                 tail = 1.0f;
-            else {
-                for (int b2 = 0; b2 < 20; b2++)
-                    block(N, &finite);
+            else {                               /* (an insert's tail, the echo's or the rumble's: rung out by 10 s) */
+                for (int b2 = 0, lp = 1; b2 < 20 || (b2 < 172 * 10 && lp); b2++)
+                    lp = block(N, &finite) > 1e-3f;
                 tail = 0.0f;
                 for (i = N - 16; i < N; i++)
                     if (fabs_f(L[i]) > tail)
@@ -130,7 +130,7 @@ static int note_test(const char *name, int t, float *peak_out, int level_check)
         }
     }
     ok = finite && (pk > 0.0316f || !level_check) && pk <= 1.0f && !synth_sounding(S, 0, NVOICE) && tail < 1e-3f;
-    if (!ok)
+    if (!ok || getenv("PRESET_PEAKS"))
         printf("    %s: peak %.1f dBFS finite %d sounding %d tail %g\n", name, (double)db(pk), finite,
                synth_sounding(S, 0, NVOICE), (double)tail);
     *peak_out = pk;
@@ -2128,6 +2128,40 @@ static void insert_tests(void)
         }
         printf("    echo: the voice done at block %d, its repeats after it up to %.3f\n", ended, (double)late);
         check("echo: its repeats go on after the note's voice has ended", ended > 0 && late > 0.005f && finite);
+        {   /* rumble: a short low note, then its tail after the voice has ended: low (few zero crossings) */
+            int zc = 0, nn = 0;
+            float prev = 0.0f;
+            late = 0.0f, ended = 0;
+            reset();
+            par[0][TP_A] = 0;
+            par[0][TP_D] = 30;
+            par[0][TP_S] = 0;
+            par[0][TP_R] = 10;
+            par[0][TP_ITYPE] = IT_RUMBLE;
+            for (int q = TP_I1; q <= TP_I3; q++)
+                par[0][q] = tp_info_par(q, par[0])->def;
+            synth_init(S, par);
+            synth_tempo(S, 120.0f);
+            synth_note_on(S, 0, 36, 120, 0, 1);
+            block(N, &finite);
+            synth_note_off(S, 0, 1);
+            for (int b = 0; b < 200; b++) {
+                float pk = block(N, &finite);
+                if (!synth_sounding(S, 0, NVOICE) && !ended)
+                    ended = b;
+                if (ended && b > ended + 20 && b < ended + 120) {
+                    late = pk > late ? pk : late;
+                    for (int i = 0; i < N; i++, nn++) {
+                        zc += (L[i] > 0.0f) != (prev > 0.0f);
+                        prev = L[i];
+                    }
+                }
+            }
+            printf("    rumble: its tail up to %.3f, %.0f zero crossings a second\n", (double)late,
+                   nn ? (double)zc * 44100.0 / (double)nn : 0.0);
+            check("rumble: a low tail goes on after the note's voice has ended",
+                  ended > 0 && late > 0.005f && late < 2.0f && nn && zc * 44100 / nn < 1000 && finite);
+        }
         reset();
         for (int t = 0; t < 5; t++) {
             par[t][TP_ITYPE] = IT_CHORUS;

@@ -4354,7 +4354,8 @@ static int16_t ins_pool[INS_SLOTS][INS_SLOT_N];
 #else
 static int16_t ins_pool[INS_SLOTS][INS_SLOT_N] __attribute__((section(".pool")));
 #endif
-static inline int ins_slots(int type) { return type == IT_CHORUS || type == IT_JUNO ? 1 : type == IT_ECHO ? 2 : 0; }
+static __attribute__((noinline)) float rb_decay(float k) { return 0.4f * fm_exp2f(k * (4.3f / 127.0f)); }   /* rumble's RT60: 0.4 .. 8 s */
+static inline int ins_slots(int type) { return type == IT_CHORUS || type == IT_JUNO ? 1 : type == IT_ECHO || type == IT_RUMBLE ? 2 : 0; }
 static void ins_alloc(synth_t *s)
 {
     uint8_t used = 0;
@@ -4478,6 +4479,8 @@ static void bus_prepare(synth_t *s, uint32_t n)
                 float fb = t->ins_k[1] * (0.95f / 127.0f), d = BT[(int)t->ins_k[0] & 7] * 60.0f / fm_maxf(s->bpm, 20.0f);
                 sec = fm_minf(d * (1.0f + (fb > 0.01f ? 3.0f / -fm_log2f(fb) * 3.3219f : 1.0f)), 8.0f);
             }
+            if (t->ins == IT_RUMBLE)             /* (its decay) */
+                sec = rb_decay(t->ins_k[0]);
             t->ins_tail = (uint16_t)(sec * SY_SR / (float)(n ? n : 256u) + 1.0f);
             continue;
         }
@@ -4527,6 +4530,8 @@ static __attribute__((noinline)) float ap_coef(float hz)   /* a first-order allp
     return (w - 1.0f) / (w + 1.0f);
 }
 static __attribute__((noinline)) float op_coef(float hz) { return 1.0f - fm_expf(-FM_TWO_PI * hz * INV_SR); }   /* a one-pole's */
+/* rumble's four lines (at an eighth of the rate: 5.5 kHz), mutually prime, in its two slots (2048) */
+static const int16_t RB_LEN[4] = {293, 401, 503, 613}, RB_AT[4] = {0, 293, 694, 1197};
 static const float UV_R[4] = {1.0f, 0.068f, 0.032f, 3.19f};   /* the univibe's stages: its four caps' ratios */
 /* a track's insert on its pair (synth.h IT_*), after the stage, 16 frames at a time (their coefficients at each's
  * start). tremolo: each side's gain 1 - depth (1 + sin) / 2, the right side's sine pan half a cycle on at the top (an
@@ -4761,6 +4766,52 @@ static void ins_run(synth_t *s, trk_t *t, float *bl, float *br, uint32_t n)
             br[i] += wet * last;
         }
         z[0] = (float)w, z[1] = fm_flush(lp), z[2] = fm_flush(last), z[3] = a, z[4] = (float)odd;
+        break;
+    }
+    case IT_RUMBLE: {                            /* z[0..3] the lines' places, z[4] the eighth's sum, z[5] its count,
+                                                  * z[6..7] the low-pass in, z[8..9] the last two ticks' outputs, z[10] the
+                                                  * level (the duck), z[11] the low-pass out. A Hadamard feedback network
+                                                  * of four lines at 5.5 kHz (its decay: each line's gain), its output
+                                                  * saturated, ducked by the track's level (3 ms up, 150 ms down) */
+        int16_t *ln = t->pool_at >= 0 ? ins_pool[(int)t->pool_at] : 0;
+        const float rt = rb_decay(t->ins_k[0]), fc = 40.0f * in_exp2(k1 * 3.32f), kl = op_coef(fc),
+                    ko = op_coef(fc * 1.5f), wet = k2 * 1.6f, rel = 1.0f - op_coef(1.0f / 0.15f);
+        float g[4], a = z[6], b = z[7], sum = z[4], y0 = z[8], y1 = z[9], env = z[10], o = z[11];
+        int cnt = (int)z[5];
+        if (!ln)
+            break;
+        for (int q = 0; q < 4; q++)              /* (-60 dB in rt: 10^(-3 len / (sr/8 rt))) */
+            g[q] = in_exp2(-9.966f * (float)RB_LEN[q] / (SY_SR * 0.125f * rt));
+        for (uint32_t i = 0; i < n; i++) {
+            float x = 0.5f * (bl[i] + br[i]), ax = fm_fabsf(x), y, du;
+            a += kl * (x - a);
+            b += kl * (a - b);
+            sum += b;
+            env = ax > env ? env + 0.2f * (ax - env) : env * rel;
+            if (++cnt == 8) {                    /* a tick of the network */
+                float v[4], h0, h1, h2, h3, in = sum;   /* (the eighth's sum: its mean, eight times) */
+                for (int q = 0; q < 4; q++)
+                    v[q] = (float)ln[RB_AT[q] + (int)z[q]] * (1.0f / 8192.0f);
+                h0 = v[0] + v[1], h1 = v[0] - v[1], h2 = v[2] + v[3], h3 = v[2] - v[3];
+                v[0] = 0.5f * (h0 + h2), v[1] = 0.5f * (h1 + h3), v[2] = 0.5f * (h0 - h2), v[3] = 0.5f * (h1 - h3);
+                for (int q = 0; q < 4; q++) {
+                    int p = (int)z[q];
+                    ln[RB_AT[q] + p] = (int16_t)fm_clampf((in + g[q] * v[q]) * 8192.0f, -32767.0f, 32767.0f);
+                    z[q] = (float)(p + 1 < RB_LEN[q] ? p + 1 : 0);
+                }
+                y0 = y1;
+                y1 = soft3(1.5f * (v[0] + v[1] + v[2] + v[3]));   /* (saturated: the rumble's grit) */
+                sum = 0.0f, cnt = 0;
+            }
+            y = y0 + (y1 - y0) * (float)cnt * 0.125f;
+            o += ko * (y - o);
+            du = 1.0f - fm_minf(env * 4.0f, 1.0f);
+            du *= du;
+            bl[i] += wet * du * o;
+            br[i] += wet * du * o;
+        }
+        z[4] = sum, z[5] = (float)cnt, z[6] = fm_flush(a), z[7] = fm_flush(b), z[8] = fm_flush(y0), z[9] = fm_flush(y1);
+        z[10] = fm_flush(env), z[11] = fm_flush(o);
         break;
     }
     default:
@@ -5043,7 +5094,7 @@ static const tp_info_t ROPS_P[4] = {{"ops", 0, NRO - 1, RO_OFF, PK_NAMES, RO_N},
 static const tp_info_t KANALOG_P = {"analog", 0, 127, 0, PK_NN, 0};
 /* the insert (synth.h IT_*): its type, and its knobs as each type names them (any type's ranges: tp_info) */
 static const char *const ITYPE_N[NIT] = {"off", "tremolo", "phaser", "univibe", "rat", "autowah", "chorus", "echo",
-                                         "juno"};
+                                         "juno", "rumble"};
 static const char *const JUNO_N[3] = {"I", "II", "I+II"};
 static const char *const ECHO_T_N[8] = {"1/32", "1/16T", "1/16", "1/8T", "1/16D", "1/8", "1/8D", "1/4"};
 static const tp_info_t ITYPE_P = {"insert", 0, NIT - 1, IT_OFF, PK_NAMES, ITYPE_N};
@@ -5057,7 +5108,8 @@ static const tp_info_t INS_P[NIT][3] = {
     {{"sense", 0, 127, 80, PK_NN, 0}, {"reso", 0, 127, 70, PK_NN, 0}, {"decay", 0, 127, 50, PK_NN, 0}},
     {{"rate", 0, 127, 30, PK_HZ_SYNC, 0}, {"depth", 0, 127, 70, PK_PCT, 0}, {"mix", 0, 127, 64, PK_PCT, 0}},
     {{"time", 0, 7, 5, PK_NAMES, ECHO_T_N}, {"feedback", 0, 127, 60, PK_PCT, 0}, {"mix", 0, 127, 45, PK_PCT, 0}},
-    {{"mode", 0, 2, 0, PK_NAMES, JUNO_N}, {"mix", 0, 127, 64, PK_PCT, 0}, {"tone", 0, 127, 70, PK_NN, 0}}};
+    {{"mode", 0, 2, 0, PK_NAMES, JUNO_N}, {"mix", 0, 127, 64, PK_PCT, 0}, {"tone", 0, 127, 70, PK_NN, 0}},
+    {{"decay", 0, 127, 80, PK_NN, 0}, {"tone", 0, 127, 50, PK_NN, 0}, {"mix", 0, 127, 70, PK_PCT, 0}}};
 static const tp_info_t TULLE_G_P[4] = {{"shape", 0, 127, 0, PK_NN, 0}, {"reverse", 0, 127, 0, PK_PCT, 0},
                                        {"-", 0, 0, 0, PK_NUM, 0}, {"-", 0, 0, 0, PK_NUM, 0}};
 static const tp_info_t KMOD_P[4] = {{"sync", 0, 1, 0, PK_SWITCH, 0}, {"sweep", 0, KSWEEP_MAX, 0, PK_SEMI, 0},

@@ -74,7 +74,7 @@ static uint8_t old_arp(uint8_t v) { return v == LOCK_NONE ? v : v > 8u ? 10u : (
 static const uint8_t OLD_OCT[25] = {15, 11, 7, 14, 10, 6, 13, 9, 5, 12, 8, 4, 0, 1, 2, 3, 5, 6, 7, 9, 10, 11, 13, 14, 15};
 typedef char settings_head_fits[(SET_HDR + 4u + 64u <= PLAT_STORE_MAX && SET_OLD == 3804u) ? 1 : -1];   /* (format 14's size) */
 typedef char trk_layout[(offsetof(trk_t, name) == NTP && sizeof(trk_t) == NTP + NAME_LEN + 4u) ? 1 : -1];
-typedef char preset_packed[(sizeof(user_preset_t) == NAME_LEN + 13u + NTP_SOUND) ? 1 : -1];   /* (no padding) */
+typedef char preset_packed[(sizeof(user_preset_t) == NAME_LEN + 17u + NTP_SOUND) ? 1 : -1];   /* (no padding) */
 #define PRESET_OLD (NAME_LEN + 1u + NTP_SOUND)                    /* formats 6..8: a user preset without its fine */
 #define PRESET_V11 (NAME_LEN + 2u + NTP_SOUND)                    /* 9..11: without osc 2's wave and shape */
 #define PRESET_V12 (NAME_LEN + 4u + NTP_SOUND)                    /* 12: without knit's Mod page */

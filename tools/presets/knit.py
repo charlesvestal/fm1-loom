@@ -102,3 +102,74 @@ P("old strings", "strings", "knit", knobs=dict(wave=64, detune=20, voices=3, wid
 P("old lead", "lead", "knit", knobs=dict(wave=0, detune=0, voices=1, width=0), mode="legato", glide=20,
   volume=88, amp=(2, 70, 110, 50), fenv=(0, 72, 40, 60), filter=("ladder", 70, 50, 80, 64), sends=(20, 20),
   x=(64, 0, 40, 0), lfo=("wobble", 92, 74, 64, 30, 0), analog=100, genres=("synthpop",))
+# --- dance music (2026-11-25): the Juno's chorus (insert juno: mode 0 I, 1 II, 2 I+II; mix; tone), rumble, grit ---
+# the Juno pad: one square, the LFO on its width, analog, chorus II over it
+P("juno pad", "pad", "knit", knobs=dict(wave=64, detune=10, voices=1, width=0), volume=82,
+  amp=(70, 90, 120, 90), fenv=(0, 64, 0, 64), filter=("lp24", 74, 10, 64, 64), sends=(0, 35),
+  lfo=("wave", 34, 70, "synth free", 0, 1), analog=60, insert=("juno", 1, 80, 70), genres=("house", "synthpop"))
+# the Juno's brass: one saw, the filter's swell, chorus I
+P("juno brass", "brass", "knit", knobs=dict(wave=0, detune=10, voices=1, width=0), volume=80,
+  amp=(40, 80, 115, 64), fenv=(45, 80, 60, 64), filter=("lp24", 60, 15, 90, 64), sends=(0, 20), analog=60,
+  insert=("juno", 0, 70, 80), genres=("synthpop", "house"))
+# the Juno's bass: a pulse, the square sub, a short resonant pluck, a little chorus I
+P("juno bass", "bass", "knit", knobs=dict(wave=90, detune=0, voices=1, width=0), mode="mono", volume=104,
+  amp=(0, 74, 90, 30), fenv=(0, 52, 10, 40), filter=("lp24", 52, 30, 90, 40), x=(64, 0, 60, 0),
+  mod=(False, 0, 0, "square"), analog=40, insert=("juno", 0, 40, 60), genres=("house", "synthpop"))
+# the Juno's strings: one saw, slow in and out, chorus II at the top
+P("juno str", "strings", "knit", knobs=dict(wave=0, detune=15, voices=1, width=0), volume=74,
+  amp=(70, 90, 120, 96), fenv=(0, 64, 0, 64), filter=("lp24", 82, 0, 64, 64), sends=(0, 45), analog=70,
+  insert=("juno", 1, 100, 60), genres=("synthpop", "lofi", "house"))
+# the hoover: three wide squares, the LFO on their width, gliding, chorus II full and bright, driven
+P("hoover", "lead", "knit", knobs=dict(wave=64, detune=45, voices=3, width=100), mode="legato", glide=34,
+  volume=70, amp=(0, 70, 118, 60), fenv=(0, 64, 0, 64), filter=("lp24", 96, 10, 64, 64), sends=(0, 25),
+  lfo=("wave", 74, 80, "synth free", 0, 1), char=("drive", 40, 80, 127), insert=("juno", 1, 127, 110),
+  genres=("techno", "dnb"))
+# the deep house chord: hollow, two voices, the filter's soft pluck, analog, chorus II, a delay throw
+P("deep stab", "stab", "knit", knobs=dict(wave=40, detune=20, voices=2, width=80), volume=70,
+  amp=(0, 80, 40, 70), fenv=(0, 62, 10, 60), filter=("lp24", 56, 20, 96, 64), sends=(35, 30), analog=70,
+  insert=("juno", 1, 70, 50), genres=("house", "garage"))
+# the dub techno chord: a short resonant saw into a long tape echo (1/8D), then the room
+P("dub chord", "stab", "knit", knobs=dict(wave=20, detune=15, voices=1, width=0), volume=86,
+  amp=(0, 66, 0, 50), fenv=(0, 56, 0, 45), filter=("lp24", 60, 40, 80, 64), sends=(0, 40), analog=50,
+  insert=("echo", 6, 95, 70), genres=("techno", "house"))
+# the techno rumble: a short low thump under the kick (play it with the kick), the rumble insert's dark tail after it
+P("rumble", "bass", "knit", knobs=dict(wave=0, detune=0, voices=1, width=0), mode="mono", volume=86,
+  amp=(0, 58, 0, 40), fenv=(0, 64, 0, 40), filter=("lp24", 34, 0, 64, 40), x=(64, 0, 60, 0),
+  insert=("rumble", 90, 30, 100), genres=("techno",))
+# a techno stab: two saws, a short pluck through the RAT
+P("rat stab", "stab", "knit", knobs=dict(wave=0, detune=20, voices=2, width=60), volume=96,
+  amp=(0, 64, 0, 50), fenv=(0, 56, 0, 40), filter=("lp24", 66, 30, 90, 64), sends=(30, 25),
+  insert=("rat", 60, 60, 95), genres=("techno",))
+# a hypnotic line: a square on the ladder, half open, a slow phaser turning it
+P("hypnotic", "pluck", "knit", knobs=dict(wave=64, detune=0, voices=1, width=0), mode="mono", volume=120,
+  amp=(0, 72, 40, 40), fenv=(0, 60, 0, 40), filter=("ladder", 66, 70, 80, 64), sends=(40, 20), analog=40,
+  insert=("phaser", 20, 90, 60), genres=("techno",))
+# a noise burst: noise through a resonant high-pass and the RAT, into the room
+P("noise burst", "fx", "knit", knobs=dict(wave=0, detune=0, voices=1, width=0), volume=90,
+  amp=(0, 60, 0, 50), fenv=(0, 64, 0, 64), filter=("hp12", 80, 40, 64, 64), sends=(0, 40), x=(64, 0, 0, 127),
+  insert=("rat", 90, 40, 70), genres=("techno", "dnb"))
+# a neuro bass: osc 2 on osc 1's frequency, folded, an autowah your playing opens
+P("neuro", "bass", "knit", knobs=dict(wave=0, detune=0, voices=1, width=0), mode="mono", volume=92,
+  amp=(0, 80, 110, 36), fenv=(0, 64, 0, 40), filter=("lp24", 90, 10, 64, 40), x=(71, 0, 60, 0),
+  osc2=("sine", 0, 64), mod=(False, 0, 70, "sine"), char=("fold", 60, 64, 127), insert=("autowah", 100, 90, 40),
+  genres=("dnb",))
+# a dirty Reese: three saws beating, analog, driven, a slow phaser sweeping through them, the sub under it
+P("dirty reese", "bass", "knit", knobs=dict(wave=0, detune=55, voices=3, width=20), mode="mono", volume=84,
+  amp=(0, 64, 127, 40), fenv=(0, 64, 0, 40), filter=("lp24", 66, 10, 64, 40), x=(64, 0, 50, 0), analog=60,
+  char=("drive", 50, 80, 127), insert=("phaser", 15, 80, 50), genres=("dnb", "techno"))
+# a liquid pad: three soft saws wide, analog, chorus I, the room
+P("liquid pad", "pad", "knit", knobs=dict(wave=0, detune=30, voices=3, width=100), volume=74,
+  amp=(80, 90, 120, 100), fenv=(0, 64, 0, 64), filter=("lp24", 72, 5, 64, 64), sends=(0, 55), analog=70,
+  insert=("juno", 0, 80, 60), genres=("dnb", "house"))
+# the rave stab: three wide squares and their octave, a snappy filter, chorus II bright
+P("rave stab", "stab", "knit", knobs=dict(wave=64, detune=30, voices=3, width=100), volume=68,
+  amp=(0, 70, 0, 60), fenv=(0, 64, 0, 50), filter=("lp24", 80, 20, 90, 64), sends=(25, 30), x=(76, 60, 0, 0),
+  insert=("juno", 1, 100, 100), genres=("dnb", "techno"))
+# a deep house bass: one saw on the ladder, analog well up, the sub, a little drive
+P("deep bass", "bass", "knit", knobs=dict(wave=0, detune=0, voices=1, width=0), mode="mono", volume=104,
+  amp=(2, 80, 100, 40), fenv=(0, 60, 10, 40), filter=("ladder", 50, 30, 70, 40), x=(64, 0, 50, 0), analog=80,
+  char=("drive", 40, 64, 127), genres=("house",))
+# a gliding sub: the sine sub alone (the saw filtered away), driven for its harmonics, legato
+P("sub glide", "bass", "knit", knobs=dict(wave=0, detune=0, voices=1, width=0), mode="legato", glide=25,
+  volume=110, amp=(2, 80, 120, 40), fenv=(0, 64, 0, 40), filter=("lp24", 24, 0, 64, 40), x=(64, 0, 127, 0),
+  char=("drive", 50, 64, 127), genres=("dnb",))

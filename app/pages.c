@@ -5981,7 +5981,7 @@ static void draw_insert(void)
                                            "notches that sweep", "a lamp-swept phase",
                                            "a pedal's distortion", "a filter your playing opens",
                                            "two voices swaying apart", "a tape's fading repeats",
-                                           "the Juno's chorus"};
+                                           "the Juno's chorus", "a low, dark tail, ducked"};
     int trk = inst_trk();
     const uint8_t *p = par_now(trk);
     int it = p[TP_ITYPE] % NIT;
@@ -6004,7 +6004,7 @@ static void draw_insert(void)
         int n = 0;
         for (int k = 0; k < NTRK; k++)
             if (k != trk && (proj.trk[k].par[TP_ITYPE] == IT_CHORUS || proj.trk[k].par[TP_ITYPE] == IT_ECHO ||
-                             proj.trk[k].par[TP_ITYPE] == IT_JUNO))
+                             proj.trk[k].par[TP_ITYPE] == IT_JUNO || proj.trk[k].par[TP_ITYPE] == IT_RUMBLE))
                 e = s_cat(s_cat(e, n++ ? " " : ""), TRACK_NAME[k]);
         cv_text(12, 74, &FONT_XS, t, K_TEXT);
     }
@@ -6064,6 +6064,20 @@ static void draw_insert(void)
             int32_t bh = (int32_t)(lv * (float)(hh - 12));
             cv_rect(x0 + x, y0 + hh - 4 - bh, 3, bh, x ? K_NOW : K_DIM);
             lv = (x ? lv : mix) * (x ? fb : 1.0f);
+        }
+    } else if (it == IT_RUMBLE) {                    /* the hit, then the low tail rising as the duck lets go and
+                                                      * fading by its decay (2 s across), its waves slower lower */
+        float rt = 0.4f * fm_exp2f((float)p[TP_I1] * (4.3f / 127.0f)), mix = (float)p[TP_I3] / 127.0f;
+        float cyc = 3.0f + 9.0f * (float)p[TP_I2] / 127.0f;
+        pen_t pt = {0}, pb = {0};
+        int32_t cy = y0 + hh / 2;
+        cv_rect(x0, cy, w, 1, K_LINE);
+        cv_rect(x0, y0 + 4, 3, hh - 8, K_DIM);
+        for (int32_t i = 4; i <= w; i++) {
+            float tt = 2.0f * (float)(i - 4) / (float)(w - 4), du = fm_minf(tt * 8.0f, 1.0f);
+            float a = mix * du * du * fm_exp2f(-9.966f * tt / rt) * (float)(hh / 2 - 6), wv = fm_sin_turns(tt * cyc);
+            pen_to(&pt, (float)(x0 + i), (float)cy - a * wv, K_NOW);
+            pen_to(&pb, (float)(x0 + i), (float)cy + a * wv * 0.6f, K_FAINT);
         }
     } else if (it == IT_RAT) {                       /* the clip's curve at its gain, the dry line faint */
         float g = 1.0f + 60.0f * (float)p[TP_I1] / 127.0f, top;

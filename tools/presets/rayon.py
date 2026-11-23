@@ -85,3 +85,7 @@ P("metal hit", "fx", "rayon", knobs=dict(bright=80, ratio=ratio(3.5), edge=20, t
 P("bell layer", "bell", "rayon", knobs=dict(bright=40, ratio=ratio(1), edge=0, tine=0), volume=82,
   amp=(0, 104, 0, 96), fenv=(0, 64, 0, 64), filter=("lp24", 120, 0, 64, 64), sends=(10, 45), x=(90, 15, 40, 0),
   ops=("layer", 3.46, 70, 0), genres=("lofi",))
+# the house organ bass: 2:1, bright and falling fast, the classic early-90s house bass line
+P("house organ", "bass", "rayon", knobs=dict(bright=70, ratio=ratio(2.0), edge=20, tine=0), mode="mono", volume=100,
+  amp=(0, 74, 60, 40), fenv=(0, 64, 0, 40), filter=("lp24", 100, 0, 64, 40), x=(40, 40, 50, 0), octave=-1,
+  genres=("house", "garage"))

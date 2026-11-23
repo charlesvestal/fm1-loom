@@ -112,7 +112,7 @@ second.
 - **Song**: a chain of scenes, each played for a number of bars.
 - **Engine**: the way a track makes its sound. There are nine synths (knit, rayon, jacquard, bellows, tartan, cane,
   lace, voile and acid), three sample engines (sample, slice and tulle) and the kit, a drum synth.
-- **Preset**: a sound to load. 161 come with LOOM-8, from seven to twenty-three for each engine, and 16 are your own.
+- **Preset**: a sound to load. 169 come with LOOM-8, from seven to forty for each engine, and 16 are your own.
 - **Player**: what the keys do on a track: arp, strum, hold or random.
 - **Conductor**: an aux track that sets the key, scale and chords for the other tracks. It plays its own chords,
   or takes them from a track's notes.
@@ -634,6 +634,11 @@ in pitch, brightness and envelope, the edges of the wave get softer, and the sou
 filter. At 0, knit is exact. To hear what osc 2 does, try the presets fifth lead, pulse bass, chime keys and reed pad,
 and for analog, warm poly, old strings and old lead. Knit's Play and Play 2 pages come last, after Levels, and Play 2
 has the track's volume, as on the other engines.
+
+Some of knit's presets come with an insert. The Juno-style ones (juno pad, juno brass, juno bass, juno str) carry the
+juno chorus, and so do hoover, deep stab, liquid pad and rave stab. Dub chord carries a tape echo, rat stab and noise
+burst the RAT, hypnotic and dirty reese a phaser, neuro an autowah. Rumble is for techno: put it on its own track
+and play a low note with each kick, and its rumble insert rings on under the beat.
 
 A wide unison costs more than an ordinary voice, so knit plays at most six voices, or five when its unison is set
 to seven. A new note beyond that takes over the oldest one.
@@ -1247,11 +1252,17 @@ a type sets its knobs to their starting values. On a kit, the insert comes after
 | autowah | Sensitivity: how far your playing opens the filter. | Resonance. | Decay: how slowly it closes again. |
 | chorus | The rate, as tremolo's. | The depth. | Mix. Two copies sway against each other, one on each side, as in the Juno's chorus. |
 | echo | The time: 1/32, 1/16T, 1/16, 1/8T, 1/16D, 1/8, 1/8D or 1/4, at the song's tempo. | Feedback: more repeats. Each repeat comes back darker and a little saturated, with a slight wow, like tape. | Mix: how loud the repeats are. |
+| juno | Mode: I, II or I+II, the Juno-60's three buttons: I slow and gentle, II faster and deeper, I+II a quick shimmer. | Mix. | Tone: turned down, the chorused copies are darker, like the Juno's bucket-brigade chips. |
+| rumble | Decay: how long the tail rings, from under half a second to eight seconds. | Tone: how low it is, from a sub-bass rumble at 0 to a darker boom turned up. | Mix: how loud the tail is. |
 
-Chorus and echo need memory, which all the tracks' inserts share: four choruses, two echoes, or an echo and two
-choruses at once. When it runs out, the Insert page says "no memory" and which tracks hold it, and that insert
+Use rumble on a kick for the low, ringing tail under a techno beat. It is a reverb of the track kept below
+400 Hz and a little saturated, and it ducks while the track plays, so each kick comes through clean and the tail
+swells between them.
+
+Chorus, juno, echo and rumble need memory, which all the tracks' inserts share: four choruses, two echoes or
+rumbles, or one of those and two choruses at once. When it runs out, the Insert page says "no memory" and which tracks hold it, and that insert
 passes the sound through unchanged until one of them is turned off or changed. At a slow tempo an echo can't reach
-the longer times, and it stays at about 370 ms. When you stop playing, an echo's repeats ring out.
+the longer times, and it stays at about 370 ms. When you stop playing, an echo's repeats and a rumble's tail ring out.
 
 You can lock the insert's knobs on a step, and COPY SOUND carries the insert with the rest of the sound.
 
