@@ -70,6 +70,19 @@ typedef char raw_fits[(RAW_LEN < 0x100000u) ? 1 : -1];   /* (lz.c packs up to 16
  * synth.h's order), the delay's times 1/32 1/32D 1/16 1/16D 1/8 1/8D 1/4 1/2 (the knob in eighths; now fx.h's, in tenths: 1/2,
  * which the line always halved, to 1/4: each the knob at the middle of its new tenth) */
 static const uint8_t OLD_DLY[8] = {6, 32, 44, 70, 83, 108, 121, 121};
+static uint8_t old_repeats(uint8_t v)            /* a delay's REPEATS before 27 (0.95 v / 127) as the knob now */
+{
+    float fb = 0.95f * (float)(v > 127 ? 127 : v) * (1.0f / 127.0f), best = 2.0f;
+    uint8_t r = 0;
+    for (int k = 0; k < 127; k++) {
+        float d = fx_delay_fb(k) - fb;
+        if (d < 0.0f)
+            d = -d;
+        if (d < best)
+            best = d, r = (uint8_t)k;
+    }
+    return r;
+}
 static uint8_t old_arp(uint8_t v) { return v == LOCK_NONE ? v : v > 8u ? 10u : (uint8_t)(v + (v > 0u) + (v > 2u)); }
 static const uint8_t OLD_OCT[25] = {15, 11, 7, 14, 10, 6, 13, 9, 5, 12, 8, 4, 0, 1, 2, 3, 5, 6, 7, 9, 10, 11, 13, 14, 15};
 typedef char settings_head_fits[(SET_HDR + 4u + 64u <= PLAT_STORE_MAX && SET_OLD == 3804u) ? 1 : -1];   /* (format 14's size) */
@@ -201,6 +214,8 @@ static void aux_defaults(void)
     proj.trk[AUX_FX2].par[TP_CUT] = 127;
     proj.trk[AUX_FX2].par[TP_FENV] = 52;                 /* the reverb from 230 Hz: the kick and the bass stay dry */
     proj.trk[AUX_FX1].par[TP_FX_WIDTH] = proj.trk[AUX_FX2].par[TP_FX_WIDTH] = 127;   /* the delay's bounce: full */
+    for (k = AUX_FX1; k <= AUX_FX2; k++)
+        proj.trk[k].par[TP_FX_WOBBLE] = proj.trk[k].par[TP_FX_SMEAR] = 0;
 }
 
 /* a new band: T2-T8 each a random factory preset of a part, so a project starts as one: a bass, a polyphonic synth,
@@ -871,6 +886,13 @@ int project_load(int slot)
                 if (fx_pick_type(proj.trk[t].par[TP_ENGINE] % NFXPICK) == FXT_DELAY)
                     proj.trk[t].par[TP_E1] = OLD_DLY[(proj.trk[t].par[TP_E1] & 127u) >> 4];
         }
+        if (load_format < 27u)                        /* (before 27 no WOBBLE or SMEAR, and REPEATS was the feedback
+                                                       * 0.95 x / 127: the value now nearest it, as it sounded) */
+            for (int t = AUX_FX1; t <= AUX_FX2; t++) {
+                proj.trk[t].par[TP_FX_WOBBLE] = proj.trk[t].par[TP_FX_SMEAR] = 0;
+                if (fx_pick_type(proj.trk[t].par[TP_ENGINE] % NFXPICK) == FXT_DELAY)
+                    proj.trk[t].par[TP_E3] = old_repeats(proj.trk[t].par[TP_E3]);
+            }
         if (load_format < 14u)                        /* (before 14, off (FT_DYNAMIC) sat at 4 and bp12 at 5: swap) */
             for (int t = 0; t < NTRK; t++) {
                 uint8_t ft = proj.trk[t].par[TP_FTYPE];
@@ -1232,7 +1254,7 @@ void project_apply(void)
         engine_set_all(t);
     for (k = 0; k < 2; k++) {
         const uint8_t *p = proj.trk[AUX_FX1 + k].par;
-        engine_fx(k, p[TP_ENGINE], p + TP_E1, p[TP_FENV], p[TP_CUT], p[TP_FX_WIDTH]);
+        engine_fx(k, p[TP_ENGINE], p + TP_E1, p[TP_FENV], p[TP_CUT], p[TP_FX_WIDTH], p[TP_FX_WOBBLE], p[TP_FX_SMEAR]);
     }
     for (k = 0; k < NMS; k++)
         engine_master(k, proj.master[k]);

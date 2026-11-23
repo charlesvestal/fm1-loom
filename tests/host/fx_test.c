@@ -948,7 +948,8 @@ int main(void)
          * where it was, but for the lines' rounding (a noise burst, then its tail; the send a block late) */
         static float xa[SR * 3], ya_l[SR * 3], ya_r[SR * 3], yb_l[SR * 3], yb_r[SR * 3];
         static const int picks[3] = {FXT_CHORUS, FXT_DELAY, FXT_REVERB};
-        static const uint8_t kn[3][4] = {{50, 86, 90, 127}, {40, 64, 110, 100}, {100, 40, 44, 72}};
+        static const uint8_t kn[3][4] = {{50, 86, 90, 127}, {40, 64, 86, 100}, {100, 40, 44, 72}};   /* (the
+                                                   * delay's repeats 86: 0.82, the 110 of before format 27) */
         const int L = 256, n = SR * 3;
         printf("-- a block behind (fx_process_lag, 256 samples): the same output, but for the lines' rounding\n");
         for (i = 0; i < n; i++)               /* (never silent: a sleeping line would skip a block in one run only) */
@@ -979,6 +980,85 @@ int main(void)
             check(name, pk > 0.01f && db(pk) - db(err) > (picks[t] == FXT_REVERB ? 45.0f : 60.0f));   /* (the plate's
                                                    * 12-bit combs: its own rounding, recirculated, is of that size) */
         }
+    }
+    printf("-- the delay's REPEATS held, WOBBLE, SMEAR (format 27)\n");
+    {   /* a pluck (20 ms of noise) into a 1/8 delay at 120 (0.25 s), tone 100: render 16 bars (32 s). env[r]: each
+         * repeat's peak (r 1..127, the 0.25 s after it) */
+        static float l[SR * 32], r_[SR * 32];
+        static float env[4][128];
+        static const uint8_t wob[4] = {0, 0, 127, 0}, smr[4] = {0, 0, 0, 127}, rep[4] = {56, 127, 127, 127};
+        const int slot = SR / 4, n = SR * 32;
+        for (int q = 0; q < 4; q++) {
+            uint8_t kn[4] = {83, 64, 0, 100};          /* (83: 1/8) */
+            kn[2] = rep[q];
+            fx_init(fx, dly_l, dly_r, rv);
+            fx_delay_mod(fx, wob[q], smr[q]);
+            fx_set(fx, FXT_DELAY, kn);
+            fx_tempo(fx, 120.0f);
+            for (i = 0; i < n; i += BLK) {
+                for (int j = 0; j < BLK; j++)
+                    in[j] = i + j < SR / 50 ? 0.5f * noise() : 0.0f;
+                memset(ol, 0, sizeof ol);
+                memset(orr, 0, sizeof orr);
+                fx_process(fx, in, ol, orr, BLK);
+                for (int j = 0; j < BLK; j++)
+                    l[i + j] = ol[j], r_[i + j] = orr[j];
+            }
+            for (int k = 0; k < 128; k++) {
+                float pk = 0.0f;
+                for (i = k * slot; i < (k + 1) * slot && i < n; i++)
+                    pk = fm_maxf(pk, fm_maxf(fm_fabsf(l[i]), fm_fabsf(r_[i])));
+                env[q][k] = pk;
+            }
+        }
+        snprintf(name, sizeof name, "repeats 56: repeat 8 %.1f dB under the first (7.95 to -60 dB: ~-50)",
+                 (double)(db(env[0][1]) - db(env[0][8])));
+        check(name, db(env[0][1]) - db(env[0][8]) > 35.0f && db(env[0][1]) - db(env[0][8]) < 65.0f);
+        {
+            float top = 0.0f;
+            for (int k = 2; k < 128; k++)
+                top = fm_maxf(top, env[1][k]);
+            snprintf(name, sizeof name, "repeats 127 (held): after 16 bars %.1f dB under the first, never above it (%.1f)",
+                     (double)(db(env[1][1]) - db(env[1][127])), (double)(db(top) - db(env[1][1])));
+            check(name, db(env[1][1]) - db(env[1][127]) < 40.0f && db(top) <= db(env[1][1]) + 1.0f);
+        }
+        for (int q = 2; q < 4; q++) {
+            float dn, top = 0.0f;
+            for (int k = 2; k < 128; k++)
+                top = fm_maxf(top, env[q][k]);
+            dn = db(env[q][64]);
+            snprintf(name, sizeof name, "%s 127, held: after 8 bars %.1f dB under the first, never above it (%.1f)",
+                     q == 2 ? "wobble" : "smear", (double)(db(env[q][1]) - dn), (double)(db(top) - db(env[q][1])));
+            check(name, db(env[q][1]) - dn < 40.0f && db(top) <= db(env[q][1]) + 1.0f);
+        }
+    }
+    {   /* the first repeat: with wobble or smear off it is the plain delay's; smear on keeps it on the beat (its
+         * allpasses' delay taken off the time: the first repeat's peak within 2 ms of the plain one's) */
+        static float a[SR], c[SR];
+        int at[2] = {0, 0};
+        for (int q = 0; q < 2; q++) {
+            uint8_t kn[4] = {70, 64, 100, 100};
+            float *y = q ? c : a, pk = 0.0f;
+            fx_init(fx, dly_l, dly_r, rv);
+            fx_delay_mod(fx, 0, q ? 127 : 0);
+            fx_set(fx, FXT_DELAY, kn);
+            fx_tempo(fx, 120.0f);
+            for (i = 0; i < SR; i += BLK) {
+                for (int j = 0; j < BLK; j++)
+                    in[j] = i + j == 0 ? 0.8f : 0.0f;
+                memset(ol, 0, sizeof ol);
+                memset(orr, 0, sizeof orr);
+                fx_process(fx, in, ol, orr, BLK);
+                for (int j = 0; j < BLK; j++)
+                    y[i + j] = ol[j] + orr[j];
+            }
+            for (i = SR / 8; i < SR * 3 / 8; i++)
+                if (fm_fabsf(y[i]) > pk)
+                    pk = fm_fabsf(y[i]), at[q] = i;
+        }
+        snprintf(name, sizeof name, "smear: the first repeat at %.1f ms (plain %.1f)", (double)at[1] * 1000.0 / SR,
+                 (double)at[0] * 1000.0 / SR);
+        check(name, (at[1] > at[0] ? at[1] - at[0] : at[0] - at[1]) < SR / 500);
     }
     printf("-- shimmer: lush with its output an octave up fed back\n");
     {   /* a 220 Hz tone for half a second into lush and into shimmer (the same knobs, its own at the top): the tail's

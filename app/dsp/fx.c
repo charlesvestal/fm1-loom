@@ -135,6 +135,12 @@ struct fxslot {
     int32_t dw, dquiet, dph;                  /* (the line at half rate: dph, the pair's second frame) */
     float dcur, dlpl, dlpr, dal, dar;         /* (the pair being summed into the slot at dw) */
     float dwa, dwb;                           /* PING WIDTH: a side's echo into its own side, into the other (fx_width) */
+    uint8_t dwob, dsmr;                       /* WOBBLE and SMEAR, 0..127 (fx_delay_mod) */
+    float wph, wdl, wdr, wsl, wsr, dhl, dhr;  /* wobble: the LFO's phase, the drifts, the offsets as they glide; the loop's
+                                               * high-pass a side */
+    uint32_t wrnd;                            /* (the drift's noise) */
+    int32_t sap[5];                           /* smear: its allpasses' places in the chorus line (idle while a delay),
+                                               * the send's wait's */
     /* lofi */
     float lph, lhold, lin1, lout1, lwph;
     /* phaser */
@@ -173,6 +179,8 @@ static void fx_states(fxslot_t *f)              /* a fresh effect: its states at
     f->cw = 0; f->cph = 0.0f; f->cs1 = f->cs2 = f->chl = f->chr = f->cfbz = 0.0f;
     f->dw = 0; f->dquiet = 2 * FX_DLY_LEN; f->dlpl = f->dlpr = 0.0f;
     f->dph = 0; f->dal = f->dar = 0.0f;
+    f->wph = f->wdl = f->wdr = f->wsl = f->wsr = f->dhl = f->dhr = 0.0f;
+    f->sap[0] = f->sap[1] = f->sap[2] = f->sap[3] = f->sap[4] = 0;
     f->dcur = f->pt[0];                       /* a new delay starts on time (the slew is for changes) */
     f->lph = f->lhold = f->lin1 = f->lout1 = f->lwph = 0.0f;
     for (i = 0; i < 4; i++) {
@@ -236,7 +244,12 @@ static void fx_derive(fxslot_t *f)
         break;
     case FXT_DELAY:
         delay_time(f);                                                /* time and fine */
-        f->pt[2] = 0.95f * c;                                         /* repeats: the feedback */
+        f->pt[2] = fx_delay_fb(k[2]);                                 /* repeats: the feedback (127: held) */
+        {
+            float wo = k127(f->dwob);
+            f->pt[4] = wo * wo * (0.004f * SR);                       /* wobble: the drift's depth, 0 .. 4 ms */
+        }
+        f->pt[5] = 0.7f * k127(f->dsmr);                              /* smear: the allpasses' gain */
         f->pt[3] = onepole_k(800.0f * fm_exp2f(d * 4.6f));            /* tone: the repeats' low-pass 800 Hz .. 19 kHz */
         break;
     case FXT_LOFI: {
@@ -381,6 +394,28 @@ void fx_width(fxslot_t *f, int w)
     f->dwb = w >= 127 ? 0.0f : 0.5f * g * (1.0f - x);
 }
 
+/* the delay's REPEATS: how many repeats ring before -60 dB, 7.95 at 56 (the old knob's 0.42 there), twice as many
+ * every 14 steps (0.5 at 1 .. 250 at 126); 0 none; 127 held (1: only the tone, the loop's high-pass and its soft
+ * clip take it down). (Before format 27 the knob was 0.95 x / 127: project.c converts) */
+float fx_delay_fb(int v)
+{
+    if (v <= 0)
+        return 0.0f;
+    if (v >= 127)
+        return 1.0f;
+    return fm_exp2f(-9.966f / (7.95f * fm_exp2f(((float)v - 56.0f) * (1.0f / 14.0f))));
+}
+
+/* the delay's WOBBLE (a slow drift of its time, a tape's wow: each repeat drifts again, so they detune as they go)
+ * and SMEAR (two allpasses a side in the loop: each repeat blurs a little more, the echoes become a wash), 0..127 */
+void fx_delay_mod(fxslot_t *f, int wobble, int smear)
+{
+    f->dwob = (uint8_t)(wobble < 0 ? 0 : wobble > 127 ? 127 : wobble);
+    f->dsmr = (uint8_t)(smear < 0 ? 0 : smear > 127 ? 127 : smear);
+    if (f->type_t == FXT_DELAY)
+        fx_derive(f);
+}
+
 void fx_filter(fxslot_t *f, int hp, int lp)
 {
     f->hpv = (uint8_t)(hp < 0 ? 0 : hp > 127 ? 127 : hp);
@@ -460,10 +495,35 @@ static inline float tap16(const int16_t *b, float rp)
 
 /* the delay: its lines at half rate (22.05 kHz: a slot a pair of frames, their mean; the repeats low-passed by the
  * tone, at 4 kHz by default, so the 11 kHz the line keeps is enough), read at the frame's own place between slots */
+/* smear's allpasses in the chorus line (unused by a delay): a side's two, 8.6 + 2.9 ms (L) and 9.1 + 3.1 ms (R);
+ * while smear is on the time is read that much (their mean) sooner and the send waits as long (a line after them),
+ * so the first repeat (no allpasses yet) and every one after stay on the beat */
+static const int16_t SAP_AT[4] = {0, 379, 506, 907}, SAP_LEN[4] = {379, 127, 401, 137};
+#define SAP_COMP 522.0f
+#define SAP_IN 1044                              /* (the send's wait: SAP_COMP samples) */
+_Static_assert(SAP_IN + (int)SAP_COMP <= CHO_N, "smear's lines do not fit the chorus line");
+static inline float sap_run(fxslot_t *f, int k, float x, float g)
+{
+    int16_t *b = f->cho + SAP_AT[k];
+    int32_t p = f->sap[k];
+    float d = s16f(b[p]), w = x + g * d;
+    if (w > 1.0f || w < -1.0f) w = fm_tanhf(w);
+    b[p] = f16(w);
+    f->sap[k] = p + 1 < SAP_LEN[k] ? p + 1 : 0;
+    return d - g * w;
+}
+/* the delay: its lines at half rate (22.05 kHz: a slot a pair of frames, their mean; the repeats low-passed by the
+ * tone, at 4 kHz by default, so the 11 kHz the line keeps is enough), read at the frame's own place between slots.
+ * The repeats (not the send) through the loop's high-pass (40 Hz: held repeats do not pile up low end), smear's
+ * allpasses; wobble moves each side's read (the right a quarter turn on) */
 static void do_delay(fxslot_t *f, const float *x, float *ol, float *orr, int m, int any, int lag)
 {
-    const float target = f->pt[0], fb = f->pc[2], tc = f->pc[3], wa = f->dwa, wb = f->dwb;
-    float dcur = f->dcur, lpl = f->dlpl, lpr = f->dlpr, al = f->dal, ar = f->dar;
+    const float smear = f->pt[5] > 0.0f ? f->pc[5] : 0.0f, wob = f->pc[4];
+    const float target = f->pt[0] - (smear > 0.0f ? SAP_COMP : 0.0f), fb = f->pc[2], tc = f->pc[3], wa = f->dwa,
+                wb = f->dwb;
+    const float hk = 0.0057f;                 /* (40 Hz) */
+    float dcur = f->dcur, lpl = f->dlpl, lpr = f->dlpr, al = f->dal, ar = f->dar, hl = f->dhl, hr = f->dhr;
+    float wsl = f->wsl, wsr = f->wsr, wtl = 0.0f, wtr = 0.0f;
     int32_t w = f->dw, quiet = f->dquiet, ph = f->dph;
     int i;
     if (!any && quiet >= 2 * FX_DLY_LEN) {    /* silent in, an empty line: time moves on, nothing to read */
@@ -474,18 +534,62 @@ static void do_delay(fxslot_t *f, const float *x, float *ol, float *orr, int m, 
         f->dcur += (target - dcur) * (1.0f - fm_expf(-0.0008f * (float)m));
         return;
     }
+    if (wob > 0.0f || wsl != 0.0f || wsr != 0.0f) {   /* wobble: a 0.31 Hz sine and a drift (noise, low-passed
+                                                  * at ~0.5 Hz: about 0.5 of the sine), each side's, this block */
+        uint32_t r = f->wrnd ? f->wrnd : 0x9E3779B9u;
+        float nl, nr;
+        r = r * 1664525u + 1013904223u;
+        nl = (float)(int32_t)r * (1.0f / 2147483648.0f);
+        r = r * 1664525u + 1013904223u;
+        nr = (float)(int32_t)r * (1.0f / 2147483648.0f);
+        f->wrnd = r;
+        f->wdl += 0.0023f * (float)m / SUB * (nl * 25.0f - f->wdl);
+        f->wdr += 0.0023f * (float)m / SUB * (nr * 25.0f - f->wdr);
+        f->wph += 0.31f * (float)m / SR;
+        if (f->wph >= 1.0f) f->wph -= 1.0f;
+        wtl = wob * 0.6f * (fm_sin_turns(f->wph) + 0.6f * f->wdl);
+        wtr = wob * 0.6f * (fm_sin_turns(f->wph + 0.25f) + 0.6f * f->wdr);
+    }
     for (i = 0; i < m; i++) {
-        float rp, tl, tr, a, b;
+        float rp, rq, tl, tr, a, b, fl, fr, xi = x[i];
+        if (smear > 0.0f) {                   /* (smear: the send waits as long as the allpasses take) */
+            int16_t *q = f->cho + SAP_IN + f->sap[4];
+            float v = s16f(*q);
+            *q = f16(xi);
+            f->sap[4] = f->sap[4] + 1 < (int32_t)SAP_COMP ? f->sap[4] + 1 : 0;
+            xi = v;
+            if (x[i] != 0.0f)                 /* (a send still waiting: the line not quiet till it is in) */
+                quiet = -2 * (int32_t)SAP_COMP;
+        }
         dcur += (target - dcur) * 0.0008f;
         rp = (float)w + 0.5f * (float)ph - 0.5f * dcur;
         if (rp < 0.0f)
             rp += (float)FX_DLY_LEN;
+        rq = rp;
+        if (wtl != 0.0f || wsl != 0.0f || wsr != 0.0f) {   /* (wobble: each side's read moved, gliding) */
+            wsl += 0.002f * (wtl - wsl);
+            wsr += 0.002f * (wtr - wsr);
+            rq = rp - 0.5f * wsr;
+            rp -= 0.5f * wsl;
+            if (rp < 0.0f) rp += (float)FX_DLY_LEN;
+            if (rq < 0.0f) rq += (float)FX_DLY_LEN;
+            if (rp >= (float)FX_DLY_LEN) rp -= (float)FX_DLY_LEN;
+            if (rq >= (float)FX_DLY_LEN) rq -= (float)FX_DLY_LEN;
+        }
         tl = tap16(f->dl, rp);
-        tr = tap16(f->dr, rp);
+        tr = tap16(f->dr, rq);
         lpl += tc * (tl - lpl);               /* tone: the repeats darken */
         lpr += tc * (tr - lpr);
-        a = (lag ? 0.0f : x[i]) + lpr * fb;   /* ping-pong: the send and the right into the left, */
-        b = lpl * fb;                         /* the left into the right */
+        hl += hk * (lpl - hl);                /* the loop's high-pass */
+        hr += hk * (lpr - hr);
+        fl = lpl - hl;
+        fr = lpr - hr;
+        if (smear > 0.0f) {                   /* smear: the repeats through the allpasses */
+            fr = sap_run(f, 1, sap_run(f, 0, fr, smear), smear);
+            fl = sap_run(f, 3, sap_run(f, 2, fl, smear), smear);
+        }
+        a = (lag ? 0.0f : xi) + fr * fb;      /* ping-pong: the send and the right into the left, */
+        b = fl * fb;                          /* the left into the right */
         if (a > 1.0f || a < -1.0f) a = fm_tanhf(a);
         if (b > 1.0f || b < -1.0f) b = fm_tanhf(b);
         al += a;
@@ -495,7 +599,7 @@ static void do_delay(fxslot_t *f, const float *x, float *ol, float *orr, int m, 
             float v;
             if (p < 0)
                 p += FX_DLY_LEN;
-            v = s16f(f->dl[p]) + 0.5f * x[i];
+            v = s16f(f->dl[p]) + 0.5f * xi;
             if (v > 1.0f || v < -1.0f) v = fm_tanhf(v);
             f->dl[p] = f16(v);
         }
@@ -519,6 +623,10 @@ static void do_delay(fxslot_t *f, const float *x, float *ol, float *orr, int m, 
     f->dcur = dcur;
     f->dlpl = fm_flush(lpl);
     f->dlpr = fm_flush(lpr);
+    f->dhl = fm_flush(hl);
+    f->dhr = fm_flush(hr);
+    f->wsl = fm_flush(wsl);
+    f->wsr = fm_flush(wsr);
     f->dquiet = quiet;
 }
 

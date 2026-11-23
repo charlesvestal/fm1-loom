@@ -291,7 +291,8 @@ enum { A_CLEAR_NOTES, A_CLEAR_LOCKS, A_CLEAR_BOTH, A_COPY_PAT, A_PASTE_PAT, A_RO
        A_KIT, A_SAVE_KIT, A_MIDI_CC, A_USB_HOST, A_BT_MIDI, A_BT_AUDIO, A_BT_ADEV, A_BT_DEVICE, A_BT_DEV, A_BT_LOOK,
        A_BT_FORGET, A_BT_DISCONNECT, A_CLEAR, A_ROTATE, A_PASTE, A_COPY_EMPTY, A_CLEAR_BAR,
        A_COPY_SOUND, A_PASTE_SOUND, A_COPY_KEY, A_PASTE_KEY, A_COPY_SCENE, A_PASTE_SCENE, A_DUP_SLOT, A_KIT_FILTER,
-       A_SHIFT, A_LARGE_TYPE, A_CC_IN, A_FX_WIDTH, A_MOD_VIEW, A_PROJ1, A_PROJ2, A_PROJ3, NACTIONS };
+       A_SHIFT, A_LARGE_TYPE, A_CC_IN, A_FX_WIDTH, A_MOD_VIEW, A_PROJ1, A_PROJ2, A_PROJ3, A_FX_WOBBLE, A_FX_SMEAR,
+       NACTIONS };
 static const char *const ACTION_NAME[NACTIONS] = {
     "CLEAR NOTES", "CLEAR LOCKS", "CLEAR NOTES AND LOCKS", "COPY PATTERN", "PASTE PATTERN", "ROTATE FORWARD",
     "ROTATE BACK", "DUPLICATE BAR", "ENGINE", "PRESET", "SCRAMBLE", "SAVE AS PRESET", "RESET SOUND", "FOLLOWS CONDUCTOR",
@@ -303,7 +304,7 @@ static const char *const ACTION_NAME[NACTIONS] = {
     "USB PORT", "BT MIDI", "BT AUDIO", "AUDIO DEVICE", "MIDI DEVICE", "DEVICE", "LOOK AGAIN", "FORGET", "DISCONNECT",
     "CLEAR", "ROTATE", "PASTE", "COPY TO EMPTY", "CLEAR BAR", "COPY SOUND", "PASTE SOUND", "COPY DRUM", "PASTE DRUM",
     "COPY SCENE", "PASTE SCENE", "DUPLICATE SLOT", "KIT FILTER", "SHIFT NOTES", "LARGE TYPE", "CC IN", "PING WIDTH",
-    "MOD VIEW", "PROJ 1", "PROJ 2", "PROJ 3"};
+    "MOD VIEW", "PROJ 1", "PROJ 2", "PROJ 3", "WOBBLE", "SMEAR"};
 _Static_assert(NPROJ == 3, "GLO's list: an action a slot (A_PROJ1..A_PROJ3)");
 static const char *const CLEAR_WHAT[3] = {"notes", "locks", "notes and locks"};
 /* a pick ALGORITHM sets at once (a setting: SEL only leaves the list), as against a choice SEL then carries out */
@@ -313,7 +314,7 @@ static int pick_sets(int a)
     case A_FOLLOW: case A_USB_AUDIO: case A_COUNT_IN: case A_THEME: case A_LARGE_TYPE: case A_PLAYMODE: case A_FTYPE:
     case A_FX_HP: case A_FX_LP: case A_FX_SEND: case A_PUMP_BY: case A_PUMP_REL: case A_PUMP_ACC: case A_LEVEL:
     case A_SCENE_AT: case A_AUTOSAVE: case A_MIDI_OUT: case A_LOOP_FREE: case A_CC_OUT: case A_SCENES_OUT: case A_MIDI_CC:
-    case A_USB_HOST: case A_KIT_FILTER: case A_CC_IN: case A_FX_WIDTH: case A_MOD_VIEW:
+    case A_USB_HOST: case A_KIT_FILTER: case A_CC_IN: case A_FX_WIDTH: case A_FX_WOBBLE: case A_FX_SMEAR: case A_MOD_VIEW:
         return 1;
     default:
         return 0;
@@ -1684,6 +1685,8 @@ static void fx_knobs(knob_t *k, int trk)
         kv(&k[0], k[0].name, t, d, 0);              /* (a list's knob, as the arp's speed) */
         s_cat(num_i(f, s_cat(t, f > 0 ? "+" : "")), "%");
         kv(&k[1], k[1].name, t, par[TP_E2], 127);
+        if (par[TP_E3] >= 127)                       /* repeats at the top: held (fx_delay_fb 1) */
+            kv(&k[2], k[2].name, "hold", 127, 127);
     }
 }
 static void aux_engine_knobs(knob_t *k, int trk)
@@ -3213,7 +3216,7 @@ static void list_build(void)
     } else if (fx_page(keep)) {                     /* an effect: the type, its filter, the feed into FX II, the
                                                      * delay's PING WIDTH */
         int ft = keep == P_FX1 ? AUX_FX1 : AUX_FX2;
-        static char hp[8], lp[8], fd[8], wd[8];
+        static char hp[8], lp[8], fd[8], wd[8], wo[8], sm[8];
         num_s(proj.trk[ft].par[TP_FENV], hp);
         num_s(proj.trk[ft].par[TP_CUT], lp);
         list_add(ACTION_NAME[A_EFFECT], fx_label(ui.pick_fx % NFXPICK), LK_PICK, A_EFFECT);
@@ -3226,6 +3229,10 @@ static void list_build(void)
         if (fx_pick_type(fx_pick_of(ft)) == FXT_DELAY) {
             num_s(proj.trk[ft].par[TP_FX_WIDTH], wd);
             list_add(ACTION_NAME[A_FX_WIDTH], wd, LK_PICK, A_FX_WIDTH);
+            num_s(proj.trk[ft].par[TP_FX_WOBBLE], wo);
+            list_add(ACTION_NAME[A_FX_WOBBLE], wo, LK_PICK, A_FX_WOBBLE);
+            num_s(proj.trk[ft].par[TP_FX_SMEAR], sm);
+            list_add(ACTION_NAME[A_FX_SMEAR], sm, LK_PICK, A_FX_SMEAR);
         }
     } else if ((keep == P_ENV || keep == P_FILTER || keep == P_ENV2 || keep == P_KITF) && !is_aux(trk)) {
         int fq = ftype_param(trk, keep);

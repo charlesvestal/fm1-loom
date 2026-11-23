@@ -71,6 +71,8 @@ static inline int fx_delay_div(int time) { return (time < 0 ? 0 : time > 127 ? 1
 extern const uint8_t FX_DL_NOTE[FX_DL_N];                  /* a time's name: 1/note and its mark (T, D or none) */
 extern const char FX_DL_MARK[FX_DL_N];
 int fx_delay_halves(int time, int fine, float bpm);          /* the times the line halves it (0: as set) */
+float fx_delay_fb(int v);                                   /* the delay's REPEATS 0..127: its feedback (127: 1, held) */
+void fx_delay_mod(fxslot_t *f, int wobble, int smear);      /* the delay's WOBBLE and SMEAR, 0..127 (0: off) */
 void fx_filter(fxslot_t *f, int hp, int lp);                /* the slot's filter page: high-pass, low-pass 0..127 */
 void fx_width(fxslot_t *f, int w);                          /* the delay's PING WIDTH: 0 the echoes centred .. 127 hard
                                                              * left and right (the default), the same power */

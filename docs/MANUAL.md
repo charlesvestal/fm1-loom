@@ -1444,14 +1444,17 @@ under **SEQ**.
   reach them from any track, press **FX** and turn **SELECT**. **PRESETS** picks the effect. The **SEL** list has
   its high-pass and low-pass and, on FX I, the send into FX II. On a delay, it also has **PING WIDTH**, which sets
   how far apart the echoes bounce. At 127, as in a new project, they go hard left and right. At 0, they sit in the
-  center. In a new project, the high-passes keep the lows dry: the echoes start at about 130 Hz and the reverb at
+  center. **WOBBLE** makes the delay time drift slowly, like tape: each repeat drifts again, so the echoes detune
+  more as they go. **SMEAR** blurs each repeat a little more than the last, so the echoes turn into a wash. Both
+  are 0 in a new project. With **repeats** high and a little of each, a single pluck rings on for many bars and
+  changes as it goes. In a new project, the high-passes keep the lows dry: the echoes start at about 130 Hz and the reverb at
   about 230 Hz. The keys play the track you were on. If you turn to FX I or FX II with **ALGORITHM**, **EDIT** has
   the same knobs.
 
 | Effect | Knobs |
 | --- | --- |
 | chorus | rate, depth, feedback, width |
-| delay | time (a note value, synced to the tempo), fine, repeats, tone (how bright the repeats are); in **SEL**'s list, ping width |
+| delay | time (a note value, synced to the tempo), fine, repeats (about 8 at 56; each 14 steps doubles them; at 127 "hold": they ring on until you turn it down), tone (how bright the repeats are); in **SEL**'s list, ping width, wobble and smear |
 | lofi | rate, bits, smooth, width |
 | phaser | freq, depth, rate, feedback |
 | reverb, plate | size, motion, tone, damp (how fast the tail darkens) |

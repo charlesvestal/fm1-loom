@@ -293,3 +293,8 @@ expect par3.i1 0
 expect par4.rops 2
 expect par4.rfb 30
 expect par4.itype 0
+# format 27: the delay's REPEATS converted (before: the feedback 0.95 x / 127; FX I's default 56 is 0.419, 56 now),
+# WOBBLE and SMEAR (FX I's x2, x3) 0
+expect par11.e3 56
+expect par11.x2 0
+expect par11.x3 0
