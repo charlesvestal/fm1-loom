@@ -4630,21 +4630,56 @@ static void pic_velvet(int32_t x0, int32_t y0, int32_t w, int32_t h, const uint8
         cv_dotf(x + 26.0f * s + o, lb - 3.0f * s, 2.0f, ink); /* (the bow, its frog) */
     }
 }
-/* tartan: the chord: each voice a stem at its place in the field (left .. right), as high as its interval above the note,
- * its head as big as its level (dim at none), the sway swinging the heads as the sound plays */
+/* tartan: the chord as an aurora (after Chordism's): over a night sky of a few twinkling stars, each voice a curtain of
+ * light in the track's ink, hanging at its place in the field, its foot higher for a higher note,
+ * as tall and bright as its level (the morphs: the relative levels read first), drifting as the sound plays (pic_f: at
+ * rest in silence), more by sway; the chord's name above */
+static void tt_curtain(float cx, float half, float foot0, float level, uint16_t ink, float t, float seed, int32_t ytop)
+{
+    if (level <= 0.01f)
+        return;
+    for (int32_t x = ((int32_t)(cx - half) + 1) & ~1; x <= (int32_t)(cx + half); x += 2) {   /* (two pixels a column) */
+        float u = ((float)x - cx) / half, env, sway;
+        int32_t foot, hgt, a0;
+        if (x < 0 || x >= 239 || u <= -1.0f || u >= 1.0f)
+            continue;
+        env = 1.0f - u * u;
+        sway = fm_sin_turns((float)x * 0.011f + t * 0.21f + seed) * 0.5f + fm_sin_turns((float)x * 0.031f - t * 0.37f + seed * 2.0f) * 0.5f;
+        foot = (int32_t)(foot0 + 5.0f * sway);
+        hgt = (int32_t)(level * env * (42.0f + 30.0f * (0.5f + 0.5f * fm_sin_turns((float)x * 0.02f + t * 0.13f + seed * 3.0f))));
+        if (foot - hgt < ytop)
+            hgt = foot - ytop;
+        a0 = (int32_t)(255.0f * fm_minf(1.2f * env, 1.0f) * (0.6f + 0.4f * level));
+        for (int32_t y = 0; y <= hgt; y++) {     /* bright at the foot, fading upward (the square of the way up) */
+            int32_t k = hgt - y, a = a0 * k / (hgt + 1) * k / (hgt + 1);
+            cv_blend(x, foot - y, ink, (uint32_t)a);
+            cv_blend(x + 1, foot - y, ink, (uint32_t)a);
+        }
+        cv_blend(x, foot, K_TEXT, (uint32_t)(80.0f * env * level));   /* (the bright hem) */
+        cv_blend(x + 1, foot, K_TEXT, (uint32_t)(80.0f * env * level));
+    }
+}
 static void pic_tartan(int32_t x0, int32_t y0, int32_t w, int32_t h, const uint8_t *p, uint32_t f)
 {
-    float semis[4], lvl[4], pan[4], top = 12.0f, base = (float)(y0 + h - 6);
+    float semis[4], lvl[4], pan[4], top = 12.0f, t = (float)f * (0.03f + 0.05f * (float)p[TP_KSUB] / 127.0f);
+    float life = 0.35f + 0.65f * pic_lvl;
+    const uint16_t ink[4] = {K_NOW, K_NOW, K_NOW, K_NOW};   /* (the track's own ink, every voice: its place, height and
+                                                      * brightness tell them apart) */
     tartan_voices(p, semis, lvl, pan);
+    for (int32_t y = 0; y < h; y++)              /* the sky: the background, a little lighter toward the horizon (the band's
+                                                  * width: no edges) */
+        cv_rect(0, y0 + y, 240, 1, col_mix(K_BG, K_PANEL, (uint32_t)(y * 12 / h)));
+    for (uint32_t i = 0; i < 22u; i++) {         /* the stars, a few twinkling */
+        uint32_t r = (i + 7u) * 2654435761u, a = 60u + (r >> 25);
+        if ((r >> 12 & 3u) == 0)
+            a = (uint32_t)((float)a * (0.55f + 0.45f * fm_sin_turns((float)f * 0.011f + (float)(r & 255u) * 0.01f)));
+        cv_blend((int32_t)(r % 240u), y0 + (int32_t)((r >> 8) % (uint32_t)(h / 2)), K_TEXT, a);
+    }
     for (int k = 0; k < 4; k++)
         top = fm_maxf(top, semis[k]);
-    cv_rect(x0 + 6, (int32_t)base, w - 12, 1, K_LINE);
-    cv_rect(x0 + w / 2, y0 + 4, 1, h - 10, K_FAINT);   /* (the middle) */
     for (int k = 0; k < 4; k++) {
-        float sway = (float)p[TP_KSUB] / 127.0f * pic_lvl * 3.0f * fm_sin_turns((float)f * 0.02f + (float)k * 0.25f);
-        float x = (float)(x0 + 14) + pan[k] * (float)(w - 28) + sway, y = base - 8.0f - semis[k] / top * (float)(h - 24);
-        cv_line((int32_t)x, (int32_t)base, (int32_t)x, (int32_t)y, lvl[k] > 0.05f ? K_DIM : K_FAINT);
-        cv_dotf(x, y, 2.0f + 5.0f * lvl[k], lvl[k] > 0.05f ? K_NOW : K_FAINT);
+        float cx = (float)(x0 + 18) + pan[k] * (float)(w - 36), foot = (float)(y0 + h - 8) - semis[k] / top * (float)(h / 3);
+        tt_curtain(cx, 40.0f, foot, lvl[k] * life, ink[k], t, (float)k * 0.37f, y0 + 2);
     }
 }
 static void pic_tulle(int32_t x0, int32_t y0, int32_t w, int32_t h, const uint8_t *p)
@@ -4939,6 +4974,8 @@ static void draw_engine(void)
         }
         cv_text(50, 6, &FONT_S, t, K_DIM);
     }
+    if (eg == EG_TARTAN)                             /* its chord */
+        cv_text(56, 6, &FONT_S, tp_info(TP_E1, EG_TARTAN)->names[p[TP_E1] % TT_NCHORD], K_DIM);
     if (eg == EG_LACE) {                             /* what sets it ringing */
         static const char *const EX[3] = {"struck", "blown", "bowed"};
         cv_text(50, 6, &FONT_S, EX[p[TP_X1] % 3], K_DIM);
