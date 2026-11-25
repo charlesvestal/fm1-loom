@@ -25,6 +25,10 @@
 #include "drumline.h"
 #include "sample.h"
 #include "bass303.h"                          /* bass303_cutoff_hz */
+#include "efx.h"                              /* the catalog: the slots' effects */
+/* the character's types (slot 1's dirt and color, the catalog's numbers: CT_EF) */
+enum { CT_OFF, CT_DRIVE, CT_FOLD, CT_CRUSH, CT_RING, CT_TILT, CT_TAPE, CT_SAMPLER, NCT };
+static const uint8_t CT_EF[NCT] = {EF_OFF, EF_DRIVE, EF_FOLD, EF_CRUSH, EF_RING, EF_TILT, EF_TAPE, EF_SAMPLER};
 
 static int bad;
 static void check(const char *what, int ok)
@@ -1320,7 +1324,7 @@ static void char_sound(int engine, int type, int amt, int tone, int mix)
     par[0][TP_RES] = 0;
     par[0][TP_S] = 127;
     par[0][TP_VOLUME] = 100;
-    par[0][TP_CTYPE] = (uint8_t)type;
+    par[0][TP_CTYPE] = CT_EF[type];
     par[0][TP_CAMT] = (uint8_t)amt;
     par[0][TP_CTONE] = (uint8_t)tone;
     par[0][TP_CMIX] = (uint8_t)mix;
@@ -1354,19 +1358,19 @@ static void char_tests(void)
                                                      !strcmp(tp_info(TP_CTONE, 0)->name, "tone") &&
                                                      !strcmp(tp_info(TP_CMIX, 0)->name, "mix"));
     for (ty = 0; ty < NCT; ty++) {
-        tp_text(TP_CTYPE, ty, EG_KNIT, num, unit);
+        tp_text(TP_CTYPE, CT_EF[ty], EG_KNIT, num, unit);
         if (strcmp(num, CT_N[ty]))
             check("character type names", 0);
     }
-    p[TP_CTYPE] = CT_RING;
+    p[TP_CTYPE] = EF_RING;
     tp_text_par(TP_CTONE, 48, p, num, unit);
     check("ring: tone 48 is the ratio 1.5:1", !strcmp(num, "1.5:1"));
-    p[TP_CTYPE] = CT_DRIVE;
+    p[TP_CTYPE] = EF_DRIVE;
     tp_text_par(TP_CTONE, 127, p, num, unit);
     check("drive: tone 127 is 20 kHz (open)", !strcmp(num, "20.0") && !strcmp(unit, "kHz"));
     tp_text_par(TP_CTONE, 0, p, num, unit);
     check("drive: tone 0 is a 400 Hz low-pass", !strcmp(num, "400") && !strcmp(unit, "Hz"));
-    p[TP_CTYPE] = CT_TILT;
+    p[TP_CTYPE] = EF_TILT;
     tp_text_par(TP_CAMT, 127, p, num, unit);
     check("tilt: amount 127 is a 6 kHz pivot", !strcmp(num, "6.0") && !strcmp(unit, "kHz"));
     p[TP_LTYPE] = LT_WAVE;
@@ -1388,7 +1392,7 @@ static void char_tests(void)
                         par[0][TP_E4] = 100;   /* weft spread: stereo */
                     par[0][TP_RES] = 127;
                     par[0][TP_VOLUME] = 127;
-                    par[0][TP_CTYPE] = (uint8_t)ty;
+                    par[0][TP_CTYPE] = CT_EF[ty];
                     par[0][TP_CAMT] = (uint8_t)a;
                     par[0][TP_CTONE] = (uint8_t)(t > 127 ? 127 : t);
                     if (!note_test("character", 0, &pk, 0)) {
@@ -1426,13 +1430,13 @@ static void char_tests(void)
         char_sound(EG_KNIT, CT_OFF, 127, 127, 127);
         par[0][TP_E1] = 0;
         r0 = held_rms(57, 0, &finite);
-        par[0][TP_CTYPE] = (uint8_t)ty;
+        par[0][TP_CTYPE] = CT_EF[ty];
         r1 = held_rms(57, 0, &finite);
         char_sound(EG_KNIT, CT_OFF, 127, 127, 127);
         par[0][TP_E1] = 0;
         par[0][TP_CUT] = 40;                     /* (the filter low: a quieter input) */
         lo0 = held_rms(57, 0, &finite);
-        par[0][TP_CTYPE] = (uint8_t)ty;
+        par[0][TP_CTYPE] = CT_EF[ty];
         lo1 = held_rms(57, 0, &finite);
         printf("    %-8s at amount 127: %+.1f dB (a quiet input %+.1f dB)\n", CT_N[ty], (double)(db(r1) - db(r0)),
                (double)(db(lo1) - db(lo0)));
@@ -1496,7 +1500,7 @@ static void char_tests(void)
                 par[0][TP_FTYPE] = (uint8_t)ft;
                 par[0][TP_CUT] = 90;
                 held_rms(57, ref, &finite);
-                par[0][TP_CTYPE] = CT_TILT;
+                par[0][TP_CTYPE] = EF_TILT;
                 held_rms(57, buf, &finite);
                 for (i = 0; i < 60 * N; i++)
                     if (fabs_f(buf[i] - ref[i]) > worst)
@@ -1557,7 +1561,7 @@ static void bench_char(void)
             sound_default(par[t], EG_KNIT);
             par[t][TP_FTYPE] = FT_LP24;
             par[t][TP_E4] = (uint8_t)(st ? 100 : 0);
-            par[t][TP_CTYPE] = (uint8_t)ty;
+            par[t][TP_CTYPE] = CT_EF[ty];
             par[t][TP_CAMT] = 90;
             par[t][TP_CTONE] = 100;
         }
@@ -1585,7 +1589,7 @@ static void bench_char(void)
     }
 }
 
-/* a kit's character (char_bus): on the kit's summed pair, off by default and at mix 0, every type finite */
+/* a kit's character (slot 1, synth_kit_slots): on the kit's summed pair, off by default and at mix 0, every type finite */
 /* knit's voices spread evenly about the centre at every count and width: a centred sound's left and right within
  * 0.5 dB (fm1-loom#15: an even count's last voice had no left partner, and leaned right) */
 static void knit_balance_tests(void)
@@ -1965,9 +1969,7 @@ static float ln_rms(int engine, int e1, int x1, int x3, int blocks, float *late,
 #include "presets_full.h"
 static void preset_table_tests(void)
 {
-    static const uint16_t X[PS_N - NTP_SOUND] = {TP_O2FINE, TP_O2WAVE, TP_O2SHAPE, TP_KSYNC, TP_KSWEEP, TP_KCROSS,
-                                                 TP_KSUB, TP_ROPS, TP_RRATIO, TP_RDEPTH, TP_RFB, TP_KANALOG,
-                                                 TP_ITYPE, TP_I1, TP_I2, TP_I3, TP_HPF};
+    const uint16_t *X = PS_X;
     int bad = 0;
     _Static_assert(sizeof PRESET_FULL / sizeof PRESET_FULL[0] > 0, "presets_full.h");
     for (int k = 0; k < NPRESETS; k++) {
@@ -1996,7 +1998,7 @@ static void bus_split_tests(void)
     float top = 0.0f, err = 0.0f;
     for (int pass = 0; pass < 2; pass++) {
         reset();
-        par[0][TP_CTYPE] = CT_DRIVE;
+        par[0][TP_CTYPE] = EF_DRIVE;
         par[0][TP_CAMT] = 110;
         par[0][TP_CMIX] = 127;
         par[0][TP_E3] = 3;                       /* (three saws a voice: some cost) */
@@ -2030,8 +2032,16 @@ static void bus_split_tests(void)
     printf("    bus split: largest %.3f, the difference %.2g\n", (double)top, (double)err);
     check("a driven chord split across the cores sounds as on one (within rounding); its share in its pairs", ok && quiet);
 }
-/* the insert (TP_ITYPE): tremolo at full depth swings the track's level; at pan 127 its sides swing opposite (an
- * auto-pan); off, the track sounds as it did */
+/* the slots (the one effects list): slot 2's tremolo at full depth swings the track's level; at pan 127 its sides
+ * swing opposite (an auto-pan); off, the track sounds as it did */
+static void slot_set(int t, int q, int ef)          /* slot q of track t: an effect at its knobs' defaults, wet */
+{
+    par[t][TP_SLOT[q][SL_EF]] = (uint8_t)ef;
+    for (int j = SL_K1; j < SL_N; j++)
+        if (j != SL_MIX)
+            par[t][TP_SLOT[q][j]] = tp_info_par(TP_SLOT[q][j], par[t])->def;
+    par[t][TP_SLOT[q][SL_MIX]] = 127;
+}
 static void insert_tests(void)
 {
     float lo[2] = {1e9f, 1e9f}, hi[2] = {0.0f, 0.0f}, corr = 0.0f;
@@ -2042,7 +2052,7 @@ static void insert_tests(void)
         reset();
         par[0][TP_A] = 0;
         par[0][TP_S] = 127;
-        par[0][TP_ITYPE] = (uint8_t)(pass ? IT_TREMOLO : IT_OFF);
+        par[0][TP_ITYPE] = (uint8_t)(pass ? EF_TREMOLO : EF_OFF);
         par[0][TP_I1] = 3;                       /* (1/4: 2 Hz at 120) */
         par[0][TP_I2] = 127;
         par[0][TP_I3] = (uint8_t)(pass == 2 ? 127 : 0);
@@ -2069,65 +2079,116 @@ static void insert_tests(void)
            (double)lo[1], (double)hi[1], (double)corr);
     check("insert tremolo: full depth swings the level; pan at the top swings the sides apart",
           finite && lo[0] < hi[0] * 0.2f && lo[1] < hi[1] * 0.5f && corr > 0.0f);
-    {   /* every type at its knobs' defaults on a chord: it sounds, finite, under 2, not as off */
-        static float off[30 * N];
+    {   /* every effect of the catalog in either slot at its knobs' defaults on a chord: it sounds, finite, under 2, not
+         * as off (the delay and the reverb pass dry on a track: no memory until the one pool) */
+        static float off[30 * N], flat[30 * N];   /* (off; a flat tilt: on the bus, the bus's gain gliding in) */
         int ok = 1;
-        for (int ty = 0; ty < NIT; ty++) {
-            float pk = 0.0f;
-            double e = 0.0, d = 0.0;
-            reset();
-            par[0][TP_ITYPE] = (uint8_t)ty;
-            for (int q = TP_I1; q <= TP_I3; q++)
-                par[0][q] = tp_info_par(q, par[0])->def;
-            synth_init(S, par);
-            synth_tempo(S, 120.0f);
-            for (int k = 0; k < 3; k++)
-                synth_note_on(S, 0, 55 + 4 * k, 100, 0, (uint32_t)(1 + k));
-            for (int b = 0; b < 30; b++) {
-                float p = block(N, &finite);
-                pk = p > pk ? p : pk;
-                for (int i = 0; i < N; i++) {
-                    e += (double)L[i] * (double)L[i];
-                    if (ty)
-                        d += (double)(L[i] - off[b * N + i]) * (double)(L[i] - off[b * N + i]);
-                    else
-                        off[b * N + i] = L[i];
+        for (int q = 0; q < 2; q++)
+            for (int ty = 0; ty < NEF; ty++) {
+                float pk = 0.0f;
+                double e = 0.0, d = 0.0, dd = 0.0;
+                reset();
+                slot_set(0, q, ty);
+                synth_init(S, par);
+                synth_tempo(S, 120.0f);
+                for (int k = 0; k < 3; k++)
+                    synth_note_on(S, 0, 55 + 4 * k, 100, 0, (uint32_t)(1 + k));
+                for (int b = 0; b < 30; b++) {
+                    float p = block(N, &finite);
+                    pk = p > pk ? p : pk;
+                    for (int i = 0; i < N; i++) {
+                        e += (double)L[i] * (double)L[i];
+                        if (ty)
+                            d += (double)(L[i] - off[b * N + i]) * (double)(L[i] - off[b * N + i]);
+                        else
+                            off[b * N + i] = L[i];
+                        if (ty == EF_TILT)
+                            flat[b * N + i] = L[i];
+                        else if (ty > EF_TILT)
+                            dd += (double)(L[i] - flat[b * N + i]) * (double)(L[i] - flat[b * N + i]);
+                    }
+                }
+                printf("    slot %d %s: peak %.2f, level %.1f dB, from off %.1f dB%s\n", q + 1, EFX[ty].name, (double)pk,
+                       10.0 * log10(e / (30.0 * N) + 1e-20), 10.0 * log10(d / (e + 1e-20) + 1e-20),
+                       synth_slot_room(S, 0, q) ? "" : " (no memory)");
+                if (!(pk < 2.0f && e > 1e-3))
+                    ok = 0;
+                if (ty == EF_DELAY || ty == EF_REVERB ? !(dd < e * 1e-8) || synth_slot_room(S, 0, q)
+                                                      : ty && !(d > e * 1e-3))
+                    ok = 0;
+            }
+        check("every effect in either slot sounds, finite, under 2, and changes the sound (the delay and the reverb: "
+              "dry, no memory)", ok && finite);
+    }
+    {   /* an effect alone sounds the same in slot 1 or slot 2 (ring and tape on the voices in either; the rest on the
+         * bus), sample for sample; the two slots in order (rat then tremolo is not tremolo then rat) */
+        static float a[30 * N];
+        static const uint8_t EF[6] = {EF_DRIVE, EF_RING, EF_TAPE, EF_JUNO, EF_PHASER, EF_RUMBLE};
+        int same = 1, differ = 0;
+        for (int k = 0; k < 7; k++)
+            for (int q = 0; q < 2; q++) {
+                reset();
+                if (k < 6) {
+                    slot_set(0, q, EF[k]);
+                    par[0][TP_SLOT[q][SL_K1]] = 100;
+                    par[0][TP_SLOT[q][SL_MIX]] = 100;
+                } else {                         /* (rat into tremolo, then the other way) */
+                    slot_set(0, q, EF_RAT);
+                    slot_set(0, !q, EF_TREMOLO);
+                    par[0][TP_SLOT[!q][SL_K2]] = 127;
+                }
+                synth_init(S, par);
+                synth_tempo(S, 120.0f);
+                for (int n = 0; n < 2; n++)
+                    synth_note_on(S, 0, 48 + 7 * n, 100, 0, (uint32_t)(1 + n));
+                for (int b = 0; b < 30; b++) {
+                    block(N, &finite);
+                    for (int i = 0; i < N; i++) {
+                        if (!q)
+                            a[b * N + i] = L[i];
+                        else if (k < 6)
+                            same &= a[b * N + i] == L[i];
+                        else
+                            differ |= a[b * N + i] != L[i];
+                    }
                 }
             }
-            printf("    insert %s: peak %.2f, level %.1f dB, from off %.1f dB\n", tp_info(TP_ITYPE, 0)->names[ty],
-                   (double)pk, 10.0 * log10(e / (30.0 * N) + 1e-20), 10.0 * log10(d / (e + 1e-20) + 1e-20));
-            if (!(pk < 2.0f && e > 1e-3) || (ty && !(d > e * 1e-3)))
-                ok = 0;
-        }
-        check("every insert type sounds, finite, under 2, and changes the sound", ok && finite);
+        check("an effect alone sounds the same in either slot; two in their order", same && differ && finite);
     }
-    {   /* echo: a short note, then its repeats after the voice has ended (the bus rings on); the pool: five junos,
-         * four with memory, the fifth without; five choruses, four */
+    {   /* a chorus in a slot keeps its lows (a send's wet loses them: at full mix a slot's was thin): a low note's 55 Hz
+         * at full mix within 6 dB of the dry's */
+        static float a[60 * N];
+        double lo[2];
+        for (int pass = 0; pass < 2; pass++) {
+            reset();
+            sound_default(par[0], EG_KNIT);
+            par[0][TP_FTYPE] = FT_LP12;
+            par[0][TP_CUT] = 40;
+            par[0][TP_S] = 127;
+            if (pass)
+                slot_set(0, 1, EF_CHORUS);
+            synth_init(S, par);
+            synth_tempo(S, 120.0f);
+            synth_note_on(S, 0, 33, 110, 0, 1);
+            for (int b = 0; b < 90; b++) {
+                block(N, &finite);
+                if (b >= 30)
+                    memcpy(a + (b - 30) * N, L, sizeof L);
+            }
+            lo[pass] = tone_at(a, 60 * N, 55.0);
+        }
+        printf("    chorus in a slot, wet: its 55 Hz %.1f dB from the dry's\n", 10.0 * log10(lo[1] / (lo[0] + 1e-30) + 1e-30));
+        check("a chorus in a slot keeps its lows", finite && lo[1] > lo[0] * 0.25);
+    }
+    {   /* the delay in a slot: no memory on a track yet (the one pool: phase 3), dry; the pool: five junos, four with
+         * memory, the fifth without; five choruses, four */
         float late = 0.0f;
         int ended = 0, room = 0;
         reset();
-        par[0][TP_A] = 0;
-        par[0][TP_D] = 30;
-        par[0][TP_S] = 0;
-        par[0][TP_R] = 10;
-        par[0][TP_ITYPE] = IT_ECHO;
-        par[0][TP_I1] = 5;                       /* 1/8: 250 ms at 120 */
-        par[0][TP_I2] = 90;
-        par[0][TP_I3] = 100;
+        slot_set(0, 1, EF_DELAY);
         synth_init(S, par);
-        synth_tempo(S, 120.0f);
-        synth_note_on(S, 0, 60, 120, 0, 1);
         block(N, &finite);
-        synth_note_off(S, 0, 1);
-        for (int b = 0; b < 200; b++) {
-            float pk = block(N, &finite);
-            if (!synth_sounding(S, 0, NVOICE) && !ended)
-                ended = b;
-            if (ended && b > ended + 20 && b < ended + 120)   /* (0.5 .. 2.8 s on: its repeats) */
-                late = pk > late ? pk : late;
-        }
-        printf("    echo: the voice done at block %d, its repeats after it up to %.3f\n", ended, (double)late);
-        check("echo: its repeats go on after the note's voice has ended", ended > 0 && late > 0.005f && finite);
+        check("a delay in a slot: no memory (it passes dry)", !synth_slot_room(S, 0, 1) && synth_slot_room(S, 0, 0));
         {   /* rumble: a short low note, then its tail after the voice has ended: low (few zero crossings) */
             int zc = 0, nn = 0;
             float prev = 0.0f;
@@ -2137,9 +2198,8 @@ static void insert_tests(void)
             par[0][TP_D] = 30;
             par[0][TP_S] = 0;
             par[0][TP_R] = 10;
-            par[0][TP_ITYPE] = IT_RUMBLE;
-            for (int q = TP_I1; q <= TP_I3; q++)
-                par[0][q] = tp_info_par(q, par[0])->def;
+            slot_set(0, 1, EF_RUMBLE);
+            par[0][TP_S2MIX] = 70;
             synth_init(S, par);
             synth_tempo(S, 120.0f);
             synth_note_on(S, 0, 36, 120, 0, 1);
@@ -2172,12 +2232,11 @@ static void insert_tests(void)
             par[0][TP_D] = 40;
             par[0][TP_S] = 0;
             par[0][TP_R] = 10;
-            par[0][TP_ITYPE] = IT_RUMBLE;
-            for (int q = TP_I1; q <= TP_I3; q++)
-                par[0][q] = tp_info_par(q, par[0])->def;
+            slot_set(0, 1, EF_RUMBLE);
+            par[0][TP_S2MIX] = 70;
             for (int pass = 0; pass < 2; pass++) {
                 double eh = 0.0, eg = 0.0;
-                par[0][TP_ITYPE] = (uint8_t)(pass ? IT_RUMBLE : IT_OFF);
+                par[0][TP_ITYPE] = (uint8_t)(pass ? EF_RUMBLE : EF_OFF);
                 synth_init(S, par);
                 synth_tempo(S, 120.0f);
                 for (int beat = 0; beat < 8; beat++) {
@@ -2221,9 +2280,8 @@ static void insert_tests(void)
                 par[0][TP_D] = 40;
                 par[0][TP_S] = 0;
                 par[0][TP_R] = 10;
-                par[0][TP_ITYPE] = IT_RUMBLE;
-                for (int q = TP_I1; q <= TP_I3; q++)
-                    par[0][q] = tp_info_par(q, par[0])->def;
+                slot_set(0, 1, EF_RUMBLE);
+                par[0][TP_S2MIX] = 70;
                 if (pass)
                     par[0][TP_I1] = 0;
                 synth_init(S, par);
@@ -2245,23 +2303,32 @@ static void insert_tests(void)
         for (int pass = 0; pass < 2; pass++) {   /* (a juno: a slot; a chorus, its line 2 KB: one) */
             int got = 0;
             reset();
-            for (int t = 0; t < 5; t++) {
-                par[t][TP_ITYPE] = (uint8_t)(pass ? IT_CHORUS : IT_JUNO);
-                par[t][TP_I3] = 64;
-            }
+            for (int t = 0; t < 5; t++)
+                slot_set(t, 1, pass ? EF_CHORUS : EF_JUNO);
             synth_init(S, par);
             block(N, &finite);
             for (int t = 0; t < 5; t++)
-                got += synth_insert_room(S, t);
+                got += synth_slot_room(S, t, 1);
             room = room * 10 + got;
             for (int t = 0; t < 5; t++)
-                par[t][TP_ITYPE] = IT_OFF;
+                par[t][TP_ITYPE] = EF_OFF;
         }
-        check("the inserts' memory: four junos have it, the fifth not; four choruses, the fifth not (they pass dry)",
+        printf("    the pool: %d\n", room);
+        check("the slots' memory: four junos have it, the fifth not; four choruses, the fifth not (they pass dry)",
               room == 44 && finite);
+        (void)late, (void)ended;
     }
-    check("the insert's knobs named by its type", !strcmp(tp_info(TP_ITYPE, EG_KNIT)->name, "insert") &&
-          !strcmp(tp_info_par(TP_I1, (const uint8_t[NTP]){[TP_ITYPE] = IT_TREMOLO})->name, "rate"));
+    {
+        int same = 1;
+        for (int k = 0; k < NEF; k++)
+            same &= !strcmp(EFX[k].name, tp_info(TP_ITYPE, EG_KNIT)->names[k]);
+        check("the slots' effects named as the catalog; their knobs by their effect", same &&
+              !strcmp(tp_info(TP_ITYPE, EG_KNIT)->name, "insert") &&
+              !strcmp(tp_info_par(TP_I1, (const uint8_t[NTP]){[TP_ITYPE] = EF_TREMOLO})->name, "rate") &&
+              !strcmp(tp_info_par(TP_CTONE, (const uint8_t[NTP]){[TP_CTYPE] = EF_FOLD})->name, "bias") &&
+              !strcmp(tp_info_par(TP_S1X1, (const uint8_t[NTP]){[TP_CTYPE] = EF_PHASER})->name, "feedback") &&
+              tp_info_par(TP_S1X1, (const uint8_t[NTP]){[TP_CTYPE] = EF_PHASER})->def == 80);
+    }
 }
 /* the low cut (TP_HPF): a C2 saw's level falls as it rises (off: as it was), and its top stays */
 static void lowcut_tests(void)
@@ -2439,24 +2506,26 @@ static void lace_tests(void)
 static void kit_char_tests(void)
 {
     static float l[4096], r[4096], l0[4096];
-    uint8_t p[NTP];
-    chbus_t c;
     int i, ty, finite = 1, same;
-    sound_default(p, EG_DRUMLINE);
-    check("kit character: off by default", p[TP_CTYPE] == CT_OFF);
+    sound_default(par[0], EG_DRUMLINE);
+    check("kit character: off by default", par[0][TP_CTYPE] == EF_OFF);
     for (ty = 0; ty < NCT; ty++) {
-        memset(&c, 0, sizeof c);
-        p[TP_CTYPE] = (uint8_t)ty;
-        p[TP_CAMT] = 100;
-        p[TP_CTONE] = 64;
-        p[TP_CMIX] = 127;
+        reset();
+        sound_default(par[0], EG_DRUMLINE);
+        par[0][TP_CTYPE] = CT_EF[ty];
+        par[0][TP_CAMT] = 100;
+        par[0][TP_CTONE] = 64;
+        par[0][TP_CMIX] = 127;
+        synth_init(S, par);
         for (i = 0; i < 4096; i++) {
             l0[i] = 0.6f * sinf((float)i * (6.2831853f * 110.0f / 44100.0f)) * (float)(4096 - i) / 4096.0f;
             l[i] = l0[i];
             r[i] = -l0[i];
         }
-        for (i = 0; i < 4096; i += 256)
-            char_bus(&c, p, l + i, r + i, 256);
+        for (i = 0; i < 4096; i += 256) {
+            synth_prepare(S, 256);
+            synth_kit_slots(S, 0, l + i, r + i, 0, 256);
+        }
         same = 1;
         for (i = 0; i < 4096; i++) {
             if (!(l[i] == l[i]) || fabsf(l[i]) > 4.0f || fabsf(r[i]) > 4.0f)
@@ -2472,11 +2541,12 @@ static void kit_char_tests(void)
             check(w, 0);
         }
         if (ty == CT_DRIVE) {                    /* mix 0: untouched too */
-            memset(&c, 0, sizeof c);
-            p[TP_CMIX] = 0;
+            par[0][TP_CMIX] = 0;
+            synth_init(S, par);
             for (i = 0; i < 4096; i++)
                 l[i] = r[i] = l0[i];
-            char_bus(&c, p, l, r, 4096);
+            synth_prepare(S, 256);
+            synth_kit_slots(S, 0, l, r, 0, 4096);
             for (i = 0, same = 1; i < 4096; i++)
                 same &= l[i] == l0[i];
             check("kit character at mix 0: untouched", same);

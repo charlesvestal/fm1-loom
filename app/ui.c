@@ -417,23 +417,8 @@ static int preset_apply(int trk, int i)
         undo_sound(trk);
         memcpy(proj.trk[trk].par, user_presets[u].par, NTP_SOUND);
         proj.trk[trk].par[TP_ENGINE] = user_presets[u].engine;
-        proj.trk[trk].par[TP_O2FINE] = user_presets[u].o2fine;
-        proj.trk[trk].par[TP_O2WAVE] = user_presets[u].o2wave;
-        proj.trk[trk].par[TP_O2SHAPE] = user_presets[u].o2shape;
-        proj.trk[trk].par[TP_KSYNC] = user_presets[u].ksync;
-        proj.trk[trk].par[TP_KSWEEP] = user_presets[u].ksweep;
-        proj.trk[trk].par[TP_KCROSS] = user_presets[u].kcross;
-        proj.trk[trk].par[TP_KSUB] = user_presets[u].ksub;
-        proj.trk[trk].par[TP_ROPS] = user_presets[u].rops;
-        proj.trk[trk].par[TP_RRATIO] = user_presets[u].rratio;
-        proj.trk[trk].par[TP_RDEPTH] = user_presets[u].rdepth;
-        proj.trk[trk].par[TP_RFB] = user_presets[u].rfb;
-        proj.trk[trk].par[TP_KANALOG] = user_presets[u].kanalog;
-        proj.trk[trk].par[TP_ITYPE] = user_presets[u].itype;
-        proj.trk[trk].par[TP_I1] = user_presets[u].i1;
-        proj.trk[trk].par[TP_I2] = user_presets[u].i2;
-        proj.trk[trk].par[TP_I3] = user_presets[u].i3;
-        proj.trk[trk].par[TP_HPF] = user_presets[u].hpf;
+        for (int k = 0; k < PS_N - NTP_SOUND; k++)   /* (the sound past par[0..NTP_SOUND): its fields in PS_X's order) */
+            proj.trk[trk].par[PS_X[k]] = (&user_presets[u].o2fine)[k];
         memcpy(proj.trk[trk].name, user_presets[u].name, NAME_LEN);
         engine_set_all(trk);
         mark_dirty();
@@ -2331,6 +2316,14 @@ static void knob_clear(int k)
     mark_dirty();
     say(n ? "CLEARED" : "NOTHING TO CLEAR", tp_info_par(p, proj.trk[trk].par)->name);
 }
+/* another effect in slot q: its knobs at their defaults (slot 1's first two kept, as the character's were), its
+ * extras; its mix kept */
+static void slot_new(int trk, int q)
+{
+    for (int j = q ? SL_K1 : SL_K3; j < SL_N; j++)
+        if (j != SL_MIX)
+            set_tp(trk, TP_SLOT[q][j], tp_info_par(TP_SLOT[q][j], proj.trk[trk].par)->def);
+}
 static void knob_do(int k, int32_t e)
 {
     int trk = sel_trk(), p;
@@ -2406,9 +2399,9 @@ static void knob_do(int k, int32_t e)
         {
             int was = proj.trk[trk].par[p];
             set_tp(trk, p, was + (int)e);
-            if (p == TP_ITYPE && proj.trk[trk].par[p] != was)   /* (another insert: its knobs at their defaults) */
-                for (int q = TP_I1; q <= TP_I3; q++)
-                    set_tp(trk, q, tp_info_par(q, proj.trk[trk].par)->def);
+            if ((p == TP_ITYPE || p == TP_CTYPE) && proj.trk[trk].par[p] != was)   /* (another effect: its knobs at
+                                                  * their defaults) */
+                slot_new(trk, p == TP_ITYPE);
         }
         if (seq.rec && playing() && trk == sel_trk())
             seq_rec_knob(&seq, trk, p, proj.trk[trk].par[p]);
@@ -2472,22 +2465,14 @@ static void presets(int32_t e)
     case P_FX1: case P_FX2:
         fx_pick(ui.page == P_FX1 ? AUX_FX1 : AUX_FX2, d);
         break;
-    case P_CHARACTER:                            /* the character's type */
+    case P_CHARACTER: case P_INSERT:             /* a slot's effect (the one effects list), its knobs at their defaults */
         trk = inst_trk();
         {
             const uint8_t *par = proj.trk[trk].par;
-            set_tp(trk, TP_CTYPE, (par[TP_CTYPE] + d + NCT) % NCT);
-            say("CHARACTER", tp_info_par(TP_CTYPE, par)->names[par[TP_CTYPE] % NCT]);
-        }
-        break;
-    case P_INSERT:                               /* the insert's type */
-        trk = inst_trk();
-        {
-            const uint8_t *par = proj.trk[trk].par;
-            set_tp(trk, TP_ITYPE, (par[TP_ITYPE] + d + NIT) % NIT);
-            for (int q = TP_I1; q <= TP_I3; q++)  /* (another type: its knobs at their defaults) */
-                set_tp(trk, q, tp_info_par(q, par)->def);
-            say("INSERT", tp_info(TP_ITYPE, 0)->names[par[TP_ITYPE] % NIT]);
+            const int q = ui.page == P_INSERT, p = TP_SLOT[q][SL_EF];
+            set_tp(trk, p, (par[p] + d + NEF) % NEF);
+            slot_new(trk, q);
+            say(q ? "INSERT" : "CHARACTER", tp_info_par(p, par)->names[par[p] % NEF]);
         }
         break;
     case P_FILTER: case P_KITF:                  /* the filter type (a kit: the key's; Kit filter: the bus on / off) */
@@ -2749,6 +2734,12 @@ static void list_change_do(int32_t e)
         case A_KIT_FILTER:                       /* the kit's bus: on (dynamic) / off */
             set_tp(sel_trk(), TP_FTYPE, d > 0 ? FT_DYNAMIC : FT_LP24);
             break;
+        case A_SLOT_K3: case A_SLOT_MIX: case A_SLOT_X1: case A_SLOT_X2: case A_SLOT_X3: case A_SLOT_X4: {
+            const int t = inst_trk(), pr = TP_SLOT[ui.page == P_INSERT][SLOT_ROW[lst.row[lst.sel].id - A_SLOT_K3]];
+            const tp_info_t *in = tp_info_par(pr, proj.trk[t].par);
+            set_tp(t, pr, clampi(proj.trk[t].par[pr] + (in->hi < 16 ? d : (int)accel(EN_ALGO, e)), in->lo, in->hi));
+            break;
+        }
         case A_FX_HP: case A_FX_LP: case A_FX_SEND: case A_FX_WIDTH: case A_FX_WOBBLE: case A_FX_SMEAR: {
             int ft = ui.page == P_FX2 ? AUX_FX2 : AUX_FX1, id = lst.row[lst.sel].id;
             int q = id == A_FX_HP ? TP_FENV : id == A_FX_LP ? TP_CUT : id == A_FX_WIDTH ? TP_FX_WIDTH
@@ -3103,8 +3094,8 @@ static void act_paste_sound(void)
         par[TP_O2FINE] = proj.trk[src].par[TP_O2FINE];
         par[TP_O2WAVE] = proj.trk[src].par[TP_O2WAVE];
         par[TP_O2SHAPE] = proj.trk[src].par[TP_O2SHAPE];
-        for (int q = TP_KSYNC; q <= TP_HPF; q++)   /* (knit's Mod page, rayon's Ops page, knit's analog, the insert,
-                                                    * the low cut) */
+        for (int q = TP_KSYNC; q < NTP; q++)     /* (knit's Mod page, rayon's Ops page, knit's analog, slot 2, the
+                                                    * low cut, the slots' knob 3, mix and extras) */
             par[q] = proj.trk[src].par[q];
         memcpy(proj.trk[trk].name, proj.trk[src].name, NAME_LEN);
         engine_set_all(trk);
@@ -3236,23 +3227,8 @@ static void save_user_preset(int slot)
         return;
     user_presets[slot].engine = proj.trk[trk].par[TP_ENGINE];
     memcpy(user_presets[slot].par, proj.trk[trk].par, NTP_SOUND);
-    user_presets[slot].o2fine = proj.trk[trk].par[TP_O2FINE];
-    user_presets[slot].o2wave = proj.trk[trk].par[TP_O2WAVE];
-    user_presets[slot].o2shape = proj.trk[trk].par[TP_O2SHAPE];
-    user_presets[slot].ksync = proj.trk[trk].par[TP_KSYNC];
-    user_presets[slot].ksweep = proj.trk[trk].par[TP_KSWEEP];
-    user_presets[slot].kcross = proj.trk[trk].par[TP_KCROSS];
-    user_presets[slot].ksub = proj.trk[trk].par[TP_KSUB];
-    user_presets[slot].rops = proj.trk[trk].par[TP_ROPS];
-    user_presets[slot].rratio = proj.trk[trk].par[TP_RRATIO];
-    user_presets[slot].rdepth = proj.trk[trk].par[TP_RDEPTH];
-    user_presets[slot].rfb = proj.trk[trk].par[TP_RFB];
-    user_presets[slot].kanalog = proj.trk[trk].par[TP_KANALOG];
-    user_presets[slot].itype = proj.trk[trk].par[TP_ITYPE];
-    user_presets[slot].i1 = proj.trk[trk].par[TP_I1];
-    user_presets[slot].i2 = proj.trk[trk].par[TP_I2];
-    user_presets[slot].i3 = proj.trk[trk].par[TP_I3];
-    user_presets[slot].hpf = proj.trk[trk].par[TP_HPF];
+    for (int k = 0; k < PS_N - NTP_SOUND; k++)   /* (the sound past par[0..NTP_SOUND): PS_X's order) */
+        (&user_presets[slot].o2fine)[k] = proj.trk[trk].par[PS_X[k]];
     memcpy(user_presets[slot].name, proj.trk[trk].name, NAME_LEN);
     if (!user_presets[slot].name[0])
         s_cat(user_presets[slot].name, EG_NAME[proj.trk[trk].par[TP_ENGINE] % NENGINE]);
@@ -3276,6 +3252,13 @@ static void act_save_preset(int slot)
 }
 /* the kits: a kit is a name, the track's sound (par[0..NTP_SOUND)) and its keys (par[TP_DRUM0..TP_O2FINE)): app.h KIT_LEN.
  * Loading one keeps the track's mix, players and MIDI OUT */
+static void slot_extras(uint8_t *par, int q)    /* slot q's extras at its effect's defaults */
+{
+    for (int j = SL_X1; j <= SL_X4; j++)
+        par[TP_SLOT[q][j]] = tp_info_par(TP_SLOT[q][j], par)->def;
+}
+static const uint16_t KIT_SLOT[KIT_NSLOT] = {TP_ITYPE, TP_I1, TP_I2, TP_I3, TP_S1K3, TP_S2MIX};   /* (after its keys: the
+                                                  * slots but par[0..NTP_SOUND)'s and the extras) */
 static void kit_pack(const uint8_t *par, const char *name, uint8_t *img)
 {
     memset(img, 0, NAME_LEN);
@@ -3283,6 +3266,8 @@ static void kit_pack(const uint8_t *par, const char *name, uint8_t *img)
         img[i] = (uint8_t)name[i];
     memcpy(img + NAME_LEN, par, NTP_SOUND);
     memcpy(img + NAME_LEN + NTP_SOUND, par + TP_DRUM0, KIT_KEYS);
+    for (int i = 0; i < KIT_NSLOT; i++)
+        img[KIT_LEN16 + i] = par[KIT_SLOT[i]];
 }
 /* the factory kits, from the default kit (Loom): the others tools/gen_kits.py's (kits.h GKIT: each key's model, knobs 1..8,
  * volume, pan, play mode, the key's decay) */
@@ -3312,6 +3297,10 @@ static void kit_apply(int trk, const uint8_t *img, int dev)
     memcpy(par, img + NAME_LEN, NTP_SOUND);
     par[TP_ENGINE] = EG_DRUMLINE;
     memcpy(par + TP_DRUM0, img + NAME_LEN + NTP_SOUND, KIT_KEYS);
+    for (int i = 0; i < KIT_NSLOT; i++)
+        par[KIT_SLOT[i]] = img[KIT_LEN16 + i];
+    slot_extras(par, 0);                         /* (not kept: their effects' own) */
+    slot_extras(par, 1);
     keys_fix(par, dev);                          /* (dev: a user kit saved by a development build) */
     memcpy(proj.trk[trk].name, img, NAME_LEN);
     proj.trk[trk].name[NAME_LEN - 1] = 0;
@@ -3858,7 +3847,8 @@ static void action_run(int a)
     case A_FOLLOW: case A_USB_AUDIO: case A_COUNT_IN: case A_THEME: case A_LARGE_TYPE: case A_PLAYMODE: case A_FTYPE: case A_FX_HP: case A_FX_LP:
     case A_FX_SEND: case A_PUMP_BY: case A_PUMP_REL: case A_PUMP_ACC: case A_LEVEL: case A_SCENE_AT: case A_AUTOSAVE:
     case A_MIDI_OUT: case A_LOOP_FREE: case A_CC_OUT: case A_SCENES_OUT: case A_MIDI_CC: case A_USB_HOST: case A_KIT_FILTER:
-    case A_CC_IN: case A_FX_WIDTH: case A_FX_WOBBLE: case A_FX_SMEAR: case A_MOD_VIEW:
+    case A_CC_IN: case A_FX_WIDTH: case A_FX_WOBBLE: case A_FX_SMEAR: case A_MOD_VIEW: case A_SLOT_K3: case A_SLOT_MIX:
+    case A_SLOT_X1: case A_SLOT_X2: case A_SLOT_X3: case A_SLOT_X4:
         return;   /* (ALGORITHM sets them; SEL
                                                                                     * leaves the list) */
     case A_REMOVE_NOTE: act_remove_note(lst.sel); break;

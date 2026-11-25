@@ -37,7 +37,7 @@ def load():
 
 def fields(p):
     """a preset's fields as C values, by name: par[0..TP_PLAYER) (TP_* less its prefix), then the pages past it"""
-    lf, ch, fl = p["lfo"], p["char"], p["filter"]
+    lf, ch, fl = p["lfo"], p["fx1"], p["filter"]
     dest = lib.DESTS.index(lf[3]) if lf[0] in ("off", "wave", "drift") else lf[3]
     f = [("ENGINE", "EG_" + p["engine"].upper())]
     f += [(f"E{i + 1}", v) for i, v in enumerate(p["knobs"])]
@@ -47,7 +47,7 @@ def fields(p):
     f += [("SEND1", p["sends"][0]), ("SEND2", p["sends"][1])]
     f += [("LTYPE", "LT_" + lf[0].upper()), ("LSPEED", lf[1]), ("LAMT", lf[2]), ("LDEST", dest), ("LX", lf[4]),
           ("LX2", lf[5])]
-    f += [("CTYPE", "CT_" + ch[0].upper()), ("CAMT", ch[1]), ("CTONE", ch[2]), ("CMIX", ch[3])]
+    f += [("CTYPE", "EF_" + ch[0].upper()), ("CAMT", ch[1]), ("CTONE", ch[2]), ("CMIX", ch[4])]
     f += [(f"X{i + 1}", v) for i, v in enumerate(p["x"])] + [("OCT", p["octave"] + 2)]
     o2, md, op = p["osc2"], p["mod"], p["ops"]
     f += [("O2FINE", o2[2]), ("O2WAVE", "O2W_" + (o2[0].upper()[:3] if o2[0] == "triangle" else o2[0].upper())),
@@ -60,13 +60,16 @@ def fields(p):
         f += [("KSYNC", p["grain"][0]), ("KSWEEP", p["grain"][1]), ("KCROSS", 0), ("KSUB", 0)]
     f += [("ROPS", "RO_" + op[0].upper()), ("RRATIO", lib.RO_RATIOS.index(op[1])), ("RDEPTH", op[2]), ("RFB", op[3]),
           ("KANALOG", p["analog"])]
-    ins = p["insert"]
-    f += [("ITYPE", "IT_" + ins[0].upper()), ("I1", ins[1]), ("I2", ins[2]), ("I3", ins[3]), ("HPF", p["lowcut"])]
+    ins = p["fx2"]
+    f += [("ITYPE", "EF_" + ins[0].upper()), ("I1", ins[1]), ("I2", ins[2]), ("I3", ins[3]), ("HPF", p["lowcut"])]
+    f += [("S1K3", ch[3])] + [(f"S1X{i + 1}", v) for i, v in enumerate(ch[5:])] + [("S2MIX", ins[4])]
+    f += [(f"S2X{i + 1}", v) for i, v in enumerate(ins[5:])]
     return {k: str(v) for k, v in f}
 
 
 EXTRA = ["O2FINE", "O2WAVE", "O2SHAPE", "KSYNC", "KSWEEP", "KCROSS", "KSUB", "ROPS", "RRATIO", "RDEPTH", "RFB", "KANALOG",
-         "ITYPE", "I1", "I2", "I3", "HPF"]
+         "ITYPE", "I1", "I2", "I3", "HPF", "S1K3", "S1X1", "S1X2", "S1X3", "S1X4", "S2MIX", "S2X1", "S2X2", "S2X3",
+         "S2X4"]
 
 
 def sound_order():

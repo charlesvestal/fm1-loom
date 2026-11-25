@@ -117,8 +117,8 @@ enum {
     TP_LTYPE, TP_LSPEED, TP_LAMT, TP_LDEST, TP_LX,  /* LFO: type (off, wave, wobble, drift, pump), then its four
                                                      * knobs as the comment below the enum says */
     TP_LX2,                                         /* a fifth LFO value: shape (wave, wobble) or envelope (drift) */
-    TP_CTYPE, TP_CAMT, TP_CTONE, TP_CMIX,           /* Character: the voice's own effect after the filter (CT_*),
-                                                     * its amount, tone (per type, below) and mix (dry .. wet) */
+    TP_CTYPE, TP_CAMT, TP_CTONE, TP_CMIX,           /* the track's slot 1 (the slots: below): its effect (dsp/efx.h
+                                                     * EF_*: the character was its first types), knobs 1 and 2, mix */
     TP_X1, TP_X2, TP_X3, TP_X4,                     /* the engine's second page (its names per engine: tp_info; "-"
                                                      * where unused): knit's interval (its Osc 2 page), osc 2's
                                                      * level, sub, noise (Levels); rayon's fall, floor, keyscale */
@@ -155,26 +155,30 @@ enum {
     TP_KANALOG,                                     /* knit's analog (its Levels page): drift, each note a little off,
                                                      * softer edges and some saturation (0: knit as before). Last, so
                                                      * format 24's indices stay (format 25) */
-    TP_ITYPE, TP_I1, TP_I2, TP_I3,                  /* the track's insert (FX's Insert page): its type (IT_*: 0 off) and
-                                                     * its three knobs (per type: tp_info_par), on the track's bus after
-                                                     * its character. Last, so format 25's indices stay (format 26) */
+    TP_ITYPE, TP_I1, TP_I2, TP_I3,                  /* the track's slot 2 (was its insert): its effect (EF_*) and its
+                                                     * knobs 1..3. Last, so format 25's indices stay (format 26) */
     TP_HPF,                                         /* its low cut (Play 2): 0 off, 1..127 a 12 dB high-pass at 20 Hz ..
                                                      * 2 kHz on each voice before its filter (the Juno-106's HPF) */
+    TP_S1K3, TP_S1X1, TP_S1X2, TP_S1X3, TP_S1X4,    /* slot 1's knob 3 and extras, */
+    TP_S2MIX, TP_S2X1, TP_S2X2, TP_S2X3, TP_S2X4,   /* slot 2's mix and extras (format 28: the one effects list). Last,
+                                                     * so format 27's indices stay */
     NTP
 };
-/* a track's insert (TP_ITYPE), its knobs I1..I3: off; tremolo (rate: the LFO's speed, synced divisions then free;
- * depth; pan: 0 a tremolo, both sides together, 127 an auto-pan, the sides opposite); phaser (the sends': rate, depth:
- * the sweep's span about 466 Hz, feedback); univibe (rate, depth, vibrato: 0 its chorus, dry and wet, 127 the wet alone); rat (distortion,
- * filter: darker turned up, level); autowah (sensitivity, resonance, decay) */
-enum { IT_OFF, IT_TREMOLO, IT_PHASER, IT_UNIVIBE, IT_RAT, IT_AUTOWAH, IT_CHORUS, IT_ECHO, IT_JUNO, IT_RUMBLE, NIT };
-/* juno: the Juno-60's chorus (mode I, II or I+II: its rates and delays; mix; tone, the bucket brigade's darkening): a
- * slot. rumble: the techno rumble: the track's reverb as a low instrument (its lowest kept out, a steep
- * low-pass, light saturation), ducked on each hit (decay; tone: its low-pass, 80 .. 320 Hz; mix): two slots */
-/* chorus (the sends': rate, depth, mix; its feedback the send's default, fully wide) and echo (time: IE_* divisions,
- * feedback, mix) take memory from a pool shared by every track's insert: INS_SLOTS of 2 KB, a juno or a chorus (its
- * 2 KB line: no lag, efx.h EFX_CHO_REACH) one, an echo or rumble two. (The effects: dsp/efx.c's.) A track whose insert finds none passes dry
- * (synth_insert_room) */
-#define INS_SLOTS 4
+enum { TP_S1TYPE = TP_CTYPE, TP_S1K1 = TP_CAMT, TP_S1K2 = TP_CTONE, TP_S1MIX = TP_CMIX,
+       TP_S2TYPE = TP_ITYPE, TP_S2K1 = TP_I1, TP_S2K2 = TP_I2, TP_S2K3 = TP_I3 };
+/* a track's two slots (the one effects list: docs/superpowers/specs/2026-11-25-one-effects-list-design.md), each any
+ * effect of the catalog (dsp/efx.h EFX[]) with its three knobs, its mix (dry 0 .. wet 127; 0 skips it) and its extras
+ * (the SEL list's): TP_SLOT[slot][SL_*]. On a synth track slot 1 then slot 2 run on the track's bus, before its fader
+ * and its sends; ring and tape run on each voice first (ring's sine follows each note; tape's wow bends the voices'
+ * pitch, its saturation on the bus), so a voice's effects come before the bus's whatever the slots' order. (A second
+ * ring on the bus, at a ratio of C4.) On a kit both on the kit's pair after its bus filter (ring at a ratio of C4, tape
+ * without its wow: no pitch to bend; rumble hears the kicks alone). Effects with memory (chorus, lofi, juno: a 2 KB
+ * block; rumble two) take it from a pool shared by every track's slots, INS_SLOTS blocks; a slot that finds none
+ * passes dry (synth_slot_room), as the delay and the reverb do on a track until the one pool (phase 3) */
+enum { SL_EF, SL_K1, SL_K2, SL_K3, SL_MIX, SL_X1, SL_X2, SL_X3, SL_X4, SL_N };
+extern const uint16_t TP_SLOT[2][SL_N];
+int tp_slot_of(int p, int *j);                   /* the slot a parameter is in (0, 1; -1 none), and which (SL_*) */
+#define INS_SLOTS 4                                /* the slots' pool: 2 KB blocks (efx.h EFX_BLOCK) */
 _Static_assert(NTP <= 511, "a parameter's index: nine bits in the engine's queue (engine.c cq_put); a lane's is 16");
 /* knit's osc 2 wave (TP_O2WAVE): osc 1's (its wave knob and the LFO on it), or its own: saw, square and pulse are
  * points of its shape's sweep (TP_O2SHAPE: turning the wave sets the shape there), triangle and sine */
@@ -222,26 +226,6 @@ enum { VM_POLY, VM_MONO, VM_LEGATO };
 enum { FT_LP24, FT_LADDER, FT_LP12, FT_HP12, FT_BP12, FT_DYNAMIC, NFT };   /* (format 14 moved FT_DYNAMIC
                                                                            * last, past bp12: project.c migrates
                                                                            * an older project's TP_FTYPE) */
-/* the character stage, per voice after the filter and before the amp and the sends (no memory beyond a few
- * filter states: cheap); a kit's on the kit's summed pair after its bus filter (char_bus: the keys' sends are
- * taken before it, as before the bus filter). amount / tone per type:
- *   drive:   a soft (tanh-like) saturation, the gain made up so the level holds; tone = a low-pass after it
- *            (400 Hz .. 20 kHz: open)
- *   fold:    a sine wavefolder, gain made up; tone = its bias (64 = symmetric; off centre: even harmonics)
- *   crush:   fewer bits and a lower sample rate; tone = which falls (0 the rate only, 127 the bits only)
- *   ring:    a ring modulator, a sine at a ratio of the note (tone: 0.25:1 .. 7:1 in 16 steps); amount = depth (a kit: a
- *            ratio of C4)
- *   tilt:    a tilt EQ: amount = its pivot (150 Hz .. 6 kHz), tone = the tilt (below 64 darker, above brighter,
- *            +-6 dB each side at the ends)
- *   tape:    worn tape: a soft saturation (gain 0.5 .. 8, made up) into a two-pole roll-off (tone: 1.5 .. 18 kHz), and
- *            a wow on the pitch (0.55 Hz, with a 6 Hz flutter a quarter as deep): 2 .. 10 cents by the amount (a kit:
- *            no wow, it has no pitch to bend)
- *   sampler: an old sampler: the voice low-passed, held at a lower rate and fewer bits (amount: 26 kHz and 14 bits ..
- *            11 kHz and 11 bits: a voice sits well under full scale), then its output filter (tone: 2 .. 20 kHz): the
- *            dusty grain, not the crush's rasp
- * mix: dry (0) .. wet (127); at 0 the stage is skipped. The LFO reaches the amount (the voice module's knob 4).
- * (Saved by number: a new type goes at the end.) */
-enum { CT_OFF, CT_DRIVE, CT_FOLD, CT_CRUSH, CT_RING, CT_TILT, CT_TAPE, CT_SAMPLER, NCT };
 /* the LFO: TP_LSPEED is one knob: 0..7 synced 2/1, 1, 1/2, 1/4, 1/8, 1/16, 1/32, 1/64
  * (counter-clockwise), 8..127 free (clockwise, 0.1..30 Hz). Per type the five values TP_LSPEED / TP_LAMT /
  * TP_LDEST / TP_LX / TP_LX2 mean:
@@ -308,19 +292,12 @@ void tp_text(int p, int v, int engine, char *num, char *unit);   /* the value as
 const tp_info_t *tp_info_par(int p, const uint8_t *par);
 void tp_text_par(int p, int v, const uint8_t *par, char *num, char *unit);
 void sound_default(uint8_t *par, int engine);       /* par[NTP] for a fresh track of this engine */
-/* the Character page's picture of the stage (no state): per type the curve at u. drive, fold and off:
- * the transfer, the output for an input u (-1..1); crush: a cycle of a sine (u 0..1) as it comes out, held and
- * quantised; ring: two cycles of a sine (u 0..1) ring-modulated (its peak at 1); tilt: the response in dB / 6 from 50 Hz
- * (u = 0) to 20 kHz (u = 1). The mix is in it. */
-float char_picture(const uint8_t *par, float u);
-/* a kit's character: the stage (par's TP_CTYPE..TP_CMIX) on the kit's dry pair, n samples in place. The ring's
- * sine is at KIT_RING_HZ times the tone's ratio (C4: the kit is tuned to C). A zeroed chbus_t is a fresh one */
-#define KIT_RING_HZ 261.63f
-typedef struct {
-    float cx[8], cz[8], cin[2];
-    uint8_t type, cin_type;
-} chbus_t;
-void char_bus(chbus_t *c, const uint8_t *par, float *l, float *r, int n);
+/* the slot pages' picture of slot q's dirt or color (dsp/efx.h efx_char_picture: no state): drive, tape and fold the
+ * transfer at u (-1..1); crush and sampler a cycle of a sine (u 0..1) held and quantised; ring two cycles of a sine
+ * ring-modulated (its peak at 1); tilt the response in dB / 6 from 50 Hz (u 0) to 20 kHz (u 1). The mix is in it; mix:
+ * -1 the slot's, else this one (0: the dry curve) */
+float slot_picture(const uint8_t *par, int q, int mix, float u);
+#define KIT_RING_HZ 261.63f                         /* a ring off the voices (a kit's, a second ring): a ratio of C4 */
 /* the Engine page's picture of the organ: the six drawbars' levels (16' 8' 4' 2 2/3' 2' 1 1/3', 0..1, the loudest 1) that
  * stops and pedal set (organ_prep's registration) */
 void organ_bars(const uint8_t *par, float bars[6]);
@@ -346,7 +323,7 @@ extern const char *const RL_NAME[NRL];            /* "bass", "lead", ... */
  * analog), kept as its engine's template (the value most of the engine's presets have) and its own differences from it
  * (tools/gen_presets.py: 4.5 KB for the 8 KB the whole fields took, 2026-11-23): at its place in the table, a mask of
  * PS_MASK bytes (bit i: field i differs), then the values of the fields that do */
-#define PS_N (NTP_SOUND + 17)
+#define PS_N (NTP_SOUND + 27)
 #define PS_MASK ((PS_N + 7) / 8)
 typedef struct {
     const char *name;
@@ -358,7 +335,10 @@ extern const preset_t PRESETS[];
 extern const int NPRESETS;
 int preset_first(int engine);                       /* the first preset of an engine, -1 */
 void preset_sound(uint8_t *par, const preset_t *pr);   /* a preset's sound into a track's par[NTP]: par[0..NTP_SOUND)
-                                                     * and knit's Osc 2 and Mod pages, rayon's Ops page */
+                                                     * and the sound's fields past it (PS_X) */
+extern const uint16_t PS_X[PS_N - NTP_SOUND];       /* the sound's fields past par[0..NTP_SOUND): knit's Osc 2 and Mod
+                                                     * pages, rayon's Ops page, knit's analog, slot 2, the low cut, the
+                                                     * slots' third knob, mix and extras (TP_O2FINE .. TP_S2X4) */
 
 /* --------------------------------------------------------------- voices --- */
 /* performance state per track, written by the sequencer / punch-in FX, read by the voices each chunk */
@@ -376,8 +356,8 @@ typedef struct {
 typedef struct synth synth_t;         /* opaque: dsp/synth.c */
 void synth_glfo_restart(synth_t *s);              /* the shared LFO from its start (the transport started) */
 float synth_glfo_now(const synth_t *s);            /* its value now, -1..1 (the page's picture) */
-#define SYNTH_BYTES 15232             /* room for the struct (checked at compile time in synth.c; about 13,990 B with
-                                       * each track's character bus, 2026-11-23) */
+#define SYNTH_BYTES 15536             /* room for the struct (checked at compile time in synth.c: 15,536 B with each
+                                       * track's two slots, 2026-11-25) */
 
 void synth_init(synth_t *s, uint8_t (*par)[NTP]);   /* par: the tracks' parameter arrays, NTRK + 1 of them (the conductor's, SY_GLFO_TRK: the shared LFO) */
 void synth_tempo(synth_t *s, float bpm);
@@ -411,15 +391,12 @@ void synth_render(synth_t *s, int v0, int v1, float *l, float *r, float *s1, flo
  * stage, gains and sends into the first's l, r, s1, s2. synth_bus_reset: a core's shares cleared (its render failed:
  * rendered again) */
 void synth_split(synth_t *s, int on);
-/* a track's insert (TP_ITYPE) on a pair of its own: the kit's bus (engine.c, after its character); this block's knobs
- * (synth_prepare) */
-void synth_insert_kick(synth_t *s, int trk, float *l, float *r, const float *kick, uint32_t n);   /* a kit's: its
-                                                  * rumble hears its kicks alone (drumline_render_kick), the others
-                                                  * the whole kit */
-int synth_insert_rings(synth_t *s, int trk, int sounding, uint32_t n);   /* a kit's insert: 1 while it sounds or its
-                                                  * insert rings on after it (the echo's repeats, the rumble), counted
-                                                  * in calls of n frames */
-int synth_insert_room(const synth_t *s, int trk);   /* 1: its insert has its memory (or needs none: INS_SLOTS) */
+/* a kit's slots on its pair (engine.c, after its bus filter; the keys' sends taken before): this block's effects, knobs
+ * and mixes (synth_prepare); a rumble hears kick, its kicks alone (drumline_render_kick), when given */
+void synth_kit_slots(synth_t *s, int trk, float *l, float *r, const float *kick, uint32_t n);
+int synth_slots_ring(synth_t *s, int trk, int sounding, uint32_t n);   /* a kit's: 1 while it sounds or a slot rings on
+                                                  * after it (rumble), counted in calls of n frames */
+int synth_slot_room(const synth_t *s, int trk, int q);   /* 1: slot q has its memory (or needs none) */
 void synth_bus_join(synth_t *s, float *l, float *r, float *s1, float *s2, uint32_t n);
 void synth_bus_reset(synth_t *s, int core);
 /* the same, saying which core renders (0 the first, 1 the second: the profiler's halves) */

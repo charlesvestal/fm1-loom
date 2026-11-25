@@ -32,4 +32,4 @@ P("vosim bass", "bass", "voile", knobs=dict(model=VOSIM, timbre=30, color=20, br
 # a whisper pad: breath with a buzz and a peak in it, wide and dusty
 P("whisper pad", "pad", "voile", knobs=dict(model=WHISPER, timbre=80, color=64, breath=70), volume=110,
   amp=(90, 90, 120, 100), fenv=(0, 64, 0, 64), filter=("lp12", 84, 0, 64, 64), sends=(10, 30),
-  char=("tape", 40, 60, 127), genres=("lofi",))
+  fx1=("tape", 40, 60, 127), genres=("lofi",))

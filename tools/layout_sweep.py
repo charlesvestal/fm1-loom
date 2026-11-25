@@ -23,8 +23,8 @@ for e in range(10):                                   # each engine on T2, a not
     L += ["tapkey w4", "wait 100"]
     visit(["EDIT"], 4)
 L.append("knob 2 engine 0")
-for c in range(8):
-    L += [f"knob 2 ctype {c}", "knob 2 cmix 100"]
+for c in range(19):                                  # every effect of the catalog in both slots (dsp/efx.h NEF)
+    L += [f"knob 2 ctype {c}", "knob 2 cmix 100", f"knob 2 itype {c}"]
     visit(["FX"], 2)
 for t in range(5):
     L.append(f"knob 2 ltype {t}")

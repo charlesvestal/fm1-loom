@@ -21,7 +21,7 @@ P("glass keys", "keys", "jacquard", knobs=dict(table=GLASS, scan=50, bend=0, rip
 # the growl: the fold table scanned in sixteenths on a saw, the ladder under it, driven hard (drum and bass)
 P("growl", "bass", "jacquard", knobs=dict(table=FOLD, scan=30, bend=20, ripple=0), mode="mono", volume=86,
   amp=(0, 70, 120, 30), fenv=(0, 60, 40, 40), filter=("ladder", 74, 40, 84, 40),
-  lfo=("wave", 5, 110, "synth", 1, 3), char=("drive", 90, 80, 127), genres=("dnb",))
+  lfo=("wave", 5, 110, "synth", 1, 3), fx1=("drive", 90, 80, 127), genres=("dnb",))
 # the wobble: the shapes table swept sine to square in quarters, the filter following
 P("wobble", "bass", "jacquard", knobs=dict(table=SHAPES, scan=20, bend=0, ripple=0), mode="mono", volume=104,
   amp=(0, 70, 127, 30), fenv=(0, 64, 0, 40), filter=("lp24", 70, 20, 64, 40), lfo=("wave", 3, 110, "synth", 1, 1),
@@ -29,7 +29,7 @@ P("wobble", "bass", "jacquard", knobs=dict(table=SHAPES, scan=20, bend=0, ripple
 # an octave pad: the octaves table near its sine end, slow, tape
 P("octave pad", "pad", "jacquard", knobs=dict(table=OCTAVES, scan=45, bend=0, ripple=0), volume=100,
   amp=(90, 90, 120, 100), fenv=(0, 64, 0, 64), filter=("lp12", 82, 0, 64, 64), sends=(0, 45),
-  lfo=("wave", 18, 76, "filter free", 0, 1), char=("tape", 40, 60, 127), genres=("lofi",))
+  lfo=("wave", 18, 76, "filter free", 0, 1), fx1=("tape", 40, 60, 127), genres=("lofi",))
 # a spiral pad: the Fibonacci partials coming and going on a slow drift
 P("spiral pad", "pad", "jacquard", knobs=dict(table=SPIRAL, scan=50, bend=10, ripple=20), volume=96,
   amp=(96, 96, 120, 104), fenv=(0, 64, 0, 64), filter=("lp12", 80, 0, 64, 64), sends=(15, 50),

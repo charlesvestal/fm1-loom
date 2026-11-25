@@ -57,7 +57,6 @@ static uint8_t synth_mem[SYNTH_BYTES] POOL __attribute__((aligned(8)));
 static uint8_t dl_mem[NDL][DRUMLINE_BYTES] POOL __attribute__((aligned(8)));
 static uint8_t dl_slot[NTRK];                              /* the unit a drum track owns, 0xFF none */
 static uint8_t dl_owner[NDL];                              /* the track owning each unit, 0xFF free */
-static chbus_t dl_ch[NDL];                                 /* each unit's character stage (the kit's TP_CTYPE..CMIX) */
 static uint8_t fx_mem[2][FXSLOT_BYTES] POOL __attribute__((aligned(8)));
 static uint8_t mst_mem[MASTER_BYTES] __attribute__((aligned(8)));
 #define SY ((synth_t *)(void *)synth_mem)
@@ -71,7 +70,6 @@ static int dl_take(int t)                                  /* a free unit for tr
         if (dl_owner[k] == 0xFFu) {
             dl_owner[k] = (uint8_t)t;
             dl_slot[t] = (uint8_t)k;
-            dl_ch[k] = (chbus_t){.type = CT_OFF};
             return 1;
         }
     return 0;
@@ -146,7 +144,7 @@ int engine_slice_now(int trk, int *slice, int32_t *pos)
 {
     return trk >= 0 && trk < NTRK && synth_slice_now(SY, trk, slice, pos);
 }
-int engine_insert_room(int trk) { return synth_insert_room(SY, trk); }
+int engine_slot_room(int trk, int q) { return synth_slot_room(SY, trk, q); }
 int engine_tulle_grains(int trk, int32_t *pos, uint8_t *lvl, int max)
 {
     return trk >= 0 && trk < NTRK ? synth_tulle_grains(SY, trk, pos, lvl, max) : 0;
@@ -1054,7 +1052,7 @@ static float perc_l[STRETCH_MAX] POOL, perc_r[STRETCH_MAX] POOL, mel_l[STRETCH_M
 static float s1[STRETCH_MAX] POOL, s2[STRETCH_MAX] POOL;
 static float c2_l[STRETCH_MAX] POOL, c2_r[STRETCH_MAX] POOL, c2_s1[STRETCH_MAX] POOL, c2_s2[STRETCH_MAX] POOL;
 static float tl[STRETCH_MAX] POOL, tr[STRETCH_MAX] POOL, ts1[STRETCH_MAX] POOL, ts2[STRETCH_MAX] POOL;
-static float tk[STRETCH_MAX] POOL;                       /* a kit's kicks alone, for its rumble (synth_insert_kick) */
+static float tk[STRETCH_MAX] POOL;                       /* a kit's kicks alone, for its rumble (synth_kit_slots) */
 static float mix_l[256] POOL, mix_r[256] POOL;
 /* the USB audio input's track channels (fm1.toml usb_audio_channels = 10: fm1-base plat_usb_ch): channels 3..10 are
  * tracks 1..8, each at its level and before its pan, after its sound's own filter and character, without the sends'
@@ -1291,7 +1289,8 @@ static uint32_t split_at(int extra2, int top)          /* voices [0, top) shared
         if (eng_drum[t]) {
             int nv = drumline_voices(DL(t));
             if (nv)
-                drum += 1 + 2 * nv + (epar[t][TP_CTYPE] != CT_OFF && epar[t][TP_CMIX]);   /* (+ its character) */
+                drum += 1 + 2 * nv + (epar[t][TP_CTYPE] != EF_OFF && epar[t][TP_CMIX]) +
+                        (epar[t][TP_ITYPE] != EF_OFF && epar[t][TP_S2MIX]);   /* (+ its slots) */
         }
     pre[0] = 0;
     for (i = 0; i < top; i++)
@@ -1345,20 +1344,22 @@ static void render_drums(uint32_t n)                    /* the drum tracks (the 
     for (t = 0; t < NTRK; t++) {
         float g, gl, gr;
         uint32_t pt1;
-        if (!eng_drum[t] || !synth_insert_rings(SY, t, drumline_sounding(DL(t)), n))
-            continue;                                     /* (silent, its insert rung out) */
+        int rumble;
+        if (!eng_drum[t] || !synth_slots_ring(SY, t, drumline_sounding(DL(t)), n))
+            continue;                                     /* (silent, its slots rung out) */
         pt1 = plat_cycles();
         zerof(tl, n);
         zerof(tr, n);
         zerof(ts1, n);
         zerof(ts2, n);
-        if (epar[t][TP_ITYPE] == IT_RUMBLE) {             /* (its rumble hears the kicks alone) */
+        rumble = epar[t][TP_CTYPE] == EF_RUMBLE || epar[t][TP_ITYPE] == EF_RUMBLE;
+        if (rumble) {                                     /* (its rumble hears the kicks alone) */
             zerof(tk, n);
             drumline_render_kick(DL(t), tl, tr, ts1, ts2, tk, n);
         } else
             drumline_render(DL(t), tl, tr, ts1, ts2, n);
-        char_bus(&dl_ch[dl_slot[t]], epar[t], tl, tr, (int)n);   /* the kit's character, after its bus filter */
-        synth_insert_kick(SY, t, tl, tr, tk, n);          /* and its insert (the keys' sends taken before both) */
+        synth_kit_slots(SY, t, tl, tr, rumble ? tk : 0, n);   /* its slots, after its bus filter (the keys' sends
+                                                          * taken before them) */
         g = perf_mute[t] || !HOST_ON(t) ? 0.0f : tp_level_gain(epar[t][TP_LEVEL]);
         pan_gains(epar[t][TP_PAN] + perf_pan[t], &gl, &gr);
         glide_set(&trk_glide[t][GL_L], g * gl);

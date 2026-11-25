@@ -80,6 +80,20 @@ static void synth_case(const char *name)
     synth_blocks(30);
     out(name);
 }
+/* the character's types (before the one effects list: the case names keep their numbers) as the catalog's */
+static const uint8_t CT_EF[8] = {EF_OFF, EF_DRIVE, EF_FOLD, EF_CRUSH, EF_RING, EF_TILT, EF_TAPE, EF_SAMPLER};
+/* the inserts' cases (format 27's, by name: their knobs at their defaults, then moved) as slot 2 now (project.c's
+ * conversion): effect, knobs 1..3, mix, extra 1 */
+static const struct { const char *name; uint8_t ef, k[2][5], x[2]; } INS_CASE[9] = {
+    {"tremolo", EF_TREMOLO, {{4, 80, 0, 127}, {100, 70, 40, 127}}, {0, 0}},
+    {"phaser", EF_PHASER, {{50, 90, 62, 127}, {50, 70, 127, 127}}, {60, 40}},
+    {"univibe", EF_UNIVIBE, {{70, 90, 0, 127}, {100, 70, 40, 127}}, {0, 0}},
+    {"rat", EF_RAT, {{70, 50, 80, 127}, {100, 70, 40, 127}}, {0, 0}},
+    {"autowah", EF_AUTOWAH, {{80, 70, 50, 127}, {100, 70, 40, 127}}, {0, 0}},
+    {"chorus", EF_CHORUS, {{46, 70, 20, 64}, {127, 70, 20, 40}}, {127, 127}},
+    {"echo", EF_DELAY, {{83, 58, 64, 45}, {44, 62, 64, 40}}, {64, 64}},
+    {"juno", EF_JUNO, {{0, 70, 0, 64}, {2, 40, 0, 70}}, {0, 0}},
+    {"rumble", EF_RUMBLE, {{55, 80, 0, 70}, {100, 70, 0, 40}}, {0, 0}}};
 static void synth_cases(void)
 {
     int e, ft, ct, k, it;
@@ -88,7 +102,7 @@ static void synth_cases(void)
         if (!eg_synth(e))
             continue;
         for (ft = 0; ft < NFT; ft++)
-            for (ct = 0; ct < NCT; ct++) {
+            for (ct = 0; ct < 8; ct++) {
                 int t;
                 for (t = 0; t < NTRK; t++)
                     sound_default(par[t], e);
@@ -96,7 +110,7 @@ static void synth_cases(void)
                 par[0][TP_RES] = 90;
                 par[0][TP_FENV] = 100;
                 par[0][TP_E1] = 90; par[0][TP_E2] = 30; par[0][TP_E3] = 100; par[0][TP_E4] = 110;
-                par[0][TP_CTYPE] = (uint8_t)ct;
+                par[0][TP_CTYPE] = CT_EF[ct];
                 par[0][TP_CAMT] = 90; par[0][TP_CTONE] = 70; par[0][TP_CMIX] = 110;
                 par[0][TP_LTYPE] = LT_WAVE; par[0][TP_LDEST] = LD_FILTER; par[0][TP_LAMT] = 100;
                 par[0][TP_SEND1] = 60; par[0][TP_SEND2] = 30;
@@ -108,17 +122,19 @@ static void synth_cases(void)
                 synth_case(name);
             }
     }
-    for (it = 1; it < NIT; it++)                  /* every insert on knit (its knobs at their defaults, then moved) */
+    for (it = 0; it < 9; it++)                    /* every insert (slot 2) on knit (its knobs at their defaults, then
+                                                   * moved) */
         for (k = 0; k < 2; k++) {
             int t;
             for (t = 0; t < NTRK; t++)
                 sound_default(par[t], EG_KNIT);
-            par[0][TP_ITYPE] = (uint8_t)it;
+            par[0][TP_ITYPE] = INS_CASE[it].ef;
             for (t = 0; t < 3; t++)
-                par[0][TP_I1 + t] = k ? (uint8_t)(t == 0 && it == IT_ECHO ? 2 : t == 0 && it == IT_JUNO ? 2 : 100 - 30 * t)
-                                      : tp_info_par(TP_I1 + t, par[0])->def;
+                par[0][TP_I1 + t] = INS_CASE[it].k[k][t];
+            par[0][TP_S2MIX] = INS_CASE[it].k[k][3];
+            par[0][TP_S2X1] = INS_CASE[it].x[k];
             par[0][TP_SEND1] = 60;
-            snprintf(name, sizeof name, "insert %s %d", tp_info(TP_ITYPE, EG_KNIT)->names[it], k);
+            snprintf(name, sizeof name, "insert %s %d", INS_CASE[it].name, k);
             synth_case(name);
         }
     for (k = 0; k < NPRESETS; k++) {   /* (by name, beside the next engine's first preset: a preset added keeps the
@@ -339,21 +355,21 @@ static void fx_cases(void)
             out(name);
         }
 }
-/* a kit's character (char_bus) on a stereo pair: every type, a noisy chord in, then silence (its tails) */
+/* a kit's character (slot 1, synth_kit_slots) on a stereo pair: every type, a noisy chord in, then silence (its tails) */
 static void kitchar_cases(void)
 {
-    static chbus_t cb;
-    static uint8_t kp[NTP];
-    int ct, b, i, v;
+    int ct, b, i, v, t;
     char name[64];
-    for (ct = 1; ct < NCT; ct++)
+    for (ct = 1; ct < 8; ct++)
         for (v = 0; v < 2; v++) {
-            memset(&cb, 0, sizeof cb);
-            memset(kp, 0, sizeof kp);
-            kp[TP_CTYPE] = (uint8_t)ct;
-            kp[TP_CAMT] = v ? 30 : 100;
-            kp[TP_CTONE] = v ? 20 : 90;
-            kp[TP_CMIX] = v ? 127 : 90;
+            for (t = 0; t <= NTRK; t++)
+                memset(par[t], 0, NTP);
+            par[0][TP_ENGINE] = EG_DRUMLINE;
+            par[0][TP_CTYPE] = CT_EF[ct];
+            par[0][TP_CAMT] = v ? 30 : 100;
+            par[0][TP_CTONE] = v ? 20 : 90;
+            par[0][TP_CMIX] = v ? 127 : 90;
+            synth_init(S, par);
             rng = 4242;
             hash_init();
             for (b = 0; b < 120; b++) {
@@ -363,8 +379,9 @@ static void kitchar_cases(void)
                     R[i] = g * (fm_sin_turns(u * 147.0f) + 0.3f * noise());
                 }
                 if (b == 60)
-                    kp[TP_CAMT] = (uint8_t)(kp[TP_CAMT] + 20);   /* (a turn: the ring's glide) */
-                char_bus(&cb, kp, L, R, b % 3 ? N : 100);
+                    par[0][TP_CAMT] = (uint8_t)(par[0][TP_CAMT] + 20);   /* (a turn: the ring's glide) */
+                synth_prepare(S, b % 3 ? N : 100);
+                synth_kit_slots(S, 0, L, R, 0, b % 3 ? N : 100);
                 hash_buf(L, N); hash_buf(R, N);
             }
             snprintf(name, sizeof name, "kit char %d %d", ct, v);

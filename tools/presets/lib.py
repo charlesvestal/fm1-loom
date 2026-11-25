@@ -11,7 +11,11 @@ turns them into app/build/gen/presets.h (the PRESETS table synth.c includes). A 
     lfo=None | (type, speed, amount, dest, x, x2)   type: wave wobble drift pump; dest a name for wave and drift
                                                 ("synth", "envelope", "filter", "voice", and "... free"), a number
                                                 for wobble (its volume amount) and pump (its hold)
-    char=None | (type, amount, tone, mix),     type: drive fold crush ring tilt tape sampler
+    fx1=None | (effect, k1, k2, mix) | (effect, k1, k2, k3, mix, x1 ..),   the track's slot 1 (FX's first page: the
+                                                one effects list, EFFECTS): its knobs 0..127 (a two-knob effect's
+                                                three-value form), its mix (dry 0 .. wet 127), its extras (the SEL
+                                                list's; omitted: the effect's defaults, XDEF). The character's sounds
+                                                (drive fold crush ring tilt tape sampler) as they were
     x=(x1, x2, x3, x4),                         the engine's second page (knit's osc 2 .., rayon's fall ..)
     osc2=None | (wave, shape, fine),            knit's Osc 2 page: wave same (osc 1's) / saw / square / pulse /
                                                 triangle / sine, its shape 0..127 (saw .. square .. pulse; counts for
@@ -20,9 +24,9 @@ turns them into app/build/gen/presets.h (the PRESETS table synth.c includes). A 
                                                 level morph), its amount, their places (its pan morph), the sway 0..127
     lowcut=0,                                   the low cut (Play 2): 0 off, 1..127 a 12 dB high-pass at 20 Hz .. 2 kHz
                                                 before the filter (the Juno-106's HPF)
-    insert=None | (type, k1, k2, k3),           the track's insert (FX's Insert page): type off / tremolo / phaser / univibe / rat /
-                                                autowah / chorus / echo / juno, its three knobs 0..127 (echo's time 0..7: 1/32 ..
-                                                1/4); with it the sound's chorus, echo or grit comes with the preset
+    fx2=None | (as fx1),                        the track's slot 2 (FX's second page), after slot 1: with it the
+                                                sound's chorus, grit or movement comes with the preset (the delay
+                                                and the reverb have no memory on a track yet: they pass dry)
     grain=None | (shape, reverse),              tulle's Grain page: its grains' shape 0 smooth .. 127 a pluck, the chance a
                                                 grain plays backwards 0..127 (stored in knit's Mod page's bytes)
     analog=0,                                   knit's analog 0..127 (its Levels page): drift, each note a little off,
@@ -59,26 +63,41 @@ MODES = ["poly", "mono", "legato"]                    # VM_*
 FILTERS = ["lp24", "ladder", "lp12", "hp12", "dynamic", "bp12"]   # FT_*
 LFOS = ["off", "wave", "wobble", "drift", "pump"]    # LT_*
 DESTS = ["synth", "envelope", "filter", "voice", "synth free", "envelope free", "filter free", "voice free"]   # LD_*
-CHARS = ["off", "drive", "fold", "crush", "ring", "tilt", "tape", "sampler"]   # CT_*
+EFFECTS = ["off", "drive", "rat", "fold", "crush", "ring", "tilt", "tape", "sampler", "lofi", "tremolo", "phaser",
+           "univibe", "chorus", "juno", "autowah", "delay", "rumble", "reverb"]   # dsp/efx.h EF_* (the catalog)
+XDEF = {"lofi": (40, 0, 0, 0), "phaser": (80, 0, 0, 0), "chorus": (127, 0, 0, 0), "delay": (64, 127, 0, 0),
+        "reverb": (0, 72, 0, 0)}   # the extras' defaults (dsp/efx.c EFX[].xdef; the rest 0)
 O2WAVES = ["same", "saw", "square", "pulse", "triangle", "sine"]   # O2W_*
 NOOSC2 = ("same", 0, 64)
 SUBS = ["sine", "square", "low square", "low pulse"]   # KS_*
 NOMOD = (False, 0, 0, "sine")
 OPS = ["off", "stack", "layer"]
-INSERTS = ["off", "tremolo", "phaser", "univibe", "rat", "autowah", "chorus", "echo", "juno", "rumble"]   # synth.h IT_*                      # RO_*
+# RO_*
 RO_RATIOS = [0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4, 5, 6, 7, 8, 9, 10, 11, 12, 14, 16, 1.41, 1.73, 2.24, 2.76, 3.46, 5.19]   # synth.c RO_RATIO
 NOOPS = ("off", 1, 0, 0)
 X_DEF = {"knit": (64, 0, 0, 0), "acid": (0, 1, 27, 0), "tulle": (80, 70, 0, 90), "lace": (0, 64, 64, 80),
          "tartan": (0, 0, 114, 0)}   # the engines' second pages as sound_default leaves them
 NOLFO = ("off", 3, 64, "filter", 0, 1)
-NOCHAR = ("off", 64, 64, 127)
+NOFX1 = ("off", 64, 64, 0, 127, 0, 0, 0, 0)   # (a slot as sound_default leaves it: effect, k1 k2 k3, mix, x1 .. x4)
+NOFX2 = ("off", 0, 0, 0, 127, 0, 0, 0, 0)
+
+
+def fx_slot(name, fx, none):
+    """a slot's recipe as its nine values (effect, k1 k2 k3, mix, x1 .. x4)"""
+    if fx is None:
+        return none
+    assert fx[0] in EFFECTS and len(fx) >= 4, (name, fx)
+    v = (fx[1], fx[2], 0, fx[3]) if len(fx) == 4 else tuple(fx[1:5])
+    x = tuple(fx[5:]) + XDEF.get(fx[0], (0, 0, 0, 0))[len(fx[5:]):]
+    assert len(x) == 4 and all(isinstance(k, int) and 0 <= k <= 127 for k in v + x), (name, fx)
+    return (fx[0],) + v + x
 
 PRESETS = []
 
 
 def P(name, role, engine, knobs, mode="poly", glide=0, bend=2, volume=100, amp=(0, 64, 127, 40),
-      fenv=(0, 64, 0, 40), filter=("lp24", 127, 0, 64, 64), sends=(0, 0), lfo=None, char=None, x=None, osc2=None,
-      mod=None, ops=None, analog=0, grain=None, morph=None, insert=None, lowcut=0, octave=None, genres=()):
+      fenv=(0, 64, 0, 40), filter=("lp24", 127, 0, 64, 64), sends=(0, 0), lfo=None, fx1=None, x=None, osc2=None,
+      mod=None, ops=None, analog=0, grain=None, morph=None, fx2=None, lowcut=0, octave=None, genres=()):
     assert role in ROLES, (name, role)
     assert engine in KNOBS, (name, engine)
     assert len(name) <= 11 and name == name.lower(), name
@@ -87,8 +106,8 @@ def P(name, role, engine, knobs, mode="poly", glide=0, bend=2, volume=100, amp=(
     assert lf[0] in LFOS and len(lf) == 6, (name, lf)
     if lf[0] in ("wave", "drift", "off"):
         assert lf[3] in DESTS, (name, lf)
-    ch = char or NOCHAR
-    assert ch[0] in CHARS and len(ch) == 4, (name, ch)
+    ch = fx_slot(name, fx1, NOFX1)
+    ins = fx_slot(name, fx2, NOFX2)
     oc = octave if octave is not None else (-2 if role == "bass" else 0)
     assert -2 <= oc <= 2, (name, oc)
     xs = x if x is not None else X_DEF.get(engine, (0, 0, 0, 0))
@@ -104,18 +123,16 @@ def P(name, role, engine, knobs, mode="poly", glide=0, bend=2, volume=100, amp=(
     assert 0 <= analog <= 127 and (engine == "knit" or analog == 0), (name, "analog is knit's")
     mo = tuple(morph or (0, 0, 0, 0))
     assert len(mo) == 4 and all(0 <= m <= 127 for m in mo) and (engine == "tartan" or mo == (0, 0, 0, 0)), (name, mo)
-    ins = tuple(insert or ("off", 0, 0, 0))
-    assert len(ins) == 4 and ins[0] in INSERTS and all(0 <= k <= 127 for k in ins[1:]), (name, ins)
     assert isinstance(lowcut, int) and 0 <= lowcut <= 127, (name, lowcut)
     gr = tuple(grain or (0, 0))
     assert len(gr) == 2 and all(0 <= g <= 127 for g in gr) and (engine == "tulle" or gr == (0, 0)), (name, gr)
     vals = [*[knobs[k] for k in KNOBS[engine]], glide, bend, volume, *amp, *fenv, filter[1], filter[2], filter[3],
-            filter[4], *sends, lf[1], lf[2], lf[4], lf[5], ch[1], ch[2], ch[3], *xs]
+            filter[4], *sends, lf[1], lf[2], lf[4], lf[5], *xs]
     assert all(isinstance(v, int) and 0 <= v <= 127 for v in vals), (name, vals)
     assert mode in MODES and filter[0] in FILTERS, name
     PRESETS.append(dict(name=name, role=role, engine=engine, knobs=[knobs[k] for k in KNOBS[engine]], mode=mode,
                         glide=glide, bend=bend, volume=volume, amp=tuple(amp), fenv=tuple(fenv), filter=tuple(filter),
-                        sends=tuple(sends), lfo=tuple(lf), char=tuple(ch), x=tuple(xs), osc2=o2, mod=md, ops=op, analog=analog, grain=gr, morph=mo, insert=ins, lowcut=lowcut, octave=oc,
+                        sends=tuple(sends), lfo=tuple(lf), fx1=ch, x=tuple(xs), osc2=o2, mod=md, ops=op, analog=analog, grain=gr, morph=mo, fx2=ins, lowcut=lowcut, octave=oc,
                         genres=tuple(genres)))
 
 

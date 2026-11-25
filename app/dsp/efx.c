@@ -44,16 +44,17 @@ const efx_info_t EFX[NEF] = {
      {0, 0, 0, 0}},
     {"sampler", EFG_COLOR, 0, 0, KN(AMOUNT, TONE, NONE), XS(NONE, NONE, NONE, NONE), {64, 64, 0}, {EK_PCT, EK_NN, EK_NN},
      {0, 0, 0, 0}},
-    {"lofi", EFG_COLOR, 2, 0, KN(RATE, BITS, SMOOTH), XS(WIDTH, NONE, NONE, NONE), {80, 80, 64}, {EK_NN, EK_NN, EK_PCT},
-     {40, 0, 0, 0}},                         /* (its width reads its output back from a short line: 4 KB) */
+    {"lofi", EFG_COLOR, 1, 0, KN(RATE, BITS, SMOOTH), XS(WIDTH, NONE, NONE, NONE), {80, 80, 64}, {EK_NN, EK_NN, EK_PCT},
+     {40, 0, 0, 0}},                         /* (its width reads its output back from a short line: 2 KB; a send's 4 KB,
+                                              * the chorus's) */
     {"tremolo", EFG_MOVE, 0, 0, KN(RATE, DEPTH, PAN), XS(NONE, NONE, NONE, NONE), {4, 80, 0}, {EK_SYNC, EK_PCT, EK_PCT},
      {0, 0, 0, 0}},
     {"phaser", EFG_MOVE, 0, 0, KN(FREQ, DEPTH, RATE), XS(FEEDBACK, NONE, NONE, NONE), {50, 90, 50},
      {EK_NN, EK_PCT, EK_NN}, {80, 0, 0, 0}},
     {"univibe", EFG_MOVE, 0, 0, KN(RATE, DEPTH, VIBRATO), XS(NONE, NONE, NONE, NONE), {70, 90, 0},
      {EK_SYNC, EK_PCT, EK_PCT}, {0, 0, 0, 0}},
-    {"chorus", EFG_MOVE, 2, 0, KN(RATE, DEPTH, FEEDBACK), XS(WIDTH, NONE, NONE, NONE), {50, 86, 20},
-     {EK_NN, EK_PCT, EK_PCT}, {127, 0, 0, 0}},   /* (its line: 4 KB) */
+    {"chorus", EFG_MOVE, 1, 0, KN(RATE, DEPTH, FEEDBACK), XS(WIDTH, NONE, NONE, NONE), {50, 86, 20},
+     {EK_NN, EK_PCT, EK_PCT}, {127, 0, 0, 0}},   /* (its line: 2 KB, EFX_CHO_REACH; a send's 4 KB: its lag) */
     {"juno", EFG_MOVE, 1, 0, KN(MODE, TONE, NONE), XS(NONE, NONE, NONE, NONE), {0, 70, 0}, {EK_LIST, EK_NN, EK_NN},
      {0, 0, 0, 0}},                          /* (its line: 2 KB) */
     {"autowah", EFG_MOVE, 0, 0, KN(SENSE, RESO, DECAY), XS(NONE, NONE, NONE, NONE), {80, 70, 50}, {EK_NN, EK_NN, EK_NN},
@@ -505,7 +506,10 @@ float fx_delay_fb(int v)
 /* the knobs to the effect's numbers (pt[]: what each means is in the effect's loop) */
 void efx_send_nums(efx_send_t *e, int ef, int mode, const uint8_t *k, float bpm, int wobble, int smear)
 {
-    float *pt = e->pt;
+    efx_nums(e->pt, &e->reverb.shm, ef, mode, k, bpm, wobble, smear);
+}
+void efx_nums(float *pt, float *shm, int ef, int mode, const uint8_t *k, float bpm, int wobble, int smear)
+{
     float a = k127(k[0]), b = k127(k[1]), c = k127(k[2]), d = k127(k[3]);
     switch (ef) {
     case EF_CHORUS:
@@ -554,7 +558,7 @@ void efx_send_nums(efx_send_t *e, int ef, int mode, const uint8_t *k, float bpm,
             pt[5] = c > 0.5f ? onepole_k(20.0f * fm_exp2f((c - 0.5f) * 13.29f)) : 0.0f;
             pt[3] = mode == RV_SHIMMER ? 0.2f : 0.05f + 0.85f * d;   /* damp: the tank's low-pass, 0.05 open .. 0.9
                                                                       * (shimmer: light, its knob the octaves) */
-            e->reverb.shm = mode == RV_SHIMMER ? 0.45f * d : 0.0f;
+            *shm = mode == RV_SHIMMER ? 0.45f * d : 0.0f;
             pt[4] = (0.004f + 0.03f * a) * 22050.0f;                  /* the pre-delay grows with the size: 4 .. 34 ms */
             break;
         }
@@ -795,8 +799,8 @@ static void do_delay(efx_delay_t *f, int16_t *cho, const float *pt, const float 
     f->quiet = quiet;
 }
 
-static void do_lofi(efx_lofi_t *f, int16_t *cho, const float *pt, const float *pc, const float *x, float *ol, float *orr,
-                    int m)
+static void do_lofi(efx_lofi_t *f, int16_t *cho, int32_t len, const float *pt, const float *pc, const float *x, float *ol,
+                    float *orr, int m)
 {
     const float q = pc[1], iq = pc[5], qual = pc[2], aak = pt[4], step = pc[0];
     float ph = f->ph, hold = f->hold, in1 = f->in1, out1 = f->out1, late;
@@ -823,10 +827,10 @@ static void do_lofi(efx_lofi_t *f, int16_t *cho, const float *pt, const float *p
         } else {
             float rp = (float)w - late;
             if (rp < 0.0f)
-                rp += CHO_N;
-            r = cho_tap(cho, rp, CHO_N - 1);
+                rp += (float)len;
+            r = cho_tap(cho, rp, len - 1);
         }
-        w = (w + 1) & (CHO_N - 1);
+        w = (w + 1) & (len - 1);
         ol[i] += y;
         orr[i] += r;
     }
@@ -1220,7 +1224,7 @@ void efx_send_run(efx_send_t *e, int ef, const float *x, float *ol, float *orr, 
     switch (ef) {
     case EF_CHORUS: efx_chorus(&e->chorus, e->cho, CHO_N, 1, e->pc, x, ol, orr, m, lag); break;
     case EF_DELAY: do_delay(&e->delay, e->cho, e->pt, e->pc, x, ol, orr, m, any, lag); break;
-    case EF_LOFI: do_lofi(&e->lofi, e->cho, e->pt, e->pc, x, ol, orr, m); break;
+    case EF_LOFI: do_lofi(&e->lofi, e->cho, CHO_N, e->pt, e->pc, x, ol, orr, m); break;
     case EF_PHASER: efx_phaser(&e->phaser, e->pc, x, x, ol, orr, m); break;
     case EF_REVERB:
         if (e->reverb.mode == RV_PLATE)
@@ -1292,13 +1296,20 @@ static __attribute__((noinline)) float rb_gate(float k)
  * its bandwidth narrowing as it rises), a soft clip x / (1 + x^4)^(1/4) at twice the rate, the filter (a low-pass,
  * darker turned up), the level. autowah: a resonant low-pass (TPT state-variable) opened by the pair's level (an
  * envelope: 3 ms up, decay down) */
-#define INS_PH_FREQ 50                           /* the phaser's centre: the send's default (466 Hz) */
-#define INS_CHO_FB (0.7f * (20.0f / 127.0f))     /* the chorus's feedback: the send's default */
-void efx_insert(int ef, efx_ins_t *st, float *php, int16_t *mem, const float *kn, float rate, float bpm, const float *in,
-                float *bl, float *br, uint32_t n)
+static void ins_nums(float *p, int ef, const float *kn, const uint8_t *xt)   /* the sends' numbers from a slot's knobs
+                                                                           * and its first extra */
+{
+    const uint8_t k[4] = {(uint8_t)kn[0], (uint8_t)kn[1], (uint8_t)kn[2], xt[0]};
+    float shm;
+    efx_nums(p, &shm, ef, 0, k, 120.0f, 0, 0);
+}
+static __attribute__((noinline)) void ins_one(int ef, efx_ins_t *st, float *php, int16_t *mem, const float *kn,
+                                              const uint8_t *xt, int mix, float rate, float bpm, const float *in,
+                                              float *bl, float *br, uint32_t n)
 {
     float *z = st->z;
     const float k0 = kn[0] * (1.0f / 127.0f), k1 = kn[1] * (1.0f / 127.0f), k2 = kn[2] * (1.0f / 127.0f);
+    const float mx = (float)mix * (1.0f / 127.0f);   /* (chorus, juno, lofi, rumble: their own mix) */
     float ph = *php;
     switch (ef) {
     case EF_TREMOLO: {
@@ -1318,13 +1329,10 @@ void efx_insert(int ef, efx_ins_t *st, float *php, int16_t *mem, const float *kn
         }
         break;
     }
-    case EF_PHASER: {                            /* the send's, a side each (its own phase): its centre the send's
-                                                  * default, depth, rate (the LFO's), feedback; wet (its notches) */
-        float p[4], ol[16], orr[16];
-        p[0] = 100.0f * in_exp2((float)INS_PH_FREQ * (1.0f / 127.0f) * 5.64f);
-        p[1] = 3.0f * k1;
-        p[2] = rate;
-        p[3] = 0.9f * k2;
+    case EF_PHASER: {                            /* the send's, a side each (its own phase): freq, depth, rate, feedback
+                                                  * (its extra); wet (its notches) */
+        float p[6], ol[16], orr[16];
+        ins_nums(p, EF_PHASER, kn, xt);
         for (uint32_t j = 0; j < n; j += 16) {
             int m = n - j < 16u ? (int)(n - j) : 16, i;
             for (i = 0; i < m; i++)
@@ -1415,25 +1423,26 @@ void efx_insert(int ef, efx_ins_t *st, float *php, int16_t *mem, const float *kn
         z[4] = fm_flush(e);
         break;
     }
-    case EF_CHORUS: {                            /* the send's on the pair's middle (its line: 2 KB): rate (the LFO's),
-                                                  * depth, the send's feedback, fully wide; mixed */
-        float p[4], x[16], ol[16], orr[16];
+    case EF_CHORUS: case EF_LOFI: {              /* the send's on the pair's middle (its line: 2 KB): its knobs, its
+                                                  * extra (width); mixed. The chorus's wet whole (a send's loses its
+                                                  * lows: at full mix a slot's would be thin) */
+        float p[6], x[16], ol[16], orr[16];
         if (!mem)
             break;
-        p[0] = rate;
-        p[1] = (0.3f + 7.7f * k1) * (EFX_SR / 1000.0f);
-        p[2] = INS_CHO_FB;
-        p[3] = 1.0f;
+        ins_nums(p, ef, kn, xt);
         for (uint32_t j = 0; j < n; j += 16) {
             int m = n - j < 16u ? (int)(n - j) : 16, i;
             for (i = 0; i < m; i++) {
                 x[i] = 0.5f * (bl[j + i] + br[j + i]);
                 ol[i] = orr[i] = 0.0f;
             }
-            efx_chorus(&st->chorus, mem, EFX_INS_N, 1, p, x, ol, orr, m, 0);
+            if (ef == EF_CHORUS)
+                efx_chorus(&st->chorus, mem, EFX_INS_N, 0, p, x, ol, orr, m, 0);
+            else
+                do_lofi(&st->lofi, mem, EFX_INS_N, p, p, x, ol, orr, m);
             for (i = 0; i < m; i++) {
-                bl[j + i] += k2 * (ol[i] - bl[j + i]);
-                br[j + i] += k2 * (orr[i] - br[j + i]);
+                bl[j + i] += mx * (ol[i] - bl[j + i]);
+                br[j + i] += mx * (orr[i] - br[j + i]);
             }
         }
         break;
@@ -1446,7 +1455,7 @@ void efx_insert(int ef, efx_ins_t *st, float *php, int16_t *mem, const float *kn
         int16_t *ln = mem;
         const float dph = JR[jm] * INV_SR;
         const float d0 = JD0[jm] * 0.001f * EFX_SR, dm = JDM[jm] * 0.001f * EFX_SR;
-        const float wet = k1, kt = efx_op_coef(3000.0f + 9000.0f * k2);
+        const float wet = mx, kt = efx_op_coef(3000.0f + 9000.0f * k1);
         float tl = z[1], tr = z[2];
         int w = (int)z[0];
         if (!ln)
@@ -1497,7 +1506,7 @@ void efx_insert(int ef, efx_ins_t *st, float *php, int16_t *mem, const float *kn
                                                   * memory's first */
         int16_t *m = mem;
         const float rt = efx_rumble_secs(kn[0]), fc = 80.0f * in_exp2(k1 * 2.0f), ko = efx_op_coef(fc), kt = efx_op_coef(3.0f * fc);
-        const float kh = efx_op_coef(120.0f), ka = efx_op_coef(300.0f), wet = k2 * 1.5f;
+        const float kh = efx_op_coef(120.0f), ka = efx_op_coef(300.0f), wet = mx * 1.5f;
         const float rel = 1.0f - efx_op_coef(1.0f / 0.03f), prel = 1.0f - efx_op_coef(1.0f / 3.0f);
         const float dbt = INV_SR * fm_maxf(bpm, 20.0f) * (1.0f / 60.0f);
         float g[4], sum = z[0], h1 = z[2], h2 = z[3], a = z[4], b = z[5], y0 = z[6], y1 = z[7];
@@ -1579,8 +1588,30 @@ void efx_insert(int ef, efx_ins_t *st, float *php, int16_t *mem, const float *kn
         z[15] = fm_flush(hb);
         break;
     }
-    default:
+    default:                                     /* (the delay, the reverb: no memory on a track yet) */
         break;
     }
     *php = ph;
+}
+/* the wet-only ones (tremolo, phaser, univibe, rat, autowah) mixed with the dry, 32 frames at a time; the others mix
+ * in their own loops (chorus, juno, lofi; rumble's mix its level, the dry whole) */
+void efx_insert(int ef, efx_ins_t *st, float *ph, int16_t *mem, const float *kn, const uint8_t *xt, int mix, float rate,
+                float bpm, const float *in, float *bl, float *br, uint32_t n)
+{
+    float dl[32], dr[32];
+    if (mix >= 127 || ef == EF_CHORUS || ef == EF_JUNO || ef == EF_LOFI || ef == EF_RUMBLE) {
+        ins_one(ef, st, ph, mem, kn, xt, mix, rate, bpm, in, bl, br, n);
+        return;
+    }
+    for (uint32_t j = 0; j < n; j += 32) {
+        const float mx = (float)mix * (1.0f / 127.0f);
+        uint32_t m = n - j < 32u ? n - j : 32u, i;
+        for (i = 0; i < m; i++)
+            dl[i] = bl[j + i], dr[i] = br[j + i];
+        ins_one(ef, st, ph, mem, kn, xt, 127, rate, bpm, in ? in + j : 0, bl + j, br + j, m);
+        for (i = 0; i < m; i++) {
+            bl[j + i] = dl[i] + mx * (bl[j + i] - dl[i]);
+            br[j + i] = dr[i] + mx * (br[j + i] - dr[i]);
+        }
+    }
 }

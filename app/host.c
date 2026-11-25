@@ -842,8 +842,13 @@ static int param_of(const char *s)                 /* a TP_* name, dK.NAME (drum
         return TP_KANALOG;
     if (ieq(s, "lowcut") || ieq(s, "hpf"))
         return TP_HPF;
-    if (ieq(s, "itype") || ieq(s, "i1") || ieq(s, "i2") || ieq(s, "i3"))   /* the insert: its type, its knobs */
+    if (ieq(s, "itype") || ieq(s, "i1") || ieq(s, "i2") || ieq(s, "i3"))   /* slot 2: its effect, its knobs */
         return ieq(s, "itype") ? TP_ITYPE : TP_I1 + (s[1] - '1');
+    if (ieq(s, "s1k3") || ieq(s, "s2mix"))         /* slot 1's knob 3, slot 2's mix, their extras (s1x1 .. s2x4) */
+        return s[1] == '1' ? TP_S1K3 : TP_S2MIX;
+    if ((s[0] == 's' || s[0] == 'S') && (s[1] == '1' || s[1] == '2') && (s[2] == 'x' || s[2] == 'X') && s[3] >= '1' &&
+        s[3] <= '4' && !s[4])
+        return (s[1] == '1' ? TP_S1X1 : TP_S2X1) + (s[3] - '1');
     if (ieq(s, "rops") || ieq(s, "rratio") || ieq(s, "rdepth") || ieq(s, "rfb"))   /* rayon's Ops page */
         return ieq(s, "rops") ? TP_ROPS : ieq(s, "rratio") ? TP_RRATIO : ieq(s, "rdepth") ? TP_RDEPTH : TP_RFB;
     host_die("no parameter", s);

@@ -42,34 +42,38 @@ shot d10c_drive_more.png
 turn PRESET 1
 expect par2.30 2
 wait 60
+shot d10c2_rat.png
+turn PRESET 1
+expect par2.30 3
+wait 60
 shot d10d_fold.png
 spin K3 30
 wait 60
 shot d10e_fold_bias.png
 turn PRESET 1
-expect par2.30 3
+expect par2.30 4
 wait 60
 shot d10f_crush.png
 turn PRESET 1
-expect par2.30 4
+expect par2.30 5
 wait 60
 shot d10g_ring.png
 turn PRESET 1
-expect par2.30 5
+expect par2.30 6
 wait 60
 shot d10h_tilt.png
 spin K4 -40
 wait 60
 shot d10j_tilt_half_mix.png
 turn PRESET 1
-expect par2.30 6
+expect par2.30 7
 wait 60
 shot d10k_tape.png
 turn PRESET 1
-expect par2.30 7
+expect par2.30 8
 wait 60
 shot d10l_sampler.png
-turn PRESET 1
+turn PRESET -8
 expect par2.30 0
 turn SELECT 1
 expect page Insert

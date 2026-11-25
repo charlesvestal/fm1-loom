@@ -16,7 +16,7 @@ P("organ bass", "bass", "bellows", knobs=dict(stops=ROCK, pedal=4, rotor=1, rate
 # gospel: every bar out, the rotor fast, a little tape
 P("gospel", "chord", "bellows", knobs=dict(stops=GOSPEL, pedal=3, rotor=6, rate=7), volume=92,
   amp=(0, 64, 127, 46), fenv=(0, 64, 0, 64), filter=("lp12", 100, 0, 64, 64), sends=(0, 20),
-  char=("tape", 30, 80, 127), genres=("house", "garage"))
+  fx1=("tape", 30, 80, 127), genres=("house", "garage"))
 # the garage organ stab: combo bars, short, a delay throw
 P("organ stab", "stab", "bellows", knobs=dict(stops=COMBO, pedal=1, rotor=1, rate=1), volume=104,
   amp=(0, 66, 0, 50), fenv=(0, 64, 0, 64), filter=("lp12", 96, 0, 64, 64), sends=(35, 20), genres=("garage", "house"))
@@ -33,7 +33,7 @@ P("combo", "keys", "bellows", knobs=dict(stops=TRANSISTOR, pedal=1, rotor=3, rat
 # a dusty harmonium: theatre bars through worn tape, a slow wheeze
 P("harmonium", "chord", "bellows", knobs=dict(stops=THEATRE, pedal=2, rotor=2, rate=2), volume=96,
   amp=(30, 70, 120, 64), fenv=(0, 64, 0, 64), filter=("lp12", 88, 0, 64, 64), sends=(0, 25),
-  char=("tape", 70, 50, 127), genres=("lofi",))
+  fx1=("tape", 70, 50, 127), genres=("lofi",))
 # a slow rotor pad: jazz bars, the rotor deep and slow, swelling
 P("rotor pad", "pad", "bellows", knobs=dict(stops=JAZZ, pedal=2, rotor=8, rate=1), volume=96,
   amp=(80, 80, 127, 96), fenv=(0, 64, 0, 64), filter=("lp12", 94, 0, 64, 64), sends=(0, 40), genres=("lofi", "house"))

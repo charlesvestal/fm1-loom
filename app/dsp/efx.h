@@ -1,8 +1,8 @@
 /* SPDX-License-Identifier: MPL-2.0 */
 /* LOOM-8's effects library (the one effects list: docs/superpowers/specs/2026-11-25-one-effects-list-design.md): the
  * catalog every slot picks from (a track's two, FX I / II, the master: one list, the same names, knobs and code) and
- * each effect's DSP, once. Its users keep their own storage and pages for now (synth.c: a voice's or a bus's
- * character, a track's insert; fx.c: the sends and the master color); they call in here.
+ * each effect's DSP, once. Its users keep their own storage and pages for now (synth.c: a track's two slots, on its
+ * voices or its bus; fx.c: the sends and the master color); they call in here.
  *
  * Everything per sample runs in the audio interrupt (or the second core's job); the coefficients' functions in the
  * main loop or once a block. Float, fastmath.h; no double, no libm. */
@@ -150,30 +150,51 @@ typedef struct {                              /* a send's effects (one runs at a
 /* the knobs (four, 0..127) of effect ef (EF_CHORUS, EF_DELAY, EF_LOFI, EF_PHASER, EF_REVERB in mode) to its numbers
  * (pt; the reverb's shimmer too); the delay's wobble and smear 0..127 */
 void efx_send_nums(efx_send_t *e, int ef, int mode, const uint8_t *k, float bpm, int wobble, int smear);
+void efx_nums(float *pt, float *shm, int ef, int mode, const uint8_t *k, float bpm, int wobble, int smear);   /* (into pt,
+                                                 * the reverb's shimmer into shm: a slot's) */
 void efx_send_reset(efx_send_t *e, int mode);   /* a fresh effect: its states at rest (its numbers as pt; the reverb's
                                                  * mode); not the lines (but the SPU's and lush's clear themselves) */
 void efx_send_run(efx_send_t *e, int ef, const float *x, float *ol, float *orr, int m, int any, int lag);
 int efx_send_awake(const efx_send_t *e, int ef);
-/* the chorus and the phaser on their own (a track's insert): p the numbers as efx_send_t pc's (chorus: rate Hz, depth
+/* the chorus and the phaser on their own (a track's slot): p the numbers as efx_send_t pc's (chorus: rate Hz, depth
  * in samples, feedback, width 0..1; phaser: centre Hz, depth octaves, rate Hz, feedback); the
  * phaser on two inputs (a send: the same twice) */
 void efx_chorus(efx_chorus_t *c, int16_t *line, int32_t len, int hp, const float *p, const float *x, float *ol, float *orr,
                 int m, int lag);   /* (len: its line's, a power of 2; hp: its wet high-passed, a send's) */
 void efx_phaser(efx_phaser_t *s, const float *p, const float *xl, const float *xr, float *ol, float *orr, int m);
 
-/* ---- a track's insert (synth.c's): tremolo, rat, phaser, univibe, chorus, juno, autowah, rumble ----
- * On its pair (bl, br: n frames, in place), its states st (zeroed: fresh), its memory mem (chorus: 2 KB x 2, juno: 2 KB,
- * rumble 2 KB x 2; 0: none, it passes dry), its three knobs kn (0..127, the LFO on them), rate the LFO's speed in Hz
- * (tremolo, phaser, univibe, chorus: the knob's, synth.c lfo_hz), the tempo; in what rumble hears (0: the pair's
- * middle; a kit: its kicks alone). ph: its phase (turns; rumble's: beats since its hit) */
+/* ---- a track's slot's effects but the dirt and the color (synth.c's: its bus): tremolo, rat, phaser, univibe, chorus,
+ * lofi, juno, autowah, rumble ----
+ * On its pair (bl, br: n frames, in place), its states st (zeroed: fresh), its memory mem (chorus, lofi, juno: a 2 KB
+ * block; rumble two; 0: none, it passes dry), its three knobs kn (0..127, the LFO on them), its extras xt, its mix
+ * (0..127: dry .. wet; rumble's its level, the dry whole), rate the LFO's speed in Hz (tremolo, univibe: the knob's,
+ * synth.c lfo_hz), the tempo; in what rumble hears (0: the pair's middle; a kit: its kicks alone). ph: its phase
+ * (turns; rumble's: beats since its hit). The delay and the reverb pass dry (no memory on a track: phase 3's pool) */
 #define EFX_INS_N 1024                           /* int16 a 2 KB block */
 typedef union {
     float z[16];
     efx_chorus_t chorus;
     efx_phaser_t phaser;
+    efx_lofi_t lofi;
 } efx_ins_t;
-void efx_insert(int ef, efx_ins_t *st, float *ph, int16_t *mem, const float *kn, float rate, float bpm, const float *in,
-                float *bl, float *br, uint32_t n);
+void efx_insert(int ef, efx_ins_t *st, float *ph, int16_t *mem, const float *kn, const uint8_t *xt, int mix, float rate,
+                float bpm, const float *in, float *bl, float *br, uint32_t n);
+/* the dirt and the color (efx_char_stage: drive, fold, crush, ring, tilt, tape, sampler), against the rest (efx_insert) */
+static inline int efx_is_char(int ef) { return ef == EF_DRIVE || (ef >= EF_FOLD && ef <= EF_SAMPLER); }
+/* a track's slot (synth.c, its bus; a kit's too): this block's effect, knobs, mix and extras, its states */
+typedef struct {
+    union {
+        struct { float x[8], z[8], in[2]; } ch;   /* the dirt and the color: the stage's numbers, its states, what
+                                                  * the numbers are from (and cef) */
+        efx_ins_t in;                             /* the others' */
+    } u;
+    float k[3], ph;                               /* its knobs this block (0..127: the LFO on them), its phase */
+    uint8_t ef, zef, cef;                         /* its effect this block (EF_OFF: none on the bus), its states', its
+                                                   * numbers' (ch) */
+    uint8_t mix, xt[4];                           /* its mix 0..127, its extras */
+    int8_t at;                                    /* its memory: its first block of the pool (-1 none) */
+    uint8_t nb, mef;                              /* how many, the effect it was given for */
+} efx_slot_t;
 float efx_rumble_secs(float k);                  /* rumble's decay knob (0..127): its RT60, seconds */
 float efx_sin(float ph);                         /* (out of line: a sine of turns, a one-pole's coefficient at hz) */
 float efx_op_coef(float hz);

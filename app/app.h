@@ -137,7 +137,11 @@ void loom_lights(uint32_t buttons, uint32_t keys, int glow, uint32_t dim_keys, i
 #define DEBUG_BUILD (APP_VERSION[0] == 'D' && APP_VERSION[1] == 'E' && APP_VERSION[2] == 'V' && \
                      (!APP_VERSION[3] || APP_VERSION[3] == 'T'))   /* DEV, or the load test's DEVTEST */
 #define PROJ_MAGIC 0x384D4F4Cu          /* "LOM8" (was "XXY1": XY-1's projects start fresh) */
-#define PROJ_FORMAT 27u                 /* (10, 0.5-beta's, to 12 load too: project.c migrate_old; older ones do not)
+#define PROJ_FORMAT 28u                 /* (10, 0.5-beta's, to 12 load too: project.c migrate_old; older ones do not)
+                                         * 28: the one effects list: a track's two slots (the character slot 1, its
+                                         *     types the catalog's; the insert slot 2, its knobs and mix moved),
+                                         *     their third knob, mix and extras (TP_S1K3 .. TP_S2X4), the tracks' last
+                                         *     parameters (project.c old_slots, old_slot_lane);
                                          * 27: the delay's WOBBLE and SMEAR (TP_FX_WOBBLE, TP_FX_SMEAR: an FX track's
                                          *     TP_X2, TP_X3; older: 0), REPEATS a ring time up to held (older: the
                                          *     feedback 0.95 x / 127, converted: project.c old_repeats);
@@ -216,8 +220,10 @@ typedef struct {
     uint8_t ksync, ksweep, kcross, ksub;   /* and its Mod page (TP_KSYNC .. TP_KSUB: presets format 13) */
     uint8_t rops, rratio, rdepth, rfb;  /* rayon's Ops page (TP_ROPS .. TP_RFB: presets format 14) */
     uint8_t kanalog;                    /* knit's analog (TP_KANALOG: presets format 15) */
-    uint8_t itype, i1, i2, i3;          /* the insert (TP_ITYPE, TP_I1..I3: presets format 16) */
+    uint8_t itype, i1, i2, i3;          /* slot 2, was the insert (TP_ITYPE, TP_I1..I3: presets format 16) */
     uint8_t hpf;                        /* the low cut (TP_HPF: presets format 16 too, before any release) */
+    uint8_t s1k3, s1x[4], s2mix, s2x[4];   /* the slots' third knob, mix and extras (TP_S1K3 .. TP_S2X4: presets
+                                         * format 17) */
 } user_preset_t;
 
 extern settings_t proj;                 /* the project's settings (RAM) */
@@ -227,12 +233,15 @@ extern uint8_t proj_par[NALLTRK][NTP];  /* the tracks' par[] as one contiguous a
 extern patterns_t pats;                 /* its patterns, lanes, scenes, song (pool) */
 extern user_preset_t user_presets[NUSER_PRESETS];
 /* the user kits (a kit track's SELECT list: SAVE KIT, KIT): a kit is its name, the track's sound (par[0..NTP_SOUND):
- * the kit's envelope, bus filter, sends, LFO, character, volume) and its keys (par[TP_DRUM0..TP_O2FINE)); not the mix, the
- * players or MIDI OUT. They live in the presets object after the user presets (PRESETS_FORMAT 9), in flash only:
- * RAM keeps their names */
+ * the kit's envelope, bus filter, sends, LFO, slot 1, volume), its keys (par[TP_DRUM0..TP_O2FINE)) and slot 2 with
+ * slot 1's third knob (KIT_SLOT: presets format 17; the slots' extras not kept, the presets object is full: their
+ * effects' defaults); not the mix, the players or MIDI OUT. They live in the presets object after the user presets
+ * (PRESETS_FORMAT 9), in flash only: RAM keeps their names */
 #define NUSER_KITS 8                     /* (formats 8..10 held four: presets_load) */
 #define KIT_KEYS (TP_O2FINE - TP_DRUM0)          /* (the keys and their knobs 5..8: not knit's osc 2 fine after them) */
-#define KIT_LEN (NAME_LEN + NTP_SOUND + KIT_KEYS)
+#define KIT_NSLOT 6                              /* (TP_ITYPE .. TP_I3, TP_S1K3, TP_S2MIX: ui.c kit_pack) */
+#define KIT_LEN16 (NAME_LEN + NTP_SOUND + KIT_KEYS)   /* (presets formats 8..16: without them) */
+#define KIT_LEN (KIT_LEN16 + KIT_NSLOT)
 extern char user_kit_name[NUSER_KITS][NAME_LEN];   /* "" = an empty slot */
 int kit_load(int slot, uint8_t *img);  /* img: KIT_LEN bytes; 0 = the slot holds a kit, 1 = one saved before presets
                                         * format 10 (its keys past the sample model: a development build's, keys_fix) */

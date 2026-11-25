@@ -54,7 +54,7 @@ COLD = {
     "dsp/bass303.c": ["bass303_init", "rat_coeffs", "bq_low_shelf", "bq_lowpass", "bass303_set", "env_tables",
                       "bass303_note_on"],
     "dsp/bench.c": [],
-    "dsp/synth.c": ["tp_text_i", "tp_text_par", "tp_info_par", "tp_text", "char_picture",
+    "dsp/synth.c": ["tp_text_i", "tp_text_par", "tp_info_par", "tp_text", "slot_picture", "slot_info", "tp_slot_of",
                     "synth_note_off", "synth_duck_trigger", "synth_all_off",
                     "sound_default", "synth_init", "eknob_init", "synth_prepare",
                     "hz_text", "ms_text", "organ_bars", "synth_cut",
@@ -65,7 +65,7 @@ COLD = {
                     "bus_prepare", "ins_alloc"],
     # (the effects' coefficients, when a knob moves; the pages' pictures and texts)
     "dsp/efx.c": ["efx_char_coefs", "efx_char_picture", "efx_char_hz", "efx_knob_name", "efx_list_name", "ch_lp_hz",
-                  "ch_pivot_hz", "ch_alpha", "ch_tape_hz", "ch_smp_hz", "ch_smp_rate", "efx_send_nums",
+                  "ch_pivot_hz", "ch_alpha", "ch_tape_hz", "ch_smp_hz", "ch_smp_rate", "efx_send_nums", "efx_nums",
                   "efx_delay_secs"],
     "seq/pattern.c": ["pattern_init", "patterns_init", "lane_alloc", "lane_clear", "lane_count", "lane_pool_set",
                       "lane_pool_free", "step_clear_locks", "pattern_clear_locks", "step_set_notes",

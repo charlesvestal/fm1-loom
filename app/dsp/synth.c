@@ -115,7 +115,9 @@ static const char *const ENVP_N[4] = {"attack", "decay", "sustain", "release"};
 static const char *const FLTP_N[4] = {"cutoff", "reso", "env", "keytrack"};
 static const char *const AMPP_N[4] = {"volume", "pitch", "pan", "character"};
 static const char *const OCT_N[5] = {"-2", "-1", "0", "+1", "+2"};
-static const char *const CTYPE_N[NCT] = {"off", "drive", "fold", "crush", "ring", "tilt", "tape", "sampler"};
+static const char *const EF_N[NEF] = {"off", "drive", "rat", "fold", "crush", "ring", "tilt", "tape", "sampler", "lofi",
+                                     "tremolo", "phaser", "univibe", "chorus", "juno", "autowah", "delay", "rumble",
+                                     "reverb"};   /* (dsp/efx.c EFX[]'s names: synth_test checks they agree) */
 static const char *const SMODE_N[NSM] = {"one-shot", "loop", "reverse", "ping-pong"};
 static const char *const SLICES_N[SL_NCOUNT] = {"4", "8", "16", "32"};
 static const char *const DFTYPE_N[NDF] = {"off", "lp", "hp", "bp"};
@@ -161,7 +163,8 @@ typedef struct {
     float cin[3];                     /* what cx[0..5] were made from (amount, tone, the ring's frequency) */
     uint8_t cin_type;                 /* and the type (0xFF: none yet) */
     uint8_t ftype, stereo, mute, eng;
-    uint8_t ctype;                    /* the character stage running (CT_OFF: skipped, also at mix 0) */
+    uint8_t ctype;                    /* the voice's stage running (efx.h EF_*: a slot's ring, or a dirt or a color off
+                                       * the bus; EF_OFF: skipped, also at mix 0) */
     float hpk;                        /* the low cut's one-pole coefficient (TP_HPF; 0 off) */
 } cfg_t;
 
@@ -242,21 +245,16 @@ typedef struct {
     int16_t ldest;                    /* the resolved destination: a TP_* index, LD_PITCH or LD_NONE */
     uint32_t rng;
     float loff[NCK], lpitch[NCK], lgain[NCK];   /* the chunk slots: offset (param units), cents, gain */
-    /* its character on its bus (ch_on_bus: every type but ring, a note's own): bus_prepare's for the block, bus_render's */
-    chbus_t cb;                       /* the stage's state (char_bus's) */
-    uint8_t bus;                      /* the type on its bus this block (CT_OFF: none, or ring: on each voice) */
-    float bus_amt;                    /* its amount this block (the LFO, the shared LFO on it), 0..1 */
-    float bus_g, bus_gn;              /* the bus's gain after the stage (the fader, the volume): the last block's, this one's */
+    /* its slots on its bus (bus_prepare's for the block, bus_out's; a kit's synth_kit_slots'), and on its voices */
+    efx_slot_t sl[2];
+    uint8_t nbus;                     /* its slots on the bus this block (0: no bus) */
+    uint8_t nins;                     /* of them, not the dirt or the color (a tail: rumble's) */
+    uint8_t wowon;                    /* a tape: its voices' wow (wowc) */
+    float bus_g, bus_gn;              /* the bus's gain after the slots (the fader, the volume): the last block's, this one's */
     float bus_s1, bus_s2;             /* its sends */
     float wow[2], wowc[NCK];          /* tape's wow on its voices: one for the track (its phases, each chunk's cents) */
-    uint8_t ins;                      /* its insert this block (IT_*), after the stage */
-    float ins_k[3], ins_ph;           /* its knobs this block (the LFO on them), the tremolo's phase (turns) */
-    efx_ins_t iz;                     /* the insert's states (ins_run, efx_insert: per type) */
-    uint8_t iz_type;                  /* the type they are for (another: cleared) */
-    int8_t pool_at;                   /* its insert's memory: its first slot of ins_pool (-1 none) */
-    uint16_t ins_tail;                /* blocks its insert rings on once its voices are done (the echo's repeats) */
-    const float *ins_in;              /* a kit's rumble: its kicks alone, what it hears (synth_insert_kick; 0 the track) */
-    uint8_t pool_n;                   /* how many */
+    uint16_t ins_tail;                /* blocks its slots ring on once its voices are done (rumble's tail) */
+    const float *ins_in;              /* a kit's rumble: its kicks alone, what it hears (synth_kit_slots; 0 the track) */
 } trk_t;
 
 struct synth {
@@ -2972,7 +2970,7 @@ void synth_init(synth_t *s, uint8_t (*par)[NTP])
     s->max_voices = NVOICE;
     for (i = 0; i < NTRK; i++) {
         trk_t *t = &s->t[i];
-        t->pool_at = -1;                         /* (no insert memory) */
+        t->sl[0].at = t->sl[1].at = -1;          /* (no memory) */
         for (j = 0; j < NTP_LOCK + NTP_LOCK2; j++)
             t->lock[j] = LOCK_NONE;
         t->mono_voice = -1;
@@ -3222,87 +3220,85 @@ void synth_prepare(synth_t *s, uint32_t n)
     bus_prepare(s, n);                           /* (after the LFOs: their values this block) */
 }
 
-/* ------------------------------------------------------ the character --- */
-/* the character stage (dsp/efx.c: the catalog's drive .. sampler): a voice's chunk values (c.cx[]) from the four
- * knobs, the LFO's offset on the amount, and the note's frequency (ring). The state (cz) starts from 0 when the type
- * changes */
-static const uint8_t CT_EF[NCT] = {EF_OFF, EF_DRIVE, EF_FOLD, EF_CRUSH, EF_RING, EF_TILT, EF_TAPE, EF_SAMPLER};
-/* a type on the track's bus (bus_render), not on each voice (ring: its sine follows the note) */
-static inline int ch_on_bus(int type)
+/* ---------------------------------------------------------- the slots --- */
+/* a track's two slots (synth.h TP_SLOT, dsp/efx.c's effects): on its bus (bus_prepare, bus_out; a kit's
+ * synth_kit_slots), and the voices' part (char_prep): a ring's sine at each note, a tape's wow on their pitch */
+const uint16_t TP_SLOT[2][SL_N] = {
+    {TP_CTYPE, TP_CAMT, TP_CTONE, TP_S1K3, TP_CMIX, TP_S1X1, TP_S1X2, TP_S1X3, TP_S1X4},
+    {TP_ITYPE, TP_I1, TP_I2, TP_I3, TP_S2MIX, TP_S2X1, TP_S2X2, TP_S2X3, TP_S2X4}};
+int tp_slot_of(int p, int *j)
 {
-    return type == CT_DRIVE || type == CT_FOLD || type == CT_CRUSH || type == CT_TILT || type == CT_TAPE ||
-           type == CT_SAMPLER;
+    for (int q = 0; q < 2; q++)
+        for (int k = 0; k < SL_N; k++)
+            if (TP_SLOT[q][k] == p)
+                return *j = k, q;
+    return -1;
 }
-static void char_prep(synth_t *s, voice_t *v, int dest, float off, float gch)   /* (gch: the shared LFO on the amount) */
+static inline int PS(const synth_t *s, int trk, int p) { return p < NTP_LOCK ? P(s, trk, p) : P2(s, trk, p); }
+static inline float pfs(const synth_t *s, int trk, int p, int dest, float off)   /* pf for any of a slot's */
+{
+    float x = (float)PS(s, trk, p);
+    if (p == dest)
+        x = fm_clampf(x + off, 0.0f, 127.0f);
+    return x;
+}
+static inline int slot_ef(const synth_t *s, int trk, int q)   /* a slot's effect, EF_OFF at mix 0 */
+{
+    int ef = PS(s, trk, TP_SLOT[q][SL_EF]);
+    return ef < NEF && PS(s, trk, TP_SLOT[q][SL_MIX]) ? ef : EF_OFF;
+}
+static inline int voice_ring(const synth_t *s, int trk)   /* the slot whose ring the voices run: 1 + q, 0 none */
+{
+    return slot_ef(s, trk, 0) == EF_RING ? 1 : slot_ef(s, trk, 1) == EF_RING ? 2 : 0;
+}
+/* a voice's stage (c.cx[]) for the chunk from its slot's knobs, the LFO's offset on its first, and the note's frequency
+ * (ring): the voices' ring; off its track's bus (a voice not grouped this block), slot 1's dirt or color as the
+ * character ran. The state (cz) starts from 0 when the type changes */
+static void char_prep(synth_t *s, voice_t *v, int dest, float off, float gch)   /* (gch: the shared LFO on slot 1's knob 1) */
 {
     cfg_t *c = &v->c;
-    int trk = v->trk, type = P(s, trk, TP_CTYPE), mix = P(s, trk, TP_CMIX), i;
-    if (type >= NCT || mix == 0 || (s->grp[v->vi] && ch_on_bus(type)))   /* (on its track's bus: the stage there,
-                                                  * bus_render; ring stays on the voice) */
-        type = CT_OFF;
+    int trk = v->trk, q = voice_ring(s, trk) - 1, type, mix, i;
+    if (q < 0) {                                 /* (no ring: slot 1's, off the bus) */
+        q = 0;
+        type = slot_ef(s, trk, 0);
+        if (!efx_is_char(type) || s->grp[v->vi])
+            type = EF_OFF;
+    } else
+        type = EF_RING;
+    mix = PS(s, trk, TP_SLOT[q][SL_MIX]);
     if (type != c->ctype) {
         for (i = 0; i < 8; i++)
             v->cz[i] = 0.0f;
         c->ctype = (uint8_t)type;
     }
-    if (type == CT_OFF)
+    if (type == EF_OFF)
         return;
     c->cx[7] = fm_minf((float)mix, 127.0f) * (1.0f / 127.0f);
     {   /* (the coefficients cost exps: made again only when what they come from moved) */
-        float a = fm_clampf(pf(s, trk, TP_CAMT, dest, off) + gch, 0.0f, 127.0f) * (1.0f / 127.0f);
-        float t = fm_minf((float)P(s, trk, TP_CTONE), 127.0f) * (1.0f / 127.0f), f = type == CT_RING ? c->freq : 0.0f;
-        if (type == CT_RING) {                   /* (cz[6]: 0 a new note or type, so it starts where it is) */
+        const int pa = TP_SLOT[q][SL_K1], pt = TP_SLOT[q][SL_K2];
+        float a = fm_clampf(pfs(s, trk, pa, dest, off) + (q ? 0.0f : gch), 0.0f, 127.0f) * (1.0f / 127.0f);
+        float t = fm_minf((float)PS(s, trk, pt), 127.0f) * (1.0f / 127.0f), f = type == EF_RING ? c->freq : 0.0f;
+        if (type == EF_RING) {                   /* (cz[6]: 0 a new note or type, so it starts where it is) */
             a = efx_ring_glide(a, c->cin[0], &v->cz[6], c->cx);
         }
         if (type != c->cin_type || a != c->cin[0] || t != c->cin[1] || f != c->cin[2]) {
-            efx_char_coefs(CT_EF[type], a, t, c->freq, c->cx);
+            efx_char_coefs(type, a, t, c->freq, c->cx);
             c->cin_type = (uint8_t)type;
             c->cin[0] = a;
             c->cin[1] = t;
             c->cin[2] = f;
         }
     }
-    if (type == CT_RING)                         /* the phasor back to unit length, once a chunk (or at 1 + 0i) */
+    if (type == EF_RING)                         /* the phasor back to unit length, once a chunk (or at 1 + 0i) */
         efx_ring_norm(v->cz);
 }
 
-/* the Character page's picture (synth.h) */
-float char_picture(const uint8_t *par, float u)
+/* the slot pages' picture (synth.h) */
+float slot_picture(const uint8_t *par, int q, int mix, float u)
 {
-    int type = par[TP_CTYPE] < NCT ? par[TP_CTYPE] : CT_OFF;
-    return efx_char_picture(CT_EF[type], par[TP_CAMT], par[TP_CTONE], par[TP_CMIX], u);
-}
-
-/* a kit's character (synth.h char_bus): the stage on the kit's summed pair */
-void char_bus(chbus_t *c, const uint8_t *par, float *l, float *r, int n)
-{
-    int type = par[TP_CTYPE] < NCT ? par[TP_CTYPE] : CT_OFF, i;
-    float a, t;
-    if (par[TP_CMIX] == 0)
-        type = CT_OFF;
-    if (type != c->type) {                       /* another type: its states start clean */
-        for (i = 0; i < 8; i++)
-            c->cz[i] = 0.0f;
-        c->type = (uint8_t)type;
-        c->cin_type = 0xFFu;
-    }
-    if (type == CT_OFF)
-        return;
-    a = (float)(par[TP_CAMT] & 127) * (1.0f / 127.0f);
-    t = (float)(par[TP_CTONE] & 127) * (1.0f / 127.0f);
-    if (type == CT_RING) {                       /* (the voices' glide, char_prep, a step a block here) */
-        a = efx_ring_glide(a, c->cin[0], &c->cz[6], c->cx);
-    }
-    if (type != c->cin_type || a != c->cin[0] || t != c->cin[1]) {
-        efx_char_coefs(CT_EF[type], a, t, KIT_RING_HZ, c->cx);
-        c->cin_type = (uint8_t)type;
-        c->cin[0] = a;
-        c->cin[1] = t;
-    }
-    c->cx[7] = (float)(par[TP_CMIX] & 127) * (1.0f / 127.0f);
-    if (type == CT_RING)                         /* the phasor back to unit length (char_prep) */
-        efx_ring_norm(c->cz);
-    efx_char_stage(c->cx, c->cz, CT_EF[type], 1, l, r, n);
+    int ef = par[TP_SLOT[q][SL_EF]];
+    return efx_char_picture(efx_is_char(ef) ? ef : EF_OFF, par[TP_SLOT[q][SL_K1]], par[TP_SLOT[q][SL_K2]],
+                            mix < 0 ? par[TP_SLOT[q][SL_MIX]] : mix, u);
 }
 
 /* ------------------------------------------------------------ the chunk --- */
@@ -3440,9 +3436,9 @@ static void voice_chunk(synth_t *s, voice_t *v)
         int oc = P(s, trk, TP_OCT);
         c->pitch_off += (float)((oc > 4 ? 4 : oc) - 2) * 1200.0f;
     }
-    if (s->grp[v->vi] && t->bus == CT_TAPE)      /* (on its track's bus: the track's wow, every note's the same) */
+    if (s->grp[v->vi] && t->wowon)               /* (on its track's bus: the track's wow, every note's the same) */
         c->pitch_off += t->wowc[k];
-    else if (c->ctype == CT_TAPE) {              /* the tape's wow and flutter (efx_char_coefs: cx[3] cents) */
+    else if (c->ctype == EF_TAPE) {              /* the tape's wow and flutter (efx_char_coefs: cx[3] cents) */
         v->cz[4] = wrap1(v->cz[4] + 0.55f * (float)SY_CHUNK * INV_SR);
         v->cz[5] = wrap1(v->cz[5] + 6.1f * (float)SY_CHUNK * INV_SR);
         c->pitch_off += c->cx[3] * c->cx[7] * (fm_sin_turns(v->cz[4]) + 0.25f * fm_sin_turns(v->cz[5]));
@@ -3895,10 +3891,10 @@ static void voice_samples(synth_t *s, voice_t *v, float *l, float *r, float *s1,
         if (v->c.stereo) {                       /* the filter a channel at a time, the character, the outputs */
             flt_channel(v, xl, k, 0);
             flt_channel(v, xr, k, 1);
-            if (v->c.ctype != CT_OFF)
-                efx_char_stage(v->c.cx, v->cz, CT_EF[v->c.ctype], v->c.stereo, xl, xr, k);
+            if (v->c.ctype != EF_OFF)
+                efx_char_stage(v->c.cx, v->cz, v->c.ctype, v->c.stereo, xl, xr, k);
             out_stereo(v, xl, xr, l + i, r + i, s1 + i, s2 + i, k);
-        } else if (v->c.ctype == CT_OFF) {
+        } else if (v->c.ctype == EF_OFF) {
             switch (v->c.ftype) {
             case FT_LP24: SL(FT_LP24, 0); break;
             case FT_LADDER: SL(FT_LADDER, 0); break;
@@ -3916,7 +3912,7 @@ static void voice_samples(synth_t *s, voice_t *v, float *l, float *r, float *s1,
             case FT_BP12: SL(FT_BP12, 1); break;
             default: break;                      /* (dynamic: a bypass, xl / xr as they are) */
             }
-            efx_char_stage(v->c.cx, v->cz, CT_EF[v->c.ctype], v->c.stereo, xl, xr, k);
+            efx_char_stage(v->c.cx, v->cz, v->c.ctype, v->c.stereo, xl, xr, k);
             out_mono(v, xl, l + i, r + i, s1 + i, s2 + i, k);
         }
 #undef SL
@@ -4085,12 +4081,12 @@ static void voice_render(synth_t *s, int core, int vi, float *l, float *r, float
         }
     }
 }
-/* a track's character on its bus (the synth tracks'; the kit's has its own, char_bus): the type's place, the track's
- * whole sound through one stage (drive, fold, crush, tilt, tape, sampler) or each note through its own (ring: its
- * modulator follows the note). A bus track's voices render one after another on one core (its first voice's turn:
+/* a track's slots on its bus (the synth tracks'; a kit's on its own pair, synth_kit_slots): the track's whole sound
+ * through slot 1 then slot 2 (a ring on each note instead: its modulator follows the note; tape's wow on the voices'
+ * pitch, its saturation here). A bus track's voices render one after another on one core (its first voice's turn:
  * synth_order queues it alone, at their summed cost) into that core's own pair, before the fader and the volume (their
- * gains on the stage's output: the fader does not drive it) and with no sends (the stage's output's); the pan's level
- * made up on the way in (x sqrt 2), so a note in the middle drives the stage as it drove its own */
+ * gains on the slots' output: the fader does not drive them) and with no sends (the slots' output's); the pan's level
+ * made up on the way in (x sqrt 2), so a note in the middle drives a slot as it drove the voice's own stage */
 #define BUS_N 256                             /* a bus's frames at a time (the engine's block; a longer render in pieces) */
 #ifdef PLAT_HOST
 static float bus_px[2][2][BUS_N];
@@ -4106,66 +4102,71 @@ static float bus_sp[2][NSPLIT][2][BUS_N];
 #else
 static float bus_sp[2][NSPLIT][2][BUS_N] __attribute__((section(".pool")));
 #endif
-/* the inserts' memory (chorus: a slot, echo: two), shared by the tracks: given when a track's insert asks for it (the
- * first free run of slots, cleared), kept while its type stays, given back when it changes */
-#define INS_SLOT_N 1024                          /* (int16 a slot: 2 KB) */
+/* the slots' memory (chorus, lofi, juno: a block; rumble two: efx.h EFX[].blocks), shared by the tracks' slots: given
+ * when a slot asks for it (the first free run of blocks, cleared), kept while its effect stays, given back when it
+ * changes (or its mix goes to 0: the slot off) */
+#define INS_SLOT_N EFX_INS_N                     /* (int16 a block: 2 KB) */
 #ifdef PLAT_HOST
 static int16_t ins_pool[INS_SLOTS][INS_SLOT_N];
 #else
 static int16_t ins_pool[INS_SLOTS][INS_SLOT_N] __attribute__((section(".pool")));
 #endif
-static inline int ins_slots(int type) { return type == IT_JUNO || type == IT_CHORUS ? 1 : type == IT_ECHO || type == IT_RUMBLE ? 2 : 0; }
+static inline int slot_need(int ef) { return ef > EF_OFF && ef < NEF ? EFX[ef].blocks : 0; }
 static void ins_alloc(synth_t *s)
 {
     uint8_t used = 0;
-    int i, k;
-    for (i = 0; i < NTRK; i++) {                 /* (given back: a track whose insert no longer needs its memory) */
-        trk_t *t = &s->t[i];
-        if (t->pool_at >= 0 && t->pool_n != ins_slots(t->ins))
-            t->pool_at = -1, t->pool_n = 0;
-        if (t->pool_at >= 0)
-            for (k = 0; k < t->pool_n; k++)
-                used |= (uint8_t)(1u << (t->pool_at + k));
-    }
-    for (i = 0; i < NTRK; i++) {
-        trk_t *t = &s->t[i];
-        int need = ins_slots(t->ins);
-        if (!need || t->pool_at >= 0)
-            continue;
-        for (k = 0; k + need <= INS_SLOTS; k++) {
-            uint8_t m = (uint8_t)(((1u << need) - 1u) << k);
-            if (!(used & m)) {
-                used |= m;
-                t->pool_at = (int8_t)k;
-                t->pool_n = (uint8_t)need;
-                t->iz_type = IT_OFF;             /* (its states and memory cleared: ins_run) */
-                for (int q = 0; q < need; q++)
-                    for (int j = 0; j < INS_SLOT_N; j++)
-                        ins_pool[k + q][j] = 0;
-                break;
+    int i, k, q;
+    for (i = 0; i < NTRK; i++)                   /* (given back: a slot that no longer needs its memory) */
+        for (q = 0; q < 2; q++) {
+            efx_slot_t *sl = &s->t[i].sl[q];
+            if (sl->at >= 0 && sl->mef != sl->ef)   /* (another effect: its memory fresh, cleared) */
+                sl->at = -1, sl->nb = 0;
+            if (sl->at >= 0)
+                for (k = 0; k < sl->nb; k++)
+                    used |= (uint8_t)(1u << (sl->at + k));
+        }
+    for (i = 0; i < NTRK; i++)
+        for (q = 0; q < 2; q++) {
+            efx_slot_t *sl = &s->t[i].sl[q];
+            int need = slot_need(sl->ef);
+            if (!need || sl->at >= 0)
+                continue;
+            for (k = 0; k + need <= INS_SLOTS; k++) {
+                uint8_t m = (uint8_t)(((1u << need) - 1u) << k);
+                if (!(used & m)) {
+                    used |= m;
+                    sl->at = (int8_t)k;
+                    sl->nb = (uint8_t)need;
+                    sl->mef = sl->ef;
+                    sl->zef = EF_OFF;            /* (its states cleared: slot_run) */
+                    for (int b = 0; b < need; b++)
+                        for (int j = 0; j < INS_SLOT_N; j++)
+                            ins_pool[k + b][j] = 0;
+                    break;
+                }
             }
         }
-    }
 }
-/* how long a track's insert rings on once its sound has ended, in blocks of n (ins_tail) */
+/* how long a track's slots ring on once its sound has ended, in blocks of n (ins_tail): rumble's decay, else 0.1 s */
 static void ins_tail_set(const synth_t *s, trk_t *t, uint32_t n)
 {
     float sec = 0.1f;
-    if (t->ins == IT_ECHO) {                     /* (its repeats to -60 dB, at most 8 s) */
-        static const float BT[8] = {0.125f, 1.0f / 6.0f, 0.25f, 1.0f / 3.0f, 0.375f, 0.5f, 0.75f, 1.0f};
-        float fb = t->ins_k[1] * (0.95f / 127.0f), d = BT[(int)t->ins_k[0] & 7] * 60.0f / fm_maxf(s->bpm, 20.0f);
-        sec = fm_minf(d * (1.0f + (fb > 0.01f ? 3.0f / -fm_log2f(fb) * 3.3219f : 1.0f)), 8.0f);
-    }
-    if (t->ins == IT_RUMBLE)                     /* (its decay) */
-        sec = efx_rumble_secs(t->ins_k[0]);
+    (void)s;
+    for (int q = 0; q < 2; q++)
+        if (t->sl[q].ef == EF_RUMBLE)
+            sec = fm_maxf(sec, efx_rumble_secs(t->sl[q].k[0]));
     t->ins_tail = (uint16_t)(sec * SY_SR / (float)(n ? n : 256u) + 1.0f);
 }
-int synth_insert_room(const synth_t *s, int trk)
+int synth_slot_room(const synth_t *s, int trk, int q)
 {
-    return trk < 0 || trk >= NTRK || !ins_slots(s->t[trk].ins) || s->t[trk].pool_at >= 0;
+    const efx_slot_t *sl;
+    if (trk < 0 || trk >= NTRK || q < 0 || q > 1)
+        return 1;
+    sl = &s->t[trk].sl[q];
+    return !slot_need(sl->ef) || sl->at >= 0;
 }
-/* this block's buses (synth_prepare): each track's type, amount, gains and wow; which voices join which bus; the
- * busiest split */
+/* this block's buses (synth_prepare): each track's slots (their effects, knobs, mixes), gains and wow; which voices
+ * join which bus; the busiest split */
 static void bus_prepare(synth_t *s, uint32_t n)
 {
     const uint8_t *gp = s->par[SY_GLFO_TRK];
@@ -4173,17 +4174,35 @@ static void bus_prepare(synth_t *s, uint32_t n)
     int i;
     for (i = 0; i < NTRK; i++) {
         trk_t *t = &s->t[i];
-        int type = P(s, i, TP_CTYPE), dest = t->ldest;
-        float off = t->loff[last], g = groute >> i & 1 ? s->goff[last] : 0.0f, vol, lev;
+        const int dest = t->ldest, kit = P(s, i, TP_ENGINE) == EG_DRUMLINE, vr = kit ? 0 : voice_ring(s, i);
+        float off = t->loff[last], g = groute >> i & 1 ? s->goff[last] : 0.0f, vol, lev, ct = 0.0f;
         int gd = g != 0.0f ? gp[TP_LDEST] % NGD : -1;
         s->lead[i] = -1;
-        t->bus = (uint8_t)(type < NCT && P(s, i, TP_CMIX) && ch_on_bus(type) ? type : CT_OFF);
-        t->ins = (uint8_t)(P2(s, i, TP_ITYPE) < NIT ? P2(s, i, TP_ITYPE) : IT_OFF);
-        for (int q = 0; q < 3; q++)              /* (its knobs: a lock, the LFO's offset when it reaches one) */
-            t->ins_k[q] = fm_clampf((float)P2(s, i, TP_I1 + q) + (dest == TP_I1 + q ? off : 0.0f), 0.0f, 127.0f);
-        if (t->bus == CT_OFF && t->ins == IT_OFF)
+        t->nbus = t->nins = t->wowon = 0;
+        for (int q = 0; q < 2; q++) {            /* (a kit's knobs as the engine has them: its LFOs write them) */
+            efx_slot_t *sl = &t->sl[q];
+            int ef = q + 1 == vr ? EF_OFF : slot_ef(s, i, q);   /* (the voices' ring: not here) */
+            sl->ef = (uint8_t)ef;
+            if (ef == EF_OFF)
+                continue;
+            sl->mix = (uint8_t)(PS(s, i, TP_SLOT[q][SL_MIX]) & 127);
+            for (int j = 0; j < 3; j++) {
+                const int p = TP_SLOT[q][SL_K1 + j];
+                sl->k[j] = kit ? (float)(PS(s, i, p) & 127)
+                               : fm_clampf(pfs(s, i, p, dest, off) + (q == 0 && j == 0 && gd == GD_CHAR ? g : 0.0f), 0.0f,
+                                           127.0f);
+            }
+            for (int j = 0; j < 4; j++)
+                sl->xt[j] = (uint8_t)(PS(s, i, TP_SLOT[q][SL_X1 + j]) & 127);
+            t->nbus++;
+            t->nins = (uint8_t)(t->nins + !efx_is_char(ef));
+            if (ef == EF_TAPE && !kit) {         /* (its wow on the voices' pitch) */
+                t->wowon = 1;
+                ct += (2.0f + 8.0f * (sl->k[0] * (1.0f / 127.0f))) * (float)sl->mix * (1.0f / 127.0f);
+            }
+        }
+        if (!t->nbus || kit)
             continue;
-        t->bus_amt = fm_clampf(pf(s, i, TP_CAMT, dest, off) + (gd == GD_CHAR ? g : 0.0f), 0.0f, 127.0f) * (1.0f / 127.0f);
         vol = pf(s, i, TP_VOLUME, dest, off) * (1.0f / 127.0f);
         lev = tp_level_gain(P(s, i, TP_LEVEL)) * (100.0f / 127.0f);
         t->bus_gn = vol * vol * lev * 0.70710678f;
@@ -4191,20 +4210,18 @@ static void bus_prepare(synth_t *s, uint32_t n)
             t->bus_gn *= 1.0f - 0.6f * fm_clampf(pf(s, i, TP_RES, dest, off) * (1.0f / 127.0f), 0.0f, 1.0f);
         t->bus_s1 = fm_clampf((float)(P(s, i, TP_SEND1) + t->perf.send1) + (gd == GD_SEND1 ? g : 0.0f), 0.0f, 127.0f) * (1.0f / 127.0f);
         t->bus_s2 = fm_clampf((float)(P(s, i, TP_SEND2) + t->perf.send2) + (gd == GD_SEND2 ? g : 0.0f), 0.0f, 127.0f) * (1.0f / 127.0f);
-        if (t->bus == CT_TAPE) {                 /* the wow: the voices' pitch, one for the track (voice_chunk) */
-            float ct = (2.0f + 8.0f * t->bus_amt) * fm_minf((float)P(s, i, TP_CMIX), 127.0f) * (1.0f / 127.0f);
+        if (t->wowon)                            /* the wow: the voices' pitch, one for the track (voice_chunk) */
             for (int k = 0; k < s->nck; k++) {
                 t->wow[0] = wrap1(t->wow[0] + 0.55f * CHUNK_S);
                 t->wow[1] = wrap1(t->wow[1] + 6.1f * CHUNK_S);
                 t->wowc[k] = ct * (fm_sin_turns(t->wow[0]) + 0.25f * fm_sin_turns(t->wow[1]));
             }
-        }
     }
     ins_alloc(s);
     for (i = 0; i < NVOICE; i++) {
         const voice_t *v = &s->v[i];
         s->grp[i] = 0;
-        if (v->trk < NTRK && (s->t[v->trk].bus != CT_OFF || s->t[v->trk].ins != IT_OFF) && v_sounding(v)) {
+        if (v->trk < NTRK && s->t[v->trk].nbus && v_sounding(v)) {
             s->grp[i] = (uint8_t)(v->trk + 1);
             if (s->lead[v->trk] < 0)
                 s->lead[v->trk] = (int8_t)i;
@@ -4237,20 +4254,23 @@ static void bus_prepare(synth_t *s, uint32_t n)
     }
     for (i = 0; i < NTRK; i++) {                 /* a bus whose voices have ended rings out (a stage's state: the fold's
                                                   * DC blocker, the tape's roll-off; stopped at once it stepped to 0, a
-                                                  * click; an insert's tail: the echo's repeats): a silent voice carries
-                                                  * its turn, its frames moved on as idle */
+                                                  * click; a slot's tail: rumble's): a silent voice carries its turn, its
+                                                  * frames moved on as idle */
         trk_t *t = &s->t[i];
-        const chbus_t *c = &t->cb;
         float e = 0.0f;
-        if ((t->bus == CT_OFF && t->ins == IT_OFF) || P(s, i, TP_ENGINE) == EG_DRUMLINE)
-            continue;                            /* (a kit's insert rings on in the engine: synth_insert_rings) */
-        if (s->lead[i] >= 0 || s->split[i] >= 0) {   /* (playing: its insert's tail from here, in blocks) */
+        if (!t->nbus || P(s, i, TP_ENGINE) == EG_DRUMLINE)
+            continue;                            /* (a kit's slots ring on in the engine: synth_slots_ring) */
+        if (s->lead[i] >= 0 || s->split[i] >= 0) {   /* (playing: its slots' tail from here, in blocks) */
             ins_tail_set(s, t, n);
             continue;
         }
-        if (t->bus != CT_OFF && c->type == t->bus)
-            e = fm_fabsf(c->cz[0]) + fm_fabsf(c->cz[1]) + fm_fabsf(c->cz[2]) + fm_fabsf(c->cz[3]) + fm_fabsf(c->cz[6]) +
-                fm_fabsf(c->cz[7]);              /* (cz[4], cz[5]: phases, not sound) */
+        for (int q = 0; q < 2; q++) {
+            const efx_slot_t *sl = &t->sl[q];
+            const float *z = sl->u.ch.z;
+            if (efx_is_char(sl->ef) && sl->zef == sl->ef)
+                e += fm_fabsf(z[0]) + fm_fabsf(z[1]) + fm_fabsf(z[2]) + fm_fabsf(z[3]) + fm_fabsf(z[6]) +
+                     fm_fabsf(z[7]);             /* (z[4], z[5]: phases, not sound) */
+        }
         if (t->ins_tail)
             t->ins_tail--;
         if (e < 1e-5f && !t->ins_tail)
@@ -4280,120 +4300,64 @@ static void bus_piece(synth_t *s, int core, int trk, float *l, float *r, float *
             voice_render(s, core, i, bl, br, s1, s2, n, 0);
     bus_out(s, core, trk, bl, br, l, r, s1, s2, n, at);
 }
-/* a bus's pair (bl, br: its voices' sum) through its stage, its gains and sends into l, r, s1, s2, its share of the
- * USB audio input's track (core's sink) */
-/* a track's insert on its pair (synth.h IT_*), after the stage. tremolo: each side's gain 1 - depth (1 + sin) / 2, the
- * right side's sine pan half a cycle on at the top (an auto-pan), ramped across 16 frames at a time */
-/* a track's insert on its pair (synth.h IT_*: dsp/efx.c's, the catalog's; the echo's here), after the stage */
-static const uint8_t IT_EF[NIT] = {EF_OFF, EF_TREMOLO, EF_PHASER, EF_UNIVIBE, EF_RAT, EF_AUTOWAH, EF_CHORUS, EF_OFF, EF_JUNO,
-                                   EF_RUMBLE};
-static void ins_run(synth_t *s, trk_t *t, float *bl, float *br, uint32_t n)
+/* a slot on a pair (a synth track's bus; a kit's, kit 1: its ring at C4, its stage always both sides, as the kit's
+ * character ran), in place: the dirt and the color (efx_char_stage; a pair whose sides are the same, mono voices in the
+ * middle, a bass, a lead: once, its right side's states the left's), the rest (efx_insert) */
+static void slot_run(synth_t *s, trk_t *t, efx_slot_t *sl, int kit, float *bl, float *br, uint32_t n)
 {
-    float *z = t->iz.z;
-    const float k1 = t->ins_k[1] * (1.0f / 127.0f), k2 = t->ins_k[2] * (1.0f / 127.0f);
-    float ph = t->ins_ph;
-    if (t->iz_type != t->ins) {                  /* another type: its states clean */
-        for (int i = 0; i < 16; i++)
-            z[i] = 0.0f;
-        t->iz_type = t->ins;
+    const int ef = sl->ef;
+    uint32_t j;
+    if (ef != sl->zef) {                         /* another effect: its states start clean */
+        uint8_t *b = (uint8_t *)&sl->u;
+        for (j = 0; j < (uint32_t)sizeof sl->u; j++)
+            b[j] = 0;
+        sl->cef = 0xFFu;
+        sl->ph = 0.0f;
+        sl->zef = (uint8_t)ef;
     }
-    switch (t->ins) {
-    case IT_ECHO: {                              /* a tape echo at half the rate, 8-bit companded (sqrt) in its two slots:
-                                                  * z[0] where it writes, z[1] the repeats' low-pass, z[2] the last read,
-                                                  * z[3] the half-rate input's first of its pair, z[4] which of the pair */
-        static const float BEATS[8] = {0.125f, 1.0f / 6.0f, 0.25f, 1.0f / 3.0f, 0.375f, 0.5f, 0.75f, 1.0f};
-        int8_t *ln = t->pool_at >= 0 ? (int8_t *)(void *)ins_pool[(int)t->pool_at] : 0;
-        const int LN = 2 * INS_SLOT_N * 2;       /* (bytes: two slots) */
-        float dly = BEATS[(int)t->ins_k[0] & 7] * 60.0f / fm_maxf(s->bpm, 20.0f) * (SY_SR * 0.5f);
-        const float fb = k1 * 0.95f, wet = k2, klp = efx_op_coef(3500.0f * 2.0f);   /* (at half the rate: its coefficient
-                                                  * for twice the frequency) */
-        float lp = z[1], last = z[2], a = z[3], wow;
-        int w = (int)z[0], odd = (int)z[4];
-        if (!ln)
-            break;
-        dly = fm_minf(dly, (float)(LN - 4));
-        wow = 1.0f + 0.002f * efx_sin(ph);        /* (the tape's wow: 0.5 Hz, a block at a time) */
-        ph += 0.5f * INV_SR * (float)n;
-        ph -= fm_floorf(ph);
-        dly *= wow;
-        for (uint32_t i = 0; i < n; i++) {
-            float x = 0.5f * (bl[i] + br[i]);
-            if (!odd)
-                a = x;
-            else {                               /* the pair in: a step of the line */
-                float in = 0.5f * (a + x), p = (float)w - dly, rd, fr, v, sq;
-                int ip;
-                p += p < 0.0f ? (float)LN : 0.0f;
-                ip = (int)p;
-                fr = p - (float)ip;
-                {
-                    float c0 = (float)ln[ip] * (1.0f / 127.0f), c1 = (float)ln[(ip + 1) % LN] * (1.0f / 127.0f);
-                    c0 = c0 * fm_fabsf(c0) * 4.0f;     /* (the sqrt companding back: x^2, the line at 1/4) */
-                    c1 = c1 * fm_fabsf(c1) * 4.0f;
-                    rd = c0 + (c1 - c0) * fr;
-                }
-                lp += klp * (rd - lp);
-                v = soft3(in + fb * lp);         /* (the repeats darker each time, saturated) */
-                sq = fm_sqrtf(fm_minf(fm_fabsf(v) * 0.25f, 1.0f)) * 127.0f;
-                ln[w] = (int8_t)(v < 0.0f ? -(int)(sq + 0.5f) : (int)(sq + 0.5f));
-                w = (w + 1) % LN;
-                last = lp;
-            }
-            odd ^= 1;
-            bl[i] += wet * last;
-            br[i] += wet * last;
+    if (ef == EF_OFF)
+        return;
+    if (efx_is_char(ef)) {
+        float *x = sl->u.ch.x, *z = sl->u.ch.z, *in = sl->u.ch.in;
+        float a = sl->k[0] * (1.0f / 127.0f), tn = sl->k[1] * (1.0f / 127.0f);
+        if (ef == EF_RING)                       /* (the voices' glide, char_prep, a step a block here) */
+            a = efx_ring_glide(a, in[0], &z[6], x);
+        if (ef != sl->cef || a != in[0] || tn != in[1]) {
+            efx_char_coefs(ef, a, tn, KIT_RING_HZ, x);
+            sl->cef = (uint8_t)ef;
+            in[0] = a;
+            in[1] = tn;
         }
-        z[0] = (float)w, z[1] = fm_flush(lp), z[2] = fm_flush(last), z[3] = a, z[4] = (float)odd;
-        break;
+        x[7] = (float)sl->mix * (1.0f / 127.0f);
+        if (ef == EF_RING)                       /* the phasor back to unit length (char_prep) */
+            efx_ring_norm(z);
+        for (j = 0; !kit && j < n && bl[j] == br[j]; j++)
+            ;
+        if (!kit && j == n) {
+            efx_char_stage(x, z, ef, 0, bl, br, (int)n);
+            for (j = 0; j < n; j++)
+                br[j] = bl[j];
+            z[1] = z[0];
+            z[3] = z[2];
+            z[7] = z[6];
+        } else
+            efx_char_stage(x, z, ef, 1, bl, br, (int)n);
+        return;
     }
-    default:
-        efx_insert(IT_EF[t->ins], &t->iz, &ph, t->pool_at >= 0 ? ins_pool[(int)t->pool_at] : 0, t->ins_k,
-                   lfo_hz((int)t->ins_k[0], s->bpm), s->bpm, t->ins_in, bl, br, n);
-        break;
-    }
-    t->ins_ph = ph;
+    efx_insert(ef, &sl->u.in, &sl->ph, sl->at >= 0 ? ins_pool[(int)sl->at] : 0, sl->k, sl->xt, sl->mix,
+               lfo_hz((int)sl->k[0], s->bpm), s->bpm, t->ins_in, bl, br, n);
 }
+/* a bus's pair (bl, br: its voices' sum) through its slots, its gains and sends into l, r, s1, s2, its share of the
+ * USB audio input's track (core's sink) */
 static void bus_out(synth_t *s, int core, int trk, float *bl, float *br, float *l, float *r, float *s1, float *s2,
                     uint32_t n, uint32_t at)
 {
     trk_t *t = &s->t[trk];
-    chbus_t *c = &t->cb;
     float g = t->bus_g, dg;
     const float k1 = t->bus_s1, k2 = t->bus_s2;
-    int type = t->bus, i;
     uint32_t j;
-    if (type != c->type) {                       /* another type: its states start clean */
-        for (i = 0; i < 8; i++)
-            c->cz[i] = 0.0f;
-        c->type = (uint8_t)type;
-        c->cin_type = 0xFFu;
-    }
-    if (type != CT_OFF) {
-        float a = t->bus_amt, tn = fm_minf((float)P(s, trk, TP_CTONE), 127.0f) * (1.0f / 127.0f);
-        if (type != c->cin_type || a != c->cin[0] || tn != c->cin[1]) {
-            efx_char_coefs(CT_EF[type], a, tn, 0.0f, c->cx);
-            c->cin_type = (uint8_t)type;
-            c->cin[0] = a;
-            c->cin[1] = tn;
-        }
-        c->cx[7] = fm_minf((float)P(s, trk, TP_CMIX), 127.0f) * (1.0f / 127.0f);
-    }
-    for (j = 0; j < n && bl[j] == br[j]; j++)
-        ;
-    if (type == CT_OFF)
-        ;
-    else if (j == n) {                                /* its two sides the same (mono voices in the middle, a bass, a lead):
-                                                  * the stage once, its right side's states the left's */
-        efx_char_stage(c->cx, c->cz, CT_EF[type], 0, bl, br, (int)n);
-        for (j = 0; j < n; j++)
-            br[j] = bl[j];
-        c->cz[1] = c->cz[0];
-        c->cz[3] = c->cz[2];
-        c->cz[7] = c->cz[6];
-    } else
-        efx_char_stage(c->cx, c->cz, CT_EF[type], 1, bl, br, (int)n);
-    if (t->ins != IT_OFF)
-        ins_run(s, t, bl, br, n);
+    slot_run(s, t, &t->sl[0], 0, bl, br, n);
+    slot_run(s, t, &t->sl[1], 0, bl, br, n);
     dg = (t->bus_gn - g) / (float)n;             /* (the gain glides across the block) */
     for (j = 0; j < n; j++) {
         float ol = bl[j] * g, or_ = br[j] * g, mono = (ol + or_) * 0.5f;
@@ -4480,21 +4444,22 @@ void synth_bus_join(synth_t *s, float *l, float *r, float *s1, float *s2, uint32
     }
 }
 void synth_split(synth_t *s, int on) { s->split_on = (uint8_t)(on != 0); }
-void synth_insert_kick(synth_t *s, int trk, float *l, float *r, const float *kick, uint32_t n)
+void synth_kit_slots(synth_t *s, int trk, float *l, float *r, const float *kick, uint32_t n)
 {
-    if (trk >= 0 && trk < NTRK && s->t[trk].ins != IT_OFF) {
-        s->t[trk].ins_in = s->t[trk].ins == IT_RUMBLE ? kick : 0;
-        ins_run(s, &s->t[trk], l, r, n);
-        s->t[trk].ins_in = 0;
-    }
+    if (trk < 0 || trk >= NTRK)
+        return;
+    s->t[trk].ins_in = kick;
+    slot_run(s, &s->t[trk], &s->t[trk].sl[0], 1, l, r, n);
+    slot_run(s, &s->t[trk], &s->t[trk].sl[1], 1, l, r, n);
+    s->t[trk].ins_in = 0;
 }
-int synth_insert_rings(synth_t *s, int trk, int sounding, uint32_t n)
+int synth_slots_ring(synth_t *s, int trk, int sounding, uint32_t n)
 {
     trk_t *t;
     if (trk < 0 || trk >= NTRK)
         return 0;
-    t = &s->t[trk];                              /* (its type and knobs: bus_prepare's, this block's) */
-    if (t->ins == IT_OFF)
+    t = &s->t[trk];                              /* (its effects and knobs: bus_prepare's, this block's) */
+    if (!t->nins)
         return t->ins_tail = 0, sounding;
     if (sounding) {
         ins_tail_set(s, t, n);
@@ -4579,7 +4544,7 @@ static const tp_info_t FIXED[NTP_SOUND + 13] = {
     {"amount", 0, 127, 64, PK_BIP, 0},                  {"dest", 0, NLD - 1, LD_FILTER, PK_NAMES, LDEST_N},
     {"param", 0, 3, 0, PK_NUM, 0},                      {"shape", 0, 4, 1, PK_NAMES, VSHAPE_N},
     /* the character stage: its amount and tone print per type (tp_text_par) */
-    {"type", 0, NCT - 1, CT_OFF, PK_NAMES, CTYPE_N},    {"amount", 0, 127, 64, PK_PCT, 0},
+    {"type", 0, NEF - 1, EF_OFF, PK_NAMES, EF_N},       {"amount", 0, 127, 64, PK_PCT, 0},
     {"tone", 0, 127, 64, PK_BIP, 0},                    {"mix", 0, 127, 127, PK_PCT, 0},
     /* TP_X1 .. TP_X4: the engine's second page: none but an engine's own (tp_info: knit's, rayon's) */
     {"-", 0, 0, 0, PK_NUM, 0}, {"-", 0, 0, 0, PK_NUM, 0}, {"-", 0, 0, 0, PK_NUM, 0}, {"-", 0, 0, 0, PK_NUM, 0},
@@ -4646,24 +4611,43 @@ static const tp_info_t ROPS_P[4] = {{"ops", 0, NRO - 1, RO_OFF, PK_NAMES, RO_N},
                                     {"depth", 0, 127, 0, PK_NN, 0}, {"feedback", 0, 127, 0, PK_NN, 0}};
 static const tp_info_t KANALOG_P = {"analog", 0, 127, 0, PK_NN, 0};
 static const tp_info_t HPF_P = {"low cut", 0, 127, 0, PK_LOWCUT, 0};
-/* the insert (synth.h IT_*): its type, and its knobs as each type names them (any type's ranges: tp_info) */
-static const char *const ITYPE_N[NIT] = {"off", "tremolo", "phaser", "univibe", "rat", "autowah", "chorus", "echo",
-                                         "juno", "rumble"};
-static const char *const JUNO_N[3] = {"I", "II", "I+II"};
-static const char *const ECHO_T_N[8] = {"1/32", "1/16T", "1/16", "1/8T", "1/16D", "1/8", "1/8D", "1/4"};
-static const tp_info_t ITYPE_P = {"insert", 0, NIT - 1, IT_OFF, PK_NAMES, ITYPE_N};
+/* the slots (synth.h TP_SLOT): slot 2's effect, a slot's mix; its knobs and extras as its effect names them (slot_info:
+ * dsp/efx.c's catalog) */
+static const tp_info_t ITYPE_P = {"insert", 0, NEF - 1, EF_OFF, PK_NAMES, EF_N};
+static const tp_info_t SMIX_P = {"mix", 0, 127, 127, PK_PCT, 0};
 static const tp_info_t INS_ANY_P = {"", 0, 127, 0, PK_NN, 0};
-static const tp_info_t INS_P[NIT][3] = {
-    {{"-", 0, 0, 0, PK_NUM, 0}, {"-", 0, 0, 0, PK_NUM, 0}, {"-", 0, 0, 0, PK_NUM, 0}},
-    {{"rate", 0, 127, 4, PK_HZ_SYNC, 0}, {"depth", 0, 127, 80, PK_PCT, 0}, {"pan", 0, 127, 0, PK_PCT, 0}},
-    {{"rate", 0, 127, 40, PK_HZ_SYNC, 0}, {"depth", 0, 127, 90, PK_PCT, 0}, {"feedback", 0, 127, 60, PK_PCT, 0}},
-    {{"rate", 0, 127, 70, PK_HZ_SYNC, 0}, {"depth", 0, 127, 90, PK_PCT, 0}, {"vibrato", 0, 127, 0, PK_PCT, 0}},
-    {{"distort", 0, 127, 70, PK_NN, 0}, {"filter", 0, 127, 50, PK_NN, 0}, {"level", 0, 127, 80, PK_NN, 0}},
-    {{"sense", 0, 127, 80, PK_NN, 0}, {"reso", 0, 127, 70, PK_NN, 0}, {"decay", 0, 127, 50, PK_NN, 0}},
-    {{"rate", 0, 127, 30, PK_HZ_SYNC, 0}, {"depth", 0, 127, 70, PK_PCT, 0}, {"mix", 0, 127, 64, PK_PCT, 0}},
-    {{"time", 0, 7, 5, PK_NAMES, ECHO_T_N}, {"feedback", 0, 127, 60, PK_PCT, 0}, {"mix", 0, 127, 45, PK_PCT, 0}},
-    {{"mode", 0, 2, 0, PK_NAMES, JUNO_N}, {"mix", 0, 127, 64, PK_PCT, 0}, {"tone", 0, 127, 70, PK_NN, 0}},
-    {{"decay", 0, 127, 55, PK_NN, 0}, {"tone", 0, 127, 80, PK_NN, 0}, {"mix", 0, 127, 70, PK_PCT, 0}}};
+static const char *const JUNO_N[3] = {"I", "II", "I+II"};
+static const tp_info_t *slot_info(const uint8_t *par, int q, int j)
+{
+    static tp_info_t ring[8];                    /* (made on asking: a few held at once) */
+    static uint8_t at;
+    static const uint8_t KIND[7] = {PK_NN, PK_PCT, PK_BIP, PK_HZ_SYNC, PK_NAMES, PK_NUM, PK_NUM};   /* (EK_*) */
+    int ef = par[TP_SLOT[q][SL_EF]], k = j <= SL_K3 ? j - SL_K1 : 3 + j - SL_X1;
+    const char *nm;
+    tp_info_t *i;
+    if (j == SL_EF)
+        return q ? &ITYPE_P : &FIXED[TP_CTYPE];
+    if (j == SL_MIX)
+        return q ? &SMIX_P : &FIXED[TP_CMIX];
+    ef = ef < NEF ? ef : EF_OFF;
+    nm = efx_knob_name(ef, k);
+    i = &ring[at++ & 7u];
+    *i = (tp_info_t){nm && ef ? nm : "-", 0, 127, 0, PK_NUM, 0};
+    if (!nm || !ef || nm[0] == '-')              /* (none: its value kept as it is) */
+        return i;
+    if (k < 3) {
+        i->def = EFX[ef].def[k];
+        i->kind = KIND[EFX[ef].kind[k]];
+        if (EFX[ef].kind[k] == EK_LIST)
+            i->hi = 2, i->names = JUNO_N;
+    } else {
+        i->def = EFX[ef].xdef[k - 3];
+        i->kind = PK_NN;
+        if (ef == EF_REVERB && k == 3)           /* (the reverb's mode) */
+            i->hi = NRV - 1, i->kind = PK_NAMES, i->names = RV_NAME;
+    }
+    return i;
+}
 static const tp_info_t TULLE_G_P[4] = {{"shape", 0, 127, 0, PK_NN, 0}, {"reverse", 0, 127, 0, PK_PCT, 0},
                                        {"-", 0, 0, 0, PK_NUM, 0}, {"-", 0, 0, 0, PK_NUM, 0}};
 static const tp_info_t KMOD_P[4] = {{"sync", 0, 1, 0, PK_SWITCH, 0}, {"sweep", 0, KSWEEP_MAX, 0, PK_SEMI, 0},
@@ -4895,7 +4879,10 @@ const tp_info_t *tp_info(int p, int engine)
         return &HPF_P;
     if (p == TP_ITYPE)
         return &ITYPE_P;
-    if (p >= TP_I1 && p <= TP_I3)                 /* (its type's names: tp_info_par) */
+    if (p == TP_S2MIX)
+        return &SMIX_P;
+    if ((p >= TP_I1 && p <= TP_I3) || p >= TP_S1K3)   /* (a slot's knobs and extras as its effect names them:
+                                                  * tp_info_par) */
         return &INS_ANY_P;
     if (p >= 0 && p < (int)(sizeof FIXED / sizeof FIXED[0]))
         return &FIXED[p];
@@ -4918,8 +4905,12 @@ const tp_info_t *tp_info_par(int p, const uint8_t *par)
     }
     if (p == TP_RUP)                             /* (the random player's second octave knob) */
         return player == PL_RAND ? &RUP_P : &NONE_P;
-    if (p >= TP_I1 && p <= TP_I3)                /* the insert's knobs, as its type names them */
-        return &INS_P[par[TP_ITYPE] < NIT ? par[TP_ITYPE] : IT_OFF][p - TP_I1];
+    if ((p >= TP_CAMT && p <= TP_CTONE) || (p >= TP_I1 && p <= TP_I3) || p >= TP_S1K3) {   /* a slot's knobs and
+                                                  * extras, as its effect names them */
+        int j, q = tp_slot_of(p, &j);
+        if (q >= 0)
+            return slot_info(par, q, j);
+    }
     if (p == TP_O2SHAPE && !o2w_shaped(par[TP_O2WAVE]))   /* (osc 2's shape: its saw, square and pulse only) */
         return &NONE_P;
     if (tp_is_dkey(p)) {
@@ -5188,17 +5179,25 @@ static void tp_text_i(const tp_info_t *i, int p, int v, int engine, char *num, c
 void tp_text(int p, int v, int engine, char *num, char *unit) { tp_text_i(tp_info(p, engine), p, v, engine, num, unit); }
 void tp_text_par(int p, int v, const uint8_t *par, char *num, char *unit)
 {
-    int ct = par[TP_CTYPE];
-    if ((p == TP_CAMT || p == TP_CTONE) && ct < NCT) {            /* a low-pass, the tilt's pivot, the sampler's rate:
-                                                                   * Hz */
-        float hz = efx_char_hz(CT_EF[ct], p == TP_CTONE, (float)(v > 127 ? 127 : v) * (1.0f / 127.0f));
+    int j = -1, q = tp_slot_of(p, &j), ef = q >= 0 ? par[TP_SLOT[q][SL_EF]] : EF_OFF;
+    v = v > 127 ? 127 : v;
+    if ((j == SL_K1 || j == SL_K2) && efx_is_char(ef)) {   /* a low-pass, the tilt's pivot, the sampler's rate: Hz */
+        float hz = efx_char_hz(ef, j == SL_K2, (float)v * (1.0f / 127.0f));
         if (hz > 0.0f) {
             hz_text(hz, num, unit);
             return;
         }
+        if (j == SL_K2 && ef == EF_RING) {       /* the ratio */
+            put_s(num, RING_N[v * 16 / 128]);
+            unit[0] = 0;
+            return;
+        }
     }
-    if (p == TP_CTONE && ct == CT_RING) {                         /* the ratio */
-        put_s(num, RING_N[(v > 127 ? 127 : v) * 16 / 128]);
+    if (q >= 0 && j == SL_K1 && ef == EF_DELAY) {   /* a division of the tempo: 1/8, 1/8T, 1/8D */
+        int d = fx_delay_div(v);
+        char *e = put_i(put_s(num, "1/"), FX_DL_NOTE[d]);
+        if (FX_DL_MARK[d])
+            *e++ = FX_DL_MARK[d], *e = 0;
         unit[0] = 0;
         return;
     }
@@ -5230,8 +5229,12 @@ void sound_default(uint8_t *par, int engine)
     par[TP_RRATIO] = 1;
     par[TP_RDEPTH] = par[TP_RFB] = 0;
     par[TP_KANALOG] = 0;
-    par[TP_ITYPE] = par[TP_I1] = par[TP_I2] = par[TP_I3] = 0;   /* (no insert) */
+    par[TP_ITYPE] = par[TP_I1] = par[TP_I2] = par[TP_I3] = 0;   /* (slot 2 off) */
     par[TP_HPF] = 0;                             /* (no low cut) */
+    par[TP_S1K3] = 0;
+    par[TP_S2MIX] = 127;
+    for (k = 0; k < 4; k++)
+        par[TP_S1X1 + k] = par[TP_S2X1 + k] = 0;
 }
 
 /* -------------------------------------------------------------- presets --- */
@@ -5241,11 +5244,12 @@ void sound_default(uint8_t *par, int engine)
 #include "presets.h"
 const int NPRESETS = (int)(sizeof PRESETS / sizeof PRESETS[0]);
 
+const uint16_t PS_X[PS_N - NTP_SOUND] = {TP_O2FINE, TP_O2WAVE, TP_O2SHAPE, TP_KSYNC, TP_KSWEEP, TP_KCROSS, TP_KSUB,
+                                         TP_ROPS, TP_RRATIO, TP_RDEPTH, TP_RFB, TP_KANALOG, TP_ITYPE, TP_I1, TP_I2,
+                                         TP_I3, TP_HPF, TP_S1K3, TP_S1X1, TP_S1X2, TP_S1X3, TP_S1X4, TP_S2MIX,
+                                         TP_S2X1, TP_S2X2, TP_S2X3, TP_S2X4};
 void preset_sound(uint8_t *par, const preset_t *pr)
 {
-    static const uint16_t PS_X[PS_N - NTP_SOUND] = {TP_O2FINE, TP_O2WAVE, TP_O2SHAPE, TP_KSYNC, TP_KSWEEP, TP_KCROSS,
-                                                    TP_KSUB, TP_ROPS, TP_RRATIO, TP_RDEPTH, TP_RFB, TP_KANALOG,
-                                                    TP_ITYPE, TP_I1, TP_I2, TP_I3, TP_HPF};
     const uint8_t *t = PRESET_TPL[pr->engine % NENGINE], *m = PRESET_DATA + pr->at, *v = m + PS_MASK;
     for (int i = 0; i < PS_N; i++)
         par[i < NTP_SOUND ? i : PS_X[i - NTP_SOUND]] = m[i >> 3] >> (i & 7) & 1u ? *v++ : t[i];

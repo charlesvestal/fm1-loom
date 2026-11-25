@@ -65,6 +65,7 @@ typedef char raw_fits[(RAW_LEN < 0x100000u) ? 1 : -1];   /* (lz.c packs up to 16
 #define NTP23 ((uint32_t)TP_ROPS)                         /* format 23's: up to knit's Mod page */
 #define NTP24 ((uint32_t)TP_KANALOG)                      /* format 24's: up to rayon's Ops page */
 #define NTP25 ((uint32_t)TP_ITYPE)                        /* format 25's: up to knit's analog */
+#define NTP27 ((uint32_t)TP_S1K3)                         /* formats 26..27's: up to the insert and the low cut */
 /* the random player's one octave knob before 19 (TP_P4, 0..24: PR #13's path about its centre) as down * 4 + up */
 /* before 21: the arp's speeds without the dotted ones (1/4 1/4T 1/8 1/8T 1/16 1/16T 1/32 1/32T 1/64: old_arp, to
  * synth.h's order), the delay's times 1/32 1/32D 1/16 1/16D 1/8 1/8D 1/4 1/2 (the knob in eighths; now fx.h's, in tenths: 1/2,
@@ -84,34 +85,130 @@ static uint8_t old_repeats(uint8_t v)            /* a delay's REPEATS before 27 
     return r;
 }
 static uint8_t old_arp(uint8_t v) { return v == LOCK_NONE ? v : v > 8u ? 10u : (uint8_t)(v + (v > 0u) + (v > 2u)); }
+/* before 28 (presets 17) a track had a character (slot 1 now: its types the catalog's first, numbered as there) and an
+ * insert (slot 2: tremolo, univibe, rat, autowah as they were, wet: mix 127; juno and rumble with their mix the slot's;
+ * the phaser and the chorus the sends' (their rate the send's knob nearest the LFO's at the tempo; the phaser's centre
+ * the send's default, its feedback an extra; the chorus's feedback the send's default, fully wide); the echo the delay
+ * (its time the nearest division, its feedback the repeats, its mix the slot's: no memory on a track yet) */
+static const uint8_t OLD_CT[8] = {EF_OFF, EF_DRIVE, EF_FOLD, EF_CRUSH, EF_RING, EF_TILT, EF_TAPE, EF_SAMPLER};
+enum { OI_OFF, OI_TREMOLO, OI_PHASER, OI_UNIVIBE, OI_RAT, OI_AUTOWAH, OI_CHORUS, OI_ECHO, OI_JUNO, OI_RUMBLE, NOI };
+static const uint8_t OLD_IT[NOI] = {EF_OFF, EF_TREMOLO, EF_PHASER, EF_UNIVIBE, EF_RAT, EF_AUTOWAH, EF_CHORUS, EF_DELAY,
+                                    EF_JUNO, EF_RUMBLE};
+static const uint8_t OLD_ECHO_T[8] = {6, 19, 44, 58, 70, 83, 108, 121};   /* (the echo's 1/32 .. 1/4: the delay's time) */
+static uint8_t old_rate(int ef, uint8_t v, float bpm)   /* an insert's LFO rate as the send's phaser or chorus rate */
+{
+    static const float SB[8] = {8.0f, 4.0f, 2.0f, 1.0f, 0.5f, 0.25f, 0.125f, 0.0625f};   /* (synth.c SYNC_BEATS) */
+    float hz = v < 8u ? bpm * (1.0f / 60.0f) / SB[v] : 0.1f * fm_exp2f((float)(v - 8u) * (8.22881869f / 119.0f)), best = 1e9f;
+    uint8_t r = 0;
+    for (int k = 0; k < 128; k++) {
+        float d = (ef == EF_PHASER ? 0.03f * fm_exp2f((float)k * (8.06f / 127.0f))
+                                   : 0.05f * fm_exp2f((float)k * (6.9f / 127.0f))) - hz;
+        d = d < 0.0f ? -d : d;
+        if (d < best)
+            best = d, r = (uint8_t)k;
+    }
+    return r;
+}
+/* an old insert (its type, its knobs) as slot 2's nine values (synth.h SL_*) */
+static void old_insert(uint8_t it, const uint8_t *k, float bpm, uint8_t *o)
+{
+    o[SL_EF] = it < NOI ? OLD_IT[it] : EF_OFF;
+    o[SL_K1] = k[0], o[SL_K2] = k[1], o[SL_K3] = k[2], o[SL_MIX] = 127;
+    o[SL_X1] = o[SL_X2] = o[SL_X3] = o[SL_X4] = 0;
+    switch (it < NOI ? it : OI_OFF) {
+    case OI_OFF: o[SL_K1] = o[SL_K2] = o[SL_K3] = 0; break;
+    case OI_PHASER: o[SL_K1] = 50, o[SL_K3] = old_rate(EF_PHASER, k[0], bpm), o[SL_X1] = k[2]; break;
+    case OI_CHORUS: o[SL_K1] = old_rate(EF_CHORUS, k[0], bpm), o[SL_K3] = 20, o[SL_MIX] = k[2], o[SL_X1] = 127; break;
+    case OI_ECHO:
+        o[SL_K1] = OLD_ECHO_T[k[0] & 7u], o[SL_K2] = old_repeats(k[1]), o[SL_K3] = 64, o[SL_MIX] = k[2];
+        o[SL_X1] = 64, o[SL_X2] = 127;
+        break;
+    case OI_JUNO: o[SL_K2] = k[2], o[SL_K3] = 0, o[SL_MIX] = k[1]; break;
+    case OI_RUMBLE: o[SL_K3] = 0, o[SL_MIX] = k[2]; break;
+    default: break;
+    }
+}
+static void slots_fresh(uint8_t *p)                /* the slots' values past the character and the insert, as new */
+{
+    p[TP_S1K3] = 0;
+    p[TP_S2MIX] = 127;
+    for (int j = 0; j < 4; j++)
+        p[TP_S1X1 + j] = p[TP_S2X1 + j] = 0;
+}
+static void old_slots(uint8_t *p, float bpm)       /* a track's character and insert as its slots */
+{
+    uint8_t o[SL_N], k[3] = {p[TP_I1], p[TP_I2], p[TP_I3]};
+    p[TP_CTYPE] = p[TP_CTYPE] < 8u ? OLD_CT[p[TP_CTYPE]] : EF_OFF;
+    old_insert(p[TP_ITYPE], k, bpm, o);
+    for (int j = 0; j < SL_N; j++)
+        p[TP_SLOT[1][j]] = o[j];
+}
+/* a lock or motion lane on them: the type's values as the catalog's, a knob's values (and its parameter, where it moved:
+ * an insert's mix to the slot's, the phaser's feedback to its extra, the juno's tone) as old_insert's, by the track's
+ * insert */
+static void old_slot_lane(lane_t *L, uint8_t it, float bpm)
+{
+    int j = L->param == TP_I1 ? 0 : L->param == TP_I2 ? 1 : L->param == TP_I3 ? 2 : -1, i;
+    for (i = 0; i < NSTEP; i++) {
+        uint8_t v = L->val[i], k[3], o[SL_N];
+        if (v == LOCK_NONE)
+            continue;
+        if (L->param == TP_CTYPE)
+            L->val[i] = v < 8u ? OLD_CT[v] : EF_OFF;
+        else if (L->param == TP_ITYPE)
+            L->val[i] = v < NOI ? OLD_IT[v] : EF_OFF;
+        else if (j == 0 && (it == OI_PHASER || it == OI_CHORUS || it == OI_ECHO)) {   /* (a rate, the echo's time) */
+            k[0] = v, k[1] = k[2] = 0;
+            old_insert(it, k, bpm, o);
+            L->val[i] = o[it == OI_PHASER ? SL_K3 : SL_K1];
+        } else if (j == 1 && it == OI_ECHO)
+            L->val[i] = old_repeats(v);
+    }
+    if (j < 0)
+        return;
+    if (it == OI_PHASER && j != 1)               /* (its rate to knob 3, its feedback to its extra) */
+        L->param = j ? TP_S2X1 : TP_I3;
+    else if ((it == OI_CHORUS || it == OI_ECHO || it == OI_RUMBLE) && j == 2)
+        L->param = TP_S2MIX;
+    else if (it == OI_JUNO && j)                 /* (its mix to the slot's, its tone to knob 2) */
+        L->param = j == 1 ? TP_S2MIX : TP_I2;
+}
 static const uint8_t OLD_OCT[25] = {15, 11, 7, 14, 10, 6, 13, 9, 5, 12, 8, 4, 0, 1, 2, 3, 5, 6, 7, 9, 10, 11, 13, 14, 15};
 typedef char settings_head_fits[(SET_HDR + 4u + 64u <= PLAT_STORE_MAX && SET_OLD == 3804u) ? 1 : -1];   /* (format 14's size) */
 typedef char trk_layout[(offsetof(trk_t, name) == NTP && sizeof(trk_t) == NTP + NAME_LEN + 4u) ? 1 : -1];
-typedef char preset_packed[(sizeof(user_preset_t) == NAME_LEN + 18u + NTP_SOUND) ? 1 : -1];   /* (no padding) */
+typedef char preset_packed[(sizeof(user_preset_t) == NAME_LEN + 28u + NTP_SOUND &&
+                            offsetof(user_preset_t, s2x) + 4u - offsetof(user_preset_t, o2fine) == PS_N - NTP_SOUND) ? 1 : -1];   /* (no
+                                                  * padding; the fields past par[] in PS_X's order: ui.c copies them so) */
 #define PRESET_OLD (NAME_LEN + 1u + NTP_SOUND)                    /* formats 6..8: a user preset without its fine */
 #define PRESET_V11 (NAME_LEN + 2u + NTP_SOUND)                    /* 9..11: without osc 2's wave and shape */
 #define PRESET_V12 (NAME_LEN + 4u + NTP_SOUND)                    /* 12: without knit's Mod page */
 #define PRESET_V13 (NAME_LEN + 8u + NTP_SOUND)                    /* 13: without rayon's Ops page */
 #define PRESET_V14 (NAME_LEN + 12u + NTP_SOUND)                   /* 14: without knit's analog */
 #define PRESET_V15 (NAME_LEN + 13u + NTP_SOUND)                   /* 15: without the insert */
+#define PRESET_V16 (NAME_LEN + 18u + NTP_SOUND)                   /* 16: without the slots' third knob, mix, extras */
 #define PRESETS_V7 (4u + NUSER_PRESETS * PRESET_OLD)              /* 6, 7: the user presets alone */
 #define OLD_KITS 4u                                               /* formats 8..10: four user kits */
-#define PRESETS_V8 (PRESETS_V7 + OLD_KITS * KIT_LEN)              /* 8: the user kits after them */
+#define PRESETS_V8 (PRESETS_V7 + OLD_KITS * KIT_LEN16)            /* 8: the user kits after them */
 #define PRESETS_KITS11 (4u + NUSER_PRESETS * PRESET_V11)          /* 9..11: where the kits start */
-#define PRESETS_V10 (PRESETS_KITS11 + OLD_KITS * KIT_LEN)        /* 9, 10: four kits */
-#define PRESETS_V11 (PRESETS_KITS11 + NUSER_KITS * KIT_LEN)      /* 11: eight */
+#define PRESETS_V10 (PRESETS_KITS11 + OLD_KITS * KIT_LEN16)      /* 9, 10: four kits */
+#define PRESETS_V11 (PRESETS_KITS11 + NUSER_KITS * KIT_LEN16)    /* 11: eight */
 #define PRESETS_KITS12 (4u + NUSER_PRESETS * PRESET_V12)          /* 12: where the kits start */
-#define PRESETS_V12 (PRESETS_KITS12 + NUSER_KITS * KIT_LEN)
+#define PRESETS_V12 (PRESETS_KITS12 + NUSER_KITS * KIT_LEN16)
 #define PRESETS_KITS13 (4u + NUSER_PRESETS * PRESET_V13)          /* 13: where the kits start */
-#define PRESETS_V13 (PRESETS_KITS13 + NUSER_KITS * KIT_LEN)
+#define PRESETS_V13 (PRESETS_KITS13 + NUSER_KITS * KIT_LEN16)
 #define PRESETS_KITS14 (4u + NUSER_PRESETS * PRESET_V14)          /* 14: where the kits start */
-#define PRESETS_V14 (PRESETS_KITS14 + NUSER_KITS * KIT_LEN)
+#define PRESETS_V14 (PRESETS_KITS14 + NUSER_KITS * KIT_LEN16)
 #define PRESETS_KITS15 (4u + NUSER_PRESETS * PRESET_V15)          /* 15: where the kits start */
-#define PRESETS_V15 (PRESETS_KITS15 + NUSER_KITS * KIT_LEN)
-#define PRESETS_KITS (4u + (uint32_t)sizeof user_presets)         /* 15: where the kits start */
+#define PRESETS_V15 (PRESETS_KITS15 + NUSER_KITS * KIT_LEN16)
+#define PRESETS_KITS16 (4u + NUSER_PRESETS * PRESET_V16)          /* 16: where the kits start */
+#define PRESETS_V16 (PRESETS_KITS16 + NUSER_KITS * KIT_LEN16)
+#define PRESETS_KITS (4u + (uint32_t)sizeof user_presets)         /* 17: where the kits start */
 #define PRESETS_LEN (PRESETS_KITS + NUSER_KITS * KIT_LEN)
 typedef char presets_fit[(PRESETS_LEN <= PLAT_STORE_MAX && PRESETS_V7 == 836u) ? 1 : -1];
-#define PRESETS_FORMAT 16u               /* 16: the insert (user_preset_t itype, i1, i2, i3);
+#define PRESETS_FORMAT 17u               /* 17: the one effects list: the slots' third knob, mix and extras (user_preset_t
+                                          *     s1k3 .. s2x), a kit's slot 2 and slot 1's third knob (KIT_LEN); the
+                                          *     character's and the insert's values as the slots' (project.c old_slots);
+                                          * 16: the insert (user_preset_t itype, i1, i2, i3);
                                           * 15: knit's analog (user_preset_t kanalog);
                                           * 14: rayon's Ops page (user_preset_t rops, rratio, rdepth, rfb);
                                           * 13: knit's Mod page (user_preset_t ksync, ksweep, kcross, ksub);
@@ -774,12 +871,12 @@ static int settings_unpack(int n)
             return -1;
         for (i = 0; i < SET_HDR; i++)
             ((uint8_t *)&proj)[i] = io_buf[i];
-        uint32_t ntp = fmt >= 26u ? (uint32_t)NTP : fmt >= 25u ? NTP25 : fmt >= 24u ? NTP24 : fmt >= 23u ? NTP23 : fmt >= 22u ? NTP22
-                     : fmt >= 19u ? NTP21 : fmt >= 16u ? NTP18 : NTP15;
+        uint32_t ntp = fmt >= 28u ? (uint32_t)NTP : fmt >= 26u ? NTP27 : fmt >= 25u ? NTP25 : fmt >= 24u ? NTP24
+                     : fmt >= 23u ? NTP23 : fmt >= 22u ? NTP22 : fmt >= 19u ? NTP21 : fmt >= 16u ? NTP18 : NTP15;
         uint32_t tl = ntp + NAME_LEN + 4u;
-        if (fmt >= 26u)
+        if (fmt >= 28u)
             return lz_decompress(&src, (uint8_t *)proj.trk, (uint32_t)sizeof proj.trk) ? -1 : 0;
-        if (lz_decompress(&src, (uint8_t *)proj.trk, NALLTRK * tl))   /* formats 15..25: their tracks shorter, */
+        if (lz_decompress(&src, (uint8_t *)proj.trk, NALLTRK * tl))   /* formats 15..27: their tracks shorter, */
             return -1;
         for (int t = NALLTRK - 1; t >= 0; t--) {  /* spread from the last (each moves up: copied from its end) */
             const uint8_t *o = (const uint8_t *)proj.trk + (uint32_t)t * tl;
@@ -791,6 +888,9 @@ static int settings_unpack(int n)
                 d[i] = o[i];
             if (ntp <= (uint32_t)TP_O2FINE)
                 par[TP_O2FINE] = 64;
+            slots_fresh(par);                    /* (the slots' values past the character and the insert: old_slots) */
+            if (ntp > (uint32_t)TP_HPF)
+                continue;
             par[TP_ITYPE] = par[TP_I1] = par[TP_I2] = par[TP_I3] = 0;   /* (no insert) */
             par[TP_HPF] = 0;                     /* (no low cut) */
             if (ntp > (uint32_t)TP_KANALOG)
@@ -843,6 +943,7 @@ static int settings_unpack(int n)
         tr->par[TP_KANALOG] = 0;
         tr->par[TP_ITYPE] = tr->par[TP_I1] = tr->par[TP_I2] = tr->par[TP_I3] = 0;
         tr->par[TP_HPF] = 0;
+        slots_fresh(tr->par);
     }
     return 0;
 }
@@ -947,6 +1048,16 @@ int project_load(int slot)
                 for (int i = 0; i < NSTEP; i++)
                     L->val[i] = old_arp(L->val[i]);
         }
+    if (load_format < 28u) {                          /* (a character and an insert: the track's slots, their locks) */
+        const float bpm = (float)proj.tempo_x10 * 0.1f;
+        for (int k = 0; k < NLANE; k++) {
+            lane_t *L = &pats.lane[k];
+            if (L->used && L->trk < NTRK)
+                old_slot_lane(L, proj.trk[L->trk].par[TP_ITYPE], bpm);
+        }
+        for (int t = 0; t < NTRK; t++)
+            old_slots(proj.trk[t].par, bpm);
+    }
     migrated = !bad && load_format != PROJ_FORMAT ? (uint8_t)slot : 0xFF;
     return bad ? -1 : 0;
 }
@@ -1078,58 +1189,107 @@ int project_slot_info(int slot, uint16_t *tempo_x10, uint8_t *scenes)
     return 1;
 }
 
+/* where a presets object's kits are (fmt, n: its format and size): their place (0: none), how many, each one's length */
+static uint32_t kits_at(uint32_t fmt, int n, uint32_t *cnt, uint32_t *len)
+{
+    *len = fmt >= 17u ? KIT_LEN : KIT_LEN16;
+    *cnt = NUSER_KITS;
+    if (fmt == PRESETS_FORMAT && n == (int)PRESETS_LEN)
+        return PRESETS_KITS;
+    if (fmt == 16u && n == (int)PRESETS_V16)
+        return PRESETS_KITS16;
+    if (fmt == 15u && n == (int)PRESETS_V15)
+        return PRESETS_KITS15;
+    if (fmt == 14u && n == (int)PRESETS_V14)
+        return PRESETS_KITS14;
+    if (fmt == 13u && n == (int)PRESETS_V13)
+        return PRESETS_KITS13;
+    if (fmt == 12u && n == (int)PRESETS_V12)
+        return PRESETS_KITS12;
+    if (fmt == 11u && n == (int)PRESETS_V11)
+        return PRESETS_KITS11;
+    *cnt = OLD_KITS;
+    if ((fmt == 10u || fmt == 9u) && n == (int)PRESETS_V10)
+        return PRESETS_KITS11;
+    if (fmt == 8u && n == (int)PRESETS_V8)
+        return PRESETS_V7;
+    *cnt = 0;
+    return 0;
+}
+static void kit_old(uint8_t *img)                /* a kit from before 17 (KIT_LEN16) as one now: its character slot 1, its
+                                                  * slot 2 off (ui.c kit_pack's order) */
+{
+    uint8_t *k = img + KIT_LEN16, ct = img[NAME_LEN + TP_CTYPE];
+    img[NAME_LEN + TP_CTYPE] = ct < 8u ? OLD_CT[ct] : EF_OFF;
+    k[0] = k[1] = k[2] = k[3] = k[4] = 0;
+    k[5] = 127;
+}
+
 int presets_load(void)
 {
     int n = plat_store_load(OBJ_PRESETS, io_buf, sizeof io_buf), k;
-    uint32_t i, fmt = get32(io_buf);
+    uint32_t i, fmt = get32(io_buf), cnt, klen, kat;
     for (k = 0; k < NUSER_PRESETS; k++)
         user_presets[k].name[0] = 0;
     for (k = 0; k < NUSER_KITS; k++)
         user_kit_name[k][0] = 0;
-    if (!(fmt == PRESETS_FORMAT && n == (int)PRESETS_LEN) && !(fmt == 15u && n == (int)PRESETS_V15) &&
-        !(fmt == 14u && n == (int)PRESETS_V14) &&
-        !(fmt == 13u && n == (int)PRESETS_V13) &&
-        !(fmt == 12u && n == (int)PRESETS_V12) &&
-        !(fmt == 11u && n == (int)PRESETS_V11) &&
-        !((fmt == 10u || fmt == 9u) && n == (int)PRESETS_V10) && !(fmt == 8u && n == (int)PRESETS_V8) &&
-        !((fmt == 6u || fmt == 7u) && n == (int)PRESETS_V7))
+    kat = kits_at(fmt, n, &cnt, &klen);
+    if (!kat && !((fmt == 6u || fmt == 7u) && n == (int)PRESETS_V7))
         return -1;
     {
-        uint32_t len = fmt >= 16u ? (uint32_t)sizeof(user_preset_t) : fmt >= 15u ? PRESET_V15 : fmt >= 14u ? PRESET_V14 : fmt >= 13u ? PRESET_V13
-                     : fmt >= 12u ? PRESET_V12 : fmt >= 9u ? PRESET_V11 : PRESET_OLD;
+        uint32_t len = fmt >= 17u ? (uint32_t)sizeof(user_preset_t) : fmt >= 16u ? PRESET_V16 : fmt >= 15u ? PRESET_V15
+                     : fmt >= 14u ? PRESET_V14 : fmt >= 13u ? PRESET_V13 : fmt >= 12u ? PRESET_V12 : fmt >= 9u ? PRESET_V11
+                     : PRESET_OLD;
         for (k = 0; k < NUSER_PRESETS; k++) {    /* (before 13 without the Mod page, before 12 without osc 2's wave,
                                                   * before 9 its fine too) */
-            user_presets[k].o2fine = 64;
-            user_presets[k].o2wave = O2W_SAME;
-            user_presets[k].o2shape = 0;
-            user_presets[k].ksync = user_presets[k].ksweep = user_presets[k].kcross = user_presets[k].ksub = 0;
-            user_presets[k].rops = RO_OFF;
-            user_presets[k].rratio = 1;
-            user_presets[k].rdepth = user_presets[k].rfb = 0;
-            user_presets[k].kanalog = 0;
-            user_presets[k].itype = user_presets[k].i1 = user_presets[k].i2 = user_presets[k].i3 = 0;
-            user_presets[k].hpf = 0;
+            user_preset_t *u = &user_presets[k];
+            u->o2fine = 64;
+            u->o2wave = O2W_SAME;
+            u->o2shape = 0;
+            u->ksync = u->ksweep = u->kcross = u->ksub = 0;
+            u->rops = RO_OFF;
+            u->rratio = 1;
+            u->rdepth = u->rfb = 0;
+            u->kanalog = 0;
+            u->itype = u->i1 = u->i2 = u->i3 = 0;
+            u->hpf = 0;
             for (i = 0; i < len; i++)
-                ((uint8_t *)&user_presets[k])[i] = io_buf[4u + (uint32_t)k * len + i];
+                ((uint8_t *)u)[i] = io_buf[4u + (uint32_t)k * len + i];
+            if (fmt < 17u) {                     /* (the character and the insert as the slots: old_slots) */
+                uint8_t o[SL_N], kn[3] = {u->i1, u->i2, u->i3};
+                u->par[TP_CTYPE] = u->par[TP_CTYPE] < 8u ? OLD_CT[u->par[TP_CTYPE]] : EF_OFF;
+                old_insert(u->itype, kn, 120.0f, o);
+                u->itype = o[SL_EF], u->i1 = o[SL_K1], u->i2 = o[SL_K2], u->i3 = o[SL_K3];
+                u->s1k3 = 0, u->s2mix = o[SL_MIX];
+                for (i = 0; i < 4; i++)
+                    u->s1x[i] = 0, u->s2x[i] = o[SL_X1 + i];
+            }
         }
     }
     for (k = 0; k < NUSER_PRESETS; k++) {
-        if (user_presets[k].o2fine < 14u || user_presets[k].o2fine > 114u)
-            user_presets[k].o2fine = 64;
-        if (user_presets[k].o2wave >= NO2W || user_presets[k].o2shape > 127u)
-            user_presets[k].o2wave = O2W_SAME, user_presets[k].o2shape = 0;
-        if (user_presets[k].ksync > 1u || user_presets[k].ksweep > KSWEEP_MAX || user_presets[k].kcross > 127u ||
-            user_presets[k].ksub >= NKS)
-            user_presets[k].ksync = user_presets[k].ksweep = user_presets[k].kcross = user_presets[k].ksub = 0;
-        if (user_presets[k].rops >= NRO || user_presets[k].rratio >= RO_NRATIO || user_presets[k].rdepth > 127u ||
-            user_presets[k].rfb > 127u)
-            user_presets[k].rops = RO_OFF, user_presets[k].rratio = 1, user_presets[k].rdepth = user_presets[k].rfb = 0;
-        if (user_presets[k].kanalog > 127u)
-            user_presets[k].kanalog = 0;
-        if (user_presets[k].itype >= NIT || user_presets[k].i1 > 127u || user_presets[k].i2 > 127u || user_presets[k].i3 > 127u)
-            user_presets[k].itype = user_presets[k].i1 = user_presets[k].i2 = user_presets[k].i3 = 0;
-        if (user_presets[k].hpf > 127u)
-            user_presets[k].hpf = 0;
+        user_preset_t *u = &user_presets[k];
+        int bad = u->s1k3 > 127u || u->s2mix > 127u;
+        if (u->o2fine < 14u || u->o2fine > 114u)
+            u->o2fine = 64;
+        if (u->o2wave >= NO2W || u->o2shape > 127u)
+            u->o2wave = O2W_SAME, u->o2shape = 0;
+        if (u->ksync > 1u || u->ksweep > KSWEEP_MAX || u->kcross > 127u || u->ksub >= NKS)
+            u->ksync = u->ksweep = u->kcross = u->ksub = 0;
+        if (u->rops >= NRO || u->rratio >= RO_NRATIO || u->rdepth > 127u || u->rfb > 127u)
+            u->rops = RO_OFF, u->rratio = 1, u->rdepth = u->rfb = 0;
+        if (u->kanalog > 127u)
+            u->kanalog = 0;
+        if (u->itype >= NEF || u->i1 > 127u || u->i2 > 127u || u->i3 > 127u)
+            u->itype = u->i1 = u->i2 = u->i3 = 0;
+        if (u->hpf > 127u)
+            u->hpf = 0;
+        for (i = 0; i < 4; i++)
+            bad |= u->s1x[i] > 127u || u->s2x[i] > 127u;
+        if (bad) {
+            u->s1k3 = 0, u->s2mix = 127;
+            for (i = 0; i < 4; i++)
+                u->s1x[i] = u->s2x[i] = 0;
+        }
     }
     if (fmt < 7u)                                /* (before 7, off (FT_DYNAMIC) sat at 4 and bp12 at 5: swap) */
         for (k = 0; k < NUSER_PRESETS; k++) {
@@ -1142,50 +1302,33 @@ int presets_load(void)
         if (user_presets[k].engine >= NENGINE)
             user_presets[k].name[0] = 0;
     }
-    if (fmt >= 8u)
-        for (k = 0; k < (fmt >= 11u ? NUSER_KITS : (int)OLD_KITS); k++) {
-            const uint8_t *img = io_buf + (fmt == 8u ? PRESETS_V7 : fmt >= 16u ? PRESETS_KITS : fmt == 15u ? PRESETS_KITS15
-                                          : fmt == 14u ? PRESETS_KITS14
-                                          : fmt == 13u ? PRESETS_KITS13
-                                          : fmt == 12u ? PRESETS_KITS12 : PRESETS_KITS11) +
-                                 (uint32_t)k * KIT_LEN;
-            for (i = 0; i < NAME_LEN; i++)
-                user_kit_name[k][i] = (char)img[i];
-            user_kit_name[k][NAME_LEN - 1] = 0;
-            if (img[NAME_LEN + TP_ENGINE] != EG_DRUMLINE)
-                user_kit_name[k][0] = 0;
-        }
+    for (k = 0; k < (int)cnt; k++) {
+        const uint8_t *img = io_buf + kat + (uint32_t)k * klen;
+        for (i = 0; i < NAME_LEN; i++)
+            user_kit_name[k][i] = (char)img[i];
+        user_kit_name[k][NAME_LEN - 1] = 0;
+        if (img[NAME_LEN + TP_ENGINE] != EG_DRUMLINE)
+            user_kit_name[k][0] = 0;
+    }
     stored_known[OBJ_PRESETS] = 1;
     stored_hash[OBJ_PRESETS] = hash_of(io_buf, (uint32_t)n);
     return 0;
 }
 
 /* the presets object in io_buf as it will be saved: the user presets as they are in RAM, the kits as the flash
- * holds them (moved up from format 8's place; none, from an older format) */
+ * holds them (moved up from an older format's place, made this format's; none, from an unknown one) */
 static void presets_image(void)
 {
     int n = plat_store_load(OBJ_PRESETS, io_buf, sizeof io_buf);
-    uint32_t i, fmt = get32(io_buf);
-    uint32_t keep = 0, from = PRESETS_KITS;     /* the kits' bytes kept (the rest of the slots empty), and where */
-    if (fmt == 8u && n == (int)PRESETS_V8)
-        keep = OLD_KITS * KIT_LEN, from = PRESETS_V7;
-    else if ((fmt == 10u || fmt == 9u) && n == (int)PRESETS_V10)
-        keep = OLD_KITS * KIT_LEN, from = PRESETS_KITS11;
-    else if (fmt == 11u && n == (int)PRESETS_V11)
-        keep = NUSER_KITS * KIT_LEN, from = PRESETS_KITS11;
-    else if (fmt == 12u && n == (int)PRESETS_V12)
-        keep = NUSER_KITS * KIT_LEN, from = PRESETS_KITS12;
-    else if (fmt == 13u && n == (int)PRESETS_V13)
-        keep = NUSER_KITS * KIT_LEN, from = PRESETS_KITS13;
-    else if (fmt == 14u && n == (int)PRESETS_V14)
-        keep = NUSER_KITS * KIT_LEN, from = PRESETS_KITS14;
-    else if (fmt == 15u && n == (int)PRESETS_V15)
-        keep = NUSER_KITS * KIT_LEN, from = PRESETS_KITS15;
-    else if (fmt == PRESETS_FORMAT && n == (int)PRESETS_LEN)
-        keep = NUSER_KITS * KIT_LEN;
-    for (i = keep; i-- > 0;)                    /* (up: copied from the end) */
-        io_buf[PRESETS_KITS + i] = io_buf[from + i];
-    for (i = PRESETS_KITS + keep; i < PRESETS_LEN; i++)
+    uint32_t i, k, cnt, len, from = kits_at(get32(io_buf), n, &cnt, &len);
+    for (k = cnt; k-- > 0;) {                    /* (up, the last first: each copied from its end) */
+        const uint32_t src = from + k * len, dst = PRESETS_KITS + k * KIT_LEN;
+        for (i = len; i-- > 0;)
+            io_buf[dst + i] = io_buf[src + i];
+        if (len < KIT_LEN)
+            kit_old(io_buf + dst);
+    }
+    for (i = PRESETS_KITS + cnt * KIT_LEN; i < PRESETS_LEN; i++)
         io_buf[i] = 0;
     put32(io_buf, PRESETS_FORMAT);
     for (i = 0; i < sizeof user_presets; i++)
@@ -1201,29 +1344,18 @@ int presets_save(void)
 int kit_load(int slot, uint8_t *img)
 {
     int n;
-    uint32_t i, at, fmt;
+    uint32_t i, at, fmt, cnt, len;
     if (slot < 0 || slot >= NUSER_KITS || !user_kit_name[slot][0])
         return -1;
     n = plat_store_load(OBJ_PRESETS, io_buf, sizeof io_buf);
     fmt = get32(io_buf);
-    if (fmt == PRESETS_FORMAT && n == (int)PRESETS_LEN)
-        at = PRESETS_KITS;
-    else if (fmt == 14u && n == (int)PRESETS_V14)
-        at = PRESETS_KITS14;
-    else if (fmt == 13u && n == (int)PRESETS_V13)
-        at = PRESETS_KITS13;
-    else if (fmt == 12u && n == (int)PRESETS_V12)
-        at = PRESETS_KITS12;
-    else if (fmt == 11u && n == (int)PRESETS_V11)
-        at = PRESETS_KITS11;
-    else if ((fmt == 10u || fmt == 9u) && n == (int)PRESETS_V10 && slot < (int)OLD_KITS)
-        at = PRESETS_KITS11;
-    else if (fmt == 8u && n == (int)PRESETS_V8 && slot < (int)OLD_KITS)
-        at = PRESETS_V7;
-    else
+    at = kits_at(fmt, n, &cnt, &len);
+    if (!at || slot >= (int)cnt)
         return -1;
-    for (i = 0; i < KIT_LEN; i++)
-        img[i] = io_buf[at + (uint32_t)slot * KIT_LEN + i];
+    for (i = 0; i < len; i++)
+        img[i] = io_buf[at + (uint32_t)slot * len + i];
+    if (len < KIT_LEN)
+        kit_old(img);
     img[NAME_LEN - 1] = 0;
     return img[NAME_LEN + TP_ENGINE] != EG_DRUMLINE ? -1 : fmt >= 10u ? 0 : 1;
 }

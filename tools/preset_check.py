@@ -72,7 +72,7 @@ def main(argv):
         tag = f"{k + 1:02d}-{r['engine']}-{r['name'].replace(' ', '_')}"
         wav = d / f"{tag}.wav"
         bad = []
-        if r["char"][0] == "sampler":
+        if r["fx1"][0] == "sampler" or r["fx2"][0] == "sampler":
             bad.append("sampler: on a factory preset")
         if not wav.exists():
             bad.append("no render")

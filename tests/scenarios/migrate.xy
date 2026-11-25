@@ -298,3 +298,147 @@ expect par4.itype 0
 expect par11.e3 56
 expect par11.x2 0
 expect par11.x3 0
+# a format 27 project and its presets (format 16), from before the one effects list (tests/fixtures/make_v27.xy): the
+# character slot 1 (its types the catalog's numbers), the insert slot 2 (its knobs and mix moved: project.c
+# old_insert), their locks with them; the new values at their defaults
+storeload tests/fixtures/store_v27.bin
+reboot
+wait 400
+listen
+expect tempo 112
+# track 3: drive (1), its knobs kept; chorus (13): its rate the send's nearest (46), depth, the send's feedback (20),
+# its mix the slot's (90), fully wide (its extra); its mix's lock moved to the slot's mix, the fold's lock (3)
+expect par3.ctype 1
+expect par3.camt 90
+expect par3.ctone 40
+expect par3.cmix 100
+expect par3.s1k3 0
+expect par3.itype 13
+expect par3.i1 46
+expect par3.i2 70
+expect par3.i3 20
+expect par3.s2mix 90
+expect par3.s2x1 127
+expect lock 3 1 1 s2mix 40
+expect lock 3 1 1 i3 -1
+expect lock 3 1 2 ctype 3
+# track 4: ring (5); rumble (17): decay, tone, its mix the slot's
+expect par4.ctype 5
+expect par4.camt 50
+expect par4.itype 17
+expect par4.i1 60
+expect par4.i2 70
+expect par4.i3 0
+expect par4.s2mix 80
+# track 5: the phaser (11): the send's centre (50), depth, its rate the send's nearest (40), feedback its extra, wet
+expect par5.itype 11
+expect par5.i1 50
+expect par5.i2 90
+expect par5.i3 40
+expect par5.s2x1 60
+expect par5.s2mix 127
+# track 6: the echo the delay (16): 1/8D (108), its feedback as repeats (75), its tone 64, its mix; its time's lock 1/8
+# (83). No memory on a track yet: it passes dry
+expect par6.itype 16
+expect par6.i1 108
+expect par6.i2 75
+expect par6.i3 64
+expect par6.s2mix 70
+expect par6.s2x1 64
+expect par6.s2x2 127
+expect lock 6 1 1 i1 83
+# track 7: juno (14): its mode, its tone knob 2, its mix the slot's
+expect par7.itype 14
+expect par7.i1 1
+expect par7.i2 60
+expect par7.i3 0
+expect par7.s2mix 100
+# the kit: crush (4), the tremolo (10) wet
+expect par1.ctype 4
+expect par1.camt 80
+expect par1.itype 10
+expect par1.i2 100
+expect par1.s2mix 127
+# the user presets (format 16) the same way: U1 track 3's, U2 track 7's
+preset 8 U1
+expect par8.ctype 1
+expect par8.camt 90
+expect par8.itype 13
+expect par8.i1 46
+expect par8.s2mix 90
+expect par8.s2x1 127
+preset 8 U2
+expect par8.itype 14
+expect par8.i2 60
+expect par8.s2mix 100
+# the user kit K1 (format 16, track 1's): its character slot 1, its tremolo dropped (a kit kept no insert before 17)
+param 1 ctype 0
+param 1 itype 0
+expect trk 7
+turn ALGO -6
+expect trk 1
+tap EDIT
+tap SEL
+row KIT
+turn ALGO -8
+tap SEL
+wait 40
+said K1
+expect par1.ctype 4
+expect par1.camt 80
+expect par1.itype 0
+expect par1.s2mix 127
+# format 28 and presets 17 kept as they are: both slots of a user kit and a user preset, a restart, back
+param 1 itype 10
+param 1 i2 90
+param 1 s1k3 33
+tap SEL
+row SAVE KIT
+turn ALGO 7
+wait 300
+tap SEL
+wait 40
+said KIT SAVED
+param 8 itype 13
+param 8 s2mix 77
+param 8 s2x1 50
+param 8 ctype 2
+param 8 s1k3 99
+tap SEQ
+expect page Steps
+turn ALGO 7
+expect trk 8
+usersave 8 5
+projsave 1 v28_test
+reboot
+wait 400
+expect par8.itype 13
+expect par8.s2mix 77
+expect par8.s2x1 50
+expect par8.s1k3 99
+expect par1.itype 10
+expect par1.s1k3 33
+preset 8 knit
+expect par8.itype 0
+preset 8 U5
+expect par8.ctype 2
+expect par8.s1k3 99
+expect par8.itype 13
+expect par8.s2mix 77
+expect par8.s2x1 50
+param 1 itype 0
+param 1 s1k3 0
+expect page Steps
+expect trk 8
+turn ALGO -7
+expect trk 1
+tap EDIT
+tap SEL
+row KIT
+turn ALGO -1
+tap SEL
+wait 40
+said K8
+expect par1.itype 10
+expect par1.i2 90
+expect par1.s1k3 33
