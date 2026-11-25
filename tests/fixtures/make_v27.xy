@@ -1,0 +1,62 @@
+# a format 27 project and presets format 16, from before the one effects list's track slots (format 28: the character
+# and the insert become slots 1 and 2 of the catalog): saved by that build, for the migration's test
+# (tests/scenarios/migrate.xy). Track 3 knit with a drive character and a chorus insert (its mix 90, locked to 40 on
+# step 1; its character locked to fold on step 2), track 4 a ring character and a rumble, track 5 a phaser, track 6
+# an echo (its time locked to 1/8 on step 1), track 7 a juno; the kit (track 1) a crush character and a tremolo.
+# User presets U1 (track 3) and U2 (track 7), user kit K1 (track 1).
+# Run by a format 27 build (5cb0293): its loom_host tests/fixtures/make_v27.xy
+wait 300
+listen
+bpm 112
+param 3 engine 0
+param 3 ctype 1
+param 3 camt 90
+param 3 ctone 40
+param 3 cmix 100
+param 3 itype 6
+param 3 i1 30
+param 3 i2 70
+param 3 i3 90
+lock 3 1 1 i3 40
+lock 3 1 2 ctype 2
+param 4 engine 0
+param 4 ctype 4
+param 4 camt 50
+param 4 ctone 30
+param 4 itype 9
+param 4 i1 60
+param 4 i2 70
+param 4 i3 80
+param 5 engine 0
+param 5 itype 2
+param 5 i1 20
+param 5 i2 90
+param 5 i3 60
+param 6 engine 0
+param 6 itype 7
+param 6 i1 6
+param 6 i2 95
+param 6 i3 70
+lock 6 1 1 i1 5
+param 7 engine 0
+param 7 itype 8
+param 7 i1 1
+param 7 i2 100
+param 7 i3 60
+param 1 ctype 3
+param 1 camt 80
+param 1 ctone 20
+param 1 itype 1
+param 1 i2 100
+wait 40
+tap EDIT
+tap SEL
+row SAVE KIT
+wait 300
+tap SEL
+wait 40
+said KIT SAVED
+usersave 3 1
+usersave 7 2
+projsave 1 v27_test
+storesave tests/fixtures/store_v27.bin
