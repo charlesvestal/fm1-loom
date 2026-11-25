@@ -581,11 +581,12 @@ void efx_send_nums(efx_send_t *e, int ef, int mode, const uint8_t *k, float bpm,
 }
 
 /* ---- the effects: a block of m samples of x[] (the filtered send) into out (added) ---- */
-static inline float cho_tap(const int16_t *cho, float p)      /* the short line, read between samples */
+static inline float cho_tap(const int16_t *cho, float p, int32_t msk)   /* the short line (msk: its length less 1),
+                                                                     * read between samples */
 {
     int32_t i0 = (int32_t)p;
-    float a = s16f(cho[i0 & (CHO_N - 1)]);
-    return a + (p - (float)i0) * (s16f(cho[(i0 + 1) & (CHO_N - 1)]) - a);
+    float a = s16f(cho[i0 & msk]);
+    return a + (p - (float)i0) * (s16f(cho[(i0 + 1) & msk]) - a);
 }
 
 /* lag (fx.c fx_process_lag): the send arrives that many samples late; the effects with a line take it back by writing
@@ -598,9 +599,12 @@ static inline int16_t add16(int16_t a, float x)                /* a + x on the i
     float v = (float)a + x * 16384.0f;
     return (int16_t)(v > 32767.0f ? 32767.0f : v < -32767.0f ? -32767.0f : v);
 }
-__attribute__((noinline)) void efx_chorus(efx_chorus_t *c, int16_t *cho, const float *p, const float *x, float *ol,
-                                          float *orr, int m, int lag)
+/* a slot's (EFX_CHO_SLOT): its line 1024 long, and its lows kept (hp 0); a send's (EFX_CHO_N, hp 1) */
+_Static_assert(EFX_CHO_REACH <= EFX_INS_N, "a slot's chorus reads further back than its line");
+__attribute__((noinline)) void efx_chorus(efx_chorus_t *c, int16_t *cho, int32_t len, int hp, const float *p,
+                                          const float *x, float *ol, float *orr, int m, int lag)
 {
+    const int32_t msk = len - 1;
     const float inc = p[0] / SR, range = p[1], fb = p[2], side = 1.0f - 2.0f * p[3];
     const float centre = 15.0f * (SR / 1000.0f), slew = 1.0f - fm_expf(-1.0f / (0.070f * SR));
     const float hpk = 0.028f;                 /* ~200 Hz: the wet without its lows */
@@ -611,11 +615,11 @@ __attribute__((noinline)) void efx_chorus(efx_chorus_t *c, int16_t *cho, const f
         float tri, st, pl, pr, wl, wr;
         if (lag) {
             cho[w] = f16(fz * fb);
-            cho[(w - lag) & (CHO_N - 1)] = add16(cho[(w - lag) & (CHO_N - 1)], x[i]);
+            cho[(w - lag) & msk] = add16(cho[(w - lag) & msk], x[i]);
         } else {
             cho[w] = f16(x[i] + fz * fb);
         }
-        w = (w + 1) & (CHO_N - 1);
+        w = (w + 1) & msk;
         tri = 2.0f * fm_fabsf(2.0f * ph - 1.0f) - 1.0f;     /* the JP's stepped triangle */
         ph += inc;
         if (ph >= 1.0f)
@@ -625,15 +629,20 @@ __attribute__((noinline)) void efx_chorus(efx_chorus_t *c, int16_t *cho, const f
         s2 += (s1 - s2) * slew;
         pl = (float)w - (centre + s2 * range);
         pr = (float)w - (centre + s2 * range * side);
-        if (pl < 0.0f) pl += CHO_N;
-        if (pr < 0.0f) pr += CHO_N;
-        wl = cho_tap(cho, pl);
-        wr = cho_tap(cho, pr);
+        if (pl < 0.0f) pl += (float)len;
+        if (pr < 0.0f) pr += (float)len;
+        wl = cho_tap(cho, pl, msk);
+        wr = cho_tap(cho, pr, msk);
         fz = wl;
-        hl += (wl - hl) * hpk;
-        hr += (wr - hr) * hpk;
-        ol[i] += (wl - hl) * 0.85f;
-        orr[i] += (wr - hr) * 0.85f;
+        if (hp) {                             /* (a send's wet without its lows; a slot's whole: its mix keeps the
+                                               * dry's lows, at full mix the wet's) */
+            hl += (wl - hl) * hpk;
+            hr += (wr - hr) * hpk;
+            wl -= hl;
+            wr -= hr;
+        }
+        ol[i] += wl * 0.85f;
+        orr[i] += wr * 0.85f;
     }
     c->ph = ph; c->s1 = s1; c->s2 = s2; c->hl = fm_flush(hl); c->hr = fm_flush(hr); c->fz = fz;
     c->w = w;
@@ -815,7 +824,7 @@ static void do_lofi(efx_lofi_t *f, int16_t *cho, const float *pt, const float *p
             float rp = (float)w - late;
             if (rp < 0.0f)
                 rp += CHO_N;
-            r = cho_tap(cho, rp);
+            r = cho_tap(cho, rp, CHO_N - 1);
         }
         w = (w + 1) & (CHO_N - 1);
         ol[i] += y;
@@ -1209,7 +1218,7 @@ static void do_lush(efx_reverb_t *f, const float *pc, const float *x, float *ol,
 void efx_send_run(efx_send_t *e, int ef, const float *x, float *ol, float *orr, int m, int any, int lag)
 {
     switch (ef) {
-    case EF_CHORUS: efx_chorus(&e->chorus, e->cho, e->pc, x, ol, orr, m, lag); break;
+    case EF_CHORUS: efx_chorus(&e->chorus, e->cho, CHO_N, 1, e->pc, x, ol, orr, m, lag); break;
     case EF_DELAY: do_delay(&e->delay, e->cho, e->pt, e->pc, x, ol, orr, m, any, lag); break;
     case EF_LOFI: do_lofi(&e->lofi, e->cho, e->pt, e->pc, x, ol, orr, m); break;
     case EF_PHASER: efx_phaser(&e->phaser, e->pc, x, x, ol, orr, m); break;
@@ -1406,7 +1415,7 @@ void efx_insert(int ef, efx_ins_t *st, float *php, int16_t *mem, const float *kn
         z[4] = fm_flush(e);
         break;
     }
-    case EF_CHORUS: {                            /* the send's on the pair's middle (its line: 4 KB): rate (the LFO's),
+    case EF_CHORUS: {                            /* the send's on the pair's middle (its line: 2 KB): rate (the LFO's),
                                                   * depth, the send's feedback, fully wide; mixed */
         float p[4], x[16], ol[16], orr[16];
         if (!mem)
@@ -1421,7 +1430,7 @@ void efx_insert(int ef, efx_ins_t *st, float *php, int16_t *mem, const float *kn
                 x[i] = 0.5f * (bl[j + i] + br[j + i]);
                 ol[i] = orr[i] = 0.0f;
             }
-            efx_chorus(&st->chorus, mem, p, x, ol, orr, m, 0);
+            efx_chorus(&st->chorus, mem, EFX_INS_N, 1, p, x, ol, orr, m, 0);
             for (i = 0; i < m; i++) {
                 bl[j + i] += k2 * (ol[i] - bl[j + i]);
                 br[j + i] += k2 * (orr[i] - br[j + i]);

@@ -75,7 +75,10 @@ extern const char *const RV_NAME[NRV];         /* "plate", "room", "studio S", .
                                        * 128-sample margin (the second core's lag, 256 frames at most; the pool's budget) */
 #define FX_RV_LEN 32768               /* int16 samples: the reverb's line (the plate uses 11.4 k of it; an SPU mode at x4
                                        * up to 32766: the chaos echo's and the delay's 1FFFh x 4) */
-#define EFX_CHO_N 2048                /* the chorus's line: 46 ms (int16; the lofi's spread and smear's allpasses read it) */
+#define EFX_CHO_N 2048                /* a send's chorus line: 46 ms (int16; the lofi's spread and smear's allpasses read it;
+                                       * its length the send's lag's, a block late, and smear's) */
+#define EFX_CHO_REACH ((15 + 8) * 441 / 10 + 2)   /* how far back a chorus reads: its centre 15 ms and its depth up to
+                                       * 8 ms (0.3 + 7.7), a sample more between: a slot's line (no lag) is EFX_INS_N */
 /* the delay's time: one of FX_DL_N divisions of the tempo (1/32 .. 1/4; fx_delay_div), its name's note and mark (T, D
  * or none) */
 #define FX_DL_N 10
@@ -154,7 +157,8 @@ int efx_send_awake(const efx_send_t *e, int ef);
 /* the chorus and the phaser on their own (a track's insert): p the numbers as efx_send_t pc's (chorus: rate Hz, depth
  * in samples, feedback, width 0..1; phaser: centre Hz, depth octaves, rate Hz, feedback); the
  * phaser on two inputs (a send: the same twice) */
-void efx_chorus(efx_chorus_t *c, int16_t *line, const float *p, const float *x, float *ol, float *orr, int m, int lag);
+void efx_chorus(efx_chorus_t *c, int16_t *line, int32_t len, int hp, const float *p, const float *x, float *ol, float *orr,
+                int m, int lag);   /* (len: its line's, a power of 2; hp: its wet high-passed, a send's) */
 void efx_phaser(efx_phaser_t *s, const float *p, const float *xl, const float *xr, float *ol, float *orr, int m);
 
 /* ---- a track's insert (synth.c's): tremolo, rat, phaser, univibe, chorus, juno, autowah, rumble ----

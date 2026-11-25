@@ -2102,7 +2102,7 @@ static void insert_tests(void)
         check("every insert type sounds, finite, under 2, and changes the sound", ok && finite);
     }
     {   /* echo: a short note, then its repeats after the voice has ended (the bus rings on); the pool: five junos,
-         * four with memory, the fifth without; five choruses, two */
+         * four with memory, the fifth without; five choruses, four */
         float late = 0.0f;
         int ended = 0, room = 0;
         reset();
@@ -2242,7 +2242,7 @@ static void insert_tests(void)
                    10.0 * log10(e[1] + 1e-20));
             check("rumble: decay 0 gates its tail (30 dB under the default's by 0.6 s)", finite && e[1] < e[0] * 1e-3);
         }
-        for (int pass = 0; pass < 2; pass++) {   /* (a juno: a slot; a chorus, the sends' with its 4 KB line: two) */
+        for (int pass = 0; pass < 2; pass++) {   /* (a juno: a slot; a chorus, its line 2 KB: one) */
             int got = 0;
             reset();
             for (int t = 0; t < 5; t++) {
@@ -2257,8 +2257,8 @@ static void insert_tests(void)
             for (int t = 0; t < 5; t++)
                 par[t][TP_ITYPE] = IT_OFF;
         }
-        check("the inserts' memory: four junos have it, the fifth not; two choruses, the third not (they pass dry)",
-              room == 42 && finite);
+        check("the inserts' memory: four junos have it, the fifth not; four choruses, the fifth not (they pass dry)",
+              room == 44 && finite);
     }
     check("the insert's knobs named by its type", !strcmp(tp_info(TP_ITYPE, EG_KNIT)->name, "insert") &&
           !strcmp(tp_info_par(TP_I1, (const uint8_t[NTP]){[TP_ITYPE] = IT_TREMOLO})->name, "rate"));

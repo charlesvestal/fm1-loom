@@ -171,8 +171,8 @@ enum { IT_OFF, IT_TREMOLO, IT_PHASER, IT_UNIVIBE, IT_RAT, IT_AUTOWAH, IT_CHORUS,
  * slot. rumble: the techno rumble: the track's reverb as a low instrument (its lowest kept out, a steep
  * low-pass, light saturation), ducked on each hit (decay; tone: its low-pass, 80 .. 320 Hz; mix): two slots */
 /* chorus (the sends': rate, depth, mix; its feedback the send's default, fully wide) and echo (time: IE_* divisions,
- * feedback, mix) take memory from a pool shared by every track's insert: INS_SLOTS of 2 KB, a juno one, a chorus (its
- * 4 KB line), an echo or rumble two. (The effects: dsp/efx.c's.) A track whose insert finds none passes dry
+ * feedback, mix) take memory from a pool shared by every track's insert: INS_SLOTS of 2 KB, a juno or a chorus (its
+ * 2 KB line: no lag, efx.h EFX_CHO_REACH) one, an echo or rumble two. (The effects: dsp/efx.c's.) A track whose insert finds none passes dry
  * (synth_insert_room) */
 #define INS_SLOTS 4
 _Static_assert(NTP <= 511, "a parameter's index: nine bits in the engine's queue (engine.c cq_put); a lane's is 16");

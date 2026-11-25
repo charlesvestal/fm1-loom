@@ -4114,7 +4114,7 @@ static int16_t ins_pool[INS_SLOTS][INS_SLOT_N];
 #else
 static int16_t ins_pool[INS_SLOTS][INS_SLOT_N] __attribute__((section(".pool")));
 #endif
-static inline int ins_slots(int type) { return type == IT_JUNO ? 1 : type == IT_CHORUS || type == IT_ECHO || type == IT_RUMBLE ? 2 : 0; }
+static inline int ins_slots(int type) { return type == IT_JUNO || type == IT_CHORUS ? 1 : type == IT_ECHO || type == IT_RUMBLE ? 2 : 0; }
 static void ins_alloc(synth_t *s)
 {
     uint8_t used = 0;
