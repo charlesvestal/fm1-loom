@@ -79,10 +79,10 @@ int fx_awake(const fxslot_t *f);                            /* the slot works th
 /* the master's knobs, three pages: EQ (low, mid, high; 64 flat), color (type, amount, tone, mix), out (drums, melodic,
  * comp, pump); then the out page's list (SEL): what the pump follows, its release, accent, and the level (the drive
  * into the limiter). Value 3 was the EQ's blend, gone: a project's byte there is ignored.
- * color (after the EQ, before the compressor; the voices' character stage's warm types, on the whole mix):
+ * color (after the EQ, before the compressor; the character's warm types, dsp/efx.c's, on the whole mix):
  *   tape:    a wow (0.55 Hz, a 6 Hz flutter an eighth as deep) on the whole mix, ~1 .. 6 cents by the amount (times the
- *            mix, not mixed: no comb with the dry), then the saturation (gain 0.5 .. 6, made up) into a two-pole
- *            roll-off (tone 1.5 .. 18 kHz), mixed
+ *            mix, not mixed: no comb with the dry), then the character's tape: the saturation (gain 0.5 .. 8, made up)
+ *            into a two-pole roll-off (tone 1.5 .. 18 kHz), mixed
  *   sampler: the mix low-passed, held at 26 .. 11 kHz and 14 .. 11 bits by the amount, its output filter (tone 2 ..
  *            20 kHz), mixed
  * PUMP (X0X's master PUMP): every hit of its source lowers the whole mix by up to 24 dB (rising in 12 ms) and

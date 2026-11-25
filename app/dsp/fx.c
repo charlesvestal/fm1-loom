@@ -291,8 +291,8 @@ struct master {
 #define MC_LINE 128
 #define MC_DELAY 64.0f                        /* the wow's centre, samples (1.5 ms: the mix that late while tape is on) */
     uint8_t col;
-    float c_g, c_mk, c_lp, c_dep, c_mix, c_step, c_pre, c_q, c_iq;
-    float c_z[2][2], c_ph, c_fph, c_sh[2], c_sp;
+    float c_x[8], c_z[8];                     /* the stage's numbers and states (dsp/efx.c: the character's tape, sampler) */
+    float c_dep, c_mix, c_ph, c_fph;          /* the wow's depth (samples), the mix, its phases */
     int16_t c_line[2][MC_LINE];
     int32_t c_pos;
 };
@@ -391,49 +391,40 @@ static void comp_coefs(master_t *m)
     }
 }
 
-/* the color's numbers from its knobs (the main loop); a new type starts at rest */
+/* the color's numbers from its knobs (the main loop); a new type starts at rest. Its stage is the character's tape or
+ * sampler (dsp/efx.c); tape's wow (the voices' pitch there) a short line here */
+static const uint8_t MC_EF[NMC] = {EF_OFF, EF_TAPE, EF_SAMPLER};
 static void color_coefs(master_t *m)
 {
     float a = (float)m->pot[MS_CAMT] * (1.0f / 127.0f), t = (float)m->pot[MS_CTONE] * (1.0f / 127.0f);
     int type = m->pot[MS_CTYPE] < NMC ? m->pot[MS_CTYPE] : MC_OFF;
     m->c_mix = (float)m->pot[MS_CMIX] * (1.0f / 127.0f);
-    if (type == MC_TAPE) {
-        float g = 0.5f * fm_exp2f(a * 3.585f), x = fm_minf(g * 0.7f, 1.5f);
-        m->c_g = g;
-        m->c_mk = 0.7f / (x - x * x * x * (4.0f / 27.0f)) * (1.0f - 0.15f * a);   /* (sat_c's at 0.7: made up) */
-        m->c_lp = onepole_k(1500.0f * fm_exp2f(t * 3.585f));
-        m->c_dep = (4.0f + 28.0f * a) * m->c_mix;  /* samples of wow: ~1 .. 6 cents at 0.55 Hz */
-    } else if (type == MC_SAMPLER) {
-        float r = 26040.0f * fm_exp2f(-a * 1.243f);
-        m->c_step = r / SR;
-        m->c_pre = onepole_k(0.45f * r);
-        m->c_q = fm_exp2f(13.0f - 3.0f * a);
-        m->c_iq = 1.0f / m->c_q;
-        m->c_lp = onepole_k(2000.0f * fm_exp2f(t * 3.322f));
+    if (type != MC_OFF) {
+        efx_char_coefs(MC_EF[type], a, t, 0.0f, m->c_x);
+        m->c_x[7] = m->c_mix;
     }
+    if (type == MC_TAPE)
+        m->c_dep = (4.0f + 28.0f * a) * m->c_mix;  /* samples of wow: ~1 .. 6 cents at 0.55 Hz */
     if (type != m->col) {                         /* (the interrupt may be mid-block: the states zeroed first) */
-        m->c_z[0][0] = m->c_z[0][1] = m->c_z[1][0] = m->c_z[1][1] = 0.0f;
-        m->c_sh[0] = m->c_sh[1] = m->c_sp = 0.0f;
+        for (int i = 0; i < 8; i++)
+            m->c_z[i] = 0.0f;
         m->col = (uint8_t)type;
     }
 }
-/* the color over a block of the bus, in place (master_process; from RAM: every call inlined) */
-static inline float mc_sat(float x)
-{
-    x = fm_minf(fm_maxf(x, -1.5f), 1.5f);
-    return x - x * x * x * (4.0f / 27.0f);
-}
+/* the master runs from RAM (tools/size_fns.py RAM_DSP), the color's stage from the flash: out of a direct call's reach,
+ * called through a pointer the compiler cannot fold (engine.c DSP_FAR) */
+static inline void *dsp_far(void *p) { void *volatile q = p; return q; }
+/* the color over a block of the bus, in place (master_process; from RAM: every call inlined): tape's wow, a short line
+ * read at a wandering delay, then the stage */
 static inline void color_block(master_t *m, float *l, float *r, uint32_t n)
 {
-    const float mix = m->c_mix, lp = m->c_lp;
-    float z00 = m->c_z[0][0], z01 = m->c_z[0][1], z10 = m->c_z[1][0], z11 = m->c_z[1][1];
     uint32_t i;
     if (m->col == MC_TAPE) {
-        const float g = m->c_g, mk = m->c_mk, dep = m->c_dep, dw = 0.55f / SR, df = 6.1f / SR;
+        const float dep = m->c_dep, dw = 0.55f / SR, df = 6.1f / SR;
         float ph = m->c_ph, fph = m->c_fph;
         int32_t pos = m->c_pos;
         for (i = 0; i < n; i++) {
-            float d, fr, yl, yr, a0, a1;
+            float d, fr, a0, a1;
             int32_t k, k0, k1;
             m->c_line[0][pos] = (int16_t)(fm_clampf(l[i], -1.99f, 1.99f) * 16384.0f);
             m->c_line[1][pos] = (int16_t)(fm_clampf(r[i], -1.99f, 1.99f) * 16384.0f);
@@ -447,45 +438,16 @@ static inline void color_block(master_t *m, float *l, float *r, uint32_t n)
             k0 = (pos - k) & (MC_LINE - 1);
             k1 = (k0 - 1) & (MC_LINE - 1);
             a0 = (float)m->c_line[0][k0], a1 = (float)m->c_line[0][k1];
-            yl = (a0 + fr * (a1 - a0)) * (1.0f / 16384.0f);
+            l[i] = (a0 + fr * (a1 - a0)) * (1.0f / 16384.0f);
             a0 = (float)m->c_line[1][k0], a1 = (float)m->c_line[1][k1];
-            yr = (a0 + fr * (a1 - a0)) * (1.0f / 16384.0f);
+            r[i] = (a0 + fr * (a1 - a0)) * (1.0f / 16384.0f);
             pos = (pos + 1) & (MC_LINE - 1);
-            z00 += lp * (mc_sat(yl * g) * mk - z00);
-            z01 += lp * (z00 - z01);
-            z10 += lp * (mc_sat(yr * g) * mk - z10);
-            z11 += lp * (z10 - z11);
-            l[i] = yl + mix * (z01 - yl);
-            r[i] = yr + mix * (z11 - yr);
         }
         m->c_ph = ph;
         m->c_fph = fph;
         m->c_pos = pos;
-    } else if (m->col == MC_SAMPLER) {
-        const float step = m->c_step, pre = m->c_pre, q = m->c_q, iq = m->c_iq;
-        float sp = m->c_sp, h0 = m->c_sh[0], h1 = m->c_sh[1];
-        for (i = 0; i < n; i++) {
-            z00 += pre * (l[i] - z00);
-            z10 += pre * (r[i] - z10);
-            sp += step;
-            if (sp >= 1.0f) {
-                sp -= 1.0f;
-                h0 = fm_floorf(z00 * q + 0.5f) * iq;
-                h1 = fm_floorf(z10 * q + 0.5f) * iq;
-            }
-            z01 += lp * (h0 - z01);
-            z11 += lp * (h1 - z11);
-            l[i] += mix * (z01 - l[i]);
-            r[i] += mix * (z11 - r[i]);
-        }
-        m->c_sp = sp;
-        m->c_sh[0] = h0;
-        m->c_sh[1] = h1;
     }
-    m->c_z[0][0] = fm_flush(z00);
-    m->c_z[0][1] = fm_flush(z01);
-    m->c_z[1][0] = fm_flush(z10);
-    m->c_z[1][1] = fm_flush(z11);
+    ((__typeof__(&efx_char_stage))dsp_far((void *)&efx_char_stage))(m->c_x, m->c_z, MC_EF[m->col], 1, l, r, (int)n);
 }
 
 void master_init(master_t *m)
