@@ -445,7 +445,8 @@ void efx_send_reset(efx_send_t *e, int mode)
     int i;
     efx_reverb_t *r = &e->reverb;
     efx_delay_t *d = &e->delay;
-    e->chorus.w = 0; e->chorus.ph = 0.0f; e->chorus.s1 = e->chorus.s2 = e->chorus.hl = e->chorus.hr = e->chorus.fz = 0.0f;
+    e->chorus.w = 0; e->chorus.ph = 0.0f;
+    e->chorus.s1 = e->chorus.s2 = e->chorus.hl = e->chorus.hr = e->chorus.fz = 0.0f;
     d->w = 0; d->quiet = 2 * FX_DLY_LEN; d->lpl = d->lpr = 0.0f;
     d->ph = 0; d->al = d->ar = 0.0f;
     d->wph = d->wdl = d->wdr = d->wsl = d->wsr = d->hl = d->hr = 0.0f;
@@ -1249,7 +1250,8 @@ static __attribute__((noinline)) float ap_k(float hz)   /* a first-order allpass
     float w = in_tan(FM_PI * fm_minf(hz, 0.45f * EFX_SR) * INV_SR);
     return (w - 1.0f) / (w + 1.0f);
 }
-__attribute__((noinline)) float efx_op_coef(float hz) { return 1.0f - fm_expf(-FM_TWO_PI * hz * INV_SR); }   /* a one-pole's */
+/* a one-pole's coefficient at hz */
+__attribute__((noinline)) float efx_op_coef(float hz) { return 1.0f - fm_expf(-FM_TWO_PI * hz * INV_SR); }
 #ifndef RB_DRIVE
 #define RB_DRIVE 1.5f                            /* rumble's saturation: sat_c's gain on the low-passed reverb over the
                                                   * track's peak (light: its 2nd and 3rd harmonics) */
@@ -1261,7 +1263,8 @@ __attribute__((noinline)) float efx_op_coef(float hz) { return 1.0f - fm_expf(-F
 static const int16_t RB_AA[2] = {8, 8 + 89}, RB_AL[2] = {89, 137};
 static const int16_t RB_LEN[4] = {293, 359, 431, 503}, RB_L[4] = {234, 234 + 293, 234 + 652, 234 + 1083};
 static const float UV_R[4] = {1.0f, 0.068f, 0.032f, 3.19f};   /* the univibe's stages: its four caps' ratios */
-__attribute__((noinline)) float efx_rumble_secs(float k) { return 0.6f * fm_exp2f(k * (3.7f / 127.0f)); }   /* rumble's RT60: 0.6 .. 8 s */
+/* rumble's RT60: 0.6 .. 8 s */
+__attribute__((noinline)) float efx_rumble_secs(float k) { return 0.6f * fm_exp2f(k * (3.7f / 127.0f)); }
 /* below its default (55) the decay also gates rumble's output once the duck has let it back (the producers' volume
  * shaping after the reverb: the lines alone, 213 ms and more, rang on ~0.6 s past the kick at any decay): to -60 dB in
  * 0.15 s at 0 .. 6 s at 54 (long: on top of the network's own fall, 54 and 55 sound alike); 0 from 55 up (no
