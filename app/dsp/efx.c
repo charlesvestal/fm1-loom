@@ -1237,3 +1237,338 @@ int efx_send_awake(const efx_send_t *e, int ef)
     default: return 0;
     }
 }
+
+/* ------------------------------------------------------------ the inserts --- */
+/* (synth.c's: a track's insert, its knobs, its memory there; the effects here, as they were) */
+/* (the inserts' control-rate maths, once in 16 frames: out of line, not copied into each type's loop) */
+static __attribute__((noinline)) float in_exp2(float x) { return fm_exp2f(x); }
+__attribute__((noinline)) float efx_sin(float ph) { return fm_sin_turns(ph); }
+static __attribute__((noinline)) float in_tan(float x) { return fm_tanf(x); }
+static __attribute__((noinline)) float ap_k(float hz)   /* a first-order allpass's coefficient at hz: (tan - 1) / (tan + 1) */
+{
+    float w = in_tan(FM_PI * fm_minf(hz, 0.45f * EFX_SR) * INV_SR);
+    return (w - 1.0f) / (w + 1.0f);
+}
+__attribute__((noinline)) float efx_op_coef(float hz) { return 1.0f - fm_expf(-FM_TWO_PI * hz * INV_SR); }   /* a one-pole's */
+#ifndef RB_DRIVE
+#define RB_DRIVE 1.5f                            /* rumble's saturation: sat_c's gain on the low-passed reverb over the
+                                                  * track's peak (light: its 2nd and 3rd harmonics) */
+#endif
+#define RB_GAIN 4.0f                             /* its make-up: the reverb's tail, low-passed, near the track's level */
+/* rumble's memory (two slots, int16 at 1/8192): its places (the diffusers', the lines'), the two diffusers, the four
+ * lines (mutually prime, at 1.38 kHz: 213 .. 365 ms) */
+#define RB_P 0
+static const int16_t RB_AA[2] = {8, 8 + 89}, RB_AL[2] = {89, 137};
+static const int16_t RB_LEN[4] = {293, 359, 431, 503}, RB_L[4] = {234, 234 + 293, 234 + 652, 234 + 1083};
+static const float UV_R[4] = {1.0f, 0.068f, 0.032f, 3.19f};   /* the univibe's stages: its four caps' ratios */
+__attribute__((noinline)) float efx_rumble_secs(float k) { return 0.6f * fm_exp2f(k * (3.7f / 127.0f)); }   /* rumble's RT60: 0.6 .. 8 s */
+/* below its default (55) the decay also gates rumble's output once the duck has let it back (the producers' volume
+ * shaping after the reverb: the lines alone, 213 ms and more, rang on ~0.6 s past the kick at any decay): to -60 dB in
+ * 0.15 s at 0 .. 6 s at 54 (long: on top of the network's own fall, 54 and 55 sound alike); 0 from 55 up (no
+ * gate: the network's own decay) */
+#define RB_GATE_K 55
+static __attribute__((noinline)) float rb_gate(float k)
+{
+    return k < (float)RB_GATE_K ? 0.15f * fm_exp2f(k * (5.32f / (float)RB_GATE_K)) : 0.0f;
+}
+#define RB_BACK (0.03f + 1.0f / 2.4f)            /* the duck's end, beats after the hit (efx_insert's du) */
+/* a track's insert on its pair (efx_insert), after its character, 16 frames at a time (their coefficients at each's
+ * start). tremolo: each side's gain 1 - depth (1 + sin) / 2, the right side's sine pan half a cycle on at the top (an
+ * auto-pan). phaser and chorus: the sends' (efx_phaser on each side; efx_chorus on the pair's middle, mixed). univibe:
+ * four allpasses at the Uni-Vibe's staggered caps, swept by its lamp (the LFO squared and lagged: it hangs dark and
+ * flashes), dry and wet (chorus) or wet (vibrato). rat: after the RAT pedal: an op-amp's gain (up to 2000 above 300 Hz,
+ * its bandwidth narrowing as it rises), a soft clip x / (1 + x^4)^(1/4) at twice the rate, the filter (a low-pass,
+ * darker turned up), the level. autowah: a resonant low-pass (TPT state-variable) opened by the pair's level (an
+ * envelope: 3 ms up, decay down) */
+#define INS_PH_FREQ 50                           /* the phaser's centre: the send's default (466 Hz) */
+#define INS_CHO_FB (0.7f * (20.0f / 127.0f))     /* the chorus's feedback: the send's default */
+void efx_insert(int ef, efx_ins_t *st, float *php, int16_t *mem, const float *kn, float rate, float bpm, const float *in,
+                float *bl, float *br, uint32_t n)
+{
+    float *z = st->z;
+    const float k0 = kn[0] * (1.0f / 127.0f), k1 = kn[1] * (1.0f / 127.0f), k2 = kn[2] * (1.0f / 127.0f);
+    float ph = *php;
+    switch (ef) {
+    case EF_TREMOLO: {
+        const float d = k1 * 0.5f, pn = k2 * 0.5f, dph = rate * INV_SR;
+        float gl = 1.0f - d - d * efx_sin(ph), gr = 1.0f - d - d * efx_sin(ph + pn);
+        for (uint32_t j = 0; j < n; j += 16) {
+            uint32_t m = n - j < 16u ? n - j : 16u;
+            float ph2 = ph + dph * (float)m, gl2 = 1.0f - d - d * efx_sin(ph2), gr2 = 1.0f - d - d * efx_sin(ph2 + pn);
+            float sl = (gl2 - gl) / (float)m, sr = (gr2 - gr) / (float)m;
+            for (uint32_t i = j; i < j + m; i++) {
+                bl[i] *= gl;
+                br[i] *= gr;
+                gl += sl;
+                gr += sr;
+            }
+            ph = ph2 - fm_floorf(ph2);
+        }
+        break;
+    }
+    case EF_PHASER: {                            /* the send's, a side each (its own phase): its centre the send's
+                                                  * default, depth, rate (the LFO's), feedback; wet (its notches) */
+        float p[4], ol[16], orr[16];
+        p[0] = 100.0f * in_exp2((float)INS_PH_FREQ * (1.0f / 127.0f) * 5.64f);
+        p[1] = 3.0f * k1;
+        p[2] = rate;
+        p[3] = 0.9f * k2;
+        for (uint32_t j = 0; j < n; j += 16) {
+            int m = n - j < 16u ? (int)(n - j) : 16, i;
+            for (i = 0; i < m; i++)
+                ol[i] = orr[i] = 0.0f;
+            efx_phaser(&st->phaser, p, bl + j, br + j, ol, orr, m);
+            for (i = 0; i < m; i++)
+                bl[j + i] = ol[i], br[j + i] = orr[i];
+        }
+        break;
+    }
+    case EF_UNIVIBE: {                           /* z[0..3] the left's stages, z[4..7] the right's, z[8] the lamp */
+        const float span = k1 * 3.2f, wet = 0.5f + 0.5f * k2, dph = rate * INV_SR;
+        const float kl = efx_op_coef(12.0f * 16.0f);  /* (the lamp's lag: about 12 Hz, a step each 16 frames) */
+        for (uint32_t j = 0; j < n; j += 16) {
+            uint32_t m = n - j < 16u ? n - j : 16u;
+            float l = 0.5f + 0.5f * efx_sin(ph), f, a[4];
+            z[8] += (l * l - z[8]) * kl;
+            f = 220.0f * in_exp2(z[8] * span);
+            for (int st = 0; st < 4; st++)
+                a[st] = ap_k(f * UV_R[st]);
+            for (int c = 0; c < 2; c++) {
+                float *x = c ? br : bl, *zs = z + 4 * c;
+                for (uint32_t i = j; i < j + m; i++) {
+                    float v = x[i];
+                    for (int st = 0; st < 4; st++) {
+                        float y = a[st] * v + zs[st];
+                        zs[st] = v - a[st] * y;
+                        v = y;
+                    }
+                    x[i] += wet * (v - x[i]);
+                }
+                for (int st = 0; st < 4; st++)
+                    zs[st] = fm_flush(zs[st]);
+            }
+            ph += dph * (float)m;
+            ph -= fm_floorf(ph);
+        }
+        break;
+    }
+    case EF_RAT: {                               /* z[4c..4c+3]: the input high-pass's low, the op-amp's, the last input
+                                                  * (the 2x step), the filter */
+        const float g = 1.0f + 2000.0f * k0 * k0 * k0, chp = efx_op_coef(300.0f), cg = efx_op_coef(fm_minf(1.0e6f / g, 18000.0f));
+        const float ct = efx_op_coef(20000.0f * in_exp2(-5.3f * k1)), lv = k2 * k2 * 1.5f;   /* (level 80: about as loud
+                                                  * as the track dry) */
+        for (int c = 0; c < 2; c++) {
+            float *x = c ? br : bl, *zs = z + 4 * c, lo = zs[0], op = zs[1], pv = zs[2], tn = zs[3];
+            for (uint32_t i = 0; i < n; i++) {
+                float u0, u1, y;
+                lo += chp * (x[i] - lo);
+                op += cg * (x[i] + g * (x[i] - lo) - op);
+                u0 = 0.5f * (pv + op);           /* (twice the rate: the step between, then the sample) */
+                u1 = op;
+                pv = op;
+                {
+                    float a2 = u0 * u0, s0 = fm_rsqrtf(1.0f + a2 * a2), b2 = u1 * u1, s1 = fm_rsqrtf(1.0f + b2 * b2);
+                    y = 0.5f * (u0 * s0 * fm_rsqrtf(s0) + u1 * s1 * fm_rsqrtf(s1));
+                }
+                tn += ct * (y - tn);
+                x[i] = tn * lv;
+            }
+            zs[0] = fm_flush(lo), zs[1] = fm_flush(op), zs[2] = fm_flush(pv), zs[3] = fm_flush(tn);
+        }
+        break;
+    }
+    case EF_AUTOWAH: {                           /* z[0..1] the left's integrators, z[2..3] the right's, z[4] the level */
+        const float ka = efx_op_coef(1.0f / (0.003f * FM_TWO_PI)), kr = efx_op_coef(1.0f / ((0.03f + 0.8f * k2 * k2) * FM_TWO_PI));
+        const float sens = 2.0f + 60.0f * k0 * k0, kq = 2.0f - 1.9f * k1;
+        float e = z[4];
+        for (uint32_t j = 0; j < n; j += 16) {
+            uint32_t m = n - j < 16u ? n - j : 16u;
+            float fc = 180.0f * in_exp2(fm_minf(e * sens, 1.0f) * 4.3f), g = in_tan(FM_PI * fm_minf(fc, 0.45f * EFX_SR) * INV_SR);
+            float a1 = 1.0f / (1.0f + g * (g + kq)), a2 = g * a1, a3 = g * a2;
+            for (uint32_t i = j; i < j + m; i++) {
+                float lvl = fm_fabsf(0.5f * (bl[i] + br[i]));
+                e += (lvl - e) * (lvl > e ? ka : kr);
+            }
+            for (int c = 0; c < 2; c++) {
+                float *x = c ? br : bl, i1 = z[2 * c], i2 = z[2 * c + 1];
+                for (uint32_t i = j; i < j + m; i++) {
+                    float v3 = x[i] - i2, v1 = a1 * i1 + a2 * v3, v2 = i2 + a2 * i1 + a3 * v3;
+                    i1 = 2.0f * v1 - i1;
+                    i2 = 2.0f * v2 - i2;
+                    x[i] = v2;
+                }
+                z[2 * c] = fm_flush(i1), z[2 * c + 1] = fm_flush(i2);
+            }
+        }
+        z[4] = fm_flush(e);
+        break;
+    }
+    case EF_CHORUS: {                            /* the send's on the pair's middle (its line: 4 KB): rate (the LFO's),
+                                                  * depth, the send's feedback, fully wide; mixed */
+        float p[4], x[16], ol[16], orr[16];
+        if (!mem)
+            break;
+        p[0] = rate;
+        p[1] = (0.3f + 7.7f * k1) * (EFX_SR / 1000.0f);
+        p[2] = INS_CHO_FB;
+        p[3] = 1.0f;
+        for (uint32_t j = 0; j < n; j += 16) {
+            int m = n - j < 16u ? (int)(n - j) : 16, i;
+            for (i = 0; i < m; i++) {
+                x[i] = 0.5f * (bl[j + i] + br[j + i]);
+                ol[i] = orr[i] = 0.0f;
+            }
+            efx_chorus(&st->chorus, mem, p, x, ol, orr, m, 0);
+            for (i = 0; i < m; i++) {
+                bl[j + i] += k2 * (ol[i] - bl[j + i]);
+                br[j + i] += k2 * (orr[i] - br[j + i]);
+            }
+        }
+        break;
+    }
+    case EF_JUNO: {                              /* z[0] where it writes; the line: its 2 KB, the pair's middle at 1/8192;
+                                                  * the Juno-60's modes (I 0.513 Hz, II 0.863 Hz: 1.66 .. 5.35 ms; I+II
+                                                  * 9.75 Hz: 3.3 .. 3.7 ms), its wet darkened (z[1], z[2]) */
+        static const float JR[3] = {0.513f, 0.863f, 9.75f}, JD0[3] = {3.505f, 3.505f, 3.5f}, JDM[3] = {1.845f, 1.845f, 0.2f};
+        const int jm = (int)kn[0] % 3;
+        int16_t *ln = mem;
+        const float dph = JR[jm] * INV_SR;
+        const float d0 = JD0[jm] * 0.001f * EFX_SR, dm = JDM[jm] * 0.001f * EFX_SR;
+        const float wet = k1, kt = efx_op_coef(3000.0f + 9000.0f * k2);
+        float tl = z[1], tr = z[2];
+        int w = (int)z[0];
+        if (!ln)
+            break;
+        for (uint32_t j = 0; j < n; j += 16) {
+            uint32_t m = n - j < 16u ? n - j : 16u;
+            float tri = 4.0f * fm_fabsf(ph - fm_floorf(ph + 0.5f)) - 1.0f;   /* (a triangle, -1..1, as the Juno's) */
+            float dl = d0 + dm * tri, dr = d0 - dm * tri;
+            for (uint32_t i = j; i < j + m; i++) {
+                float xs = 0.5f * (bl[i] + br[i]), yl, yr;
+                ln[w] = (int16_t)fm_clampf(xs * 8192.0f, -32767.0f, 32767.0f);
+                {
+                    float pl = (float)w - dl, pr = (float)w - dr;
+                    int il, ir;
+                    float fl, fr;
+                    pl += pl < 0.0f ? (float)EFX_INS_N : 0.0f;
+                    pr += pr < 0.0f ? (float)EFX_INS_N : 0.0f;
+                    il = (int)pl, ir = (int)pr;
+                    fl = pl - (float)il, fr = pr - (float)ir;
+                    yl = ((float)ln[il] + ((float)ln[(il + 1) & (EFX_INS_N - 1)] - (float)ln[il]) * fl) * (1.0f / 8192.0f);
+                    yr = ((float)ln[ir] + ((float)ln[(ir + 1) & (EFX_INS_N - 1)] - (float)ln[ir]) * fr) * (1.0f / 8192.0f);
+                }
+                tl += kt * (yl - tl);            /* (the bucket brigade's darkening) */
+                tr += kt * (yr - tr);
+                bl[i] += wet * (tl - bl[i]);
+                br[i] += wet * (tr - br[i]);
+                w = (w + 1) & (EFX_INS_N - 1);
+            }
+            ph += dph * (float)m;
+            ph -= fm_floorf(ph);
+        }
+        z[0] = (float)w, z[1] = fm_flush(tl), z[2] = fm_flush(tr);
+        break;
+    }
+    case EF_RUMBLE: {                            /* the techno rumble, the track's reverb as a low instrument (the
+                                                  * producers' chain: no sub into the reverb, no modulation, a steep
+                                                  * low-pass after, light saturation tamed by a low-pass, a sidechain):
+                                                  * the track high-passed (12 dB at 120 Hz), at a 32nd of the
+                                                  * rate (1.38 kHz: twice the lines' time, their low modes twice as
+                                                  * dense, a smear, not tones) into two diffusers and a Hadamard network of four
+                                                  * lines (its decay), out through four poles at tone, saturated by
+                                                  * the track's peak, a pole at three times tone; ducked on each hit
+                                                  * (the track's level rising past half its peak), back by an eighth.
+                                                  * z[0] the 32nd's sum, z[1] its count + 32 armed, z[2..3] the
+                                                  * high-pass's low and its output's peak, z[4..5] the low-pass in, z[6..7] the last two
+                                                  * ticks, z[8..11] the low-pass out, z[12] the tame pole, z[13] the
+                                                  * level, z[14] its peak, z[15] the second high-pass; ph the beats since the hit; the places: the
+                                                  * memory's first */
+        int16_t *m = mem;
+        const float rt = efx_rumble_secs(kn[0]), fc = 80.0f * in_exp2(k1 * 2.0f), ko = efx_op_coef(fc), kt = efx_op_coef(3.0f * fc);
+        const float kh = efx_op_coef(120.0f), ka = efx_op_coef(300.0f), wet = k2 * 1.5f;
+        const float rel = 1.0f - efx_op_coef(1.0f / 0.03f), prel = 1.0f - efx_op_coef(1.0f / 3.0f);
+        const float dbt = INV_SR * fm_maxf(bpm, 20.0f) * (1.0f / 60.0f);
+        float g[4], sum = z[0], h1 = z[2], h2 = z[3], a = z[4], b = z[5], y0 = z[6], y1 = z[7];
+        float o1 = z[8], o2 = z[9], o3 = z[10], o4 = z[11], tm = z[12], env = z[13], pk = z[14], hb = z[15];
+        int cnt = (int)z[1] & 31, armed = (int)z[1] >> 5;
+        const float gtt = rb_gate(kn[0]);  /* the gate: its -60 dB time (0: none), its fall a sample, where it is
+                                                  * (from ph: no state of its own) */
+        const float gd = gtt > 0.0f ? in_exp2(-9.966f * INV_SR / gtt) : 1.0f;
+        float gt = gtt > 0.0f && ph > RB_BACK ? in_exp2(-9.966f * (ph - RB_BACK) * 60.0f / (fm_maxf(bpm, 20.0f) * gtt))
+                                              : 1.0f;
+        if (!m)
+            break;
+        for (int q = 0; q < 4; q++)              /* (-60 dB in rt: 10^(-3 len / (sr/32 rt))) */
+            g[q] = in_exp2(-9.966f * (float)RB_LEN[q] / (EFX_SR * (1.0f / 32.0f) * rt));
+        for (uint32_t i = 0; i < n; i++) {
+            float x = in ? in[i] : 0.5f * (bl[i] + br[i]), ax = fm_fabsf(x), u, y, du;
+            env = ax > env ? env + 0.3f * (ax - env) : env * rel;
+            pk = fm_maxf(env, pk * prel);
+            if (armed && env > 0.5f * pk && env > 1e-4f)
+                ph = 0.0f, armed = 0, gt = 1.0f; /* a hit: the duck from its top, the gate open */
+            else if (env < 0.2f * pk)
+                armed = 1;
+            ph = fm_minf(ph + dbt, 64.0f);       /* (64: the gate's place, up to 8 s at any tempo) */
+            if (ph > RB_BACK)
+                gt *= gd;
+            h1 += kh * (x - h1);                 /* (the kick's sub out, 12 dB an octave: in the reverb it holds the
+                                                  * kick's note, a drone; its body and click smear) */
+            u = x - h1;
+            hb += kh * (u - hb);
+            u -= hb;
+            h2 = fm_maxf(fm_fabsf(u), h2 * prel);   /* (and its peak: the reverb's input over it) */
+            a += ka * (u - a);
+            b += ka * (a - b);
+            sum += b;
+            if (++cnt == 32) {                   /* a tick */
+                const float pr = fm_maxf(pk, 1e-4f);   /* (the lines hold the high-passed track over its own peak:
+                                                  * full scale at any level and any kick; out again at the track's) */
+                float w = sum * (1.0f / 32.0f) / fm_maxf(h2, 1e-4f), v[4], q0, q1, q2, q3;
+                for (int q = 0; q < 2; q++) {    /* the diffusers */
+                    int16_t *ap = m + RB_AA[q];
+                    int pq = m[RB_P + q];
+                    float vv = (float)ap[pq] * (1.0f / 8192.0f), yy = vv - 0.6f * w;
+                    ap[pq] = (int16_t)fm_clampf((w + 0.6f * yy) * 8192.0f, -32767.0f, 32767.0f);
+                    m[RB_P + q] = (int16_t)(pq + 1 < RB_AL[q] ? pq + 1 : 0);
+                    w = yy;
+                }
+                for (int q = 0; q < 4; q++)
+                    v[q] = (float)m[RB_L[q] + m[RB_P + 2 + q]] * (1.0f / 8192.0f);
+                q0 = v[0] + v[1], q1 = v[0] - v[1], q2 = v[2] + v[3], q3 = v[2] - v[3];
+                {
+                    const float hv[4] = {0.5f * (q0 + q2), 0.5f * (q1 + q3), 0.5f * (q0 - q2), 0.5f * (q1 - q3)};
+                    for (int q = 0; q < 4; q++) {
+                        int pq = m[RB_P + 2 + q];
+                        m[RB_L[q] + pq] = (int16_t)fm_clampf((w + g[q] * hv[q]) * 8192.0f, -32767.0f, 32767.0f);
+                        m[RB_P + 2 + q] = (int16_t)(pq + 1 < RB_LEN[q] ? pq + 1 : 0);
+                    }
+                }
+                y0 = y1;
+                y1 = (v[0] + v[1] + v[2] + v[3]) * pr;
+                sum = 0.0f, cnt = 0;
+            }
+            y = y0 + (y1 - y0) * (float)cnt * (1.0f / 32.0f);
+            o1 += ko * (y - o1);                 /* (four poles: 24 dB an octave above tone) */
+            o2 += ko * (o1 - o2);
+            o3 += ko * (o2 - o3);
+            o4 += ko * (o3 - o4);
+            {                                    /* light saturation (odd: no tone of its own), as hard at any level */
+                const float pr = fm_maxf(pk, 1e-4f), sv = o4 * (RB_DRIVE / pr);
+                tm += kt * (sat_c(sv) * (RB_GAIN * pr / RB_DRIVE) - tm);   /* (then its make-up) */
+            }
+            du = fm_clampf((ph - 0.03f) * 2.4f, 0.0f, 1.0f);   /* (0 on the hit, back by an eighth or so) */
+            du = du * du * (3.0f - 2.0f * du);
+            bl[i] += wet * du * gt * tm;
+            br[i] += wet * du * gt * tm;
+        }
+        z[0] = sum, z[1] = (float)(cnt + 32 * armed), z[2] = fm_flush(h1), z[3] = fm_flush(h2), z[4] = fm_flush(a);
+        z[5] = fm_flush(b), z[6] = fm_flush(y0), z[7] = fm_flush(y1), z[8] = fm_flush(o1), z[9] = fm_flush(o2);
+        z[10] = fm_flush(o3), z[11] = fm_flush(o4), z[12] = fm_flush(tm), z[13] = fm_flush(env), z[14] = fm_flush(pk);
+        z[15] = fm_flush(hb);
+        break;
+    }
+    default:
+        break;
+    }
+    *php = ph;
+}

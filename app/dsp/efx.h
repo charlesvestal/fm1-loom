@@ -156,3 +156,20 @@ int efx_send_awake(const efx_send_t *e, int ef);
  * phaser on two inputs (a send: the same twice) */
 void efx_chorus(efx_chorus_t *c, int16_t *line, const float *p, const float *x, float *ol, float *orr, int m, int lag);
 void efx_phaser(efx_phaser_t *s, const float *p, const float *xl, const float *xr, float *ol, float *orr, int m);
+
+/* ---- a track's insert (synth.c's): tremolo, rat, phaser, univibe, chorus, juno, autowah, rumble ----
+ * On its pair (bl, br: n frames, in place), its states st (zeroed: fresh), its memory mem (chorus: 2 KB x 2, juno: 2 KB,
+ * rumble 2 KB x 2; 0: none, it passes dry), its three knobs kn (0..127, the LFO on them), rate the LFO's speed in Hz
+ * (tremolo, phaser, univibe, chorus: the knob's, synth.c lfo_hz), the tempo; in what rumble hears (0: the pair's
+ * middle; a kit: its kicks alone). ph: its phase (turns; rumble's: beats since its hit) */
+#define EFX_INS_N 1024                           /* int16 a 2 KB block */
+typedef union {
+    float z[16];
+    efx_chorus_t chorus;
+    efx_phaser_t phaser;
+} efx_ins_t;
+void efx_insert(int ef, efx_ins_t *st, float *ph, int16_t *mem, const float *kn, float rate, float bpm, const float *in,
+                float *bl, float *br, uint32_t n);
+float efx_rumble_secs(float k);                  /* rumble's decay knob (0..127): its RT60, seconds */
+float efx_sin(float ph);                         /* (out of line: a sine of turns, a one-pole's coefficient at hz) */
+float efx_op_coef(float hz);

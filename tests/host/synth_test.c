@@ -2101,8 +2101,8 @@ static void insert_tests(void)
         }
         check("every insert type sounds, finite, under 2, and changes the sound", ok && finite);
     }
-    {   /* echo: a short note, then its repeats after the voice has ended (the bus rings on); the pool: five choruses,
-         * four with memory, the fifth without */
+    {   /* echo: a short note, then its repeats after the voice has ended (the bus rings on); the pool: five junos,
+         * four with memory, the fifth without; five choruses, two */
         float late = 0.0f;
         int ended = 0, room = 0;
         reset();
@@ -2242,18 +2242,23 @@ static void insert_tests(void)
                    10.0 * log10(e[1] + 1e-20));
             check("rumble: decay 0 gates its tail (30 dB under the default's by 0.6 s)", finite && e[1] < e[0] * 1e-3);
         }
-        reset();
-        for (int t = 0; t < 5; t++) {
-            par[t][TP_ITYPE] = IT_CHORUS;
-            par[t][TP_I3] = 64;
+        for (int pass = 0; pass < 2; pass++) {   /* (a juno: a slot; a chorus, the sends' with its 4 KB line: two) */
+            int got = 0;
+            reset();
+            for (int t = 0; t < 5; t++) {
+                par[t][TP_ITYPE] = (uint8_t)(pass ? IT_CHORUS : IT_JUNO);
+                par[t][TP_I3] = 64;
+            }
+            synth_init(S, par);
+            block(N, &finite);
+            for (int t = 0; t < 5; t++)
+                got += synth_insert_room(S, t);
+            room = room * 10 + got;
+            for (int t = 0; t < 5; t++)
+                par[t][TP_ITYPE] = IT_OFF;
         }
-        synth_init(S, par);
-        block(N, &finite);
-        for (int t = 0; t < 5; t++)
-            room += synth_insert_room(S, t);
-        check("the inserts' memory: four choruses have it, the fifth not (it passes dry)", room == 4 && finite);
-        for (int t = 0; t < 5; t++)
-            par[t][TP_ITYPE] = IT_OFF;
+        check("the inserts' memory: four junos have it, the fifth not; two choruses, the third not (they pass dry)",
+              room == 42 && finite);
     }
     check("the insert's knobs named by its type", !strcmp(tp_info(TP_ITYPE, EG_KNIT)->name, "insert") &&
           !strcmp(tp_info_par(TP_I1, (const uint8_t[NTP]){[TP_ITYPE] = IT_TREMOLO})->name, "rate"));

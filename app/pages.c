@@ -6033,8 +6033,8 @@ static void draw_insert(void)
         for (int c = 0; c < 3; c++) {
             pen_t pn = {0};
             float u = c == 0 ? 0.5f : c == 1 ? 0.0f : 1.0f;   /* (where in the sweep) */
-            float fc = it == IT_PHASER ? 180.0f * fm_exp2f(k1 * 4.5f * u) : it == IT_UNIVIBE ? 220.0f * fm_exp2f(k1 * 3.2f * u * u)
-                                                                  : 180.0f * fm_exp2f(4.3f * u);
+            float fc = it == IT_PHASER ? 466.0f * fm_exp2f(k1 * 3.0f * (2.0f * u - 1.0f))   /* (the send's: dsp/efx.c) */
+                     : it == IT_UNIVIBE ? 220.0f * fm_exp2f(k1 * 3.2f * u * u) : 180.0f * fm_exp2f(4.3f * u);
             for (int32_t i = 0; i <= w; i++) {
                 float f = 20.0f * fm_exp2f((float)i / (float)w * 9.97f), m;
                 if (it == IT_AUTOWAH) {
@@ -6042,7 +6042,7 @@ static void draw_insert(void)
                     m = fm_minf(fm_rsqrtf(a * a + kq * kq * r * r) * 0.35f, 1.0f);
                 } else {
                     float ph = 0.0f, wet = it == IT_PHASER ? 0.5f : 0.5f + 0.5f * k2;
-                    for (int st = 0; st < (it == IT_PHASER ? 6 : 4); st++)
+                    for (int st = 0; st < 4; st++)
                         ph -= 2.0f * pic_atan(f / (fc * (it == IT_PHASER ? 1.0f : UV[st])));
                     {
                         float re = 1.0f - wet + wet * fm_cosf(ph), im = wet * fm_sinf(ph);

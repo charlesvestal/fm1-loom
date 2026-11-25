@@ -163,15 +163,16 @@ enum {
     NTP
 };
 /* a track's insert (TP_ITYPE), its knobs I1..I3: off; tremolo (rate: the LFO's speed, synced divisions then free;
- * depth; pan: 0 a tremolo, both sides together, 127 an auto-pan, the sides opposite); phaser (rate, depth: the sweep's
- * span, feedback); univibe (rate, depth, vibrato: 0 its chorus, dry and wet, 127 the wet alone); rat (distortion,
+ * depth; pan: 0 a tremolo, both sides together, 127 an auto-pan, the sides opposite); phaser (the sends': rate, depth:
+ * the sweep's span about 466 Hz, feedback); univibe (rate, depth, vibrato: 0 its chorus, dry and wet, 127 the wet alone); rat (distortion,
  * filter: darker turned up, level); autowah (sensitivity, resonance, decay) */
 enum { IT_OFF, IT_TREMOLO, IT_PHASER, IT_UNIVIBE, IT_RAT, IT_AUTOWAH, IT_CHORUS, IT_ECHO, IT_JUNO, IT_RUMBLE, NIT };
 /* juno: the Juno-60's chorus (mode I, II or I+II: its rates and delays; mix; tone, the bucket brigade's darkening): a
- * chorus's slot. rumble: the techno rumble: the track's reverb as a low instrument (its lowest kept out, a steep
+ * slot. rumble: the techno rumble: the track's reverb as a low instrument (its lowest kept out, a steep
  * low-pass, light saturation), ducked on each hit (decay; tone: its low-pass, 80 .. 320 Hz; mix): two slots */
-/* chorus (rate, depth, mix) and echo (time: IE_* divisions, feedback, mix) take memory from a pool shared by every
- * track's insert: INS_SLOTS of 2 KB, a chorus one, an echo or rumble two. A track whose insert finds none passes dry
+/* chorus (the sends': rate, depth, mix; its feedback the send's default, fully wide) and echo (time: IE_* divisions,
+ * feedback, mix) take memory from a pool shared by every track's insert: INS_SLOTS of 2 KB, a juno one, a chorus (its
+ * 4 KB line), an echo or rumble two. (The effects: dsp/efx.c's.) A track whose insert finds none passes dry
  * (synth_insert_room) */
 #define INS_SLOTS 4
 _Static_assert(NTP <= 511, "a parameter's index: nine bits in the engine's queue (engine.c cq_put); a lane's is 16");
