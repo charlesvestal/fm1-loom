@@ -61,13 +61,14 @@ turn SELECT 1
 expect page Levels
 turn SELECT -2
 expect page Osc_2
-# HOME held turns osc 2's interval, as without it (the old shortcut to fine is gone)
+# HOME held + a knob: that knob back to its default (the reset, 8fa0d89: osc 2's interval to unison; the old
+# shortcut to fine is gone)
 press HOME
 wait 600
 spin K1 2
 release HOME
 wait 40
-expect par3.x1 73
+expect par3.x1 64
 expect par3.fine 76
 expect page Osc_2
 # kept over a restart

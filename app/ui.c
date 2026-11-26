@@ -2314,9 +2314,12 @@ static void master_to(int m, int v)
 }
 /* the centre catch (the master filters, a pan, a pitch about its middle): a knob turned through its centre c (or onto
  * it) stops there, off, and holds for the next CATCH_N detents within CATCH_MS of each other (a sweep through the
- * middle rests at off; a value set from MIDI lands as sent). v the value, nv the turn's */
+ * middle rests at off; a value set from MIDI lands as sent). A turn that lands well past the middle, more than
+ * CATCH_FAR, goes there (a big turn meant for the other side; one that only starts at the centre is never held unless
+ * it landed there). v the value, nv the turn's */
 #define CATCH_N 2
 #define CATCH_MS 400u
+#define CATCH_FAR 16
 static uint32_t cat_t;
 static int centre_catch(int k, int v, int nv, int c)
 {
@@ -2328,7 +2331,8 @@ static int centre_catch(int k, int v, int nv, int c)
         ui.cat_n--;
         return c;
     }
-    if (v != c && (nv - c) * (v - c) <= 0) {     /* (through or onto the centre: there) */
+    if (v != c && (nv - c) * (v - c) <= 0 && nv - c <= CATCH_FAR && c - nv <= CATCH_FAR) {   /* (through or onto
+                                                  * the centre, not far past: there) */
         ui.cat_k = (uint8_t)(k + 1);
         ui.cat_n = CATCH_N;
         return c;
