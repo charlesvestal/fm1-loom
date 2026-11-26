@@ -29,3 +29,11 @@ filters (above), and keep the move as a performance element:
   FX I / II — the reverb and echoes alone while held. Gains only. (Preferred.)
 - Or a setting on Master filter's SEL list: the filters before / after the sends.
 Gather the other performance elements with it before deciding.
+- **Wet only, throw or mixer** (the user asked): a throw is momentary and per group; a mixer state is latching and
+  per track — "turning down just some of the elements" points to the mixer: a track's mute gets a third state, wet
+  only (a post-send mute: the dry off, the sends feeding FX I / II).
+- **Mixer mutes** (the user): a global mute layer on the Mix page, beside the scenes' (composition) mutes: per
+  track and per kit sound (the first four kits, as scenes have), latching, untouched by scene changes, saved with
+  the project not the scenes. Silent if the scene OR the mixer mutes it. The same gestures as Arrange's (black keys;
+  a kit's black key held + white keys for its sounds; SEL held: wet only). Shown apart from a scene's mute (a
+  crossed speaker, not a dim row). The mixer as the performance surface: these mutes, wet only, the three filters.
