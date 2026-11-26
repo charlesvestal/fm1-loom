@@ -2336,29 +2336,42 @@ static void insert_tests(void)
             for (int t = 0; t < 6; t++)
                 slot_set(t, 1, EF_RUMBLE);
             slot_set(6, 0, EF_DELAY);
-            efx_send_used = (1ull << 50) - 1u;   /* (the default sends) */
+            efx_send_used = (efx_mask_t){{0}};
+            efx_mark(&efx_send_used, 0, 50);     /* (the default sends) */
             synth_init(S, par);
             block(N, &finite);
             for (int t = 0; t < 6; t++)
                 got += synth_slot_room(S, t, 1);
             room = got * 10 + synth_slot_room(S, 6, 0);
-            efx_send_used = 0;
+            efx_send_used = (efx_mask_t){{0}};
             block(N, &finite);
             got = 0;
             for (int t = 0; t < 6; t++)
                 got += synth_slot_room(S, t, 1);
             room = room * 100 + got * 10 + synth_slot_room(S, 6, 0);
-            efx_send_used = ~0ull >> (64 - EFX_NB);   /* (a send takes every block back: none of the slots keeps one) */
-            synth_slots_evict(S, efx_send_used);
+            efx_mark(&efx_send_used, 0, EFX_NB);   /* (a send takes every block back: none of the slots keeps one) */
+            synth_slots_evict(S, &efx_send_used);
             block(N, &finite);
             gone = !synth_slot_room(S, 0, 1) && !synth_slot_room(S, 6, 0);
-            efx_send_used = (1ull << 20) - 1u;   /* (then a third: theirs again, elsewhere) */
+            efx_send_used = (efx_mask_t){{0}};
+            efx_mark(&efx_send_used, 0, 20);     /* (then a third: theirs again, elsewhere) */
             block(N, &finite);
             moved = synth_slot_room(S, 0, 1) && synth_slot_room(S, 6, 0);
-            efx_send_used = 0;
+            efx_send_used = (efx_mask_t){{0}};
             printf("    the pool: %d (rumbles, a delay: beside the sends, then alone)\n", room);
-            check("the slots' memory beside the sends: five rumbles of six, no delay; alone all; a send takes it back",
-                  room == 5061 && gone && moved && finite);
+            check("the slots' memory beside the sends: six rumbles, no delay (12 + 24 of 28 blocks); alone all; a send "
+                  "takes it back", room == 6061 && gone && moved && finite);
+            {
+                efx_mask_t m = {{0}};
+                int ok;
+                efx_mark(&m, 0, 50);             /* (the default sends: FX I's delay, FX II's lush) */
+                ok = efx_fit(&m, 24) == 50 && efx_meets(&m, 49, 1) && !efx_meets(&m, 50, EFX_NB - 50);
+                efx_mark(&m, 50, 24);            /* (a track's delay beside them, across the masks' words) */
+                ok = ok && m.w[0] == ~0u && m.w[1] == ~0u && m.w[2] == (1u << 10) - 1u && efx_fit(&m, 4) == 74 &&
+                     efx_fit(&m, 5) == -1 && efx_meets(&m, 73, 1) && !efx_meets(&m, 74, 4);
+                check("the pool's masks: 78 blocks, the default sends and a track's delay beside them, 4 left", ok &&
+                      EFX_NB == 78);
+            }
             check("a track's memory needs: delay 24 blocks, plate 12, lush 27, a chorus 1 (a send's 2)",
                   efx_need(EF_DELAY, 0, 0) == 24 && efx_need(EF_REVERB, RV_PLATE, 0) == 12 &&
                   efx_need(EF_REVERB, RV_LUSH, 0) == 27 && efx_need(EF_CHORUS, 0, 0) == 1 && efx_need(EF_CHORUS, 0, 1) == 2);

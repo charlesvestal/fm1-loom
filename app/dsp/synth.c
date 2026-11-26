@@ -4105,10 +4105,9 @@ static inline int slot_need(const efx_slot_t *sl)
 {
     return sl->ef > EF_OFF && sl->ef < NEF ? efx_need(sl->ef, slot_mode(sl), 0) : 0;
 }
-static inline uint64_t run_mask(int at, int nb) { return (nb >= 64 ? ~0ull : (1ull << nb) - 1ull) << at; }
 static void ins_alloc(synth_t *s)
 {
-    uint64_t used = efx_send_used;
+    efx_mask_t used = efx_send_used;
     int i, k, q;
     for (i = 0; i < NTRK; i++)                   /* (given back: a slot that no longer needs its memory) */
         for (q = 0; q < 2; q++) {
@@ -4117,7 +4116,7 @@ static void ins_alloc(synth_t *s)
                                                   * fresh, cleared) */
                 sl->at = -1, sl->nb = 0;
             if (sl->at >= 0)
-                used |= run_mask(sl->at, sl->nb);
+                efx_mark(&used, sl->at, sl->nb);
         }
     for (i = 0; i < NTRK; i++)
         for (q = 0; q < 2; q++) {
@@ -4125,29 +4124,25 @@ static void ins_alloc(synth_t *s)
             int need = slot_need(sl);
             if (!need || sl->at >= 0)
                 continue;
-            for (k = 0; k + need <= EFX_NB; k++) {
-                uint64_t m = run_mask(k, need);
-                if (!(used & m)) {
-                    used |= m;
-                    sl->at = (int8_t)k;
-                    sl->nb = (uint8_t)need;
-                    sl->mef = sl->ef;
-                    sl->mmd = (uint8_t)slot_mode(sl);
-                    sl->zef = EF_OFF;            /* (its states cleared: slot_run) */
-                    for (int b = 0; b < need; b++)
-                        for (int j = 0; j < EFX_INS_N; j++)
-                            efx_pool[k + b][j] = 0;
-                    break;
-                }
+            if ((k = efx_fit(&used, need)) >= 0) {   /* (the first run free) */
+                efx_mark(&used, k, need);
+                sl->at = (int8_t)k;
+                sl->nb = (uint8_t)need;
+                sl->mef = sl->ef;
+                sl->mmd = (uint8_t)slot_mode(sl);
+                sl->zef = EF_OFF;                /* (its states cleared: slot_run) */
+                for (int b = 0; b < need; b++)
+                    for (int j = 0; j < EFX_INS_N; j++)
+                        efx_pool[k + b][j] = 0;
             }
         }
 }
-void synth_slots_evict(synth_t *s, uint64_t mask)
+void synth_slots_evict(synth_t *s, const efx_mask_t *mask)
 {
     for (int i = 0; i < NTRK; i++)
         for (int q = 0; q < 2; q++) {
             efx_slot_t *sl = &s->t[i].sl[q];
-            if (sl->at >= 0 && (run_mask(sl->at, sl->nb) & mask))
+            if (sl->at >= 0 && efx_meets(mask, sl->at, sl->nb))
                 sl->at = -1, sl->nb = 0;
         }
 }

@@ -463,7 +463,45 @@ int16_t efx_pool[EFX_NB][EFX_INS_N] __attribute__((aligned(8)));
 #else
 int16_t efx_pool[EFX_NB][EFX_INS_N] __attribute__((section(".pool"), aligned(8)));
 #endif
-uint64_t efx_send_used;
+efx_mask_t efx_send_used;
+static uint32_t efx_word(int w, int at, int nb)   /* word w's bits of blocks at .. at + nb - 1 */
+{
+    int lo = at - 32 * w, hi = at + nb - 32 * w;
+    lo = lo < 0 ? 0 : lo;
+    hi = hi > 32 ? 32 : hi;
+    return nb <= 0 || hi <= lo ? 0u : (hi - lo >= 32 ? ~0u : (1u << (hi - lo)) - 1u) << lo;
+}
+void efx_mark(efx_mask_t *m, int at, int nb)
+{
+    for (int w = 0; w < EFX_NW; w++)
+        m->w[w] |= efx_word(w, at, nb);
+}
+int efx_meets(const efx_mask_t *m, int at, int nb)
+{
+    for (int w = 0; w < EFX_NW; w++)
+        if (m->w[w] & efx_word(w, at, nb))
+            return 1;
+    return 0;
+}
+int efx_fit(const efx_mask_t *m, int need)        /* (one pass: the first run of free blocks to reach need) */
+{
+    int run = 0;
+    if (need <= 0)
+        return 0;
+    for (int b = 0; b < EFX_NB; b++) {
+        run = m->w[b >> 5] >> (b & 31) & 1u ? 0 : run + 1;
+        if (run == need)
+            return b - need + 1;
+    }
+    return -1;
+}
+int efx_same(const efx_mask_t *a, const efx_mask_t *b)
+{
+    for (int w = 0; w < EFX_NW; w++)
+        if (a->w[w] != b->w[w])
+            return 0;
+    return 1;
+}
 #define RV_PLATE_N (RV_AP0 + 556 + 441 + 579 + 457)   /* the plate's combs and allpasses */
 static int32_t rv_need16(int mode)            /* a reverb mode's line, int16: the plate's, an SPU mode's largest address at
                                                * x4 and two more (its "-1" reads, no address aliasing another), lush's,

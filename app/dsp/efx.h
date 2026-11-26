@@ -40,12 +40,20 @@ float efx_lfo_hz(int v, float bpm);          /* an EK_SYNC knob (the LFO's rate)
  * reverb's mode and the place: a send's chorus and lofi lines are longer, for its lag; a track's delay and reverb keep
  * their states at the start of theirs, efx_big_t), given back when the effect changes; a slot that finds none passes
  * dry ("no memory"). The sends first (the engine's, each block: efx_send_used), then the tracks in order, slot 1 then 2
- * (synth.c): a send never loses its memory to a track. 61 blocks: FX I's delay (24) and FX II's largest reverb (32)
- * beside a few of the tracks', as the separate lines held them */
-#define EFX_NB 61
+ * (synth.c): a send never loses its memory to a track. 78 blocks (61 until 2026-11-25, the SRAM won back since): the
+ * default sends (FX I's delay 24, FX II's lush 26) leave 28, a track's delay (24) beside them; FX I's delay and FX II's
+ * largest reverb (32) leave 22 */
+#define EFX_NB 78
 #define EFX_INS_N 1024                           /* int16 a block (2 KB) */
 extern int16_t efx_pool[EFX_NB][EFX_INS_N];
-extern uint64_t efx_send_used;                   /* the blocks the sends hold (a bit each) */
+/* a set of the pool's blocks, a bit each, in 32-bit words (block b: w[b / 32] bit b % 32) */
+#define EFX_NW ((EFX_NB + 31) / 32)
+typedef struct { uint32_t w[EFX_NW]; } efx_mask_t;
+void efx_mark(efx_mask_t *m, int at, int nb);          /* blocks at .. at + nb - 1 into m */
+int efx_meets(const efx_mask_t *m, int at, int nb);    /* any of them in m */
+int efx_fit(const efx_mask_t *m, int need);            /* the first run of need blocks none of m, -1 */
+int efx_same(const efx_mask_t *a, const efx_mask_t *b);
+extern efx_mask_t efx_send_used;                 /* the blocks the sends hold */
 int efx_need(int ef, int mode, int send);        /* the blocks effect ef (the reverb in mode) needs on a send or a track */
 int32_t efx_rv_ring(int mode, int nb, int send); /* the reverb's line in nb blocks: its length, int16 */
 const char *efx_list_name(int ef, int k, int v);   /* an EK_LIST knob's value's name (juno's modes) */

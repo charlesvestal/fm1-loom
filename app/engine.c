@@ -1187,18 +1187,10 @@ static void fx_done(void)
  * start fresh). A send left without memory is silent ("no memory") */
 static int8_t snd_at[2] = {-1, -1};
 static uint8_t snd_nb[2];
-static inline uint64_t snd_run(int at, int nb) { return nb <= 0 ? 0u : (nb >= 64 ? ~0ull : (1ull << nb) - 1ull) << at; }
-static int snd_fit(uint64_t used, int need)
-{
-    for (int k = 0; k + need <= EFX_NB; k++)
-        if (!(used & snd_run(k, need)))
-            return k;
-    return -1;
-}
 static void pool_sends(void)
 {
     int k, need[2];
-    uint64_t m;
+    efx_mask_t m;
     for (k = 0; k < 2; k++) {
         need[k] = fx_need(FXS(k));
         if (snd_at[k] >= 0 && snd_nb[k] != need[k])
@@ -1206,7 +1198,11 @@ static void pool_sends(void)
     }
     for (k = 0; k < 2; k++)
         if (need[k] && snd_at[k] < 0) {
-            int o = !k, at = snd_fit(snd_at[o] >= 0 ? snd_run(snd_at[o], snd_nb[o]) : 0u, need[k]);
+            efx_mask_t other = {{0}};
+            int o = !k, at;
+            if (snd_at[o] >= 0)
+                efx_mark(&other, snd_at[o], snd_nb[o]);
+            at = efx_fit(&other, need[k]);
             if (at < 0 && snd_at[o] >= 0 && need[0] + need[1] <= EFX_NB) {   /* (the other in the way: FX I at the
                                                   * start, FX II after it) */
                 snd_at[o] = -1;
@@ -1220,9 +1216,12 @@ static void pool_sends(void)
         }
     for (k = 0; k < 2; k++)
         snd_nb[k] = (uint8_t)(snd_at[k] >= 0 ? need[k] : 0);
-    m = (snd_at[0] >= 0 ? snd_run(snd_at[0], snd_nb[0]) : 0u) | (snd_at[1] >= 0 ? snd_run(snd_at[1], snd_nb[1]) : 0u);
-    if (m != efx_send_used) {
-        synth_slots_evict(SY, m);
+    m = (efx_mask_t){{0}};
+    for (k = 0; k < 2; k++)
+        if (snd_at[k] >= 0)
+            efx_mark(&m, snd_at[k], snd_nb[k]);
+    if (!efx_same(&m, &efx_send_used)) {
+        synth_slots_evict(SY, &m);
         efx_send_used = m;
     }
     for (k = 0; k < 2; k++)
@@ -1887,7 +1886,7 @@ void engine_init(patterns_t *P, uint8_t (*par)[NTP])
         snd_at[k] = -1;
         snd_nb[k] = 0;
     }
-    efx_send_used = 0;
+    efx_send_used = (efx_mask_t){{0}};
     master_init(MST);
     seq_init(&seq, P, par);
     seq.groove_type = (uint8_t)(proj.groove < NGROOVE ? proj.groove : GR_SWING);

@@ -463,6 +463,14 @@ int app_expect(const char *what, int *got)
         *got = theme_ix();
     else if (!strcmp(what, "listopen"))             /* a SEL list up */
         *got = lst.open;
+    else if (!strncmp(what, "room", 4) && strchr(what, '.')) {   /* roomT.Q: track T's slot Q has its memory (from 1;
+                                                     * the effects' pool: synth_slot_room) */
+        int t = atoi(what + 4) - 1, q = atoi(strchr(what, '.') + 1) - 1;
+        if (t < 0 || t >= NTRK || q < 0 || q > 1)
+            return 0;
+        *got = engine_slot_room(t, q);
+    } else if (!strncmp(what, "fxroom", 6))         /* fxroomK: FX K's (1, 2) memory holds its effect */
+        *got = engine_fx_room((atoi(what + 6) - 1) & 1);
     else if (!strcmp(what, "slot_reads"))           /* project_exists's reads of the flash so far */
         *got = (int)slot_reads;
     else if (!strcmp(what, "projslot"))             /* the open project's slot, from 1 (0: none yet) */

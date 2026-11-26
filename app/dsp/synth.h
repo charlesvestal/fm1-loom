@@ -12,6 +12,7 @@
  * calls synth_note_* through the engine's command queue (app/engine.c). Float, no libm: fastmath.h. */
 #pragma once
 #include <stdint.h>
+#include "efx.h"
 
 #define SY_SR 44100.0f
 #define NTRK 8                        /* instrument tracks (seq/pattern.h agrees) */
@@ -405,7 +406,7 @@ void synth_kit_slots(synth_t *s, int trk, float *l, float *r, const float *kick,
 int synth_slots_ring(synth_t *s, int trk, int sounding, uint32_t n);   /* a kit's: 1 while it sounds or a slot rings on
                                                   * after it (rumble), counted in calls of n frames */
 int synth_slot_room(const synth_t *s, int trk, int q);   /* 1: slot q has its memory (or needs none) */
-void synth_slots_evict(synth_t *s, uint64_t mask);   /* the slots holding any of these blocks give them up (a send
+void synth_slots_evict(synth_t *s, const efx_mask_t *mask);   /* the slots holding any of these blocks give them up (a send
                                                       * takes them: the engine, before synth_prepare) */
 void synth_bus_join(synth_t *s, float *l, float *r, float *s1, float *s2, uint32_t n);
 void synth_bus_reset(synth_t *s, int core);
