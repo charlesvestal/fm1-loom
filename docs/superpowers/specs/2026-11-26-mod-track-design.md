@@ -35,6 +35,10 @@ commit and the manual's credits.
 - At each step with a value: **step** lanes set it; **glide** lanes ramp from the value now to the next valued step's,
   over the steps between (a step with no value continues the glide; past the last value, it holds).
 - Before the first value: nothing applies (the knob keeps its own).
+- **Who wins** (the user, 2026-11-26: "mod"): the hand (until the lane's next valued step) > the MOD lane (from its
+  first valued step, through the hold after its last) > the pattern's own locks and motion on that parameter > the
+  knob's value. The pattern's locks are not changed, only overridden while a MOD lane owns the parameter: muting
+  the MOD track or a scene with "-" lets them play again.
 - **Turning the target by hand** takes over until the lane's next valued step (as a locked step).
 - **A scene change**: the new scene's MOD pattern starts at its step 1; what it doesn't target stays where it was.
 - **Mute**: the MOD track's knobs freeze where they are.

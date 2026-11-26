@@ -71,7 +71,7 @@ COLD = {
     # (the effects' coefficients, when a knob moves; the pages' pictures and texts)
     "dsp/efx.c": ["efx_char_coefs", "efx_char_picture", "efx_char_hz", "efx_knob_name", "efx_list_name", "ch_lp_hz",
                   "ch_pivot_hz", "ch_alpha", "ch_tape_hz", "ch_smp_hz", "ch_smp_rate", "efx_send_nums", "efx_nums",
-                  "efx_delay_secs", "fx_delay_fb", "efx_knob_word", "efx_rv_ring"],
+                  "efx_delay_secs", "fx_delay_fb", "efx_knob_word", "efx_rv_ring", "slot_moving"],
     "seq/pattern.c": ["pattern_init", "patterns_init", "lane_alloc", "lane_clear", "lane_count", "lane_pool_set",
                       "lane_pool_free", "step_clear_locks", "pattern_clear_locks", "step_set_notes",
                       "step_toggle_note", "kit_set", "kit_toggle", "kit_add", "pattern_woven", "weave_step",
@@ -163,6 +163,10 @@ def reachable(funcs, glob):
     return seen
 
 
+# what only a COLD function calls but runs once a sample, kept -O2 (cold_helpers would take it along)
+HOT = {"char_ramp"}
+
+
 def cold_helpers(funcs, glob, cold):
     """the unit's static functions that only its COLD ones call (and those that only they call, and so on), cold
     too: optimised at -O2 before being inlined into their cold caller, they came to it unrolled and expanded (a drum
@@ -172,7 +176,7 @@ def cold_helpers(funcs, glob, cold):
     static = {n for n, (h, _) in funcs.items() if " internal " in h and n not in named}
     cold, more = set(cold), set()
     while True:
-        add = {n for n in static - cold
+        add = {n for n in static - cold - HOT
                if (by := {c for c, r in refs.items() if n in r and c != n}) and by <= cold}
         if not add:
             return more
