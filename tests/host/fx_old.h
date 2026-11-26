@@ -7,7 +7,16 @@
 #include <string.h>
 #include "fx.h"
 
-static const uint8_t RV_SPU_DEFAULT[4] = {127, 64, 64, 0};   /* the SPU modes' defaults */
+/* the picks' names and their four knobs' defaults (the plate's for the reverb; the SPU modes', lush's) */
+static const char *const FXT_NAME[NFXT] = {"chorus", "delay", "lofi", "phaser", "reverb"};
+static const uint8_t FXT_DEFAULT[NFXT][4] = {{50, 86, 20, 127}, {83, 64, 56, 64}, {80, 80, 64, 40}, {50, 90, 50, 80},
+                                             {100, 40, 44, 72}};
+static const uint8_t RV_SPU_DEFAULT[4] = {127, 64, 64, 0};
+static inline const char *fx_pick_name(int pick)
+{
+    int t = fx_pick_type(pick);
+    return t == FXT_REVERB ? RV_NAME[fx_pick_mode(pick)] : FXT_NAME[t];
+}
 static fxslot_t *fxo;
 static uint8_t fxo_pick, fxo_k[4], fxo_w = 127, fxo_wob, fxo_smr;
 static void fxo_apply(void)
@@ -23,12 +32,12 @@ static void fxo_set(int pick, const uint8_t k[4])
     memcpy(fxo_k, k, 4);
     fxo_apply();
 }
-static void fxo_width(int w)
+static inline void fxo_width(int w)
 {
     fxo_w = (uint8_t)w;
     fxo_apply();
 }
-static void fxo_mod(int wob, int smr)
+static inline void fxo_mod(int wob, int smr)
 {
     fxo_wob = (uint8_t)wob;
     fxo_smr = (uint8_t)smr;

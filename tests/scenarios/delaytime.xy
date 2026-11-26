@@ -7,19 +7,19 @@ turn SELECT 1
 turn SELECT 1
 wait 40
 expect page FX_I
-expect par11.e1 83
+expect par11.camt 83
 turn K1 1
 wait 40
-expect par11.e1 97
+expect par11.camt 97
 turn K1 1
 turn K1 1
 turn K1 1
 wait 40
-expect par11.e1 123
+expect par11.camt 123
 turn K1 -1
 wait 40
-expect par11.e1 110
-expect epar11.e1 110
+expect par11.camt 110
+expect epar11.camt 110
 bpm 80
 wait 40
 shot delaytime_80bpm.png

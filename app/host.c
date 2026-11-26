@@ -856,7 +856,7 @@ static int param_of(const char *s)                 /* a TP_* name, dK.NAME (drum
 }
 static int value_of(int t, int p, const char *s)   /* a number, a name of the value's list, uN */
 {
-    const tp_info_t *in = t < NTRK ? tp_info_par(p, proj.trk[t].par) : 0;
+    const tp_info_t *in = t < NTRK || t == AUX_FX1 || t == AUX_FX2 ? tp_info_par(p, proj.trk[t].par) : 0;
     if (in && in->kind == PK_NAMES && in->names)
         for (int k = in->lo; k <= in->hi; k++)
             if (in->names[k] && ieq(s, in->names[k]))
@@ -867,13 +867,43 @@ static int value_of(int t, int p, const char *s)   /* a number, a name of the va
         for (int k = 0; k < smp_slots(); k++)
             if (ieq(s, smp_name(k)))
                 return k;
-    if (t == AUX_FX1 || t == AUX_FX2)
-        for (int k = 0; k < NFXPICK; k++)
-            if (p == TP_ENGINE && ieq(s, fx_pick_name(k)))
-                return k;
     if (!isnum(s))
         host_die("no value", s);
     return atoi(s);
+}
+/* an FX track's values as a script set them before format 29 ("knob 11 engine hall", "knob 11 e1 85", x1..x3, level:
+ * its pick, four knobs, the delay's PING WIDTH, WOBBLE, SMEAR, its return): the old ones read back from its slot, the
+ * one named set, the slot again (fx.h fx_pick_slot, as project.c converts a project) */
+static int fx_old_par(int k) { return k == TP_ENGINE || (k >= TP_E1 && k <= TP_E4) || (k >= TP_X1 && k <= TP_X3) || k == TP_LEVEL; }
+static void fx_old_knob(int t, int k, const char *val)
+{
+    static const char *const FXN[NFXT] = {"chorus", "delay", "lofi", "phaser", "reverb"};
+    const uint8_t *p = proj.trk[t].par;
+    const int ef = p[TP_CTYPE] % NEF, dl = ef == EF_DELAY;
+    int pick = dl ? FXT_DELAY : ef == EF_LOFI ? FXT_LOFI : ef == EF_PHASER ? FXT_PHASER
+             : ef == EF_REVERB ? FXT_REVERB + p[TP_S1X1] % NRV : FXT_CHORUS;
+    uint8_t e[4] = {p[TP_CAMT], dl ? p[TP_S1X1] : p[TP_CTONE], dl ? p[TP_CTONE] : p[TP_S1K3],
+                    dl ? p[TP_S1K3] : ef == EF_REVERB ? p[TP_S1X2] : p[TP_S1X1]}, o[SL_N];
+    int w = dl ? p[TP_S1X2] : 127, wob = dl ? p[TP_S1X3] : 0, smr = dl ? p[TP_S1X4] : 0, lev = p[TP_CMIX], v = -1;
+    if (k == TP_ENGINE)
+        for (int i = 0; i < NFXPICK && v < 0; i++)
+            if (ieq(val, i < FXT_REVERB ? FXN[i] : RV_NAME[i - FXT_REVERB]))
+                v = i;
+    if (v < 0 && !isnum(val))
+        host_die("no value", val);
+    v = v < 0 ? atoi(val) : v;
+    if (k == TP_ENGINE)
+        pick = v;
+    else if (k >= TP_E1 && k <= TP_E4)
+        e[k - TP_E1] = (uint8_t)v;
+    else if (k == TP_LEVEL)
+        lev = v;
+    else
+        *(k == TP_X1 ? &w : k == TP_X2 ? &wob : &smr) = v;
+    fx_pick_slot(pick, e, w, wob, smr, o);
+    o[SL_MIX] = (uint8_t)lev;
+    for (int j = 0; j < SL_N; j++)
+        set_tp(t, TP_SLOT[0][j], o[j]);
 }
 static int note_of(const char *s)                  /* 60, C4, F#3, Bb2 */
 {
@@ -1125,7 +1155,9 @@ static int song_cmd(const char *cmd)
             int v = value_of(t, k, w[3]);         /* a kit's send1 / send2: every key's (it has no track sends) */
             for (int d = 0; d < DL_NSOUND; d++)
                 set_tp(t, TP_DRUM(d, k == TP_SEND1 ? DP_SEND1 : DP_SEND2), v);
-        } else
+        } else if ((t == AUX_FX1 || t == AUX_FX2) && fx_old_par(k))
+            fx_old_knob(t, k, w[3]);
+        else
             set_tp(t, k, value_of(t, k, w[3]));
         run_ms(1);
     } else if (!strcmp(cmd, "listdump")) {          /* listdump: the page's SEL list, a row a line (the menu inventory) */

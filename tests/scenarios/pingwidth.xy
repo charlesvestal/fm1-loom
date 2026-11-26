@@ -1,10 +1,10 @@
-# PING WIDTH: the delay's bounce on FX I's SEL list (a delay only), after TO FX II; 127 (a new project's) hard left and
-# right, 0 the echoes centred. The FX track's filter page has it on its fourth knob too. Kept in the project
+# PING WIDTH: the delay's bounce, its second extra on FX I's SEL list (WIDTH, a delay's); 127 (a new project's) hard left
+# and right, 0 the echoes centred. Kept in the project
 wait 300
 projnew
-expect par11.x1 127
-expect par12.x1 127
-expect epar11.x1 127
+expect par11.s1x2 127
+expect par12.s1x2 48
+expect epar11.s1x2 127
 tap FX
 turn SELECT 1
 turn SELECT 1
@@ -12,15 +12,15 @@ turn SELECT 1
 wait 40
 expect page FX_I
 tap SEL
-row PING WIDTH
+row WIDTH
 turn ALGO -20
 wait 40
 shot pingwidth_list.png
 tap SEL
 wait 40
-expect par11.x1 107
-expect epar11.x1 107
-# FX II is the reverb: no PING WIDTH there
+expect par11.s1x2 107
+expect epar11.s1x2 107
+# FX II is the reverb: no WIDTH there (its second extra its damp)
 turn SELECT 1
 wait 40
 expect page FX_II
@@ -33,5 +33,5 @@ tap SEL
 projsave 1 pingwidth
 reboot
 wait 400
-expect par11.x1 107
-expect epar11.x1 107
+expect par11.s1x2 107
+expect epar11.s1x2 107

@@ -11,9 +11,9 @@
  * (nothing is written if it would not fit: "MEMORY FULL") and once to write; an object whose bytes
  * did not change is not written again.
  *
- * Aux tracks keep their settings in the same par[] as the instruments: FX I / II: TP_ENGINE the
- * effect (a pick, fx.h: the effect and the reverb's mode), TP_E1..E4 its four knobs, TP_FENV its
- * high-pass, TP_CUT its low-pass, TP_LEVEL the return, TP_SEND2 of FX I its feed into FX II; BRAIN:
+ * Aux tracks keep their settings in the same par[] as the instruments: FX I / II: a track's slot 1 (synth.h
+ * TP_SLOT[0]: TP_CTYPE the effect, TP_CAMT, TP_CTONE, TP_S1K3 its knobs, TP_CMIX the return, TP_S1X1..X4 its
+ * extras: since format 29), TP_FENV its high-pass, TP_CUT its low-pass, TP_SEND2 of FX I its feed into FX II; BRAIN:
  * TP_E1..E4 mode, key, scale, degree; PUNCH: TP_E1 latch.
  * Part of the unity build, after app.h and engine.h. */
 #include <stddef.h>
@@ -66,6 +66,26 @@ typedef char raw_fits[(RAW_LEN < 0x100000u) ? 1 : -1];   /* (lz.c packs up to 16
 #define NTP24 ((uint32_t)TP_KANALOG)                      /* format 24's: up to rayon's Ops page */
 #define NTP25 ((uint32_t)TP_ITYPE)                        /* format 25's: up to knit's analog */
 #define NTP27 ((uint32_t)TP_S1K3)                         /* formats 26..27's: up to the insert and the low cut */
+/* before 29 an FX track's effect was TP_ENGINE's pick, its knobs TP_E1..E4, the delay's PING WIDTH, WOBBLE and SMEAR
+ * TP_X1..X3, the return TP_LEVEL: its slot 1 now (fx.h fx_pick_slot: the delay's time, repeats, tone, its fine, width,
+ * wobble, smear the extras; the reverb's size, decay or motion, tone, its mode and damp (shimmer's amount) the extras;
+ * the chorus's, lofi's and phaser's fourth knob their extra); TP_LEVEL 100, unused */
+#define TP_FX_WIDTH TP_X1
+#define TP_FX_WOBBLE TP_X2
+#define TP_FX_SMEAR TP_X3
+static void fx_old(uint8_t *p)
+{
+    uint8_t o[SL_N];
+    fx_pick_slot(p[TP_ENGINE] % NFXPICK, p + TP_E1, p[TP_FX_WIDTH], p[TP_FX_WOBBLE], p[TP_FX_SMEAR], o);
+    o[SL_MIX] = p[TP_LEVEL];
+    for (int j = 0; j < SL_N; j++)
+        p[TP_SLOT[0][j]] = o[j];
+    for (int k = TP_ENGINE; k <= TP_E4; k++)
+        p[k] = 0;
+    for (int k = TP_X1; k <= TP_X4; k++)
+        p[k] = 0;
+    p[TP_LEVEL] = 100;
+}
 /* the random player's one octave knob before 19 (TP_P4, 0..24: PR #13's path about its centre) as down * 4 + up */
 /* before 21: the arp's speeds without the dotted ones (1/4 1/4T 1/8 1/8T 1/16 1/16T 1/32 1/32T 1/64: old_arp, to
  * synth.h's order), the delay's times 1/32 1/32D 1/16 1/16D 1/8 1/8D 1/4 1/2 (the knob in eighths; now fx.h's, in tenths: 1/2,
@@ -298,21 +318,19 @@ static void aux_defaults(void)
     set_name(&proj.trk[AUX_PUNCH], "throws");
     set_name(&proj.trk[AUX_FX1], "delay");
     set_name(&proj.trk[AUX_FX2], "reverb");
-    /* the notebook's default project: FX I a delay, FX II the lush reverb, each with its printed defaults
-     * (fx.h FXT_DEFAULT, RV_LUSH_DEFAULT); the FX I track's second send feeds its return into FX II */
-    proj.trk[AUX_FX1].par[TP_ENGINE] = FXT_DELAY;
-    proj.trk[AUX_FX2].par[TP_ENGINE] = FXT_REVERB + RV_LUSH;
-    for (k = 0; k < 4; k++) {
-        proj.trk[AUX_FX1].par[TP_E1 + k] = FXT_DEFAULT[FXT_DELAY][k];
-        proj.trk[AUX_FX2].par[TP_E1 + k] = RV_LUSH_DEFAULT[k];
+    /* the notebook's default project: FX I a delay at its defaults (1/8, ~4 repeats, 4 kHz, the bounce full), FX II
+     * the lush reverb (size 64, decay 64: ~1.4 s, a little darker, damp 48), returns at unity; the FX I track's
+     * second send feeds its return into FX II */
+    for (k = AUX_FX1; k <= AUX_FX2; k++) {
+        uint8_t *p = proj.trk[k].par;
+        static const uint8_t LUSH[SL_N] = {EF_REVERB, 64, 64, 56, 100, RV_LUSH, 48, 0, 0};
+        for (int j = 0; j < SL_N; j++)
+            p[TP_SLOT[0][j]] = k == AUX_FX2 ? LUSH[j] : j == SL_EF ? EF_DELAY : j == SL_MIX ? 100
+                             : j <= SL_K3 ? EFX[EF_DELAY].def[j - SL_K1] : EFX[EF_DELAY].xdef[j - SL_X1];
+        p[TP_CUT] = 127;                                 /* low-pass open */
     }
-    proj.trk[AUX_FX1].par[TP_CUT] = 127;                 /* low-pass open */
     proj.trk[AUX_FX1].par[TP_FENV] = 40;                 /* the high-pass: the echoes from 130 Hz (no mud) */
-    proj.trk[AUX_FX2].par[TP_CUT] = 127;
     proj.trk[AUX_FX2].par[TP_FENV] = 52;                 /* the reverb from 230 Hz: the kick and the bass stay dry */
-    proj.trk[AUX_FX1].par[TP_FX_WIDTH] = proj.trk[AUX_FX2].par[TP_FX_WIDTH] = 127;   /* the delay's bounce: full */
-    for (k = AUX_FX1; k <= AUX_FX2; k++)
-        proj.trk[k].par[TP_FX_WOBBLE] = proj.trk[k].par[TP_FX_SMEAR] = 0;
 }
 
 /* a new band: T2-T8 each a random factory preset of a part, so a project starts as one: a bass, a polyphonic synth,
@@ -494,7 +512,9 @@ static int settings_valid(settings_t *s)
         s->trk[t].name[NAME_LEN - 1] = 0;
         if (t < NTRK && p[TP_ENGINE] >= NENGINE)
             return 0;
-        if (t >= AUX_FX1 && p[TP_ENGINE] >= NFXPICK)
+        if ((t == AUX_FX1 || t == AUX_FX2) && (s->format < 29u ? p[TP_ENGINE] >= NFXPICK : p[TP_CTYPE] >= NEF))
+            return 0;                                    /* (an FX track: its pick before 29, its slot's effect since) */
+        if (t > AUX_FX2 && p[TP_ENGINE] >= NFXPICK)
             return 0;
         if (t < NTRK)
             keys_fix(p, s->format < 17u);
@@ -1048,6 +1068,9 @@ int project_load(int slot)
                 for (int i = 0; i < NSTEP; i++)
                     L->val[i] = old_arp(L->val[i]);
         }
+    if (load_format < 29u)                            /* (the FX tracks' pick and knobs: their slot) */
+        for (int t = AUX_FX1; t <= AUX_FX2; t++)
+            fx_old(proj.trk[t].par);
     if (load_format < 28u) {                          /* (a character and an insert: the track's slots, their locks) */
         const float bpm = (float)proj.tempo_x10 * 0.1f;
         for (int k = 0; k < NLANE; k++) {

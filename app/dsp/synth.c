@@ -110,7 +110,6 @@ static const char *const BEND_N[9] = {"off", "1", "2", "3", "4", "5", "6", "7", 
 static const char *const WTNAME_N[WT_NTABLE] = {"shapes", "nasal", "grit", "vocal", "spiral", "fold", "octaves",
                                                 "glass", "chirp"};
 static const char *const SYNC_N[LS_SYNC_N] = {"2/1", "1", "1/2", "1/4", "1/8", "1/16", "1/32", "1/64"};
-static const float SYNC_BEATS[LS_SYNC_N] = {8.0f, 4.0f, 2.0f, 1.0f, 0.5f, 0.25f, 0.125f, 0.0625f};
 static const char *const ENVP_N[4] = {"attack", "decay", "sustain", "release"};
 static const char *const FLTP_N[4] = {"cutoff", "reso", "env", "keytrack"};
 static const char *const AMPP_N[4] = {"volume", "pitch", "pan", "character"};
@@ -331,12 +330,7 @@ static float env_seconds(float p) { return p < 0.001f ? 0.001f : 0.001f * fm_exp
  * release's multiplier (to 0.1 % in secs) for that step */
 static float env_rate(float secs) { return (float)SUB / (secs * SY_SR); }
 static float env_coef(float secs) { return fm_expf(-6.9f * (float)SUB / (secs * SY_SR)); }
-static float lfo_hz(int v, float bpm)
-{
-    if (v < LS_SYNC_N)
-        return bpm * (1.0f / 60.0f) / SYNC_BEATS[v];
-    return 0.1f * fm_exp2f((float)(v - LS_SYNC_N) * (8.22881869f / 119.0f));   /* 0.1 .. 30 Hz */
-}
+static float lfo_hz(int v, float bpm) { return efx_lfo_hz(v, bpm); }   /* (dsp/efx.c: the slots' rates too) */
 /* the LFO's fade envelope knob (synth.h): seconds to fade in, or to fade out */
 static void fade_secs(int v, float *in, float *out)
 {
@@ -4647,7 +4641,7 @@ static const tp_info_t *slot_info(const uint8_t *par, int q, int j)
     if (j == SL_MIX)
         return q ? &SMIX_P : &FIXED[TP_CMIX];
     ef = ef < NEF ? ef : EF_OFF;
-    nm = efx_knob_name(ef, k);
+    nm = efx_knob_word(ef, par[TP_SLOT[q][SL_X1]], k);   /* (the reverb's in its mode: the plate's motion) */
     i = &ring[at++ & 7u];
     *i = (tp_info_t){nm && ef ? nm : "-", 0, 127, 0, PK_NUM, 0};
     if (!nm || !ef || nm[0] == '-')              /* (none: its value kept as it is) */

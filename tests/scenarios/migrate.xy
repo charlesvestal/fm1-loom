@@ -105,9 +105,8 @@ storeload tests/fixtures/store_v19.bin
 reboot
 wait 400
 expect tempo 101
-expect par11.x1 127
-expect par12.x1 127
-expect epar11.x1 127
+expect par11.s1x2 127
+expect epar11.s1x2 127
 
 # a format 20 project, from before the arp's dotted speeds and the delay's triplet times (tests/fixtures/make_v20.xy):
 # the arp speeds moved to their places now (1/16 4 -> 6, 1/64 8 -> 10, the lock's 1/4T 1 -> 2), the delay's 1/8D (85)
@@ -119,8 +118,8 @@ expect tempo 102
 expect par1.p1 6
 expect par2.p1 10
 expect lock 1 1 1 p1 2
-expect par11.e1 108
-expect epar11.e1 108
+expect par11.camt 108
+expect epar11.camt 108
 
 # a format 21 project and its presets (format 11), from before knit's Osc 2 page (tests/fixtures/make_v21.xy): the tracks
 # two bytes longer (TP_O2WAVE, TP_O2SHAPE), osc 2 on osc 1's wave as it was; the user preset the same, and the user kit
@@ -295,9 +294,9 @@ expect par4.rfb 30
 expect par4.itype 0
 # format 27: the delay's REPEATS converted (before: the feedback 0.95 x / 127; FX I's default 56 is 0.419, 56 now),
 # WOBBLE and SMEAR (FX I's x2, x3) 0
-expect par11.e3 56
-expect par11.x2 0
-expect par11.x3 0
+expect par11.ctone 56
+expect par11.s1x3 0
+expect par11.s1x4 0
 # a format 27 project and its presets (format 16), from before the one effects list (tests/fixtures/make_v27.xy): the
 # character slot 1 (its types the catalog's numbers), the insert slot 2 (its knobs and mix moved: project.c
 # old_insert), their locks with them; the new values at their defaults
@@ -442,3 +441,67 @@ said K8
 expect par1.itype 10
 expect par1.i2 90
 expect par1.s1k3 33
+
+# format 29: the FX tracks are slots of the one effects list (project.c fx_old). The released format 22 project
+# (tests/fixtures/make_v22.xy): FX I the delay at its defaults (time 83, repeats 56, tone 64; fine 64, width 127, wobble
+# and smear 0), FX II lush (size 64, decay 64, tone 56; its mode lush, damp 48), returns at unity (100), their filters
+# and feed as they were
+storeload tests/fixtures/store_v22.bin
+reboot
+wait 400
+expect par11.ctype 16
+expect par11.camt 83
+expect par11.ctone 56
+expect par11.s1k3 64
+expect par11.s1x1 64
+expect par11.s1x2 127
+expect par11.s1x3 0
+expect par11.s1x4 0
+expect par11.cmix 100
+expect epar11.camt 83
+expect par11.fenv 40
+expect par12.ctype 18
+expect par12.camt 64
+expect par12.ctone 64
+expect par12.s1k3 56
+expect par12.s1x1 10
+expect par12.s1x2 48
+expect par12.cmix 100
+expect par12.fenv 52
+# a format 28 project (tests/fixtures/make_v28.xy): FX I a delay with every value moved (time 70, fine 80, repeats 90,
+# tone 30, width 50, wobble 40, smear 20, level 90, its filter and feed), FX II the plate (size 90, motion 30, tone 50,
+# damp 100, level 80): each in its place in the slot, the old places cleared, kept by a save
+storeload tests/fixtures/store_v28.bin
+reboot
+wait 400
+expect tempo 115
+expect par11.ctype 16
+expect par11.camt 70
+expect par11.ctone 90
+expect par11.s1k3 30
+expect par11.s1x1 80
+expect par11.s1x2 50
+expect par11.s1x3 40
+expect par11.s1x4 20
+expect par11.cmix 90
+expect epar11.cmix 90
+expect par11.fenv 30
+expect par11.cut 110
+expect par11.send2 45
+expect par11.engine 0
+expect par11.e1 0
+expect par11.x1 0
+expect par11.level 100
+expect par12.ctype 18
+expect par12.camt 90
+expect par12.ctone 30
+expect par12.s1k3 50
+expect par12.s1x1 0
+expect par12.s1x2 100
+expect par12.cmix 80
+expect epar12.s1x2 100
+projsave 1 v28_saved
+reboot
+wait 400
+expect par11.s1x4 20
+expect par12.s1x2 100

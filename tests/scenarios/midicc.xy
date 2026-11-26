@@ -110,7 +110,8 @@ expect par1.10 19
 expect par1.12 20
 # TP_A ("lag" on a kit): untouched by 75, still its default
 expect par1.9 0
-# FX I on 9, FX II on 10
+# FX I on 9, FX II on 10: 7 and 19 the return (its slot's mix: the last, 35), 16 .. 18 its knobs, 74 / 75 its filter, 93 FX
+# I's feed; its old level (TP_LEVEL) untouched
 midi B8 07 21
 midi B8 10 22
 midi B8 13 23
@@ -120,14 +121,14 @@ midi B8 5D 26
 midi B9 11 27
 midi B9 5D 28
 wait 40
-expect par11.48 33
-expect par11.1 34
-expect epar11.1 34
-expect par11.4 35
-expect par11.17 36
-expect par11.19 37
-expect par11.23 38
-expect par12.2 39
+expect par11.cmix 35
+expect par11.camt 34
+expect epar11.camt 34
+expect par11.cut 36
+expect par11.fenv 37
+expect par11.send2 38
+expect par12.ctone 39
+expect par11.level 100
 # CC 93 on FX II's channel: nothing (FX II has no feed; only FX I's goes into FX II)
 param 12 23 50
 midi B9 5D 7F

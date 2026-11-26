@@ -266,19 +266,19 @@ int main(void)
                 ok &= FXT_DEFAULT[t][k] == want[t][k];
         check("FXT_DEFAULT: chorus 50 86 20 127, delay 83 64 56 64, ... plate 100 40 44 72", ok);
         ok = 1;
-        for (t = 0; t < NFXPICK; t++) {
+        for (t = 0; t < NFXPICK; t++) {                  /* (a pick's four knobs: where the slot has them, named so) */
+            static const uint8_t AT[NFXT][4] = {{0, 1, 2, 3}, {0, 3, 1, 2}, {0, 1, 2, 3}, {0, 1, 2, 3}, {0, 1, 2, 4}};
+            const int ty = fx_pick_type(t), ef = ty == FXT_REVERB ? EF_REVERB : ty == FXT_DELAY ? EF_DELAY
+                           : ty == FXT_LOFI ? EF_LOFI : ty == FXT_PHASER ? EF_PHASER : EF_CHORUS;
             ok &= !strcmp(fx_pick_name(t), picks[t]);
-            for (k = 0; k < 4; k++)
-                ok &= !strcmp(fx_knob_name(t, k), t == FXT_REVERB + RV_SHIMMER && k == 3 ? "shimmer"
-                                                  : t > FXT_REVERB ? (const char *[]){"size", "decay", "tone", "damp"}[k]
-                                                                  : names[fx_pick_type(t)][k]);
+            for (k = 0; k < 4; k++) {
+                const char *w = efx_knob_word(ef, fx_pick_mode(t), AT[ty][k]);
+                ok &= w && !strcmp(w, t == FXT_REVERB + RV_SHIMMER && k == 3 ? "shimmer"
+                                      : t > FXT_REVERB ? (const char *[]){"size", "decay", "tone", "damp"}[k]
+                                                      : names[ty][k]) && strlen(w) <= 8;
+            }
         }
-        check("picks: chorus .. phaser, plate .. shimmer; the SPU modes' knobs size decay tone damp (shimmer's last its own)", ok);
-        ok = 1;
-        for (t = 0; t < NFXPICK; t++)                    /* the strip fits a name in 46 pixels: 8 letters */
-            for (k = 0; k < 4; k++)
-                ok &= strlen(fx_knob_name(t, k)) <= 8;
-        check("knob names at most 8 letters", ok);
+        check("picks: chorus .. phaser, plate .. shimmer; their knobs the catalog's, named as before (at most 8 letters)", ok);
     }
     {   /* the memory each needs of the pool on a send (2 KB blocks): the reverb's modes their own */
         static const uint8_t want[NFXPICK] = {2, 24, 2, 0, 12, 5, 4, 10, 14, 22, 4, 31, 32, 32, 26, 28};

@@ -206,20 +206,26 @@ turn SELECT 1
 wait 40
 shot fx2.png
 shot fx2_lush.png
-# the reverb's SPU modes: the longest names on the page, its title and its list (from the plate: lush is the default)
-turn PRESET -10
-expect par12.0 4
-turn PRESET 7
+# the reverb's SPU modes (its first extra): the longest names on the page, its title and its list (lush the default)
+knob 12 s1x1 space_echo
 wait 40
-expect par12.0 11
+expect par12.s1x1 7
 shot fx2_space_echo.png
-turn PRESET 1
+knob 12 s1x1 chaos_echo
 wait 40
 shot fx2_chaos_echo.png
 tap SEL
 wait 40
 shot fx2_list.png
 tap HOME
-turn PRESET -8
-expect par12.0 4
+# PRESET: the one effects list (the reverb its last: back to rumble, and on again, the plate at its defaults)
+turn PRESET -1
+wait 40
+expect par12.ctype 17
+shot fx2_rumble.png
+turn PRESET 1
+wait 40
+expect par12.ctype 18
+expect par12.s1x1 0
+expect par12.camt 100
 expect trk 1

@@ -56,10 +56,7 @@ enum { FXT_CHORUS, FXT_DELAY, FXT_LOFI, FXT_PHASER, FXT_REVERB, NFXT };
 static inline int fx_pick_type(int pick) { return pick < FXT_REVERB ? (pick < 0 ? 0 : pick) : FXT_REVERB; }
 static inline int fx_pick_mode(int pick) { return pick < FXT_REVERB ? 0 : pick - FXT_REVERB < NRV ? pick - FXT_REVERB : 0; }
 void fx_pick_slot(int pick, const uint8_t e[4], int width, int wobble, int smear, uint8_t *o);
-extern const char *const FXT_NAME[NFXT];
-extern const uint8_t FXT_DEFAULT[NFXT][4], RV_LUSH_DEFAULT[4];
-const char *fx_pick_name(int pick);
-const char *fx_knob_name(int pick, int k);
+
 
 /* ---- master ---- */
 /* the master's knobs, three pages: EQ (low, mid, high; 64 flat), color (type, amount, tone, mix), out (drums, melodic,

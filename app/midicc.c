@@ -19,9 +19,10 @@ static const struct { uint8_t cc, syn, kit; } CC_TRK[] = {
 #define CC_KMUTE 16
 #define CC_KPAN 80
 #define CC_KLEVEL 102
-/* FX I / II: the return level, the four knobs, low-pass / high-pass; fx1: FX I only (93, its feed into FX II) */
-static const struct { uint8_t cc, par, fx1; } CC_FX[] = {
-    {7, TP_LEVEL, 0}, {16, TP_E1, 0}, {17, TP_E2, 0}, {18, TP_E3, 0}, {19, TP_E4, 0}, {74, TP_CUT, 0},
+/* FX I / II: the return level (7, and 19: the slot's mix), the three knobs (its slot 1's), low-pass / high-pass; fx1:
+ * FX I only (93, its feed into FX II) */
+static const struct { uint8_t cc; uint16_t par; uint8_t fx1; } CC_FX[] = {
+    {7, TP_CMIX, 0}, {16, TP_CAMT, 0}, {17, TP_CTONE, 0}, {18, TP_S1K3, 0}, {19, TP_CMIX, 0}, {74, TP_CUT, 0},
     {75, TP_FENV, 0}, {93, TP_SEND2, 1}};
 /* the master */
 static const struct { uint8_t cc, m; } CC_MST[] = {

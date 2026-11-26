@@ -1,0 +1,29 @@
+# a format 28 project, from before the FX tracks were slots of the one effects list (format 29: an FX track's pick,
+# four knobs, PING WIDTH, WOBBLE, SMEAR and level become its slot 1: project.c fx_old): saved by that build, for the
+# migration's test (tests/scenarios/migrate.xy). FX I a delay with every value off its default (time 70, fine 80,
+# repeats 90, tone 30, width 50, wobble 40, smear 20, level 90; its filter and its feed into FX II), FX II the plate
+# (size 90, motion 30, tone 50, damp 100, level 80). (An FX track has no lanes: no lock to carry.)
+# Run by a format 28 build (5ff9c50): its loom_host tests/fixtures/make_v28.xy
+wait 300
+bpm 115
+param 11 engine 1
+param 11 e1 70
+param 11 e2 80
+param 11 e3 90
+param 11 e4 30
+param 11 x1 50
+param 11 x2 40
+param 11 x3 20
+param 11 level 90
+param 11 fenv 30
+param 11 cut 110
+param 11 send2 45
+param 12 engine 4
+param 12 e1 90
+param 12 e2 30
+param 12 e3 50
+param 12 e4 100
+param 12 level 80
+wait 40
+projsave 1 v28_test
+storesave tests/fixtures/store_v28.bin

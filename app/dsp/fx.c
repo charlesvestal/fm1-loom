@@ -265,30 +265,6 @@ int fx_awake(const fxslot_t *f)
     return send_own(f->type) ? efx_send_awake(&f->e, f->type) : 1;
 }
 
-/* (the FX pages' names and defaults of the picks) */
-const char *const FXT_NAME[NFXT] = {"chorus", "delay", "lofi", "phaser", "reverb"};
-static const char *const FXT_KNOB[NFXT][4] = {
-    {"rate", "depth", "feedback", "width"}, {"time", "fine", "repeats", "tone"},
-    {"rate", "bits", "smooth", "width"},    {"freq", "depth", "rate", "feedback"},
-    {"size", "motion", "tone", "damp"},
-};
-static const char *const SPU_KNOB[4] = {"size", "decay", "tone", "damp"};
-const uint8_t FXT_DEFAULT[NFXT][4] = {{50, 86, 20, 127}, {83, 64, 56, 64}, {80, 80, 64, 40}, {50, 90, 50, 80},
-                                      {100, 40, 44, 72}};
-const uint8_t RV_LUSH_DEFAULT[4] = {64, 64, 56, 48};
-const char *fx_pick_name(int pick)
-{
-    int t = fx_pick_type(pick);
-    return t == FXT_REVERB ? RV_NAME[fx_pick_mode(pick)] : FXT_NAME[t];
-}
-const char *fx_knob_name(int pick, int k)
-{
-    int t = fx_pick_type(pick);
-    k &= 3;
-    if (t == FXT_REVERB && fx_pick_mode(pick) == RV_SHIMMER && k == 3)
-        return "shimmer";
-    return t == FXT_REVERB && fx_pick_mode(pick) != RV_PLATE ? SPU_KNOB[k] : FXT_KNOB[t][k];
-}
 /* an old FX track's pick, knobs and the delay's three (fx.h) as the slot's values */
 void fx_pick_slot(int pick, const uint8_t e[4], int width, int wobble, int smear, uint8_t *o)
 {

@@ -21,9 +21,10 @@ expect par2.2 10
 expect par2.oct 0
 preset 4 no_such_preset rayon
 expect par4.0 1
-# the FX tracks by their effect's name
+# the FX tracks by their effect's name, as scripts set them before format 29 (the pick: their slot's effect and mode)
 knob 12 engine hall
-expect par12.0 9
+expect par12.ctype 18
+expect par12.s1x1 5
 # patterns: length, scale, note length, groove
 pat 1 1 16 1 50 40
 pat 2 1 32 2

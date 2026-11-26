@@ -2240,18 +2240,24 @@ static void debug_knob(int k, int32_t e)         /* Debug: KNOB 1 the cores */
     plat_cpu2_set(!proj.one_core);
     mark_dirty();
 }
-static void fx_pick(int trk, int d)              /* the effect (the reverb's modes among them) */
+/* an effect track's effect (its slot 1's: the one effects list), its knobs and extras at the effect's defaults, its
+ * return kept */
+static void fx_effect_set(int trk, int ef)
 {
-    int t = clampi(proj.trk[trk].par[TP_ENGINE] % NFXPICK + d, 0, NFXPICK - 1);
-    set_tp(trk, TP_ENGINE, t);
-    say("EFFECT", fx_label(t));
+    const uint8_t *par = proj.trk[trk].par;
+    set_tp(trk, TP_CTYPE, ef);
+    for (int j = SL_K1; j < SL_N; j++)
+        if (j != SL_MIX)
+            set_tp(trk, TP_SLOT[0][j], tp_info_par(TP_SLOT[0][j], par)->def);
+    say("EFFECT", EFX[par[TP_CTYPE] % NEF].name);
 }
+static void fx_pick(int trk, int d) { fx_effect_set(trk, (proj.trk[trk].par[TP_CTYPE] % NEF + d + NEF) % NEF); }
 /* an effect track's knob p turned by e: the delay's time a note value a click (13 d + 6: in the tenth d, fx.h) */
 static __attribute__((noinline)) int fx_turned(int ft, int p, int32_t e)
 {
     const uint8_t *par = proj.trk[ft].par;
     int d;
-    if (p != TP_E1 || fx_pick_type(par[TP_ENGINE] % NFXPICK) != FXT_DELAY)
+    if (p != TP_CAMT || par[TP_CTYPE] != EF_DELAY)
         return par[p] + (int)e;
     d = fx_delay_div(par[p]) + (e > 0 ? 1 : -1);
     return d < 0 ? 6 : d >= FX_DL_N ? 13 * FX_DL_N - 7 : 13 * d + 6;
@@ -2358,9 +2364,10 @@ static void knob_do(int k, int32_t e)
     case P_GLFO: glfo_knob(k, e); return;
     default: break;
     }
-    if (fx_page(ui.page)) {                      /* an effect's knobs: the effect track's own */
+    if (fx_page(ui.page)) {                      /* an effect's knobs: the effect track's own (its slot's, its return) */
         int ft = ui.page == P_FX1 ? AUX_FX1 : AUX_FX2;
-        set_tp(ft, TP_E1 + k, fx_turned(ft, TP_E1 + k, e));
+        p = tp_page_param(ui.page, k, ft);
+        set_tp(ft, p, fx_turned(ft, p, e));
         return;
     }
     if (ui.page == P_SENDS) {
@@ -2555,9 +2562,9 @@ static void list_open(void)
     list_sec = 0;
     ui.pick_engine = proj.trk[sel_trk()].par[TP_ENGINE] % NENGINE;
     if (is_fx(sel_trk()))
-        ui.pick_fx = proj.trk[sel_trk()].par[TP_ENGINE] % NFXPICK;
+        ui.pick_fx = proj.trk[sel_trk()].par[TP_CTYPE] % NEF;
     if (fx_page(ui.page))
-        ui.pick_fx = proj.trk[ui.page == P_FX1 ? AUX_FX1 : AUX_FX2].par[TP_ENGINE] % NFXPICK;
+        ui.pick_fx = proj.trk[ui.page == P_FX1 ? AUX_FX1 : AUX_FX2].par[TP_CTYPE] % NEF;
     if (PAGE_BTN[page_group(ui.page)].btn == B_GLO && proj_slot < NPROJ)   /* SAVE TO starts on the slot open */
         ui.pick_save = proj_slot;
     list_build();
@@ -2632,7 +2639,7 @@ static void list_change_do(int32_t e)
             break;
         }
         case A_PASTE: ui.pick_paste = (uint8_t)(d > 0); break;
-        case A_EFFECT: ui.pick_fx = (uint8_t)clampi(ui.pick_fx + d, 0, NFXPICK - 1); break;
+        case A_EFFECT: ui.pick_fx = (uint8_t)clampi(ui.pick_fx + d, 0, NEF - 1); break;
         case A_PRESET: ui.pick_preset = (uint16_t)((ui.pick_preset + d + NPRESETS) % (NPRESETS ? NPRESETS : 1)); break;
         case A_SAVE_PRESET: ui.pick_slot = (uint8_t)((ui.pick_slot + d + NUSER_PRESETS) % NUSER_PRESETS); break;
         case A_KIT: ui.pick_kit = (uint8_t)((ui.pick_kit + d + NKITS) % NKITS); break;
@@ -2708,15 +2715,15 @@ static void list_change_do(int32_t e)
             set_tp(sel_trk(), TP_FTYPE, d > 0 ? FT_DYNAMIC : FT_LP24);
             break;
         case A_SLOT_K3: case A_SLOT_MIX: case A_SLOT_X1: case A_SLOT_X2: case A_SLOT_X3: case A_SLOT_X4: {
-            const int t = inst_trk(), pr = TP_SLOT[ui.page == P_INSERT][SLOT_ROW[lst.row[lst.sel].id - A_SLOT_K3]];
+            int t, q = slot_page(ui.page, &t);
+            const int pr = TP_SLOT[q][SLOT_ROW[lst.row[lst.sel].id - A_SLOT_K3]];
             const tp_info_t *in = tp_info_par(pr, proj.trk[t].par);
             set_tp(t, pr, clampi(proj.trk[t].par[pr] + (in->hi < 16 ? d : (int)accel(EN_ALGO, e)), in->lo, in->hi));
             break;
         }
-        case A_FX_HP: case A_FX_LP: case A_FX_SEND: case A_FX_WIDTH: case A_FX_WOBBLE: case A_FX_SMEAR: {
+        case A_FX_HP: case A_FX_LP: case A_FX_SEND: {
             int ft = ui.page == P_FX2 ? AUX_FX2 : AUX_FX1, id = lst.row[lst.sel].id;
-            int q = id == A_FX_HP ? TP_FENV : id == A_FX_LP ? TP_CUT : id == A_FX_WIDTH ? TP_FX_WIDTH
-                  : id == A_FX_WOBBLE ? TP_FX_WOBBLE : id == A_FX_SMEAR ? TP_FX_SMEAR : TP_SEND2;
+            int q = id == A_FX_HP ? TP_FENV : id == A_FX_LP ? TP_CUT : TP_SEND2;
             set_tp(ft, q, proj.trk[ft].par[q] + (int)accel(EN_ALGO, e));
             break;
         }
@@ -3792,12 +3799,9 @@ static void action_run(int a)
         say("ENGINE", EG_NAME[ui.pick_engine % NENGINE]);
         break;
     }
-    case A_EFFECT: {
-        int ft = fx_page(ui.page) ? (ui.page == P_FX1 ? AUX_FX1 : AUX_FX2) : sel_trk();
-        set_tp(ft, TP_ENGINE, ui.pick_fx % NFXPICK);
-        say("EFFECT", fx_label(ui.pick_fx % NFXPICK));
+    case A_EFFECT:
+        fx_effect_set(fx_page(ui.page) ? (ui.page == P_FX1 ? AUX_FX1 : AUX_FX2) : sel_trk(), ui.pick_fx % NEF);
         break;
-    }
     case A_PRESET:
         if (NPRESETS) {
             load_preset(sel_trk(), &PRESETS[ui.pick_preset % NPRESETS]);
@@ -3820,7 +3824,7 @@ static void action_run(int a)
     case A_FOLLOW: case A_USB_AUDIO: case A_COUNT_IN: case A_THEME: case A_LARGE_TYPE: case A_PLAYMODE: case A_FTYPE: case A_FX_HP: case A_FX_LP:
     case A_FX_SEND: case A_PUMP_BY: case A_PUMP_REL: case A_PUMP_ACC: case A_LEVEL: case A_SCENE_AT: case A_AUTOSAVE:
     case A_MIDI_OUT: case A_LOOP_FREE: case A_CC_OUT: case A_SCENES_OUT: case A_MIDI_CC: case A_USB_HOST: case A_KIT_FILTER:
-    case A_CC_IN: case A_FX_WIDTH: case A_FX_WOBBLE: case A_FX_SMEAR: case A_MOD_VIEW: case A_SLOT_K3: case A_SLOT_MIX:
+    case A_CC_IN: case A_MOD_VIEW: case A_SLOT_K3: case A_SLOT_MIX:
     case A_SLOT_X1: case A_SLOT_X2: case A_SLOT_X3: case A_SLOT_X4:
         return;   /* (ALGORITHM sets them; SEL
                                                                                     * leaves the list) */

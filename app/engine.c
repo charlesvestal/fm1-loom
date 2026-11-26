@@ -429,14 +429,13 @@ static int is_filter_param(int param)
 static uint8_t fx_c2;                                      /* the effects' job runs on the second core (from the
                                                             * block's start): their knobs wait for it (fx_dirty) */
 static uint8_t fx_dirty;
-/* an FX track's values (epar) to its send: the effect, its knobs and extras (fx.h fx_pick_slot: the track's pick, four
- * knobs and the delay's three), its filter page */
+/* an FX track's values (epar) to its send: its slot 1 (synth.h TP_SLOT[0]: the effect, its knobs and extras; its mix
+ * the return, mixed here), its filter page */
 static void fx_apply(int k)
 {
     const uint8_t *p = epar[AUX_FX1 + k];
-    uint8_t o[9];
-    fx_pick_slot(p[TP_ENGINE] % NFXPICK, p + TP_E1, p[TP_FX_WIDTH], p[TP_FX_WOBBLE], p[TP_FX_SMEAR], o);
-    fx_set(FXS(k), o[0], o + 1, o + 5);
+    const uint8_t kn[3] = {p[TP_CAMT], p[TP_CTONE], p[TP_S1K3]}, x[4] = {p[TP_S1X1], p[TP_S1X2], p[TP_S1X3], p[TP_S1X4]};
+    fx_set(FXS(k), p[TP_CTYPE], kn, x);
     fx_filter(FXS(k), p[TP_FENV], p[TP_CUT]);
 }
 static void aux_changed(int trk, int param)
@@ -1536,7 +1535,7 @@ static void render_sub(uint32_t n, uint32_t at)
     {
         for (k = 0; k < 2; k++) {                         /* (timed apart: FX I, FX II) */
             PROF_T(pf);                         /* FX I, then FX II (which hears FX I's return) */
-            float g = HOST_ON(8 + k) ? tp_level_gain(epar[AUX_FX1 + k][TP_LEVEL]) : 0.0f;
+            float g = HOST_ON(8 + k) ? tp_level_gain(epar[AUX_FX1 + k][TP_CMIX]) : 0.0f;   /* (the return: its mix) */
             float *rl = tl, *rr = tr;
             if (fx_lag_on[k]) {                           /* run a block behind (fx_job): its return for this stretch */
                 rl = fx_ret[k][0] + at;

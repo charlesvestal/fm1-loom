@@ -137,7 +137,10 @@ void loom_lights(uint32_t buttons, uint32_t keys, int glow, uint32_t dim_keys, i
 #define DEBUG_BUILD (APP_VERSION[0] == 'D' && APP_VERSION[1] == 'E' && APP_VERSION[2] == 'V' && \
                      (!APP_VERSION[3] || APP_VERSION[3] == 'T'))   /* DEV, or the load test's DEVTEST */
 #define PROJ_MAGIC 0x384D4F4Cu          /* "LOM8" (was "XXY1": XY-1's projects start fresh) */
-#define PROJ_FORMAT 28u                 /* (10, 0.5-beta's, to 12 load too: project.c migrate_old; older ones do not)
+#define PROJ_FORMAT 29u                 /* (10, 0.5-beta's, to 12 load too: project.c migrate_old; older ones do not)
+                                         * 29: the FX tracks are slots of the one effects list (their slot 1: the
+                                         *     effect, knobs, extras; the return its mix), from their pick, four knobs,
+                                         *     PING WIDTH, WOBBLE, SMEAR and level (project.c fx_old);
                                          * 28: the one effects list: a track's two slots (the character slot 1, its
                                          *     types the catalog's; the insert slot 2, its knobs and mix moved),
                                          *     their third knob, mix and extras (TP_S1K3 .. TP_S2X4), the tracks' last

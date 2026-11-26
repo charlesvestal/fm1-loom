@@ -54,9 +54,6 @@ void engine_keys_off(int trk);
 void engine_punch(int fx, int on, int target_trk);
 void engine_brain_key(int note, int on);
 void engine_master(int p, int val);
-#define TP_FX_WIDTH TP_X1               /* an FX track's PING WIDTH (the delay's; 127 full, from format 20) */
-#define TP_FX_WOBBLE TP_X2              /* the delay's WOBBLE and SMEAR (0 off, from format 27) */
-#define TP_FX_SMEAR TP_X3
 int engine_fx_room(int slot);                            /* the send's memory holds its effect (fx.h fx_room) */
 void engine_panic(void);
 void engine_transport(int what);                         /* 0 stop, 1 start, 2 continue, 3 start from the top */

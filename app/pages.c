@@ -291,7 +291,7 @@ enum { A_CLEAR_NOTES, A_CLEAR_LOCKS, A_CLEAR_BOTH, A_COPY_PAT, A_PASTE_PAT, A_RO
        A_KIT, A_SAVE_KIT, A_MIDI_CC, A_USB_HOST, A_BT_MIDI, A_BT_AUDIO, A_BT_ADEV, A_BT_DEVICE, A_BT_DEV, A_BT_LOOK,
        A_BT_FORGET, A_BT_DISCONNECT, A_CLEAR, A_ROTATE, A_PASTE, A_COPY_EMPTY, A_CLEAR_BAR,
        A_COPY_SOUND, A_PASTE_SOUND, A_COPY_KEY, A_PASTE_KEY, A_COPY_SCENE, A_PASTE_SCENE, A_DUP_SLOT, A_KIT_FILTER,
-       A_SHIFT, A_LARGE_TYPE, A_CC_IN, A_FX_WIDTH, A_MOD_VIEW, A_PROJ1, A_PROJ2, A_PROJ3, A_FX_WOBBLE, A_FX_SMEAR,
+       A_SHIFT, A_LARGE_TYPE, A_CC_IN, A_MOD_VIEW, A_PROJ1, A_PROJ2, A_PROJ3,
        A_SLOT_K3, A_SLOT_MIX, A_SLOT_X1, A_SLOT_X2, A_SLOT_X3, A_SLOT_X4, NACTIONS };
 static const uint8_t SLOT_ROW[6] = {SL_K3, SL_MIX, SL_X1, SL_X2, SL_X3, SL_X4};   /* (A_SLOT_K3 ..: a slot's value) */
 static const char *const ACTION_NAME[NACTIONS] = {
@@ -304,9 +304,8 @@ static const char *const ACTION_NAME[NACTIONS] = {
     "PASTE LOCKS ONLY", "DOUBLE PATTERN", "CLEAR LOCKS", "CC OUT", "SCENES OUT", "KIT", "SAVE KIT", "KNOB CC",
     "USB PORT", "BT MIDI", "BT AUDIO", "AUDIO DEVICE", "MIDI DEVICE", "DEVICE", "LOOK AGAIN", "FORGET", "DISCONNECT",
     "CLEAR", "ROTATE", "PASTE", "COPY TO EMPTY", "CLEAR BAR", "COPY SOUND", "PASTE SOUND", "COPY DRUM", "PASTE DRUM",
-    "COPY SCENE", "PASTE SCENE", "DUPLICATE SLOT", "KIT FILTER", "SHIFT NOTES", "LARGE TYPE", "CC IN", "PING WIDTH",
-    "MOD VIEW", "PROJ 1", "PROJ 2", "PROJ 3", "WOBBLE", "SMEAR", "KNOB 3", "MIX", "EXTRA 1", "EXTRA 2", "EXTRA 3",
-    "EXTRA 4"};
+    "COPY SCENE", "PASTE SCENE", "DUPLICATE SLOT", "KIT FILTER", "SHIFT NOTES", "LARGE TYPE", "CC IN",
+    "MOD VIEW", "PROJ 1", "PROJ 2", "PROJ 3", "KNOB 3", "MIX", "EXTRA 1", "EXTRA 2", "EXTRA 3", "EXTRA 4"};
 _Static_assert(NPROJ == 3, "GLO's list: an action a slot (A_PROJ1..A_PROJ3)");
 static const char *const CLEAR_WHAT[3] = {"notes", "locks", "notes and locks"};
 /* a pick ALGORITHM sets at once (a setting: SEL only leaves the list), as against a choice SEL then carries out */
@@ -318,7 +317,7 @@ static int pick_sets(int a)
     case A_FOLLOW: case A_USB_AUDIO: case A_COUNT_IN: case A_THEME: case A_LARGE_TYPE: case A_PLAYMODE: case A_FTYPE:
     case A_FX_HP: case A_FX_LP: case A_FX_SEND: case A_PUMP_BY: case A_PUMP_REL: case A_PUMP_ACC: case A_LEVEL:
     case A_SCENE_AT: case A_AUTOSAVE: case A_MIDI_OUT: case A_LOOP_FREE: case A_CC_OUT: case A_SCENES_OUT: case A_MIDI_CC:
-    case A_USB_HOST: case A_KIT_FILTER: case A_CC_IN: case A_FX_WIDTH: case A_FX_WOBBLE: case A_FX_SMEAR: case A_MOD_VIEW:
+    case A_USB_HOST: case A_KIT_FILTER: case A_CC_IN: case A_MOD_VIEW:
         return 1;
     default:
         return 0;
@@ -710,6 +709,13 @@ static int page_trk(int p)
     return p == P_FX1 ? AUX_FX1 : p == P_FX2 ? AUX_FX2 : p == P_SENDS || p == P_CHARACTER || p == P_INSERT ? inst_trk()
                                                                                                   : sel_trk();
 }
+/* a slot page's slot (0, 1) and track: Character slot 1 and Insert slot 2 of the instrument, FX I / II their effect
+ * track's slot 1 */
+static int slot_page(int p, int *trk)
+{
+    *trk = p == P_FX1 ? AUX_FX1 : p == P_FX2 ? AUX_FX2 : inst_trk();
+    return p == P_INSERT;
+}
 static int kit_x_page(int t)                         /* a kit whose key shown has eight knobs: its
                                                       * knobs 5..8 on Engine 2 (TP_DRUMX) */
 {
@@ -804,7 +810,7 @@ static int grp_index(int p)
     return -1;
 }
 /* the TP_* a page's knob k edits, -1 none */
-static int fx_pick_of(int trk);
+static const int16_t FX_KNOB[4] = {TP_CAMT, TP_CTONE, TP_S1K3, TP_CMIX};   /* an FX track's: its slot's knobs, the return */
 static int tp_page_param(int p, int k, int trk)
 {
     static const int8_t M[][4] = {                    /* (a row a page, from P_ENGINE to P_MIX) */
@@ -821,7 +827,7 @@ static int tp_page_param(int p, int k, int trk)
     if (p < P_ENGINE || p > P_MIX || p == P_THROWS || p == P_WEAVE || k < 0 || k > 3)
         return -1;
     if (fx_page(p))                                  /* (the effect tracks' own knobs, whatever trk is) */
-        return M[p - P_ENGINE][k];
+        return FX_KNOB[k];
     if (p == P_SENDS)                                /* (a kit's: the key's own, below) */
         return is_aux(trk) ? -1 : is_drum(trk) && k < 2 ? TP_DRUM(ui.dsound % DL_NSOUND, DP_SEND1 + k)
                                                         : M[p - P_ENGINE][k];
@@ -832,15 +838,14 @@ static int tp_page_param(int p, int k, int trk)
         return is_aux(trk) ? -1 : M[p - P_ENGINE][k];
     if (is_aux(trk)) {
         if (p == P_MIX)                              /* (the conductor and the throws: no sound, no fader) */
-            return k == 3 && is_fx(trk) ? TP_LEVEL : -1;
+            return k == 3 && is_fx(trk) ? TP_CMIX : -1;
         if (trk == AUX_BRAIN && (p == P_ENGINE || p == P_SUB))   /* key, scale, link; the Follow page: its track */
             return p == P_SUB ? (k ? -1 : TP_E1) : k < 3 ? TP_E2 + k : -1;
         if (p == P_ENGINE)
-            return (trk == AUX_PUNCH || trk == AUX_WEAVE) && k ? -1 : TP_E1 + k;
-        if (p == P_PLAY && is_fx(trk)) {             /* an FX track's page 2: high-pass, low-pass, the feed into FX II,
-                                                      * a delay's PING WIDTH */
-            static const int8_t F2[4] = {TP_FENV, TP_CUT, TP_SEND2, TP_FX_WIDTH};
-            return k == 2 && trk != AUX_FX1 ? -1 : k == 3 && fx_pick_type(fx_pick_of(trk)) != FXT_DELAY ? -1 : F2[k];
+            return is_fx(trk) ? FX_KNOB[k] : (trk == AUX_PUNCH || trk == AUX_WEAVE) && k ? -1 : TP_E1 + k;
+        if (p == P_PLAY && is_fx(trk)) {             /* an FX track's page 2: high-pass, low-pass, the feed into FX II */
+            static const int8_t F2[4] = {TP_FENV, TP_CUT, TP_SEND2, -1};
+            return k == 2 && trk != AUX_FX1 ? -1 : F2[k];
         }
         return -1;
     }
@@ -1339,8 +1344,11 @@ static const char *short_name(const char *n)        /* a knob name short enough 
 static void ktp_val(knob_t *k, int trk, int p, int v)
 {
     const uint8_t *par = proj.trk[trk].par;
-    const tp_info_t *in = tp_info_par(p, par);
+    const tp_info_t *in;
     char num[12], unit[6], val[24], *e;
+    if (is_fx(trk) && p == TP_CMIX)                  /* (an FX track's mix: its return, a level as a track's fader) */
+        p = TP_LEVEL;
+    in = tp_info_par(p, par);
     if (!in->name || !in->name[0] || s_eq(in->name, "-"))
         return;
     tp_text_par(p, v, par, num, unit);
@@ -1654,15 +1662,19 @@ static void lock_knobs(knob_t *k)
             ktp_val(&k[i], trk, p, pats.lane[ln].val[step]);
     }
 }
-/* an FX track's TP_ENGINE byte: the pick (fx.h), and how the screen names it: "chorus", or "reverb hall" */
-static int fx_pick_of(int trk) { return proj.trk[trk].par[TP_ENGINE] % NFXPICK; }
-static const char *fx_label(int pick)
+/* an FX track's effect (its slot 1's), and how the screen names it: "chorus", or "reverb hall" */
+static int fx_ef(int trk) { return proj.trk[trk].par[TP_CTYPE] % NEF; }
+static int fx_mode(int trk) { return proj.trk[trk].par[TP_S1X1] % NRV; }
+static const char *fx_label(int trk)
 {
-    static char t[24];
-    if (fx_pick_type(pick) != FXT_REVERB)
-        return fx_pick_name(pick);
-    s_cat(s_cat(s_cat(t, FXT_NAME[FXT_REVERB]), " "), fx_pick_name(pick));
-    return t;
+    static char t[2][24];
+    static uint8_t at;
+    char *o = t[at++ & 1u];
+    if (fx_ef(trk) != EF_REVERB)
+        return EFX[fx_ef(trk)].name;
+    o[0] = 0;
+    s_cat(s_cat(s_cat(o, EFX[EF_REVERB].name), " "), RV_NAME[fx_mode(trk)]);
+    return o;
 }
 /* an effect's four knobs, 00..99; the delay's time as a note ("1/8D", or what the line plays: "1/4 as 1/8") and its
  * fine in % */
@@ -1673,24 +1685,22 @@ static char *dl_name(char *o, int d, int h)
         *o++ = FX_DL_MARK[d], *o = 0;
     return o;
 }
+/* an FX track's knobs: its slot's three as the catalog names them, its return; the delay's time as what the line plays
+ * ("1/4 as 1/8": too long for it), its repeats at the top "hold" */
 static void fx_knobs(knob_t *k, int trk)
 {
     const uint8_t *par = proj.trk[trk].par;
-    int pick = par[TP_ENGINE] % NFXPICK;
     for (int i = 0; i < 4; i++)
-        kn(&k[i], short_name(fx_knob_name(pick, i)), par[TP_E1 + i] * 100 / 128, 99);
-    if (fx_pick_type(pick) == FXT_DELAY) {
+        ktp(&k[i], trk, FX_KNOB[i]);
+    if (fx_ef(trk) == EF_DELAY) {
         char t[24];
-        int d = fx_delay_div(par[TP_E1]), h = fx_delay_halves(par[TP_E1], par[TP_E2], seq_tempo(&seq)), f = par[TP_E2] - 64;
-        f = (f * 50 + 64) >> 7;                      /* fine: +-25 %, rounded */
+        int d = fx_delay_div(par[TP_CAMT]), h = fx_delay_halves(par[TP_CAMT], par[TP_S1X1], seq_tempo(&seq));
         char *e = dl_name(t, d, 0);
         if (h)                                       /* the line too short: what it plays */
             dl_name(s_cat(e, " as "), d, h);
         kv(&k[0], k[0].name, t, d, 0);              /* (a list's knob, as the arp's speed) */
-        s_cat(num_i(f, s_cat(t, f > 0 ? "+" : "")), "%");
-        kv(&k[1], k[1].name, t, par[TP_E2], 127);
-        if (par[TP_E3] >= 127)                       /* repeats at the top: held (fx_delay_fb 1) */
-            kv(&k[2], k[2].name, "hold", 127, 127);
+        if (par[TP_CTONE] >= 127)                    /* repeats at the top: held (fx_delay_fb 1) */
+            kv(&k[1], k[1].name, "hold", 127, 127);
     }
 }
 static void aux_engine_knobs(knob_t *k, int trk)
@@ -1845,8 +1855,6 @@ static void page_knobs(knob_t *k)
             kn(&k[1], "LP", par[TP_CUT], 127);
             if (trk == AUX_FX1)
                 kn(&k[2], "TO FX II", par[TP_SEND2], 127);
-            if (fx_pick_type(fx_pick_of(trk)) == FXT_DELAY)
-                kn(&k[3], "WIDTH", par[TP_FX_WIDTH], 127);
         } else if (!is_aux(trk))
             for (int i = 0; i < 4; i++)
                 ktp(&k[i], trk, tp_page_param(p, i, trk));
@@ -1871,7 +1879,7 @@ static void page_knobs(knob_t *k)
     }
     case P_MIX:
         if (is_fx(trk))
-            ktp(&k[3], trk, TP_LEVEL);
+            ktp(&k[3], trk, TP_CMIX);
         else if (!is_aux(trk)) {                     /* (the conductor and the throws: no sound, no knobs; a kit's
                                                       * sends are its keys': FX, Sends) */
             if (!is_drum(trk)) {
@@ -2159,10 +2167,10 @@ static void page_tag(char *t)
         s_cat(s_cat(e, ">"), EFX[proj.trk[inst_trk()].par[TP_ITYPE] % NEF].name);
         break;
     case P_FX1: case P_FX2: {                        /* FX II>delay, FX II>reverb>hall */
-        int pick = fx_pick_of(ui.page == P_FX1 ? AUX_FX1 : AUX_FX2);
-        e = s_cat(s_cat(s_cat(t, TRACK_NAME[ui.page == P_FX1 ? AUX_FX1 : AUX_FX2]), ">"), FXT_NAME[fx_pick_type(pick)]);
-        if (fx_pick_type(pick) == FXT_REVERB)
-            s_cat(s_cat(e, ">"), fx_pick_name(pick));
+        int ft = ui.page == P_FX1 ? AUX_FX1 : AUX_FX2;
+        e = s_cat(s_cat(s_cat(t, TRACK_NAME[ft]), ">"), EFX[fx_ef(ft)].name);
+        if (fx_ef(ft) == EF_REVERB)
+            s_cat(s_cat(e, ">"), RV_NAME[fx_mode(ft)]);
         break;
     }
     case P_MASTER: case P_MASTER2: case P_MASTER3: case P_GLFO: case P_SETUP: case P_STATUS:
@@ -3053,7 +3061,7 @@ static void list_sound(int trk)
             list_add(nm[t], FOLLOW_NAME[proj.trk[t].par[TP_BRAIN] % NBM], LK_PICK, A_FOLLOW);
         }
     } else if (is_fx(trk)) {
-        list_add(ACTION_NAME[A_EFFECT], fx_label(ui.pick_fx % NFXPICK), LK_PICK, A_EFFECT);
+        list_add(ACTION_NAME[A_EFFECT], EFX[ui.pick_fx % NEF].name, LK_PICK, A_EFFECT);
     } else if (is_drum(trk)) {                     /* the key's play mode, then the kit's */
         list_head("key");
         list_add(ACTION_NAME[A_PLAYMODE], PM_NAME[proj.trk[trk].par[TP_DRUM(ui.dsound % DL_NSOUND, DP_MODE)] % NPM],
@@ -3217,44 +3225,37 @@ static void list_build(void)
         }
     } else if (keep == P_ARRANGE || keep == P_SONG) {
         list_home(keep);
-    } else if (fx_page(keep)) {                     /* an effect: the type, its filter, the feed into FX II, the
-                                                     * delay's PING WIDTH */
-        int ft = keep == P_FX1 ? AUX_FX1 : AUX_FX2;
-        static char hp[8], lp[8], fd[8], wd[8], wo[8], sm[8];
-        num_s(proj.trk[ft].par[TP_FENV], hp);
-        num_s(proj.trk[ft].par[TP_CUT], lp);
-        list_add(ACTION_NAME[A_EFFECT], fx_label(ui.pick_fx % NFXPICK), LK_PICK, A_EFFECT);
-        list_add(ACTION_NAME[A_FX_HP], hp, LK_PICK, A_FX_HP);
-        list_add(ACTION_NAME[A_FX_LP], lp, LK_PICK, A_FX_LP);
-        if (ft == AUX_FX1) {
-            num_s(proj.trk[ft].par[TP_SEND2], fd);
-            list_add(ACTION_NAME[A_FX_SEND], fd, LK_PICK, A_FX_SEND);
-        }
-        if (fx_pick_type(fx_pick_of(ft)) == FXT_DELAY) {
-            num_s(proj.trk[ft].par[TP_FX_WIDTH], wd);
-            list_add(ACTION_NAME[A_FX_WIDTH], wd, LK_PICK, A_FX_WIDTH);
-            num_s(proj.trk[ft].par[TP_FX_WOBBLE], wo);
-            list_add(ACTION_NAME[A_FX_WOBBLE], wo, LK_PICK, A_FX_WOBBLE);
-            num_s(proj.trk[ft].par[TP_FX_SMEAR], sm);
-            list_add(ACTION_NAME[A_FX_SMEAR], sm, LK_PICK, A_FX_SMEAR);
-        }
-    } else if ((keep == P_CHARACTER || keep == P_INSERT) && !is_aux(inst_trk())) {   /* a slot's values past its page's
-                                                     * knobs: slot 1's third knob, slot 2's mix, the extras */
-        static char nm[6][12], vt[6][16];
-        const int q = keep == P_INSERT, st = inst_trk();
+    } else if (fx_page(keep) || ((keep == P_CHARACTER || keep == P_INSERT) && !is_aux(inst_trk()))) {
+        /* a slot's values past its page's knobs: slot 1's third knob, slot 2's mix, the extras; an effect track's (its
+         * knobs and return on the page): the catalog, the extras, its filter, the feed into FX II */
+        static char nm[6][12], vt[6][16], hp[8], lp[8], fd[8];
+        int st, q = slot_page(keep, &st);
         const uint8_t *par = proj.trk[st].par;
+        if (is_fx(st))
+            list_add(ACTION_NAME[A_EFFECT], EFX[ui.pick_fx % NEF].name, LK_PICK, A_EFFECT);
         for (int r = 0; r < 6; r++) {
             const int pr = TP_SLOT[q][SLOT_ROW[r]];
             const tp_info_t *in = tp_info_par(pr, par);
             char num[12], unit[6];
-            if ((r == 0 && q) || (r == 1 && !q) || in->name[0] == '-')
-                continue;                           /* (slot 1's mix and slot 2's knob 3: on the page) */
+            if ((r == 0 && (q || is_fx(st))) || (r == 1 && !q) || in->name[0] == '-')
+                continue;                           /* (slot 1's mix and knob 3, slot 2's knob 3: on the page) */
             for (int c = 0; c < 11 && in->name[c]; c++)
                 nm[r][c] = (char)(in->name[c] >= 'a' && in->name[c] <= 'z' ? in->name[c] - 32 : in->name[c]),
                 nm[r][c + 1] = 0;
             tp_text_par(pr, par[pr], par, num, unit);
+            vt[r][0] = 0;
             s_cat(unit[0] ? s_cat(s_cat(vt[r], num), unit[0] == '%' ? "" : " ") : s_cat(vt[r], num), unit);
             list_add(nm[r], vt[r], LK_PICK, A_SLOT_K3 + r);
+        }
+        if (is_fx(st)) {
+            num_s(par[TP_FENV], hp);
+            num_s(par[TP_CUT], lp);
+            list_add(ACTION_NAME[A_FX_HP], hp, LK_PICK, A_FX_HP);
+            list_add(ACTION_NAME[A_FX_LP], lp, LK_PICK, A_FX_LP);
+            if (st == AUX_FX1) {
+                num_s(par[TP_SEND2], fd);
+                list_add(ACTION_NAME[A_FX_SEND], fd, LK_PICK, A_FX_SEND);
+            }
         }
     } else if ((keep == P_ENV || keep == P_FILTER || keep == P_ENV2 || keep == P_KITF) && !is_aux(trk)) {
         int fq = ftype_param(trk, keep);
@@ -5265,62 +5266,6 @@ static void draw_punch(void)
     cv_text(120, 104, &FONT_XS, proj.trk[AUX_PUNCH].par[TP_E1] ? "latch on" : "while held", K_DIM);
     main_blit();
 }
-static void draw_fxtrack(int trk)                    /* AUX_FX1 / AUX_FX2: the effect and a picture of it */
-{
-    int pick = fx_pick_of(trk), type = fx_pick_type(pick);
-    uint32_t h = hash_u(hash_u(2166136261u, 0xF0u), (uint32_t)trk | (uint32_t)pick << 4 | (ui.frame / 3) << 8 |
-                                          (uint32_t)ui.last_inst << 24);
-    char t[32];
-    if (!begin_main(h))
-        return;
-    cv_text(12, 4, &FONT_L, FXT_NAME[type], K_TEXT);
-    if (type == FXT_REVERB)                          /* the reverb's mode under the description */
-        cv_text(12, 58, &FONT_S, fx_pick_name(pick), K_NOW);
-    s_cat(s_cat(t, trk == AUX_FX1 ? "send effect I, keys play " : "send effect II, keys play "), TRACK_NAME[inst_trk()]);
-    cv_text(12, 40, &FONT_XS, t, K_DIM);
-    {
-        int32_t x0 = 130, y0 = 60, w = 100;
-        uint32_t f = ui.frame;
-        switch (type) {
-        case FXT_CHORUS: {
-            pen_t p0 = {0}, p1 = {0};
-            for (int32_t x = 0; x <= w; x++) {
-                float t = (float)x / 192.0f + (float)f / 96.0f;
-                pen_to(&p1, (float)(x0 + x), (float)(y0 + 20) + 10.0f * fm_sin_turns(t + 0.16f), K_DIM);
-                pen_to(&p0, (float)(x0 + x), (float)(y0 + 20) + 10.0f * fm_sin_turns(t), K_NOW);
-            }
-            break;
-        }
-        case FXT_DELAY:
-            for (int k = 0; k < 5; k++)
-                cv_round(x0 + k * 20, y0 + 30 - (30 >> k), 10, 30 >> k, 2, k ? K_DIM : K_NOW);
-            break;
-        case FXT_LOFI:
-            for (int32_t x = 0; x < w; x += 8)
-                cv_rect(x0 + x, y0 + 20 - sin100((uint32_t)(x / 8)) * 16 / 100, 8, 3, K_NOW);
-            break;
-        case FXT_PHASER:
-            for (int k = 0; k < 4; k++) {
-                int32_t x = x0 + 10 + k * 24 + sin100(f / 3 + (uint32_t)k * 8) * 6 / 100;
-                cv_round(x, y0, 6, 40, 3, k & 1 ? K_DIM : K_NOW);
-            }
-            break;
-        default:
-            for (int k = 0; k < 6; k++) {                /* rings spreading out, fainter as they go */
-                float rr = 8.0f + (float)k * 7.0f;
-                pen_t pn = {0};
-                for (int i = 0; i <= 48; i++) {
-                    float t = (float)i / 48.0f;
-                    pen_to(&pn, (float)(x0 + 50) + rr * fm_sin_turns(t + 0.25f), (float)(y0 + 20) + rr * 0.5f * fm_sin_turns(t),
-                           k & 1 ? K_DIM : K_NOW);
-                }
-            }
-            break;
-        }
-    }
-    main_blit();
-}
-
 static void draw_play(void)
 {
     int trk = sel_trk();
@@ -5948,13 +5893,20 @@ static float pic_atan(float x)                       /* atan x, x >= 0 (a pictur
     y = x * (0.99997726f + x2 * (-0.33262347f + x2 * (0.19354346f + x2 * (-0.11643287f + x2 * (0.05265332f - x2 * 0.01172120f)))));
     return inv ? 1.57079633f - y : y;
 }
-/* a track's slot (the Character page: slot 1, Insert: slot 2): its effect, what it does, where it is, and a picture of
- * it, from its knobs as its effect names them: the dirt and the color their curves (synth.c slot_picture: the
- * transfer, a crushed or ring-modulated wave, the tilt's response, the dry dimmed behind); tremolo each side's level
- * over two of its cycles (the left bright, the right faint: apart by pan); the phaser, univibe and autowah their
- * response; chorus and juno their two taps' delays crossing; the delay its repeats; rumble its ducked tail; rat its
- * clip. An effect whose memory is taken says which tracks have it */
-static void draw_slot(int q)
+/* a slot (the Character page: a track's slot 1, Insert: its slot 2; FX I / II: the effect track's): its effect, what it
+ * does, where it is, and a picture of it, from its knobs as its effect names them: the dirt and the color their curves
+ * (synth.c slot_picture: the transfer, a crushed or ring-modulated wave, the tilt's response, the dry dimmed behind);
+ * tremolo each side's level over two of its cycles (the left bright, the right faint: apart by pan); the phaser,
+ * univibe and autowah their response; chorus and juno their two taps' delays crossing; the delay its repeats; rumble
+ * its ducked tail; rat its clip; lofi its steps; the reverb rings spreading. An effect whose memory is taken says who
+ * has it (the sends, the tracks) */
+static int slot_holds(int t, int r)                  /* track t's slot r holds memory of the pool (as set) */
+{
+    const uint8_t *o = proj.trk[t].par;
+    int ef = o[TP_SLOT[r][SL_EF]];
+    return ef < NEF && (is_fx(t) || o[TP_SLOT[r][SL_MIX]]) && efx_need(ef, o[TP_SLOT[r][SL_X1]], is_fx(t));
+}
+static void draw_slot(int pg)
 {
     static const char *const ABOUT[NEF] = {"the sound as it is", "a soft saturation", "a pedal's distortion",
                                            "a sine wavefolder", "fewer bits, a lower rate", "a ring modulator",
@@ -5963,9 +5915,10 @@ static void draw_slot(int q)
                                            "notches that sweep", "a lamp-swept phase", "two voices swaying apart",
                                            "the Juno's chorus", "a filter your playing opens", "repeats in time",
                                            "a low, dark tail, ducked", "a space around it"};
-    int trk = inst_trk(), drum = is_drum(trk);
-    const uint8_t *p = par_now(trk);
-    const int pe = TP_SLOT[q][SL_EF], ef = p[pe] < NEF ? p[pe] : EF_OFF, room = engine_slot_room(trk, q);
+    int trk, q = slot_page(pg, &trk), drum = is_drum(trk), send = is_fx(trk);
+    const uint8_t *p = send ? proj.trk[trk].par : par_now(trk);
+    const int pe = TP_SLOT[q][SL_EF], ef = p[pe] < NEF ? p[pe] : EF_OFF;
+    const int room = send ? engine_fx_room(trk - AUX_FX1) : engine_slot_room(trk, q);
     const float k0 = (float)p[TP_SLOT[q][SL_K1]] / 127.0f, k1 = (float)p[TP_SLOT[q][SL_K2]] / 127.0f;
     const float k2 = (float)p[TP_SLOT[q][SL_K3]] / 127.0f, mix = (float)p[TP_SLOT[q][SL_MIX]] / 127.0f;
     uint32_t h = hash_u(hash_u(2166136261u, 0xC4u + (uint32_t)q), (uint32_t)trk | (uint32_t)ef << 4 | (uint32_t)drum << 9 |
@@ -5974,29 +5927,36 @@ static void draw_slot(int q)
     char t[40];
     for (int j = SL_K1; j <= SL_MIX; j++)
         h = hash_u(h, p[TP_SLOT[q][j]]);
-    for (int k = 0; k < NTRK && !room; k++)          /* (who has the memory: the message names them) */
-        h = hash_u(h, proj.trk[k].par[TP_CTYPE] | (uint32_t)proj.trk[k].par[TP_ITYPE] << 8);
+    h = hash_u(h, (uint32_t)send << 1 | (uint32_t)(send ? 0 : ui.last_inst) << 4);
+    for (int k = 0; k < NTRK + 2 && !room; k++) {    /* (who has the memory: the message names them) */
+        const int kt = k < 2 ? AUX_FX1 + k : k - 2;
+        h = hash_u(h, (uint32_t)slot_holds(kt, 0) | (uint32_t)slot_holds(kt, 1) << 1);
+    }
     if (!begin_main(h))
         return;
     cv_text(12, 4, &FONT_L, EFX[ef].name, K_TEXT);
-    cv_text(12, 40, &FONT_XS, ABOUT[ef], K_DIM);
-    if (q)
+    if (ef == EF_REVERB)                             /* (its mode) */
+        s_cat(s_cat(s_cat(t, ABOUT[ef]), ": "), RV_NAME[p[TP_SLOT[q][SL_X1]] % NRV]);
+    else
+        s_cat(t, ABOUT[ef]);
+    cv_text(12, 40, &FONT_XS, t, K_DIM);
+    if (send)
+        s_cat(s_cat(t, trk == AUX_FX1 ? "send I, keys play " : "send II, keys play "), TRACK_NAME[inst_trk()]);
+    else if (q)
         s_cat(s_cat(s_cat(t, "after "), TRACK_NAME[trk]), "'s character");
     else
         s_cat(s_cat(s_cat(t, drum ? "on all of " : "after "), TRACK_NAME[trk]), drum ? "'s keys" : "'s filter");
     cv_text(12, 56, &FONT_XS, t, K_DIM);
-    if (!room) {                                     /* (the slots' memory taken: which tracks have it) */
+    if (!room) {                                     /* (the memory taken: who has it) */
         char *e = s_cat(t, "no memory");
         int n = 0;
-        for (int k = 0; k < NTRK; k++) {
+        for (int k = 0; k < NTRK + 2; k++) {
+            const int kt = k < 2 ? AUX_FX1 + k : k - 2;
             int has = 0;
-            for (int r = 0; r < 2; r++) {
-                const uint8_t *o = proj.trk[k].par;
-                int oe = o[TP_SLOT[r][SL_EF]];
-                has |= (k != trk || r != q) && oe < NEF && o[TP_SLOT[r][SL_MIX]] && efx_need(oe, o[TP_SLOT[r][SL_X1]], 0);
-            }
+            for (int r = 0; r < (k < 2 ? 1 : 2); r++)
+                has |= (kt != trk || r != q) && slot_holds(kt, r);
             if (has)
-                e = s_cat(s_cat(e, n++ ? " " : ": "), TRACK_NAME[k]);
+                e = s_cat(s_cat(e, n++ ? " " : ": "), TRACK_NAME[kt]);
         }
         cv_text(12, 74, &FONT_XS, t, K_TEXT);
     }
@@ -6094,6 +6054,20 @@ static void draw_slot(int q)
             pen_to(&pt, (float)(x0 + i), (float)cy - a * wv, K_NOW);
             pen_to(&pb, (float)(x0 + i), (float)cy + a * wv * 0.6f, K_FAINT);
         }
+    } else if (ef == EF_LOFI) {                      /* a sine held in steps, the rate's */
+        const int32_t st = 4 + (int32_t)((1.0f - k0) * 12.0f);
+        for (int32_t x = 0; x < w; x += st)
+            cv_rect(x0 + x, cy - (int32_t)(fm_sin_turns((float)x / (float)w) * (float)(hh / 2 - 8)), st, 3, K_NOW);
+    } else if (ef == EF_REVERB) {                    /* rings spreading out, fainter as they go, wider by its size */
+        for (int k = 0; k < 6; k++) {
+            float rr = 8.0f + (float)k * (4.0f + 4.0f * k0);
+            pen_t pn = {0};
+            for (int i = 0; i <= 48; i++) {
+                float u = (float)i / 48.0f;
+                pen_to(&pn, (float)(x0 + w / 2) + rr * fm_sin_turns(u + 0.25f), (float)cy + rr * 0.5f * fm_sin_turns(u),
+                       k & 1 ? K_DIM : K_NOW);
+            }
+        }
     } else if (ef == EF_RAT) {                       /* the clip's curve at its gain, the dry line faint */
         float g = 1.0f + 60.0f * k0, top;
         pen_t pd = {0}, pn = {0};
@@ -6119,8 +6093,8 @@ static void draw_sends(void)                         /* the instrument's two sen
     uint32_t h = hash_u(hash_u(2166136261u, 0x5Eu), (uint32_t)trk | (uint32_t)sv[0] << 4 | (uint32_t)sv[1] << 12 |
                                           (uint32_t)p[TP_LEVEL] << 28);
     char t[32];
-    h = hash_u(h, proj.trk[AUX_FX1].par[TP_ENGINE] | (uint32_t)proj.trk[AUX_FX2].par[TP_ENGINE] << 8 |
-                      (uint32_t)(drum ? key + 1 : 0) << 16);
+    h = hash_u(h, (uint32_t)fx_ef(AUX_FX1) | (uint32_t)fx_ef(AUX_FX2) << 5 | (uint32_t)fx_mode(AUX_FX1) << 10 |
+                      (uint32_t)fx_mode(AUX_FX2) << 14 | (uint32_t)(drum ? key + 1 : 0) << 18);
     if (!begin_main(h))
         return;
     s_cat(s_cat(t, drum ? DL_SOUND_NAME[key] : TRACK_NAME[trk]), " sends to");
@@ -6131,14 +6105,14 @@ static void draw_sends(void)                         /* the instrument's two sen
             y = 28 + i * 27;
             v = sv[i] * 216 / 127;
             cv_text(12, y - 2, &FONT_S, i == 0 ? "FX I" : "FX II", K_TEXT);
-            text_r(228, y, &FONT_XS, fx_label(fx_pick_of(AUX_FX1 + i)), K_DIM);
+            text_r(228, y, &FONT_XS, fx_label(AUX_FX1 + i), K_DIM);
             cv_round(12, y + 19, 216, 6, 3, K_LINE);
             if (v > 0)
                 cv_round(12, y + 19, v < 6 ? 6 : v, 6, 3, K_NOW);
             continue;
         }
         cv_text(12, y - 2, &FONT_S, i == 0 ? "FX I" : "FX II", K_TEXT);
-        cv_text(12, y + 11, &FONT_XS, fx_label(fx_pick_of(AUX_FX1 + i)), K_DIM);
+        cv_text(12, y + 11, &FONT_XS, fx_label(AUX_FX1 + i), K_DIM);
         cv_round(92, y + 3, 132, 8, 4, K_LINE);
         if (v > 0)
             cv_round(92, y + 3, v < 8 ? 8 : v, 8, 4, K_NOW);
@@ -6451,10 +6425,10 @@ static int32_t mix_y(float db)                   /* a level in dB: its height in
     return (int32_t)((db - MIX_DB_LO) * (float)MIX_H / (MIX_DB_HI - MIX_DB_LO) + 0.5f);
 }
 static float lin_db(float g) { return g > 1e-6f ? fm_log2f(g) * 6.0206f : -120.0f; }
-static int lev_now(int t)                             /* a track's level now (a lock's, a motion's) */
+static int lev_now(int t)                             /* a track's level now (a lock's, a motion's; an FX track's return) */
 {
-    int lv = engine_live(t, TP_LEVEL);
-    return lv >= 0 ? lv : proj.trk[t].par[TP_LEVEL];
+    const int p = is_fx(t) ? TP_CMIX : TP_LEVEL, lv = engine_live(t, p);
+    return lv >= 0 ? lv : proj.trk[t].par[p];
 }
 static void draw_mix(void)
 {
@@ -6914,11 +6888,8 @@ static void draw_main(int trk)
             draw_steps();
         break;
     case P_BAR: draw_bar(); break;
-    case P_CHARACTER: draw_slot(0); break;
-    case P_INSERT: draw_slot(1); break;
+    case P_CHARACTER: case P_INSERT: case P_FX1: case P_FX2: draw_slot(ui.page); break;
     case P_SENDS: draw_sends(); break;
-    case P_FX1: draw_fxtrack(AUX_FX1); break;
-    case P_FX2: draw_fxtrack(AUX_FX2); break;
     case P_ENGINE: case P_PLAY: case P_PLAY2: case P_SUB: case P_OSC2: case P_KMOD: case P_ENV: case P_ENV2: case P_KITF:
     case P_FILTER: case P_LFO: case P_LFO2: case P_PLAYERS: case P_PLAYERS2: case P_PLAYERS3:
         if (trk == AUX_BRAIN)
@@ -6928,7 +6899,7 @@ static void draw_main(int trk)
         else if (trk == AUX_WEAVE)
             draw_weave_play();
         else if (is_aux(trk))
-            draw_fxtrack(trk);
+            draw_slot(trk == AUX_FX1 ? P_FX1 : P_FX2);
         else if (ui.page == P_ENGINE || ui.page == P_OSC2 || (is_drum(trk) && (ui.page == P_PLAY || ui.page == P_SUB)))
             draw_engine();
         else if (ui.page == P_KMOD && is_rayon(trk))

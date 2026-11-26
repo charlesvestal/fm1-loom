@@ -47,7 +47,7 @@ COLD = {
     "dsp/drumline.c": ["start", "knob", "drumline_filter", "drumline_hit", "reso_set", "drumline_init"],
     "dsp/fx.c": ["fx_derive", "eq_coefs", "fx_filter", "master_set", "master_init", "comp_coefs",
                  "fx_set", "fx_init", "fx_delay_halves", "color_coefs", "biq_shelf",
-                 "fx_clear", "master_clear", "coef_ms", "master_pump_ms", "fx_pick_name", "fx_knob_name"],
+                 "fx_clear", "master_clear", "coef_ms", "master_pump_ms", "fx_pick_slot"],
     "dsp/sample.c": ["smp_user_scan", "fact_init", "smp_bank_crc", "smp_name",
                      "smp_entry", "smp_user_bytes", "smp_user_attach"],   # (the samples page's, the boot's)
     "dsp/digisophie.c": ["ds_voice_init"],
@@ -70,7 +70,7 @@ COLD = {
     # (the effects' coefficients, when a knob moves; the pages' pictures and texts)
     "dsp/efx.c": ["efx_char_coefs", "efx_char_picture", "efx_char_hz", "efx_knob_name", "efx_list_name", "ch_lp_hz",
                   "ch_pivot_hz", "ch_alpha", "ch_tape_hz", "ch_smp_hz", "ch_smp_rate", "efx_send_nums", "efx_nums",
-                  "efx_delay_secs", "fx_delay_fb"],
+                  "efx_delay_secs", "fx_delay_fb", "efx_knob_word", "efx_rv_ring"],
     "seq/pattern.c": ["pattern_init", "patterns_init", "lane_alloc", "lane_clear", "lane_count", "lane_pool_set",
                       "lane_pool_free", "step_clear_locks", "pattern_clear_locks", "step_set_notes",
                       "step_toggle_note", "kit_set", "kit_toggle", "kit_add", "pattern_woven", "weave_step",
