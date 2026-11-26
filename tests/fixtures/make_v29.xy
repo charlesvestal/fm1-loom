@@ -1,0 +1,17 @@
+# a format 29 project, from before the master's color was a slot of the one effects list (format 30: its type off /
+# tape / sampler becomes the catalog's effect, its amount, tone and mix knob 1, knob 2 and the mix: project.c): saved
+# by that build, for the migration's test (tests/scenarios/migrate.xy). The master color tape, amount 70, tone 40,
+# mix 100; the EQ's low 80 and the comp 50 beside it (they stay where they were).
+# Run by a format 29 build (751d120): its loom_host tests/fixtures/make_v29.xy
+wait 300
+bpm 117
+mst color 1
+mst camount 70
+mst ctone 40
+mst cmix 100
+mst lo 80
+mst comp 50
+mst level 110
+wait 40
+projsave 1 v29_test
+storesave tests/fixtures/store_v29.bin
