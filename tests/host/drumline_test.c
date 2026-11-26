@@ -1199,9 +1199,11 @@ int main(void)
             }
             printf("  8 voices%s:  %5.0f mean, %5.0f worst block\n", k ? " + dynamic filter" : "",
                    (double)total / (55.0 * 256.0), (double)worst / 256.0);
-            check(k ? "eight voices with the dynamic filter under 780 instructions a sample (the filter ~120)"
+            /* (the filter: ~100 on the pair, ~85 more on the two sends since 92c640e (their cuts, gain and drive as
+             * the pair's: 701 without them, 785 with), ~2 the mixer's kit-key mutes' check a chunk (0945ed3)) */
+            check(k ? "eight voices with the dynamic filter under 800 instructions a sample (the filter ~185, sends too)"
                     : "eight voices under 660 instructions a sample (80 a voice, the key stages neutral)",
-                  total / (55 * 256) < (k ? 780u : 660u));
+                  total / (55 * 256) < (k ? 800u : 660u));
         }
         /* the key stages: every key through its filter (resonant, on the envelope), its drive, its decay; then
          * eight sample voices (the kick at its rate, and two octaves up) */
