@@ -381,6 +381,91 @@ static float k_plate_half(void)                   /* at half the rate: a tick ev
     st[16] = pr;
     return s;
 }
+/* lace's resonators, 12 modes ringing (no input), each mode a pass over the accumulator as lc_one: in float, and in
+ * Q29 fixed point (the 64-bit products out of line, as felucca-bsp docs/CPU.md asks; and inline, for the speed it would
+ * have). On the FM-1 (2026-11-26, ticks a sample): float 17.4, fixed out of line 39.4, inline 20.5: float is lace's */
+#define RES_N 12
+static float rf_y1[RES_N], rf_y2[RES_N], rf_a1[RES_N], rf_a2[RES_N];
+static int32_t rq_y1[RES_N], rq_y2[RES_N], rq_a1[RES_N], rq_a2[RES_N], rq_acc[BENCH_N];
+static void res_init(void)
+{
+    for (int k = 0; k < RES_N; k++) {
+        float w = 0.01f + 0.03f * (float)k, r = 0.9999f;
+        rf_a1[k] = 2.0f * r * fm_cosf(6.2831853f * w);
+        rf_a2[k] = r * r;
+        rf_y1[k] = 0.5f;
+        rf_y2[k] = 0.4f;
+        rq_a1[k] = (int32_t)(rf_a1[k] * 536870912.0f);   /* (Q29: a1 to +-2) */
+        rq_a2[k] = (int32_t)(rf_a2[k] * 536870912.0f);
+        rq_y1[k] = 1 << 28;
+        rq_y2[k] = 1 << 27;
+    }
+}
+static float k_res_f(void)
+{
+    for (int j = 0; j < BENCH_N; j++)
+        b_out[j] = 0.0f;
+    for (int k = 0; k < RES_N; k++) {
+        float y1 = rf_y1[k], y2 = rf_y2[k];
+        const float a1 = rf_a1[k], a2 = rf_a2[k];
+        for (int j = 0; j < BENCH_N; j++) {
+            const float y = a1 * y1 - a2 * y2;
+            b_out[j] += y;
+            y2 = y1;
+            y1 = y;
+        }
+        rf_y1[k] = y1, rf_y2[k] = y2;
+        if (fm_fabsf(y1) < 1e-3f)
+            rf_y1[k] = 0.5f;                          /* (kept ringing) */
+    }
+    return b_out[BENCH_N - 1];
+}
+static __attribute__((noinline)) int32_t res_mul(int32_t a, int32_t y1, int32_t b, int32_t y2)
+{
+    return (int32_t)(((int64_t)a * y1 - (int64_t)b * y2) >> 29);
+}
+static float k_res_q(void)
+{
+    for (int j = 0; j < BENCH_N; j++)
+        rq_acc[j] = 0;
+    for (int k = 0; k < RES_N; k++) {
+        int32_t y1 = rq_y1[k], y2 = rq_y2[k];
+        const int32_t a1 = rq_a1[k], a2 = rq_a2[k];
+        for (int j = 0; j < BENCH_N; j++) {
+            const int32_t y = res_mul(a1, y1, a2, y2);
+            rq_acc[j] += y >> 4;
+            y2 = y1;
+            y1 = y;
+        }
+        rq_y1[k] = y1, rq_y2[k] = y2;
+        if (y1 < (1 << 18) && y1 > -(1 << 18))
+            rq_y1[k] = 1 << 28;
+    }
+    for (int j = 0; j < BENCH_N; j++)
+        b_out[j] = (float)rq_acc[j] * (1.0f / 16777216.0f);
+    return b_out[BENCH_N - 1];
+}
+static float k_res_qi(void)                           /* (inline 64-bit products: the speed only, not safe to ship) */
+{
+    for (int j = 0; j < BENCH_N; j++)
+        rq_acc[j] = 0;
+    for (int k = 0; k < RES_N; k++) {
+        int32_t y1 = rq_y1[k], y2 = rq_y2[k];
+        const int32_t a1 = rq_a1[k], a2 = rq_a2[k];
+        for (int j = 0; j < BENCH_N; j++) {
+            const int32_t y = (int32_t)(((int64_t)a1 * y1 - (int64_t)a2 * y2) >> 29);
+            rq_acc[j] += y >> 4;
+            y2 = y1;
+            y1 = y;
+        }
+        rq_y1[k] = y1, rq_y2[k] = y2;
+        if (y1 < (1 << 18) && y1 > -(1 << 18))
+            rq_y1[k] = 1 << 28;
+    }
+    for (int j = 0; j < BENCH_N; j++)
+        b_out[j] = (float)rq_acc[j] * (1.0f / 16777216.0f);
+    return b_out[BENCH_N - 1];
+}
 static float k_voice(void)                        /* a subtractive voice's sample path: two saws, lp24, amp, outputs */
 {
     float p = st[0], q = st[3], d = st[1], e = st[1] * 1.003f, id = st[2], ie = 1.0f / e;
@@ -482,6 +567,7 @@ static const kern_t KERN[] = {
     {"onepole", k_onepole}, {"svf12", k_svf12}, {"svf24", k_svf24}, {"ladder", k_ladder}, {"soft3", k_soft3},
     {"tanh", k_tanh}, {"exp2", k_exp2}, {"out", k_out}, {"delay", k_delay}, {"chorus", k_chorus},
     {"allpass", k_allpass}, {"plate", k_plate}, {"plate half", k_plate_half}, {"voice", k_voice},
+    {"res float", k_res_f}, {"res q out", k_res_q}, {"res q inl", k_res_qi},
     {"code ram", k_code_ram}};
 static const char *const CODE_NAME[NCODE] = {"code 1", "code 2", "code 4", "code 8", "code 12", "code 16",
                                              "code 24", "code 32", "code 48", "code 64"};
@@ -509,6 +595,7 @@ void bench_prep(int k, void *ram)
 #endif
     for (i = 0; i < 24; i++)
         st[i] = 0.0f;
+    res_init();
     st[0] = 0.8f;                                 /* a phase, or a gain */
     st[1] = f;
     st[2] = 1.0f / f;
