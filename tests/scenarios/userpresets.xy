@@ -1,0 +1,24 @@
+# PRESETS through the user presets (fm1-loom: two or more knit user presets saved from one factory sound; PRESETS
+# from U1 went to the factory sound's neighbours, U2 only came from the first preset): a user preset keeps its factory
+# sound's name, so where PRESETS is comes from the preset picked last, not the first sound of that name
+wait 300
+spin ALGO 2
+expect trk 3
+knob 3 engine knit
+preset 3 dusty_pad knit
+usersave 3 1
+usersave 3 2
+usersave 3 3
+preset 3 U1
+tap EDIT
+listen
+turn PRESET 1
+said U2
+turn PRESET 1
+said U3
+turn PRESET -1
+said U2
+turn PRESET -1
+said U1
+turn PRESET -1
+unsaid U

@@ -1338,6 +1338,7 @@ static int song_cmd(const char *cmd)
         k = atoi(w[2] + 1) - 1;
         if (t < 0 || t >= NTRK || k < 0 || k >= NUSER_PRESETS || !preset_apply(t, NPRESETS + k))
             host_die("no user preset", w[2]);
+        ui.preset_i = (uint16_t)(NPRESETS + k);     /* (as PRESETS leaves it) */
         run_ms(1);
     } else if (!strcmp(cmd, "preset")) {            /* preset T NAME [ENGINE] (NAME: _ for spaces) */
         int pick = -1;

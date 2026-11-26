@@ -415,11 +415,17 @@ static int preset_apply(int trk, int i);
  * the message says what it is for and where: "PAD 3/16 MUSLIN PAD" (a user preset: "PRESET 17/18") */
 static void preset_step(int trk, int d)
 {
-    int eng = proj.trk[trk].par[TP_ENGINE], n = 0, at = -1, i, to, all;
+    int eng = proj.trk[trk].par[TP_ENGINE], n = 0, at = -1, i, to, all, last = ui.preset_i;
     char a[16], b[24];
+    /* where it is: the preset picked last while the track still has its name (a user preset keeps the name of the
+     * factory sound it came from: by name alone it is that sound, and its neighbours came next), else the first of
+     * that name */
+    if (last >= presets_all() || preset_engine(last) != eng ||
+        !name_is(last < NPRESETS ? PRESETS[last].name : user_presets[last - NPRESETS].name, proj.trk[trk].name))
+        last = -1;
     for (i = 0; i < presets_all(); i++)
         if (preset_engine(i) == eng) {
-            if (at < 0 && ((i < NPRESETS && name_is(PRESETS[i].name, proj.trk[trk].name)) || i == ui.preset_i))
+            if (last >= 0 ? i == last : at < 0 && i < NPRESETS && name_is(PRESETS[i].name, proj.trk[trk].name))
                 at = n;
             n++;
         }
