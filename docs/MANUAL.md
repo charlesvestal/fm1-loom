@@ -21,6 +21,7 @@ To see it played first, watch the [LOOM-8 video](https://www.youtube.com/watch?v
 - [Steps](#steps)
 - [Recording](#recording)
 - [Sounds](#sounds)
+- [Effects](#effects)
 - [Players](#players)
 - [Arrange, scenes and the song](#arrange-scenes-and-the-song)
 - [The aux tracks](#the-aux-tracks)
@@ -116,6 +117,8 @@ second.
 - **Player**: what the keys do on a track: arp, strum, hold or random.
 - **Conductor**: an aux track that sets the key, scale and chords for the other tracks. It plays its own chords,
   or takes them from a track's notes.
+- **Effect**: one of LOOM-8's eighteen effects (drive to reverb), in one list. Each track has two, Insert 1 and
+  Insert 2; FX I and FX II are the send effects, and Master FX is on the whole mix.
 - **Throw**: a momentary effect on the drums or the melodic tracks. Hold a key on FX's Throws page to play one.
 - **Weave**: crossing one pattern with another as they play. They take turns by bars or steps, or one plays its
   rhythm with the other's notes. Set it up on the track's ARP pages, and play it on the WEAVE track.
@@ -166,8 +169,9 @@ Count the white keys 1 to 16 from the left, and the black keys 1 to 11. "Hold **
 | get the breaks back (0.7 on) | On the samples page, press Add the breaks, then Send. |
 | chop a break | On a synth track, press **SEL** and set ENGINE to slice. Each key plays one slice of the break, with F3 playing the first. Write them on the steps in any order. To load your own break, run `tools/loom_samples.py load "amen.wav@2"` (here, a loop of 2 bars). |
 | change the filter | Press **ENV** and turn **SELECT** to Filter. **PRESETS** changes the filter type. |
-| give a sound some character | Press **FX** for the Character page. **PRESETS** changes the type (drive, fold, crush, ring, tilt, tape, sampler), and the knobs set its amount, tone and mix. |
-| use the effects | Press **FX** and turn **SELECT** to Sends, the track's sends. Keep turning to reach FX I and FX II, where **PRESETS** picks the effect. |
+| put an effect on a track | Press **FX** for Insert 1 (turn **SELECT** once for Insert 2). **PRESETS** steps to the next effect, or press **SEL** and pick one from the list. The knobs set its three values and the mix. See [Effects](#effects). |
+| use the send effects | Press **FX** and turn **SELECT** to Sends, the track's sends. Keep turning to reach FX I and FX II, where **PRESETS** picks the effect and **KNOB 4** sets its return. |
+| put an effect on the whole mix | Press **GLO** and turn **SELECT** to Master FX. **PRESETS** picks the effect, and **KNOB 4** sets the mix. |
 | play | Press **PLAY**: every track starts from step 1. On Steps or Bar, hold **SEQ** and press **PLAY** to start from the bar on screen. |
 | record live | Hold **REC** and press **PLAY**. Recording starts from step 1 straight away (after the count-in, if you set one). With COUNT on "on note", nothing moves until you play: your first note lands on step 1. |
 | record while playing | While it plays, hold **REC** and play: it records for as long as you hold **REC**. Hold **REC** and press **PLAY** to keep recording on. |
@@ -204,7 +208,7 @@ Count the white keys 1 to 16 from the left, and the black keys 1 to 11. "Hold **
 | **SEQ** | Opens Steps; page 2 is Bar. Hold it on Steps and the keys play the track and set what a step writes (**PRESETS** sets the track's sound, and **OCT** moves the whole pattern an octave). Hold it on Bar and black keys 1 to 4 jump to a bar or loop bars. Hold it on Steps or Bar and press **PLAY** to start from the bar on screen. |
 | **EDIT** | Opens Engine. The pages go from the sound to how it plays. On most engines, page 2 is Play (mode, glide, bend and octave) and page 3 is Play 2 (low cut and volume). On rayon and acid, page 2 is Sub, with the engine's second set of knobs, and Play and Play 2 follow it. Rayon has its Ops page after Sub. On knit, the pages are Engine, Osc 2, Mod, Levels, Play and Play 2. A sample track in a loop mode has its Loop page second. On a drum track, page 2 holds the key's model, random, pan and volume, and page 3 its sends. On the conductor, the pages are its key, the routing and Follow. |
 | **ENV** | Opens Envelope (on a drum track: lag, attack, random, length), then Filter, then the filter's envelope. |
-| **FX** | Opens Character, the track's own effect. Next come Sends, the track's sends to FX I and FX II, and then FX I and FX II, the two effects. |
+| **FX** | Opens Insert 1, the track's first effect, then Insert 2. Next come Sends, the track's sends to FX I and FX II, and then FX I and FX II, the two send effects, and Throws. |
 | **LFO** | Opens LFO. Page 2 has the type's fourth and fifth knobs. |
 | **ARP** | Opens Players. With the arp, page 2 has its second set of knobs and page 3 is hold. |
 | **GLO** | Opens Mix. Turn **SELECT** for Master EQ, Master FX, Master out, LFO (the shared LFO) and Setup. |
@@ -385,7 +389,7 @@ letters show the tricks of the sound on screen, or of another sound when that on
 
 Hold a step and press **EDIT**, **ENV**, **FX** or **LFO**. The knob strip becomes that module's four knobs for
 the held step. Turn **SELECT** for the module's other pages. **ENV** has the envelope, the filter and the filter
-envelope, and **FX** has the character and the sends. A knob shows "–" when the step has no lock on it, and locked
+envelope, and **FX** has Insert 1, Insert 2 and the sends. A knob shows "–" when the step has no lock on it, and locked
 values show in red. Turn a knob to lock its value on the step, and let go of the step to go back. A lock lasts
 until the next step that plays without one, and that step plays the knob's own value again.
 
@@ -500,7 +504,7 @@ melody's notes.
   moves until you play. That note lands on step 1, and everything runs from there.
 - To record while it plays, hold **REC** and play. It records only while you hold **REC**. To keep recording on,
   hold **REC** and press **PLAY**. Press **REC** again to turn it off.
-- While you record, any knob you turn on a sound page (Engine, Envelope, Filter, Character, Sends, LFO ...) writes
+- While you record, any knob you turn on a sound page (Engine, Envelope, Filter, Insert 1, Sends, LFO ...) writes
   its motion onto the steps as locks as they play. To punch it in, hold **REC** while it plays and turn the knob.
   It records while you hold **REC**, and the keys record too.
 - To record chords on the conductor, turn **ALGORITHM** to COND and record the same way. Each chord lands on the
@@ -635,10 +639,10 @@ filter. At 0, knit is exact. To hear what osc 2 does, try the presets fifth lead
 and for analog, warm poly, old strings and old lead. Knit's Play and Play 2 pages come last, after Levels, and Play 2
 has the track's volume, as on the other engines.
 
-Some of knit's presets come with an insert. The Juno-style ones (juno pad, juno brass, juno bass, juno str) carry the
-juno chorus, and so do hoover, deep stab, liquid pad and rave stab. Dub chord carries a tape echo, rat stab and noise
-burst the RAT, hypnotic and dirty reese a phaser, neuro an autowah. Rumble is for techno: put it on its own track
-and play a low note with each kick, and its rumble insert rings on under the beat.
+Some of knit's presets come with an effect on Insert 2. The Juno-style ones (juno pad, juno brass, juno bass, juno
+str) carry the juno chorus, and so do hoover, deep stab, liquid pad and rave stab. Dub chord carries a delay, rat stab
+and noise burst the rat, hypnotic and dirty reese a phaser, neuro an autowah. Rumble is for techno: put it on its own
+track and play a low note with each kick, and its rumble rings on under the beat.
 
 A wide unison costs more than an ordinary voice, so knit plays at most six voices, or five when its unison is set
 to seven. A new note beyond that takes over the oldest one.
@@ -897,7 +901,7 @@ It copies the model, knobs, envelope, filter and sends. This is a quick way to s
 four pages.
 
 **Kits.** On a kit track, **EDIT**'s **SEL** list has **KIT** and **SAVE KIT**. Use KIT to load a whole kit onto the
-track. You get its eleven keys with all their settings, plus the kit's envelope, filter, LFO and character. The
+track. You get its eleven keys with all their settings, plus the kit's envelope, filter, LFO and inserts. The
 track's level, pan, player and MIDI OUT stay as they are. LOOM-8 comes with eleven kits, named for fibers and cloth:
 
 - **Loom**: the kit a new project starts with.
@@ -995,7 +999,7 @@ the loop's ends are marked. In loop and ping-pong modes, **SELECT** has one more
 Use **loop start** to set where the loop begins within the part that plays, and **loop len** to set how much of
 the rest it loops. At 0, loop len reads "auto", and it uses the sample's own loop or loops to the end. The loop
 point is crossfaded over 8 ms, so you won't hear a click wherever you set it. After that, the track's envelopes,
-filter, character and LFO shape the sound as they do for any engine. There are eighteen presets:
+filter, inserts and LFO shape the sound as they do for any engine. There are eighteen presets:
 
 - piano is looped, with a little tape. dusty keys is darker, with the tape wobbling. piano stab is short and
   bright, and rev piano is the piano backwards.
@@ -1035,7 +1039,7 @@ How notes overlap depends on the play mode:
   beginning.
 - In legato mode, a new note moves to the same position in the new slice, so the time keeps running.
 
-After that, the envelopes, filter, character and LFO shape the sound as they do for any engine. The presets keep
+After that, the envelopes, filter, inserts and LFO shape the sound as they do for any engine. The presets keep
 the filter's key tracking at 0, so every slice sounds alike. A slice always plays to its gate, however short the
 note. The gate sets the length, not the step, so slices on the steps play through just as the break did.
 
@@ -1153,7 +1157,7 @@ each one's CC number under it. To change which CC a knob sends, press **SEL** an
 to 119). They start as 74, 71, 73 and 72, which are cutoff, resonance, attack and release on most synths. The
 next four are 1, 75, 91 and 93: mod wheel, decay, reverb and chorus.
 
-A MIDI track has no envelope, filter, LFO, character or sends, so **ENV** and **LFO** take you to its knobs.
+A MIDI track has no envelope, filter, LFO, inserts or sends, so **ENV** and **LFO** take you to its knobs.
 **FX** shows only FX I, FX II and Throws. Play keeps its glide, voice mode and octave. SCRAMBLE sets the eight
 knobs at random and leaves their CC numbers alone. CC 9 on the track's channel still mutes it, but other CCs
 coming in on its channel do nothing. That way, a synth that echoes CCs back can't change the CC numbers.
@@ -1175,8 +1179,8 @@ bass. KNOB 4 is the track's volume.
 
 **ENV** opens on the amp envelope. Next comes the filter, with cutoff in Hz, resonance, envelope amount and key
 tracking. Turn **PRESETS** to change its type (lp24, ladder, lp12, hp12, bp12, off). Last is the filter's
-envelope. **FX** has the track's character (below), then its sends to FX I and FX II, its pan and its level, and
-then the two effects. **LFO** has the type and its first three knobs on page 1, and its fourth and fifth on page
+envelope. **FX** has the track's two inserts (see [Effects](#effects)), then its sends to FX I and FX II, its pan and
+its level, and then the two send effects. **LFO** has the type and its first three knobs on page 1, and its fourth and fifth on page
 2. When you pick a new type, it starts from its own defaults:
 
 | Type | Page 1 | Page 2 |
@@ -1195,7 +1199,7 @@ a module, and the parameter is one of that module's four:
 - synth: the engine's four knobs
 - envelope: attack, decay, sustain, release
 - filter: cutoff, resonance, envelope, key tracking
-- voice: volume, pitch, pan, character
+- voice: volume, pitch, pan, insert 1 (Insert 1's first knob)
 
 A destination marked "free" keeps running instead of restarting on each note.
 
@@ -1209,66 +1213,116 @@ note and the envelopes wait for the next note. MOD VIEW is on to start with. To 
 It pauses while LOOM-8 is busy, when the sound takes more than 80 % of the processor, and comes back once that falls
 under 70 %.
 
-### Character
+## Effects
 
-Each synth track has an effect after its filter and before its sends. This is its character. Drive, fold, crush,
-tilt, tape and sampler work on the whole track, as a pedal would: a chord's notes go through it together, so a
-driven chord growls as one, and turning the track's level down on the Mix page doesn't change how hard it drives.
-Ring works on each note on its own, so its sine follows every note's pitch. Press **FX** to open the
-Character page. It shows the type and what it does, with a picture of either the curve a sample goes through or
-what it does to a wave. The faint line is the sound without it. Turn **PRESETS** to change the type. The knobs
-are type, amount, tone and mix, from dry to wet, and at mix 0 the character is off. Each factory preset has its
-own character, so a preset is a whole sound.
+LOOM-8 has one list of effects, and every place that takes an effect picks from it: each track's two inserts, the
+two send effects FX I and FX II, and Master FX on the whole mix. An effect has the same name, the same three knobs
+and the same sound wherever it sits. The fourth knob is always its mix: from dry to wet on an insert and on Master
+FX, and the return level on FX I and FX II.
 
-<img src="img/screen-character.png" width="240" alt="FX&#x27;s Character page on T2: drive, a soft saturation, its curve drawn; knobs type, amount, tone and mix" title="The Character page">
+### The list
 
-| Type | Amount | Tone |
-| --- | --- | --- |
-| off | | |
-| drive | How hard it saturates. The level stays the same. | A low-pass after it, 400 Hz to 20 kHz. |
-| fold | How far the wave folds over. The level stays the same. | The bias. Away from the center, it folds one side more. |
-| crush | How far it drops. | What drops: the sample rate to the left, the bits to the right, both in the middle. |
-| ring | How deep the ring modulation goes. | The ratio of the ring's sine to the note, 0.25:1 to 7:1. |
-| tilt | The pivot, 150 Hz to 6 kHz. | The tilt: darker to the left, brighter to the right, 6 dB each way at the ends. |
-| tape | Worn tape: saturation, plus a pitch wow that deepens with it. Every note wows together. | The top-end roll-off, 1.5 to 18 kHz. |
-| sampler | An old sampler's grain, with a lower rate and fewer bits. | Its output filter, 2 to 20 kHz. |
+The effects come in four groups, and **PRESETS** steps through them in this order. Picking an effect sets its knobs
+to their starting values. What doesn't fit on the knobs is in the page's **SEL** list, under the effects.
 
-You can lock the amount, tone or mix on a step like any knob: hold the step and press **FX**. The LFO can reach
-the amount through the voice module's fourth knob, "character". On a kit, the character belongs to the whole kit
-and comes after its bus filter. The keys' sends are taken before it. A kit's ring uses a ratio of C4, and its
-tape has no wow.
+| Group | Effect | Knob 1 | Knob 2 | Knob 3 | In SEL | Memory |
+| --- | --- | --- | --- | --- | --- | --- |
+| | off | | | | | |
+| dirt | drive | amount: how hard it saturates; the level stays the same | tone: a low-pass after it, 400 Hz to 20 kHz | | | |
+| dirt | rat | distort, after the RAT pedal: more gain, and darker as it rises | filter: darker turned up | level: at its starting value about as loud as without it | | |
+| dirt | fold | amount: how far the wave folds over | bias: away from the center it folds one side more | | | |
+| dirt | crush | amount: how far it drops | which: the sample rate to the left, the bits to the right, both in the middle | | | |
+| dirt | ring | depth of the ring modulation | ratio of its sine to the note, 0.25:1 to 7:1 | | | |
+| dirt | tilt | pivot, 150 Hz to 6 kHz | tilt: darker to the left, brighter to the right, 6 dB each way at the ends | | | |
+| color | tape | amount: worn tape, saturation and a pitch wow that deepens with it | tone: the top-end roll-off, 1.5 to 18 kHz | | | on FX I, FX II and Master FX (its wow) |
+| color | sampler | amount: an old sampler's grain, 26 kHz and 14 bits down to 11 kHz and 11 bits | tone: its output filter, 2 to 20 kHz | | | |
+| color | lofi | rate | bits | smooth | width | yes |
+| movement | tremolo | rate: synced divisions to the left, free rates to the right, as the LFO's speed | depth | pan: at 0 both sides rise and fall together; turned up they move apart, at the top an auto-pan | | |
+| movement | phaser | freq | depth: how far the notches sweep | rate | feedback: sharper, more ringing notches | |
+| movement | univibe | rate, as tremolo's | depth | vibrato: at 0 the classic chorus; turned up, the swept sound alone, a pitch wobble | | |
+| movement | chorus | rate | depth | feedback | width | yes |
+| movement | juno | mode: I, II or I+II, the Juno-60's three buttons | tone: darker turned down, like the Juno's bucket-brigade chips | | | yes |
+| movement | autowah | sense: how far your playing opens the filter | reso | decay: how slowly it closes again | | |
+| space | delay | time: a note value at the tempo | repeats | tone: how bright the repeats are | fine, width, wobble, smear | yes, a lot |
+| space | rumble | decay: how long it rings after each kick | tone: its low-pass, 80 to 320 Hz | | | yes |
+| space | reverb | size | decay (the plate: motion) | tone | type, damp (shimmer: shimmer) | yes, by its type |
 
-### Insert
+A list's knob moves one value a click: the delay's time, juno's mode, a synced rate and, in **SEL**, the reverb's
+type. On a synth track, ring and tape work on each note on its own: ring's sine follows every note's pitch, and
+tape's wow bends every note together. On a kit, on FX I and FX II and on Master FX, ring uses a ratio of C4 and
+tape's wow runs through a short line.
 
-Each track also has an insert: one more effect on the whole track, after its character and before its sends. Press
-**FX** and turn **SELECT** once to reach the Insert page. Turn **PRESETS**, or **KNOB 1**, to pick its type. Picking
-a type sets its knobs to their starting values. On a kit, the insert comes after the kit's character.
+**The delay.** Its time runs from 1/32 to 1/4 of the tempo, with triplets and dotted values, a value a click, and
+**fine** (in **SEL**) moves it up to 25 % either way. The delay holds half a second, so it halves a time longer than
+that, and the knob shows what plays: below 120 BPM a 1/4 shows "1/4 as 1/8". **repeats** at 56 gives about eight;
+each 14 steps doubles them, and at 127 the knob says "hold": they ring on until you turn it down. **width** sets how
+far apart the echoes bounce (at 127, hard left and right; at 0, in the center). **wobble** makes the time drift
+slowly, like tape, more with each repeat, and **smear** blurs each repeat a little more than the last, until the
+echoes turn into a wash. With repeats high and a little of each, a single pluck rings on for many bars.
 
-| Type | Knob 2 | Knob 3 | Knob 4 |
-| --- | --- | --- | --- |
-| off | | | |
-| tremolo | The rate: synced divisions to the left, free rates to the right, as the LFO's speed. | The depth. | Pan: at 0 both sides rise and fall together, a tremolo; turned up, they move apart until at the top they take turns, an auto-pan. |
-| phaser | The rate, as tremolo's. | The depth: how far the notches sweep. | Feedback: sharper, more ringing notches. The two sides sweep a quarter cycle apart. |
-| univibe | The rate, as tremolo's. | The depth. | Vibrato: at 0 the classic chorus, the dry sound under the swept one; turned up, more of the swept sound alone, a pitch-wobbling vibrato. The sweep follows a lamp: it lingers dark and flashes bright. |
-| rat | Distortion, after the RAT pedal: more gain, and darker as it rises. | Filter: darker turned up. | The level. At its starting value it's about as loud as the track without it. |
-| autowah | Sensitivity: how far your playing opens the filter. | Resonance. | Decay: how slowly it closes again. |
-| chorus | The rate, as tremolo's. | The depth. | Mix. Two copies sway against each other, one on each side, as in the Juno's chorus. |
-| echo | The time: 1/32, 1/16T, 1/16, 1/8T, 1/16D, 1/8, 1/8D or 1/4, at the song's tempo. | Feedback: more repeats. Each repeat comes back darker and a little saturated, with a slight wow, like tape. | Mix: how loud the repeats are. |
-| juno | Mode: I, II or I+II, the Juno-60's three buttons: I slow and gentle, II faster and deeper, I+II a quick shimmer. | Mix. | Tone: turned down, the chorused copies are darker, like the Juno's bucket-brigade chips. |
-| rumble | Decay: how long the rumble rings after each kick. About 1.8 s to start; up from there to eight seconds. Below that it gets shorter and tighter, down to a short thump at 0 that is gone before the next kick. | Tone: its low-pass, from 80 Hz at 0 to 320 Hz at the top; about 190 Hz to start. Turn it down for a deeper, more hypnotic rumble. | Mix: how loud the rumble is. |
+**The reverb.** It has twelve types, picked in **SEL** by name, and each starts at its own settings. **plate** is
+LOOM-8's own. Nine come from the PlayStation's sound chip, the reverbs its games used: **room**, **studio S**,
+**studio M** and **studio L**, **hall**, **half echo**, **space echo**, **chaos echo** (it almost never stops) and
+**one echo** (a single repeat). **lush** is a smooth, wide plate based on Jon Dattorro's. **shimmer** is lush with
+its own sound fed back an octave up, so the tail rises in octaves; its **shimmer** sets how much goes back in. On
+the console types, **size** stretches their delays, from small and metallic to the console's own at the top,
+**decay** sets how long the tail lasts (the console's own in the middle), **tone** darkens the tail below the
+middle and thins it above, and **damp** softens the reflections. On lush, size also lengthens the gap before the
+tail, and damp darkens the tail as it fades. The page's title shows the type: "Reverb · hall".
 
-Use rumble on a kick for the low, pumping tail under a techno beat. It is the kick's reverb treated as a bass
-instrument: the lowest of the kick is kept out of the reverb so it doesn't turn into a drone, the reverb is filtered
-steeply and saturated a little, and it ducks on each kick so it swells back between them. On a kit, rumble hears
-only the kicks (the first key, and any key with the kick model), so the snare and hats stay out of it and only a
-kick starts its duck.
+**Rumble** is for techno: the kick's reverb treated as a bass instrument. The lowest of the kick is kept out of it,
+the tail is filtered steeply and saturated a little, and it ducks on each kick so it swells back between them. Its
+decay is about 1.8 s to start, up to eight seconds, and down to a short thump at 0. On a kit, rumble hears only the
+kicks (the first key, and any key with the kick model), so the snare and hats stay out of it.
 
-Chorus, juno, echo and rumble need memory, which all the tracks' inserts share: four choruses, two echoes or
-rumbles, or one of those and two choruses at once. When it runs out, the Insert page says "no memory" and which tracks hold it, and that insert
-passes the sound through unchanged until one of them is turned off or changed. At a slow tempo an echo can't reach
-the longer times, and it stays at about 370 ms. When you stop playing, an echo's repeats and a rumble's tail ring out.
+**Memory.** The effects marked in the table share one pool of memory with FX I, FX II and Master FX. The sends get
+theirs first, then Master FX, then the tracks in order, Insert 1 before Insert 2. A new project's delay and lush
+leave room for one more delay, a few reverbs or many choruses. A big reverb type takes more than a small one. When an
+effect finds none, its page says "no memory" and who holds it ("no memory: FX I, FX II, T3"), and the effect passes
+the sound through unchanged (a send stays silent) until one of them is turned off or changed. In the **SEL** list,
+"no memory" stands beside each effect that wouldn't find room there now. When you stop, a delay's repeats and a
+reverb's or rumble's tail ring out.
 
-You can lock the insert's knobs on a step, and COPY SOUND carries the insert with the rest of the sound.
+### Insert 1 and Insert 2
+
+Each track has two inserts, one after the other, after its filter and before its sends. Press **FX** for Insert 1,
+and turn **SELECT** once for Insert 2. Both take any effect of the list. They work on the whole track, as a pedal
+would: a chord's notes go through them together, so a driven chord growls as one, and turning the track's level
+down on the Mix page doesn't change how hard it drives. On a kit, they work on the whole kit, after its bus filter;
+the keys' sends are taken before them.
+
+<img src="img/screen-character.png" width="240" alt="FX&#x27;s Insert 1 page on T2: drive, a soft saturation, its curve drawn; knobs amount, tone and mix" title="Insert 1">
+
+The page shows the effect's name, what it does and where it sits, with a picture of what it does: the curve a sample
+goes through (the faint line is the sound without it), the delay's repeats, the reverb's rings, the phaser's
+notches. **KNOB 1** to **3** are the effect's, **KNOB 4** the mix; at mix 0 the insert is off. **PRESETS** steps to
+the next effect. The **SEL** list has every effect, in its groups (press **SEL** on one to use it), then the effect's
+extras. The hint at the bottom says what the extras are, such as "SEL type, damp" on a reverb.
+
+You can lock the knobs on a step like any knob: hold the step and press **FX**. The LFO can reach Insert 1's first
+knob through the voice module's fourth knob, "insert 1", and the shared LFO through its destination "insert 1".
+Each factory preset carries its inserts, so a preset is a whole sound, and COPY SOUND carries them too.
+
+### FX I and FX II
+
+Each track sends to the two send effects on its Sends page (**FX**, then **SELECT**). Keep turning **SELECT** to
+reach FX I and FX II. Their pages are the inserts' page: any effect of the list, its three knobs, **PRESETS** for the
+next. **KNOB 4** is the **return**, how loud the effect comes back. An effect on a send returns only the sound it
+makes; the track's own sound stays on the track. The keys play the track you were on.
+
+<img src="img/screen-fx1.png" width="240" alt="FX&#x27;s FX I page: the delay with time, repeats, tone and return" title="FX I"> <img src="img/screen-fx2-hall.png" width="240" alt="FX&#x27;s FX II page: the reverb, hall, with size, decay, tone and return" title="FX II, the reverb">
+
+The **SEL** list has the effects, the effect's extras, and then the send's own **HIGH-PASS** and **LOW-PASS** and,
+on FX I, **TO FX II**, the send from FX I into FX II. A new project starts with a delay on FX I and lush on FX II,
+and its high-passes keep the lows dry: the echoes start at about 130 Hz and the reverb at about 230 Hz. If you turn
+to FX I or FX II with **ALGORITHM**, **EDIT** has the same knobs, and its page 2 the high-pass, low-pass and feed.
+
+### Master FX
+
+**GLO**, then **SELECT** twice: one effect on the whole mix, after the master EQ and before the compressor. It is the
+same page again, with the mix on **KNOB 4** (at 0 it's off). An effect that needs memory takes it after FX I and FX
+II, before the tracks. A new project starts with it off. A project from an older version keeps its master color: its
+tape or sampler is Master FX's, with the same settings.
 
 ## Players
 
@@ -1383,8 +1437,6 @@ list can also insert the scene that is playing (INSERT SLOT), repeat the selecte
 Turn **ALGORITHM** past T8 to reach the aux tracks. Each one has its own page under **EDIT** and its own steps
 under **SEQ**.
 
-<img src="img/screen-fx1.png" width="240" alt="FX&#x27;s FX I page: the delay with time, fine, repeats and tone" title="An effect"> <img src="img/screen-fx2-hall.png" width="240" alt="FX&#x27;s FX II page: the reverb in its hall mode, with size, decay, tone and damp" title="The reverb, hall">
-
 - **COND** is the conductor. Its knobs are key, scale and link. Link picks an instrument track that also plays
   the conductor's keys. Play a chord on its keys and the tracks that follow move to it. Its steps hold the chords
   you played: press **SEQ** and a white key. Set the track scale to 4 so each step lasts a beat, or to 16 for a
@@ -1440,47 +1492,8 @@ under **SEQ**.
 
   You can also throw from any track. The last page of **FX**, Throws, has the same keys and the latch.
 
-- **FX I** and **FX II** are a send effect each: chorus, delay, lofi, phaser or reverb, each with four knobs. To
-  reach them from any track, press **FX** and turn **SELECT**. **PRESETS** picks the effect. The **SEL** list has
-  its high-pass and low-pass and, on FX I, the send into FX II. On a delay, it also has **PING WIDTH**, which sets
-  how far apart the echoes bounce. At 127, as in a new project, they go hard left and right. At 0, they sit in the
-  center. **WOBBLE** makes the delay time drift slowly, like tape: each repeat drifts again, so the echoes detune
-  more as they go. **SMEAR** blurs each repeat a little more than the last, so the echoes turn into a wash. Both
-  are 0 in a new project. With **repeats** high and a little of each, a single pluck rings on for many bars and
-  changes as it goes. In a new project, the high-passes keep the lows dry: the echoes start at about 130 Hz and the reverb at
-  about 230 Hz. The keys play the track you were on. If you turn to FX I or FX II with **ALGORITHM**, **EDIT** has
-  the same knobs.
-
-| Effect | Knobs |
-| --- | --- |
-| chorus | rate, depth, feedback, width |
-| delay | time (a note value, synced to the tempo), fine, repeats (about 8 at 56; each 14 steps doubles them; at 127 "hold": they ring on until you turn it down), tone (how bright the repeats are); in **SEL**'s list, ping width, wobble and smear |
-| lofi | rate, bits, smooth, width |
-| phaser | freq, depth, rate, feedback |
-| reverb, plate | size, motion, tone, damp (how fast the tail darkens) |
-| reverb, the other modes (lush too) | size, decay, tone, damp |
-| reverb, shimmer | size, decay, tone, shimmer |
-
-  The effects return only the sound they make. The track's own sound stays on the track.
-
-  The delay's time runs from 1/32 to 1/4 of the tempo, with triplets and dotted values, and fine moves it up to 25 %
-  either way. The delay holds half a second, so it halves a time longer than that and the knob shows what plays. For
-  example, below 120 BPM a 1/4 shows "1/4 as 1/8", and below 90 BPM a 1/8D shows "1/8D as 1/16D".
-
-  The reverb has twelve modes, and **PRESETS** steps through them after the phaser. **plate** is LOOM-8's own.
-  Nine come from the PlayStation's sound chip, the reverbs its games used: **room**, **studio S**, **studio M** and
-  **studio L** (small, medium and large), **hall**, **half echo**, **space echo**, **chaos echo** and **one echo**.
-  Chaos echo almost never stops, and one echo is a single repeat. **lush** is a smooth, wide plate based on Jon
-  Dattorro's, and a new project starts with it. **shimmer** is lush with its own sound fed back an octave up, so the
-  tail rises in octaves, like Chordism's shimmer. Its fourth knob, **shimmer**, sets how much of the octave goes back
-  in. It's lovely on pads and on tulle.
-
-  The console modes keep their grain, because they run at half the sample rate, as lush does. On these, **size**
-  stretches their delays, from small and metallic at 0 to the console's own at the top. A mode you've just picked
-  starts at the top. **decay** sets how long the tail lasts, with the console's own in the middle. **tone** darkens
-  the tail below the middle and thins it above. **damp** softens the reflections. When you change the mode, the
-  reverb goes empty for a moment. On **lush**, **size** also lengthens the gap before the tail, and **damp** darkens
-  the tail as it fades. Only FX II has the reverb. FX I has the delay's memory in its place.
+- **FX I** and **FX II** are the two send effects. Selected with **ALGORITHM**, **EDIT** has the effect's knobs and
+  the return, and page 2 its high-pass, low-pass and, on FX I, the send into FX II. See [FX I and FX II](#fx-i-and-fx-ii).
 
 ## Mix and master
 
@@ -1497,7 +1510,7 @@ Turn **SELECT** for more pages:
 
 - Master EQ has low, mid and high (64 is flat) and **clip**: 0 is off; turning it up drives the mix into a soft
   clipper before the limiter, so it gets louder and denser, the kick's and snare's peaks rounded off.
-- Master FX is described below.
+- Master FX has one effect on the whole mix (see [Effects](#effects)).
 - Master out has the drums' level, the melodic tracks' level, the compressor and the pump. The **SEL** list on
   these pages lists their knobs, page by page, along with what the pump follows, its release and accent, and the
   master level.
@@ -1524,29 +1537,15 @@ one-bar loop.
 - **KNOB 2** sets the rate, from 16 bars to a sixteenth in time with the tempo, or 0.02 to 10 Hz free.
 - **KNOB 3** sets how much, in either direction.
 - **KNOB 4** sets what it moves: cutoff, resonance, pitch (up to 12 semitones), pan, volume, the FX I or FX II
-  send, or the character's amount.
+  send, or Insert 1's first knob ("insert 1").
 
 Black keys 1 to 8 pick the tracks it moves, and they light up. The LFO starts again from the beginning when PLAY
 starts, so a long sweep lines up with the bars. On a kit, it moves every sound, or just one. White keys 1 to 11
-pick the sound, such as a hat's pitch or the snare's send, and white key 12 goes back to every sound. The
-character's amount is the whole kit's.
+pick the sound, such as a hat's pitch or the snare's send, and white key 12 goes back to every sound. Insert 1 is
+the whole kit's.
 
-**Master FX** puts one effect on the whole mix, after the EQ and before the compressor. It can be any effect of
-the list the tracks and FX I and II use. **PRESET** steps through the effects (each starts at its own settings), the
-knobs are the effect's three and its **mix**, and the **SEL** list has the effects and the effect's extras. At mix
-0 it is off. An effect that needs memory (the delay, the reverb, the chorus, tape's wow) takes it after FX I and
-FX II, before the tracks; when there's none left, the page says "no memory" and the mix passes as it is.
-
-- **tape** sounds like worn tape. You get a slow wow and a quick flutter on the pitch, more as you raise the
-  amount, with soft saturation and a gentle roll-off of the top. Tone sets where the roll-off starts, from 1.5 to
-  18 kHz.
-- **sampler** gives the grain of an old sampler. The mix is held at a lower rate and fewer bits, then goes through
-  its filter (tone). Amount goes from 26 kHz and 14 bits down to 11 kHz and 11 bits.
-- **off** leaves the mix as it is. A new project starts here.
-
-A project from an older version keeps its master color: its tape or sampler is Master FX's, with the same settings.
-
-Each synth track's Character page has the same two, for one sound.
+**Master FX** puts one effect on the whole mix, after the EQ and before the compressor: any effect of the list the
+inserts and FX I and FX II use. See [Master FX](#master-fx).
 
 **Pump** is Master out's fourth knob. It lowers the mix each time the kick plays, by up to 24 dB, and lets it swell
 back up, for the big-beat breathing of house and French touch. When a kit drives it, through its kick or as a kit
@@ -1646,7 +1645,7 @@ do nothing.
 You can also record LOOM-8 on a computer over USB, as an audio input with ten channels at 44.1 kHz. Channels 1
 and 2 carry the master, as you hear it. Channels 3 to 10 carry tracks 1 to 8, one track each, so you can record
 every track on its own. Each track's channel has the track at its level, before its pan, with its own filter and
-character. The sends' effects and the master's EQ, color, compressor and pump are only on channels 1 and 2. A
+inserts. The sends' effects and the master's EQ, Master FX, compressor and pump are only on channels 1 and 2. A
 muted track's channel is silent. To set the level of all ten, use USB audio on Setup's **SEL** list. With
 **follows knob**, MASTER sets it. With **full**, the speaker follows MASTER and the recording stays at full level.
 With **stereo**, the master is recorded at full level as with **full**, and channels 3 to 10 are silent. Use it when
@@ -1694,7 +1693,7 @@ the selected instrument track.
 | CC | FX I / FX II | Master |
 | --- | --- | --- |
 | 7 | return level | level |
-| 16-19 | the effect's four knobs | EQ low / mid / high / clip |
+| 16-18 / 19 | the effect's knobs 1-3 / the return | EQ low / mid / high / clip |
 | 20-23 | - | Master FX: the effect / knob 1 / knob 2 / mix |
 | 24-27 | - | drums level / melodic level / comp / pump |
 | 28 | - | pump release |
@@ -1814,10 +1813,11 @@ and the echoes fade out. Every voice sounds in the file, so a busy song can soun
 | ENV, drum track, SELECT | Filter | the key's cutoff | reso | env | drive | black: the key; PRESETS: the type |
 | ENV, drum track, SELECT twice | Kit env | lag | attack | random | length | play |
 | ENV, drum track, SELECT 3 times | Kit filter | low cut | comp | drive | hi cut | play; PRESETS: on or off |
-| FX | Character | type | amount | tone | mix | play; PRESETS: the type |
-| FX, SELECT | Sends | fx I | fx II | pan | level | play |
-| FX, SELECT twice | FX I, FX II | the effect's four | | | | play; PRESETS: the effect (and the reverb's mode) |
-| FX, SELECT four times | Throws | latch | | | | low: drum throws, high: melodic throws |
+| FX | Insert 1 | the effect's first | second | third | mix | play; PRESETS: the effect; SEL: the effects, its extras |
+| FX, SELECT | Insert 2 | the effect's first | second | third | mix | play; PRESETS: the effect; SEL: the effects, its extras |
+| FX, SELECT twice | Sends | fx I | fx II | pan | level | play |
+| FX, SELECT 3 times | FX I, FX II | the effect's first | second | third | return | play; PRESETS: the effect; SEL: the effects, its extras, high-pass, low-pass, to FX II |
+| FX, SELECT 5 times | Throws | latch | | | | low: drum throws, high: melodic throws |
 | LFO | LFO | type | the type's three | | | play |
 | LFO, SELECT | LFO 2 | the type's fourth and fifth | | | | play |
 | ARP | Players | player | its first | its second | its third | play, through the player (random: Players 2 has its randomization, Players 3 the octaves down and up) |
@@ -1825,7 +1825,7 @@ and the echoes fade out. Every voice sounds in the file, so a busy song can soun
 | ARP, SELECT (last) | Weave | with | pattern | rule | plays | black: the track woven in, white: its pattern; SEL: KEEP AS PATTERN |
 | GLO | Mix | FX I | FX II | pan | level | black: tap to mute, hold to solo (several together); SEL: the projects, save to, new project |
 | GLO, SELECT | Master EQ | low | mid | high | | |
-| GLO, SELECT | Master FX | the effect's three knobs | | | mix | PRESET: the effect; SEL: the effect, its extras |
+| GLO, SELECT | Master FX | the effect's first | second | third | mix | PRESETS: the effect; SEL: the effects, its extras |
 | GLO, SELECT | Master out | drums | melodic | comp | pump | SEL: pump by, release, accent, level |
 | GLO, SELECT | LFO | shape | rate | amount | dest | black: the tracks it moves; white 1-11: a kit's sound, 12 all |
 | GLO, SELECT | Setup | lights | clock | notes | theme | SEL: Bluetooth MIDI and audio, their devices, USB audio, loop throws, autosave, CC out, scenes out |
@@ -1836,7 +1836,7 @@ The aux tracks have their own **EDIT** pages:
   off. Page 3 is Follow, where **KNOB 1** or a black key picks the track the chords come from.
 - THROW has latch.
 - WEAVE has latch.
-- FX I and FX II have the effect's four knobs. Page 2 has hp, lp and the send to FX II.
+- FX I and FX II have the effect's three knobs and the return. Page 2 has hp, lp and the send to FX II.
 
 ## Troubleshooting
 

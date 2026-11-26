@@ -2718,7 +2718,7 @@ static const struct { uint8_t btn; uint64_t pages; const char *title, *l1, *l2; 
      "Hold EDIT to play the keys or turn ALGORITHM for the engine."},
     {B_ENV, PG_ANY, "Envelope", "The amp's envelope, the filter, its envelope.",
      "Press PRESET on Filter for its type. A kit's key pages come first."},
-    {B_FX, PG_ANY, "Effects", "Insert 1 and 2, sends, FX I and II, Throws: keys throw.",
+    {B_FX, PG_ANY, "Effects", "Insert 1 and 2, sends, FX I, FX II, Throws: keys throw.",
      "Press PRESET for the next effect, SEL for them all."},
     {B_LFO, PG_ANY, "LFO", "Type, then its first three knobs.", "Turn SELECT for its fourth and fifth."},
     {B_ARP, PG_ANY, "Players", "Arp, strum, hold or random; last page, Weave.",
