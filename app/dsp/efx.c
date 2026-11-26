@@ -2171,16 +2171,27 @@ static void wow_run(efx_wow_t *w, float dep, float *l, float *r, uint32_t n, flo
         w->b = 1.0f;
     b = w->b;
     db = bt < b ? (bt - b) / (float)n : bt > b ? 1.0f / 2048.0f : 0.0f;
+    /* the wow's lateness: its two sines every WOW_K samples, a line between (0.55 and 6.1 Hz: a 16th of a millisecond
+     * apart they barely move; a sine a sample each made the master's tape ~7 points of the FM-1's block, 2026-11-26) */
+#define WOW_K 16
+    float s0 = fm_sin_turns(ph) + 0.125f * fm_sin_turns(fph), s1 = s0, ds = 0.0f;
     for (uint32_t i = 0; i < n; i++) {
         float d, fr, a0, a1;
         int32_t k, k0, k1;
         w->line[0][pos] = (int16_t)(fm_clampf(l[i], -1.99f, 1.99f) * 16384.0f);
         w->line[1][pos] = (int16_t)(fm_clampf(r[i], -1.99f, 1.99f) * 16384.0f);
-        ph += dw;
-        fph += df;
-        if (ph >= 1.0f) ph -= 1.0f;
-        if (fph >= 1.0f) fph -= 1.0f;
-        d = EFX_WOW_AT + dep * (fm_sin_turns(ph) + 0.125f * fm_sin_turns(fph));
+        if ((i & (WOW_K - 1)) == 0) {            /* (the next WOW_K samples' line, or what is left of n) */
+            const uint32_t m = n - i < WOW_K ? n - i : WOW_K;
+            ph += dw * (float)m;
+            fph += df * (float)m;
+            if (ph >= 1.0f) ph -= 1.0f;
+            if (fph >= 1.0f) fph -= 1.0f;
+            s0 = s1;
+            s1 = fm_sin_turns(ph) + 0.125f * fm_sin_turns(fph);
+            ds = (s1 - s0) / (float)m;
+        }
+        s0 += ds;
+        d = EFX_WOW_AT + dep * s0;
         if (db > 0.0f) {                         /* (coming in: its lateness from 0, a tape spinning up) */
             b = fm_minf(b + db, 1.0f);
             d *= b;
