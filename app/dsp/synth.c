@@ -4718,12 +4718,19 @@ static const tp_info_t LFO_X2_RAND = {"envelope", 0, 127, 64, PK_FADE, 0};
 static const tp_info_t LFO_PARAM_ENV = {"param", 0, 3, 0, PK_NAMES, ENVP_N};
 static const tp_info_t LFO_PARAM_FLT = {"param", 0, 3, 0, PK_NAMES, FLTP_N};
 static const tp_info_t LFO_PARAM_AMP = {"param", 0, 3, 0, PK_NAMES, AMPP_N};
-static tp_info_t eknob[NENGINE][4];
-static tp_info_t lparam[NENGINE];                /* the LFO's parameter knob on the synth module: the engine's names */
+/* the knobs' tables, built when first asked (eknob_init) and read by the UI and synth_prepare (the first core): in NOINIT's
+ * spare room (fm1-base plat.h PLAT_SPARE: zeroed at start, outside the SRAM budget), beside the kits' units */
+#ifdef PLAT_HOST
+#define SY_SPARE
+#else
+#define SY_SPARE __attribute__((section(".spare")))
+#endif
+static tp_info_t eknob[NENGINE][4] SY_SPARE;
+static tp_info_t lparam[NENGINE] SY_SPARE;       /* the LFO's parameter knob on the synth module: the engine's names */
 /* a drum model's knobs (four, up to eight): made when asked, into a ring (16: no caller holds
  * more at once; the UI's, the main loop's only). RAM is short: a table of every model's would take 48 bytes a model,
  * 96 with eight knobs */
-static tp_info_t dk_ring[16];
+static tp_info_t dk_ring[16] SY_SPARE;
 static uint8_t dk_at;
 static const tp_info_t *dknob_of(int m, int k);
 static const tp_info_t DRUMX_P = {"knob 5", 0, 127, 0, PK_NN, 0};   /* a key's knob 5..8, the model unknown */

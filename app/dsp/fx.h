@@ -23,7 +23,11 @@
  * mode's its reflections' low-pass (vIIR) closing; an SPU mode's size its delays x1 .. x4 of the registers, its decay
  * the wall's feedback (0.5x .. x1 at 64 .. as far as it stays stable). */
 typedef struct fxslot fxslot_t;
-#define FXSLOT_BYTES 2048
+#ifdef PLAT_HOST
+#define FXSLOT_BYTES 1768             /* (the host's pointers are wider) */
+#else
+#define FXSLOT_BYTES 1744             /* (fx.c checks it: 1,740 B, 2026-11-25) */
+#endif
 void fx_init(fxslot_t *f);
 void fx_set(fxslot_t *f, int ef, const uint8_t k[3], const uint8_t x[4]);   /* the effect (EF_*), its knobs and extras
                                                                            * (0..127; the reverb's mode its first) */
@@ -82,7 +86,7 @@ enum { PB_KICK, PB_T1, PB_METRO = PB_T1 + 8, NPB };
 #define MS_PUMP_REL_DEF 60
 extern const char *const MS_NAME[NMS];
 typedef struct master master_t;
-#define MASTER_BYTES 1792
+#define MASTER_BYTES 1432             /* (fx.c checks it: 1,428 B, 2026-11-25) */
 void master_init(master_t *m);
 void master_clear(master_t *m);                             /* its states at rest, its settings kept */
 void master_set(master_t *m, int p, int v);                 /* 0..127 (EQ 64 = flat; color type 0..NMC-1; pump by

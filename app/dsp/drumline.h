@@ -73,9 +73,13 @@ extern const char *const DL_SOUND_NAME[DL_NSOUND];     /* the default kit's key 
 extern const uint8_t DL_DEFAULT_KIT[DL_NSOUND][DP_N];  /* DP_* of each key of a new drum track */
 
 typedef struct drumline drumline_t;
-#define DRUMLINE_BYTES 2560                            /* 8 voices (each with its key's envelope and filter state),
+#ifdef PLAT_HOST
+#define DRUMLINE_BYTES 2488                            /* (the host's pointers are wider) */
+#else
+#define DRUMLINE_BYTES 2448                            /* 8 voices (each with its key's envelope and filter state),
                                                         * four sample windows (80 B each), the dynamic filter (the
                                                         * strings' lines and the 909 slots: drumline.c, every kit's) */
+#endif
 
 void drumline_init(drumline_t *d, const uint8_t *par);  /* par: the track's par[] (reads TP_DRUM0.., TP_A..TP_R at a hit,
                                                          * TP_SEND* each chunk) */
