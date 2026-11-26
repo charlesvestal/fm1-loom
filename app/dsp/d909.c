@@ -114,7 +114,8 @@ static const float d9_tanh_tab[D9_TANH_N + 2] = {
     0.999999702f, 0.999999702f, 0.999999702f, 0.999999762f, 0.999999762f, 0.999999762f,
     0.999999762f, 0.999999762f, 0.999999762f, 0.999999762f,
 };
-static inline float d9_tanh(float u)              /* drum909_dsp.h's: from the table */
+static inline __attribute__((always_inline)) float d9_tanh(float u)   /* drum909_dsp.h's: from the table (inlined: a
+                                                  * call a sample was the FM-1's build's choice) */
 {
     const float a = fm_fabsf(u) * D9_TANH_SCALE;
     float t;
@@ -265,7 +266,7 @@ static void d9_shape_prep(d9_shape_t *s, float drive, int type)
     default: break;
     }
 }
-static float d9_shape_other(const d9_shape_t *s, float x, float *st)   /* types 1..6 */
+static __attribute__((noinline)) float d9_shape_other(const d9_shape_t *s, float x, float *st)   /* types 1..6 */
 {
     const float k = s->k;
     switch (s->type) {
@@ -305,9 +306,9 @@ static float d9_shape_other(const d9_shape_t *s, float x, float *st)   /* types 
         return d9_tanh(k * x) * s->g;
     }
 }
-static inline float d9_shape(const d9_shape_t *s, float x, float *st)
+static inline __attribute__((always_inline)) float d9_shape(const d9_shape_t *s, float x, float *st)
 {
-    if (s->type == 0)                                 /* diode: every voice's default */
+    if (s->type == 0)                                 /* diode: every voice's default (inline, the rest a call) */
         return d9_tanh(s->k * x) * s->g;
     return d9_shape_other(s, x, st);
 }
