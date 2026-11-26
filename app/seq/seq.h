@@ -295,7 +295,6 @@ typedef struct {
     uint8_t countin_six;
     uint8_t bar_fresh;                /* the bar count just restarted: the next sixteenth is not a bar's end */
     uint8_t ext_six;                  /* external clock: ticks into the sixteenth */
-    uint8_t chunk_cap;                /* a lock ramp runs: advance in chunks */
     uint8_t brain_seen[4];            /* the BRAIN track's E1..E4 last read */
     uint32_t punch_sent_d, punch_sent_m;
     uint8_t rec_note[8], rec_trk[8], rec_step[8];   /* live record: keys down and the steps they took */

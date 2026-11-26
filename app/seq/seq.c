@@ -1305,12 +1305,15 @@ static void apply_locks(seq_t *s, int t, int p, uint32_t L, const seq_sink_t *o)
     }
 }
 
-/* the lock ramps: a pattern's (shape) each chunk (chunk_cap: the stretches cut at SY_CHUNK while one runs); a MOD
- * lane's glide (RT_MOD) once a block, at its start (k 0: engine.c's first call; its targets glide between: the
- * effects' and the master's own slew), never cutting the block */
-static int locks_tick(seq_t *s, uint32_t k, const seq_sink_t *o)   /* -> a pattern's lane ramps still (chunk_cap) */
+/* the lock ramps, a pattern's (shape) and a MOD lane's glide (RT_MOD): once a block, at its start (k 0: engine.c's
+ * first call), never cutting the block. Their targets glide between: a synth's cutoff, resonance, engine knobs and
+ * gains (~10 ms), the effects' knobs, the master's values and filters. (A pattern's ramps cut the stretches at
+ * SY_CHUNK until 2026-11-26, four a block: rendered both ways, a ramp on a knit's cutoff, resonance, volume, level,
+ * pan, a send, its wave, a kit's dynamic filter (low cut, compressor, drive, high cut), level and pan: the worst 2 ms
+ * of the 8 kHz high-passed sound within 0.6 dB of the chunks', the two within -40 dB on a synth) */
+static void locks_tick(seq_t *s, uint32_t k, const seq_sink_t *o)
 {
-    int i, cap = 0;
+    int i;
     for (i = 0; i < NLANE; i++) {
         lane_rt_t *r = &s->lrt[i];
         const lane_t *l;
@@ -1324,7 +1327,7 @@ static int locks_tick(seq_t *s, uint32_t k, const seq_sink_t *o)   /* -> a patte
         if (!r->ramp)
             continue;
         r->age += k;
-        if ((r->trk & RT_MOD) && k)
+        if (k)
             continue;
         if (r->age >= r->len) {
             lock_put(s, l->trk, l, r, r->to, o);
@@ -1334,10 +1337,7 @@ static int locks_tick(seq_t *s, uint32_t k, const seq_sink_t *o)   /* -> a patte
             int v = (int)r->from + ((int)r->to - (int)r->from) * num / (den > 0 ? den : 1);
             lock_put(s, l->trk, l, r, v, o);
         }
-        if (!(r->trk & RT_MOD))
-            cap |= r->ramp;
     }
-    return cap;
 }
 
 static void locks_release(seq_t *s, const seq_sink_t *o)
@@ -3787,8 +3787,6 @@ uint32_t seq_until_event(seq_t *s, uint32_t n)
     }
     if (mo != NEVER && mo + SEQ_NEAR < m)   /* an off on its own: on time; else it joins the event after it */
         m = mo;
-    if (s->chunk_cap && m > SY_CHUNK)
-        m = SY_CHUNK;
     return m ? m : 1;
 }
 
@@ -3801,7 +3799,7 @@ static void dec(uint32_t *v, uint32_t dq)
 void seq_advance(seq_t *s, uint32_t k, const seq_sink_t *o)
 {
     uint32_t dq = k << 8;
-    int t, i, i2, guard, cap = 0;
+    int t, i, i2, guard;
     uint32_t m;
     adv_k = k;
     lane_in_call = 1;                         /* (each track's lanes made at their first use in this call: lane_mask) */
@@ -3967,14 +3965,13 @@ void seq_advance(seq_t *s, uint32_t k, const seq_sink_t *o)
         midi(o, 0xF8, 0, 0);
         s->clk_to_next += (int32_t)(six_q8(s) / 6u);   /* 24 ppqn */
     }
-    /* the smooth things: bends (each stretch: the synth glides them across its chunks) and lock ramps (each chunk) */
+    /* the smooth things: bends (each stretch: the synth glides them across its chunks) and lock ramps (once a block) */
     for (t = 0; t < NSEQT; t++)
         bend_tick(s, t, k, o);
     mod_update(s, o);
-    cap |= locks_tick(s, k, o);
+    locks_tick(s, k, o);
     lane_masks_ok = lane_in_call = 0;
     punch_update(s, o);
-    s->chunk_cap = (uint8_t)cap;
     if (!s->playing && !s->ext)
         s->clk_to_next = 0;
 }

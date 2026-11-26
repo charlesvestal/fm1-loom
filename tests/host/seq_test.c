@@ -92,6 +92,7 @@ static void run(uint32_t n)
     }
 }
 static void run_to(uint32_t t) { run(t > now ? t - now : 0); }
+static void mrun(uint32_t n);
 static void run_blocks(uint32_t n)    /* as engine_render: a block (256) at a time, each split at its events */
 {
     while (n) {
@@ -1003,11 +1004,11 @@ static void t_locks(void)
           near(nth(E_LOCK, 0, 2)->t, 5 * L16 + 1, 1));
     stop();
     memset(&P.pat[0][0].st[5], 0, sizeof P.pat[0][0].st[5]);
-    /* shape: the value walks from 10 to 50 across the two steps */
+    /* shape: the value walks from 10 to 50 across the two steps (once a block, at its start: as the engine calls) */
     P.pat[0][0].shape = 100;
     nev = 0;
     start();
-    run(2 * L16);
+    mrun(2 * L16);
     prev = 10;
     for (i = 0; i < nev; i++)
         if (ev[i].kind == E_LOCK) {
@@ -3709,7 +3710,7 @@ static void t_mod_edit(void)
         cuts += k2 < 256u && S.six_to_next >> 8 > k2 + 2u;
         mrun(256);
     }
-    CHECK(cuts == 0 && !S.chunk_cap);
+    CHECK(cuts == 0);
     v = lock_val(0, TP_CUT, now);
     CHECK(abs(v - 40) <= 1);
     P.lane[k].val[2] = 30;                                 /* the next value now 30 */
