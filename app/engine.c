@@ -1200,8 +1200,9 @@ static void pool_sends(void)
         if (need[k] && snd_at[k] < 0) {
             efx_mask_t other = {{0}};
             int o = !k, at;
-            if (snd_at[o] >= 0)
-                efx_mark(&other, snd_at[o], snd_nb[o]);
+            if (snd_at[o] >= 0)                       /* (the other where it is, at its need: snd_nb is last block's,
+                                                       * 0 for one placed just now, which left FX II over FX I) */
+                efx_mark(&other, snd_at[o], need[o]);
             at = efx_fit(&other, need[k]);
             if (at < 0 && snd_at[o] >= 0 && need[0] + need[1] <= EFX_NB) {   /* (the other in the way: FX I at the
                                                   * start, FX II after it) */
