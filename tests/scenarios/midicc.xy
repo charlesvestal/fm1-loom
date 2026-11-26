@@ -134,24 +134,26 @@ param 12 23 50
 midi B9 5D 7F
 wait 40
 expect par12.23 50
-# the master on 11: level, EQ, a switch scaled (color type 0..2), release
+# the master on 11: level, EQ, a list scaled (Master FX's effect, the catalog's 0..18), release; its knob 3 on 29
 midi BA 07 29
 midi BA 10 2A
 midi BA 14 7F
 midi BA 1C 2B
+midi BA 1D 30
 wait 40
 expect mst.level 41
 expect mst.lo 42
-expect mst.color 2
+expect mst.color 18
 expect mst.release 43
+expect mst.ck3 48
 midi BA 14 40
 wait 40
-expect mst.color 1
-# rounding, on a range that isn't 0..127: color's 0..2 rounds 0x20 up to 1, 0x1F down to 0
-midi BA 14 20
+expect mst.color 9
+# rounding, on a range that isn't 0..127: the effect's 0..18 rounds 0x04 up to 1, 0x03 down to 0
+midi BA 14 04
 wait 40
 expect mst.color 1
-midi BA 14 1F
+midi BA 14 03
 wait 40
 expect mst.color 0
 # recorded: REC held while playing, a CC on channel 3 writes T3's lane, not T2's (T2 selected); REC off records nothing
@@ -385,20 +387,24 @@ wait 20
 expect par2.48 99
 expect_out USB B1 07 63
 
-# scaling on a non-0..127 range (CTYPE 0..2: 0->1 = 64, 1->2 = 127), and a knob past its end: no re-send
+# scaling on a non-0..127 range (the effect 0..18: 17 -> 120, 18 -> 127; PRESET steps it on Master FX), and a knob
+# past its end: no re-send (the mix at 127)
 projnew
 tap GLO
 turn SELECT 2
-expect page Master_color
-out
-turn K1 1
+expect page Master_FX
+turn PRESET -2
 wait 20
-expect_out USB BA 14 40
-turn K1 1
+expect mst.color 17
+out
+turn PRESET 1
 wait 20
 expect_out USB BA 14 7F
+turn PRESET -1
+wait 20
+expect_out USB BA 14 78
 ccreset
-turn K1 1
+turn K4 1
 wait 20
 expect ccouts 0
 

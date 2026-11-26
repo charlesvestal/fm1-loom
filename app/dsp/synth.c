@@ -4327,53 +4327,10 @@ static void bus_piece(synth_t *s, int core, int trk, float *l, float *r, float *
     bus_out(s, core, trk, bl, br, l, r, s1, s2, n, at);
 }
 /* a slot on a pair (a synth track's bus; a kit's, kit 1: its ring at C4, its stage always both sides, as the kit's
- * character ran), in place: the dirt and the color (efx_char_stage; a pair whose sides are the same, mono voices in the
- * middle, a bass, a lead: once, its right side's states the left's), the rest (efx_insert) */
+ * character ran), in place (dsp/efx.c efx_slot_run; its memory the pool's) */
 static void slot_run(synth_t *s, trk_t *t, efx_slot_t *sl, int kit, float *bl, float *br, uint32_t n)
 {
-    const int ef = sl->ef;
-    uint32_t j;
-    if (ef != sl->zef) {                         /* another effect: its states start clean */
-        uint8_t *b = (uint8_t *)&sl->u;
-        for (j = 0; j < (uint32_t)sizeof sl->u; j++)
-            b[j] = 0;
-        sl->cef = 0xFFu;
-        sl->ph = 0.0f;
-        sl->zef = (uint8_t)ef;
-    }
-    if (ef == EF_OFF)
-        return;
-    if (efx_is_char(ef)) {
-        float *x = sl->u.ch.x, *z = sl->u.ch.z, *in = sl->u.ch.in;
-        float a = sl->k[0] * (1.0f / 127.0f), tn = sl->k[1] * (1.0f / 127.0f);
-        if (ef == EF_RING)                       /* (the voices' glide, char_prep, a step a block here) */
-            a = efx_ring_glide(a, in[0], &z[6], x);
-        if (ef != sl->cef || a != in[0] || tn != in[1]) {
-            efx_char_coefs(ef, a, tn, KIT_RING_HZ, x);
-            sl->cef = (uint8_t)ef;
-            in[0] = a;
-            in[1] = tn;
-        }
-        x[7] = (float)sl->mix * (1.0f / 127.0f);
-        if (ef == EF_RING)                       /* the phasor back to unit length (char_prep) */
-            efx_ring_norm(z);
-        for (j = 0; !kit && j < n && bl[j] == br[j]; j++)
-            ;
-        if (!kit && j == n) {
-            efx_char_stage(x, z, ef, 0, bl, br, (int)n);
-            for (j = 0; j < n; j++)
-                br[j] = bl[j];
-            z[1] = z[0];
-            z[3] = z[2];
-            z[7] = z[6];
-        } else
-            efx_char_stage(x, z, ef, 1, bl, br, (int)n);
-        return;
-    }
-    if (sl->clr)                                 /* (its memory not yet clear: dry) */
-        return;
-    efx_insert(ef, &sl->u.in, &sl->ph, sl->at >= 0 ? efx_pool[(int)sl->at] : 0, sl->k, sl->xt, sl->mix,
-               lfo_hz((int)sl->k[0], s->bpm), s->bpm, t->ins_in, bl, br, n);
+    efx_slot_run(sl, kit, s->bpm, t->ins_in, sl->at >= 0 ? efx_pool[(int)sl->at] : 0, bl, br, n);
 }
 /* a bus's pair (bl, br: its voices' sum) through its slots, its gains and sends into l, r, s1, s2, its share of the
  * USB audio input's track (core's sink) */

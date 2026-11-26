@@ -527,14 +527,16 @@ int efx_need(int ef, int mode, int send)
 {
     int32_t n;
     switch (ef) {
-    case EF_CHORUS: case EF_LOFI: return send ? EFX_CHO_N / EFX_INS_N : 1;   /* (a send's line: its lag) */
+    case EF_CHORUS: case EF_LOFI: return send == 1 ? EFX_CHO_N / EFX_INS_N : 1;   /* (a send's line: its lag) */
     case EF_JUNO: return 1;
+    case EF_TAPE: return send ? 1 : 0;        /* (its wow's line, a send's or the master's: a track's bends its voices,
+                                               * a kit's has none) */
     case EF_RUMBLE: return 2;
     case EF_DELAY: n = 2 * FX_DLY_LEN + EFX_SMEAR_N; break;
     case EF_REVERB: n = rv_need16(mode); break;
     default: return 0;
     }
-    if (!send)                                /* (a track's: its states first) */
+    if (send != 1)                            /* (a track's, the master's: its states first) */
         n += ef == EF_DELAY ? EFX_BIG_DN : EFX_BIG_N;
     return (int)((n + EFX_INS_N - 1) / EFX_INS_N);
 }
@@ -1815,4 +1817,92 @@ void efx_insert(int ef, efx_ins_t *st, float *ph, int16_t *mem, const float *kn,
             br[j + i] = dr[i] + mx * (br[j + i] - dr[i]);
         }
     }
+}
+
+/* ---- tape's wow off the voices (the master, a send): a short line in its memory ---- */
+typedef struct {
+    int16_t line[2][EFX_WOW_N];                  /* the pair, a side (int16 at 2^14 to 1: +-2) */
+    float ph, fph;                               /* the wow's phase and the flutter's */
+    int32_t pos;
+} efx_wow_t;
+_Static_assert(sizeof(efx_wow_t) <= EFX_BLOCK, "tape's wow: its line in one block of the pool");
+/* the pair, in place, through the line read at a wandering delay: EFX_WOW_AT samples, dep more or less (the wow 0.55
+ * Hz, its flutter 6.1 Hz an eighth as deep) */
+static void wow_run(efx_wow_t *w, float dep, float *l, float *r, uint32_t n)
+{
+    const float dw = 0.55f / EFX_SR, df = 6.1f / EFX_SR;
+    float ph = w->ph, fph = w->fph;
+    int32_t pos = w->pos;
+    for (uint32_t i = 0; i < n; i++) {
+        float d, fr, a0, a1;
+        int32_t k, k0, k1;
+        w->line[0][pos] = (int16_t)(fm_clampf(l[i], -1.99f, 1.99f) * 16384.0f);
+        w->line[1][pos] = (int16_t)(fm_clampf(r[i], -1.99f, 1.99f) * 16384.0f);
+        ph += dw;
+        fph += df;
+        if (ph >= 1.0f) ph -= 1.0f;
+        if (fph >= 1.0f) fph -= 1.0f;
+        d = EFX_WOW_AT + dep * (fm_sin_turns(ph) + 0.125f * fm_sin_turns(fph));
+        k = (int32_t)d;
+        fr = d - (float)k;
+        k0 = (pos - k) & (EFX_WOW_N - 1);
+        k1 = (k0 - 1) & (EFX_WOW_N - 1);
+        a0 = (float)w->line[0][k0], a1 = (float)w->line[0][k1];
+        l[i] = (a0 + fr * (a1 - a0)) * (1.0f / 16384.0f);
+        a0 = (float)w->line[1][k0], a1 = (float)w->line[1][k1];
+        r[i] = (a0 + fr * (a1 - a0)) * (1.0f / 16384.0f);
+        pos = (pos + 1) & (EFX_WOW_N - 1);
+    }
+    w->ph = ph;
+    w->fph = fph;
+    w->pos = pos;
+}
+
+/* ---- a slot on a pair (efx.h) ---- */
+void efx_slot_run(efx_slot_t *sl, int both, float bpm, const float *in, int16_t *mem, float *bl, float *br, uint32_t n)
+{
+    const int ef = sl->ef;
+    uint32_t j;
+    if (ef != sl->zef) {                         /* another effect: its states start clean */
+        uint8_t *b = (uint8_t *)&sl->u;
+        for (j = 0; j < (uint32_t)sizeof sl->u; j++)
+            b[j] = 0;
+        sl->cef = 0xFFu;
+        sl->ph = 0.0f;
+        sl->zef = (uint8_t)ef;
+    }
+    if (ef == EF_OFF || sl->clr)                 /* (its memory not yet clear: dry) */
+        return;
+    if (efx_is_char(ef)) {
+        float *x = sl->u.ch.x, *z = sl->u.ch.z, *cin = sl->u.ch.in;
+        float a = sl->k[0] * (1.0f / 127.0f), tn = sl->k[1] * (1.0f / 127.0f);
+        if (ef == EF_RING)                       /* (the voices' glide, char_prep, a step a block here) */
+            a = efx_ring_glide(a, cin[0], &z[6], x);
+        if (ef != sl->cef || a != cin[0] || tn != cin[1]) {
+            efx_char_coefs(ef, a, tn, EFX_RING_C4, x);
+            sl->cef = (uint8_t)ef;
+            cin[0] = a;
+            cin[1] = tn;
+        }
+        x[7] = (float)sl->mix * (1.0f / 127.0f);
+        if (ef == EF_RING)                       /* the phasor back to unit length (char_prep) */
+            efx_ring_norm(z);
+        if (ef == EF_TAPE && mem)                /* (its wow, where there is no pitch to bend: ~1 .. 6 cents at 0.55
+                                                  * Hz by the amount, times the mix, not mixed: no comb with the dry) */
+            wow_run((efx_wow_t *)(void *)mem, (4.0f + 28.0f * a) * x[7], bl, br, n);
+        for (j = 0; !both && j < n && bl[j] == br[j]; j++)
+            ;
+        if (!both && j == n) {                   /* (a pair whose sides are the same: once, its right side's states
+                                                  * the left's) */
+            efx_char_stage(x, z, ef, 0, bl, br, (int)n);
+            for (j = 0; j < n; j++)
+                br[j] = bl[j];
+            z[1] = z[0];
+            z[3] = z[2];
+            z[7] = z[6];
+        } else
+            efx_char_stage(x, z, ef, 1, bl, br, (int)n);
+        return;
+    }
+    efx_insert(ef, &sl->u.in, &sl->ph, mem, sl->k, sl->xt, sl->mix, efx_lfo_hz((int)sl->k[0], bpm), bpm, in, bl, br, n);
 }

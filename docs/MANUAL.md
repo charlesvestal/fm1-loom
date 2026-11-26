@@ -207,7 +207,7 @@ Count the white keys 1 to 16 from the left, and the black keys 1 to 11. "Hold **
 | **FX** | Opens Character, the track's own effect. Next come Sends, the track's sends to FX I and FX II, and then FX I and FX II, the two effects. |
 | **LFO** | Opens LFO. Page 2 has the type's fourth and fifth knobs. |
 | **ARP** | Opens Players. With the arp, page 2 has its second set of knobs and page 3 is hold. |
-| **GLO** | Opens Mix. Turn **SELECT** for Master EQ, Master color, Master out, LFO (the shared LFO) and Setup. |
+| **GLO** | Opens Mix. Turn **SELECT** for Master EQ, Master FX, Master out, LFO (the shared LFO) and Setup. |
 | **SAVE** | Saves. Hold it and press a white key to save to a slot, or to keep a sound. |
 | **OCT−** / **OCT+** | Move the keys an octave. On Steps, they show the bar before or after (with **SEQ** held, they move the pattern an octave), and with a step held, they nudge it. In step record, they move the cursor. On Arrange and Song, they put scenes 1 to 16 or 17 to 32 on the white keys. |
 | **SELECT** | Turns to a button's next page. In a list, it moves up and down. |
@@ -1497,7 +1497,7 @@ Turn **SELECT** for more pages:
 
 - Master EQ has low, mid and high (64 is flat) and **clip**: 0 is off; turning it up drives the mix into a soft
   clipper before the limiter, so it gets louder and denser, the kick's and snare's peaks rounded off.
-- Master color is described below.
+- Master FX is described below.
 - Master out has the drums' level, the melodic tracks' level, the compressor and the pump. The **SEL** list on
   these pages lists their knobs, page by page, along with what the pump follows, its release and accent, and the
   master level.
@@ -1531,8 +1531,11 @@ starts, so a long sweep lines up with the bars. On a kit, it moves every sound, 
 pick the sound, such as a hat's pitch or the snare's send, and white key 12 goes back to every sound. The
 character's amount is the whole kit's.
 
-**Master color** gives the whole mix a color after the EQ. **color** picks it, and **amount**, **tone** and
-**mix** shape it.
+**Master FX** puts one effect on the whole mix, after the EQ and before the compressor. It can be any effect of
+the list the tracks and FX I and II use. **PRESET** steps through the effects (each starts at its own settings), the
+knobs are the effect's three and its **mix**, and the **SEL** list has the effects and the effect's extras. At mix
+0 it is off. An effect that needs memory (the delay, the reverb, the chorus, tape's wow) takes it after FX I and
+FX II, before the tracks; when there's none left, the page says "no memory" and the mix passes as it is.
 
 - **tape** sounds like worn tape. You get a slow wow and a quick flutter on the pitch, more as you raise the
   amount, with soft saturation and a gentle roll-off of the top. Tone sets where the roll-off starts, from 1.5 to
@@ -1540,6 +1543,8 @@ character's amount is the whole kit's.
 - **sampler** gives the grain of an old sampler. The mix is held at a lower rate and fewer bits, then goes through
   its filter (tone). Amount goes from 26 kHz and 14 bits down to 11 kHz and 11 bits.
 - **off** leaves the mix as it is. A new project starts here.
+
+A project from an older version keeps its master color: its tape or sampler is Master FX's, with the same settings.
 
 Each synth track's Character page has the same two, for one sound.
 
@@ -1690,9 +1695,10 @@ the selected instrument track.
 | --- | --- | --- |
 | 7 | return level | level |
 | 16-19 | the effect's four knobs | EQ low / mid / high / clip |
-| 20-23 | - | color type / amount / tone / mix |
+| 20-23 | - | Master FX: the effect / knob 1 / knob 2 / mix |
 | 24-27 | - | drums level / melodic level / comp / pump |
 | 28 | - | pump release |
+| 29 | - | Master FX: knob 3 |
 | 74 / 75 | low-pass / high-pass | - |
 | 93 | feed into FX II (channel 9 only) | - |
 
@@ -1819,7 +1825,7 @@ and the echoes fade out. Every voice sounds in the file, so a busy song can soun
 | ARP, SELECT (last) | Weave | with | pattern | rule | plays | black: the track woven in, white: its pattern; SEL: KEEP AS PATTERN |
 | GLO | Mix | FX I | FX II | pan | level | black: tap to mute, hold to solo (several together); SEL: the projects, save to, new project |
 | GLO, SELECT | Master EQ | low | mid | high | | |
-| GLO, SELECT | Master color | color | amount | tone | mix | |
+| GLO, SELECT | Master FX | the effect's three knobs | | | mix | PRESET: the effect; SEL: the effect, its extras |
 | GLO, SELECT | Master out | drums | melodic | comp | pump | SEL: pump by, release, accent, level |
 | GLO, SELECT | LFO | shape | rate | amount | dest | black: the tracks it moves; white 1-11: a kit's sound, 12 all |
 | GLO, SELECT | Setup | lights | clock | notes | theme | SEL: Bluetooth MIDI and audio, their devices, USB audio, loop throws, autosave, CC out, scenes out |

@@ -2208,10 +2208,9 @@ static void glfo_knob(int k, int32_t e)          /* the shared LFO's knobs (synt
         return;
     set_tp(AUX_BRAIN, P[k], clampi(g[P[k]] + d, 0, HI[k]));
 }
-static void master_knob(int k, int32_t e)
+/* a master value set by hand: its undo step, the engine, its CC (fx.h MS_*) */
+static void master_to(int m, int v)
 {
-    int m = mst_base(ui.page) + k, v;
-    v = clampi(proj.master[m] + e, 0, master_max(m));
     if (v == proj.master[m])
         return;                                  /* (a knob past its end: no undo step, no CC) */
     undo_master();
@@ -2219,6 +2218,43 @@ static void master_knob(int k, int32_t e)
     engine_master(m, v);
     cc_out_master(m);
     mark_dirty();
+}
+/* Master FX's slot value p (a track's slot 1's, pages.c mst_par) turned by e: in its range, a list's a step a click */
+static void mst_slot_turn(int m, int p, int32_t e)
+{
+    uint8_t par[NTP];
+    const tp_info_t *in;
+    mst_par(par);
+    in = tp_info_par(p, par);
+    master_to(m, clampi(proj.master[m] + (in->hi < 16 ? (e > 0 ? 1 : -1) : (int)e), in->lo, in->hi));
+}
+/* Master FX's effect (PRESETS, its list): its knobs and extras at the effect's defaults, its mix kept; their CCs out
+ * (by hand, as a knob's) */
+static void mst_effect_set(int ef)
+{
+    static const uint8_t K[3] = {MS_CAMT, MS_CTONE, MS_CK3};
+    uint8_t was = cc_hand;
+    ef = (ef + NEF) % NEF;
+    if (ef == proj.master[MS_CTYPE])
+        return;
+    cc_hand = 1;
+    master_to(MS_CTYPE, ef);
+    for (int j = 0; j < 3; j++)
+        master_to(K[j], EFX[ef].def[j]);
+    for (int j = 0; j < 4; j++)
+        master_to(MS_CX1 + j, EFX[ef].xdef[j]);
+    cc_hand = was;
+    say("EFFECT", EFX[ef].name);
+}
+static void master_knob(int k, int32_t e)
+{
+    int m = mst_m(ui.page, k);
+    if (ui.page == P_MASTER2) {
+        static const uint8_t SL[4] = {SL_K1, SL_K2, SL_K3, SL_MIX};
+        mst_slot_turn(m, TP_SLOT[0][SL[k & 3]], e);
+        return;
+    }
+    master_to(m, clampi(proj.master[m] + e, 0, master_max(m)));
 }
 static void setup_knob(int k, int32_t e)
 {
@@ -2454,6 +2490,9 @@ static void presets(int32_t e)
         break;
     case P_FX1: case P_FX2:
         fx_pick(ui.page == P_FX1 ? AUX_FX1 : AUX_FX2, d);
+        break;
+    case P_MASTER2:                              /* Master FX's effect, its knobs at their defaults */
+        mst_effect_set(proj.master[MS_CTYPE] % NEF + d);
         break;
     case P_CHARACTER: case P_INSERT:             /* a slot's effect (the one effects list), its knobs at their defaults */
         trk = inst_trk();
@@ -2719,6 +2758,14 @@ static void list_change_do(int32_t e)
             const int pr = TP_SLOT[q][SLOT_ROW[lst.row[lst.sel].id - A_SLOT_K3]];
             const tp_info_t *in = tp_info_par(pr, proj.trk[t].par);
             set_tp(t, pr, clampi(proj.trk[t].par[pr] + (in->hi < 16 ? d : (int)accel(EN_ALGO, e)), in->lo, in->hi));
+            break;
+        }
+        case A_MST_EFFECT:                       /* Master FX's effect: at once, its knobs at their defaults */
+            mst_effect_set(clampi(proj.master[MS_CTYPE] % NEF + d, 0, NEF - 1));
+            break;
+        case A_MST_X1: case A_MST_X2: case A_MST_X3: case A_MST_X4: {
+            int r = lst.row[lst.sel].id - A_MST_X1;
+            mst_slot_turn(MS_CX1 + r, TP_SLOT[0][SL_X1 + r], accel(EN_ALGO, e));
             break;
         }
         case A_FX_HP: case A_FX_LP: case A_FX_SEND: {
@@ -3836,7 +3883,8 @@ static void action_run(int a)
     case A_FX_SEND: case A_PUMP_BY: case A_PUMP_REL: case A_PUMP_ACC: case A_LEVEL: case A_SCENE_AT: case A_AUTOSAVE:
     case A_MIDI_OUT: case A_LOOP_FREE: case A_CC_OUT: case A_SCENES_OUT: case A_MIDI_CC: case A_USB_HOST: case A_KIT_FILTER:
     case A_CC_IN: case A_MOD_VIEW: case A_SLOT_K3: case A_SLOT_MIX:
-    case A_SLOT_X1: case A_SLOT_X2: case A_SLOT_X3: case A_SLOT_X4:
+    case A_SLOT_X1: case A_SLOT_X2: case A_SLOT_X3: case A_SLOT_X4: case A_MST_EFFECT: case A_MST_X1: case A_MST_X2:
+    case A_MST_X3: case A_MST_X4:
         return;   /* (ALGORITHM sets them; SEL
                                                                                     * leaves the list) */
     case A_REMOVE_NOTE: act_remove_note(lst.sel); break;

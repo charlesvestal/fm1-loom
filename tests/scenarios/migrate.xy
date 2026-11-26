@@ -505,3 +505,27 @@ reboot
 wait 400
 expect par11.s1x4 20
 expect par12.s1x2 100
+# a format 29 project (tests/fixtures/make_v29.xy): the master color tape (amount 70, tone 40, mix 100) is Master FX's
+# tape (the catalog's 7), its knobs and mix where they were, knob 3 and the extras at their defaults; the EQ, the comp
+# and the level beside it kept; kept by a save
+storeload tests/fixtures/store_v29.bin
+reboot
+wait 400
+expect tempo 117
+expect mst.color 7
+expect mst.camount 70
+expect mst.ctone 40
+expect mst.cmix 100
+expect mst.ck3 0
+expect mst.cx1 0
+expect mst.cx4 0
+expect mst.lo 80
+expect mst.comp 50
+expect mst.level 110
+projsave 1 v29_saved
+reboot
+wait 400
+expect mst.color 7
+expect mst.camount 70
+expect mst.cmix 100
+expect mst.level 110

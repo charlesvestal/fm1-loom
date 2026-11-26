@@ -46,7 +46,7 @@ SIZE_FILES = ["app/ui.c", "app/pages.c", "app/project.c", "app/lz.c", "app/sampl
 COLD = {
     "dsp/drumline.c": ["start", "knob", "drumline_filter", "drumline_hit", "reso_set", "drumline_init"],
     "dsp/fx.c": ["fx_derive", "eq_coefs", "fx_filter", "master_set", "master_init", "comp_coefs",
-                 "fx_set", "fx_init", "fx_delay_halves", "color_coefs", "biq_shelf",
+                 "fx_set", "fx_init", "fx_delay_halves", "slot_set", "master_room", "biq_shelf",
                  "fx_clear", "master_clear", "coef_ms", "master_pump_ms", "fx_pick_slot"],
     "dsp/sample.c": ["smp_user_scan", "fact_init", "smp_bank_crc", "smp_name",
                      "smp_entry", "smp_user_bytes", "smp_user_attach"],   # (the samples page's, the boot's)
@@ -92,7 +92,7 @@ COLD = {
 # the master's per-sample code (in RAM since 2026-10-18; the effects joined it then and left it 2026-10-23: they run on the
 # second core at the block's start, beside the first core's sequencer, where its time hides; their 14 KB went to the
 # kit's voices below, the first core's)
-RAM_DSP = ["master_process", "color_block"]
+RAM_DSP = ["master_process"]
 RAM_INLINE = ["fx_states", "zero16"]
 # and a synth note's start (a drum hit's, with every model's set-up inlined, came to ~15 KB: left out): the code a chord change runs once, cold in the XIP cache when
 # it does (on the FM-1, 2026-10-19: the blocks where notes start took twice the others). RAMTEXT is 32 KB for them

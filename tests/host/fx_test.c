@@ -1120,6 +1120,51 @@ int main(void)
                  oct[0], oct[1], (double)pk[0], (double)pk[1]);
         check(name, oct[1] > oct[0] * 4.0 && pk[1] < 2.0f && end < pk[1]);
     }
+    printf("-- the master's slot (Master FX: the one effects list, its memory the pool's)\n");
+    {   /* an impulse on the melodic group through the master's delay (24 blocks of the pool, cleared a slice a call:
+         * fx.h master_memory), and the same with no memory (dry, sample for sample as off); tape's wow a block there,
+         * none on a track; mix 0: off, no memory asked */
+        static float pl[BLK], pr[BLK], ml[BLK], mr[BLK], ol2[BLK], or2[BLK], ref[SR];
+        float late[2] = {0.0f, 0.0f};
+        int calls = 0, dry_same = 1;
+        for (int c = 0; c < 3; c++) {           /* c 0: off; 1: the delay with no memory; 2: with its memory */
+            MS_INIT();
+            master_tempo(ms, 120.0f);
+            if (c) {
+                master_set(ms, MS_CTYPE, EF_DELAY);
+                master_set(ms, MS_CAMT, EFX[EF_DELAY].def[0]);
+                master_set(ms, MS_CTONE, EFX[EF_DELAY].def[1]);
+                master_set(ms, MS_CK3, EFX[EF_DELAY].def[2]);
+                master_set(ms, MS_CMIX, 64);
+            }
+            if (c == 2)
+                for (calls = 1; master_memory(ms, efx_pool[0], master_need(ms)); calls++)
+                    ;
+            for (b = 0; b * BLK < SR; b++) {
+                for (i = 0; i < BLK; i++)
+                    pl[i] = pr[i] = mr[i] = 0.0f, ml[i] = b == 0 && i == 0 ? 0.5f : 0.0f;
+                master_process(ms, pl, pr, ml, mr, ol2, or2, BLK);
+                for (i = 0; i < BLK; i++) {
+                    if (!c)
+                        ref[b * BLK + i] = ol2[i];
+                    else if (c == 1)
+                        dry_same &= ol2[i] == ref[b * BLK + i];
+                    if (c && b * BLK + i > SR / 10)
+                        late[c - 1] += ol2[i] * ol2[i];
+                }
+            }
+        }
+        snprintf(name, sizeof name, "delay on the master: %d blocks, cleared in %d calls; an echo %.2g, none without memory",
+                 master_need(ms), calls, (double)late[1]);
+        check(name, master_need(ms) == efx_need(EF_DELAY, 0, 0) && calls == (master_need(ms) + EFX_CLR - 1) / EFX_CLR &&
+                    late[1] > 1e-4f && late[0] == 0.0f && dry_same && master_room(ms));
+        master_set(ms, MS_CMIX, 0);
+        check("  at mix 0: off, no memory asked", master_need(ms) == 0);
+        master_set(ms, MS_CTYPE, EF_TAPE);
+        master_set(ms, MS_CMIX, 127);
+        check("  tape: its wow's line a block on the master and a send, none on a track",
+              master_need(ms) == 1 && efx_need(EF_TAPE, 0, 1) == 1 && efx_need(EF_TAPE, 0, 0) == 0);
+    }
     printf("%s\n", bad ? "FX TESTS FAILED" : "fx tests passed");
     return bad != 0;
 }

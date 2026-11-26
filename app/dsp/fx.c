@@ -24,7 +24,6 @@
 #define SR 44100.0f
 #define SUB 32                                /* the block: parameter glides step here */
 #define GLIDE 0.07f                           /* a block's share of the distance: ~10 ms to settle */
-#define RING_C4 261.63f                       /* a ring off the voices: a ratio of C4 (synth.h KIT_RING_HZ) */
 
 struct fxslot {
     efx_send_t e;                             /* the sends' own effects: their numbers and states, their lines (efx.h) */
@@ -172,32 +171,18 @@ void fx_filter(fxslot_t *f, int hp, int lp)
 
 int fx_lags(const fxslot_t *f) { return f->type_t == EF_CHORUS || f->type_t == EF_DELAY || f->type_t == EF_REVERB; }
 
-/* the catalog's others on the send (both sides), wet, as a kit's slot runs them (synth.c slot_run): the dirt and the
- * color (ring at a ratio of C4, tape without its wow), the inserts' effects (rate: the LFO's at its first knob) */
+/* the catalog's others on the send (both sides), wet, as a kit's slot runs them (dsp/efx.c efx_slot_run: ring at a
+ * ratio of C4, tape with its wow, the inserts' effects at the LFO's rate of their first knob) */
 static void fx_other(fxslot_t *f, float *l, float *r, int m)
 {
     efx_slot_t *sl = &f->s;
-    const int ef = f->type;
-    if (efx_is_char(ef)) {
-        float *x = sl->u.ch.x, *z = sl->u.ch.z, *in = sl->u.ch.in;
-        float a = (float)f->k[0] * (1.0f / 127.0f), tn = (float)f->k[1] * (1.0f / 127.0f);
-        if (ef == EF_RING)
-            a = efx_ring_glide(a, in[0], &z[6], x);
-        if (ef != sl->cef || a != in[0] || tn != in[1]) {
-            efx_char_coefs(ef, a, tn, RING_C4, x);
-            sl->cef = (uint8_t)ef;
-            in[0] = a;
-            in[1] = tn;
-        }
-        x[7] = 1.0f;
-        if (ef == EF_RING)
-            efx_ring_norm(z);
-        efx_char_stage(x, z, ef, 1, l, r, m);
-    } else {
-        const float kn[3] = {(float)f->k[0], (float)f->k[1], (float)f->k[2]};
-        efx_insert(ef, &sl->u.in, &sl->ph, efx_need(ef, 0, 1) ? f->mem : 0, kn, f->x, 127,
-                   efx_lfo_hz(f->k[0], f->bpm), f->bpm, 0, l, r, (uint32_t)m);
-    }
+    sl->ef = f->type;
+    for (int i = 0; i < 3; i++)
+        sl->k[i] = (float)f->k[i];
+    for (int i = 0; i < 4; i++)
+        sl->xt[i] = f->x[i];
+    sl->mix = 127;
+    efx_slot_run(sl, 1, f->bpm, 0, efx_need(f->type, 0, 1) ? f->mem : 0, l, r, (uint32_t)m);
 }
 
 void fx_process(fxslot_t *f, const float *in, float *out_l, float *out_r, uint32_t n)
@@ -281,9 +266,9 @@ void fx_pick_slot(int pick, const uint8_t e[4], int width, int wobble, int smear
 /* ================================================================ master === */
 /* the master's knob names, short enough for the knob strip: percussion, melodic, compressor
  * and pump are perc, mel, comp, pump; then the out page's list */
-const char *const MC_NAME[NMC] = {"off", "tape", "sampler"};
-const char *const MS_NAME[NMS] = {"low", "mid", "high", "clip", "color", "amount", "tone", "mix",
-                                  "drums", "melodic", "comp", "pump", "pump by", "release", "accent", "level"};
+const char *const MS_NAME[NMS] = {"low", "mid", "high", "clip", "effect", "knob 1", "knob 2", "mix",
+                                  "drums", "melodic", "comp", "pump", "pump by", "release", "accent", "level",
+                                  "knob 3", "extra 1", "extra 2", "extra 3", "extra 4"};
 
 typedef struct { float b0, b1, b2, a1, a2; } biq_t;
 typedef struct { float x1, x2, y1, y2; } biqs_t;
@@ -311,19 +296,17 @@ struct master {
     float env, gain, inv_env;
     float la[MST_LA], la_r[MST_LA];
     int32_t la_pos, hold;
-    /* color (fx.h): the type running, its numbers (master_set), its states; the tape's wow line, a side */
-#define MC_LINE 128
-#define MC_DELAY 64.0f                        /* the wow's centre, samples (1.5 ms: the mix that late while tape is on) */
-    uint8_t col;
-    float c_x[8], c_z[8];                     /* the stage's numbers and states (dsp/efx.c: the character's tape, sampler) */
-    float c_dep, c_mix, c_ph, c_fph;          /* the wow's depth (samples), the mix, its phases */
-    int16_t c_line[2][MC_LINE];
-    int32_t c_pos;
+    /* the slot (fx.h): its effect, knobs and states (dsp/efx.c efx_slot_run; sl.clr its memory still to clear, sl.mef
+     * and sl.mmd the effect it was given for); its memory (the pool's: the engine's) and what the interrupt runs on */
+    efx_slot_t sl;
+    int16_t *mem, *mrun;                      /* (mrun: mem while it holds the effect, else 0) */
+    uint8_t mnb;
+    float bpm;
 };
 _Static_assert(sizeof(struct master) <= MASTER_BYTES, "master_t does not fit MASTER_BYTES");
 
 /* the bus's headroom: the groups enter it 8 dB down, so a project's chords and its kit peak a few dB under full scale
- * before the EQ, the color, the compressor and the limiter (at unity they peaked at +2 .. +9 dBFS: the limiter always
+ * before the EQ, the slot, the compressor and the limiter (at unity they peaked at +2 .. +9 dBFS: the limiter always
  * working, the organs audibly squashed; 2026-10-19). The drums and the synths keep their balance; the FM-1's volume
  * makes up the level */
 #ifndef MST_HEADROOM                          /* (tests/host/fx_test.sh: 1, the master's mechanics at unity) */
@@ -336,7 +319,7 @@ static float level_lin(int v)                 /* 0 .. 100 .. 127: silence, unity
 }
 static float coef_ms(float t) { return fm_expf(-1000.0f / (t * SR)); }
 float master_pump_ms(int v) { return 10.0f * fm_exp2f((float)v * (7.229f / 127.0f)); }   /* X0X's release: 10 .. 1500 */
-int master_max(int p) { return p == MS_PUMP_BY ? NPB - 1 : p == MS_PUMP_ACC ? 1 : p == MS_CTYPE ? NMC - 1 : 127; }
+int master_max(int p) { return p == MS_PUMP_BY ? NPB - 1 : p == MS_PUMP_ACC ? 1 : p == MS_CTYPE ? NEF - 1 : 127; }
 /* PUMP's duck rises over this (X0X's MASTER_PUMP_RISE_MS): 12 ms lets the kick's attack through and then ducks;
  * at 3 ms X0X heard a click on every kick */
 #define MST_PUMP_RISE_MS 12.0f
@@ -415,68 +398,56 @@ static void comp_coefs(master_t *m)
     }
 }
 
-/* the color's numbers from its knobs (the main loop); a new type starts at rest. Its stage is the character's tape or
- * sampler (dsp/efx.c); tape's wow (the voices' pitch there) a short line here */
-static const uint8_t MC_EF[NMC] = {EF_OFF, EF_TAPE, EF_SAMPLER};
-static void color_coefs(master_t *m)
+/* the slot's values from the knobs (master_set): its effect (off at mix 0: the stage skipped), knobs, mix, extras; the
+ * interrupt runs it as they are (efx_slot_run: a new effect from rest). Another effect (or reverb mode) runs on no
+ * memory until master_memory gives it its own */
+static int slot_mode(const efx_slot_t *sl) { return sl->ef == EF_REVERB && sl->xt[0] < NRV ? sl->xt[0] : 0; }
+static void slot_set(master_t *m)
 {
-    float a = (float)m->pot[MS_CAMT] * (1.0f / 127.0f), t = (float)m->pot[MS_CTONE] * (1.0f / 127.0f);
-    int type = m->pot[MS_CTYPE] < NMC ? m->pot[MS_CTYPE] : MC_OFF;
-    m->c_mix = (float)m->pot[MS_CMIX] * (1.0f / 127.0f);
-    if (type != MC_OFF) {
-        efx_char_coefs(MC_EF[type], a, t, 0.0f, m->c_x);
-        m->c_x[7] = m->c_mix;
-    }
-    if (type == MC_TAPE)
-        m->c_dep = (4.0f + 28.0f * a) * m->c_mix;  /* samples of wow: ~1 .. 6 cents at 0.55 Hz */
-    if (type != m->col) {                         /* (the interrupt may be mid-block: the states zeroed first) */
-        for (int i = 0; i < 8; i++)
-            m->c_z[i] = 0.0f;
-        m->col = (uint8_t)type;
-    }
+    efx_slot_t *sl = &m->sl;
+    sl->k[0] = (float)m->pot[MS_CAMT];
+    sl->k[1] = (float)m->pot[MS_CTONE];
+    sl->k[2] = (float)m->pot[MS_CK3];
+    sl->mix = m->pot[MS_CMIX];
+    for (int i = 0; i < 4; i++)
+        sl->xt[i] = m->pot[MS_CX1 + i];
+    sl->ef = (uint8_t)(m->pot[MS_CMIX] && m->pot[MS_CTYPE] < NEF ? m->pot[MS_CTYPE] : EF_OFF);
+    if (sl->ef != sl->mef || slot_mode(sl) != sl->mmd)
+        m->mrun = 0;
 }
-/* the master runs from RAM (tools/size_fns.py RAM_DSP), the color's stage from the flash: out of a direct call's reach,
- * called through a pointer the compiler cannot fold (engine.c DSP_FAR) */
+int master_need(const master_t *m) { return m->sl.ef != EF_OFF ? efx_need(m->sl.ef, slot_mode(&m->sl), 2) : 0; }
+int master_room(const master_t *m) { return master_need(m) <= (m->mem ? m->mnb : 0); }
+int master_memory(master_t *m, int16_t *mem, int nb)
+{
+    efx_slot_t *sl = &m->sl;
+    if (!mem)
+        nb = 0;
+    if (mem != m->mem || nb != m->mnb || sl->ef != sl->mef || slot_mode(sl) != sl->mmd) {   /* (new memory, or the
+                                                  * effect it held changed: cleared, the effect from rest) */
+        m->mem = mem;
+        m->mnb = (uint8_t)nb;
+        sl->clr = (uint8_t)nb;
+        sl->zef = EF_OFF;
+        sl->mef = sl->ef;
+        sl->mmd = (uint8_t)slot_mode(sl);
+    }
+    efx_clear_step(m->mem, m->mnb, &sl->clr, EFX_CLR);
+    m->mrun = master_room(m) ? m->mem : 0;
+    return sl->clr;
+}
+void master_tempo(master_t *m, float bpm)
+{
+    if (bpm > 20.0f)
+        m->bpm = bpm;
+}
+/* the master runs from RAM (tools/size_fns.py RAM_DSP), the slot from the flash: out of a direct call's reach, called
+ * through a pointer the compiler cannot fold (engine.c DSP_FAR) */
 static inline void *dsp_far(void *p) { void *volatile q = p; return q; }
-/* the color over a block of the bus, in place (master_process; from RAM: every call inlined): tape's wow, a short line
- * read at a wandering delay, then the stage */
-static inline void color_block(master_t *m, float *l, float *r, uint32_t n)
-{
-    uint32_t i;
-    if (m->col == MC_TAPE) {
-        const float dep = m->c_dep, dw = 0.55f / SR, df = 6.1f / SR;
-        float ph = m->c_ph, fph = m->c_fph;
-        int32_t pos = m->c_pos;
-        for (i = 0; i < n; i++) {
-            float d, fr, a0, a1;
-            int32_t k, k0, k1;
-            m->c_line[0][pos] = (int16_t)(fm_clampf(l[i], -1.99f, 1.99f) * 16384.0f);
-            m->c_line[1][pos] = (int16_t)(fm_clampf(r[i], -1.99f, 1.99f) * 16384.0f);
-            ph += dw;
-            fph += df;
-            if (ph >= 1.0f) ph -= 1.0f;
-            if (fph >= 1.0f) fph -= 1.0f;
-            d = MC_DELAY + dep * (fm_sin_turns(ph) + 0.125f * fm_sin_turns(fph));
-            k = (int32_t)d;
-            fr = d - (float)k;
-            k0 = (pos - k) & (MC_LINE - 1);
-            k1 = (k0 - 1) & (MC_LINE - 1);
-            a0 = (float)m->c_line[0][k0], a1 = (float)m->c_line[0][k1];
-            l[i] = (a0 + fr * (a1 - a0)) * (1.0f / 16384.0f);
-            a0 = (float)m->c_line[1][k0], a1 = (float)m->c_line[1][k1];
-            r[i] = (a0 + fr * (a1 - a0)) * (1.0f / 16384.0f);
-            pos = (pos + 1) & (MC_LINE - 1);
-        }
-        m->c_ph = ph;
-        m->c_fph = fph;
-        m->c_pos = pos;
-    }
-    ((__typeof__(&efx_char_stage))dsp_far((void *)&efx_char_stage))(m->c_x, m->c_z, MC_EF[m->col], 1, l, r, (int)n);
-}
 
 void master_init(master_t *m)
 {
-    static const uint8_t DEF[NMS] = {64, 64, 64, 0, MC_OFF, 40, 64, 127, 100, 100, 0, 0, PB_KICK, MS_PUMP_REL_DEF, 1, 100};
+    static const uint8_t DEF[NMS] = {64, 64, 64, 0, EF_OFF, 40, 64, 127, 100, 100, 0, 0, PB_KICK, MS_PUMP_REL_DEF, 1, 100,
+                                     0, 0, 0, 0, 0};
     uint32_t i;
     uint8_t *z = (uint8_t *)m;
     for (i = 0; i < sizeof *m; i++)
@@ -487,18 +458,21 @@ void master_init(master_t *m)
     m->pg = 1.0f;                                /* (the pump's gain: none ducked) */
     m->gp = m->gp_c = m->gm = m->gm_c = MST_HEADROOM;
     m->glev = m->lev_c = 1.0f;
+    m->bpm = 120.0f;
     eq_coefs(m);
     comp_coefs(m);
-    color_coefs(m);
+    slot_set(m);
 }
 
-void master_clear(master_t *m)
+void master_clear(master_t *m)                  /* (its memory given again: the engine's next block) */
 {
     uint8_t pot[NMS];
+    float bpm = m->bpm;
     uint32_t i;
     for (i = 0; i < NMS; i++)
         pot[i] = m->pot[i];
     master_init(m);
+    m->bpm = bpm;
     for (i = 0; i < NMS; i++)
         master_set(m, (int)i, pot[i]);
 }
@@ -513,8 +487,8 @@ void master_set(master_t *m, int p, int v)
     else if (p == MS_CLIP)
         m->cg = v ? fm_exp2f((float)v * (1.3288f / 127.0f)) : 0.0f;   /* 0 .. +8 dB of drive (at +12 the top half
                                                                      * flattened a mix); 0: the stage skipped */
-    else if (p <= MS_CMIX)
-        color_coefs(m);
+    else if (p <= MS_CMIX || p >= MS_CK3)
+        slot_set(m);
     else if (p == MS_PERC)
         m->gp = level_lin(v) * MST_HEADROOM;
     else if (p == MS_MEL)
@@ -573,7 +547,7 @@ static inline float glide1(float cur, float tgt)             /* a level knob: ~1
 }
 
 #ifdef PLAT_HOST
-int fx_host_stage = 9;                        /* the host's taps (host.c LOOM_MST): 0 the groups only, 1 + EQ, 2 + color,
+int fx_host_stage = 9;                        /* the host's taps (host.c LOOM_MST): 0 the groups only, 1 + EQ, 2 + the slot,
                                                * 3 + comp and level, else all (the limiter) */
 #define STAGE(k) (fx_host_stage >= (k))
 #else
@@ -650,8 +624,8 @@ void master_process(master_t *m, float *perc_l, float *perc_r, float *mel_l, flo
                 biq_block(&m->eq[b], &m->eqs[1][b], mel_r, n);
             }
     }
-    if (m->col != MC_OFF && STAGE(2))
-        color_block(m, mel_l, mel_r, n);
+    if (m->sl.ef != EF_OFF && STAGE(2))          /* the slot (dsp/efx.c, from the flash) */
+        ((__typeof__(&efx_slot_run))dsp_far((void *)&efx_slot_run))(&m->sl, 1, m->bpm, 0, m->mrun, mel_l, mel_r, n);
     {
         const float glev = m->glev, a_det = m->a_det, a_att = m->a_att, a_rel = m->a_rel, slope = m->slope;
         const float makeup = m->makeup, cg = m->cg;

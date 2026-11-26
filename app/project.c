@@ -54,9 +54,11 @@ typedef char raw_fits[(RAW_LEN < 0x100000u) ? 1 : -1];   /* (lz.c packs up to 16
  * then the tracks packed (lz.c: a synth track's kit keys and an aux track's sound are mostly defaults). Formats 10..14
  * stored them raw, each track's par[] TP_DRUMX0 long (the keys' knobs 5..8 came in 15): SET_OLD bytes in all */
 #define SET_HDR ((uint32_t)offsetof(settings_t, trk))
+#define SET_HDR29 (SET_HDR - (uint32_t)(NMS - MS_NMS29))   /* (formats 10..29's: the master's sixteen values, before
+                                                            * its slot's knob 3 and extras) */
 #define NTP14 ((uint32_t)TP_DRUMX0)
 #define TRK14 (NTP14 + NAME_LEN + 4u)
-#define SET_OLD ((SET_HDR + NALLTRK * TRK14 + 3u) & ~3u)   /* (the struct padded to its 4-byte alignment) */
+#define SET_OLD ((SET_HDR29 + NALLTRK * TRK14 + 3u) & ~3u)   /* (the struct padded to its 4-byte alignment) */
 #define NTP15 ((uint32_t)TP_O2FINE)                       /* format 15's par[]: up to the keys' knobs 5..8 */
 #define TRK15 (NTP15 + NAME_LEN + 4u)
 #define NTP18 ((uint32_t)TP_RUP)                          /* formats 16..18's: up to knit's osc 2 fine */
@@ -452,14 +454,17 @@ void project_defaults(void)
                                                            * (with Setup's NOTES) */
     }
     aux_defaults();
-    /* the master: the EQ flat, the color off (tape when on: amount 40, tone 64, all wet), the groups at unity, a touch
-     * of compression */
+    /* the master: the EQ flat, its effect off (amount 40, tone 64, all wet: tape's, as the color's were), the groups at
+     * unity, a touch of compression */
     for (k = 0; k < NMS; k++)
         proj.master[k] = 64;
     proj.master[MS_CLIP] = 0;
-    proj.master[MS_CTYPE] = MC_OFF;
+    proj.master[MS_CTYPE] = EF_OFF;
     proj.master[MS_CAMT] = 40;
     proj.master[MS_CMIX] = 127;
+    proj.master[MS_CK3] = 0;
+    for (k = MS_CX1; k <= MS_CX4; k++)
+        proj.master[k] = 0;
     proj.master[MS_PERC] = 100;
     proj.master[MS_MEL] = 100;
     proj.master[MS_COMP] = 30;
@@ -885,11 +890,13 @@ static int settings_unpack(int n)
         return -1;
     fmt = get32(io_buf + 4);
     if (fmt >= 15u && fmt <= PROJ_FORMAT) {
-        set_in_t in = {io_buf + SET_HDR + 4u, get32(io_buf + SET_HDR)};
+        const uint32_t hdr = fmt >= 30u ? SET_HDR : SET_HDR29;   /* (before 30: the master's slot's knob 3 and
+                                                                  * extras not there, at their defaults) */
+        set_in_t in = {io_buf + hdr + 4u, get32(io_buf + hdr)};
         lz_src_t src = {set_get, &in};
-        if (in.left > (uint32_t)n - SET_HDR - 4u)
+        if (in.left > (uint32_t)n - hdr - 4u)
             return -1;
-        for (i = 0; i < SET_HDR; i++)
+        for (i = 0; i < hdr; i++)
             ((uint8_t *)&proj)[i] = io_buf[i];
         uint32_t ntp = fmt >= 28u ? (uint32_t)NTP : fmt >= 26u ? NTP27 : fmt >= 25u ? NTP25 : fmt >= 24u ? NTP24
                      : fmt >= 23u ? NTP23 : fmt >= 22u ? NTP22 : fmt >= 19u ? NTP21 : fmt >= 16u ? NTP18 : NTP15;
@@ -941,10 +948,10 @@ static int settings_unpack(int n)
     }
     if (n != (int)SET_OLD || !FORMAT_OK(fmt))
         return -1;
-    for (i = 0; i < SET_HDR; i++)
+    for (i = 0; i < SET_HDR29; i++)
         ((uint8_t *)&proj)[i] = io_buf[i];
     for (int t = 0; t < NALLTRK; t++) {
-        const uint8_t *o = io_buf + SET_HDR + (uint32_t)t * TRK14;
+        const uint8_t *o = io_buf + SET_HDR29 + (uint32_t)t * TRK14;
         trk_t *tr = &proj.trk[t];
         memcpy(tr->par, o, NTP14);
         memcpy(tr->name, o + NTP14, NAME_LEN);
@@ -1068,6 +1075,11 @@ int project_load(int slot)
                 for (int i = 0; i < NSTEP; i++)
                     L->val[i] = old_arp(L->val[i]);
         }
+    if (load_format < 30u) {                          /* (the master color: its slot, the catalog's tape and sampler;
+                                                       * amount, tone and mix in their places) */
+        static const uint8_t MC_EF[3] = {EF_OFF, EF_TAPE, EF_SAMPLER};
+        proj.master[MS_CTYPE] = MC_EF[proj.master[MS_CTYPE] < 3u ? proj.master[MS_CTYPE] : 0];
+    }
     if (load_format < 29u)                            /* (the FX tracks' pick and knobs: their slot) */
         for (int t = AUX_FX1; t <= AUX_FX2; t++)
             fx_old(proj.trk[t].par);

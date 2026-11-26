@@ -297,7 +297,6 @@ void sound_default(uint8_t *par, int engine);       /* par[NTP] for a fresh trac
  * ring-modulated (its peak at 1); tilt the response in dB / 6 from 50 Hz (u 0) to 20 kHz (u 1). The mix is in it; mix:
  * -1 the slot's, else this one (0: the dry curve) */
 float slot_picture(const uint8_t *par, int q, int mix, float u);
-#define KIT_RING_HZ 261.63f                         /* a ring off the voices (a kit's, a second ring): a ratio of C4 */
 /* the Engine page's picture of the organ: the six drawbars' levels (16' 8' 4' 2 2/3' 2' 1 1/3', 0..1, the loudest 1) that
  * stops and pedal set (organ_prep's registration) */
 void organ_bars(const uint8_t *par, float bars[6]);

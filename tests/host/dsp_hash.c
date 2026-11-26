@@ -413,6 +413,8 @@ static void master_case(const char *name, const int *set)
     master_init(ms);
     for (i = 0; set[i] >= 0; i += 2)
         master_set(ms, set[i], set[i + 1]);
+    while (master_memory(ms, efx_pool[0], master_need(ms)))   /* (its memory, as the engine gives it) */
+        ;
     rng = 99;
     hash_init();
     for (b = 0; b < 200; b++) {
@@ -441,10 +443,10 @@ static void master_cases(void)
     master_case("master levels comp", lev);
     master_case("master clip 90", clip);
     {
-        static const int tape[] = {MS_CTYPE, MC_TAPE, MS_CAMT, 90, MS_CTONE, 60, MS_CMIX, 127, -1};
-        static const int tape2[] = {MS_CTYPE, MC_TAPE, MS_CAMT, 20, MS_CTONE, 110, MS_CMIX, 70, MS_COMP, 50, -1};
-        static const int smp[] = {MS_CTYPE, MC_SAMPLER, MS_CAMT, 90, MS_CTONE, 40, MS_CMIX, 127, -1};
-        static const int smp2[] = {MS_CTYPE, MC_SAMPLER, MS_CAMT, 30, MS_CTONE, 100, MS_CMIX, 64, -1};
+        static const int tape[] = {MS_CTYPE, EF_TAPE, MS_CAMT, 90, MS_CTONE, 60, MS_CMIX, 127, -1};
+        static const int tape2[] = {MS_CTYPE, EF_TAPE, MS_CAMT, 20, MS_CTONE, 110, MS_CMIX, 70, MS_COMP, 50, -1};
+        static const int smp[] = {MS_CTYPE, EF_SAMPLER, MS_CAMT, 90, MS_CTONE, 40, MS_CMIX, 127, -1};
+        static const int smp2[] = {MS_CTYPE, EF_SAMPLER, MS_CAMT, 30, MS_CTONE, 100, MS_CMIX, 64, -1};
         master_case("master color tape", tape);
         master_case("master color tape 2", tape2);
         master_case("master color sampler", smp);

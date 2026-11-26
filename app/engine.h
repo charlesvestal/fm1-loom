@@ -55,6 +55,7 @@ void engine_punch(int fx, int on, int target_trk);
 void engine_brain_key(int note, int on);
 void engine_master(int p, int val);
 int engine_fx_room(int slot);                            /* the send's memory holds its effect (fx.h fx_room) */
+int engine_master_room(void);                            /* the master's slot's memory holds its effect (fx.h) */
 void engine_panic(void);
 void engine_transport(int what);                         /* 0 stop, 1 start, 2 continue, 3 start from the top */
 void engine_metronome(int mode);

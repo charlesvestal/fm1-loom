@@ -111,7 +111,7 @@ static const char *const PAGE_NAME[NPAGES] = {"Arrange", "Song", "Steps", "Bar",
                                               "Envelope",
                                               "Filter", "Filter env", "Kit filter", "Character", "Insert", "Sends", "FX I",
                                               "FX II", "Throws", "LFO", "LFO 2", "Players", "Players 2", "Hold", "Weave", "Mix",
-                                              "Master EQ", "Master color", "Master out", "LFO", "Setup", "Debug"};
+                                              "Master EQ", "Master FX", "Master out", "LFO", "Setup", "Debug"};
 static char *s_cat(char *b, const char *s);
 static char *num_s(uint32_t v, char *b);
 static const char *const GLFO_SHAPE[NGS + 1] = {"off", "sine", "triangle", "saw up", "saw down", "square", "random"};
@@ -138,7 +138,22 @@ static uint32_t glfo_route(void)                 /* the tracks it moves: bit t *
     const uint8_t *g = proj.trk[AUX_BRAIN].par;
     return (uint32_t)(g[TP_LX] & 15u) | (uint32_t)(g[TP_LX2] & 15u) << 4;
 }
-static int mst_base(int p) { return p == P_MASTER ? MS_EQ_LO : p == P_MASTER2 ? MS_CTYPE : MS_PERC; }   /* its first knob */
+/* a master page's knob k: its value (fx.h MS_*); Master FX's the slot's three knobs and its mix (the effect: PRESETS,
+ * SEL) */
+static int mst_m(int p, int k)
+{
+    static const uint8_t FXK[4] = {MS_CAMT, MS_CTONE, MS_CK3, MS_CMIX};
+    return p == P_MASTER ? MS_EQ_LO + k : p == P_MASTER2 ? FXK[k & 3] : MS_PERC + k;
+}
+/* Master FX's slot as a track's slot 1 (synth.h TP_SLOT[0]): its knobs' names, ranges and texts as a track's are */
+static void mst_par(uint8_t *par)
+{
+    static const uint8_t M[SL_N] = {MS_CTYPE, MS_CAMT, MS_CTONE, MS_CK3, MS_CMIX, MS_CX1, MS_CX2, MS_CX3, MS_CX4};
+    for (int i = 0; i < NTP; i++)
+        par[i] = 0;
+    for (int j = 0; j < SL_N; j++)
+        par[TP_SLOT[0][j]] = proj.master[M[j]];
+}
 static const struct { uint8_t btn, first, n; } PAGE_BTN[] = {
     {B_HOME, P_ARRANGE, 2}, {B_SEQ, P_STEPS, 2}, {B_EDIT, P_ENGINE, 6}, {B_ENV, P_ENV, 4}, {B_FX, P_CHARACTER, 6},
     {B_LFO, P_LFO, 2}, {B_ARP, P_PLAYERS, 4}, {B_GLO, P_MIX, 7}};
@@ -292,7 +307,8 @@ enum { A_CLEAR_NOTES, A_CLEAR_LOCKS, A_CLEAR_BOTH, A_COPY_PAT, A_PASTE_PAT, A_RO
        A_BT_FORGET, A_BT_DISCONNECT, A_CLEAR, A_ROTATE, A_PASTE, A_COPY_EMPTY, A_CLEAR_BAR,
        A_COPY_SOUND, A_PASTE_SOUND, A_COPY_KEY, A_PASTE_KEY, A_COPY_SCENE, A_PASTE_SCENE, A_DUP_SLOT, A_KIT_FILTER,
        A_SHIFT, A_LARGE_TYPE, A_CC_IN, A_MOD_VIEW, A_PROJ1, A_PROJ2, A_PROJ3,
-       A_SLOT_K3, A_SLOT_MIX, A_SLOT_X1, A_SLOT_X2, A_SLOT_X3, A_SLOT_X4, NACTIONS };
+       A_SLOT_K3, A_SLOT_MIX, A_SLOT_X1, A_SLOT_X2, A_SLOT_X3, A_SLOT_X4, A_MST_EFFECT, A_MST_X1, A_MST_X2, A_MST_X3,
+       A_MST_X4, NACTIONS };   /* (A_MST_*: Master FX's effect and extras, its list's) */
 static const uint8_t SLOT_ROW[6] = {SL_K3, SL_MIX, SL_X1, SL_X2, SL_X3, SL_X4};   /* (A_SLOT_K3 ..: a slot's value) */
 static const char *const ACTION_NAME[NACTIONS] = {
     "CLEAR NOTES", "CLEAR LOCKS", "CLEAR NOTES AND LOCKS", "COPY PATTERN", "PASTE PATTERN", "ROTATE FORWARD",
@@ -305,13 +321,15 @@ static const char *const ACTION_NAME[NACTIONS] = {
     "USB PORT", "BT MIDI", "BT AUDIO", "AUDIO DEVICE", "MIDI DEVICE", "DEVICE", "LOOK AGAIN", "FORGET", "DISCONNECT",
     "CLEAR", "ROTATE", "PASTE", "COPY TO EMPTY", "CLEAR BAR", "COPY SOUND", "PASTE SOUND", "COPY DRUM", "PASTE DRUM",
     "COPY SCENE", "PASTE SCENE", "DUPLICATE SLOT", "KIT FILTER", "SHIFT NOTES", "LARGE TYPE", "CC IN",
-    "MOD VIEW", "PROJ 1", "PROJ 2", "PROJ 3", "KNOB 3", "MIX", "EXTRA 1", "EXTRA 2", "EXTRA 3", "EXTRA 4"};
+    "MOD VIEW", "PROJ 1", "PROJ 2", "PROJ 3", "KNOB 3", "MIX", "EXTRA 1", "EXTRA 2", "EXTRA 3", "EXTRA 4", "EFFECT",
+    "EXTRA 1", "EXTRA 2", "EXTRA 3", "EXTRA 4"};
 _Static_assert(NPROJ == 3, "GLO's list: an action a slot (A_PROJ1..A_PROJ3)");
 static const char *const CLEAR_WHAT[3] = {"notes", "locks", "notes and locks"};
 /* a pick ALGORITHM sets at once (a setting: SEL only leaves the list), as against a choice SEL then carries out */
 static int pick_sets(int a)
 {
-    if (a >= A_SLOT_K3)                              /* (a slot's values: the last actions, out of the switch's table) */
+    if (a >= A_SLOT_K3)                              /* (a slot's values, Master FX's: the last actions, out of the
+                                                      * switch's table) */
         return 1;
     switch (a) {
     case A_FOLLOW: case A_USB_AUDIO: case A_COUNT_IN: case A_THEME: case A_LARGE_TYPE: case A_PLAYMODE: case A_FTYPE:
@@ -1296,23 +1314,6 @@ static void kn(knob_t *k, const char *name, int32_t v, int32_t max)
     k->num = v;
     k->max = max;
 }
-/* the master color's knob m (amount, tone, mix): printed as a voice's character stage of the same type prints it
- * (tp_text_par: the tape's tone and the sampler's rate and filter in Hz, the rest in %) */
-static void kmc(knob_t *k, int m)
-{
-    static const uint8_t CT_OF[NMC] = {EF_OFF, EF_TAPE, EF_SAMPLER};
-    uint8_t par[NTP] = {0};                          /* (all of it: tp_info_par reads TP_PLAYER, past the sound's part) */
-    char num[12], unit[6], val[24], *e;
-    int p = TP_CAMT + (m - MS_CAMT), v = proj.master[m];
-    par[TP_CTYPE] = CT_OF[proj.master[MS_CTYPE] % NMC];
-    tp_text_par(p, v, par, num, unit);
-    if (p == TP_CTONE && par[TP_CTYPE] == EF_OFF)      /* (off: the tone a plain number) */
-        num_i(v, num), unit[0] = 0;
-    e = s_cat(val, num);
-    if (unit[0])
-        s_cat(unit[0] != '%' ? s_cat(e, " ") : e, unit);
-    kv(k, MS_NAME[m], val, v, 127);
-}
 /* the master's pump: its depth (0 .. 24 dB), its source, its release */
 static void pump_text(int v, char *t)
 {
@@ -1340,14 +1341,19 @@ static const char *short_name(const char *n)        /* a knob name short enough 
     return s_eq(n, "frequency") ? "freq" : s_eq(n, "modulation") ? "mod" : s_eq(n, "feedback") ? "fdbk"
            : s_eq(n, "envelope") ? "env" : s_eq(n, "keytrack") ? "keytrk" : n;
 }
-/* a track parameter's knob: its name and value as synth.c prints them (the value v, or the track's) */
+/* a track parameter's knob: its name and value as synth.c prints them (the value v, or the track's); kpar_val: of a
+ * track's values par */
+static void kpar_val(knob_t *k, const uint8_t *par, int p, int v);
 static void ktp_val(knob_t *k, int trk, int p, int v)
 {
-    const uint8_t *par = proj.trk[trk].par;
-    const tp_info_t *in;
-    char num[12], unit[6], val[24], *e;
     if (is_fx(trk) && p == TP_CMIX)                  /* (an FX track's mix: its return, a level as a track's fader) */
         p = TP_LEVEL;
+    kpar_val(k, proj.trk[trk].par, p, v);
+}
+static void kpar_val(knob_t *k, const uint8_t *par, int p, int v)
+{
+    const tp_info_t *in;
+    char num[12], unit[6], val[24], *e;
     in = tp_info_par(p, par);
     if (!in->name || !in->name[0] || s_eq(in->name, "-"))
         return;
@@ -1894,12 +1900,12 @@ static void page_knobs(knob_t *k)
         break;
     case P_MASTER: case P_MASTER2: case P_MASTER3:
         for (int i = 0; i < 4; i++) {
-            int m = mst_base(p) + i;
-            if (m == MS_CTYPE)
-                kname(&k[i], MS_NAME[m], MC_NAME, proj.master[m] % NMC, NMC);
-            else if (m >= MS_CAMT && m <= MS_CMIX)
-                kmc(&k[i], m);
-            else if (m == MS_PUMP) {
+            int m = mst_m(p, i);
+            if (p == P_MASTER2) {                    /* (the slot's knobs as a track's slot 1 has them) */
+                uint8_t par[NTP];
+                mst_par(par);
+                kpar_val(&k[i], par, TP_SLOT[0][i == 3 ? SL_MIX : SL_K1 + i], proj.master[m]);
+            } else if (m == MS_PUMP) {
                 char t[12];
                 pump_text(proj.master[m], t);
                 kv(&k[i], MS_NAME[m], t, proj.master[m], 127);
@@ -2384,7 +2390,10 @@ static void page_footer(char *t)
     case P_SETUP:
         s_cat(t, "SEL Bluetooth|KEYS play");
         break;
-    case P_MASTER: case P_MASTER2: case P_STATUS:
+    case P_MASTER2:
+        s_cat(t, "PRESET effect|SEL extras|KEYS play");
+        break;
+    case P_MASTER: case P_STATUS:
         s_cat(t, "KEYS play");
         break;
     case P_SENDS:
@@ -3115,15 +3124,37 @@ static void list_sound(int trk)
             list_midi_out(trk);
     }
 }
-/* GLO's pages but Setup: their knobs, page by page; Master out's settings with its knobs */
+/* a slot's value pr past its page's knobs (a track's values par; none: "-"), its name in capitals: its list row */
+static void list_slot_row(const uint8_t *par, int pr, char *nm, char *vt, int act)
+{
+    const tp_info_t *in = tp_info_par(pr, par);
+    char num[12], unit[6];
+    if (in->name[0] == '-')
+        return;
+    for (int c = 0; c < 11 && in->name[c]; c++)
+        nm[c] = (char)(in->name[c] >= 'a' && in->name[c] <= 'z' ? in->name[c] - 32 : in->name[c]), nm[c + 1] = 0;
+    tp_text_par(pr, par[pr], par, num, unit);
+    vt[0] = 0;
+    s_cat(unit[0] ? s_cat(s_cat(vt, num), unit[0] == '%' ? "" : " ") : s_cat(vt, num), unit);
+    list_add(nm, vt, LK_PICK, act);
+}
+/* GLO's pages but Setup: their knobs, page by page; Master FX's effect (the catalog: ALGORITHM sets it, its knobs at
+ * their defaults) and the effect's extras; Master out's settings with its knobs */
 static void list_mix(int g)
 {
-    static char by[8], rel[12], lev[8];
+    static char by[8], rel[12], lev[8], xn[4][12], xv[4][16];
     for (int gi = 0; gi < group_n(g); gi++) {
         int p = grp_page(g, gi);
         if (p == P_SETUP || p == P_STATUS)
             continue;
         list_page_section(p);
+        if (p == P_MASTER2) {
+            uint8_t par[NTP];
+            mst_par(par);
+            list_add(ACTION_NAME[A_MST_EFFECT], EFX[proj.master[MS_CTYPE] % NEF].name, LK_PICK, A_MST_EFFECT);
+            for (int r = 0; r < 4; r++)
+                list_slot_row(par, TP_SLOT[0][SL_X1 + r], xn[r], xv[r], A_MST_X1 + r);
+        }
         if (p == P_MASTER3) {
             char *e = num_i((int32_t)(master_pump_ms(proj.master[MS_PUMP_REL]) + 0.5f), rel);
             s_cat(e, " ms");
@@ -3233,20 +3264,10 @@ static void list_build(void)
         const uint8_t *par = proj.trk[st].par;
         if (is_fx(st))
             list_add(ACTION_NAME[A_EFFECT], EFX[ui.pick_fx % NEF].name, LK_PICK, A_EFFECT);
-        for (int r = 0; r < 6; r++) {
-            const int pr = TP_SLOT[q][SLOT_ROW[r]];
-            const tp_info_t *in = tp_info_par(pr, par);
-            char num[12], unit[6];
-            if ((r == 0 && (q || is_fx(st))) || (r == 1 && !q) || in->name[0] == '-')
-                continue;                           /* (slot 1's mix and knob 3, slot 2's knob 3: on the page) */
-            for (int c = 0; c < 11 && in->name[c]; c++)
-                nm[r][c] = (char)(in->name[c] >= 'a' && in->name[c] <= 'z' ? in->name[c] - 32 : in->name[c]),
-                nm[r][c + 1] = 0;
-            tp_text_par(pr, par[pr], par, num, unit);
-            vt[r][0] = 0;
-            s_cat(unit[0] ? s_cat(s_cat(vt[r], num), unit[0] == '%' ? "" : " ") : s_cat(vt[r], num), unit);
-            list_add(nm[r], vt[r], LK_PICK, A_SLOT_K3 + r);
-        }
+        for (int r = 0; r < 6; r++)
+            if (!((r == 0 && (q || is_fx(st))) || (r == 1 && !q)))   /* (slot 1's mix and knob 3, slot 2's knob 3:
+                                                                     * on the page) */
+                list_slot_row(par, TP_SLOT[q][SLOT_ROW[r]], nm[r], vt[r], A_SLOT_K3 + r);
         if (is_fx(st)) {
             num_s(par[TP_FENV], hp);
             num_s(par[TP_CUT], lp);
@@ -5915,19 +5936,29 @@ static void draw_slot(int pg)
                                            "notches that sweep", "a lamp-swept phase", "two voices swaying apart",
                                            "the Juno's chorus", "a filter your playing opens", "repeats in time",
                                            "a low, dark tail, ducked", "a space around it"};
-    int trk, q = slot_page(pg, &trk), drum = is_drum(trk), send = is_fx(trk);
-    const uint8_t *p = send ? proj.trk[trk].par : par_now(trk);
+    uint8_t mp[NTP];                                 /* (Master FX: its slot as a track's slot 1, mst_par) */
+    const int mst = pg == P_MASTER2;
+    int trk = -1, q = 0, drum = 0, send = 0;
+    const uint8_t *p = mp;
+    if (mst)
+        mst_par(mp);
+    else {
+        q = slot_page(pg, &trk);
+        drum = is_drum(trk);
+        send = is_fx(trk);
+        p = send ? proj.trk[trk].par : par_now(trk);
+    }
     const int pe = TP_SLOT[q][SL_EF], ef = p[pe] < NEF ? p[pe] : EF_OFF;
-    const int room = send ? engine_fx_room(trk - AUX_FX1) : engine_slot_room(trk, q);
+    const int room = mst ? engine_master_room() : send ? engine_fx_room(trk - AUX_FX1) : engine_slot_room(trk, q);
     const float k0 = (float)p[TP_SLOT[q][SL_K1]] / 127.0f, k1 = (float)p[TP_SLOT[q][SL_K2]] / 127.0f;
     const float k2 = (float)p[TP_SLOT[q][SL_K3]] / 127.0f, mix = (float)p[TP_SLOT[q][SL_MIX]] / 127.0f;
-    uint32_t h = hash_u(hash_u(2166136261u, 0xC4u + (uint32_t)q), (uint32_t)trk | (uint32_t)ef << 4 | (uint32_t)drum << 9 |
-                                                                (uint32_t)room << 10);
+    uint32_t h = hash_u(hash_u(2166136261u, 0xC4u + (uint32_t)q),
+                        (uint32_t)(trk + 1) | (uint32_t)ef << 5 | (uint32_t)drum << 10 | (uint32_t)room << 11);
     int32_t x0 = 128, y0 = 8, w = 100, hh = 96, cy = y0 + hh / 2;
     char t[40];
     for (int j = SL_K1; j <= SL_MIX; j++)
         h = hash_u(h, p[TP_SLOT[q][j]]);
-    h = hash_u(h, (uint32_t)send << 1 | (uint32_t)(send ? 0 : ui.last_inst) << 4);
+    h = hash_u(h, (uint32_t)mst | (uint32_t)send << 1 | (uint32_t)(send || mst ? 0 : ui.last_inst) << 4);
     for (int k = 0; k < NTRK + 2 && !room; k++) {    /* (who has the memory: the message names them) */
         const int kt = k < 2 ? AUX_FX1 + k : k - 2;
         h = hash_u(h, (uint32_t)slot_holds(kt, 0) | (uint32_t)slot_holds(kt, 1) << 1);
@@ -5940,7 +5971,9 @@ static void draw_slot(int pg)
     else
         s_cat(t, ABOUT[ef]);
     cv_text(12, 40, &FONT_XS, t, K_DIM);
-    if (send)
+    if (mst)
+        s_cat(t, "on the whole mix");
+    else if (send)
         s_cat(s_cat(t, trk == AUX_FX1 ? "send I, keys play " : "send II, keys play "), TRACK_NAME[inst_trk()]);
     else if (q)
         s_cat(s_cat(s_cat(t, "after "), TRACK_NAME[trk]), "'s character");
@@ -6496,37 +6529,6 @@ static void draw_mix(void)
         text_r(236, 108, &FONT_XS, ui.solo_lat ? "SOLO" : "solo", ui.solo_lat ? K_SEL : K_TEXT);
     main_blit();
 }
-/* Master color: the type and what it does, and the Character page's picture of it (synth.c slot_picture, through a
- * voice's bytes made from the master's knobs: the same curves) */
-static void draw_master_color(void)
-{
-    static const char *const ABOUT[NMC] = {"the mix as it is", "warmth and wow", "an old sampler's grain"};
-    const uint8_t *m = proj.master;
-    int ty = m[MS_CTYPE] % NMC;
-    uint32_t h = hash_u(hash_u(2166136261u, 0xC0u), (uint32_t)ty | (uint32_t)m[MS_CAMT] << 8 | (uint32_t)m[MS_CTONE] << 16 |
-                                                    (uint32_t)m[MS_CMIX] << 24);
-    int32_t x0 = 128, y0 = 8, w = 100, hh = 72, cy = y0 + hh / 2;
-    uint8_t par[NTP_SOUND];
-    pen_t pn = {0};
-    if (!begin_main(h))
-        return;
-    cv_text(12, 4, &FONT_L, MC_NAME[ty], K_TEXT);
-    cv_text(12, 40, &FONT_XS, ABOUT[ty], K_DIM);
-    cv_text(12, 56, &FONT_XS, "on the whole mix", K_DIM);
-    for (int i = 0; i < NTP_SOUND; i++)
-        par[i] = 0;
-    par[TP_CTYPE] = ty == MC_TAPE ? EF_TAPE : ty == MC_SAMPLER ? EF_SAMPLER : EF_OFF;
-    par[TP_CAMT] = m[MS_CAMT];
-    par[TP_CTONE] = m[MS_CTONE];
-    par[TP_CMIX] = m[MS_CMIX];
-    cv_rect(x0, cy, w, 1, K_LINE);
-    for (int32_t i = 0; i <= w; i++) {
-        float u = ty == MC_SAMPLER ? (float)i / (float)w : (float)i * 2.0f / (float)w - 1.0f;
-        float y = fm_clampf(slot_picture(par, 0, -1, u), -1.2f, 1.2f);
-        pen_to(&pn, (float)(x0 + i), (float)cy - y * (float)(hh / 2 - 6) / 1.2f, ty == MC_OFF ? K_FAINT : K_NOW);
-    }
-    main_blit();
-}
 static void draw_master(void)
 {
     int pg = ui.page == P_MASTER ? 0 : 2;
@@ -6935,7 +6937,7 @@ static void draw_main(int trk)
     case P_THROWS: draw_punch(); break;
     case P_WEAVE: draw_weave(); break;
     case P_MASTER: case P_MASTER3: draw_master(); break;
-    case P_MASTER2: draw_master_color(); break;
+    case P_MASTER2: draw_slot(P_MASTER2); break;
     case P_GLFO: draw_glfo(); break;
     case P_SETUP: draw_setup(); break;
     default: draw_status(); break;

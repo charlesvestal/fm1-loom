@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: MPL-2.0 */
 /* LOOM-8 effects: the two send-effect tracks (FX I, FX II: each a slot of the one effects list, dsp/efx.h) and the
- * master section (3-band EQ, its color, compressor, limiter, group levels).
+ * master section (3-band EQ, its effect slot, compressor, limiter, group levels).
  *
  * All run in the audio interrupt (the sends' delay, reverb and chorus on the second core, a block late). Float,
  * fastmath.h. */
@@ -26,7 +26,7 @@ typedef struct fxslot fxslot_t;
 #ifdef PLAT_HOST
 #define FXSLOT_BYTES 1768             /* (the host's pointers are wider) */
 #else
-#define FXSLOT_BYTES 1744             /* (fx.c checks it: 1,740 B, 2026-11-25) */
+#define FXSLOT_BYTES 1744             /* (fx.c checks it: 1,744 B, 2026-11-25) */
 #endif
 void fx_init(fxslot_t *f);
 void fx_set(fxslot_t *f, int ef, const uint8_t k[3], const uint8_t x[4]);   /* the effect (EF_*), its knobs and extras
@@ -65,35 +65,47 @@ void fx_pick_slot(int pick, const uint8_t e[4], int width, int wobble, int smear
 
 
 /* ---- master ---- */
-/* the master's knobs, three pages: EQ (low, mid, high; 64 flat), color (type, amount, tone, mix), out (drums, melodic,
- * comp, pump); then the out page's list (SEL): what the pump follows, its release, accent, and the level (the drive
- * into the limiter). Value 3 was the EQ's blend, gone: a project's byte there is ignored.
- * color (after the EQ, before the compressor; the character's warm types, dsp/efx.c's, on the whole mix):
- *   tape:    a wow (0.55 Hz, a 6 Hz flutter an eighth as deep) on the whole mix, ~1 .. 6 cents by the amount (times the
- *            mix, not mixed: no comb with the dry), then the character's tape: the saturation (gain 0.5 .. 8, made up)
- *            into a two-pole roll-off (tone 1.5 .. 18 kHz), mixed
- *   sampler: the mix low-passed, held at 26 .. 11 kHz and 14 .. 11 bits by the amount, its output filter (tone 2 ..
- *            20 kHz), mixed
+/* the master's values: three pages, EQ (low, mid, high; 64 flat, then CLIP), its slot (the effect, knobs 1, 2, the mix;
+ * its knob 3 and extras after the out page's), out (drums, melodic, comp, pump); then the out page's list (SEL): what
+ * the pump follows, its release, accent, and the level (the drive into the limiter). Value 3 was the EQ's blend, gone.
+ * The slot (Master FX: after the EQ, before the compressor) is a slot of the one effects list (dsp/efx.h, as a kit's
+ * bus runs one: ring at a ratio of C4, the dirt and the color on both sides): any effect of the catalog, its three
+ * knobs, its mix (0: the stage skipped), its extras. Memory from the pool after the sends', before the tracks'
+ * (master_need, master_memory: the engine's, each block); without enough it passes dry ("no memory": master_room).
+ * Tape's wow (0.55 Hz, a 6 Hz flutter an eighth as deep; ~1 .. 6 cents by the amount, times the mix, not mixed: no
+ * comb with the dry) through a short line in its memory (a block), then the saturation into the roll-off, mixed.
+ * Before format 30 the slot was the master color: off, tape or sampler (0, 1, 2: the catalog's 0, 7, 8 now), amount,
+ * tone, mix: the same places
  * PUMP (X0X's master PUMP): every hit of its source lowers the whole mix by up to 24 dB (rising in 12 ms) and
  * lets it swell back over the release; it is keyed by the sequencer, not by audio, so a muted track drives it
  * too. pump by: PB_KICK any kick of a kit (its first key, or a key on the kick model), PB_T1.. (a kit: its kicks) any note of
  * track 1..8, PB_METRO the metronome's click. release 0..127: 10 .. 1500 ms (60 = 107 ms, X0X's); accent
  * 0 / 1: a hit pumps by its velocity (0.5 .. 1 of the depth) or always fully. */
 enum { MS_EQ_LO, MS_EQ_MID, MS_EQ_HI, MS_CLIP, MS_CTYPE, MS_CAMT, MS_CTONE, MS_CMIX,
-       MS_PERC, MS_MEL, MS_COMP, MS_PUMP, MS_PUMP_BY, MS_PUMP_REL, MS_PUMP_ACC, MS_LEVEL, NMS };
-#define MS_NKNOB 12                   /* the knobs' places (EQ 0..3, color 4..7, out 8..11); MS_PUMP_BY.. the out page's list */
-enum { MC_OFF, MC_TAPE, MC_SAMPLER, NMC };   /* the master color's types */
-extern const char *const MC_NAME[NMC];
+       MS_PERC, MS_MEL, MS_COMP, MS_PUMP, MS_PUMP_BY, MS_PUMP_REL, MS_PUMP_ACC, MS_LEVEL,
+       MS_CK3, MS_CX1, MS_CX2, MS_CX3, MS_CX4, NMS };   /* (the slot: MS_CTYPE effect, MS_CAMT, MS_CTONE, MS_CK3 its
+                                                         * knobs, MS_CMIX its mix, MS_CX1..4 its extras) */
+#define MS_NMS29 16                   /* (format 29's values: up to MS_LEVEL) */
 enum { PB_KICK, PB_T1, PB_METRO = PB_T1 + 8, NPB };
 #define MS_PUMP_REL_DEF 60
 extern const char *const MS_NAME[NMS];
 typedef struct master master_t;
-#define MASTER_BYTES 1432             /* (fx.c checks it: 1,428 B, 2026-11-25) */
+#ifdef PLAT_HOST
+#define MASTER_BYTES 976              /* (the host's pointers are wider) */
+#else
+#define MASTER_BYTES 960              /* (fx.c checks it: 956 B, 2026-11-25; 1,428 with the master color's line) */
+#endif
 void master_init(master_t *m);
 void master_clear(master_t *m);                             /* its states at rest, its settings kept */
-void master_set(master_t *m, int p, int v);                 /* 0..127 (EQ 64 = flat; color type 0..NMC-1; pump by
+void master_set(master_t *m, int p, int v);                 /* 0..127 (EQ 64 = flat; the effect 0..NEF-1; pump by
                                                              * 0..NPB-1, accent 0..1; 3 clip 0..127) */
-int master_max(int p);                                      /* a value's top: 127, NPB - 1 or 1 */
+int master_max(int p);                                      /* a value's top: 127, NEF - 1, NPB - 1 or 1 */
+void master_tempo(master_t *m, float bpm);
+int master_need(const master_t *m);                         /* the blocks of the pool its effect (as set) needs */
+int master_memory(master_t *m, int16_t *mem, int nb);       /* its memory (0: none), each block: as a send's
+                                                             * (fx_memory: cleared a slice a block); the blocks still
+                                                             * to clear */
+int master_room(const master_t *m);                         /* its memory holds its effect (as set) */
 float master_pump_ms(int v);                                /* the pump's release, ms */
 /* a hit on pump source src (PB_*), velocity 1..127: the pump drops if it follows src (the audio interrupt) */
 void master_key(master_t *m, int src, int vel, int kit);   /* kit: a kit's hit (only the melodic group ducks) */

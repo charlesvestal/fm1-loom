@@ -32,8 +32,8 @@
  *                                master value, the mst command's names), pump (the
  *                                pump's duck now, tenths of a dB), modview (MOD VIEW shows), modcut / envdot (the
  *                                Filter curve's cutoff and the Envelope dot as last drawn: x, -1 none), modticks (the
- *                                knobs with MOD VIEW's tick, a bit each), roomT.Q / fxroomK (track T's slot Q, FX K, has
- *                                its memory in the effects' pool); and with more words: step T VALUE, page NAME, comp T S VALUE (prints
+ *                                knobs with MOD VIEW's tick, a bit each), roomT.Q / fxroomK / mstroom (track T's slot Q,
+ *                                FX K, Master FX has its memory in the effects' pool); and with more words: step T VALUE, page NAME, comp T S VALUE (prints
  *                                both components; checks the first), note T PAT S VALUE
  * The demos' stems and taps (tools/demos/render.sh --stems), from the environment:
  *   LOOM_SOLO=1,3,fx1,fx2        only these tracks (dry and their sends) and FX returns sound
@@ -416,7 +416,8 @@ static int isnum(const char *s);
 static int ieq(const char *a, const char *b);
 static int param_of(const char *s);
 static const char *const MN[NMS] = {"lo", "mid", "hi", "clip", "color", "camount", "ctone", "cmix", "perc", "mel",
-                                    "comp", "pump", "pumpby", "release", "accent", "level"};
+                                    "comp", "pump", "pumpby", "release", "accent", "level", "ck3", "cx1", "cx2",
+                                    "cx3", "cx4"};   /* (color .. cmix, ck3 .. cx4: the slot, Master FX) */
 /* fm1-base's expect, for LOOM-8's own state with one value */
 int app_expect(const char *what, int *got)
 {
@@ -472,6 +473,8 @@ int app_expect(const char *what, int *got)
         *got = engine_slot_room(t, q);
     } else if (!strncmp(what, "fxroom", 6))         /* fxroomK: FX K's (1, 2) memory holds its effect */
         *got = engine_fx_room((atoi(what + 6) - 1) & 1);
+    else if (!strcmp(what, "mstroom"))              /* Master FX's memory holds its effect */
+        *got = engine_master_room();
     else if (!strcmp(what, "slot_reads"))           /* project_exists's reads of the flash so far */
         *got = (int)slot_reads;
     else if (!strcmp(what, "projslot"))             /* the open project's slot, from 1 (0: none yet) */
@@ -784,8 +787,10 @@ static int expect_more(const char *what, const char *a, const char *b, const cha
  *   scenemute N MASK             scene N's mutes: a character a track 1-8, COND, THROW: x muted, . not
  *   song S:R [S:R ...]           the song: scene S (1-based) for R bars (16 sixteenths each)
  *   songloop 0|1
- *   mst NAME VALUE               a master knob (lo mid hi color camount ctone cmix perc mel comp pump) or the
- *                                out page's list (pumpby kick|t1..t8|metro, release, accent on|off, level)
+ *   mst NAME VALUE               a master knob (lo mid hi clip, perc mel comp pump), Master FX's slot (color: the
+ *                                effect, a number or its name; camount ctone ck3 its knobs, cmix its mix, cx1..cx4 its
+ *                                extras) or the out page's list (pumpby kick|t1..t8|metro, release, accent on|off,
+ *                                level)
  *   groove NAME                  the project's groove type (swing lilt weave ...)
  *   play T NOTE on|off [VEL]     a key on track T (through its player and the conductor), at any octave
  *   throw NAME on|off perc|mel [T]   a throw (mute stutter repeat echo build floor jumble warble pan octave chop
@@ -1095,6 +1100,9 @@ static int mst_value(int k, const char *v)
     }
     if (k == MS_PUMP_ACC && (ieq(v, "on") || ieq(v, "off")))
         return ieq(v, "on");
+    for (int e = 0; k == MS_CTYPE && e < NEF; e++)   /* (the slot's effect by its name: "mst color tape") */
+        if (ieq(v, EFX[e].name))
+            return e;
     if (!(v[0] >= '0' && v[0] <= '9'))
         host_die("not a master value", v);
     return clampi(atoi(v), 0, master_max(k));

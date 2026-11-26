@@ -137,7 +137,9 @@ void loom_lights(uint32_t buttons, uint32_t keys, int glow, uint32_t dim_keys, i
 #define DEBUG_BUILD (APP_VERSION[0] == 'D' && APP_VERSION[1] == 'E' && APP_VERSION[2] == 'V' && \
                      (!APP_VERSION[3] || APP_VERSION[3] == 'T'))   /* DEV, or the load test's DEVTEST */
 #define PROJ_MAGIC 0x384D4F4Cu          /* "LOM8" (was "XXY1": XY-1's projects start fresh) */
-#define PROJ_FORMAT 29u                 /* (10, 0.5-beta's, to 12 load too: project.c migrate_old; older ones do not)
+#define PROJ_FORMAT 30u                 /* (10, 0.5-beta's, to 12 load too: project.c migrate_old; older ones do not)
+                                         * 30: the master color is a slot of the one effects list (its type the
+                                         *     catalog's tape or sampler; its knob 3 and extras: five more values);
                                          * 29: the FX tracks are slots of the one effects list (their slot 1: the
                                          *     effect, knobs, extras; the return its mix), from their pick, four knobs,
                                          *     PING WIDTH, WOBBLE, SMEAR and level (project.c fx_old);
@@ -209,7 +211,8 @@ typedef struct {
                                          * [4..7] the save count (project.c: the slot saved or loaded last opens at
                                          * power-on); [8] the scenes used, written by every save (GLO's list shows
                                          * it without unpacking the patterns) */
-    uint8_t master[NMS];                /* fx.h MS_*: format 4's twelve end where these sixteen end */
+    uint8_t master[NMS];                /* fx.h MS_*: format 4's twelve end where these sixteen end (MS_NMS29; the
+                                         * slot's five more since 30) */
     trk_t trk[NALLTRK];
 } settings_t;
 #define RSV_SCENES 8                    /* proj.rsv[RSV_SCENES]: the scenes used when saved (0: saved before 0.15) */

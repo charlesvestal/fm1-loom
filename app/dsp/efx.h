@@ -2,7 +2,7 @@
 /* LOOM-8's effects library (the one effects list: docs/superpowers/specs/2026-11-25-one-effects-list-design.md): the
  * catalog every slot picks from (a track's two, FX I / II, the master: one list, the same names, knobs and code) and
  * each effect's DSP, once. Its users keep their own storage and pages for now (synth.c: a track's two slots, on its
- * voices or its bus; fx.c: the sends and the master color); they call in here.
+ * voices or its bus; fx.c: the sends and the master's slot); they call in here.
  *
  * Everything per sample runs in the audio interrupt (or the second core's job); the coefficients' functions in the
  * main loop or once a block. Float, fastmath.h; no double, no libm. */
@@ -35,12 +35,12 @@ const char *efx_knob_word(int ef, int mode, int k);   /* the same, in the reverb
                                                        * shimmer's damp its shimmer) */
 float efx_lfo_hz(int v, float bpm);          /* an EK_SYNC knob (the LFO's rate): synced divisions 0..7, then 0.1 .. 30 Hz */
 
-/* ---- the one pool: every slot's memory (a track's two, FX I / II), in EFX_BLOCK blocks ----
+/* ---- the one pool: every slot's memory (a track's two, FX I / II, the master's), in EFX_BLOCK blocks ----
  * A slot takes a contiguous run of blocks, first fit, when its effect needs memory (efx_need: by the effect, the
  * reverb's mode and the place: a send's chorus and lofi lines are longer, for its lag; a track's delay and reverb keep
  * their states at the start of theirs, efx_big_t), given back when the effect changes; a slot that finds none passes
- * dry ("no memory"). The sends first (the engine's, each block: efx_send_used), then the tracks in order, slot 1 then 2
- * (synth.c): a send never loses its memory to a track. 78 blocks (61 until 2026-11-25, the SRAM won back since): the
+ * dry ("no memory"). The sends first, then the master's slot (the engine's, each block: efx_send_used), then the
+ * tracks in order, slot 1 then 2 (synth.c): a send or the master never loses its memory to a track. 78 blocks (61 until 2026-11-25, the SRAM won back since): the
  * default sends (FX I's delay 24, FX II's lush 26) leave 28, a track's delay (24) beside them; FX I's delay and FX II's
  * largest reverb (32) leave 22 */
 #define EFX_NB 78
@@ -53,7 +53,7 @@ void efx_mark(efx_mask_t *m, int at, int nb);          /* blocks at .. at + nb -
 int efx_meets(const efx_mask_t *m, int at, int nb);    /* any of them in m */
 int efx_fit(const efx_mask_t *m, int need);            /* the first run of need blocks none of m, -1 */
 int efx_same(const efx_mask_t *a, const efx_mask_t *b);
-extern efx_mask_t efx_send_used;                 /* the blocks the sends hold */
+extern efx_mask_t efx_send_used;                 /* the blocks the sends and the master hold */
 /* memory newly given (or an effect changed on it) is cleared a slice at a time, not at once in the audio interrupt (64
  * KB at once: a block's overrun): efx_clear_step clears up to max of the nb blocks at mem still to clear (*left of
  * them, from the start), returns how many it cleared. A send and the master EFX_CLR blocks (8 KB) a block, the tracks'
@@ -61,7 +61,8 @@ extern efx_mask_t efx_send_used;                 /* the blocks the sends hold */
  * silent) until its memory is clear: a 64 KB line in 8 blocks of 256 frames (46 ms) */
 #define EFX_CLR 4
 int efx_clear_step(int16_t *mem, int nb, uint8_t *left, int max);
-int efx_need(int ef, int mode, int send);        /* the blocks effect ef (the reverb in mode) needs on a send or a track */
+int efx_need(int ef, int mode, int send);        /* the blocks effect ef (the reverb in mode) needs on a track (send 0),
+                                                  * a send (1) or the master (2: as a track's, and tape's wow) */
 int32_t efx_rv_ring(int mode, int nb, int send); /* the reverb's line in nb blocks: its length, int16 */
 const char *efx_list_name(int ef, int k, int v);   /* an EK_LIST knob's value's name (juno's modes) */
 
@@ -78,7 +79,8 @@ const char *efx_list_name(int ef, int k, int v);   /* an EK_LIST knob's value's 
  *            or a block (efx_ring_norm)
  *   tilt:    a tilt EQ: amount its pivot (150 Hz .. 6 kHz), tone the tilt (+-6 dB each side at the ends)
  *   tape:    a soft saturation (gain 0.5 .. 8, made up) into a two-pole roll-off (tone 1.5 .. 18 kHz); x[3] its wow's
- *            depth in cents, for whoever has a pitch to bend (the voices; the master: a short line, fx.c)
+ *            depth in cents, for whoever has a pitch to bend (the voices; the master and a send: a short line,
+ *            efx_slot_run)
  *   sampler: low-passed, held at 26 .. 11 kHz and 14 .. 11 bits by the amount, its output filter (tone 2 .. 20 kHz) */
 void efx_char_coefs(int ef, float a, float t, float freq, float *x);
 void efx_char_stage(const float *x, float *z, int ef, int stereo, float *xl, float *xr, int k);
@@ -243,6 +245,16 @@ typedef struct {
     uint8_t nb, mef, mmd;                         /* how many, the effect (and the reverb's mode) it was given for */
     uint8_t clr;                                  /* its blocks still to clear (efx_clear_step: dry till then) */
 } efx_slot_t;
+/* a slot on a pair (bl, br: n frames), in place: this block's effect, knobs, mix and extras as sl has them (a new
+ * effect starts its states clean). The dirt and the color on both sides (both: a kit's bus, a send, the master; else a
+ * pair whose sides are the same, mono voices in the middle, runs once), ring at a ratio of C4 (EFX_RING_C4: off the
+ * voices), tape with its wow when mem holds its line (efx_need: the master's, a send's; a synth track's bends its voices,
+ * a kit's has none); the rest efx_insert's, their LFO's rate the first knob's at bpm, rumble hearing in (0: the pair's
+ * middle). mem: its memory (0: none, an effect that needs it passes dry); sl->clr: not yet clear, dry */
+#define EFX_RING_C4 261.63f
+#define EFX_WOW_N 128                            /* tape's wow's line (int16 a side) and its centre: 1.5 ms, the pair */
+#define EFX_WOW_AT 64.0f                         /* that late while tape is on (as the master color's was) */
+void efx_slot_run(efx_slot_t *sl, int both, float bpm, const float *in, int16_t *mem, float *bl, float *br, uint32_t n);
 float efx_rumble_secs(float k);                  /* rumble's decay knob (0..127): its RT60, seconds */
 float efx_sin(float ph);                         /* (out of line: a sine of turns, a one-pole's coefficient at hz) */
 float efx_op_coef(float hz);

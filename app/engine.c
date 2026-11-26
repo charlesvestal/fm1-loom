@@ -84,7 +84,7 @@ static void dl_drop(int t)
 }
 #define FXS(k) ((fxslot_t *)(void *)fx_mem[k])
 #define MST ((master_t *)(void *)mst_mem)
-/* the sends' memory: the one pool's (dsp/efx.h efx_pool), first (pool_sends) */
+/* the sends' memory and the master's: the one pool's (dsp/efx.h efx_pool), first (pool_sends) */
 
 /* the engine's parameter copy (drumlines, FX read it; locks override it) and the project's
  * contiguous array (app.h proj_par: the synth and the sequencer read that one) */
@@ -1184,9 +1184,14 @@ static void fx_done(void)
  * FX II, each where it is while its effect needs as much, else the first free run (a track's slot in the way gives
  * its memory up: synth_slots_evict, before synth_prepare gives the tracks theirs). FX I that finds no run beside FX II
  * takes the pool's start and FX II goes after it; FX II that finds none beside FX I, when both fit, the same (both
- * start fresh). A send left without memory is silent ("no memory") */
+ * start fresh). A send left without memory is silent ("no memory"). Then the master's slot (fx.h master_need: its
+ * effect, tape's wow a block), where it is while its effect needs as much and the sends leave it, else the first free
+ * run beside them (none: it passes dry); the tracks' slots after both. Memory newly given is cleared a slice a block
+ * (efx.h EFX_CLR: fx_memory, master_memory) */
 static int8_t snd_at[2] = {-1, -1};
 static uint8_t snd_nb[2];
+static int8_t mpl_at = -1;                                 /* the master's memory: its first block, how many */
+static uint8_t mpl_nb;
 static void pool_sends(void)
 {
     int k, need[2];
@@ -1221,12 +1226,23 @@ static void pool_sends(void)
     for (k = 0; k < 2; k++)
         if (snd_at[k] >= 0)
             efx_mark(&m, snd_at[k], snd_nb[k]);
+    {
+        const int mn = master_need(MST);
+        if (mpl_at >= 0 && (mpl_nb != mn || efx_meets(&m, mpl_at, mn)))
+            mpl_at = -1;
+        if (mn && mpl_at < 0)
+            mpl_at = (int8_t)efx_fit(&m, mn);
+        mpl_nb = (uint8_t)(mpl_at >= 0 ? mn : 0);
+        if (mpl_at >= 0)
+            efx_mark(&m, mpl_at, mpl_nb);
+    }
     if (!efx_same(&m, &efx_send_used)) {
         synth_slots_evict(SY, &m);
         efx_send_used = m;
     }
     for (k = 0; k < 2; k++)
         fx_memory(FXS(k), snd_at[k] >= 0 ? efx_pool[(int)snd_at[k]] : 0, snd_nb[k]);
+    master_memory(MST, mpl_at >= 0 ? efx_pool[(int)mpl_at] : 0, mpl_nb);
 }
 static volatile uint32_t c2_took;                          /* the last job's time (plat_cycles) */
 /* the voices shared out as the cores go (render_sub): the stretch's voices in ws_ord (grouped by engine: each core
@@ -1660,6 +1676,7 @@ void engine_render(int32_t *out_lr, uint32_t n, uint32_t gain_q12)
         synth_tempo(SY, bpm);
         fx_tempo(FXS(0), bpm);
         fx_tempo(FXS(1), bpm);
+        master_tempo(MST, bpm);
         fx_lag_on[0] = (uint8_t)fx_lags(FXS(0));         /* (the type as set: fx_process takes it at its next call) */
         fx_lag_on[1] = (uint8_t)fx_lags(FXS(1));
         if (fx_lag_on[0] || fx_lag_on[1]) {               /* the effects' job (the last block's sends) now, on the
@@ -1888,6 +1905,8 @@ void engine_init(patterns_t *P, uint8_t (*par)[NTP])
         snd_nb[k] = 0;
     }
     efx_send_used = (efx_mask_t){{0}};
+    mpl_at = -1;
+    mpl_nb = 0;
     master_init(MST);
     seq_init(&seq, P, par);
     seq.groove_type = (uint8_t)(proj.groove < NGROOVE ? proj.groove : GR_SWING);
@@ -1899,3 +1918,4 @@ void engine_init(patterns_t *P, uint8_t (*par)[NTP])
 
 /* the pages: the send's memory holds its effect */
 int engine_fx_room(int slot) { return fx_room(FXS(slot & 1)); }
+int engine_master_room(void) { return master_room(MST); }
