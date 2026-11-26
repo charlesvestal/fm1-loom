@@ -1,7 +1,7 @@
-# throws: FX's Throws page (its sixth) fires them from any track; on the THROW track the keys fire the groups too
+# throws: FX's Throws page (its fourth) fires them from any track; on the THROW track the keys fire the groups too
 wait 200
 tap FX
-turn SELECT 5
+turn SELECT 3
 expect page Throws
 tap PLAY
 wait 500

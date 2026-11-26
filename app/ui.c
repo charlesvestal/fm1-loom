@@ -1950,7 +1950,12 @@ static void page_button(int b)
         say_no(b == B_ENV ? "NO ENVELOPE" : "NO LFO", "on a MIDI track");
     for (uint32_t i = 0; i < NPAGE_BTN; i++)
         if (PAGE_BTN[i].btn == b) {
+            const int on_glo = page_group(ui.page) == G_GLO;
             ui.page = (uint8_t)(b == B_HOME && ui.page == P_ARRANGE ? P_SONG : grp_page((int)i, 0));
+            if (b == B_GLO && !on_glo && page_group(ui.glo_pg) == G_GLO && grp_index(ui.glo_pg) >= 0)
+                ui.page = ui.glo_pg;                 /* GLO: the page last visited (on a GLO page: Mix) */
+            if (b == B_GLO)
+                ui.glo_pg = ui.page;
             ui.touched = -1;
             ui.held = 0;
             ui.trickpg = 0;
@@ -1963,6 +1968,8 @@ static void page_turn(int d)
 {
     int g = page_group(ui.page), n = group_n(g), i = grp_index(ui.page);
     ui.page = (uint8_t)grp_page(g, ((i < 0 ? 0 : i + d) % n + n) % n);
+    if (g == G_GLO)
+        ui.glo_pg = ui.page;
     ui.touched = -1;
 }
 static void button_down(int b)
@@ -2303,10 +2310,43 @@ static void master_to(int m, int v)
     cc_out_master(m);
     mark_dirty();
 }
+/* the centre catch (the master filters, a pan, a pitch about its middle): a knob turned through its centre c (or onto
+ * it) stops there, off, and holds for the next CATCH_N detents within CATCH_MS of each other (a sweep through the
+ * middle rests at off; a value set from MIDI lands as sent). v the value, nv the turn's */
+#define CATCH_N 2
+#define CATCH_MS 400u
+static uint32_t cat_t;
+static int centre_catch(int k, int v, int nv, int c)
+{
+    const uint32_t now = plat_ms();
+    if (ui.cat_k != k + 1 || now - cat_t > CATCH_MS)
+        ui.cat_k = 0;                            /* (another knob, or a pause: let go) */
+    cat_t = now;
+    if (v == c && ui.cat_k && ui.cat_n) {        /* (held: a detent spent) */
+        ui.cat_n--;
+        return c;
+    }
+    if (v != c && (nv - c) * (v - c) <= 0) {     /* (through or onto the centre: there) */
+        ui.cat_k = (uint8_t)(k + 1);
+        ui.cat_n = CATCH_N;
+        return c;
+    }
+    ui.cat_k = 0;
+    return nv;
+}
+/* a track's parameter that is centred (a pan, a pitch about its middle: its default 64, bipolar): the catch's */
+static int tp_centred(int trk, int p)
+{
+    const tp_info_t *in = tp_info_par(p, proj.trk[trk].par);
+    return in && in->def == 64 && in->lo < 64 && in->hi > 64 &&
+           (in->kind == PK_BIP || in->kind == PK_BIPST || in->kind == PK_CENT);
+}
 static void master_knob(int k, int32_t e)
 {
-    int m = mst_m(ui.page, k);
-    master_to(m, clampi(proj.master[m] + e, 0, master_max(m)));
+    int m = mst_m(ui.page, k), v = clampi(proj.master[m] + e, 0, master_max(m));
+    if (ui.page == P_MFILT && mfilt_k(m) >= 0)   /* (the three filters: off in the middle) */
+        v = centre_catch(k, proj.master[m], v, MS_FILT_OFF);
+    master_to(m, v);
 }
 /* a slot page's value j (synth.h SL_*) set: the track's, or the master's (pages.c MS_SLOT) */
 static void slot_put(int pg, int j, int v)
@@ -2598,6 +2638,49 @@ static void knob_clear(int k)
     mark_dirty();
     say(n ? "CLEARED" : "NOTHING TO CLEAR", tp_info_par(p, proj.trk[trk].par)->name);
 }
+/* a track's parameter turned by e: its value then (the centre catch on a centred one) */
+static int tp_turn(int trk, int p, int k, int32_t e)
+{
+    const int v = proj.trk[trk].par[p], nv = v + (int)e;
+    return tp_centred(trk, p) ? centre_catch(k, v, nv, 64) : nv;
+}
+/* HOME held, a knob turned: that knob back to its default, said ("melodic", "off"): a track's parameter tp_info's (a
+ * pan its centre), an effect's knob the effect's own, its mix the slot's when picked (a send's return its level's),
+ * a master value a new project's (the filters: off). 0: not such a knob (Arrange's KNOB 1, the tempo's tenths; Song,
+ * the steps, Setup, the lists ...): the knob as without HOME */
+static int knob_reset(int k)
+{
+    int trk = sel_trk(), pg = ui.page, p;
+    knob_t kk[4];
+    if (slot_pg(pg) >= 0 || (pg == P_ENGINE && is_fx(trk))) {   /* a slot's three knobs and its mix */
+        uint8_t mp[NTP];
+        int st, q, v;
+        const int sp = slot_pg(pg) >= 0 ? pg : fx_pg(trk), j = k == 3 ? SL_MIX : SL_K1 + k;
+        const uint8_t *par = slot_vals(sp, mp, &st, &q);
+        const int ef = par[TP_SLOT[q][SL_EF]];
+        if (j != SL_MIX && tp_info_par(TP_SLOT[q][j], par)->name[0] == '-')
+            return 1;                            /* (no such knob) */
+        v = j != SL_MIX ? EFX[ef].def[k] : st < 0 ? project_master_def(MS_CMIX)
+                                         : is_fx(st) ? tp_info_par(TP_LEVEL, par)->def : q ? 127 : 100;
+        slot_put(sp, j, v);
+    } else if (pg == P_MASTER || pg == P_MFILT || pg == P_MASTER3) {
+        const int m = mst_m(pg, k);
+        master_to(m, project_master_def(m));
+    } else if (pg == P_SENDS || (pg >= P_ENGINE && pg <= P_MIX && pg != P_THROWS && pg != P_WEAVE &&
+                                 (!is_aux(trk) || pg == P_MIX))) {   /* a track's parameter (as knob_do finds it) */
+        if (pg == P_SENDS)
+            trk = inst_trk();
+        p = tp_page_param(pg, k, trk);
+        if (p < 0)
+            return 1;
+        set_tp(trk, p, tp_info_par(p, proj.trk[trk].par)->def);
+    } else
+        return 0;
+    memset(kk, 0, sizeof kk);
+    page_knobs(kk);
+    say(kk[k].name ? kk[k].name : "RESET", kk[k].val);
+    return 1;
+}
 static void knob_do(int k, int32_t e)
 {
     int trk = sel_trk(), p;
@@ -2610,6 +2693,9 @@ static void knob_do(int k, int32_t e)
         knob_clear(k);
         return;
     }
+    if (home_held() && !lst.open && !ui.ask && !ui.lockpg && !ui.trickpg && !(steps_page(ui.page) && ui.held) &&
+        knob_reset(k))                           /* HOME held: the knob's default (not a held step's: SEL clears) */
+        return;
     if (rec_settings()) {
         rec_knob(k, e);
         return;
@@ -2663,7 +2749,7 @@ static void knob_do(int k, int32_t e)
         p = tp_page_param(P_SENDS, k, trk);
         if (p < 0)
             return;
-        set_tp(trk, p, proj.trk[trk].par[p] + (int)e);
+        set_tp(trk, p, tp_turn(trk, p, k, e));
         if (seq.rec && playing() && trk == sel_trk())
             seq_rec_knob(&seq, trk, p, proj.trk[trk].par[p]);
         return;
@@ -2675,7 +2761,7 @@ static void knob_do(int k, int32_t e)
     p = tp_page_param(ui.page, k, trk);
     if (p < 0)
         return;
-    set_tp(trk, p, proj.trk[trk].par[p] + (int)e);
+    set_tp(trk, p, tp_turn(trk, p, k, e));
     if (seq.rec && playing() && !is_aux(trk))
         seq_rec_knob(&seq, trk, p, proj.trk[trk].par[p]);
 }
@@ -4020,6 +4106,11 @@ static void action_run(int a)
             mod_add(mod_pick_tgt(), p);
         break;
     }
+    case A_GO_FX1: case A_GO_FX2:                /* Sends: FX I's or FX II's page, GLO's */
+        lst.open = 0;
+        ui.page = ui.glo_pg = (uint8_t)(a == A_GO_FX1 ? P_FX1 : P_FX2);
+        ui.touched = -1;
+        break;
     case A_MOD_LEARN:
         ui.mod_learn = 1;
         say("LEARN", "turn the knob, anywhere");
@@ -4464,9 +4555,7 @@ static void leds(void)
         b |= 1u << B_REC;
     if (ui.dirty)
         b |= 1u << B_SAVE;
-    for (i = 0; i < NPAGE_BTN; i++)
-        if (ui.page >= PAGE_BTN[i].first && ui.page < PAGE_BTN[i].first + PAGE_BTN[i].n)
-            b |= 1u << PAGE_BTN[i].btn;
+    b |= 1u << PAGE_BTN[page_group(ui.page)].btn;
     if (proj.lights) {
         if ((steps_page(ui.page) || kit_edit_steps()) && is_seqt(trk)) {   /* (a kit's EDIT pages: its steps too) */
             const tpat_t *tp = tpat(trk);

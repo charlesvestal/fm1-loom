@@ -262,6 +262,7 @@ int kit_save(int slot, const uint8_t *img);   /* 0 = saved (the user presets wit
 extern uint8_t proj_slot;               /* the slot loaded */
 
 void project_defaults(void);
+int project_master_def(int m);              /* a master value's default (fx.h MS_*: a new project's) */
 void project_device_get(void);         /* the FM-1's own settings (Setup's, the theme) noted, and put back */
 void project_device_put(void);         /* into proj: a project loaded keeps them */
 void project_random_sounds(uint32_t seed);   /* T2-T8: a random preset each of a part (bass, poly, pad, lead, keys, fx, pluck) */

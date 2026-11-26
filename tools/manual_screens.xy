@@ -151,6 +151,7 @@ shot character.png
 turn SELECT 2
 wait 1600
 shot sends.png
+tap GLO
 turn SELECT 1
 wait 1600
 shot fx1.png
@@ -249,11 +250,13 @@ tapkey w1
 wait 1600
 shot song.png
 tap GLO
+tap GLO
+expect page Mix
 tap PLAY
 wait 1600
 shot mix.png
 tap PLAY
-turn SELECT 1
+turn SELECT 3
 wait 1600
 shot master.png
 turn SELECT 2

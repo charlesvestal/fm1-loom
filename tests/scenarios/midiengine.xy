@@ -31,7 +31,8 @@ param 3 9 10
 knob 3 1 101
 wait 5
 expect_out USB B2 0A 65
-# on T3, ENV and LFO have no pages: the Engine page; FX: FX I first (no Insert 1, 2, no Sends)
+# on T3, ENV and LFO have no pages: the Engine page; FX: the throws alone (no Insert 1, 2, no Sends; FX I and FX II
+# are GLO's)
 turn ALGO 2
 expect trk 3
 tap ENV
@@ -39,7 +40,9 @@ expect page Engine
 tap LFO
 expect page Engine
 tap FX
-expect page FX_I
+expect page Throws
+turn SELECT 1
+expect page Throws
 # EDIT: Engine, then Engine 2 (knobs 5..8)
 tap EDIT
 expect page Engine

@@ -1,0 +1,132 @@
+# HOME held + a knob turned: that knob back to its default, on any page (a filter: off; a pan: the centre; an effect's
+# knob: the effect's; a track's parameter: tp_info's; a master value: a new project's), said on the screen and by the
+# reader; Arrange's KNOB 1 still the tempo's tenths. The centre catch: the three master filters and a pan turned
+# through the middle stop there and hold for two detents (a pause lets go; MIDI lands where it says)
+wait 300
+listen
+# the master filter: the melodic group's to a low-pass, then HOME + KNOB 2: off
+tap GLO
+turn SELECT 5
+expect page Master_filter
+spin K2 -20
+expect mst.melf 44
+press HOME
+wait 40
+shot reset_hint.png
+spin K2 1
+wait 40
+shot reset_said.png
+release HOME
+expect mst.melf 64
+said melodic
+expect page Master_filter
+# the resonance: 0
+spin K4 50
+press HOME
+spin K4 -3
+release HOME
+expect mst.fres 0
+# Master out's comp: a new project's 30
+turn SELECT 1
+expect page Master_out
+spin K3 20
+expect mst.comp 50
+press HOME
+spin K3 1
+release HOME
+expect mst.comp 30
+said comp
+# Mix: T2's pan back to the centre, its level to its default
+tap GLO
+tap GLO
+expect page Mix
+turn ALGO 1
+expect trk 2
+spin K3 30
+expect par2.pan 94
+spin K4 -40
+press HOME
+spin K3 -1
+spin K4 1
+release HOME
+expect par2.pan 64
+expect par2.level 100
+said pan
+# an effect's knob: drive on T2's Insert 1, its amount turned, back to drive's own (64)
+tap FX
+expect page Insert_1
+turn PRESET 1
+expect par2.ctype 1
+spin K1 30
+expect par2.camt 94
+press HOME
+spin K1 1
+release HOME
+expect par2.camt 64
+said amount
+# a sound's parameter: EDIT's first knob back to tp_info's
+tap ENV
+spin K1 40
+press HOME
+spin K1 1
+release HOME
+expect par2.a 0
+# Arrange: HOME + KNOB 1 still the tempo's tenths (no reset)
+tap HOME
+expect page Arrange
+press HOME
+spin K1 3
+release HOME
+wait 40
+expect tempo 120
+spin K1 3
+wait 40
+expect tempo 123
+# the centre catch: the drums' filter from 65 down a detent at a time: 64, held for two, then on
+tap GLO
+tap GLO
+turn SELECT 5
+expect page Master_filter
+mst dfilt 65
+spin K1 -1
+expect mst.dfilt 64
+spin K1 -1
+expect mst.dfilt 64
+spin K1 -1
+expect mst.dfilt 64
+spin K1 -1
+expect mst.dfilt 63
+# a sweep through the middle in one turn: there, held, then through
+mst mfilt 90
+spin K3 -40
+expect mst.mfilt 64
+spin K3 -40
+expect mst.mfilt 64
+spin K3 -40
+expect mst.mfilt 64
+spin K3 -40
+expect mst.mfilt 24
+# a pause: let go at once
+mst melf 66
+spin K2 -2
+expect mst.melf 64
+wait 500
+spin K2 -1
+expect mst.melf 63
+# MIDI (CC 30, absolute) lands where it says
+midi BA 1E 41
+wait 20
+expect mst.dfilt 65
+# a pan: through the centre, held two detents
+tap GLO
+tap GLO
+expect page Mix
+param 2 pan 66
+spin K3 -5
+expect par2.pan 64
+spin K3 -1
+expect par2.pan 64
+spin K3 -1
+expect par2.pan 64
+spin K3 -1
+expect par2.pan 63

@@ -85,7 +85,7 @@ tap SEL
 wait 100
 expect page Lanes
 tap GLO
-turn SELECT 3
+turn SELECT 5
 expect page Master_filter
 spin K3 -10
 wait 100

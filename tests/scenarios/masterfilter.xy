@@ -11,7 +11,7 @@ expect mst.fres 0
 listen
 tap GLO
 expect page Mix
-turn SELECT 3
+turn SELECT 5
 wait 400
 expect page Master_filter
 said Master filter
@@ -65,7 +65,7 @@ expect mst.mfilt 0
 expect mst.fres 127
 # the help card: GLO held on the page
 tap GLO
-turn SELECT 3
+turn SELECT 5
 expect page Master_filter
 listen
 press GLO

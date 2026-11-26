@@ -83,10 +83,22 @@ turn SELECT 1
 expect page Sends
 wait 40
 shot sends.png
+# FX: Insert 1, Insert 2, Sends, Throws (FX I and FX II are GLO's, after Mix); Sends' SEL list goes to them
 turn SELECT 1
+expect page Throws
+turn SELECT 1
+expect page Insert_1
+turn SELECT -2
+expect page Sends
+tap SEL
+expect listopen 1
+row FX I
+tap SEL
+expect page FX_I
 wait 40
 shot fx_page1.png
 turn SELECT 1
+expect page FX_II
 wait 40
 shot fx_page2.png
 tap SEL
@@ -112,11 +124,15 @@ turn SELECT 1
 wait 40
 shot players3.png
 spin K1 -1
+# GLO opens the page last visited (FX II, by Sends' list); on a GLO page, Mix
+tap GLO
+expect page FX_II
 tap GLO
 expect page Mix
 wait 40
 shot mix.png
-turn SELECT 1
+turn SELECT 3
+expect page Master_EQ
 wait 40
 shot master.png
 turn SELECT 1
@@ -205,11 +221,12 @@ wait 40
 shot mod_track.png
 spin ALGO 1
 expect trk 1
-# the effects: FX's FX I and FX II pages (not tracks on ALGORITHM)
-tap FX
+# the effects: GLO's FX I and FX II pages (not tracks on ALGORITHM)
+tap GLO
+tap GLO
+expect page Mix
 turn SELECT 1
-turn SELECT 1
-turn SELECT 1
+expect page FX_I
 wait 40
 shot fx1.png
 turn SELECT 1

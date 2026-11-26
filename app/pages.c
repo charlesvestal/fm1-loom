@@ -97,8 +97,9 @@ static uint16_t col_mix(uint16_t a, uint16_t b, uint32_t s)   /* a moved s/16 of
 /* the pages (the spec's Buttons table): a button opens its first page; SELECT turns them. EDIT: the engine
  * (a drum track: the shown key's knobs) and Play (a drum track: the key's model, random, pan, volume); ENV: the
  * envelope, the filter, the filter envelope (a drum track: the shown key's envelope and filter, then the kit's
- * envelope and the kit's bus filter: four pages); FX: the instrument's character stage (a kit's on the whole
- * kit, after its bus filter), its sends and the two effects; ARP three with the arp (its page 2, then hold). EDIT on a synth
+ * envelope and the kit's bus filter: four pages); FX: the track's own: its two inserts (a kit's on the whole
+ * kit, after its bus filter), its sends and the throws (FX I and FX II are GLO's since 2026-11-26, after Mix:
+ * page_group, grp_page); ARP three with the arp (its page 2, then hold). EDIT on a synth
  * track: the sound first, then how it plays: Engine, Sub where the engine has a second page of knobs (TP_X1..X4:
  * rayon's fall, acid's drive), Play (mode, glide, bend, octave), Play 2 (volume); rayon: Engine, Sub, Ops (P_KMOD),
  * Play, Play 2; knit: Engine, Osc 2 (osc 2's interval, fine, wave, shape), Mod (P_KMOD: sync, sweep, cross, the sub's
@@ -152,11 +153,15 @@ static void mst_par(uint8_t *par)
 }
 static const struct { uint8_t btn, first, n; } PAGE_BTN[] = {
     {B_HOME, P_ARRANGE, 2}, {B_SEQ, P_STEPS, 2}, {B_EDIT, P_ENGINE, 6}, {B_ENV, P_ENV, 4}, {B_FX, P_CHARACTER, 6},
-    {B_LFO, P_LFO, 2}, {B_ARP, P_PLAYERS, 4}, {B_GLO, P_MIX, 8}, {B_SEQ, P_MOD, 1}};   /* (the last: the MOD track's,
+    {B_LFO, P_LFO, 2}, {B_ARP, P_PLAYERS, 4}, {B_GLO, P_MIX, 8}, {B_SEQ, P_MOD, 1}};   /* (ranges; FX I and FX II
+                                                     * are GLO's: page_group) */   /* (the last: the MOD track's,
                                                      * page_button) */
 #define NPAGE_BTN (sizeof PAGE_BTN / sizeof PAGE_BTN[0])
+#define G_GLO 7                                      /* (PAGE_BTN's GLO) */
 static int page_group(int p)
 {
+    if (p == P_FX1 || p == P_FX2)                    /* (FX I and FX II: GLO's, after Mix) */
+        return G_GLO;
     for (uint32_t i = 0; i < NPAGE_BTN; i++)
         if (p >= PAGE_BTN[i].first && p < PAGE_BTN[i].first + PAGE_BTN[i].n)
             return (int)i;
@@ -294,6 +299,9 @@ static struct {
     uint8_t mod_learn;                               /* LEARN armed: the next knob turned by hand is a lane's target */
     uint8_t mpick_t, mpick_p, mpick_k;               /* its SEL list's ADD LANE: the track (T1-T8, FX I, FX II, the
                                                       * master), its page (of mod_pages), its knob */
+    uint8_t glo_pg;                                  /* the GLO page last visited (GLO opens it again; 0: Mix) */
+    uint8_t cat_k, cat_n;                            /* the centre catch: the knob holding at the centre + 1, the
+                                                      * detents it still holds for (centre_catch) */
 } ui;
 
 /* SEL: the screen as a list: the page's knobs, then its actions */
@@ -310,7 +318,8 @@ enum { A_CLEAR_NOTES, A_CLEAR_LOCKS, A_CLEAR_BOTH, A_COPY_PAT, A_PASTE_PAT, A_RO
        A_COPY_SOUND, A_PASTE_SOUND, A_COPY_KEY, A_PASTE_KEY, A_COPY_SCENE, A_PASTE_SCENE, A_DUP_SLOT, A_KIT_FILTER,
        A_SHIFT, A_LARGE_TYPE, A_CC_IN, A_MOD_VIEW, A_PROJ1, A_PROJ2, A_PROJ3,
        A_MOD_LANE, A_MOD_REMOVE, A_MOD_CLEAR, A_MOD_TRK, A_MOD_PG, A_MOD_KNOB, A_MOD_ADD, A_MOD_LEARN,
-       A_SLOT_X1, A_SLOT_X2, A_SLOT_X3, A_SLOT_X4, NACTIONS };   /* (A_SLOT_X*: a slot page's extras) */
+       A_GO_FX1, A_GO_FX2, A_SLOT_X1, A_SLOT_X2, A_SLOT_X3, A_SLOT_X4, NACTIONS };   /* (A_SLOT_X*: a slot page's
+                                                     * extras; A_GO_FX*: Sends' way to GLO's FX I, FX II) */
 static const char *const ACTION_NAME[NACTIONS] = {
     "CLEAR NOTES", "CLEAR LOCKS", "CLEAR NOTES AND LOCKS", "COPY PATTERN", "PASTE PATTERN", "ROTATE FORWARD",
     "ROTATE BACK", "DUPLICATE BAR", "ENGINE", "PRESET", "SCRAMBLE", "SAVE AS PRESET", "RESET SOUND", "FOLLOWS CONDUCTOR",
@@ -323,7 +332,7 @@ static const char *const ACTION_NAME[NACTIONS] = {
     "CLEAR", "ROTATE", "PASTE", "COPY TO EMPTY", "CLEAR BAR", "COPY SOUND", "PASTE SOUND", "COPY DRUM", "PASTE DRUM",
     "COPY SCENE", "PASTE SCENE", "DUPLICATE SLOT", "KIT FILTER", "SHIFT NOTES", "LARGE TYPE", "CC IN",
     "MOD VIEW", "PROJ 1", "PROJ 2", "PROJ 3", "LANE", "REMOVE LANE", "CLEAR LANE", "TRACK", "PAGE", "KNOB",
-    "ADD LANE", "LEARN", "EXTRA 1", "EXTRA 2", "EXTRA 3", "EXTRA 4"};
+    "ADD LANE", "LEARN", "FX I", "FX II", "EXTRA 1", "EXTRA 2", "EXTRA 3", "EXTRA 4"};
 _Static_assert(NPROJ == 3, "GLO's list: an action a slot (A_PROJ1..A_PROJ3)");
 static const char *const CLEAR_WHAT[3] = {"notes", "locks", "notes and locks"};
 /* a pick ALGORITHM sets at once (a setting: SEL only leaves the list), as against a choice SEL then carries out */
@@ -783,10 +792,11 @@ static int group_n(int g)
                                                            * stays; acid: its 303's envelope and filter) */
     if (b == B_LFO && is_midi(trk))
         return 1;
-    if (b == B_FX && is_midi(trk))
-        return 3;                                    /* (grp_page: FX I, FX II, Throws: no Character, no Sends) */
+    if (b == B_FX)
+        return is_midi(trk) ? 1 : 4;                 /* (grp_page: Insert 1, Insert 2, Sends, Throws; a MIDI track the
+                                                      * throws alone) */
     if (b == B_GLO)
-        return DEBUG_BUILD ? 8 : 7;                  /* Debug last, in a debug build only */
+        return DEBUG_BUILD ? 10 : 9;                 /* Debug last, in a debug build only */
     return PAGE_BTN[g].n;
 }
 /* a button's i-th page now (ARP's depend on the player: the arp has Hold before Weave; the conductor and the
@@ -820,8 +830,16 @@ static int grp_page(int g, int i)
         static const uint8_t SMPP[4] = {P_ENGINE, P_SUB, P_PLAY, P_PLAY2};
         return SMPP[i & 3];
     }
-    if (PAGE_BTN[g].btn == B_FX && is_midi(sel_trk()))
-        return P_FX1 + i % 3;                        /* (a MIDI track: no sound for Character or Sends) */
+    if (PAGE_BTN[g].btn == B_FX) {                   /* the track's own (a MIDI track: no sound for the inserts or
+                                                      * the sends) */
+        static const uint8_t FXP[4] = {P_CHARACTER, P_INSERT, P_SENDS, P_THROWS};
+        return is_midi(sel_trk()) ? P_THROWS : FXP[i & 3];
+    }
+    if (PAGE_BTN[g].btn == B_GLO) {                  /* Mix, the two effects, the master's, the LFO, Setup, Debug */
+        static const uint8_t GLP[10] = {P_MIX, P_FX1, P_FX2, P_MASTER, P_MASTER2, P_MFILT, P_MASTER3, P_GLFO, P_SETUP,
+                                        P_STATUS};
+        return GLP[i >= 0 && i < 10 ? i : 0];
+    }
     if (PAGE_BTN[g].btn == B_ARP) {
         static const uint8_t ARPP[4] = {P_PLAYERS, P_PLAYERS2, P_PLAYERS3, P_WEAVE};
         static const uint8_t OTHER[3] = {P_PLAYERS, P_PLAYERS2, P_WEAVE};
@@ -2573,7 +2591,7 @@ static void page_footer(char *t)
         return;
     }
     if (home_held()) {
-        s_cat(t, "REC undo|PLAY redo|KNOBS fine");
+        s_cat(t, ui.page == P_ARRANGE ? "REC undo|PLAY redo|KNOB 1 fine" : "REC undo|PLAY redo|KNOBS default");
         return;
     }
     switch (ui.page) {
@@ -2699,11 +2717,11 @@ static void enc_line(char *t)
     if (ui.ask || (lst.open && lst.n) || ui.card)
         return;
     if (home_held()) {
-        s_cat(t, "SELECT tempo|PRESET scene|KNOBS fine");
+        s_cat(t, ui.page == P_ARRANGE ? "SELECT tempo|PRESET scene|KNOB 1 fine" : "SELECT tempo|PRESET scene|KNOBS default");
         return;
     }
     if (n > 1)                        /* SELECT names what it turns to where that is the point of the page */
-        e = s_cat(t, p == P_CHARACTER ? "SELECT insert 2" : p == P_INSERT ? "SELECT sends" : p == P_SENDS ? "SELECT effects" : p == P_ENV ? "SELECT filter"
+        e = s_cat(t, p == P_CHARACTER ? "SELECT insert 2" : p == P_INSERT ? "SELECT sends" : p == P_SENDS ? "SELECT throws" : p == P_ENV ? "SELECT filter"
                      : p == P_LFO ? "SELECT more" : "SELECT page");
     if (p != P_ARRANGE && p != P_SONG && p != P_THROWS && p < P_MASTER)
         e = s_cat(e, *t ? "|ALGO track" : "ALGO track");
@@ -2964,17 +2982,17 @@ static const struct { uint8_t btn; uint64_t pages; const char *title, *l1, *l2; 
      "Hold EDIT to play the keys or turn ALGORITHM for the engine."},
     {B_ENV, PG_ANY, "Envelope", "The amp's envelope, the filter, its envelope.",
      "Press PRESET on Filter for its type. A kit's key pages come first."},
-    {B_FX, PG_ANY, "Effects", "Insert 1 and 2, sends, FX I, FX II, Throws: keys throw.",
+    {B_FX, PG_ANY, "Effects", "Insert 1 and 2, Sends, Throws: keys throw.",
      "Press PRESET for the next effect, SEL for them all."},
     {B_LFO, PG_ANY, "LFO", "Type, then its first three knobs.", "Turn SELECT for its fourth and fifth."},
     {B_ARP, PG_ANY, "Players", "Arp, strum, hold or random; last page, Weave.",
      "Random: tap steps for slots, hold one and press SEQ for the pool."},
     {B_ARP, PG_STEPS, "Tricks", "Hold a step and press ARP. Turn KNOB 1 and 3 for its tricks,",
      "KNOB 2 and 4 for their values. Let go of the step when done."},
-    {B_GLO, PG(P_MFILT), "Master filter", "KNOB 1 the drums, KNOB 2 the synths, KNOB 3 the mix.",
+    {B_GLO, PG(P_MFILT), "Master filter", "KNOB 1 drums, KNOB 2 melodic, KNOB 3 the whole mix.",
      "Left a low-pass, right a high-pass. KNOB 4: resonance."},
     {B_GLO, PG_ANY, "Mix", "Tap a black key to mute, hold to solo, tap twice to keep it.",
-     "Press SEL for projects. Turn SELECT for the master, Setup."},
+     "Press SEL for projects. SELECT: FX I, FX II, the master."},
     {B_HOME, PG_ANY, "Arrange", "Press white keys for scenes, black keys to mute.",
      "Hold HOME, press REC to undo, PLAY to redo."},
     {B_SEL, PG(P_CHARACTER) | PG(P_INSERT) | PG(P_FX1) | PG(P_FX2) | PG(P_MASTER2), "Effects",
@@ -3477,7 +3495,7 @@ static void list_mix(int g)
     static char by[8], rel[12], lev[8];
     for (int gi = 0; gi < group_n(g); gi++) {
         int p = grp_page(g, gi);
-        if (p == P_SETUP || p == P_STATUS)
+        if (p == P_SETUP || p == P_STATUS || fx_page(p))   /* (FX I and FX II: their own lists, the effects) */
             continue;
         list_page_section(p);
         if (p == P_MASTER3) {
@@ -3610,8 +3628,13 @@ static void list_build(void)
         knobs = 0;
     }
     if (knobs) {                                     /* the button's knobs, page by page (FX: the page's own) */
-        if (b == B_FX)
+        if (b == B_FX) {
+            if (keep == P_SENDS) {                   /* (the two effects the sends feed: their pages, GLO's) */
+                list_add(ACTION_NAME[A_GO_FX1], fx_label(AUX_FX1), LK_ACTION, A_GO_FX1);
+                list_add(ACTION_NAME[A_GO_FX2], fx_label(AUX_FX2), LK_ACTION, A_GO_FX2);
+            }
             list_page_section(keep);
+        }
         else
             for (int gi = 0; gi < group_n(g); gi++)
                 list_page_section(grp_page(g, gi));

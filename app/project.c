@@ -404,6 +404,13 @@ void project_device_put(void)
     proj.usb_full = dev.usb;
 }
 
+/* the master's values in a new project (and a knob's reset: HOME held): the EQ flat, CLIP off, its effect off (amount
+ * 40, tone 64, all wet: tape's, as the color's were), the groups at unity, a touch of compression, the pump off (when
+ * on: by the kick, X0X's release, accented hits deeper), the master filter off (a project before 31 too) */
+static const uint8_t MS_DEF[NMS] = {64, 64, 64, 0, EF_OFF, 40, 64, 127, 100, 100, 30, 0, PB_KICK, MS_PUMP_REL_DEF, 1, 100,
+                                    0, 0, 0, 0, 0, MS_FILT_OFF, MS_FILT_OFF, MS_FILT_OFF, 0};
+_Static_assert(NMS == 25, "a new master value: its default here");
+int project_master_def(int m) { return m >= 0 && m < NMS ? MS_DEF[m] : 0; }
 void project_defaults(void)
 {
     static const uint8_t ORDER[NTRK] = {EG_DRUMLINE, EG_KNIT, EG_RAYON, EG_JACQUARD, EG_KNIT, EG_BELLOWS, EG_CANE,
@@ -462,28 +469,8 @@ void project_defaults(void)
                                                            * (with Setup's NOTES) */
     }
     aux_defaults();
-    /* the master: the EQ flat, its effect off (amount 40, tone 64, all wet: tape's, as the color's were), the groups at
-     * unity, a touch of compression */
     for (k = 0; k < NMS; k++)
-        proj.master[k] = 64;
-    proj.master[MS_CLIP] = 0;
-    proj.master[MS_CTYPE] = EF_OFF;
-    proj.master[MS_CAMT] = 40;
-    proj.master[MS_CMIX] = 127;
-    proj.master[MS_CK3] = 0;
-    for (k = MS_CX1; k <= MS_CX4; k++)
-        proj.master[k] = 0;
-    proj.master[MS_PERC] = 100;
-    proj.master[MS_MEL] = 100;
-    proj.master[MS_COMP] = 30;
-    proj.master[MS_PUMP] = 0;                             /* the pump off; when on: by the kick, X0X's release, */
-    proj.master[MS_PUMP_BY] = PB_KICK;                    /* accented hits deeper */
-    proj.master[MS_PUMP_REL] = MS_PUMP_REL_DEF;
-    proj.master[MS_PUMP_ACC] = 1;
-    proj.master[MS_LEVEL] = 100;
-    proj.master[MS_DFILT] = proj.master[MS_MELF] = proj.master[MS_MFILT] = MS_FILT_OFF;   /* the master filter off (a
-                                                          * project before 31 too) */
-    proj.master[MS_FRES] = 0;
+        proj.master[k] = MS_DEF[k];
     patterns_init(&pats);
 }
 

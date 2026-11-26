@@ -174,7 +174,7 @@ Count the white keys 1 to 16 from the left, and the black keys 1 to 11. "Hold **
 | chop a break | On a synth track, press **SEL** and set ENGINE to slice. Each key plays one slice of the break, with F3 playing the first. Write them on the steps in any order. To load your own break, run `tools/loom_samples.py load "amen.wav@2"` (here, a loop of 2 bars). |
 | change the filter | Press **ENV** and turn **SELECT** to Filter. **PRESETS** changes the filter type. |
 | put an effect on a track | Press **FX** for Insert 1 (turn **SELECT** once for Insert 2). **PRESETS** steps to the next effect, or press **SEL** and pick one from the list. The knobs set its three values and the mix. See [Effects](#effects). |
-| use the send effects | Press **FX** and turn **SELECT** to Sends, the track's sends. Keep turning to reach FX I and FX II, where **PRESETS** picks the effect and **KNOB 4** sets its return. |
+| use the send effects | Press **FX** and turn **SELECT** to Sends, the track's sends. FX I and FX II are **GLO**'s, after Mix (or pick them in Sends' **SEL** list): there **PRESETS** picks the effect and **KNOB 4** sets its return. |
 | put an effect on the whole mix | Press **GLO** and turn **SELECT** to Master FX. **PRESETS** picks the effect, and **KNOB 4** sets the mix. |
 | play | Press **PLAY**: every track starts from step 1. On Steps or Bar, hold **SEQ** and press **PLAY** to start from the bar on screen. |
 | record live | Hold **REC** and press **PLAY**. Recording starts from step 1 straight away (after the count-in, if you set one). With COUNT on "on note", nothing moves until you play: your first note lands on step 1. |
@@ -209,23 +209,33 @@ Count the white keys 1 to 16 from the left, and the black keys 1 to 11. "Hold **
 | **PLAY** | Starts and stops. Every track starts from step 1. To start from the bar on screen instead, hold **SEQ** on Steps or Bar and press **PLAY**. If you change a track's scale or length, it stays in time with the others. On the Song page, it plays the song from the selected slot. Hold **REC** and press **PLAY** to record live. |
 | **REC** | While it plays, hold **REC** to record for as long as you hold it. On a sound page, the knobs you turn are recorded too. While stopped, tap it to start step recording. Hold it while stopped (or on Steps) to set up recording with the knobs: click, count-in, quantize and mode. |
 | **SEL** | Opens a list of this page's settings and actions. Hold a step and press it to see the step's notes. When LOOM-8 asks a question, **SEL** means yes. |
-| **HOME** | Opens Arrange. On Arrange, it opens the Song page. Hold it as a shift key for buttons and knobs: undo and redo, fine tempo, and the scenes on **PRESETS**. When LOOM-8 asks a question, **HOME** means no. |
+| **HOME** | Opens Arrange. On Arrange, it opens the Song page. Hold it as a shift key for buttons and knobs: undo and redo, the scenes on **PRESETS**, and a knob back to its default (on Arrange, **KNOB 1** sets the tempo in tenths). When LOOM-8 asks a question, **HOME** means no. |
 | **SEQ** | Opens Steps; page 2 is Bar. On the MOD track, it opens Lanes. Hold it on Steps and the keys play the track and set what a step writes (**PRESETS** sets the track's sound, and **OCT** moves the whole pattern an octave). Hold it on Bar and black keys 1 to 4 jump to a bar or loop bars. Hold it on Steps or Bar and press **PLAY** to start from the bar on screen. |
 | **EDIT** | Opens Engine. The pages go from the sound to how it plays. On most engines, page 2 is Play (mode, glide, bend and octave) and page 3 is Play 2 (low cut and volume). On rayon and acid, page 2 is Sub, with the engine's second set of knobs, and Play and Play 2 follow it. Rayon has its Ops page after Sub. On knit, the pages are Engine, Osc 2, Mod, Levels, Play and Play 2. A sample track in a loop mode has its Loop page second. On a drum track, page 2 holds the key's model, random, pan and volume, and page 3 its sends. On the conductor, the pages are its key, the routing and Follow. |
 | **ENV** | Opens Envelope (on a drum track: lag, attack, random, length), then Filter, then the filter's envelope. |
-| **FX** | Opens Insert 1, the track's first effect, then Insert 2. Next come Sends, the track's sends to FX I and FX II, and then FX I and FX II, the two send effects, and Throws. |
+| **FX** | Opens Insert 1, the track's first effect, then Insert 2. Next come Sends, the track's sends to FX I and FX II, and Throws. The two send effects themselves are on **GLO**. |
 | **LFO** | Opens LFO. Page 2 has the type's fourth and fifth knobs. |
 | **ARP** | Opens Players. With the arp, page 2 has its second set of knobs and page 3 is hold. |
-| **GLO** | Opens Mix. Turn **SELECT** for Master EQ, Master FX, Master filter, Master out, LFO (the shared LFO) and Setup. |
+| **GLO** | Opens the page you had open last of its own (Mix at first; pressed on one of them, Mix). Turn **SELECT** for FX I, FX II, Master EQ, Master FX, Master filter, Master out, LFO (the shared LFO) and Setup. |
 | **SAVE** | Saves. Hold it and press a white key to save to a slot, or to keep a sound. |
 | **OCT−** / **OCT+** | Move the keys an octave. On Steps, they show the bar before or after (with **SEQ** held, they move the pattern an octave), and with a step held, they nudge it. In step record, they move the cursor. On Arrange and Song, they put scenes 1 to 16 or 17 to 32 on the white keys. |
 | **SELECT** | Turns to a button's next page. In a list, it moves up and down. |
 | **ALGORITHM** | Picks the track. On the MOD track's Lanes page, it picks the lane first. In a list, it changes the row's value. |
 | **PRESETS** | Steps to the next item of whatever the page shows: a preset, a drum key, an effect, a pattern, a drum sound, a scene. |
-| **KNOB 1–4** | Set the four values at the bottom of the screen. |
+| **KNOB 1–4** | Set the four values at the bottom of the screen. Hold **HOME** and turn one to put it back to its default (see below). |
 
 Hold any button for a second, and a card explains it. The two lines at the bottom of the screen always say
 what each control does on the page you're on.
+
+**Back to the default.** Hold **HOME** and turn a knob, on any page, and it goes back to where it starts: a master
+filter to off, a pan to the centre, an effect's knob to that effect's own starting value, a sound's knob to the
+engine's, a master value to a new project's. The screen and the screen reader say it ("melodic off"). On Arrange,
+**KNOB 1** keeps setting the tempo in tenths. With a step held, **HOME** doesn't reset its locks: hold **SEL** and
+turn the knob to clear them.
+
+**The middle holds.** The master filters, a pan and a pitch that sit in the middle stop there as you turn through
+it, and stay for a couple of clicks before going on, so a sweep can rest at off. A value sent over MIDI lands where
+it says.
 
 ## Getting around
 
@@ -1163,7 +1173,7 @@ to 119). They start as 74, 71, 73 and 72, which are cutoff, resonance, attack an
 next four are 1, 75, 91 and 93: mod wheel, decay, reverb and chorus.
 
 A MIDI track has no envelope, filter, LFO, inserts or sends, so **ENV** and **LFO** take you to its knobs.
-**FX** shows only FX I, FX II and Throws. Play keeps its glide, voice mode and octave. SCRAMBLE sets the eight
+**FX** shows only Throws. Play keeps its glide, voice mode and octave. SCRAMBLE sets the eight
 knobs at random and leaves their CC numbers alone. CC 9 on the track's channel still mutes it, but other CCs
 coming in on its channel do nothing. That way, a synth that echoes CCs back can't change the CC numbers.
 
@@ -1185,7 +1195,7 @@ bass. KNOB 4 is the track's volume.
 **ENV** opens on the amp envelope. Next comes the filter, with cutoff in Hz, resonance, envelope amount and key
 tracking. Turn **PRESETS** to change its type (lp24, ladder, lp12, hp12, bp12, off). Last is the filter's
 envelope. **FX** has the track's two inserts (see [Effects](#effects)), then its sends to FX I and FX II, its pan and
-its level, and then the two send effects. **LFO** has the type and its first three knobs on page 1, and its fourth and fifth on page
+its level, and then Throws (the two send effects are **GLO**'s). **LFO** has the type and its first three knobs on page 1, and its fourth and fifth on page
 2. When you pick a new type, it starts from its own defaults:
 
 | Type | Page 1 | Page 2 |
@@ -1320,12 +1330,13 @@ Each factory preset carries its inserts, so a preset is a whole sound, and COPY 
 
 ### FX I and FX II
 
-Each track sends to the two send effects on its Sends page (**FX**, then **SELECT**). Keep turning **SELECT** to
-reach FX I and FX II. Their pages are the inserts' page: any effect of the list, its three knobs, **PRESETS** for the
+Each track sends to the two send effects on its Sends page (**FX**, then **SELECT**). FX I and FX II are shared by
+every track, so their pages are **GLO**'s, right after Mix (on Sends, its **SEL** list has FX I and FX II to go
+straight there). Their pages are the inserts' page: any effect of the list, its three knobs, **PRESETS** for the
 next. **KNOB 4** is the **return**, how loud the effect comes back. An effect on a send returns only the sound it
 makes; the track's own sound stays on the track. The keys play the track you were on.
 
-<img src="img/screen-fx1.png" width="240" alt="FX&#x27;s FX I page: the delay with time, repeats, tone and return" title="FX I"> <img src="img/screen-fx2-hall.png" width="240" alt="FX&#x27;s FX II page: the reverb, hall, with size, decay, tone and return" title="FX II, the reverb">
+<img src="img/screen-fx1.png" width="240" alt="GLO&#x27;s FX I page: the delay with time, repeats, tone and return" title="FX I"> <img src="img/screen-fx2-hall.png" width="240" alt="GLO&#x27;s FX II page: the reverb, hall, with size, decay, tone and return" title="FX II, the reverb">
 
 The **SEL** list has the effects, the effect's extras, and then the send's own **HIGH-PASS** and **LOW-PASS** and,
 on FX I, **TO FX II**, the send from FX I into FX II. A new project starts with a delay on FX I and lush on FX II,
@@ -1576,6 +1587,7 @@ of **FX**.
 
 Turn **SELECT** for more pages:
 
+- FX I and FX II, the two send effects (see [FX I and FX II](#fx-i-and-fx-ii)).
 - Master EQ has low, mid and high (64 is flat) and **clip**: 0 is off; turning it up drives the mix into a soft
   clipper before the limiter, so it gets louder and denser, the kick's and snare's peaks rounded off.
 - Master FX has one effect on the whole mix (see [Effects](#effects)).
@@ -1902,15 +1914,15 @@ and the echoes fade out. Every voice sounds in the file, so a busy song can soun
 | ENV, drum track, SELECT 3 times | Kit filter | low cut | comp | drive | hi cut | play; PRESETS: on or off |
 | FX | Insert 1 | the effect's first | second | third | mix | play; PRESETS: the effect; SEL: the effects, its extras |
 | FX, SELECT | Insert 2 | the effect's first | second | third | mix | play; PRESETS: the effect; SEL: the effects, its extras |
-| FX, SELECT twice | Sends | fx I | fx II | pan | level | play |
-| FX, SELECT 3 times | FX I, FX II | the effect's first | second | third | return | play; PRESETS: the effect; SEL: the effects, its extras, high-pass, low-pass, to FX II |
-| FX, SELECT 5 times | Throws | latch | | | | low: drum throws, high: melodic throws |
+| FX, SELECT twice | Sends | fx I | fx II | pan | level | play; SEL: FX I, FX II (their pages) |
+| FX, SELECT 3 times | Throws | latch | | | | low: drum throws, high: melodic throws |
 | LFO | LFO | type | the type's three | | | play |
 | LFO, SELECT | LFO 2 | the type's fourth and fifth | | | | play |
 | ARP | Players | player | its first | its second | its third | play, through the player (random: Players 2 has its randomization, Players 3 the octaves down and up) |
 | ARP, SELECT | Players 2, Hold | the arp's length, style, glide, stereo; hold | | | | play |
 | ARP, SELECT (last) | Weave | with | pattern | rule | plays | black: the track woven in, white: its pattern; SEL: KEEP AS PATTERN |
 | GLO | Mix | FX I | FX II | pan | level | black: tap to mute, hold to solo (several together); SEL: the projects, save to, new project |
+| GLO, SELECT | FX I, FX II | the effect's first | second | third | return | play; PRESETS: the effect; SEL: the effects, its extras, high-pass, low-pass, to FX II |
 | GLO, SELECT | Master EQ | low | mid | high | | |
 | GLO, SELECT | Master FX | the effect's first | second | third | mix | PRESETS: the effect; SEL: the effects, its extras |
 | GLO, SELECT | Master filter | drums | melodic | mix | res | |
