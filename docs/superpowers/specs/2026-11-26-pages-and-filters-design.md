@@ -48,3 +48,9 @@ The user, on the FM-1: "RAT is so loud as you scroll through inserts". Every cat
 measured against the dry (noise and a synth note, host): defaults (or the effect's own make-up) brought within
 about +-1.5 dB of dry, RAT first (its level knob then trims around unity); level-changing effects (tremolo) by their
 average. A host test keeps it so.
+
+## Also: the arp's 1/4D (the user)
+
+ARP speeds (seq.c ARP_NUM / ARP_DEN, synth.c ARPSPD_N; slowest first) gain **1/4D** (six sixteenths) before 1/4. A
+speed is stored as its index (TP_P1): the next project format moves every arp speed and its locks / motion up one
+(as format 21's old_arp did), presets format too if presets store it; a migrate.xy expectation.
