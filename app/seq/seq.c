@@ -145,28 +145,33 @@ static int mask_len(uint16_t m)
 }
 
 static int floor_div(int a, int b) { return a >= 0 ? a / b : -((-a + b - 1) / b); }
+/* a division by 12 out of line (the scales', every few notes): a compiler that makes it a 64-bit multiply (the open
+ * pi32v2 LLVM does; JieLi's divides) must not inline that among 16-bit loads (the scale masks): felucca-bsp
+ * docs/CPU.md, a register now and then a bit off */
+static __attribute__((noinline)) int mod12(int x) { return (x % 12 + 12) % 12; }
+static __attribute__((noinline)) int fdiv12(int x) { return floor_div(x, 12); }
 
 /* the note's degree (octave * scale length + index) from the key's tonic, snapping a note outside the
  * scale to the nearest scale note (ties go down) */
 static int note_to_deg(int note, int key, uint16_t mask)
 {
-    int pc = ((note - key) % 12 + 12) % 12, d, idx = 0, i, oct;
+    int pc = mod12(note - key), d, idx = 0, i, oct;
     if (!(mask >> pc & 1u)) {
         for (d = 1; d < 12; d++) {
-            if (mask >> ((pc - d + 12) % 12) & 1u) {
+            if (mask >> mod12(pc - d) & 1u) {
                 note -= d;
                 break;
             }
-            if (mask >> ((pc + d) % 12) & 1u) {
+            if (mask >> mod12(pc + d) & 1u) {
                 note += d;
                 break;
             }
         }
-        pc = ((note - key) % 12 + 12) % 12;
+        pc = mod12(note - key);
     }
     for (i = 0; i < pc; i++)
         idx += mask >> i & 1u;
-    oct = floor_div(note - key, 12);
+    oct = fdiv12(note - key);
     return oct * mask_len(mask) + idx;
 }
 
@@ -186,12 +191,12 @@ static int deg_to_note(int deg, int key, uint16_t mask)
 
 static int clamp_note(int n) { return n < 0 ? 0 : n > 127 ? 127 : n; }
 static uint16_t scale_mask(int scale) { return BRAIN_SCALE[scale >= 0 && scale < NBS ? scale : BS_CHROMATIC]; }
-static int in_scale(int note, int key, uint16_t mask) { return mask >> (((note - key) % 12 + 12) % 12) & 1u; }
+static int in_scale(int note, int key, uint16_t mask) { return mask >> mod12(note - key) & 1u; }
 
 int scale_step(int note, int key, int scale, int steps)
 {
     uint16_t mask = scale_mask(scale);
-    key = ((key % 12) + 12) % 12;
+    key = mod12(key);
     return clamp_note(deg_to_note(note_to_deg(note, key, mask) + steps, key, mask));
 }
 
@@ -206,7 +211,7 @@ int brain_shift(int note, int key, int scale, int degree, int mode)
     if (mode == 1)
         return scale_step(note, key, scale, degree);
     mask = scale_mask(scale);
-    key = ((key % 12) + 12) % 12;
+    key = mod12(key);
     d0 = note_to_deg(60 + key, key, mask);    /* transpose only: the degree's distance from the tonic, in semitones */
     return clamp_note(note + deg_to_note(d0 + degree, key, mask) - deg_to_note(d0, key, mask));
 }
@@ -581,7 +586,7 @@ static int chord_snap(int note, uint32_t w)          /* the nearest tone, regist
         int t = (int)(w >> (8 * i) & 0xFFu), c;
         if (!t)
             continue;
-        c = note - ((note - t) % 12 + 12) % 12;      /* the tone at or under the note */
+        c = note - mod12(note - t);      /* the tone at or under the note */
         for (int k = 0; k < 2; k++, c += 12) {
             int d = c > note ? c - note : note - c;
             if (d < bd || (d == bd && c < best))
@@ -602,7 +607,7 @@ static int chord_deg(int note, uint32_t w, int key, int scale)   /* the scale's 
     if (idx < 0)
         idx += len;
     tone = (int)(w >> (8 * (idx % n)) & 0xFFu);
-    return clamp_note(tone + 12 * floor_div(note - tone + 6, 12));   /* the octave nearest the note */
+    return clamp_note(tone + 12 * fdiv12(note - tone + 6));   /* the octave nearest the note */
 }
 
 /* a routed track's note through the brain (steps and live keys alike) */
