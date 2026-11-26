@@ -240,8 +240,10 @@ typedef struct {
             struct ds_params dp;
             uint8_t dtrig, dfold;
         };
-        struct {                      /* the 909 models: the slot of d9_slot its hit plays in */
+        struct {                      /* the 909 models: the slot of d9_slot its hit plays in; how long it has been
+                                       * under D9_QUIET (samples, held at its most) */
             uint8_t d9s;
+            uint16_t d9q;
         };
     };
     /* the key's own stage (DP_ATTACK..DP_FTYPE) */
@@ -1452,6 +1454,8 @@ static void clang_render(dvoice_t *v, float *t, int m, float *envp)
     *envp = env;
 }
 
+#define D9_QUIET 1e-5f                                /* (-100 dB) */
+#define D9_QUIET_N 1323                               /* (30 ms) */
 /* ---- one voice, m samples (<= SUB) of mono into t[] (nine: its 909 slot, held; else 0) ---- */
 /* (out of line, and x_render, sophie_render and dynf_run: inlined into drumline_render_kick, the -O2 build came to
  * 2 KB more for the same loops; a call a voice every 32 samples) */
@@ -1742,9 +1746,17 @@ static __attribute__((noinline)) void render_voice(dvoice_t *v, int16_t *line, s
     case DM_909CH: case DM_909OH: case DM_909RIDE: case DM_909CRASH:
         if (!nine || !d909_render(nine, t, m))       /* (its slot taken, or the hit done: the voice ends) */
             env = 0.0f;
-        for (i = 0; i < m; i++) {                     /* the velocity, and the choke's fade */
-            t[i] *= g * env;
-            env *= k;
+        {
+            float pk = 0.0f;
+            for (i = 0; i < m; i++) {                 /* the velocity, and the choke's fade */
+                t[i] *= g * env;
+                env *= k;
+                pk = fm_maxf(pk, fm_fabsf(t[i]));
+            }
+            v->d9q = pk < D9_QUIET ? (uint16_t)(v->d9q + m < 65535 ? v->d9q + m : 65535) : 0;
+            if (v->d9q >= D9_QUIET_N)                 /* under -100 dB for 30 ms: done (9W9's countdown ran on to
+                                                       * its end; a clap's gaps are shorter) */
+                env = 0.0f;
         }
         break;
     default:
