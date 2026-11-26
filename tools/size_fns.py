@@ -49,7 +49,7 @@ COLD = {
     "dsp/fx.c": ["fx_derive", "eq_coefs", "fx_filter", "master_set", "master_init", "comp_coefs",
                  "fx_set", "fx_init", "fx_delay_halves", "slot_set", "master_room", "biq_shelf",
                  "fx_clear", "master_clear", "coef_ms", "master_pump_ms", "fx_pick_slot",
-                 "master_memory", "fx_lags"],
+                 "master_memory", "fx_lags", "master_filter_hz", "master_filter_db"],
     "dsp/sample.c": ["smp_user_scan", "fact_init", "smp_bank_crc", "smp_name",
                      "smp_entry", "smp_user_bytes", "smp_user_attach"],   # (the samples page's, the boot's)
     "dsp/digisophie.c": ["ds_voice_init"],

@@ -120,7 +120,7 @@ wait 6000
 expect envdot -1
 # Setup's MOD VIEW row (the FM-1's setting, as the theme): off, and the Filter page's curve stays at the knob
 tap GLO
-turn SELECT 5
+turn SELECT 6
 expect page Setup
 tap SEL
 listen
@@ -160,7 +160,7 @@ reboot
 wait 400
 expect modview 0
 tap GLO
-turn SELECT 5
+turn SELECT 6
 expect page Setup
 tap SEL
 row MOD VIEW

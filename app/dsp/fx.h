@@ -83,17 +83,33 @@ void fx_pick_slot(int pick, const uint8_t e[4], int width, int wobble, int smear
  * 0 / 1: a hit pumps by its velocity (0.5 .. 1 of the depth) or always fully. */
 enum { MS_EQ_LO, MS_EQ_MID, MS_EQ_HI, MS_CLIP, MS_CTYPE, MS_CAMT, MS_CTONE, MS_CMIX,
        MS_PERC, MS_MEL, MS_COMP, MS_PUMP, MS_PUMP_BY, MS_PUMP_REL, MS_PUMP_ACC, MS_LEVEL,
-       MS_CK3, MS_CX1, MS_CX2, MS_CX3, MS_CX4, NMS };   /* (the slot: MS_CTYPE effect, MS_CAMT, MS_CTONE, MS_CK3 its
-                                                         * knobs, MS_CMIX its mix, MS_CX1..4 its extras) */
+       MS_CK3, MS_CX1, MS_CX2, MS_CX3, MS_CX4, MS_DFILT, MS_DRES, MS_MFILT, MS_MRES, NMS };
+                                                        /* (the slot: MS_CTYPE effect, MS_CAMT, MS_CTONE, MS_CK3 its
+                                                         * knobs, MS_CMIX its mix, MS_CX1..4 its extras; the filter
+                                                         * page: MS_DFILT, MS_DRES the drums', MS_MFILT, MS_MRES the
+                                                         * mix's) */
 #define MS_NMS29 16                   /* (format 29's values: up to MS_LEVEL) */
+#define MS_NMS30 21                   /* (format 30's: up to the slot's extras) */
+/* the master filter (the page Master filter, format 31): a DJ filter on the drums group (MS_DFILT: on the kits' sum
+ * before the groups meet) and one on the whole mix (MS_MFILT: after the compressor and the pump, before CLIP and the
+ * limiter). One knob each: below the centre a low-pass (20 kHz at 61 down to 60 Hz at 0), above it a high-pass (20 Hz
+ * at 67 up to 8 kHz at 127), 62..66 off (the stage skipped: the sound as without it, sample for sample); its
+ * resonance (MS_DRES, MS_MRES) up to 0.9 of the way to self-oscillation (Q ~7), the level made up for it. A 12 dB
+ * state-variable filter (stereo; Cytomic's, trapezoidal: it sweeps without zipper); the cutoff and the resonance glide
+ * (~10 ms), a filter turned on fades in from its open end, one turned off or across the centre fades out first.
+ * master_filter_hz: a knob's cutoff (0: off; negative: a high-pass's, as -Hz) */
+#define MS_FILT_OFF 64
+float master_filter_hz(int v);
+float master_filter_db(int v, int r, float hz);   /* its response at hz (the page's picture): knob v, resonance r */
 enum { PB_KICK, PB_T1, PB_METRO = PB_T1 + 8, NPB };
 #define MS_PUMP_REL_DEF 60
 extern const char *const MS_NAME[NMS];
 typedef struct master master_t;
 #ifdef PLAT_HOST
-#define MASTER_BYTES 984              /* (the host's pointers are wider) */
+#define MASTER_BYTES 1044             /* (the host's pointers are wider) */
 #else
-#define MASTER_BYTES 976              /* (fx.c checks it: 976 B, 2026-11-25; 1,428 with the master color's line) */
+#define MASTER_BYTES 1036             /* (fx.c checks it: 1,036 B, 2026-11-26 (976 before the master filter); 1,428 with
+                                       * the master color's line) */
 #endif
 void master_init(master_t *m);
 void master_clear(master_t *m);                             /* its states at rest, its settings kept */

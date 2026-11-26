@@ -349,7 +349,7 @@ expect lane 2 1 res 0
 # the shared LFO on a kit: a square a bar on T1's hat (white key 3) volume, from PLAY; off, the hat's own value back
 projnew
 tap GLO
-turn SELECT 4
+turn SELECT 5
 expect page LFO
 turn K1 5
 turn K3 63

@@ -51,7 +51,7 @@ wait 2200
 usbwavstop
 # USB AUDIO stereo (Setup's SEL list, two steps past follows knob): the master alone, channels 3..10 silent
 tap GLO
-turn SELECT 5
+turn SELECT 6
 expect page Setup
 tap SEL
 row USB AUDIO

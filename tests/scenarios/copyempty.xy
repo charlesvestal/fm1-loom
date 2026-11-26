@@ -118,7 +118,7 @@ expect note 2 2 1 68
 projsave 1
 expect theme 2
 tap GLO
-turn SELECT 5
+turn SELECT 6
 expect page Setup
 tap SEL
 row THEME

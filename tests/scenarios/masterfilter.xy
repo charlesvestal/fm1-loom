@@ -1,0 +1,72 @@
+# the master filter: GLO's Master filter page (between Master FX and Master out), its four knobs (the drums' filter
+# and resonance, the mix's): left a low-pass, the centre off, right a high-pass; the screen reader's words; saved and
+# loaded with the project; the MIDI CCs on the master's channel 11 (30, 31 the drums', 74, 71 the mix's)
+wait 300
+hits 1 1 1 x...x...x...x...
+expect mst.dfilt 64
+expect mst.dres 0
+expect mst.mfilt 64
+expect mst.mres 0
+listen
+tap GLO
+expect page Mix
+turn SELECT 3
+wait 400
+expect page Master_filter
+said Master filter
+wait 40
+shot master_filter_off.png
+# KNOB 1: the drums' filter a quarter left, a low-pass (48: 5.8 kHz)
+spin K1 -16
+expect mst.dfilt 48
+wait 400
+said drums LP 5.8 kHz
+spin K2 90
+expect mst.dres 90
+# KNOB 3: the mix's a quarter right, a high-pass (80: 73 Hz)
+spin K3 16
+expect mst.mfilt 80
+wait 400
+said mix HP 73 Hz
+spin K4 40
+expect mst.mres 40
+# the dead zone: 62 .. 66 off
+spin K3 -15
+expect mst.mfilt 65
+wait 400
+said mix off
+spin K3 15
+expect mst.mfilt 80
+tap PLAY
+wait 600
+shot master_filter.png
+tap PLAY
+# saved, and back after a reboot
+projsave 1 filt
+reboot
+wait 400
+expect mst.dfilt 48
+expect mst.dres 90
+expect mst.mfilt 80
+expect mst.mres 40
+# the CCs on channel 11: 30 the drums' filter, 31 its resonance, 74 the mix's, 71 its resonance (0..127 as they come)
+midi BA 1E 7F
+midi BA 1F 00
+midi BA 4A 00
+midi BA 47 7F
+wait 40
+expect mst.dfilt 127
+expect mst.dres 0
+expect mst.mfilt 0
+expect mst.mres 127
+# the help card: GLO held on the page
+tap GLO
+turn SELECT 3
+expect page Master_filter
+listen
+press GLO
+wait 1000
+shot master_filter_card.png
+said Master filter
+release GLO
+expect page Master_filter

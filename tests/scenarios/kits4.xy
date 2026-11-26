@@ -22,7 +22,7 @@ said T4 SILENT
 wait 2200
 shot kit4_silent.png
 tap GLO
-turn SELECT 5
+turn SELECT 6
 expect page Setup
 tap SEL
 row THEME

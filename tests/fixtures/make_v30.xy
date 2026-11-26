@@ -1,0 +1,19 @@
+# a format 30 project, from before the master filter (format 31: four master values after the slot's, project.c
+# SET_HDR30): saved by that build, for the migration's test (tests/scenarios/migrate.xy). Master FX's slot set (its
+# knob 3 and an extra too, the values format 30 added: they must land where they were), the EQ's low 80, the comp 50,
+# the level 110.
+# Run by a format 30 build (7cf3e0d): its loom_host tests/fixtures/make_v30.xy
+wait 300
+bpm 113
+mst color 3
+mst camount 70
+mst ctone 40
+mst ck3 33
+mst cx2 5
+mst cmix 90
+mst lo 80
+mst comp 50
+mst level 110
+wait 40
+projsave 1 v30_test
+storesave tests/fixtures/store_v30.bin

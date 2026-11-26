@@ -43,6 +43,7 @@ KTRK	key tracking
 keytrack	key tracking
 Master EQ	master equalizer
 HP	high pass
+LP	low pass
 BP	band pass
 LFO	L F O
 LFO 2	L F O page 2

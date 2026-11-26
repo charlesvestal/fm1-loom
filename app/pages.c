@@ -105,13 +105,14 @@ static uint16_t col_mix(uint16_t a, uint16_t b, uint32_t s)   /* a moved s/16 of
  * type), Levels (the Sub page: osc 2's level, sub, noise, analog), Play, Play 2; a kit or an FX track
  * Engine and Play; the conductor Engine, Play (routing), Sub (Follow) */
 enum { P_ARRANGE, P_SONG, P_STEPS, P_BAR, P_ENGINE, P_PLAY, P_PLAY2, P_SUB, P_OSC2, P_KMOD, P_ENV, P_FILTER, P_ENV2, P_KITF, P_CHARACTER, P_INSERT, P_SENDS,
-       P_FX1, P_FX2, P_THROWS, P_LFO, P_LFO2, P_PLAYERS, P_PLAYERS2, P_PLAYERS3, P_WEAVE, P_MIX, P_MASTER, P_MASTER2, P_MASTER3, P_GLFO, P_SETUP,
+       P_FX1, P_FX2, P_THROWS, P_LFO, P_LFO2, P_PLAYERS, P_PLAYERS2, P_PLAYERS3, P_WEAVE, P_MIX, P_MASTER, P_MASTER2, P_MFILT, P_MASTER3, P_GLFO, P_SETUP,
        P_STATUS, NPAGES };
 static const char *const PAGE_NAME[NPAGES] = {"Arrange", "Song", "Steps", "Bar", "Engine", "Play", "Play 2", "Sub", "Osc 2", "Mod",
                                               "Envelope",
                                               "Filter", "Filter env", "Kit filter", "Insert 1", "Insert 2", "Sends", "FX I",
                                               "FX II", "Throws", "LFO", "LFO 2", "Players", "Players 2", "Hold", "Weave", "Mix",
-                                              "Master EQ", "Master FX", "Master out", "LFO", "Setup", "Debug"};
+                                              "Master EQ", "Master FX", "Master filter", "Master out", "LFO", "Setup",
+                                              "Debug"};
 static char *s_cat(char *b, const char *s);
 static char *num_s(uint32_t v, char *b);
 static const char *const GLFO_SHAPE[NGS + 1] = {"off", "sine", "triangle", "saw up", "saw down", "square", "random"};
@@ -139,7 +140,7 @@ static uint32_t glfo_route(void)                 /* the tracks it moves: bit t *
     return (uint32_t)(g[TP_LX] & 15u) | (uint32_t)(g[TP_LX2] & 15u) << 4;
 }
 /* a master page's knob k: its value (fx.h MS_*); Master FX's are its slot's (slot_knobs) */
-static int mst_m(int p, int k) { return p == P_MASTER ? MS_EQ_LO + k : MS_PERC + k; }
+static int mst_m(int p, int k) { return p == P_MASTER ? MS_EQ_LO + k : p == P_MFILT ? MS_DFILT + k : MS_PERC + k; }
 /* Master FX's slot as a track's slot 1 (synth.h TP_SLOT[0]): its knobs' names, ranges and texts as a track's are */
 static const uint8_t MS_SLOT[SL_N] = {MS_CTYPE, MS_CAMT, MS_CTONE, MS_CK3, MS_CMIX, MS_CX1, MS_CX2, MS_CX3, MS_CX4};
 static void mst_par(uint8_t *par)
@@ -151,7 +152,7 @@ static void mst_par(uint8_t *par)
 }
 static const struct { uint8_t btn, first, n; } PAGE_BTN[] = {
     {B_HOME, P_ARRANGE, 2}, {B_SEQ, P_STEPS, 2}, {B_EDIT, P_ENGINE, 6}, {B_ENV, P_ENV, 4}, {B_FX, P_CHARACTER, 6},
-    {B_LFO, P_LFO, 2}, {B_ARP, P_PLAYERS, 4}, {B_GLO, P_MIX, 7}};
+    {B_LFO, P_LFO, 2}, {B_ARP, P_PLAYERS, 4}, {B_GLO, P_MIX, 8}};
 #define NPAGE_BTN (sizeof PAGE_BTN / sizeof PAGE_BTN[0])
 static int page_group(int p)
 {
@@ -775,7 +776,7 @@ static int group_n(int g)
     if (b == B_FX && is_midi(trk))
         return 3;                                    /* (grp_page: FX I, FX II, Throws: no Character, no Sends) */
     if (b == B_GLO)
-        return DEBUG_BUILD ? 7 : 6;                  /* Debug last, in a debug build only */
+        return DEBUG_BUILD ? 8 : 7;                  /* Debug last, in a debug build only */
     return PAGE_BTN[g].n;
 }
 /* a button's i-th page now (ARP's depend on the player: the arp has Hold before Weave; the conductor and the
@@ -1314,6 +1315,26 @@ static void kn(knob_t *k, const char *name, int32_t v, int32_t max)
     num_i(v, k->val);
     k->num = v;
     k->max = max;
+}
+/* a master filter's knob (fx.h MS_DFILT, MS_MFILT): "LP 5.8 kHz", "off", "HP 120 Hz" */
+static void mfilt_text(int v, char *t)
+{
+    float hz = master_filter_hz(v);
+    char *e;
+    if (hz == 0.0f) {
+        s_cat(t, "off");
+        return;
+    }
+    e = s_cat(t, hz < 0.0f ? "HP " : "LP ");
+    hz = fm_fabsf(hz);
+    if (hz < 1000.0f) {
+        s_cat(num_i((int32_t)(hz + 0.5f), e), " Hz");
+    } else {
+        int32_t d = (int32_t)(hz * 0.01f + 0.5f);   /* (tenths of a kHz) */
+        e = num_i(d / 10, e);
+        *e++ = '.';
+        s_cat(num_i(d % 10, e), " kHz");
+    }
 }
 /* the master's pump: its depth (0 .. 24 dB), its source, its release */
 static void pump_text(int v, char *t)
@@ -1902,10 +1923,17 @@ static void page_knobs(knob_t *k)
             k[1].name = "FX II";
         }
         break;
-    case P_MASTER: case P_MASTER3:
+    case P_MASTER: case P_MFILT: case P_MASTER3:
         for (int i = 0; i < 4; i++) {
             int m = mst_m(p, i);
-            if (m == MS_PUMP) {
+            if (m == MS_DFILT || m == MS_MFILT) {    /* drums LP 5.8 kHz, drums off, mix HP 120 Hz */
+                static const char *const NM[2][3] = {{"drums", "drums LP", "drums HP"}, {"mix", "mix LP", "mix HP"}};
+                const float hz = master_filter_hz(proj.master[m]);
+                char t[16];
+                mfilt_text(proj.master[m], t);
+                kv(&k[i], NM[m == MS_MFILT][hz > 0.0f ? 1 : hz < 0.0f ? 2 : 0], hz != 0.0f ? t + 3 : t, proj.master[m],
+                   127);
+            } else if (m == MS_PUMP) {
                 char t[12];
                 pump_text(proj.master[m], t);
                 kv(&k[i], MS_NAME[m], t, proj.master[m], 127);
@@ -2174,7 +2202,7 @@ static void page_tag(char *t)
             s_cat(s_cat(e, ">"), RV_NAME[par[TP_SLOT[q][SL_X1]] % NRV]);
         break;
     }
-    case P_MASTER: case P_MASTER3: case P_GLFO: case P_SETUP: case P_STATUS:
+    case P_MASTER: case P_MFILT: case P_MASTER3: case P_GLFO: case P_SETUP: case P_STATUS:
         s_cat(t, "all tracks");
         break;
     default:
@@ -2403,7 +2431,7 @@ static void page_footer(char *t)
     case P_SETUP:
         s_cat(t, "SEL Bluetooth|KEYS play");
         break;
-    case P_MASTER: case P_STATUS:
+    case P_MASTER: case P_MFILT: case P_STATUS:
         s_cat(t, "KEYS play");
         break;
     case P_SENDS:
@@ -2725,6 +2753,8 @@ static const struct { uint8_t btn; uint64_t pages; const char *title, *l1, *l2; 
      "Random: tap steps for slots, hold one and press SEQ for the pool."},
     {B_ARP, PG_STEPS, "Tricks", "Hold a step and press ARP. Turn KNOB 1 and 3 for its tricks,",
      "KNOB 2 and 4 for their values. Let go of the step when done."},
+    {B_GLO, PG(P_MFILT), "Master filter", "KNOB 1 filters the drums, KNOB 3 the whole mix.",
+     "Left a low-pass, right a high-pass. KNOB 2 and 4: resonance."},
     {B_GLO, PG_ANY, "Mix", "Tap a black key to mute, hold to solo, tap twice to keep it.",
      "Press SEL for projects. Turn SELECT for the master, Setup."},
     {B_HOME, PG_ANY, "Arrange", "Press white keys for scenes, black keys to mute.",
@@ -6575,6 +6605,41 @@ static void draw_master(void)
     }
     main_blit();
 }
+/* Master filter: each filter's response (fx.c master_filter_db), 20 Hz .. 20 kHz across, +12 .. -24 dB down; the
+ * drums' above, the mix's below, their knobs' values beside */
+static void draw_mfilt(void)
+{
+    const uint8_t *m = proj.master;
+    uint32_t h = hash_u(hash_u(2166136261u, 0x3Bu), (uint32_t)m[MS_DFILT] | (uint32_t)m[MS_DRES] << 8 |
+                                                     (uint32_t)m[MS_MFILT] << 16 | (uint32_t)m[MS_MRES] << 24);
+    const int32_t x0 = 16, w = 208, y0 = LARGE ? 2 : 12, ph = (MAIN_H - y0 - 10) / 2 < 38 ? (MAIN_H - y0 - 10) / 2 : 38;
+    if (!begin_main(h))
+        return;
+    for (int j = 0; j < 2; j++) {
+        const int v = m[j ? MS_MFILT : MS_DFILT], r = m[j ? MS_MRES : MS_DRES];
+        const int32_t top = y0 + j * (ph + 8), zero = top + ph / 3;   /* (0 dB a third down: +12 above, -24 below) */
+        const int on = master_filter_hz(v) != 0.0f;
+        pen_t pn = {0};
+        char t[16];
+        cv_round(x0, top, w, ph, 4, K_PANEL);
+        cv_rect(x0 + 4, zero, w - 8, 1, K_LINE);
+        for (int32_t x = 0; x <= w - 8; x += 2) {
+            float hz = 20.0f * fm_exp2f((float)x * (9.9657843f / (float)(w - 8))), db = master_filter_db(v, r, hz);
+            db = db > 12.0f ? 12.0f : db < -24.0f ? -24.0f : db;
+            pen_to(&pn, (float)(x0 + 4 + x), (float)zero - db * ((float)ph / 36.0f), on ? K_NOW : K_DIM);
+        }
+        mfilt_text(v, t);
+        {   /* (the names over the curve, on the panel's ground) */
+            const int32_t ty = top + ph - 3 - FONT_XS.h, tw = text_w(&FONT_XS, t);
+            const char *nm = j ? "mix" : "drums";
+            cv_rect(x0 + 6, ty, text_w(&FONT_XS, nm) + 4, FONT_XS.h, K_PANEL);
+            cv_rect(x0 + w - 10 - tw, ty, tw + 4, FONT_XS.h, K_PANEL);
+            cv_text(x0 + 8, ty, &FONT_XS, nm, K_DIM);
+            text_r(x0 + w - 8, ty, &FONT_XS, t, on ? K_TEXT : K_DIM);
+        }
+    }
+    main_blit();
+}
 static const felucca_font_t *setup_f;                /* setup_row's face (0: FONT_S) */
 static void setup_row(int32_t y, const char *name, const char *val)
 {
@@ -6942,6 +7007,7 @@ static void draw_main(int trk)
     case P_THROWS: draw_punch(); break;
     case P_WEAVE: draw_weave(); break;
     case P_MASTER: case P_MASTER3: draw_master(); break;
+    case P_MFILT: draw_mfilt(); break;
     case P_MASTER2: draw_slot(P_MASTER2); break;
     case P_GLFO: draw_glfo(); break;
     case P_SETUP: draw_setup(); break;

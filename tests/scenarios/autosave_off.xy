@@ -1,7 +1,7 @@
 # AUTOSAVE off (GLO's list): saved at once, then a change waits for SAVE; the setting kept over a restart
 wait 300
 tap GLO
-turn SELECT 5
+turn SELECT 6
 expect page Setup
 tap SEL
 # AUTOSAVE: on Setup's own list
@@ -21,6 +21,6 @@ expect dirty 1
 reboot
 wait 400
 tap GLO
-turn SELECT 5
+turn SELECT 6
 wait 100
 shot aoff_after_reboot.png

@@ -3,7 +3,7 @@
 wait 300
 projnew
 tap GLO
-turn SELECT 5
+turn SELECT 6
 expect page Setup
 tap SEL
 row CC IN
@@ -57,7 +57,7 @@ wait 20
 expect kmute 0
 # absolute again: the value is the place
 tap GLO
-turn SELECT 5
+turn SELECT 6
 expect page Setup
 tap SEL
 row CC IN

@@ -256,6 +256,17 @@ tap PLAY
 turn SELECT 1
 wait 1600
 shot master.png
+turn SELECT 2
+spin K1 -16
+spin K2 90
+spin K3 16
+tap PLAY
+wait 1600
+shot master_filter.png
+tap PLAY
+spin K1 16
+spin K2 -90
+spin K3 -16
 turn SELECT 1
 wait 1600
 spin K4 21
@@ -264,7 +275,7 @@ wait 1600
 shot master_out.png
 tap PLAY
 spin K4 -21
-turn SELECT 1
+turn SELECT 2
 wait 1600
 shot setup.png
 # ---- a help card and a list

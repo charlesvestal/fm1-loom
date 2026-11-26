@@ -522,6 +522,10 @@ expect mst.cx4 0
 expect mst.lo 80
 expect mst.comp 50
 expect mst.level 110
+expect mst.dfilt 64
+expect mst.dres 0
+expect mst.mfilt 64
+expect mst.mres 0
 projsave 1 v29_saved
 reboot
 wait 400
@@ -529,3 +533,33 @@ expect mst.color 7
 expect mst.camount 70
 expect mst.cmix 100
 expect mst.level 110
+# a format 30 project (tests/fixtures/make_v30.xy), from before the master filter (format 31): Master FX's slot, its
+# knob 3 and extras (format 30's last values) where they were; both filters off (64, resonance 0); kept by a save
+mst dfilt 10
+mst mres 90
+storeload tests/fixtures/store_v30.bin
+reboot
+wait 400
+expect tempo 113
+expect mst.color 3
+expect mst.camount 70
+expect mst.ck3 33
+expect mst.cx2 5
+expect mst.cmix 90
+expect mst.lo 80
+expect mst.comp 50
+expect mst.level 110
+expect mst.dfilt 64
+expect mst.dres 0
+expect mst.mfilt 64
+expect mst.mres 0
+mst mfilt 30
+mst dres 77
+projsave 1 v30_saved
+reboot
+wait 400
+expect mst.ck3 33
+expect mst.cx2 5
+expect mst.mfilt 30
+expect mst.dres 77
+expect mst.dfilt 64

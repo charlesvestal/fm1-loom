@@ -288,9 +288,9 @@ turn K4 1
 wait 20
 expect ccouts 0
 param 2 51 1
-# the master's pump amount (Master out: GLO's fourth page, KNOB 4; MS_LEVEL itself is the SEL list's LEVEL row,
+# the master's pump amount (Master out: GLO's fifth page, KNOB 4; MS_LEVEL itself is the SEL list's LEVEL row,
 # not a knob there) on channel 11
-turn SELECT 3
+turn SELECT 4
 expect page Master_out
 ccreset
 turn K4 1
@@ -330,7 +330,7 @@ turn K4 1
 wait 20
 expect ccouts 0
 tap GLO
-turn SELECT 5
+turn SELECT 6
 expect page Setup
 tap SEL
 row CC OUT
@@ -434,13 +434,13 @@ expect ccouts 0                # SCENES OUT off: nothing sent either way
 # turn SCENES OUT on (Setup's SEL list; tap HOME closes the list, tap SEL would not)
 tap GLO
 expect page Mix
-turn SELECT 5
+turn SELECT 6
 expect page Setup
 tap SEL
 row SCENES OUT
 turn ALGO 1
 tap HOME
-turn SELECT -5
+turn SELECT -6
 expect page Mix
 
 # playing: cued for the next bar (SCENES SWITCH next bar); its landing stays quiet (came in over MIDI, SCENES OUT on)
@@ -469,13 +469,13 @@ expect ccd1 0
 # the two switches are independent: CC OUT off, SCENES OUT still on, a hand pick still sends its Program Change
 tap GLO
 expect page Mix
-turn SELECT 5
+turn SELECT 6
 expect page Setup
 tap SEL
 row CC OUT
 turn ALGO -1
 tap HOME
-turn SELECT -5
+turn SELECT -6
 expect page Mix
 ccreset
 tap HOME

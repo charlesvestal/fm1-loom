@@ -14,7 +14,7 @@ expect voices 3
 load 82
 wait 1000
 tap GLO
-turn SELECT 5
+turn SELECT 6
 wait 100
 listen
 where

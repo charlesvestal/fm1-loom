@@ -2,8 +2,9 @@
 /* The effects' knobs turned while they play: no clicks (dsp/efx.c). Every effect of the catalog (the reverb in each of
  * its modes) in every place it runs: a synth track's slot (the synth: a held note, mellow, its slot 1), a kit's slot
  * (the synth's kit path, synth_kit_slots, on a steady pair), a send (fx.c, as the engine runs it: a block late for
- * those that take the lag) and the master's slot (fx.c master_process). A steady signal through it (the note;
- * elsewhere two sines and a little low-passed noise at about a track's level) and, mid-stream, one of its knobs, its
+ * those that take the lag) and the master's slot (fx.c master_process); and the master filter's four knobs (fx.h
+ * MS_DFILT ..: the cutoff from off, to off, along a side, across the centre; the resonance). A steady signal through
+ * it (the note; elsewhere two sines and a little low-passed noise at about a track's level) and, mid-stream, one of its knobs, its
  * mix, an extra or the effect itself stepped from one value to another (small, half the range, the whole range up and
  * down; a list's values in turn; the effect from off, to off, from drive). The click: the high-passed energy (above 8
  * kHz, 24 dB an octave) in 2 ms windows from the step to 40 ms after it, over the largest of the same windows' energy
@@ -309,6 +310,52 @@ static float limit(int ef, int mode, int c)
 {
     return ef == EF_REVERB && mode != RV_PLATE && !rv_lush(mode) && c == C_K1 ? SPU_DB : SLEW_DB;
 }
+/* the master filter (fx.h MS_DFILT, MS_DRES, MS_MFILT, MS_MRES: v[0..3]): the pair, half on the drums' group and half
+ * on the melodic, through the master; v from block TB (a == b: never moved) */
+static void mf_render(const uint8_t *a, const uint8_t *b, float (*o)[LEN])
+{
+    static float L[N], R[N], P1[N], P2[N], S1[N], S2[N];
+    master_init(MS);
+    master_tempo(MS, 120.0f);
+    for (int j = 0; j < 4; j++)
+        master_set(MS, MS_DFILT + j, a[j]);
+    for (int bk = 0; bk < NB; bk++) {
+        const int at = bk * N;
+        if (bk == TB && b != a)
+            for (int j = 0; j < 4; j++)
+                master_set(MS, MS_DFILT + j, b[j]);
+        for (int i = 0; i < N; i++) {
+            P1[i] = S1[i] = 0.5f * sig[0][at + i];
+            P2[i] = S2[i] = 0.5f * sig[1][at + i];
+        }
+        master_process(MS, P1, P2, S1, S2, L, R, N);
+        memcpy(o[0] + at, L, sizeof L);
+        memcpy(o[1] + at, R, sizeof R);
+    }
+}
+static float mf_step(const uint8_t *a, const uint8_t *b, int c, const char *what)
+{
+    float d;
+    uint8_t m[3][4];
+    mf_render(a, b, outv[0]);
+    mf_render(a, a, outv[1]);
+    mf_render(b, b, outv[2]);
+    nref = 3;
+    for (int k = 1; k <= 3; k++) {               /* (a sweep passes every value between) */
+        memcpy(m[k - 1], a, 4);
+        m[k - 1][c] = (uint8_t)(a[c] + (b[c] - a[c]) * k / 4);
+        mf_render(m[k - 1], m[k - 1], outv[nref++]);
+    }
+    for (int ch = 0; ch < 2; ch++)
+        for (int i = 0; i < LEN; i++)
+            if (!(outv[0][ch][i] == outv[0][ch][i]))
+                return 99.0f;
+    d = click_db();
+    if (verbose)
+        printf("      %-8s %-18s %-24s %+6.1f dB\n", "master", "filter", what, (double)d);
+    return d;
+}
+
 static int fails;
 static float worst_all;
 int main(int argc, char **argv)
@@ -392,6 +439,40 @@ int main(int argc, char **argv)
                 fflush(stdout);
             }
         }
+    {   /* the master filter's four knobs: its cutoff from off, to off, along one side, across the centre, end to end
+         * (no resonance and some); its resonance (a low-pass, a high-pass) */
+        static const uint8_t CUT[7][2] = {{64, 40}, {40, 64}, {30, 20}, {96, 110}, {20, 100}, {0, 127}, {127, 0}};
+        static const char *const CN[7] = {"from off", "to off", "small", "small up", "across", "full up", "full down"};
+        static const uint8_t RES[3][2] = {{0, 127}, {127, 0}, {32, 96}};
+        static const char *const RN[3] = {"res up", "res down", "res half"};
+        static const char *const KN[4] = {"drums", "drum res", "mix", "mix res"};
+        for (int k = 0; k < 4; k++) {
+            float w = -99.0f;
+            const int cut = !(k & 1);
+            for (int r = 0; r < (cut ? 14 : 6); r++) {
+                uint8_t a[4] = {64, 0, 64, 0}, b[4];
+                char what[40];
+                float d;
+                if (cut) {                       /* (the cutoff, at no resonance, then at 90) */
+                    a[k] = CUT[r % 7][0];
+                    a[k + 1] = r < 7 ? 0 : 90;
+                } else {                         /* (the resonance, on a low-pass at 30, then a high-pass at 100) */
+                    a[k - 1] = r < 3 ? 30 : 100;
+                    a[k] = RES[r % 3][0];
+                }
+                memcpy(b, a, 4);
+                b[k] = cut ? CUT[r % 7][1] : RES[r % 3][1];
+                snprintf(what, sizeof what, "%s %s%s", KN[k], cut ? CN[r % 7] : RN[r % 3],
+                         cut ? (r < 7 ? "" : ", res 90") : (r < 3 ? ", LP" : ", HP"));
+                d = mf_step(a, b, k, what);
+                w = d > w ? d : w;
+            }
+            printf("  %-18s %-7s %10s %10s %10s %9.1f%s\n", "master filter", KN[k], "-", "-", "-", (double)w,
+                   w > SLEW_DB ? "!" : " ");
+            fails += w > SLEW_DB;
+            worst_all = w > worst_all ? w : worst_all;
+        }
+    }
     printf("worst %+.1f dB; %d over their limit\n", (double)worst_all, fails);
     return fails ? 1 : 0;
 }

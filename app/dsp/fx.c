@@ -14,7 +14,8 @@
  * Master: the two groups' levels, a 3-band EQ (RBJ shelves and a peak; all three at 64 a true bypass), X0X's bus compressor behind its one-knob macro with X0X's PUMP in its gain
  * (a hit of the pump's source ducks the whole mix: the sequencer keys it, so it needs no detector and a
  * muted track keys it too; at 0 the stage is as before, sample for sample), the master level and X0X's
- * lookahead limiter.
+ * lookahead limiter; and the master filter (fx.h MS_DFILT ..: a DJ filter on the drums' group before the groups meet,
+ * one on the mix between the level and CLIP; at the centre the stage skipped).
  *
  * Everything here runs in the audio interrupt; master_set writes plain words from the main loop. Float, fastmath.h;
  * stack locals stay small (a 32-sample block). */
@@ -317,10 +318,15 @@ void fx_pick_slot(int pick, const uint8_t e[4], int width, int wobble, int smear
  * and pump are perc, mel, comp, pump; then the out page's list */
 const char *const MS_NAME[NMS] = {"low", "mid", "high", "clip", "effect", "knob 1", "knob 2", "mix",
                                   "drums", "melodic", "comp", "pump", "pump by", "release", "accent", "level",
-                                  "knob 3", "extra 1", "extra 2", "extra 3", "extra 4"};
+                                  "knob 3", "extra 1", "extra 2", "extra 3", "extra 4", "drums", "drum res", "mix",
+                                  "mix res"};
 
 typedef struct { float b0, b1, b2, a1, a2; } biq_t;
 typedef struct { float x1, x2, y1, y2; } biqs_t;
+/* the master filter (fx.h MS_DFILT ..): a state-variable filter's states, both sides; its cutoff (log2 Hz), damping
+ * (1/Q) and wet, gliding (mf_run) */
+typedef struct { float ic[4], lc, kc, w; } mfilt_t;
+enum { MF_OFF, MF_LP, MF_HP };
 
 struct master {
     uint8_t pot[NMS];
@@ -352,7 +358,9 @@ struct master {
     uint8_t mnb;
     uint8_t sw;                               /* the effect set (slot_set): the slot takes it at a block (master_memory),
                                                * the old one fading out a block first while the sound plays */
+    uint8_t mfm[2];                           /* the filters' modes running (MF_*): the drums', the mix's */
     float bpm;
+    mfilt_t mf[2];                            /* the drums' filter, the mix's */
 };
 _Static_assert(sizeof(struct master) <= MASTER_BYTES, "master_t does not fit MASTER_BYTES");
 
@@ -508,7 +516,7 @@ static inline void *dsp_far(void *p) { void *volatile q = p; return q; }
 void master_init(master_t *m)
 {
     static const uint8_t DEF[NMS] = {64, 64, 64, 0, EF_OFF, 40, 64, 127, 100, 100, 0, 0, PB_KICK, MS_PUMP_REL_DEF, 1, 100,
-                                     0, 0, 0, 0, 0};
+                                     0, 0, 0, 0, 0, MS_FILT_OFF, 0, MS_FILT_OFF, 0};
     uint32_t i;
     uint8_t *z = (uint8_t *)m;
     for (i = 0; i < sizeof *m; i++)
@@ -548,8 +556,10 @@ void master_set(master_t *m, int p, int v)
     else if (p == MS_CLIP)
         m->cg = v ? fm_exp2f((float)v * (1.3288f / 127.0f)) : 0.0f;   /* 0 .. +8 dB of drive (at +12 the top half
                                                                      * flattened a mix); 0: the stage skipped */
-    else if (p <= MS_CMIX || p >= MS_CK3)
+    else if (p <= MS_CMIX || (p >= MS_CK3 && p <= MS_CX4))
         slot_set(m);
+    else if (p >= MS_DFILT)
+        return;                                           /* (the filters: master_process reads them, mf_run) */
     else if (p == MS_PERC)
         m->gp = level_lin(v) * MST_HEADROOM;
     else if (p == MS_MEL)
@@ -634,12 +644,251 @@ static inline void biq_block(const biq_t *q, biqs_t *st, float *x, uint32_t n)
     st->y1 = y1;
     st->y2 = y2;
 }
+/* the master filter (fx.h): a knob's cutoff in log2 Hz on its side of the centre (62..66 off) */
+#define MF_LP_TOP 14.2877123f                 /* log2 20000: the low-pass's open end (61) */
+#define MF_LP_OCT (8.38082178f / 61.0f)       /* down to 60 Hz at 0 */
+#define MF_HP_BOT 4.32192809f                 /* log2 20: the high-pass's open end (67) */
+#define MF_HP_OCT (8.64385619f / 60.0f)       /* up to 8 kHz at 127 */
+static int mf_mode(int v) { return v < MS_FILT_OFF - 2 ? MF_LP : v > MS_FILT_OFF + 2 ? MF_HP : MF_OFF; }
+static float mf_log2hz(int v)
+{
+    return v < MS_FILT_OFF ? MF_LP_TOP - (float)(MS_FILT_OFF - 3 - v) * MF_LP_OCT
+                           : MF_HP_BOT + (float)(v - (MS_FILT_OFF + 3)) * MF_HP_OCT;
+}
+static float mf_k(int r) { return 1.41421356f * (1.0f - 0.9f * (1.0f / 127.0f) * (float)r); }   /* 1/Q: 0.71 .. 7.1 */
+float master_filter_hz(int v)
+{
+    const int md = mf_mode(v);
+    return md == MF_OFF ? 0.0f : (md == MF_HP ? -1.0f : 1.0f) * fm_exp2f(mf_log2hz(v));
+}
+float master_filter_db(int v, int r, float hz)
+{
+    const int md = mf_mode(v);
+    float x, x2, k, g2;
+    if (md == MF_OFF)
+        return 0.0f;
+    x = hz * fm_exp2f(-mf_log2hz(v));
+    x2 = x * x;
+    k = mf_k(r);
+    g2 = (md == MF_HP ? x2 * x2 : 1.0f) * k * 0.70710678f / ((1.0f - x2) * (1.0f - x2) + k * k * x2);
+    return 3.0103f * fm_log2f(g2 + 1e-12f);
+}
+/* the coefficients (Cytomic's SVF: a1..a3) and the output's mix of the input and the two states, from the cutoff, the
+ * damping and the wet: low-pass v2, high-pass x - k v1 - v2; the wet's level made up for the resonance (sqrt(k /
+ * sqrt 2): unity at none, -10 dB at the most, its peak then +7 dB) */
+typedef struct { float a1, a2, a3, cx, c1, c2; } mfc_t;
+static void mf_coefs(mfc_t *c, const mfilt_t *f, int mode)
+{
+    const float g = fm_tanf(FM_PI * (1.0f / SR) * fm_exp2f(f->lc)), wc = f->w * fm_sqrtf(f->kc * 0.70710678f);
+    c->a1 = 1.0f / (1.0f + g * (g + f->kc));
+    c->a2 = g * c->a1;
+    c->a3 = g * c->a2;
+    if (mode == MF_HP) {
+        c->cx = 1.0f - f->w + wc;
+        c->c1 = -wc * f->kc;
+        c->c2 = -wc;
+    } else {
+        c->cx = 1.0f - f->w;
+        c->c1 = 0.0f;
+        c->c2 = wc;
+    }
+}
+/* one filter over a stretch (in place, both sides; L may be R): v its knob, r its resonance (MS_*). Runs from the
+ * flash (master_process calls it through dsp_far, only while it is on or fading). Its cutoff and damping glide as
+ * the master's levels do (~10 ms), its wet in 10 ms straight; the coefficients ramp across the stretch. Another mode
+ * (or off) while it sounds: it fades out first, then the new one fades in from its open end, its states at rest */
+static void mf_run(mfilt_t *f, uint8_t *mode, int v, int r, float *L, float *R, uint32_t n)
+{
+    const int want = mf_mode(v);
+    float lt = mf_log2hz(v), kt = mf_k(r), wt = 1.0f;
+    const float a = fm_minf((float)n * 0.0022651f, 1.0f), wa = (float)n * (1.0f / 441.0f);
+    mfc_t c, d;
+    uint32_t i;
+    if (want != *mode && f->w == 0.0f) {         /* (faded out, or never in: the one wanted, from its open end) */
+        *mode = (uint8_t)want;
+        f->ic[0] = f->ic[1] = f->ic[2] = f->ic[3] = 0.0f;
+        f->lc = want == MF_HP ? MF_HP_BOT : MF_LP_TOP;
+        f->kc = kt;
+    }
+    if (*mode == MF_OFF)
+        return;
+    if (want != *mode) {                         /* (fading out where it is) */
+        lt = f->lc;
+        kt = f->kc;
+        wt = 0.0f;
+    }
+    mf_coefs(&c, f, *mode);
+    d = c;
+    if (f->lc != lt || f->kc != kt || f->w != wt) {
+        float dl = lt - f->lc, dk = kt - f->kc;
+        f->lc = fm_fabsf(dl) < 0.002f ? lt : f->lc + dl * a;
+        f->kc = fm_fabsf(dk) < 0.0005f ? kt : f->kc + dk * a;
+        f->w = f->w < wt ? fm_minf(f->w + wa, wt) : fm_maxf(f->w - wa, wt);
+        mf_coefs(&d, f, *mode);
+    }
+    {
+        const float inv = 1.0f / (float)n;
+        const float da1 = (d.a1 - c.a1) * inv, da2 = (d.a2 - c.a2) * inv, da3 = (d.a3 - c.a3) * inv;
+        const float dcx = (d.cx - c.cx) * inv, dc1 = (d.c1 - c.c1) * inv, dc2 = (d.c2 - c.c2) * inv;
+        float a1 = c.a1, a2 = c.a2, a3 = c.a3, cx = c.cx, c1 = c.c1, c2 = c.c2;
+        float l1 = f->ic[0], l2 = f->ic[1], r1 = f->ic[2], r2 = f->ic[3];
+        for (i = 0; i < n; i++) {
+            const float xl = L[i], xr = R[i];
+            float v3, v1, v2, w3, w1, w2;
+            a1 += da1, a2 += da2, a3 += da3, cx += dcx, c1 += dc1, c2 += dc2;
+            v3 = xl - l2;
+            v1 = a1 * l1 + a2 * v3;
+            v2 = l2 + a2 * l1 + a3 * v3;
+            l1 = 2.0f * v1 - l1;
+            l2 = 2.0f * v2 - l2;
+            w3 = xr - r2;
+            w1 = a1 * r1 + a2 * w3;
+            w2 = r2 + a2 * r1 + a3 * w3;
+            r1 = 2.0f * w1 - r1;
+            r2 = 2.0f * w2 - r2;
+            L[i] = cx * xl + c1 * v1 + c2 * v2;
+            R[i] = cx * xr + c1 * w1 + c2 * w2;
+        }
+        f->ic[0] = fm_flush(l1);
+        f->ic[1] = fm_flush(l2);
+        f->ic[2] = fm_flush(r1);
+        f->ic[3] = fm_flush(r2);
+    }
+}
+/* the filter wanted on (its knob off the centre) or still running (fading out) */
+static inline int mf_on(const master_t *m, int k)
+{
+    return m->mfm[k] != MF_OFF || (unsigned)(m->pot[k ? MS_MFILT : MS_DFILT] - (MS_FILT_OFF - 2)) > 4u;
+}
+/* filter k (0 the drums', 1 the mix's) over a stretch when it is on (from the flash: master_process calls it through
+ * dsp_far, its RAM code kept small) */
+static void mf_stage(master_t *m, int k, float *L, float *R, uint32_t n)
+{
+    if (mf_on(m, k))
+        mf_run(&m->mf[k], &m->mfm[k], m->pot[k ? MS_MFILT : MS_DFILT], m->pot[k ? MS_MRES : MS_DRES], L, R, n);
+}
+#define MF_STAGE(m, k, L, R, n) ((__typeof__(&mf_stage))dsp_far((void *)&mf_stage))(m, k, L, R, n)
+
+/* the compressor, the level, CLIP and the limiter (master_process's last loop), over mel in place into out; the
+ * compressor's largest reduction. filt: with the mix's filter between the level and CLIP (the loop twice: pass 1 up
+ * to the filter, pass 2 from it, the compressor and the level then at rest, x 1.0: exact), master_tail_f's, from the
+ * flash; without (a constant 0: the one loop, as before), master_process's own, in RAM */
+static inline float master_tail(master_t *m, float *mel_l, float *mel_r, float *out_l, float *out_r, uint32_t n,
+                                const int filt)
+{
+    uint32_t i;
+    const float glev = m->glev, a_det = m->a_det, a_att = m->a_att, a_rel = m->a_rel, slope = m->slope;
+    const float makeup = m->makeup, cg = m->cg;
+    float ms = m->ms, want = m->want, gr = m->gr;
+    float g_lin = m->g_lin, g_step = m->g_step, env = m->env, inv_env = m->inv_env, gain = m->gain;
+    float *la = m->la, *la_r = m->la_r;
+    int32_t la_pos = m->la_pos, hold = m->hold;
+    int cr = m->cr;
+    float glv = glev, lev = m->lev_c, lev1 = lev, grmax = 0.0f;
+    int comp_go = m->comp_on, pass = filt;
+    for (;;) {                                   /* (pass 2: the compressor and the level at rest, x 1.0: exact) */
+        for (i = 0; i < n; i++) {
+            float s = mel_l[i], sr = mel_r[i];
+            lev = glide1(lev, glv);
+            if (comp_go && STAGE(3)) {
+                /* the level: mean square over ~8 ms of both sides, x2 so a sine reads its peak; the static
+                 * curve every MST_CR samples; the reduction smoothed (attack / release) and ramped as a
+                 * linear gain (X0X's master.c: read every sample, the gain chased each cycle of a bass) */
+                ms = fm_flush(a_det * ms + 0.5f * ((1.0f - a_det) * s * s + (1.0f - a_det) * sr * sr));
+                if (cr == 0) {
+                    float lv = 2.0f * ms;
+                    want = (lv > 1e-12f && slope > 0.0f) ? gr_of(m, 3.0103f * fm_log2f(lv)) : 0.0f;
+                }
+                gr = want > gr ? a_att * gr + (1.0f - a_att) * want : a_rel * gr + (1.0f - a_rel) * want;
+                if (gr > grmax)
+                    grmax = gr;
+                if (cr == 0) {
+                    g_step = (makeup * fm_db2lin(-gr) - g_lin) * (1.0f / MST_CR);
+                    cr = MST_CR;
+                }
+                cr--;
+                g_lin += g_step;
+                s *= g_lin;
+                sr *= g_lin;
+            }
+            s *= lev;
+            sr *= lev;
+            if (pass == 1) {                      /* (the first of two: the mix's filter between) */
+                mel_l[i] = s;
+                mel_r[i] = sr;
+                continue;
+            }
+            if (cg != 0.0f && STAGE(4)) {         /* CLIP: the drive into the knee, before the limiter */
+                s = clip_knee(s * cg);
+                sr = clip_knee(sr * cg);
+            }
+            {       /* X0X's limiter: a peak is seen MST_LA samples before it comes out of the line; the gain
+                 * eases down over those samples and holds for them */
+                float a = fm_maxf(fm_fabsf(s), fm_fabsf(sr)), d, dr, w;
+                if (a >= env) {
+                    float r = 1.0f / fm_maxf(a, 0.8f);                   /* safe on its own: a clamp inside
+                                                                          * the branch is folded away */
+                    env = a;
+                    hold = MST_LA;
+                    inv_env = a > 0.8f ? r : 0.0f;
+                } else if (hold) {
+                    hold--;
+                } else {
+                    env *= 0.99985f;
+                    inv_env *= 1.0001500225f;
+                }
+                w = env > 0.8f ? 0.8f * inv_env : 1.0f;
+                gain += (w - gain) * (w < gain ? (5.0f / MST_LA) : 0.002f);
+                d = la[la_pos];
+                dr = la_r[la_pos];
+                la[la_pos] = s;
+                la_r[la_pos] = sr;
+                la_pos = (la_pos + 1) & (MST_LA - 1);
+                out_l[i] = soft_ceiling(d * gain);
+                out_r[i] = soft_ceiling(dr * gain);
+#ifdef PLAT_HOST
+                if (!STAGE(4)) {                  /* (a tap before the limiter: the bus as it comes, unlimited) */
+                    out_l[i] = d;
+                    out_r[i] = dr;
+                }
+#endif
+            }
+        }
+        if (pass != 1)
+            break;
+        MF_STAGE(m, 1, mel_l, mel_r, n);          /* the mix's filter: after the compressor and the pump, before CLIP
+                                                   * and the limiter */
+        pass = 2;
+        lev1 = lev;
+        lev = glv = 1.0f;
+        comp_go = 0;
+    }
+    m->lev_c = pass == 2 ? lev1 : lev;
+    m->ms = ms;
+    m->want = want;
+    m->gr = gr;
+    m->g_lin = g_lin;
+    m->g_step = g_step;
+    m->env = env;
+    m->inv_env = inv_env;
+    m->gain = gain;
+    m->la_pos = la_pos;
+    m->hold = hold;
+    m->cr = (uint8_t)cr;
+    return grmax;
+}
+static float master_tail_f(master_t *m, float *mel_l, float *mel_r, float *out_l, float *out_r, uint32_t n)
+{
+    return master_tail(m, mel_l, mel_r, out_l, out_r, n, 1);
+}
+
 void master_process(master_t *m, float *perc_l, float *perc_r, float *mel_l, float *mel_r, float *out_l,
                     float *out_r, uint32_t n)
 {
     uint32_t i;
-    float gp = m->gp_c, gm = m->gm_c, lev = m->lev_c, grmax = 0.0f, pmax = 0.0f;
-    const int eq_on = m->eq_on, comp_on = m->comp_on;
+    float gp = m->gp_c, gm = m->gm_c, grmax, pmax = 0.0f;
+    const int eq_on = m->eq_on;
+    MF_STAGE(m, 0, perc_l, perc_r, n);           /* the drums' filter, on their group before it meets the rest */
     /* the groups into the bus, then the EQ a band at a time, in place in mel. (Every state is a local in its loop: a
      * load from RAM costs this core more than a multiply.) */
     {   /* (with the PUMP, X0X's, on the groups as they meet: a kit's hit ducks the melodic group alone, so the kick
@@ -689,91 +938,12 @@ void master_process(master_t *m, float *perc_l, float *perc_r, float *mel_l, flo
         ((__typeof__(&efx_slot_run))dsp_far((void *)&efx_slot_run))(&m->sl, 1, m->bpm, 0, m->mrun, mel_l, mel_r, n);
     for (i = 0; !m->sl.live && i < n; i++)       /* (off while the sound plays: an effect set starts from dry) */
         m->sl.live = mel_l[i] != 0.0f || mel_r[i] != 0.0f;
-    {
-        const float glev = m->glev, a_det = m->a_det, a_att = m->a_att, a_rel = m->a_rel, slope = m->slope;
-        const float makeup = m->makeup, cg = m->cg;
-        float ms = m->ms, want = m->want, gr = m->gr;
-        float g_lin = m->g_lin, g_step = m->g_step, env = m->env, inv_env = m->inv_env, gain = m->gain;
-        float *la = m->la, *la_r = m->la_r;
-        int32_t la_pos = m->la_pos, hold = m->hold;
-        int cr = m->cr;
-        for (i = 0; i < n; i++) {
-            float s = mel_l[i], sr = mel_r[i];
-            lev = glide1(lev, glev);
-            if (comp_on && STAGE(3)) {
-                /* the level: mean square over ~8 ms of both sides, x2 so a sine reads its peak; the static
-                 * curve every MST_CR samples; the reduction smoothed (attack / release) and ramped as a
-                 * linear gain (X0X's master.c: read every sample, the gain chased each cycle of a bass) */
-                ms = fm_flush(a_det * ms + 0.5f * ((1.0f - a_det) * s * s + (1.0f - a_det) * sr * sr));
-                if (cr == 0) {
-                    float lv = 2.0f * ms;
-                    want = (lv > 1e-12f && slope > 0.0f) ? gr_of(m, 3.0103f * fm_log2f(lv)) : 0.0f;
-                }
-                gr = want > gr ? a_att * gr + (1.0f - a_att) * want : a_rel * gr + (1.0f - a_rel) * want;
-                if (gr > grmax)
-                    grmax = gr;
-                if (cr == 0) {
-                    g_step = (makeup * fm_db2lin(-gr) - g_lin) * (1.0f / MST_CR);
-                    cr = MST_CR;
-                }
-                cr--;
-                g_lin += g_step;
-                s *= g_lin;
-                sr *= g_lin;
-            }
-            s *= lev;
-            sr *= lev;
-            if (cg != 0.0f && STAGE(4)) {         /* CLIP: the drive into the knee, before the limiter */
-                s = clip_knee(s * cg);
-                sr = clip_knee(sr * cg);
-            }
-            {   /* X0X's limiter: a peak is seen MST_LA samples before it comes out of the line; the gain
-                 * eases down over those samples and holds for them */
-                float a = fm_maxf(fm_fabsf(s), fm_fabsf(sr)), d, dr, w;
-                if (a >= env) {
-                    float r = 1.0f / fm_maxf(a, 0.8f);                   /* safe on its own: a clamp inside
-                                                                          * the branch is folded away */
-                    env = a;
-                    hold = MST_LA;
-                    inv_env = a > 0.8f ? r : 0.0f;
-                } else if (hold) {
-                    hold--;
-                } else {
-                    env *= 0.99985f;
-                    inv_env *= 1.0001500225f;
-                }
-                w = env > 0.8f ? 0.8f * inv_env : 1.0f;
-                gain += (w - gain) * (w < gain ? (5.0f / MST_LA) : 0.002f);
-                d = la[la_pos];
-                dr = la_r[la_pos];
-                la[la_pos] = s;
-                la_r[la_pos] = sr;
-                la_pos = (la_pos + 1) & (MST_LA - 1);
-                out_l[i] = soft_ceiling(d * gain);
-                out_r[i] = soft_ceiling(dr * gain);
-#ifdef PLAT_HOST
-                if (!STAGE(4)) {                  /* (a tap before the limiter: the bus as it comes, unlimited) */
-                    out_l[i] = d;
-                    out_r[i] = dr;
-                }
-#endif
-            }
-        }
-        m->ms = ms;
-        m->want = want;
-        m->gr = gr;
-        m->g_lin = g_lin;
-        m->g_step = g_step;
-        m->env = env;
-        m->inv_env = inv_env;
-        m->gain = gain;
-        m->la_pos = la_pos;
-        m->hold = hold;
-        m->cr = (uint8_t)cr;
-    }
+    if (mf_on(m, 1))                             /* (the mix's filter on: the flash's copy of the last stages, with it) */
+        grmax = ((__typeof__(&master_tail_f))dsp_far((void *)&master_tail_f))(m, mel_l, mel_r, out_l, out_r, n);
+    else
+        grmax = master_tail(m, mel_l, mel_r, out_l, out_r, n, 0);
     m->gp_c = gp;
     m->gm_c = gm;
-    m->lev_c = lev;
     m->gr_view = grmax > m->gr_view ? grmax : m->gr_view * 0.93f;
     m->pump_view = pmax > m->pump_view ? pmax : m->pump_view * 0.93f;
 }

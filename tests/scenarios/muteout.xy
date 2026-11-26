@@ -57,13 +57,13 @@ expect mute 0
 expect ccouts 0
 param 1 51 1
 # CC OUT off (Setup's SEL list): nothing
-turn SELECT 5
+turn SELECT 6
 expect page Setup
 tap SEL
 row CC OUT
 turn ALGO -1
 tap HOME
-turn SELECT -5
+turn SELECT -6
 expect page Mix
 ccreset
 wait 600

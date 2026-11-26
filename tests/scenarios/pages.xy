@@ -132,6 +132,11 @@ shot master_color_sampler.png
 turn PRESET -8
 expect mst.color 0
 turn SELECT 1
+expect page Master_filter
+wait 40
+shot master_filter.png
+turn SELECT 1
+expect page Master_out
 wait 40
 shot master3.png
 turn SELECT 1

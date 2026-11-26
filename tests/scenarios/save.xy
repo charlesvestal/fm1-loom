@@ -23,7 +23,7 @@ release SAVE
 wait 100
 shot save_slot.png
 tap GLO
-turn SELECT 3
+turn SELECT 4
 tap SEL
 wait 40
 shot setup_list.png

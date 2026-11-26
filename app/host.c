@@ -417,7 +417,8 @@ static int ieq(const char *a, const char *b);
 static int param_of(const char *s);
 static const char *const MN[NMS] = {"lo", "mid", "hi", "clip", "color", "camount", "ctone", "cmix", "perc", "mel",
                                     "comp", "pump", "pumpby", "release", "accent", "level", "ck3", "cx1", "cx2",
-                                    "cx3", "cx4"};   /* (color .. cmix, ck3 .. cx4: the slot, Master FX) */
+                                    "cx3", "cx4", "dfilt", "dres", "mfilt", "mres"};   /* (color .. cmix, ck3 .. cx4:
+                                    * the slot, Master FX; dfilt .. mres: Master filter, the drums' and the mix's) */
 /* fm1-base's expect, for LOOM-8's own state with one value */
 int app_expect(const char *what, int *got)
 {
@@ -789,8 +790,9 @@ static int expect_more(const char *what, const char *a, const char *b, const cha
  *   songloop 0|1
  *   mst NAME VALUE               a master knob (lo mid hi clip, perc mel comp pump), Master FX's slot (color: the
  *                                effect, a number or its name; camount ctone ck3 its knobs, cmix its mix, cx1..cx4 its
- *                                extras) or the out page's list (pumpby kick|t1..t8|metro, release, accent on|off,
- *                                level)
+ *                                extras), the out page's list (pumpby kick|t1..t8|metro, release, accent on|off,
+ *                                level) or Master filter's (dfilt dres: the drums' filter, its resonance; mfilt mres:
+ *                                the mix's; 64 off)
  *   groove NAME                  the project's groove type (swing lilt weave ...)
  *   play T NOTE on|off [VEL]     a key on track T (through its player and the conductor), at any octave
  *   throw NAME on|off perc|mel [T]   a throw (mute stutter repeat echo build floor jumble warble pan octave chop

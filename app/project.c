@@ -54,6 +54,7 @@ typedef char raw_fits[(RAW_LEN < 0x100000u) ? 1 : -1];   /* (lz.c packs up to 16
  * then the tracks packed (lz.c: a synth track's kit keys and an aux track's sound are mostly defaults). Formats 10..14
  * stored them raw, each track's par[] TP_DRUMX0 long (the keys' knobs 5..8 came in 15): SET_OLD bytes in all */
 #define SET_HDR ((uint32_t)offsetof(settings_t, trk))
+#define SET_HDR30 (SET_HDR - (uint32_t)(NMS - MS_NMS30))   /* (format 30's: before the master filter's four) */
 #define SET_HDR29 (SET_HDR - (uint32_t)(NMS - MS_NMS29))   /* (formats 10..29's: the master's sixteen values, before
                                                             * its slot's knob 3 and extras) */
 #define NTP14 ((uint32_t)TP_DRUMX0)
@@ -473,6 +474,8 @@ void project_defaults(void)
     proj.master[MS_PUMP_REL] = MS_PUMP_REL_DEF;
     proj.master[MS_PUMP_ACC] = 1;
     proj.master[MS_LEVEL] = 100;
+    proj.master[MS_DFILT] = proj.master[MS_MFILT] = MS_FILT_OFF;   /* the master filter off (a project before 31 too) */
+    proj.master[MS_DRES] = proj.master[MS_MRES] = 0;
     patterns_init(&pats);
 }
 
@@ -890,8 +893,9 @@ static int settings_unpack(int n)
         return -1;
     fmt = get32(io_buf + 4);
     if (fmt >= 15u && fmt <= PROJ_FORMAT) {
-        const uint32_t hdr = fmt >= 30u ? SET_HDR : SET_HDR29;   /* (before 30: the master's slot's knob 3 and
-                                                                  * extras not there, at their defaults) */
+        const uint32_t hdr = fmt >= 31u ? SET_HDR : fmt >= 30u ? SET_HDR30 : SET_HDR29;   /* (before 31: the master
+                                                  * filter's values not there, off; before 30: the master's slot's knob
+                                                  * 3 and extras, at their defaults) */
         set_in_t in = {io_buf + hdr + 4u, get32(io_buf + hdr)};
         lz_src_t src = {set_get, &in};
         if (in.left > (uint32_t)n - hdr - 4u)
