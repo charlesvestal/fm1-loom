@@ -160,8 +160,13 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--every", type=float, default=1.0)
     ap.add_argument("--for", dest="secs", type=float, default=0.0)
+    ap.add_argument("--stacks", action="store_true", help="each stack's bytes never used: since the start, least ever")
     a = ap.parse_args()
     p = Port()
+    if a.stacks:
+        v = [x - (1 << 32) if x >= 1 << 31 else x for x in ask(p, 5)]
+        print("stacks left (bytes): main %d irq %d cpu1 %d | least ever: main %d irq %d cpu1 %d" % tuple(v), flush=True)
+        return
     prev = snap(p)
     t0 = time.time()
     while not a.secs or time.time() - t0 < a.secs:

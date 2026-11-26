@@ -234,6 +234,13 @@ static int smp_frame(const uint8_t *p, uint32_t n)
         } else if (part == 2u) {
             for (i = 0; i < NTRK; i++)
                 v[nv++] = eng_prof_drum[i];
+        } else if (part == 5u) {                     /* the stacks: each one's bytes never used since the start (plat.h
+                                                      * plat_stack_left: main, interrupts, the second core), then the
+                                                      * least ever; -1 not measured (fm1.toml crash_history) */
+            for (i = 0; i < 3u; i++)
+                v[nv++] = (uint32_t)plat_stack_left((int)i);
+            for (i = 0; i < 3u; i++)
+                v[nv++] = (uint32_t)plat_stack_least_ever((int)i);
         } else if (part == 4u) {                     /* the slowest block's voices (engine.h eng_vworst) */
             for (i = 0; i < NVOICE + 2u; i++)
                 v[nv++] = eng_vworst[i];
