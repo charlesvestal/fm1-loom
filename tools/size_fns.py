@@ -179,6 +179,17 @@ def cold_helpers(funcs, glob, cold):
         more |= add
 
 
+def share_math(ir, cold):
+    """fastmath.h's functions (fm_*) an o2 unit keeps out of line: one copy for all the units, as the linker keeps one
+    linkonce_odr definition of a name (the same source, so the same code); a cold copy (built for size) and an -O2
+    one apart (the unit's name + .cold or .o2)"""
+    for n in set(re.findall(r"^define internal [^@\n]*@(fm_\w+)\(", ir, re.M)):
+        new = f'@"{n}.{"cold" if n in cold else "o2"}"'
+        ir = re.sub(rf"^define internal ([^@\n]*)@{n}\(", rf"define linkonce_odr hidden \1{new}(", ir, flags=re.M)
+        ir = re.sub(rf"@{n}\b(?![.\w])", new, ir)
+    return ir
+
+
 def ram_place(ir, names, inl, groups, made):
     """the named definitions into section .ram_dsp; the inl ones, and whatever else this file defines that
     the placed ones call, always inlined (a group of their own), so the placed code calls only itself"""
@@ -247,6 +258,8 @@ def main(src, dst, unit=None):
     ir = re.sub(r"^define [^\n]* #(\d+) [^\n]*\{$", mark, ir, flags=re.M)
     if unit in RAM_SETS:
         ir = ram_place(ir, RAM_SETS[unit][0], RAM_SETS[unit][1], groups, made)
+    if unit:
+        ir = share_math(ir, pick)
     for g, new in made.items():
         a = groups[g] if "optsize" in groups[g].split() else "optsize " + groups[g]
         if unit and "noinline" not in a.split():
