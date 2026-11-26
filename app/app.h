@@ -74,6 +74,14 @@ enum { OBJ_PANEL, OBJ_PRESETS, OBJ_PROJ0, OBJ_BLE = OBJ_PROJ0 + NPROJ * PROJ_NOB
 #define APP_BACKUP_WHAT "replaces projects, presets"
 #define APP_BACKUP_BUF loom_io_buf      /* project.c's object buffer, lent to a restore (fm1-base's own: 3.8 KB of the pool) */
 extern uint8_t loom_io_buf[];
+/* the cache RAM (fm1.toml cache_ram_ways; plat.h plat_cache_ram): buffers only the main loop's code reads (no DMA, not
+ * the second core): project.c's object buffer, the undo, the SEL list. app_init stops when its test failed. The host:
+ * plain memory */
+#ifdef PLAT_HOST
+#define LOOM_CR
+#else
+#define LOOM_CR __attribute__((section(".cache_ram")))
+#endif
 int app_backup_playing(void);
 void app_backup_flush(void);
 void app_backup_hold(int on);

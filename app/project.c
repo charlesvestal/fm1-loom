@@ -649,7 +649,7 @@ static void patterns_clamp(void)
 
 /* ---- objects -------------------------------------------------------------------------------- */
 
-uint8_t loom_io_buf[PLAT_STORE_MAX] __attribute__((aligned(4))) PLAT_POOL;   /* (lent to a restore: app.h) */
+uint8_t loom_io_buf[PLAT_STORE_MAX] __attribute__((aligned(4))) LOOM_CR;   /* (lent to a restore: app.h) */
 #define io_buf loom_io_buf
 
 /* what each object last held on the flash (a hash of its payload), so a save writes only the

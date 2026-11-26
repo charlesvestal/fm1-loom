@@ -63,6 +63,9 @@ void app_init(void)
 {
 #ifndef PLAT_HOST
     plat_loom_init();
+    if (plat_cache_ram()->status != PLAT_CR_OK)    /* its test failed: the objects there (app.h LOOM_CR) are not RAM.
+                                                    * A crash (its record says where): two of them start safe mode */
+        __builtin_trap();
 #endif
     {   /* the user bank, read in place through its windows (none without the flash, or over a store object) */
         const uint8_t *reg[SMP_NREG];

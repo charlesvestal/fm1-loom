@@ -365,7 +365,7 @@ static struct {
     uint8_t open, n, sel, top;
     uint8_t bt;                                      /* a Bluetooth list instead of the page's: 1 audio, 2 MIDI devices */
     struct { const char *name; char val[24]; uint8_t kind, id; } row[LIST_ROWS];
-} lst;
+} lst LOOM_CR;
 
 /* the undo: one stage, whatever was changed last (HOME + REC swaps it back, HOME + PLAY swaps again: redo): a
  * pattern with its locks, a track's sound (or T2-T8 at once), the master, or the arrangement (song, scenes, weave) */
@@ -380,7 +380,7 @@ static struct {
         uint8_t master[NMS];
         struct { song_t song; scene_t scene[NSCENE]; wvpat_t weave[NPATT]; } a;
     } u;
-} undo PLAT_POOL;
+} undo LOOM_CR;
 enum { CK_PAT, CK_BAR, CK_STEP };
 static uint8_t clip_ok, clip_trk, clip_pat, clip_kind, clip_from;   /* COPY PATTERN / BAR / STEP: which (CK_*: the
                                                  * bar's or the step's first step), read at PASTE (no copy kept: the

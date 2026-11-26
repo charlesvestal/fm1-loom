@@ -29,6 +29,8 @@ pool_spare = 1984              # the SRAM's margin (fm1-base insists on 8 KB): s
 ram_layout = "packed"            # one SRAM budget (the RAM code's unused 12 KB): the USB audio input's 10-channel ring
 audio_ahead = true             # each half rendered aside a block ahead (fm1-base FM1B_AUDIO_AHEAD): a render may take two halves
                                # without a dropout (a busy song with the ten USB channels and a clock in), for 5.8 ms more latency; 2 KiB of RAM
+cache_ram_ways = 2             # 8 KB of the data cache as RAM (felucca-bsp's fm1_cache_ram.h): the main loop's own buffers (app.h
+                               # LOOM_CR: the project's object buffer, the undo, the SEL list); the flash's data keeps 6 of 8 ways
 cpu2 = true                    # the second core: fm1-base's (felucca-bsp's chip/fm1_cpu1.h, Melodee's), plat_cpu2_*
 main_stack = 12288              # the main loop's stack (24,320 by default): its static worst 9,068 B (stack_check = true with the
                                # stack_bounds below: voice_samples > eng_run > bass303_render > drive_soft), 3.2 KB over it (the
