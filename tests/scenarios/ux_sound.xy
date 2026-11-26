@@ -1,5 +1,5 @@
-# UX flow D: editing sounds: PRESETS stays in the engine, the LFO type resets, FX opens the character (PRESETS its
-# type, each type's picture), then the sends; a drum key; a kit track's Character page
+# UX flow D: editing sounds: PRESETS stays in the engine, the LFO type resets, FX opens Insert 1 (PRESETS its
+# effect, each effect's picture), then the sends; a drum key; a kit track's Insert 1
 wait 300
 turn ALGO 1
 tap EDIT
@@ -28,7 +28,7 @@ shot d09_lfo_random.png
 # (the preset has a character of its own: from off, each type in turn)
 param 2 30 0
 tap FX
-expect page Character
+expect page Insert_1
 wait 60
 shot d10a_character_off.png
 turn PRESET 1
@@ -76,7 +76,7 @@ shot d10l_sampler.png
 turn PRESET -8
 expect par2.30 0
 turn SELECT 1
-expect page Insert
+expect page Insert_2
 turn SELECT 1
 expect page Sends
 wait 60
@@ -102,7 +102,7 @@ wait 60
 shot d14_key_list.png
 tap HOME
 tap FX
-expect page Character
+expect page Insert_1
 wait 60
 shot d15_kit_character.png
 tap EDIT

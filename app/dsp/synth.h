@@ -405,6 +405,8 @@ void synth_kit_slots(synth_t *s, int trk, float *l, float *r, const float *kick,
 int synth_slots_ring(synth_t *s, int trk, int sounding, uint32_t n);   /* a kit's: 1 while it sounds or a slot rings on
                                                   * after it (rumble), counted in calls of n frames */
 int synth_slot_room(const synth_t *s, int trk, int q);   /* 1: slot q has its memory (or needs none) */
+void synth_slots_mark(const synth_t *s, efx_mask_t *m, int skip);   /* the blocks the tracks' slots hold into m, but
+                                                 * slot skip's (track * 2 + slot) */
 void synth_slots_evict(synth_t *s, const efx_mask_t *mask);   /* the slots holding any of these blocks give them up (a send
                                                       * takes them: the engine, before synth_prepare) */
 void synth_bus_join(synth_t *s, float *l, float *r, float *s1, float *s2, uint32_t n);

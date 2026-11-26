@@ -1353,7 +1353,7 @@ static void char_tests(void)
     /* texts and tables */
     sound_default(p, EG_KNIT);
     check("character: off by default, mix 100 %", p[TP_CTYPE] == CT_OFF && p[TP_CMIX] == 127);
-    check("character knobs: type amount tone mix", !strcmp(tp_info(TP_CTYPE, 0)->name, "type") &&
+    check("slot 1's values: effect amount tone mix", !strcmp(tp_info(TP_CTYPE, 0)->name, "effect") &&
                                                      !strcmp(tp_info(TP_CAMT, 0)->name, "amount") &&
                                                      !strcmp(tp_info(TP_CTONE, 0)->name, "tone") &&
                                                      !strcmp(tp_info(TP_CMIX, 0)->name, "mix"));
@@ -1376,7 +1376,7 @@ static void char_tests(void)
     p[TP_LTYPE] = LT_WAVE;
     p[TP_LDEST] = LD_AMP;
     tp_text_par(TP_LX, 3, p, num, unit);
-    check("the LFO's voice module, knob 4: the character's amount", !strcmp(num, "character"));
+    check("the LFO's voice module, knob 4: Insert 1's amount", !strcmp(num, "insert 1"));
 
     /* every type, the knobs at their ends and the middle, a resonant filter and a stereo engine: finite,
      * bounded, silent after the release */
@@ -2385,7 +2385,7 @@ static void insert_tests(void)
         for (int k = 0; k < NEF; k++)
             same &= !strcmp(EFX[k].name, tp_info(TP_ITYPE, EG_KNIT)->names[k]);
         check("the slots' effects named as the catalog; their knobs by their effect", same &&
-              !strcmp(tp_info(TP_ITYPE, EG_KNIT)->name, "insert") &&
+              !strcmp(tp_info(TP_ITYPE, EG_KNIT)->name, "effect") &&
               !strcmp(tp_info_par(TP_I1, (const uint8_t[NTP]){[TP_ITYPE] = EF_TREMOLO})->name, "rate") &&
               !strcmp(tp_info_par(TP_CTONE, (const uint8_t[NTP]){[TP_CTYPE] = EF_FOLD})->name, "bias") &&
               !strcmp(tp_info_par(TP_S1X1, (const uint8_t[NTP]){[TP_CTYPE] = EF_PHASER})->name, "feedback") &&

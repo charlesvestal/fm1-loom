@@ -61,7 +61,7 @@ turn SELECT 1
 wait 40
 shot envelope2.png
 tap FX
-expect page Character
+expect page Insert_1
 wait 40
 shot character.png
 param 3 30 0
@@ -74,7 +74,7 @@ wait 40
 shot character_list.png
 tap HOME
 turn SELECT 1
-expect page Insert
+expect page Insert_2
 param 3 itype 1
 wait 40
 shot insert.png

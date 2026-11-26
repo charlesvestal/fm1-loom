@@ -31,7 +31,7 @@ param 3 9 10
 knob 3 1 101
 wait 5
 expect_out USB B2 0A 65
-# on T3, ENV and LFO have no pages: the Engine page; FX: FX I first (no Character, no Sends)
+# on T3, ENV and LFO have no pages: the Engine page; FX: FX I first (no Insert 1, 2, no Sends)
 turn ALGO 2
 expect trk 3
 tap ENV

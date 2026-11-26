@@ -19,11 +19,11 @@ const char *const EFG_NAME[NEFG] = {"", "dirt", "color", "movement", "space"};
 /* the knobs' names, by number (efx_info_t word) */
 enum { W_NONE, W_AMOUNT, W_TONE, W_DISTORT, W_FILTER, W_LEVEL, W_BIAS, W_WHICH, W_DEPTH, W_RATIO, W_PIVOT, W_TILT, W_RATE,
        W_BITS, W_SMOOTH, W_WIDTH, W_PAN, W_FREQ, W_FEEDBACK, W_VIBRATO, W_MODE, W_SENSE, W_RESO, W_DECAY, W_TIME,
-       W_REPEATS, W_FINE, W_WOBBLE, W_SMEAR, W_SIZE, W_DAMP, NW };
+       W_REPEATS, W_FINE, W_WOBBLE, W_SMEAR, W_SIZE, W_DAMP, W_TYPE, NW };
 static const char *const WORD[NW] = {"-", "amount", "tone", "distort", "filter", "level", "bias", "which", "depth", "ratio",
                                      "pivot", "tilt", "rate", "bits", "smooth", "width", "pan", "freq", "feedback",
                                      "vibrato", "mode", "sense", "reso", "decay", "time", "repeats", "fine", "wobble",
-                                     "smear", "size", "damp"};
+                                     "smear", "size", "damp", "type"};
 #define KN(a, b, c) {W_##a, W_##b, W_##c
 #define XS(a, b, c, d) W_##a, W_##b, W_##c, W_##d}
 const efx_info_t EFX[NEF] = {
@@ -62,7 +62,7 @@ const efx_info_t EFX[NEF] = {
      {EK_DIV, EK_NN, EK_NN}, {64, 127, 0, 0}},
     {"rumble", EFG_SPACE, 0, KN(DECAY, TONE, NONE), XS(NONE, NONE, NONE, NONE), {55, 80, 0}, {EK_NN, EK_NN, EK_NN},
      {0, 0, 0, 0}},
-    {"reverb", EFG_SPACE, 0, KN(SIZE, DECAY, TONE), XS(MODE, DAMP, NONE, NONE), {100, 40, 44}, {EK_NN, EK_NN, EK_BIP},
+    {"reverb", EFG_SPACE, 0, KN(SIZE, DECAY, TONE), XS(TYPE, DAMP, NONE, NONE), {100, 40, 44}, {EK_NN, EK_NN, EK_BIP},
      {0, 72, 0, 0}},                         /* (the plate's defaults, its second knob its motion) */
 };
 #undef KN

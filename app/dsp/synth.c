@@ -112,7 +112,7 @@ static const char *const WTNAME_N[WT_NTABLE] = {"shapes", "nasal", "grit", "voca
 static const char *const SYNC_N[LS_SYNC_N] = {"2/1", "1", "1/2", "1/4", "1/8", "1/16", "1/32", "1/64"};
 static const char *const ENVP_N[4] = {"attack", "decay", "sustain", "release"};
 static const char *const FLTP_N[4] = {"cutoff", "reso", "env", "keytrack"};
-static const char *const AMPP_N[4] = {"volume", "pitch", "pan", "character"};
+static const char *const AMPP_N[4] = {"volume", "pitch", "pan", "insert 1"};
 static const char *const OCT_N[5] = {"-2", "-1", "0", "+1", "+2"};
 static const char *const EF_N[NEF] = {"off", "drive", "rat", "fold", "crush", "ring", "tilt", "tape", "sampler", "lofi",
                                      "tremolo", "phaser", "univibe", "chorus", "juno", "autowah", "delay", "rumble",
@@ -4175,6 +4175,14 @@ void synth_slots_evict(synth_t *s, const efx_mask_t *mask)
                 sl->at = -1, sl->nb = sl->clr = 0;
         }
 }
+void synth_slots_mark(const synth_t *s, efx_mask_t *m, int skip)
+{
+    for (int i = 0; i < 2 * NTRK; i++) {
+        const efx_slot_t *sl = &s->t[i >> 1].sl[i & 1];
+        if (i != skip && sl->at >= 0)
+            efx_mark(m, sl->at, sl->nb);
+    }
+}
 /* a slot's delay or reverb still rings (its memory's states) */
 static int slot_awake(const efx_slot_t *sl)
 {
@@ -4588,7 +4596,7 @@ static const tp_info_t FIXED[NTP_SOUND + 13] = {
     {"amount", 0, 127, 64, PK_BIP, 0},                  {"dest", 0, NLD - 1, LD_FILTER, PK_NAMES, LDEST_N},
     {"param", 0, 3, 0, PK_NUM, 0},                      {"shape", 0, 4, 1, PK_NAMES, VSHAPE_N},
     /* the character stage: its amount and tone print per type (tp_text_par) */
-    {"type", 0, NEF - 1, EF_OFF, PK_NAMES, EF_N},       {"amount", 0, 127, 64, PK_PCT, 0},
+    {"effect", 0, NEF - 1, EF_OFF, PK_NAMES, EF_N},     {"amount", 0, 127, 64, PK_PCT, 0},
     {"tone", 0, 127, 64, PK_BIP, 0},                    {"mix", 0, 127, 127, PK_PCT, 0},
     /* TP_X1 .. TP_X4: the engine's second page: none but an engine's own (tp_info: knit's, rayon's) */
     {"-", 0, 0, 0, PK_NUM, 0}, {"-", 0, 0, 0, PK_NUM, 0}, {"-", 0, 0, 0, PK_NUM, 0}, {"-", 0, 0, 0, PK_NUM, 0},
@@ -4657,7 +4665,7 @@ static const tp_info_t KANALOG_P = {"analog", 0, 127, 0, PK_NN, 0};
 static const tp_info_t HPF_P = {"low cut", 0, 127, 0, PK_LOWCUT, 0};
 /* the slots (synth.h TP_SLOT): slot 2's effect, a slot's mix; its knobs and extras as its effect names them (slot_info:
  * dsp/efx.c's catalog) */
-static const tp_info_t ITYPE_P = {"insert", 0, NEF - 1, EF_OFF, PK_NAMES, EF_N};
+static const tp_info_t ITYPE_P = {"effect", 0, NEF - 1, EF_OFF, PK_NAMES, EF_N};
 static const tp_info_t SMIX_P = {"mix", 0, 127, 127, PK_PCT, 0};
 static const tp_info_t INS_ANY_P = {"", 0, 127, 0, PK_NN, 0};
 static const char *const JUNO_N[3] = {"I", "II", "I+II"};

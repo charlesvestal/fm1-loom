@@ -2219,42 +2219,79 @@ static void master_to(int m, int v)
     cc_out_master(m);
     mark_dirty();
 }
-/* Master FX's slot value p (a track's slot 1's, pages.c mst_par) turned by e: in its range, a list's a step a click */
-static void mst_slot_turn(int m, int p, int32_t e)
-{
-    uint8_t par[NTP];
-    const tp_info_t *in;
-    mst_par(par);
-    in = tp_info_par(p, par);
-    master_to(m, clampi(proj.master[m] + (in->hi < 16 ? (e > 0 ? 1 : -1) : (int)e), in->lo, in->hi));
-}
-/* Master FX's effect (PRESETS, its list): its knobs and extras at the effect's defaults, its mix kept; their CCs out
- * (by hand, as a knob's) */
-static void mst_effect_set(int ef)
-{
-    static const uint8_t K[3] = {MS_CAMT, MS_CTONE, MS_CK3};
-    uint8_t was = cc_hand;
-    ef = (ef + NEF) % NEF;
-    if (ef == proj.master[MS_CTYPE])
-        return;
-    cc_hand = 1;
-    master_to(MS_CTYPE, ef);
-    for (int j = 0; j < 3; j++)
-        master_to(K[j], EFX[ef].def[j]);
-    for (int j = 0; j < 4; j++)
-        master_to(MS_CX1 + j, EFX[ef].xdef[j]);
-    cc_hand = was;
-    say("EFFECT", EFX[ef].name);
-}
 static void master_knob(int k, int32_t e)
 {
     int m = mst_m(ui.page, k);
-    if (ui.page == P_MASTER2) {
-        static const uint8_t SL[4] = {SL_K1, SL_K2, SL_K3, SL_MIX};
-        mst_slot_turn(m, TP_SLOT[0][SL[k & 3]], e);
-        return;
-    }
     master_to(m, clampi(proj.master[m] + e, 0, master_max(m)));
+}
+/* a slot page's value j (synth.h SL_*) set: the track's, or the master's (pages.c MS_SLOT) */
+static void slot_put(int pg, int j, int v)
+{
+    int trk, q = slot_page(pg, &trk);
+    if (trk < 0)
+        master_to(MS_SLOT[j], v);
+    else
+        set_tp(trk, TP_SLOT[q][j], v);
+}
+/* the reverb's knobs and damp at its type's defaults (the plate's, the SPU modes', lush's and shimmer's) */
+static void rv_defaults(int pg, int md)
+{
+    static const uint8_t RVD[3][4] = {{100, 40, 44, 72}, {127, 64, 64, 0}, {64, 64, 56, 48}};
+    static const uint8_t J[4] = {SL_K1, SL_K2, SL_K3, SL_X2};
+    const uint8_t *d = RVD[md == RV_PLATE ? 0 : rv_lush(md) ? 2 : 1];
+    for (int i = 0; i < 4; i++)
+        slot_put(pg, J[i], d[i]);
+}
+/* another effect in a slot (PRESETS, its list): its knobs and extras at the effect's defaults, its mix kept (a
+ * track's or the master's at 0: at its default, so it is heard) */
+static void slot_effect(int pg, int ef)
+{
+    uint8_t mp[NTP];
+    int trk, q;
+    const uint8_t *par = slot_vals(pg, mp, &trk, &q);
+    const uint8_t was = cc_hand;
+    ef = (ef + NEF) % NEF;
+    if (ef == par[TP_SLOT[q][SL_EF]])            /* (the one in use: as it is) */
+        return;
+    cc_hand = 1;                                 /* (by hand: their CCs out, as a knob's) */
+    slot_put(pg, SL_EF, ef);
+    for (int j = 0; j < 3; j++)
+        slot_put(pg, SL_K1 + j, EFX[ef].def[j]);
+    for (int j = 0; j < 4; j++)
+        slot_put(pg, SL_X1 + j, EFX[ef].xdef[j]);
+    if (trk < 0)
+        par = slot_vals(pg, mp, &trk, &q);
+    if (!par[TP_SLOT[q][SL_MIX]] && ef && (trk < 0 || !is_fx(trk)))
+        slot_put(pg, SL_MIX, q ? 127 : 100);
+    cc_hand = was;
+    say("EFFECT", EFX[ef].name);
+}
+/* a slot page's value j turned by e: in its range; a list's (juno's mode, the reverb's type), a synced rate's and the
+ * delay's time (a division of the tempo, 13 d + 6: fx.h) a step a click; the reverb's type at its defaults */
+static void slot_turn(int pg, int j, int32_t e)
+{
+    uint8_t mp[NTP];
+    int trk, q, v, n, d = e > 0 ? 1 : -1;
+    const uint8_t *par = slot_vals(pg, mp, &trk, &q);
+    const int p = TP_SLOT[q][j], ef = par[TP_SLOT[q][SL_EF]];
+    const tp_info_t *in = tp_info_par(trk >= 0 && is_fx(trk) && j == SL_MIX ? TP_LEVEL : p, par);   /* (a send's
+                                                  * return: a level) */
+    v = par[p];
+    if (in->name[0] == '-')                      /* (no such knob) */
+        return;
+    if (j == SL_K1 && ef == EF_DELAY) {
+        n = fx_delay_div(v) + d;
+        n = n < 0 ? 6 : n >= FX_DL_N ? 13 * FX_DL_N - 7 : 13 * n + 6;
+    } else
+        n = in->hi < 16 || (in->kind == PK_HZ_SYNC && (v < 8 || v + e < 8)) ? v + d : v + (int)e;
+    n = clampi(n, in->lo, in->hi);
+    if (n == v)
+        return;
+    slot_put(pg, j, n);
+    if (j == SL_X1 && ef == EF_REVERB)
+        rv_defaults(pg, n);
+    else if (seq.rec && playing() && trk == sel_trk() && !is_aux(trk))   /* (recorded as it turns) */
+        seq_rec_knob(&seq, trk, p, n);
 }
 static void setup_knob(int k, int32_t e)
 {
@@ -2276,28 +2313,6 @@ static void debug_knob(int k, int32_t e)         /* Debug: KNOB 1 the cores */
     plat_cpu2_set(!proj.one_core);
     mark_dirty();
 }
-/* an effect track's effect (its slot 1's: the one effects list), its knobs and extras at the effect's defaults, its
- * return kept */
-static void fx_effect_set(int trk, int ef)
-{
-    const uint8_t *par = proj.trk[trk].par;
-    set_tp(trk, TP_CTYPE, ef);
-    for (int j = SL_K1; j < SL_N; j++)
-        if (j != SL_MIX)
-            set_tp(trk, TP_SLOT[0][j], tp_info_par(TP_SLOT[0][j], par)->def);
-    say("EFFECT", EFX[par[TP_CTYPE] % NEF].name);
-}
-static void fx_pick(int trk, int d) { fx_effect_set(trk, (proj.trk[trk].par[TP_CTYPE] % NEF + d + NEF) % NEF); }
-/* an effect track's knob p turned by e: the delay's time a note value a click (13 d + 6: in the tenth d, fx.h) */
-static __attribute__((noinline)) int fx_turned(int ft, int p, int32_t e)
-{
-    const uint8_t *par = proj.trk[ft].par;
-    int d;
-    if (p != TP_CAMT || par[TP_CTYPE] != EF_DELAY)
-        return par[p] + (int)e;
-    d = fx_delay_div(par[p]) + (e > 0 ? 1 : -1);
-    return d < 0 ? 6 : d >= FX_DL_N ? 13 * FX_DL_N - 7 : 13 * d + 6;
-}
 static void aux_knob(int trk, int k, int32_t e)
 {
     const uint8_t *par = proj.trk[trk].par;
@@ -2308,7 +2323,7 @@ static void aux_knob(int trk, int k, int32_t e)
         hi = p == TP_E2 ? 11 : p == TP_E3 ? NBS - 1 : 8;   /* key, scale; link and FOLLOW: off, T1-T8 */
     else if (trk == AUX_PUNCH || trk == AUX_WEAVE)
         hi = 1;
-    set_tp(trk, p, clampi(is_fx(trk) ? fx_turned(trk, p, e) : par[p] + e, 0, hi));
+    set_tp(trk, p, clampi(par[p] + e, 0, hi));
 }
 /* SEL held, a knob turned: that knob's automation (its motion and locks) cleared, from the pattern, or from the steps
  * held (the lock editor's knob) */
@@ -2341,14 +2356,6 @@ static void knob_clear(int k)
     mark_dirty();
     say(n ? "CLEARED" : "NOTHING TO CLEAR", tp_info_par(p, proj.trk[trk].par)->name);
 }
-/* another effect in slot q: its knobs at their defaults (slot 1's first two kept, as the character's were), its
- * extras; its mix kept */
-static void slot_new(int trk, int q)
-{
-    for (int j = q ? SL_K1 : SL_K3; j < SL_N; j++)
-        if (j != SL_MIX)
-            set_tp(trk, TP_SLOT[q][j], tp_info_par(TP_SLOT[q][j], proj.trk[trk].par)->def);
-}
 static void knob_do(int k, int32_t e)
 {
     int trk = sel_trk(), p;
@@ -2376,6 +2383,10 @@ static void knob_do(int k, int32_t e)
         step_knob(k, e);
         return;
     }
+    if (slot_pg(ui.page) >= 0 || (ui.page == P_ENGINE && is_fx(trk))) {   /* a slot's knobs: its three, its mix */
+        slot_turn(slot_pg(ui.page) >= 0 ? ui.page : fx_pg(trk), k == 3 ? SL_MIX : SL_K1 + k, e);
+        return;
+    }
     switch (ui.page) {
     case P_THROWS:
         if (k == 0)
@@ -2394,17 +2405,11 @@ static void knob_do(int k, int32_t e)
     case P_SONG: song_knob(k, e); return;
     case P_STEPS: steps_knob(k, e); return;
     case P_BAR: bar_knob(k, e); return;
-    case P_MASTER: case P_MASTER2: case P_MASTER3: master_knob(k, e); return;
+    case P_MASTER: case P_MASTER3: master_knob(k, e); return;
     case P_SETUP: setup_knob(k, e); return;
     case P_STATUS: debug_knob(k, e); return;
     case P_GLFO: glfo_knob(k, e); return;
     default: break;
-    }
-    if (fx_page(ui.page)) {                      /* an effect's knobs: the effect track's own (its slot's, its return) */
-        int ft = ui.page == P_FX1 ? AUX_FX1 : AUX_FX2;
-        p = tp_page_param(ui.page, k, ft);
-        set_tp(ft, p, fx_turned(ft, p, e));
-        return;
     }
     if (ui.page == P_SENDS) {
         trk = inst_trk();
@@ -2412,23 +2417,6 @@ static void knob_do(int k, int32_t e)
         if (p < 0)
             return;
         set_tp(trk, p, proj.trk[trk].par[p] + (int)e);
-        if (seq.rec && playing() && trk == sel_trk())
-            seq_rec_knob(&seq, trk, p, proj.trk[trk].par[p]);
-        return;
-    }
-    if (ui.page == P_CHARACTER || ui.page == P_INSERT) {   /* the instrument's (an effect track selected: the last one
-                                                  * played) */
-        trk = inst_trk();
-        p = tp_page_param(ui.page, k, trk);
-        if (p < 0)
-            return;
-        {
-            int was = proj.trk[trk].par[p];
-            set_tp(trk, p, was + (int)e);
-            if ((p == TP_ITYPE || p == TP_CTYPE) && proj.trk[trk].par[p] != was)   /* (another effect: its knobs at
-                                                  * their defaults) */
-                slot_new(trk, p == TP_ITYPE);
-        }
         if (seq.rec && playing() && trk == sel_trk())
             seq_rec_knob(&seq, trk, p, proj.trk[trk].par[p]);
         return;
@@ -2488,22 +2476,14 @@ static void presets(int32_t e)
     case P_MIX:
         track_step(d);
         break;
-    case P_FX1: case P_FX2:
-        fx_pick(ui.page == P_FX1 ? AUX_FX1 : AUX_FX2, d);
+    case P_FX1: case P_FX2: case P_MASTER2: case P_CHARACTER: case P_INSERT: {   /* a slot's effect: the catalog in
+                                                  * its groups, the next at its defaults */
+        uint8_t mp[NTP];
+        int st, q;
+        const uint8_t *par = slot_vals(ui.page, mp, &st, &q);
+        slot_effect(ui.page, par[TP_SLOT[q][SL_EF]] % NEF + d);
         break;
-    case P_MASTER2:                              /* Master FX's effect, its knobs at their defaults */
-        mst_effect_set(proj.master[MS_CTYPE] % NEF + d);
-        break;
-    case P_CHARACTER: case P_INSERT:             /* a slot's effect (the one effects list), its knobs at their defaults */
-        trk = inst_trk();
-        {
-            const uint8_t *par = proj.trk[trk].par;
-            const int q = ui.page == P_INSERT, p = TP_SLOT[q][SL_EF];
-            set_tp(trk, p, (par[p] + d + NEF) % NEF);
-            slot_new(trk, q);
-            say(q ? "INSERT" : "CHARACTER", tp_info_par(p, par)->names[par[p] % NEF]);
-        }
-        break;
+    }
     case P_FILTER: case P_KITF:                  /* the filter type (a kit: the key's; Kit filter: the bus on / off) */
         if (!is_aux(trk)) {
             const uint8_t *par = proj.trk[trk].par;
@@ -2521,7 +2501,7 @@ static void presets(int32_t e)
         break;
     default:
         if (is_fx(trk))
-            fx_pick(trk, d);
+            slot_effect(fx_pg(trk), proj.trk[trk].par[TP_CTYPE] % NEF + d);
         else if (is_drum(trk) && (ui.page == P_ENGINE || ui.page == P_PLAY || ui.page == P_PLAY2 || ui.page == P_ENV ||
                                   ui.page == P_SENDS)) {
             ui.dsound = (uint8_t)((ui.dsound + d + DL_NSOUND) % DL_NSOUND);
@@ -2600,10 +2580,6 @@ static void list_open(void)
     lst.sel = lst.top = 0;
     list_sec = 0;
     ui.pick_engine = proj.trk[sel_trk()].par[TP_ENGINE] % NENGINE;
-    if (is_fx(sel_trk()))
-        ui.pick_fx = proj.trk[sel_trk()].par[TP_CTYPE] % NEF;
-    if (fx_page(ui.page))
-        ui.pick_fx = proj.trk[ui.page == P_FX1 ? AUX_FX1 : AUX_FX2].par[TP_CTYPE] % NEF;
     if (PAGE_BTN[page_group(ui.page)].btn == B_GLO && proj_slot < NPROJ)   /* SAVE TO starts on the slot open */
         ui.pick_save = proj_slot;
     list_build();
@@ -2613,11 +2589,14 @@ static void list_open(void)
         return;
     }
     k = list_key();
-    if (k >= 0 && lst_mem[k].ok)                 /* the row used last */
+    if (k >= 0 && lst_mem[k].ok && lst_mem[k].id != A_EFFECT)   /* the row used last (a slot's effects: the one in use) */
         for (int r = 0; r < lst.n && a < 0; r++)
             if (lst.row[r].kind == lst_mem[k].kind && lst.row[r].id == lst_mem[k].id &&
                 (lst.row[r].name == lst_mem[k].name || s_eq(lst.row[r].name, lst_mem[k].name)))
                 a = r;
+    for (int r = 0; r < lst.n && a < 0; r++)
+        if (lst.row[r].id == A_EFFECT && lst.row[r].kind == LK_ACTION && lst.row[r].val[0] == 'i')
+            a = r;
     for (int r = 0; r < lst.n && a < 0; r++)     /* or the first row (the actions first, the knobs after) */
         if (list_pickable(r))
             a = r;
@@ -2678,7 +2657,6 @@ static void list_change_do(int32_t e)
             break;
         }
         case A_PASTE: ui.pick_paste = (uint8_t)(d > 0); break;
-        case A_EFFECT: ui.pick_fx = (uint8_t)clampi(ui.pick_fx + d, 0, NEF - 1); break;
         case A_PRESET: ui.pick_preset = (uint16_t)((ui.pick_preset + d + NPRESETS) % (NPRESETS ? NPRESETS : 1)); break;
         case A_SAVE_PRESET: ui.pick_slot = (uint8_t)((ui.pick_slot + d + NUSER_PRESETS) % NUSER_PRESETS); break;
         case A_KIT: ui.pick_kit = (uint8_t)((ui.pick_kit + d + NKITS) % NKITS); break;
@@ -2753,23 +2731,11 @@ static void list_change_do(int32_t e)
         case A_KIT_FILTER:                       /* the kit's bus: on (dynamic) / off */
             set_tp(sel_trk(), TP_FTYPE, d > 0 ? FT_DYNAMIC : FT_LP24);
             break;
-        case A_SLOT_K3: case A_SLOT_MIX: case A_SLOT_X1: case A_SLOT_X2: case A_SLOT_X3: case A_SLOT_X4: {
-            int t, q = slot_page(ui.page, &t);
-            const int pr = TP_SLOT[q][SLOT_ROW[lst.row[lst.sel].id - A_SLOT_K3]];
-            const tp_info_t *in = tp_info_par(pr, proj.trk[t].par);
-            set_tp(t, pr, clampi(proj.trk[t].par[pr] + (in->hi < 16 ? d : (int)accel(EN_ALGO, e)), in->lo, in->hi));
+        case A_SLOT_X1: case A_SLOT_X2: case A_SLOT_X3: case A_SLOT_X4:
+            slot_turn(list_slot_pg(), SL_X1 + lst.row[lst.sel].id - A_SLOT_X1, accel(EN_ALGO, e));
             break;
-        }
-        case A_MST_EFFECT:                       /* Master FX's effect: at once, its knobs at their defaults */
-            mst_effect_set(clampi(proj.master[MS_CTYPE] % NEF + d, 0, NEF - 1));
-            break;
-        case A_MST_X1: case A_MST_X2: case A_MST_X3: case A_MST_X4: {
-            int r = lst.row[lst.sel].id - A_MST_X1;
-            mst_slot_turn(MS_CX1 + r, TP_SLOT[0][SL_X1 + r], accel(EN_ALGO, e));
-            break;
-        }
         case A_FX_HP: case A_FX_LP: case A_FX_SEND: {
-            int ft = ui.page == P_FX2 ? AUX_FX2 : AUX_FX1, id = lst.row[lst.sel].id;
+            int ft = list_slot_pg() == P_FX2 ? AUX_FX2 : AUX_FX1, id = lst.row[lst.sel].id;
             int q = id == A_FX_HP ? TP_FENV : id == A_FX_LP ? TP_CUT : TP_SEND2;
             set_tp(ft, q, proj.trk[ft].par[q] + (int)accel(EN_ALGO, e));
             break;
@@ -3857,9 +3823,13 @@ static void action_run(int a)
         say("ENGINE", EG_NAME[ui.pick_engine % NENGINE]);
         break;
     }
-    case A_EFFECT:
-        fx_effect_set(fx_page(ui.page) ? (ui.page == P_FX1 ? AUX_FX1 : AUX_FX2) : sel_trk(), ui.pick_fx % NEF);
+    case A_EFFECT: {                             /* a slot list's effect: its row's */
+        int ef = 0;
+        while (ef < NEF - 1 && lst.row[lst.sel].name != EFX[ef].name)
+            ef++;
+        slot_effect(list_slot_pg(), ef);
         break;
+    }
     case A_PRESET:
         if (NPRESETS) {
             load_preset(sel_trk(), &PRESETS[ui.pick_preset % NPRESETS]);
@@ -3882,9 +3852,7 @@ static void action_run(int a)
     case A_FOLLOW: case A_USB_AUDIO: case A_COUNT_IN: case A_THEME: case A_LARGE_TYPE: case A_PLAYMODE: case A_FTYPE: case A_FX_HP: case A_FX_LP:
     case A_FX_SEND: case A_PUMP_BY: case A_PUMP_REL: case A_PUMP_ACC: case A_LEVEL: case A_SCENE_AT: case A_AUTOSAVE:
     case A_MIDI_OUT: case A_LOOP_FREE: case A_CC_OUT: case A_SCENES_OUT: case A_MIDI_CC: case A_USB_HOST: case A_KIT_FILTER:
-    case A_CC_IN: case A_MOD_VIEW: case A_SLOT_K3: case A_SLOT_MIX:
-    case A_SLOT_X1: case A_SLOT_X2: case A_SLOT_X3: case A_SLOT_X4: case A_MST_EFFECT: case A_MST_X1: case A_MST_X2:
-    case A_MST_X3: case A_MST_X4:
+    case A_CC_IN: case A_MOD_VIEW: case A_SLOT_X1: case A_SLOT_X2: case A_SLOT_X3: case A_SLOT_X4:
         return;   /* (ALGORITHM sets them; SEL
                                                                                     * leaves the list) */
     case A_REMOVE_NOTE: act_remove_note(lst.sel); break;
@@ -4426,10 +4394,17 @@ static void sp_page(void)
         sp_int(n);
     } else
         sp_cat(" page");
-    page_tag(t);
-    if (*t) {
-        sp_cat(". ");
-        sp_text(t);
+    for (int i = 0; i < 2; i++) {                /* its tag; a slot's memory taken: who has it */
+        if (i == 0)
+            page_tag(t);
+        else if (slot_pg(ui.page) >= 0)
+            slot_memo(t, ui.page);
+        else
+            break;
+        if (*t) {
+            sp_cat(". ");
+            sp_text(t);
+        }
     }
     page_knobs(k);
     for (int i = 0; i < 4; i++)

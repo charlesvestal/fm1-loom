@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: MPL-2.0
 """The layout sweep: a simulator script (tests/run_tests.sh runs it) that turns through every page of every track,
-for each engine, character type, LFO type, player and filter type, and every effect of FX I and FX II. The
+for each engine, every effect in a track's two slots, LFO type, player and filter type, and every effect of FX I, FX II
+and Master FX. The
 simulator's layout audit (app/gfx_loom.c) checks each screen drawn: no label clipped, cut to fit, at the screen's
 edge, overlapping another or crossing a box.
   tools/layout_sweep.py OUT.xy"""
@@ -35,10 +36,14 @@ for p in range(5):
 for f in range(6):
     L.append(f"knob 2 ftype {f}")
     visit(["ENV"], 3)
-L += ["tap FX", "turn SELECT 2"]                     # FX I's effects, then FX II's
-L += ["turn PRESET 1", "wait 60"] * 16
-L += ["turn SELECT 1"]
-L += ["turn PRESET 1", "wait 60"] * 16
+L += ["tap FX", "turn SELECT 3"]                     # every effect on FX I, FX II and Master FX (PRESET: the next)
+L += ["turn PRESET 1", "wait 60"] * 19
+L += ["expect page FX_I", "turn SELECT 1", "expect page FX_II"]
+L += ["turn PRESET 1", "wait 60"] * 19
+L += ["tap SEL", "wait 60", "tap SEL", "wait 60"]   # (its list: the catalog, the extras, the send's)
+L += ["tap GLO", "turn SELECT 2", "expect page Master_FX"]
+L += ["turn PRESET 1", "wait 60"] * 19
+L += ["tap SEL", "wait 60", "tap SEL", "wait 60"]
 L += ["spin ALGO -1", "expect trk 1"]                # every track and aux track, every button's pages
 for _ in range(14):
     visit(["EDIT", "ENV", "FX", "LFO", "ARP", "GLO", "HOME", "SEQ"])

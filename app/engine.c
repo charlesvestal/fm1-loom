@@ -1919,3 +1919,25 @@ void engine_init(patterns_t *P, uint8_t (*par)[NTP])
 /* the pages: the send's memory holds its effect */
 int engine_fx_room(int slot) { return fx_room(FXS(slot & 1)); }
 int engine_master_room(void) { return master_room(MST); }
+/* the pages' "no memory" (pool_sends, ins_alloc): a send beside the other, or both moved; the master beside the sends
+ * (a track gives way); a track's slot where no other holds */
+int engine_fits(int trk, int q, int need)
+{
+    efx_mask_t m = {{0}};
+    const int o = trk == AUX_FX1;
+    if (trk == AUX_FX1 || trk == AUX_FX2) {
+        if (snd_at[o] >= 0)
+            efx_mark(&m, snd_at[o], snd_nb[o]);
+        return efx_fit(&m, need) >= 0 || need + snd_nb[o] <= EFX_NB;
+    }
+    m = efx_send_used;
+    if (trk >= 0)
+        synth_slots_mark(SY, &m, trk * 2 + q);
+    else if (mpl_at >= 0) {                                /* (the master's own: not in the way) */
+        m = (efx_mask_t){{0}};
+        for (int k = 0; k < 2; k++)
+            if (snd_at[k] >= 0)
+                efx_mark(&m, snd_at[k], snd_nb[k]);
+    }
+    return !need || efx_fit(&m, need) >= 0;
+}

@@ -56,6 +56,8 @@ void engine_brain_key(int note, int on);
 void engine_master(int p, int val);
 int engine_fx_room(int slot);                            /* the send's memory holds its effect (fx.h fx_room) */
 int engine_master_room(void);                            /* the master's slot's memory holds its effect (fx.h) */
+int engine_fits(int trk, int q, int need);               /* need blocks would find room in track trk's slot q (an FX
+                                                          * track: its send; -1 the master) as the pool is now */
 void engine_panic(void);
 void engine_transport(int what);                         /* 0 stop, 1 start, 2 continue, 3 start from the top */
 void engine_metronome(int mode);
