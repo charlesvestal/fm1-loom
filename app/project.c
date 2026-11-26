@@ -505,8 +505,10 @@ static int settings_valid(settings_t *s)
     int t, k;
     if (s->magic != PROJ_MAGIC || !FORMAT_OK(s->format))
         return 0;
-    if (s->tempo_x10 < 400u || s->tempo_x10 > 3000u || s->scene >= NSCENE || s->trk_sel >= NALLTRK)
+    if (s->tempo_x10 < 400u || s->tempo_x10 > 3000u || s->scene >= NSCENE)
         return 0;
+    if (s->trk_sel > AUX_MOD)                    /* (AUX_MOD: the MOD track picked when it was saved) */
+        s->trk_sel = 0;
     if (s->groove >= NGROOVE)
         s->groove = GR_SWING;
     s->name[NAME_LEN - 1] = 0;
