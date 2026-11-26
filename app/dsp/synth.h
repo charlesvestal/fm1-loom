@@ -345,7 +345,9 @@ typedef struct {
     int16_t pitch_c;                  /* cents, from bends, ramps, punch octave */
     int16_t cut;                      /* filter cutoff offset, -127..127 */
     int8_t pan;                       /* pan offset */
-    uint8_t mute;                     /* 1 = silent (punch mute: voices keep running) */
+    uint8_t mute;                     /* bit 0 silent (the punch's mute, the Mix page's: the voices keep running, their
+                                       * sends off too); bit 1 wet only (the Mix page's: the dry off on its bus, the
+                                       * sends on) */
     uint8_t send1, send2;             /* send offsets 0..127 (punch delay / reverb up) */
     uint8_t long_tail;                /* drums: decay x4 */
     uint8_t hp;                       /* high-pass 0..127 (the punch filter on drums; the engine also tells the

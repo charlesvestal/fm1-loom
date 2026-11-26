@@ -76,9 +76,10 @@ typedef struct drumline drumline_t;
 #ifdef PLAT_HOST
 #define DRUMLINE_BYTES 2520                            /* (the host's pointers are wider) */
 #else
-#define DRUMLINE_BYTES 2480                            /* 8 voices (each with its key's envelope and filter state),
+#define DRUMLINE_BYTES 2484                            /* 8 voices (each with its key's envelope and filter state),
                                                         * four sample windows (80 B each), the dynamic filter (its
                                                         * sends' states too, 2026-11-26: +32 B, in NOINIT's spare; the
+                                                        * keys muted at the mixer, +4 B; the
                                                         * strings' lines and the 909 slots: drumline.c, every kit's) */
 #endif
 
@@ -104,6 +105,7 @@ void drumline_render(drumline_t *d, float *l, float *r, float *s1, float *s2, ui
 /* and the kicks alone (the first key, any key of the kick model: mono, before pan, the bus filter and the sends),
  * added into kick: what a rumble insert on the kit hears */
 void drumline_render_kick(drumline_t *d, float *l, float *r, float *s1, float *s2, float *kick, uint32_t n);
+void drumline_amute(drumline_t *d, uint32_t keys);     /* the keys muted at the mixer (bit k: key k), faded ~5 ms */
 int drumline_sounding(const drumline_t *d);
 int drumline_voices(const drumline_t *d);              /* the voices sounding (the engine's core split) */
 extern volatile uint8_t drumline_hitv[DL_NSOUND];      /* the last hit of each sound, 255 = full (UI lets it fall) */

@@ -249,7 +249,8 @@ typedef struct {
     float eatt, ehold, edec;          /* the attack's end, the hold's end (samples); the decay's log a sample (0: off) */
     float eg;                         /* the envelope now (at the sub-block's start) */
     float fz1, fz2;                   /* the filter's states */
-    uint8_t ftype, sidx, sci, rsv2;   /* the filter's type (DF_*); the sample model's sample, its cache + 1 */
+    uint8_t ftype, sidx, sci, mq;     /* the filter's type (DF_*); the sample model's sample, its cache + 1; the Mix
+                                       * page's mute of its key, faded: 0 heard .. 255 silent (control) */
 } dvoice_t;
 
 
@@ -269,6 +270,7 @@ struct drumline {
     dvoice_t v[NDVOICE];
     smp_cache_t sc[NDSC];             /* the sample model's decoded windows (dsp/sample.h) */
     int8_t sc_owner[NDSC];            /* the voice holding each, -1 */
+    uint16_t amute;                   /* the keys muted at the mixer (bit k: key k; drumline_amute) */
     dynf_t f;
 };
 /* every kit's strings and 909 voices (2026-10-30: the strings were each kit's own two, 6 KB for three kits; shared,
@@ -1840,12 +1842,20 @@ static float volume_lin(int v)
     return fm_db2lin((float)(v - VOL0) * (20.0f / (float)(127 - VOL0)));
 }
 
-/* the chunk's targets from par[]: volume, pan, the key's sends; ramped over m samples */
-static void control(const uint8_t *par, dvoice_t *v, int m)
+/* the chunk's targets from par[]: volume, pan, the key's sends; ramped over m samples. A key muted at the mixer
+ * (amute) fades out over ~5 ms, its output and its sends (v->mq: at once on a fresh voice) */
+static void control(const uint8_t *par, dvoice_t *v, int m, uint32_t amute)
 {
     const uint8_t *p = par + TP_DRUM(v->sound, 0);
     float a = (float)p[DP_PAN] * (1.0f / 127.0f), lin, l, r, s1, s2, im;
+    const int mt = amute >> v->sound & 1u ? 255 : 0, st = (m * 255 + 219) / 220;
     lin = volume_lin(p[DP_VOLUME]);
+    if (v->age == 0)
+        v->mq = (uint8_t)mt;
+    else if (v->mq != mt)
+        v->mq = (uint8_t)(mt ? (v->mq + st > 255 ? 255 : v->mq + st) : (v->mq - st < 0 ? 0 : v->mq - st));
+    if (v->mq)
+        lin *= (float)(255 - v->mq) * (1.0f / 255.0f);
     l = lin * fm_sin_turns(0.25f * (1.0f - a));       /* constant power: cos, sin of a quarter turn */
     r = lin * fm_sin_turns(0.25f * a);
     s1 = lin * (float)p[DP_SEND1] * (1.0f / 127.0f);
@@ -1982,7 +1992,7 @@ void drumline_render_kick(drumline_t *d, float *l, float *r, float *s1, float *s
         dvoice_t *v = &d->v[vi];
         for (c = 0; c < n && v->on; c += CR) {
             int m = (int)(n - c < CR ? n - c : CR), o;
-            control(d->par, v, m);
+            control(d->par, v, m, d->amute);
             for (o = 0; o < m && v->on; o += SUB) {
                 float t[SUB];
                 int mm = m - o < SUB ? m - o : SUB, i, from = 0;
@@ -2054,6 +2064,7 @@ void drumline_render_kick(drumline_t *d, float *l, float *r, float *s1, float *s
         }
 }
 
+void drumline_amute(drumline_t *d, uint32_t keys) { d->amute = (uint16_t)keys; }
 int drumline_sounding(const drumline_t *d)
 {
     int i;

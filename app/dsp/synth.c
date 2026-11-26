@@ -249,6 +249,7 @@ typedef struct {
     uint8_t nbus;                     /* its slots on the bus this block (0: no bus) */
     uint8_t nins;                     /* of them, not the dirt or the color (a tail: rumble's) */
     uint8_t wowon;                    /* a tape: its voices' wow (wowc) */
+    uint8_t wetq;                     /* wet only's fade: its dry's cut, 0 none .. 255 all (bus_out; perf.mute bit 1) */
     float bus_g, bus_gn;              /* the bus's gain after the slots (the fader, the volume): the last block's, this one's */
     float bus_s1, bus_s2;             /* its sends */
     float wow[2], wowc[NCK];          /* tape's wow on its voices: one for the track (its phases, each chunk's cents) */
@@ -3398,7 +3399,7 @@ static void voice_chunk(synth_t *s, voice_t *v)
         const int hv = P2(s, trk, TP_HPF);
         c->hpk = hv ? 1.0f - fm_expf(-FM_TWO_PI * 20.0f * fm_exp2f((float)hv * (6.64f / 127.0f)) * INV_SR) : 0.0f;
     }
-    c->mute = t->perf.mute;
+    c->mute = t->perf.mute & 1u;
 #ifdef PLAT_HOST
     if (!(synth_host_solo >> trk & 1u))          /* the host's stems (LOOM_SOLO): a track left out is muted */
         c->mute = 1;
@@ -4242,6 +4243,9 @@ static void bus_prepare(synth_t *s, uint32_t n)
                 ct += (2.0f + 8.0f * (sl->k[0] * (1.0f / 127.0f))) * (float)sl->mix * (1.0f / 127.0f);
             }
         }
+        if (!t->nbus && !kit && ((t->perf.mute & 2u) || t->wetq))
+            t->nbus = 1;                         /* (wet only, or fading to or from it: on its bus, where its dry is
+                                                  * cut after the sends are taken, bus_out) */
         if (!t->nbus || kit)
             continue;
         vol = pf(s, i, TP_VOLUME, dest, off) * (1.0f / 127.0f);
@@ -4382,14 +4386,32 @@ static void bus_out(synth_t *s, int core, int trk, float *bl, float *br, float *
     slot_run(s, t, &t->sl[0], 0, bl, br, n);
     slot_run(s, t, &t->sl[1], 0, bl, br, n);
     dg = (t->bus_gn - g) / (float)n;             /* (the gain glides across the block) */
-    for (j = 0; j < n; j++) {
-        float ol = bl[j] * g, or_ = br[j] * g, mono = (ol + or_) * 0.5f;
-        g += dg;
-        l[j] += ol;
-        r[j] += or_;
-        s1[j] += mono * k1;
-        s2[j] += mono * k2;
-        bl[j] = ol + or_;                        /* (for the tap) */
+    if (!t->wetq && !(t->perf.mute & 2u)) {      /* (the dry as it is) */
+        for (j = 0; j < n; j++) {
+            float ol = bl[j] * g, or_ = br[j] * g, mono = (ol + or_) * 0.5f;
+            g += dg;
+            l[j] += ol;
+            r[j] += or_;
+            s1[j] += mono * k1;
+            s2[j] += mono * k2;
+            bl[j] = ol + or_;                    /* (for the tap) */
+        }
+    } else {                                     /* wet only (the Mix page's): the sends as ever, the dry faded out
+                                                  * (or back) over ~5 ms, linear across the piece */
+        const int q0 = t->wetq, st = (int)((n * 255u + 219u) / 220u), q1 = t->perf.mute & 2u ? (q0 + st > 255 ? 255 : q0 + st)
+                                                                                        : (q0 - st < 0 ? 0 : q0 - st);
+        float d = (float)(255 - q0) * (1.0f / 255.0f), dd = (float)(q0 - q1) * (1.0f / 255.0f) / (float)n;
+        for (j = 0; j < n; j++) {
+            float ol = bl[j] * g, or_ = br[j] * g, mono = (ol + or_) * 0.5f;
+            g += dg;
+            d += dd;
+            l[j] += ol * d;
+            r[j] += or_ * d;
+            s1[j] += mono * k1;
+            s2[j] += mono * k2;
+            bl[j] = ol + or_;
+        }
+        t->wetq = (uint8_t)q1;
     }
     t->bus_g = t->bus_gn;
     if (synth_tap[core != 0].p) {                /* the track's share of the USB audio input (tap_voice's, the pair's

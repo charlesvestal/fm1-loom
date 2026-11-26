@@ -62,6 +62,11 @@ int engine_fits(int trk, int q, int need);               /* need blocks would fi
 void engine_pool_fresh(void);                            /* the pool starts over: FX I, FX II, Master FX, then the
                                                           * tracks in order (a project loaded) */
 void engine_panic(void);
+/* the Mix page's audio mutes (the UI's, every frame): track trk's channel on (0), muted (1: its dry and sends off) or
+ * wet only (2: its dry off, its sends on), and its kit keys muted (bit k: key k); faded ~5 ms. The notes play on */
+enum { AMIX_ON, AMIX_MUTE, AMIX_WET };
+void engine_amix(int trk, int st, int keys);
+extern volatile uint8_t eng_amix[NTRK];
 void engine_transport(int what);                         /* 0 stop, 1 start, 2 continue, 3 start from the top */
 void engine_metronome(int mode);
 void engine_tempo(int bpm_x10);                          /* the tempo in tenths of a BPM (400..3000) */

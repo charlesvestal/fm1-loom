@@ -290,6 +290,15 @@ void engine_master(int p, int val)
         cq_put(C_MASTER, (uint32_t)p, 0, (uint32_t)val);
 }
 void engine_panic(void) { cq_put(C_PANIC, 0, 0, 0); }
+volatile uint8_t eng_amix[NTRK];                  /* (engine.h; bytes and halfwords: written whole, read by the render) */
+static volatile uint16_t eng_akeys[NTRK];
+void engine_amix(int trk, int st, int keys)
+{
+    if (trk < 0 || trk >= NTRK)
+        return;
+    eng_amix[trk] = (uint8_t)st;
+    eng_akeys[trk] = (uint16_t)keys;
+}
 void engine_pool_fresh(void) { cq_put(C_POOL, 0, 0, 0); }
 void engine_metronome(int mode) { cq_put(C_METRO, (uint32_t)mode, 0, 0); }
 void engine_tempo(int bpm_x10)                  /* 400..3000 fits the command's twelve-bit value */
@@ -929,7 +938,8 @@ static void perf_tick(uint32_t n)
         p->hp = (uint8_t)(drum && filt ? PUNCH_HP : 0);
         pan = perf_pan_base[t] + (pan_on ? (int)(lfo * 60.0f) : 0);
         p->pan = (int8_t)(pan < -127 ? -127 : pan > 127 ? 127 : pan);
-        p->mute = (uint8_t)mute;
+        p->mute = (uint8_t)(mute | (eng_amix[t] == AMIX_MUTE) | (eng_amix[t] == AMIX_WET) << 1);   /* (synth.h: the
+                                                                 * punch's and the mixer's) */
         p->send1 = 0;
         p->send2 = 0;
         p->long_tail = (uint8_t)tail;
@@ -1422,7 +1432,7 @@ static void render_drums(uint32_t n, float *d1, float *d2)
     int t;
     PROF_T(pd);
     for (t = 0; t < NTRK; t++) {
-        float g, gl, gr;
+        float g, gl, gr, dry;
         uint32_t pt1;
         int rumble;
         if (!eng_drum[t] || !synth_slots_ring(SY, t, drumline_sounding(DL(t)), n))
@@ -1432,6 +1442,7 @@ static void render_drums(uint32_t n, float *d1, float *d2)
         zerof(tr, n);
         zerof(ts1, n);
         zerof(ts2, n);
+        drumline_amute(DL(t), eng_akeys[t]);              /* (the keys muted at the mixer: the unit's now) */
         rumble = epar[t][TP_CTYPE] == EF_RUMBLE || epar[t][TP_ITYPE] == EF_RUMBLE;
         if (rumble) {                                     /* (its rumble hears the kicks alone) */
             zerof(tk, n);
@@ -1440,10 +1451,11 @@ static void render_drums(uint32_t n, float *d1, float *d2)
             drumline_render(DL(t), tl, tr, ts1, ts2, n);
         synth_kit_slots(SY, t, tl, tr, rumble ? tk : 0, n);   /* its slots, after its bus filter (the keys' sends
                                                           * taken before them, through the filter too) */
-        g = perf_mute[t] || !HOST_ON(t) ? 0.0f : tp_level_gain(epar[t][TP_LEVEL]);
+        g = perf_mute[t] || eng_amix[t] == AMIX_MUTE || !HOST_ON(t) ? 0.0f : tp_level_gain(epar[t][TP_LEVEL]);
         pan_gains(epar[t][TP_PAN] + perf_pan[t], &gl, &gr);
-        glide_set(&trk_glide[t][GL_L], g * gl);
-        glide_set(&trk_glide[t][GL_R], g * gr);
+        dry = eng_amix[t] == AMIX_WET ? 0.0f : g;         /* (wet only: the dry off, the sends on) */
+        glide_set(&trk_glide[t][GL_L], dry * gl);
+        glide_set(&trk_glide[t][GL_R], dry * gr);
 #if TRK_TAP
         if (synth_tap[0].p)
             tap_drum(t, tl, tr, trk_glide[t][GL_SEND].cur < 0.0f ? g : trk_glide[t][GL_SEND].cur, g, n);
