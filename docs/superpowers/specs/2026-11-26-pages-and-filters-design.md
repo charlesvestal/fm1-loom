@@ -19,3 +19,13 @@ The user's decisions, to build after the MOD track (they touch the same engine a
 
 Manual, screen reader words, help cards and the screenshots follow; scenarios that walk GLO or FX with SELECT counts
 are updated.
+
+## Performance ideas (to decide; not in this build)
+
+The user, on the build with the drums filter before the sends: "the drums being down but the returns still having
+the volume there … fun to play with, like turning down just some of the elements". Proceed with sends after the
+filters (above), and keep the move as a performance element:
+- **A "wet only" throw** (Throws page, drums and melodic octaves): the group's dry cut while its sends keep feeding
+  FX I / II — the reverb and echoes alone while held. Gains only. (Preferred.)
+- Or a setting on Master filter's SEL list: the filters before / after the sends.
+Gather the other performance elements with it before deciding.
