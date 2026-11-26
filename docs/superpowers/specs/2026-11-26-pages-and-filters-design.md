@@ -37,3 +37,7 @@ Gather the other performance elements with it before deciding.
   the project not the scenes. Silent if the scene OR the mixer mutes it. The same gestures as Arrange's (black keys;
   a kit's black key held + white keys for its sounds; SEL held: wet only). Shown apart from a scene's mute (a
   crossed speaker, not a dim row). The mixer as the performance surface: these mutes, wet only, the three filters.
+- **Note mutes vs audio** (the user asked): every mute today (Arrange, Mix, the scenes, the shared s->mute / kmute)
+  is a note mute: the sequencer stops the notes (the pump still hears them), what sounds rings out. Mixer mutes would
+  be note mutes too (a second layer). **Wet only cannot be one**: the notes must keep playing into the sends, so it
+  is an audio gain of 0 on the track's dry output, the sends untouched (the voices keep running: the CPU as playing).
