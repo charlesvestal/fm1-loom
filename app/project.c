@@ -113,6 +113,8 @@ static uint8_t old_repeats(uint8_t v)            /* a delay's REPEATS before 27 
     return r;
 }
 static uint8_t old_arp(uint8_t v) { return v == LOCK_NONE ? v : v > 8u ? 10u : (uint8_t)(v + (v > 0u) + (v > 2u)); }
+/* before 33: no 1/4D, the slowest now (every speed one further) */
+static uint8_t arp_up(uint8_t v) { return v == LOCK_NONE ? v : v >= NARPSPD - 1u ? (uint8_t)(NARPSPD - 1u) : (uint8_t)(v + 1u); }
 /* before 28 (presets 17) a track had a character (slot 1 now: its types the catalog's first, numbered as there) and an
  * insert (slot 2: tremolo, univibe, rat, autowah as they were, wet: mix 127; juno and rumble with their mix the slot's;
  * the phaser and the chorus the sends' (their rate the send's knob nearest the LFO's at the tempo; the phaser's centre
@@ -1049,6 +1051,10 @@ int project_load(int slot)
                 if (fx_pick_type(proj.trk[t].par[TP_ENGINE] % NFXPICK) == FXT_DELAY)
                     proj.trk[t].par[TP_E1] = OLD_DLY[(proj.trk[t].par[TP_E1] & 127u) >> 4];
         }
+        if (load_format < 33u)                        /* (before 33 no 1/4D: every speed one further) */
+            for (int t = 0; t < NTRK; t++)
+                if (proj.trk[t].par[TP_PLAYER] % NPL == PL_ARP)
+                    proj.trk[t].par[TP_P1] = arp_up(proj.trk[t].par[TP_P1]);
         if (load_format < 27u)                        /* (before 27 no WOBBLE or SMEAR, and REPEATS was the feedback
                                                        * 0.95 x / 127: the value now nearest it, as it sounded) */
             for (int t = AUX_FX1; t <= AUX_FX2; t++) {
@@ -1103,12 +1109,12 @@ int project_load(int slot)
     } else {
         bad = 1;
     }
-    if (load_format < 21u)                            /* (the arp speeds' locks too: above) */
+    if (load_format < 33u)                            /* (the arp speeds' locks and motion too: above) */
         for (int k = 0; k < NLANE; k++) {
             lane_t *L = &pats.lane[k];
             if (L->used && L->param == TP_P1 && L->trk < NTRK && proj.trk[L->trk].par[TP_PLAYER] % NPL == PL_ARP)
                 for (int i = 0; i < NSTEP; i++)
-                    L->val[i] = old_arp(L->val[i]);
+                    L->val[i] = arp_up(load_format < 21u ? old_arp(L->val[i]) : L->val[i]);
         }
     if (load_format < 30u) {                          /* (the master color: its slot, the catalog's tape and sampler;
                                                        * amount, tone and mix in their places) */

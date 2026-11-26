@@ -1,0 +1,20 @@
+# a format 32 project, from before the arp's 1/4D (format 33: the speeds one further, 1/4D first): saved by that build,
+# for the migration's test (tests/scenarios/migrate.xy). T2 an arp at 1/8 (3), a speed lock on step 5 at 1/4 (0) and
+# one on step 9 at 1/64 (10, the fastest); T3 an arp at 1/4; the master filter's drums at 30 and mix resonance 90
+# (format 32's MS_DFILT and MS_MRES; MS_DRES, now melodic, at 0).
+# Run by a format 32 build (f03fa41): its loom_host tests/fixtures/make_v32.xy OUT
+wait 300
+bpm 117
+param 2 player 1
+param 2 p1 3
+pat 2 1 16 1 50 0
+notes 2 1 1 0.5 100 C3
+lock 2 1 5 p1 0
+lock 2 1 9 p1 10
+param 3 player 1
+param 3 p1 0
+mst dfilt 30
+mst mres 90
+wait 40
+projsave 1 v32_test
+storesave tests/fixtures/store_v32.bin

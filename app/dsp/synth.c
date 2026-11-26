@@ -97,8 +97,8 @@ static const char *const LDEST_N[NLD] = {"synth", "envelope", "filter", "voice",
 static const char *const DUCK_N[11] = {"track 1", "track 2", "track 3", "track 4", "track 5", "track 6", "track 7",
                                        "track 8", "conductor", "throws", "metro"};
 static const char *const PLAYER_N[NPL] = {"off", "arp", "strum", "hold", "rand"};
-static const char *const ARPSPD_N[NARPSPD] = {"1/4", "1/8D", "1/4T", "1/8", "1/16D", "1/8T", "1/16", "1/16T", "1/32", "1/32T",
-                                               "1/64"};
+static const char *const ARPSPD_N[NARPSPD] = {"1/4D", "1/4", "1/8D", "1/4T", "1/8", "1/16D", "1/8T", "1/16", "1/16T", "1/32",
+                                               "1/32T", "1/64"};
 static const char *const ARPPAT_N[6] = {"up", "down", "bounce", "bounce+", "played", "random"};
 static const char *const ARPLEN_N[3] = {"short", "medium", "long"};
 static const char *const ARPSTY_N[6] = {"off", "pedal", "thirds", "double", "skip", "swap"};

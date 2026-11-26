@@ -109,15 +109,15 @@ expect par11.s1x2 127
 expect epar11.s1x2 127
 
 # a format 20 project, from before the arp's dotted speeds and the delay's triplet times (tests/fixtures/make_v20.xy):
-# the arp speeds moved to their places now (1/16 4 -> 6, 1/64 8 -> 10, the lock's 1/4T 1 -> 2), the delay's 1/8D (85)
-# to the middle of its tenth (108)
+# the arp speeds moved to their places now (1/16 4 -> 7, 1/64 8 -> 11, the lock's 1/4T 1 -> 3: format 21's dotted ones
+# and format 33's 1/4D), the delay's 1/8D (85) to the middle of its tenth (108)
 storeload tests/fixtures/store_v20.bin
 reboot
 wait 400
 expect tempo 102
-expect par1.p1 6
-expect par2.p1 10
-expect lock 1 1 1 p1 2
+expect par1.p1 7
+expect par2.p1 11
+expect lock 1 1 1 p1 3
 expect par11.camt 108
 expect epar11.camt 108
 
@@ -598,3 +598,19 @@ expect modglide 2 1 1
 expect modval 2 2 cut 5 90
 expect modval 2 2 cut 3 255
 expect lock 2 1 5 cut 30
+# a format 32 project (tests/fixtures/make_v32.xy), from before the arp's 1/4D (format 33): every arp speed one further
+# (T2's 1/8 3 -> 4, its locks 1/4 0 -> 1 and 1/64 10 -> 11; T3's 1/4 0 -> 1), the notes where they were
+storeload tests/fixtures/store_v32.bin
+reboot
+wait 400
+expect tempo 117
+expect par2.p1 4
+expect lock 2 1 5 p1 1
+expect lock 2 1 9 p1 11
+expect par3.p1 1
+expect note 2 1 1 48
+projsave 1 v32_saved
+reboot
+wait 400
+expect par2.p1 4
+expect lock 2 1 9 p1 11

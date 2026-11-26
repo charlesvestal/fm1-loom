@@ -1340,7 +1340,7 @@ Press **ARP** and turn **KNOB 1** to pick the player: off, arp, strum, hold or r
 
 <img src="img/screen-players.png" width="240" alt="Players: the arp at 1/16, up, one octave, with C4 E4 G4 held" title="The arp">
 
-- **arp** plays the held notes one after another. Page 1 has the speed (1/4 to 1/64, with triplets and dotted 1/8 and 1/16), the pattern
+- **arp** plays the held notes one after another. Page 1 has the speed (1/4D, a dotted quarter, to 1/64, with triplets and dotted 1/8 and 1/16), the pattern
   (up, down, up down 1, up down 2, as played, random) and the range. Page 2 has the note length, a style, glide
   and stereo. Page 3 is hold.
 - **strum** plays a chord from one key, built on that key in the conductor's key and scale. At first it plays a
