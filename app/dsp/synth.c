@@ -2268,6 +2268,7 @@ static void eng_prep(voice_t *v, float bpm)
     default: knit_prep(v); break;
     }
 }
+/* (the engines' runs out of line: inlined here, the -O2 build came to 480 B more for the same loops; a call a sub-block) */
 static void eng_run(voice_t *v, float *xl, float *xr, int m)
 {
     switch (v->engine) {
