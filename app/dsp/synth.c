@@ -4102,52 +4102,69 @@ static float bus_sp[2][NSPLIT][2][BUS_N];
 #else
 static float bus_sp[2][NSPLIT][2][BUS_N] __attribute__((section(".pool")));
 #endif
-/* the slots' memory (chorus, lofi, juno: a block; rumble two: efx.h EFX[].blocks), shared by the tracks' slots: given
- * when a slot asks for it (the first free run of blocks, cleared), kept while its effect stays, given back when it
- * changes (or its mix goes to 0: the slot off) */
-#define INS_SLOT_N EFX_INS_N                     /* (int16 a block: 2 KB) */
-#ifdef PLAT_HOST
-static int16_t ins_pool[INS_SLOTS][INS_SLOT_N];
-#else
-static int16_t ins_pool[INS_SLOTS][INS_SLOT_N] __attribute__((section(".pool")));
-#endif
-static inline int slot_need(int ef) { return ef > EF_OFF && ef < NEF ? EFX[ef].blocks : 0; }
+/* the slots' memory (dsp/efx.h efx_need: a chorus, lofi or juno a block, rumble two, a delay or a reverb many), from
+ * the one pool, after the sends' (efx_send_used: the engine's): given when a slot asks for it (the first free run of
+ * blocks, cleared), kept while its effect (and the reverb's mode) stays, given back when it changes (or its mix goes to
+ * 0: the slot off), or when a send takes it (synth_slots_evict) */
+static inline int slot_mode(const efx_slot_t *sl) { return sl->ef == EF_REVERB && sl->xt[0] < NRV ? sl->xt[0] : 0; }
+static inline int slot_need(const efx_slot_t *sl)
+{
+    return sl->ef > EF_OFF && sl->ef < NEF ? efx_need(sl->ef, slot_mode(sl), 0) : 0;
+}
+static inline uint64_t run_mask(int at, int nb) { return (nb >= 64 ? ~0ull : (1ull << nb) - 1ull) << at; }
 static void ins_alloc(synth_t *s)
 {
-    uint8_t used = 0;
+    uint64_t used = efx_send_used;
     int i, k, q;
     for (i = 0; i < NTRK; i++)                   /* (given back: a slot that no longer needs its memory) */
         for (q = 0; q < 2; q++) {
             efx_slot_t *sl = &s->t[i].sl[q];
-            if (sl->at >= 0 && sl->mef != sl->ef)   /* (another effect: its memory fresh, cleared) */
+            if (sl->at >= 0 && (sl->mef != sl->ef || sl->mmd != slot_mode(sl)))   /* (another effect: its memory
+                                                  * fresh, cleared) */
                 sl->at = -1, sl->nb = 0;
             if (sl->at >= 0)
-                for (k = 0; k < sl->nb; k++)
-                    used |= (uint8_t)(1u << (sl->at + k));
+                used |= run_mask(sl->at, sl->nb);
         }
     for (i = 0; i < NTRK; i++)
         for (q = 0; q < 2; q++) {
             efx_slot_t *sl = &s->t[i].sl[q];
-            int need = slot_need(sl->ef);
+            int need = slot_need(sl);
             if (!need || sl->at >= 0)
                 continue;
-            for (k = 0; k + need <= INS_SLOTS; k++) {
-                uint8_t m = (uint8_t)(((1u << need) - 1u) << k);
+            for (k = 0; k + need <= EFX_NB; k++) {
+                uint64_t m = run_mask(k, need);
                 if (!(used & m)) {
                     used |= m;
                     sl->at = (int8_t)k;
                     sl->nb = (uint8_t)need;
                     sl->mef = sl->ef;
+                    sl->mmd = (uint8_t)slot_mode(sl);
                     sl->zef = EF_OFF;            /* (its states cleared: slot_run) */
                     for (int b = 0; b < need; b++)
-                        for (int j = 0; j < INS_SLOT_N; j++)
-                            ins_pool[k + b][j] = 0;
+                        for (int j = 0; j < EFX_INS_N; j++)
+                            efx_pool[k + b][j] = 0;
                     break;
                 }
             }
         }
 }
-/* how long a track's slots ring on once its sound has ended, in blocks of n (ins_tail): rumble's decay, else 0.1 s */
+void synth_slots_evict(synth_t *s, uint64_t mask)
+{
+    for (int i = 0; i < NTRK; i++)
+        for (int q = 0; q < 2; q++) {
+            efx_slot_t *sl = &s->t[i].sl[q];
+            if (sl->at >= 0 && (run_mask(sl->at, sl->nb) & mask))
+                sl->at = -1, sl->nb = 0;
+        }
+}
+/* a slot's delay or reverb still rings (its memory's states) */
+static int slot_awake(const efx_slot_t *sl)
+{
+    return (sl->ef == EF_DELAY || sl->ef == EF_REVERB) && sl->at >= 0 && sl->zef == sl->ef &&
+           efx_big_awake(efx_pool[(int)sl->at], sl->ef);
+}
+/* how long a track's slots ring on once its sound has ended, in blocks of n (ins_tail): rumble's decay, else 0.1 s (a
+ * delay or a reverb: while it rings, slot_awake) */
 static void ins_tail_set(const synth_t *s, trk_t *t, uint32_t n)
 {
     float sec = 0.1f;
@@ -4163,7 +4180,7 @@ int synth_slot_room(const synth_t *s, int trk, int q)
     if (trk < 0 || trk >= NTRK || q < 0 || q > 1)
         return 1;
     sl = &s->t[trk].sl[q];
-    return !slot_need(sl->ef) || sl->at >= 0;
+    return !slot_need(sl) || sl->at >= 0;
 }
 /* this block's buses (synth_prepare): each track's slots (their effects, knobs, mixes), gains and wow; which voices
  * join which bus; the busiest split */
@@ -4273,7 +4290,7 @@ static void bus_prepare(synth_t *s, uint32_t n)
         }
         if (t->ins_tail)
             t->ins_tail--;
-        if (e < 1e-5f && !t->ins_tail)
+        if (e < 1e-5f && !t->ins_tail && !slot_awake(&t->sl[0]) && !slot_awake(&t->sl[1]))
             continue;
         for (int vi = 0; vi < NVOICE; vi++)
             if (!s->grp[vi] && !v_sounding(&s->v[vi])) {
@@ -4344,7 +4361,7 @@ static void slot_run(synth_t *s, trk_t *t, efx_slot_t *sl, int kit, float *bl, f
             efx_char_stage(x, z, ef, 1, bl, br, (int)n);
         return;
     }
-    efx_insert(ef, &sl->u.in, &sl->ph, sl->at >= 0 ? ins_pool[(int)sl->at] : 0, sl->k, sl->xt, sl->mix,
+    efx_insert(ef, &sl->u.in, &sl->ph, sl->at >= 0 ? efx_pool[(int)sl->at] : 0, sl->k, sl->xt, sl->mix,
                lfo_hz((int)sl->k[0], s->bpm), s->bpm, t->ins_in, bl, br, n);
 }
 /* a bus's pair (bl, br: its voices' sum) through its slots, its gains and sends into l, r, s1, s2, its share of the
@@ -4467,7 +4484,7 @@ int synth_slots_ring(synth_t *s, int trk, int sounding, uint32_t n)
     }
     if (t->ins_tail)
         t->ins_tail--;
-    return t->ins_tail != 0;
+    return t->ins_tail != 0 || slot_awake(&t->sl[0]) || slot_awake(&t->sl[1]);
 }
 void synth_bus_reset(synth_t *s, int core)
 {

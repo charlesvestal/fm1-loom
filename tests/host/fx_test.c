@@ -14,6 +14,7 @@
 #include <string.h>
 #include <stdint.h>
 #include "fx.h"
+#include "fx_old.h"
 #include "fastmath.h"
 #include "instr_count.h"                       /* instr_now, ns_now */
 
@@ -26,7 +27,6 @@ static void check(const char *what, int ok)
     bad += !ok;
 }
 
-static int16_t dly_l[FX_DLY_LEN], dly_r[FX_DLY_LEN], rv[FX_RV_LEN];
 static uint8_t fxb[FXSLOT_BYTES] __attribute__((aligned(8)));
 static uint8_t msb[MASTER_BYTES] __attribute__((aligned(8)));
 static fxslot_t *fx = (fxslot_t *)fxb;
@@ -81,9 +81,9 @@ static void run_fx(int type, const uint8_t knob[4], run_t *r, const char *wav)
     float pl = 0.0f, pr = 0.0f;
     FILE *w = 0;
     memset(r, 0, sizeof *r);
-    fx_init(fx, dly_l, dly_r, rv);
+    fxo_init(fx);
     fx_tempo(fx, 120.0f);
-    fx_set(fx, type, knob);
+    fxo_set(type, knob);
     if (wav)
         wav_open(&w, wav);
     for (b = 0; b < nb; b++) {
@@ -128,11 +128,11 @@ static void impulse(int type, const uint8_t knob[4], float *l, float *r, int n)
 {
     static float in[BLK], ol[BLK], orr[BLK];
     int b, i;
-    fx_init(fx, dly_l, dly_r, rv);
+    fxo_init(fx);
     fx_tempo(fx, 120.0f);
-    fx_set(fx, type, knob);
+    fxo_set(type, knob);
     if (imp_width != 127)
-        fx_width(fx, imp_width);
+        fxo_width(imp_width);
     for (b = 0; type > FXT_REVERB && b < 40; b++) {       /* an SPU mode clears its area first (silent) */
         memset(in, 0, sizeof in);
         fx_process(fx, in, ol, orr, BLK);
@@ -169,8 +169,8 @@ static float centre_time(int pick, const uint8_t kn[4])
     static float in[BLK], ol[BLK], orr[BLK];
     float e = 0.0f, et = 0.0f;
     int b, i;
-    fx_init(fx, dly_l, dly_r, rv);
-    fx_set(fx, pick, kn);
+    fxo_init(fx);
+    fxo_set(pick, kn);
     for (b = 0; b < 40; b++) {                           /* its area cleared */
         memset(in, 0, sizeof in);
         fx_process(fx, in, ol, orr, BLK);
@@ -280,11 +280,21 @@ int main(void)
                 ok &= strlen(fx_knob_name(t, k)) <= 8;
         check("knob names at most 8 letters", ok);
     }
-    check("fx_has: every effect with its lines", fx_has(fx, FXT_REVERB) && fx_has(fx, FXT_REVERB + RV_HALL) &&
-                                                 fx_has(fx, FXT_DELAY) && fx_has(fx, FXT_LOFI) && !fx_has(fx, NFXPICK));
-    fx_init(fx, dly_l, dly_r, 0);
-    check("fx_has: no reverb (no mode) without its line", !fx_has(fx, FXT_REVERB) && !fx_has(fx, FXT_REVERB + RV_ROOM) &&
-                                                          fx_has(fx, FXT_CHORUS));
+    {   /* the memory each needs of the pool on a send (2 KB blocks): the reverb's modes their own */
+        static const uint8_t want[NFXPICK] = {2, 24, 2, 0, 12, 5, 4, 10, 14, 22, 4, 31, 32, 32, 26, 28};
+        int ok = 1;
+        for (t = 0; t < NFXPICK; t++) {
+            uint8_t o[9];
+            fx_pick_slot(t, FXT_DEFAULT[fx_pick_type(t)], 127, 0, 0, o);
+            ok &= efx_need(o[0], o[5], 1) == want[t];
+            if (efx_need(o[0], o[5], 1) != want[t])
+                printf("  %s: %d blocks\n", fx_pick_name(t), efx_need(o[0], o[5], 1));
+        }
+        check("the pool: delay 24 blocks, plate 12, room 5 .. chaos echo 32, lush 26, shimmer 28, chorus 2", ok);
+        fxo_init(fx);
+        fx_memory(fx, 0, 0);
+        check("no memory: silent, not awake", !fx_room(fx) && !fx_awake(fx));
+    }
     {   /* the knobs at their ends, every effect: still finite and bounded */
         int ok = 1, k;
         for (t = 0; t < NFXPICK && ok; t++)
@@ -308,9 +318,9 @@ int main(void)
         for (s = 0; s < 2; s++) {
             float pl = 0.0f, pr = 0.0f;
             int at_l = 0, at_r = 0;
-            fx_init(fx, dly_l, dly_r, rv);
+            fxo_init(fx);
             fx_tempo(fx, 120.0f);
-            fx_set(fx, FXT_DELAY, kn[s]);
+            fxo_set(FXT_DELAY, kn[s]);
             for (b = 0; b < 50000 / BLK; b++) {
                 memset(in, 0, sizeof in);
                 if (b == 0)
@@ -376,9 +386,9 @@ int main(void)
             }
             imp_width = 127;
             {   /* 127 set by fx_width: the same samples as without it */
-                fx_init(fx, dly_l, dly_r, rv);
-                fx_width(fx, 64);
-                fx_width(fx, 127);
+                fxo_init(fx);
+                fxo_width(64);
+                fxo_width(127);
                 impulse(FXT_DELAY, kw, imp_l, imp_r, 24064);
                 for (i = 0; i < 24064; i++)
                     same &= imp_l[i] == l127[i] && imp_r[i] == r127[i];
@@ -426,8 +436,8 @@ int main(void)
     {
         static const uint8_t kn[4] = {127, 127, 0, 0};             /* the lofi at 44.1 kHz, 16 bits, unsmoothed: a wire */
         float lo = 0.0f, hi = 0.0f, lo2 = 0.0f, hi2 = 0.0f;
-        fx_init(fx, dly_l, dly_r, rv);
-        fx_set(fx, FXT_LOFI, kn);
+        fxo_init(fx);
+        fxo_set(FXT_LOFI, kn);
         fx_filter(fx, 0, 127);
         for (b = 0; b < 40; b++) {
             for (i = 0; i < BLK; i++)
@@ -484,7 +494,7 @@ int main(void)
         {   /* switch to the reverb mid-stream: no NaN, no leftover */
             static const uint8_t kr[4] = {64, 64, 64, 127};
             int ok = 1;
-            fx_set(fx, FXT_REVERB, kr);
+            fxo_set(FXT_REVERB, kr);
             for (b = 0; b < 100; b++) {
                 memset(in, 0, sizeof in);
                 memset(ol, 0, sizeof ol);
@@ -504,8 +514,8 @@ int main(void)
             uint8_t kn[4] = {64, 93, 78, (uint8_t)(c ? 127 : 0)};
             float diff = 0.0f, e2 = 0.0f;
             int same = 1;
-            fx_init(fx, dly_l, dly_r, rv);
-            fx_set(fx, FXT_LOFI, kn);
+            fxo_init(fx);
+            fxo_set(FXT_LOFI, kn);
             for (b = 0; b < 60; b++) {
                 for (i = 0; i < BLK; i++)
                     in[i] = 0.3f * noise();
@@ -840,8 +850,8 @@ int main(void)
         {   /* the chaos echo at its own decay: almost endless, still bounded */
             static const uint8_t kn[4] = {127, 127, 64, 0};
             float pk = 0.0f;
-            fx_init(fx, dly_l, dly_r, rv);
-            fx_set(fx, FXT_REVERB + RV_CHAOS_ECHO, kn);
+            fxo_init(fx);
+            fxo_set(FXT_REVERB + RV_CHAOS_ECHO, kn);
             for (b = 0; b < 30 * SR / BLK; b++) {
                 for (i = 0; i < BLK; i++)
                     in[i] = b * BLK + i < SR ? 0.5f * noise() : 0.0f;
@@ -876,7 +886,7 @@ int main(void)
             static const uint8_t kn[4] = {127, 64, 64, 0};
             float pk = 0.0f;
             run_fx(FXT_REVERB + RV_HALL, kn, &r, 0);
-            fx_set(fx, FXT_REVERB + RV_ROOM, kn);
+            fxo_set(FXT_REVERB + RV_ROOM, kn);
             for (b = 0; b < 100; b++) {
                 memset(in, 0, sizeof in);
                 memset(ol, 0, sizeof ol);
@@ -896,8 +906,8 @@ int main(void)
         uint64_t i0, di;
         for (t = 0; t < NFXPICK; t++) {
             static const uint8_t mid[4] = {64, 64, 64, 64};
-            fx_init(fx, dly_l, dly_r, rv);
-            fx_set(fx, t, t > FXT_REVERB ? RV_SPU_DEFAULT : mid);
+            fxo_init(fx);
+            fxo_set(t, t > FXT_REVERB ? RV_SPU_DEFAULT : mid);
             for (b = 0; b < 40; b++)                          /* (an SPU mode clears its area first) */
                 fx_process(fx, in2, a, c, 256);
             for (b = 0; b < 20; b++) {
@@ -958,8 +968,8 @@ int main(void)
             float pk = 0.0f, err = 0.0f;
             for (b = 0; b < 2; b++) {
                 float *yl = b ? yb_l : ya_l, *yr = b ? yb_r : ya_r;
-                fx_init(fx, dly_l, dly_r, rv);
-                fx_set(fx, picks[t], kn[t]);
+                fxo_init(fx);
+                fxo_set(picks[t], kn[t]);
                 fx_tempo(fx, 120.0f);
                 for (i = 0; i < n; i++)
                     yl[i] = yr[i] = 0.0f;
@@ -991,9 +1001,9 @@ int main(void)
         for (int q = 0; q < 4; q++) {
             uint8_t kn[4] = {83, 64, 0, 100};          /* (83: 1/8) */
             kn[2] = rep[q];
-            fx_init(fx, dly_l, dly_r, rv);
-            fx_delay_mod(fx, wob[q], smr[q]);
-            fx_set(fx, FXT_DELAY, kn);
+            fxo_init(fx);
+            fxo_mod(wob[q], smr[q]);
+            fxo_set(FXT_DELAY, kn);
             fx_tempo(fx, 120.0f);
             for (i = 0; i < n; i += BLK) {
                 for (int j = 0; j < BLK; j++)
@@ -1039,9 +1049,9 @@ int main(void)
         for (int q = 0; q < 2; q++) {
             uint8_t kn[4] = {70, 64, 100, 100};
             float *y = q ? c : a, pk = 0.0f;
-            fx_init(fx, dly_l, dly_r, rv);
-            fx_delay_mod(fx, 0, q ? 127 : 0);
-            fx_set(fx, FXT_DELAY, kn);
+            fxo_init(fx);
+            fxo_mod(0, q ? 127 : 0);
+            fxo_set(FXT_DELAY, kn);
             fx_tempo(fx, 120.0f);
             for (i = 0; i < SR; i += BLK) {
                 for (int j = 0; j < BLK; j++)
@@ -1070,8 +1080,8 @@ int main(void)
         for (int q = 0; q < 2; q++) {
             uint8_t kn[4] = {64, 100, 72, 127};
             int n = 0;
-            fx_init(fx, dly_l, dly_r, rv);
-            fx_set(fx, FXT_REVERB + modes[q], kn);
+            fxo_init(fx);
+            fxo_set(FXT_REVERB + modes[q], kn);
             for (b = 0; b < 30; b++) {                       /* (the line cleared first: a new mode is silent a while) */
                 memset(in, 0, sizeof in);
                 fx_process(fx, in, ol, orr, BLK);

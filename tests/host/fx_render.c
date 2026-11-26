@@ -6,6 +6,7 @@
 #include <string.h>
 #include <stdint.h>
 #include "fx.h"
+#include "fx_old.h"
 #include "fastmath.h"
 
 #define SR 44100
@@ -13,7 +14,6 @@
 #define LEN (6 * SR)
 #define DIR "build/fx_renders/"
 
-static int16_t dly_l[FX_DLY_LEN], dly_r[FX_DLY_LEN], rv[FX_RV_LEN];
 static uint8_t fxb[FXSLOT_BYTES] __attribute__((aligned(8)));
 static fxslot_t *fx = (fxslot_t *)fxb;
 static float src_l[LEN], src_r[LEN], out_l[LEN], out_r[LEN];
@@ -73,9 +73,9 @@ static void reverb_render(const char *name, int pick, const uint8_t kn[4], const
 {
     static float in[BLK], ol[BLK], orr[BLK];
     int b, i;
-    fx_init(fx, dly_l, dly_r, rv);
+    fxo_init(fx);
     fx_tempo(fx, 120.0f);
-    fx_set(fx, pick, kn);
+    fxo_set(pick, kn);
     fx_filter(fx, 20, 127);                                     /* the default project's FX II filter */
     for (b = 0; b < 40; b++) {                                  /* an SPU mode clears its area first */
         memset(in, 0, sizeof in);

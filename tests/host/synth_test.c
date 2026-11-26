@@ -2080,7 +2080,7 @@ static void insert_tests(void)
     check("insert tremolo: full depth swings the level; pan at the top swings the sides apart",
           finite && lo[0] < hi[0] * 0.2f && lo[1] < hi[1] * 0.5f && corr > 0.0f);
     {   /* every effect of the catalog in either slot at its knobs' defaults on a chord: it sounds, finite, under 2, not
-         * as off (the delay and the reverb pass dry on a track: no memory until the one pool) */
+         * as off (the delay and the reverb too: their memory from the one pool; the delay wet: silent till its echo) */
         static float off[30 * N], flat[30 * N];   /* (off; a flat tilt: on the bus, the bus's gain gliding in) */
         int ok = 1;
         for (int q = 0; q < 2; q++)
@@ -2111,14 +2111,16 @@ static void insert_tests(void)
                 printf("    slot %d %s: peak %.2f, level %.1f dB, from off %.1f dB%s\n", q + 1, EFX[ty].name, (double)pk,
                        10.0 * log10(e / (30.0 * N) + 1e-20), 10.0 * log10(d / (e + 1e-20) + 1e-20),
                        synth_slot_room(S, 0, q) ? "" : " (no memory)");
+                if (ty == EF_DELAY)              /* (wet: its first echo comes after these blocks, below) */
+                    e = d = 1.0;
                 if (!(pk < 2.0f && e > 1e-3))
                     ok = 0;
-                if (ty == EF_DELAY || ty == EF_REVERB ? !(dd < e * 1e-8) || synth_slot_room(S, 0, q)
-                                                      : ty && !(d > e * 1e-3))
+                if ((ty && !(d > e * 1e-3)) || !synth_slot_room(S, 0, q))
                     ok = 0;
+                (void)dd;
             }
-        check("every effect in either slot sounds, finite, under 2, and changes the sound (the delay and the reverb: "
-              "dry, no memory)", ok && finite);
+        check("every effect in either slot sounds, finite, under 2, and changes the sound (the delay and the reverb "
+              "too)", ok && finite);
     }
     {   /* an effect alone sounds the same in slot 1 or slot 2 (ring and tape on the voices in either; the rest on the
          * bus), sample for sample; the two slots in order (rat then tremolo is not tremolo then rat) */
@@ -2180,15 +2182,43 @@ static void insert_tests(void)
         printf("    chorus in a slot, wet: its 55 Hz %.1f dB from the dry's\n", 10.0 * log10(lo[1] / (lo[0] + 1e-30) + 1e-30));
         check("a chorus in a slot keeps its lows", finite && lo[1] > lo[0] * 0.25);
     }
-    {   /* the delay in a slot: no memory on a track yet (the one pool: phase 3), dry; the pool: five junos, four with
-         * memory, the fifth without; five choruses, four */
+    {   /* a delay in a slot: its memory from the pool, its echo on the beat after the note has ended (the bus rings on:
+         * slot_awake); a reverb in a slot rings on too. The pool: beside the default sends (FX I's delay, FX II's lush:
+         * 50 of its blocks), five rumbles of six, no delay; the sends gone, all six; a send taking a slot's blocks back
+         * (synth_slots_evict): that slot's memory elsewhere */
         float late = 0.0f;
         int ended = 0, room = 0;
-        reset();
-        slot_set(0, 1, EF_DELAY);
-        synth_init(S, par);
-        block(N, &finite);
-        check("a delay in a slot: no memory (it passes dry)", !synth_slot_room(S, 0, 1) && synth_slot_room(S, 0, 0));
+        for (int q = 0; q < 2; q++) {
+            float before = 0.0f, echo = 0.0f;
+            reset();
+            par[0][TP_A] = 0;
+            par[0][TP_D] = 20;
+            par[0][TP_S] = 0;
+            par[0][TP_R] = 5;
+            slot_set(0, 1, q ? EF_REVERB : EF_DELAY);
+            par[0][TP_SLOT[1][SL_MIX]] = 64;
+            synth_init(S, par);
+            synth_tempo(S, 120.0f);
+            synth_note_on(S, 0, 60, 110, 0, 1);
+            for (int b = 0; b * N < 2 * 44100; b++) {
+                block(N, &finite);
+                if (b == 4)
+                    synth_note_off(S, 0, 1);
+                for (int i2 = 0; i2 < (int)N; i2++) {
+                    int at = b * (int)N + i2;            /* (1/8 at 120 BPM: 11025 samples) */
+                    float v = L[i2] * L[i2];
+                    if (at >= 8000 && at < 10500)
+                        before += v;
+                    else if (at >= 11025 && at < 13500)
+                        echo += v;
+                }
+            }
+            printf("    %s in a slot, the note ended: %.1f dB before 1/8, %.1f dB at it\n", q ? "reverb" : "delay",
+                   10.0 * log10((double)before + 1e-20), 10.0 * log10((double)echo + 1e-20));
+            check(q ? "a reverb in a slot: its memory, its tail after the note" : "a delay in a slot: its memory, its "
+                  "echo on the beat after the note", synth_slot_room(S, 0, 1) && finite &&
+                  (q ? echo > 1e-6f : echo > before * 30.0f && echo > 1e-4f));
+        }
         {   /* rumble: a short low note, then its tail after the voice has ended: low (few zero crossings) */
             int zc = 0, nn = 0;
             float prev = 0.0f;
@@ -2300,22 +2330,39 @@ static void insert_tests(void)
                    10.0 * log10(e[1] + 1e-20));
             check("rumble: decay 0 gates its tail (30 dB under the default's by 0.6 s)", finite && e[1] < e[0] * 1e-3);
         }
-        for (int pass = 0; pass < 2; pass++) {   /* (a juno: a slot; a chorus, its line 2 KB: one) */
-            int got = 0;
+        {
+            int got = 0, gone, moved;
             reset();
-            for (int t = 0; t < 5; t++)
-                slot_set(t, 1, pass ? EF_CHORUS : EF_JUNO);
+            for (int t = 0; t < 6; t++)
+                slot_set(t, 1, EF_RUMBLE);
+            slot_set(6, 0, EF_DELAY);
+            efx_send_used = (1ull << 50) - 1u;   /* (the default sends) */
             synth_init(S, par);
             block(N, &finite);
-            for (int t = 0; t < 5; t++)
+            for (int t = 0; t < 6; t++)
                 got += synth_slot_room(S, t, 1);
-            room = room * 10 + got;
-            for (int t = 0; t < 5; t++)
-                par[t][TP_ITYPE] = EF_OFF;
+            room = got * 10 + synth_slot_room(S, 6, 0);
+            efx_send_used = 0;
+            block(N, &finite);
+            got = 0;
+            for (int t = 0; t < 6; t++)
+                got += synth_slot_room(S, t, 1);
+            room = room * 100 + got * 10 + synth_slot_room(S, 6, 0);
+            efx_send_used = ~0ull >> (64 - EFX_NB);   /* (a send takes every block back: none of the slots keeps one) */
+            synth_slots_evict(S, efx_send_used);
+            block(N, &finite);
+            gone = !synth_slot_room(S, 0, 1) && !synth_slot_room(S, 6, 0);
+            efx_send_used = (1ull << 20) - 1u;   /* (then a third: theirs again, elsewhere) */
+            block(N, &finite);
+            moved = synth_slot_room(S, 0, 1) && synth_slot_room(S, 6, 0);
+            efx_send_used = 0;
+            printf("    the pool: %d (rumbles, a delay: beside the sends, then alone)\n", room);
+            check("the slots' memory beside the sends: five rumbles of six, no delay; alone all; a send takes it back",
+                  room == 5061 && gone && moved && finite);
+            check("a track's memory needs: delay 24 blocks, plate 12, lush 27, a chorus 1 (a send's 2)",
+                  efx_need(EF_DELAY, 0, 0) == 24 && efx_need(EF_REVERB, RV_PLATE, 0) == 12 &&
+                  efx_need(EF_REVERB, RV_LUSH, 0) == 27 && efx_need(EF_CHORUS, 0, 0) == 1 && efx_need(EF_CHORUS, 0, 1) == 2);
         }
-        printf("    the pool: %d\n", room);
-        check("the slots' memory: four junos have it, the fifth not; four choruses, the fifth not (they pass dry)",
-              room == 44 && finite);
         (void)late, (void)ended;
     }
     {

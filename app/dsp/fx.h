@@ -1,79 +1,65 @@
 /* SPDX-License-Identifier: MPL-2.0 */
-/* LOOM-8 effects: the two send-effect tracks (fx I, fx II: one of chorus, delay, lofi, phaser, reverb each,
- * four knobs of its own; the reverb in one of eleven modes: the plate, or one of the PlayStation's SPU
- * reverbs) and the master section (3-band EQ with blend, compressor, limiter, group
- * levels).
+/* LOOM-8 effects: the two send-effect tracks (FX I, FX II: each a slot of the one effects list, dsp/efx.h) and the
+ * master section (3-band EQ, its color, compressor, limiter, group levels).
  *
- * All run in the audio interrupt. Buffers for the delay and the reverb live in the pool;
- * the caller passes them in (their sizes are the memory plan's). Float, fastmath.h. */
+ * All run in the audio interrupt (the sends' delay, reverb and chorus on the second core, a block late). Float,
+ * fastmath.h. */
 #pragma once
 #include <stdint.h>
 #include "efx.h"                             /* the effects themselves (dsp/efx.c), the reverb's modes, the lines' sizes */
 
-enum { FXT_CHORUS, FXT_DELAY, FXT_LOFI, FXT_PHASER, FXT_REVERB, NFXT };
-extern const char *const FXT_NAME[NFXT];
-/* the reverb's modes (RV_*, rv_lush, RV_NAME): efx.h */
-/* a track's TP_ENGINE byte names the effect and, for the reverb, its mode: the "pick", 0..NFXPICK-1:
- * chorus, delay, lofi, phaser, then the reverb's modes in order (FXT_REVERB + mode) */
-#define NFXPICK (FXT_REVERB + NRV)
-static inline int fx_pick_type(int pick) { return pick < FXT_REVERB ? (pick < 0 ? 0 : pick) : FXT_REVERB; }
-static inline int fx_pick_mode(int pick) { return pick < FXT_REVERB ? 0 : pick - FXT_REVERB < NRV ? pick - FXT_REVERB : 0; }
-const char *fx_pick_name(int pick);            /* "chorus" .. "phaser", "plate" .. "one echo" (the mode's name) */
-const char *fx_knob_name(int pick, int k);     /* the four knobs' names (the plate's and the SPU modes' differ) */
-/* the knobs and their defaults (stored 0..127), and what the defaults sound like:
- *   chorus      rate depth feedback width        50 86 20 127   0.33 Hz, +-5.5 ms, light feedback, the sides opposite
- *   delay       time fine repeats tone           83 64 56 64    1/8 ping-pong, ~4 repeats, repeats low-passed at 4 kHz
- *   lofi        rate bits smooth width           80 80 64 40    8.4 kHz, 11 bits, half smoothed, the right 3.4 ms late
- *   phaser      freq depth rate feedback         50 90 50 80    466 Hz, +-2.1 octaves, 0.27 Hz, feedback 0.57
- *   plate       size motion tone damp            100 40 44 72   combs x1.43 (feedback 0.88), a little wander, 7.4 kHz, damp 0.45
- *   SPU modes   size decay tone damp             127 64 64 0    the console's own: its delays (x4 of the registers), its
- *                                                               wall feedback, flat, its own reflection filter
- *   lush        size decay tone damp             64 64 56 48    Dattorro's lengths x1 (pre-delay 19 ms), a tail of
- *                                                               ~1.4 s (decay: 0.6 .. 7 s to fall 60 dB, whatever the
- *                                                               size), a little darker, the tank's damping at 0.39
- *   shimmer     size decay tone shimmer          64 84 72 72    lush's, a longer tail, brighter, the tank's damping
- *                                                               light (fixed at 0.2), its output an octave up fed back
- *                                                               at about a quarter (shimmer: 0 .. 0.45)
- * delay time: 1/32 1/16T 1/32D 1/16 1/8T 1/16D 1/8 1/4T 1/8D 1/4 of the tempo (one too long for the line, 0.5 s,
- * halved till it fits: 1/4 below 120 BPM, 1/8D below 90), fine +-25 %; delay tone: the repeats' low-pass,
- * 800 Hz .. 19 kHz; reverb tone: a low-pass below the centre, a high-pass above it; plate damp: the combs' damping.
- * SPU size: the delays from x1 of the registers (schwung-psxverb's) to x4 (the console's: the registers count
- * 8-byte units); SPU decay: the wall reflection's feedback, 0.5x .. x1 (64) .. as far as it stays stable;
- * SPU damp: the reflections' low-pass (vIIR) closes. The FX tracks are plain send / return: an effect's output
- * is the wet sound only. */
-extern const uint8_t FXT_DEFAULT[NFXT][4];      /* the reverb's row: the plate's */
-extern const uint8_t RV_SPU_DEFAULT[4];         /* the SPU modes' */
-extern const uint8_t RV_LUSH_DEFAULT[4];        /* lush's */
-extern const uint8_t RV_SHIMMER_DEFAULT[4];     /* shimmer's */
-
+/* ---- the sends ----
+ * A send is a slot of the one effects list, the same layout as a track's slot 1 (synth.h TP_SLOT[0]): any effect of
+ * the catalog, its three knobs and its extras; its mix is the return level (the engine's). Its input is mono (the
+ * tracks' sends summed), its return stereo, wet only. The chorus, the delay, the lofi, the phaser and the reverb are
+ * the sends' own (efx_send_*: the knobs as the catalog has them, efx.h; the delay's fine, width, wobble and smear its
+ * extras, the reverb's mode and damp, shimmer's amount, theirs); the others run as on a kit's slot (ring at a ratio of
+ * C4, tape without its wow), wet. Memory from the pool (fx_need, fx_memory: the engine's, each block); without enough
+ * the send is silent ("no memory": fx_room). Its filter page (high-pass, low-pass) on the send before the effect: one
+ * filter instead of two, and the same result for the linear effects.
+ * The delay's time: 1/32 1/16T 1/32D 1/16 1/8T 1/16D 1/8 1/4T 1/8D 1/4 of the tempo (one too long for the line, 0.5 s,
+ * halved till it fits: 1/4 below 120 BPM, 1/8D below 90), fine +-25 %; its tone the repeats' low-pass, 800 Hz .. 19
+ * kHz. The reverb's tone: a low-pass below the centre, a high-pass above it; the plate's damp its combs' damping, an SPU
+ * mode's its reflections' low-pass (vIIR) closing; an SPU mode's size its delays x1 .. x4 of the registers, its decay
+ * the wall's feedback (0.5x .. x1 at 64 .. as far as it stays stable). */
 typedef struct fxslot fxslot_t;
-#define FXSLOT_BYTES 5760             /* the chorus line (2048 int16: 4 KB, the lofi's spread reads it too) and the states */
-
-void fx_init(fxslot_t *f, int16_t *dly_l, int16_t *dly_r, int16_t *rv);   /* a slot gets the lines it may use;
-                                                                            * a slot without a reverb line (0) has no
-                                                                            * reverb (fx I: the memory plan) */
-void fx_set(fxslot_t *f, int pick, const uint8_t knob[4]);  /* the slot's effect (a pick: the type and the reverb's
-                                                             * mode) and its four knobs (0..127) */
+#define FXSLOT_BYTES 2048
+void fx_init(fxslot_t *f);
+void fx_set(fxslot_t *f, int ef, const uint8_t k[3], const uint8_t x[4]);   /* the effect (EF_*), its knobs and extras
+                                                                           * (0..127; the reverb's mode its first) */
+int fx_need(const fxslot_t *f);              /* the blocks of the pool its effect (as set) needs */
+void fx_memory(fxslot_t *f, int16_t *mem, int nb);   /* its memory (0: none): another place is cleared, its effect fresh */
+int fx_room(const fxslot_t *f);              /* its memory holds its effect (as set) */
+int fx_effect(const fxslot_t *f, int *mode); /* its effect (EF_*) and the reverb's mode, as set */
 void fx_tempo(fxslot_t *f, float bpm);
 int fx_delay_halves(int time, int fine, float bpm);          /* the times the line halves it (0: as set; the delay's
                                                              * divisions FX_DL_N, its REPEATS' feedback: efx.h) */
-void fx_delay_mod(fxslot_t *f, int wobble, int smear);      /* the delay's WOBBLE and SMEAR, 0..127 (0: off) */
 void fx_filter(fxslot_t *f, int hp, int lp);                /* the slot's filter page: high-pass, low-pass 0..127 */
-void fx_width(fxslot_t *f, int w);                          /* the delay's PING WIDTH: 0 the echoes centred .. 127 hard
-                                                             * left and right (the default), the same power */
 /* process n frames of the send (mono in) into out L/R (added) */
 void fx_process(fxslot_t *f, const float *in, float *out_l, float *out_r, uint32_t n);
 /* the same for a send that arrives lag samples late (0..256: the engine runs the effects a block behind, on the
  * second core): the chorus, the delay and the plate put it back in time in their lines (their output as without the
- * lag, but for the lines' rounding); the SPU modes take it as that much more pre-delay. fx_lags: the effect is one of
- * those (the lofi and the phaser have no line to hide it in: the engine runs them in time) */
+ * lag, but for the lines' rounding); the SPU modes and lush take it as that much more pre-delay. fx_lags: the effect
+ * is one of those (the rest have no line to hide it in: the engine runs them in time) */
 void fx_process_lag(fxslot_t *f, const float *in, float *out_l, float *out_r, uint32_t n, int lag);
 int fx_lags(const fxslot_t *f);
-void fx_clear(fxslot_t *f);                                 /* its lines and states at rest, its settings kept */
-int fx_has(const fxslot_t *f, int pick);                    /* the slot can do this effect (reverb needs its line) */
+void fx_clear(fxslot_t *f);                                 /* its memory and states at rest, its settings kept */
 int fx_awake(const fxslot_t *f);                            /* the slot works this block: its input heard, or its line
                                                             * still ringing (a delay or reverb sleeps on silence; the
-                                                            * others always work) */
+                                                            * others always work; no memory: none) */
+/* before the one effects list (projects before format 29): an FX track's TP_ENGINE was a "pick" (chorus, delay,
+ * lofi, phaser, then the reverb's modes in order: FXT_REVERB + mode), its four knobs TP_E1..E4, the delay's PING
+ * WIDTH, WOBBLE and SMEAR TP_X1..X3. fx_pick_slot: those as the slot's values, in synth.h SL_* order (the effect,
+ * knobs 1..3, the mix left as it is, extras 1..4) */
+enum { FXT_CHORUS, FXT_DELAY, FXT_LOFI, FXT_PHASER, FXT_REVERB, NFXT };
+#define NFXPICK (FXT_REVERB + NRV)
+static inline int fx_pick_type(int pick) { return pick < FXT_REVERB ? (pick < 0 ? 0 : pick) : FXT_REVERB; }
+static inline int fx_pick_mode(int pick) { return pick < FXT_REVERB ? 0 : pick - FXT_REVERB < NRV ? pick - FXT_REVERB : 0; }
+void fx_pick_slot(int pick, const uint8_t e[4], int width, int wobble, int smear, uint8_t *o);
+extern const char *const FXT_NAME[NFXT];
+extern const uint8_t FXT_DEFAULT[NFXT][4], RV_LUSH_DEFAULT[4];
+const char *fx_pick_name(int pick);
+const char *fx_knob_name(int pick, int k);
 
 /* ---- master ---- */
 /* the master's knobs, three pages: EQ (low, mid, high; 64 flat), color (type, amount, tone, mix), out (drums, melodic,

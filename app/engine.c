@@ -84,13 +84,7 @@ static void dl_drop(int t)
 }
 #define FXS(k) ((fxslot_t *)(void *)fx_mem[k])
 #define MST ((master_t *)(void *)mst_mem)
-/* the lines (the memory plan, docs/superpowers/specs: one delay, one reverb). FX I has
- * the delay lines, FX II the reverb line: the notebook's default project (FX I delay, FX II reverb) and the
- * classic delay-into-reverb (FX I's return feeds FX II). A second delay pair (88 KB) or reverb line (64 KB:
- * the SPU modes at the console's size) does not fit beside the canvas and the patterns; fx_has() tells the
- * UI which effects a slot can do. */
-static int16_t dly1_l[FX_DLY_LEN] POOL, dly1_r[FX_DLY_LEN] POOL;
-static int16_t rv2_line[FX_RV_LEN] POOL;
+/* the sends' memory: the one pool's (dsp/efx.h efx_pool), first (pool_sends) */
 
 /* the engine's parameter copy (drumlines, FX read it; locks override it) and the project's
  * contiguous array (app.h proj_par: the synth and the sequencer read that one) */
@@ -98,7 +92,6 @@ static uint8_t epar[NALLTRK][NTP];
 static uint8_t (*ppar)[NTP];
 static uint8_t lock_on[NALLTRK][NTP / 8 + 1];     /* bit: the parameter is under a lock */
 static uint8_t eng_drum[NTRK];                     /* the track's engine is the drumline (ISR's view) */
-static uint8_t fx_type[2];                        /* each slot's effect, as set */
 static uint32_t metro_left;                       /* the metronome's click: samples left, phase, rate */
 static float metro_ph, metro_inc;
 static int16_t bend_c[NTRK];                      /* the bend component's cents, per track */
@@ -242,7 +235,7 @@ static void guard_apply(void)
 /* ------------------------------------------------------- command queue --- */
 /* uint32 commands, single producer (main loop) / single consumer (audio ISR): type:4 | a:8 | b:8 | c:12 (C_PARAM: b
  * the parameter's low eight bits, c its value and, at bit 8, its ninth: synth.h NTP) */
-enum { C_PARAM, C_ALL, C_KEY, C_KEYS_OFF, C_PUNCH, C_BRAIN_KEY, C_MASTER, C_FX, C_PANIC,
+enum { C_PARAM, C_ALL, C_KEY, C_KEYS_OFF, C_PUNCH, C_BRAIN_KEY, C_MASTER, C_PANIC,
        C_METRO, C_TEMPO, C_GROOVE, C_SCENE, C_NOP };     /* at most sixteen: the type is four bits */
 #define CQ 512u
 static uint32_t cq[CQ];
@@ -257,11 +250,6 @@ static void cq_put(uint32_t type, uint32_t a, uint32_t b, uint32_t c)
     __asm__ volatile("" ::: "memory");
     cq_w = w + 1;
 }
-
-/* the FX settings travel beside the queue (too many bytes for one word): the main loop writes them,
- * posts C_FX, and the interrupt reads them whole at the next block. A knob caught between two writes
- * lasts one block. */
-static struct { uint8_t type, knob[4], hp, lp, width, wobble, smear; } fx_req[2];
 
 /* the knob's value into the contiguous array the synth and the sequencer read (one byte: safe beside
  * the interrupt), then the command, for what needs doing with it (a kind change, a unit told) */
@@ -299,21 +287,6 @@ void engine_master(int p, int val)
 {
     if (p >= 0 && p < NMS)
         cq_put(C_MASTER, (uint32_t)p, 0, (uint32_t)val);
-}
-void engine_fx(int slot, int type, const uint8_t knob[4], int hp, int lp, int width, int wobble, int smear)
-{
-    int k;
-    if (slot < 0 || slot > 1)
-        return;
-    fx_req[slot].type = (uint8_t)type;
-    for (k = 0; k < 4; k++)
-        fx_req[slot].knob[k] = knob[k];
-    fx_req[slot].hp = (uint8_t)hp;
-    fx_req[slot].lp = (uint8_t)lp;
-    fx_req[slot].width = (uint8_t)width;
-    fx_req[slot].wobble = (uint8_t)wobble;
-    fx_req[slot].smear = (uint8_t)smear;
-    cq_put(C_FX, (uint32_t)slot, 0, 0);
 }
 void engine_panic(void) { cq_put(C_PANIC, 0, 0, 0); }
 void engine_metronome(int mode) { cq_put(C_METRO, (uint32_t)mode, 0, 0); }
@@ -456,14 +429,24 @@ static int is_filter_param(int param)
 static uint8_t fx_c2;                                      /* the effects' job runs on the second core (from the
                                                             * block's start): their knobs wait for it (fx_dirty) */
 static uint8_t fx_dirty;
+/* an FX track's values (epar) to its send: the effect, its knobs and extras (fx.h fx_pick_slot: the track's pick, four
+ * knobs and the delay's three), its filter page */
+static void fx_apply(int k)
+{
+    const uint8_t *p = epar[AUX_FX1 + k];
+    uint8_t o[9];
+    fx_pick_slot(p[TP_ENGINE] % NFXPICK, p + TP_E1, p[TP_FX_WIDTH], p[TP_FX_WOBBLE], p[TP_FX_SMEAR], o);
+    fx_set(FXS(k), o[0], o + 1, o + 5);
+    fx_filter(FXS(k), p[TP_FENV], p[TP_CUT]);
+}
 static void aux_changed(int trk, int param)
 {
-    const uint8_t *p = epar[trk];
-    if ((trk == AUX_FX1 || trk == AUX_FX2) && param >= TP_E1 && param <= TP_E4) {
+    (void)param;
+    if (trk == AUX_FX1 || trk == AUX_FX2) {
         if (fx_c2)
             fx_dirty |= (uint8_t)(1u << (trk - AUX_FX1));
         else
-            fx_set(FXS(trk - AUX_FX1), fx_type[trk - AUX_FX1], p + TP_E1);
+            fx_apply(trk - AUX_FX1);
     }
 }
 static void midi_knob_cc(int trk, int param, int val);
@@ -999,22 +982,6 @@ static void drain(void)
         case C_PUNCH: seq_punch_key(&seq, (int)a, (int)b, v == 0xFFu ? -1 : (int)v); break;
         case C_BRAIN_KEY: seq_brain_key(&seq, (int)a, (int)b); break;
         case C_MASTER: master_set(MST, (int)a, (int)v); break;
-        case C_FX:
-            if (a < 2u) {
-                int k, type = fx_req[a].type;
-                if (!fx_has(FXS(a), type))
-                    type = FXT_CHORUS;                      /* what the slot runs instead (fx_set's fallback) */
-                /* (type: the pick, fx.h: the effect and the reverb's mode) */
-                fx_type[a] = (uint8_t)type;
-                for (k = 0; k < 4; k++)
-                    epar[AUX_FX1 + a][TP_E1 + k] = fx_req[a].knob[k];
-                epar[AUX_FX1 + a][TP_ENGINE] = (uint8_t)type;
-                fx_delay_mod(FXS(a), fx_req[a].wobble, fx_req[a].smear);   /* (before fx_set: its numbers) */
-                fx_set(FXS(a), type, fx_req[a].knob);
-                fx_filter(FXS(a), fx_req[a].hp, fx_req[a].lp);
-                fx_width(FXS(a), fx_req[a].width);
-            }
-            break;
         case C_PANIC: {
             int t;
             synth_all_off(SY, -1);
@@ -1208,8 +1175,56 @@ static void fx_done(void)
     fx_c2 = 0;
     for (k = 0; k < 2; k++)
         if (fx_dirty >> k & 1u)
-            fx_set(FXS(k), fx_type[k], epar[AUX_FX1 + k] + TP_E1);
+            fx_apply(k);
     fx_dirty = 0;
+}
+/* the sends' memory from the one pool, each block before their job (their effects as set: drain's): FX I first, then
+ * FX II, each where it is while its effect needs as much, else the first free run (a track's slot in the way gives
+ * its memory up: synth_slots_evict, before synth_prepare gives the tracks theirs). FX I that finds no run beside FX II
+ * takes the pool's start and FX II goes after it; FX II that finds none beside FX I, when both fit, the same (both
+ * start fresh). A send left without memory is silent ("no memory") */
+static int8_t snd_at[2] = {-1, -1};
+static uint8_t snd_nb[2];
+static inline uint64_t snd_run(int at, int nb) { return nb <= 0 ? 0u : (nb >= 64 ? ~0ull : (1ull << nb) - 1ull) << at; }
+static int snd_fit(uint64_t used, int need)
+{
+    for (int k = 0; k + need <= EFX_NB; k++)
+        if (!(used & snd_run(k, need)))
+            return k;
+    return -1;
+}
+static void pool_sends(void)
+{
+    int k, need[2];
+    uint64_t m;
+    for (k = 0; k < 2; k++) {
+        need[k] = fx_need(FXS(k));
+        if (snd_at[k] >= 0 && snd_nb[k] != need[k])
+            snd_at[k] = -1;
+    }
+    for (k = 0; k < 2; k++)
+        if (need[k] && snd_at[k] < 0) {
+            int o = !k, at = snd_fit(snd_at[o] >= 0 ? snd_run(snd_at[o], snd_nb[o]) : 0u, need[k]);
+            if (at < 0 && snd_at[o] >= 0 && need[0] + need[1] <= EFX_NB) {   /* (the other in the way: FX I at the
+                                                  * start, FX II after it) */
+                snd_at[o] = -1;
+                if (k) {
+                    snd_at[0] = 0;
+                    at = need[0];
+                } else
+                    at = 0;
+            }
+            snd_at[k] = (int8_t)at;
+        }
+    for (k = 0; k < 2; k++)
+        snd_nb[k] = (uint8_t)(snd_at[k] >= 0 ? need[k] : 0);
+    m = (snd_at[0] >= 0 ? snd_run(snd_at[0], snd_nb[0]) : 0u) | (snd_at[1] >= 0 ? snd_run(snd_at[1], snd_nb[1]) : 0u);
+    if (m != efx_send_used) {
+        synth_slots_evict(SY, m);
+        efx_send_used = m;
+    }
+    for (k = 0; k < 2; k++)
+        fx_memory(FXS(k), snd_at[k] >= 0 ? efx_pool[(int)snd_at[k]] : 0, snd_nb[k]);
 }
 static volatile uint32_t c2_took;                          /* the last job's time (plat_cycles) */
 /* the voices shared out as the cores go (render_sub): the stretch's voices in ws_ord (grouped by engine: each core
@@ -1636,6 +1651,7 @@ void engine_render(int32_t *out_lr, uint32_t n, uint32_t gain_q12)
         PROF_T(pt);
         float bpm;
         drain();
+        pool_sends();
         PROF_ADD(PR_DRAIN, pt);
         bpm = seq_tempo(&seq);
         synth_tempo(SY, bpm);
@@ -1856,12 +1872,13 @@ void engine_init(patterns_t *P, uint8_t (*par)[NTP])
     dl_rehome();                                          /* (the silent kits: none takes a unit here) */
     for (k = 0; k < 2; k++)
         ret_glide[k][0].cur = ret_glide[k][1].cur = -1.0f;
-    fx_init(FXS(0), dly1_l, dly1_r, 0);                   /* FX I: the delay lines, no reverb */
-    fx_init(FXS(1), 0, 0, rv2_line);                      /* FX II: the reverb line, no delay */
-    fx_type[0] = epar[AUX_FX1][TP_ENGINE];
-    fx_type[1] = epar[AUX_FX2][TP_ENGINE];
-    fx_set(FXS(0), fx_type[0], epar[AUX_FX1] + TP_E1);
-    fx_set(FXS(1), fx_type[1], epar[AUX_FX2] + TP_E1);
+    for (k = 0; k < 2; k++) {                             /* (their memory: the first block's pool_sends) */
+        fx_init(FXS(k));
+        fx_apply(k);
+        snd_at[k] = -1;
+        snd_nb[k] = 0;
+    }
+    efx_send_used = 0;
     master_init(MST);
     seq_init(&seq, P, par);
     seq.groove_type = (uint8_t)(proj.groove < NGROOVE ? proj.groove : GR_SWING);
@@ -1871,5 +1888,5 @@ void engine_init(patterns_t *P, uint8_t (*par)[NTP])
     eng_voices_max = NVOICE;
 }
 
-/* the UI asks before offering an effect: FX I has no reverb line, FX II no delay (the memory plan) */
-int engine_fx_has(int slot, int pick) { return fx_has(FXS(slot & 1), pick); }
+/* the pages: the send's memory holds its effect */
+int engine_fx_room(int slot) { return fx_room(FXS(slot & 1)); }

@@ -5988,11 +5988,12 @@ static void draw_slot(int q)
     if (!room) {                                     /* (the slots' memory taken: which tracks have it) */
         char *e = s_cat(t, "no memory");
         int n = 0;
-        for (int k = 0; k < NTRK && EFX[ef].blocks <= INS_SLOTS; k++) {   /* (the delay and the reverb: none yet) */
+        for (int k = 0; k < NTRK; k++) {
             int has = 0;
             for (int r = 0; r < 2; r++) {
-                int o = proj.trk[k].par[TP_SLOT[r][SL_EF]];
-                has |= (k != trk || r != q) && o < NEF && EFX[o].blocks && proj.trk[k].par[TP_SLOT[r][SL_MIX]];
+                const uint8_t *o = proj.trk[k].par;
+                int oe = o[TP_SLOT[r][SL_EF]];
+                has |= (k != trk || r != q) && oe < NEF && o[TP_SLOT[r][SL_MIX]] && efx_need(oe, o[TP_SLOT[r][SL_X1]], 0);
             }
             if (has)
                 e = s_cat(s_cat(e, n++ ? " " : ": "), TRACK_NAME[k]);

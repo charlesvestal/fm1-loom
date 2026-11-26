@@ -1384,10 +1384,6 @@ void project_apply(void)
     int t, k;
     for (t = 0; t < NALLTRK; t++)
         engine_set_all(t);
-    for (k = 0; k < 2; k++) {
-        const uint8_t *p = proj.trk[AUX_FX1 + k].par;
-        engine_fx(k, p[TP_ENGINE], p + TP_E1, p[TP_FENV], p[TP_CUT], p[TP_FX_WIDTH], p[TP_FX_WOBBLE], p[TP_FX_SMEAR]);
-    }
     for (k = 0; k < NMS; k++)
         engine_master(k, proj.master[k]);
     seq.bpm = (float)proj.tempo_x10 * 0.1f;               /* at once (a save right after reads it back) */

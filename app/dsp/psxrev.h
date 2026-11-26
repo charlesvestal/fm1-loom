@@ -22,8 +22,9 @@
  *   - "decay" is psxverb's: the wall feedback 0.5x .. x1 (the knob's middle) .. 0.99 / |vWALL| (at most
  *     x10), held within +-0.995; "damp" closes vIIR (the reflections' low-pass); "tone" is the plate's
  *     tilt on the return;
- *   - the work area is the FX slot's reverb line (FX_RV_LEN, a power of two: the addresses wrap by mask;
- *     every mode at x4 fits, its largest address 1FFFh x 4 = 32764 < 32768, so no two addresses alias);
+ *   - the work area is the slot's reverb line, its mode's own length (efx_rv_ring: the mode's largest address at x4
+ *     and two more, so no two addresses alias; the chaos echo's 1FFFh x 4 = 32764 the longest): the addresses wrap
+ *     at it (spu_at);
  *   - the input and output volumes (vLIN, vRIN 8000h = -1, the output -1) are folded into one gain a
  *     mode (SPU_GAIN), which evens the modes' levels out.
  * A mode change (fx_set) clears the work area from the interrupt, a slice a block, the return silent
@@ -64,9 +65,15 @@ static const uint16_t SPU_REG[NSPU][NREG] = {
      0x0000, 0x0000, 0x1005, 0x0005, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x1004, 0x1002,
      0x0004, 0x0002},                                                               /* one echo    18040h */
 };
-#define SPU_MASK (FX_RV_LEN - 1)
-_Static_assert((FX_RV_LEN & SPU_MASK) == 0, "FX_RV_LEN must be a power of two");
 _Static_assert(0x1FFF * 4 + 1 < FX_RV_LEN, "the SPU modes at x4 do not fit FX_RV_LEN");
+static int32_t spu_top(int mode)              /* the mode's largest address at x4 (efx_rv_ring) */
+{
+    const uint16_t *R = SPU_REG[mode - 1];
+    int32_t m = 0;
+    for (int i = R_MLSAME; i < NREG; i++)
+        m = R[i] > m ? R[i] : m;
+    return m * 4;
+}
 /* the return's level a mode (the output volume, EVOL, a game's choice on the console): each mode's tail near
  * the plate's on a phrase (tests/host/fx_render.c), so a change of mode does not jump; the half echo and
  * the chaos echo feed back hardest */
@@ -116,56 +123,63 @@ static void spu_reset(spu_t *s, int mode)
     s->quiet = FX_RV_LEN * 2;
 }
 
-static inline float spu_rd(const int16_t *w, uint32_t base, int32_t off)
+/* an address (base + off, both 0 .. n - 1) on a ring of n (lush's too; spu_tick's "-1" reads made so: spu_m1) */
+static inline uint32_t spu_at(uint32_t n, uint32_t base, int32_t off)
 {
-    return (float)w[(base + (uint32_t)off) & SPU_MASK] * (1.0f / 32768.0f);
+    uint32_t i = base + (uint32_t)off;
+    return i >= n ? i - n : i;
 }
-static inline int32_t spu_wr(int16_t *w, uint32_t base, int32_t off, float v)
+static inline int32_t spu_m1(int32_t a, uint32_t n) { return a > 0 ? a - 1 : (int32_t)n - 1; }   /* (a - 1 on the ring) */
+static inline float spu_rd(const int16_t *w, uint32_t n, uint32_t base, int32_t off)
+{
+    return (float)w[spu_at(n, base, off)] * (1.0f / 32768.0f);
+}
+static inline int32_t spu_wr(int16_t *w, uint32_t n, uint32_t base, int32_t off, float v)
 {
     int32_t k = (int32_t)(v * 32768.0f);
     k = k > 32767 ? 32767 : k < -32768 ? -32768 : k;
-    w[(base + (uint32_t)off) & SPU_MASK] = (int16_t)k;
+    w[spu_at(n, base, off)] = (int16_t)k;
     return k;
 }
 
 /* one 22.05 kHz tick: x the decimated send (vLIN applied); the two outputs, before the interpolators.
  * Returns the bits of everything written (0: the tick wrote only zeros) */
-static inline int32_t spu_tick(spu_t *s, int16_t *w, float x, float *lo, float *ro)
+static inline int32_t spu_tick(spu_t *s, int16_t *w, uint32_t n, float x, float *lo, float *ro)
 {
     const int32_t *a = s->a;
     const uint32_t b = s->base;
     const float vw = s->vwall, vi = s->viir;
     float iir, l, r, d;
     int32_t any = 0;
-    iir = spu_rd(w, b, a[R_MLSAME] - 1);
-    any |= spu_wr(w, b, a[R_MLSAME], (x + spu_rd(w, b, a[R_DLSAME]) * vw - iir) * vi + iir);
-    iir = spu_rd(w, b, a[R_MRSAME] - 1);
-    any |= spu_wr(w, b, a[R_MRSAME], (x + spu_rd(w, b, a[R_DRSAME]) * vw - iir) * vi + iir);
-    iir = spu_rd(w, b, a[R_MLDIFF] - 1);
-    any |= spu_wr(w, b, a[R_MLDIFF], (x + spu_rd(w, b, a[R_DRDIFF]) * vw - iir) * vi + iir);
-    iir = spu_rd(w, b, a[R_MRDIFF] - 1);
-    any |= spu_wr(w, b, a[R_MRDIFF], (x + spu_rd(w, b, a[R_DLDIFF]) * vw - iir) * vi + iir);
-    l = s->vcomb[0] * spu_rd(w, b, a[R_MLCOMB1]) + s->vcomb[1] * spu_rd(w, b, a[R_MLCOMB2]) +
-        s->vcomb[2] * spu_rd(w, b, a[R_MLCOMB3]) + s->vcomb[3] * spu_rd(w, b, a[R_MLCOMB4]);
-    r = s->vcomb[0] * spu_rd(w, b, a[R_MRCOMB1]) + s->vcomb[1] * spu_rd(w, b, a[R_MRCOMB2]) +
-        s->vcomb[2] * spu_rd(w, b, a[R_MRCOMB3]) + s->vcomb[3] * spu_rd(w, b, a[R_MRCOMB4]);
-    d = spu_rd(w, b, a[R_MLAPF1] - a[R_DAPF1]);
+    iir = spu_rd(w, n, b, spu_m1(a[R_MLSAME], n));
+    any |= spu_wr(w, n, b, a[R_MLSAME], (x + spu_rd(w, n, b, a[R_DLSAME]) * vw - iir) * vi + iir);
+    iir = spu_rd(w, n, b, spu_m1(a[R_MRSAME], n));
+    any |= spu_wr(w, n, b, a[R_MRSAME], (x + spu_rd(w, n, b, a[R_DRSAME]) * vw - iir) * vi + iir);
+    iir = spu_rd(w, n, b, spu_m1(a[R_MLDIFF], n));
+    any |= spu_wr(w, n, b, a[R_MLDIFF], (x + spu_rd(w, n, b, a[R_DRDIFF]) * vw - iir) * vi + iir);
+    iir = spu_rd(w, n, b, spu_m1(a[R_MRDIFF], n));
+    any |= spu_wr(w, n, b, a[R_MRDIFF], (x + spu_rd(w, n, b, a[R_DLDIFF]) * vw - iir) * vi + iir);
+    l = s->vcomb[0] * spu_rd(w, n, b, a[R_MLCOMB1]) + s->vcomb[1] * spu_rd(w, n, b, a[R_MLCOMB2]) +
+        s->vcomb[2] * spu_rd(w, n, b, a[R_MLCOMB3]) + s->vcomb[3] * spu_rd(w, n, b, a[R_MLCOMB4]);
+    r = s->vcomb[0] * spu_rd(w, n, b, a[R_MRCOMB1]) + s->vcomb[1] * spu_rd(w, n, b, a[R_MRCOMB2]) +
+        s->vcomb[2] * spu_rd(w, n, b, a[R_MRCOMB3]) + s->vcomb[3] * spu_rd(w, n, b, a[R_MRCOMB4]);
+    d = spu_rd(w, n, b, a[R_MLAPF1] - a[R_DAPF1]);
     l -= s->vapf1 * d;
-    any |= spu_wr(w, b, a[R_MLAPF1], l);
+    any |= spu_wr(w, n, b, a[R_MLAPF1], l);
     l = l * s->vapf1 + d;
-    d = spu_rd(w, b, a[R_MRAPF1] - a[R_DAPF1]);
+    d = spu_rd(w, n, b, a[R_MRAPF1] - a[R_DAPF1]);
     r -= s->vapf1 * d;
-    any |= spu_wr(w, b, a[R_MRAPF1], r);
+    any |= spu_wr(w, n, b, a[R_MRAPF1], r);
     r = r * s->vapf1 + d;
-    d = spu_rd(w, b, a[R_MLAPF2] - a[R_DAPF2]);
+    d = spu_rd(w, n, b, a[R_MLAPF2] - a[R_DAPF2]);
     l -= s->vapf2 * d;
-    any |= spu_wr(w, b, a[R_MLAPF2], l);
+    any |= spu_wr(w, n, b, a[R_MLAPF2], l);
     l = l * s->vapf2 + d;
-    d = spu_rd(w, b, a[R_MRAPF2] - a[R_DAPF2]);
+    d = spu_rd(w, n, b, a[R_MRAPF2] - a[R_DAPF2]);
     r -= s->vapf2 * d;
-    any |= spu_wr(w, b, a[R_MRAPF2], r);
+    any |= spu_wr(w, n, b, a[R_MRAPF2], r);
     r = r * s->vapf2 + d;
-    s->base = (b + 1u) & SPU_MASK;
+    s->base = b + 1u < n ? b + 1u : 0u;
     *lo = l;
     *ro = r;
     return any;

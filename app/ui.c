@@ -145,20 +145,10 @@ static void apply_brain(void)
     pats.scene[cur_scene()].brain_key = seq.brain_key;
     pats.scene[cur_scene()].brain_scale = seq.brain_scale;
 }
-static void apply_fx(int trk)
-{
-    const uint8_t *p = proj.trk[trk].par;    /* the engine's layout: TP_ENGINE the effect, E1..E4 its knobs,
-                                              * FENV the high-pass, CUT the low-pass, X1 the delay's PING WIDTH
-                                              * (SEND2: the feed, by engine_set) */
-    engine_fx(trk - AUX_FX1, p[TP_ENGINE] % NFXPICK, p + TP_E1, p[TP_FENV], p[TP_CUT], p[TP_FX_WIDTH], p[TP_FX_WOBBLE],
-              p[TP_FX_SMEAR]);
-}
-static void apply_aux(int trk)
+static void apply_aux(int trk)                   /* (an FX track's values reach its send by engine_set) */
 {
     if (trk == AUX_BRAIN)
         apply_brain();
-    else if (is_fx(trk))
-        apply_fx(trk);
 }
 static void undo_keep(void);
 static void undo_sound(int trk);
@@ -2250,18 +2240,11 @@ static void debug_knob(int k, int32_t e)         /* Debug: KNOB 1 the cores */
     plat_cpu2_set(!proj.one_core);
     mark_dirty();
 }
-static void fx_pick(int trk, int d)              /* the effect (the reverb's modes among them): only those the slot can do */
+static void fx_pick(int trk, int d)              /* the effect (the reverb's modes among them) */
 {
-    int t = proj.trk[trk].par[TP_ENGINE] % NFXPICK;
-    for (int tries = 0; tries < NFXPICK; tries++) {
-        t = clampi(t + d, 0, NFXPICK - 1);
-        if (engine_fx_has(trk - AUX_FX1, t))
-            break;
-    }
-    if (engine_fx_has(trk - AUX_FX1, t)) {
-        set_tp(trk, TP_ENGINE, t);
-        say("EFFECT", fx_label(t));
-    }
+    int t = clampi(proj.trk[trk].par[TP_ENGINE] % NFXPICK + d, 0, NFXPICK - 1);
+    set_tp(trk, TP_ENGINE, t);
+    say("EFFECT", fx_label(t));
 }
 /* an effect track's knob p turned by e: the delay's time a note value a click (13 d + 6: in the tenth d, fx.h) */
 static __attribute__((noinline)) int fx_turned(int ft, int p, int32_t e)
@@ -2649,17 +2632,7 @@ static void list_change_do(int32_t e)
             break;
         }
         case A_PASTE: ui.pick_paste = (uint8_t)(d > 0); break;
-        case A_EFFECT: {
-            int t = ui.pick_fx, trk = fx_page(ui.page) ? (ui.page == P_FX1 ? AUX_FX1 : AUX_FX2) : sel_trk();
-            for (int tries = 0; tries < NFXPICK; tries++) {
-                t = clampi(t + d, 0, NFXPICK - 1);
-                if (engine_fx_has(trk - AUX_FX1, t))
-                    break;
-            }
-            if (engine_fx_has(trk - AUX_FX1, t))
-                ui.pick_fx = (uint8_t)t;
-            break;
-        }
+        case A_EFFECT: ui.pick_fx = (uint8_t)clampi(ui.pick_fx + d, 0, NFXPICK - 1); break;
         case A_PRESET: ui.pick_preset = (uint16_t)((ui.pick_preset + d + NPRESETS) % (NPRESETS ? NPRESETS : 1)); break;
         case A_SAVE_PRESET: ui.pick_slot = (uint8_t)((ui.pick_slot + d + NUSER_PRESETS) % NUSER_PRESETS); break;
         case A_KIT: ui.pick_kit = (uint8_t)((ui.pick_kit + d + NKITS) % NKITS); break;

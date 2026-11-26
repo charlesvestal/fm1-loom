@@ -205,7 +205,6 @@ static void drum_cases(void)
 }
 
 /* ---- the effects and the master ---- */
-static int16_t dly_l[FX_DLY_LEN], dly_r[FX_DLY_LEN], rv[FX_RV_LEN];
 /* the acid engine (dsp/bass303.c) on its own: each knob at its ends with the rest at their defaults, both waves,
  * the drives, the overload guard's lite mode, the pitch multiplier; a phrase of notes with accents and slides, a
  * rest long enough to go idle, a note after it */
@@ -330,16 +329,33 @@ static fxslot_t *fx = (fxslot_t *)fxb;
 static master_t *ms = (master_t *)msb;
 static float in[N], P1[N], P2[N], M1[N], M2[N];
 
+/* the sends as they were set before the one effects list (an old pick and four knobs: fx.h fx_pick_slot), their
+ * memory the engine's (the pool, as much as the effect needs: the reverb's modes their own lines) */
+static const uint8_t FXT_DEF[NFXT][4] = {{50, 86, 20, 127}, {83, 64, 56, 64}, {80, 80, 64, 40}, {50, 90, 50, 80},
+                                         {100, 40, 44, 72}}, RV_SPU_DEF[4] = {127, 64, 64, 0};
+static void fx_old(int pick, const uint8_t *e)
+{
+    uint8_t o[9];
+    fx_pick_slot(pick, e, 127, 0, 0, o);
+    fx_set(fx, o[0], o + 1, o + 5);
+}
 static void fx_cases(void)
 {
+    static const char *const FXN[NFXT] = {"chorus", "delay", "lofi", "phaser", "reverb"};
     int t, b, i, v;
     char name[64];
     static const uint8_t mid[4] = {64, 64, 64, 64}, hi[4] = {120, 110, 20, 100};
     for (t = 0; t < NFXPICK; t++)
         for (v = 0; v < 3; v++) {
-            fx_init(fx, dly_l, dly_r, rv);
+            const uint8_t *kn = v == 0 ? (t >= FXT_REVERB ? RV_SPU_DEF : FXT_DEF[t]) : v == 1 ? mid : hi;
+            uint8_t o[9];
+            fx_pick_slot(t, kn, 127, 0, 0, o);
+            fx_init(fx);                         /* (as the slot started: the chorus at its defaults, at rest) */
+            fx_old(FXT_CHORUS, FXT_DEF[FXT_CHORUS]);
+            fx_memory(fx, efx_pool[0], efx_need(o[0], o[0] == EF_REVERB ? o[5] : 0, 1));
+            fx_process(fx, in, L, R, 0);
             fx_tempo(fx, 120.0f);
-            fx_set(fx, t, v == 0 ? (t >= FXT_REVERB ? RV_SPU_DEFAULT : FXT_DEFAULT[t]) : v == 1 ? mid : hi);
+            fx_old(t, kn);
             if (v == 2)
                 fx_filter(fx, 30, 90);
             rng = 777;
@@ -351,7 +367,7 @@ static void fx_cases(void)
                 fx_process(fx, in, L, R, b % 3 ? N : 100);
                 hash_buf(L, N); hash_buf(R, N);
             }
-            snprintf(name, sizeof name, "fx %s %d", fx_pick_name(t), v);
+            snprintf(name, sizeof name, "fx %s %d", t >= FXT_REVERB ? RV_NAME[fx_pick_mode(t)] : FXN[t], v);
             out(name);
         }
 }

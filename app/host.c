@@ -945,12 +945,12 @@ static float st_load, st_load_sum;
 #define LOAD_HIT_MS 6                                      /* a block, 5.8 ms */
 static float fx_cost(int k)                                /* an effect a block behind, on the second core (%) */
 {
-    int pick = fx_type[k], type = fx_pick_type(pick);
+    int mode, ef = fx_effect(FXS(k), &mode);
     if (!fx_lags(FXS(k)))
         return 0.0f;
     if (!fx_awake(FXS(k)))
         return 0.7f;
-    return type == FXT_DELAY ? 3.9f : type == FXT_CHORUS ? 3.0f : pick == FXT_REVERB ? 10.4f : 7.5f;
+    return ef == EF_DELAY ? 3.9f : ef == EF_CHORUS ? 3.0f : mode == RV_PLATE ? 10.4f : 7.5f;
 }
 static float load_model(int *nsyn, int *ndrum)
 {

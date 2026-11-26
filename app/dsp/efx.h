@@ -7,6 +7,7 @@
  * Everything per sample runs in the audio interrupt (or the second core's job); the coefficients' functions in the
  * main loop or once a block. Float, fastmath.h; no double, no libm. */
 #pragma once
+#include <stddef.h>
 #include <stdint.h>
 
 /* ---- the catalog: numbers fixed, a new effect only ever appended ---- */
@@ -21,7 +22,6 @@ enum { EK_NN, EK_PCT, EK_BIP, EK_SYNC, EK_LIST, EK_DIV, EK_RATIO };
 typedef struct {
     const char *name;
     uint8_t group;                           /* EFG_* */
-    uint8_t blocks;                          /* the memory it needs, EFX_BLOCK each (0: none) */
     uint8_t voice;                           /* 1: on a synth track it runs on each voice (ring: the note's pitch; tape:
                                               * its wow bends the voices) */
     uint8_t word[7];                         /* knobs 1..3, then the SEL list's extras (efx_knob_name; extras 0: none);
@@ -31,6 +31,23 @@ typedef struct {
 } efx_info_t;
 extern const efx_info_t EFX[NEF];
 const char *efx_knob_name(int ef, int k);    /* k 0..2 a knob ("-": none), 3..6 an extra (0: none) */
+const char *efx_knob_word(int ef, int mode, int k);   /* the same, in the reverb's mode (the plate's knob 2 its motion,
+                                                       * shimmer's damp its shimmer) */
+float efx_lfo_hz(int v, float bpm);          /* an EK_SYNC knob (the LFO's rate): synced divisions 0..7, then 0.1 .. 30 Hz */
+
+/* ---- the one pool: every slot's memory (a track's two, FX I / II), in EFX_BLOCK blocks ----
+ * A slot takes a contiguous run of blocks, first fit, when its effect needs memory (efx_need: by the effect, the
+ * reverb's mode and the place: a send's chorus and lofi lines are longer, for its lag; a track's delay and reverb keep
+ * their states at the start of theirs, efx_big_t), given back when the effect changes; a slot that finds none passes
+ * dry ("no memory"). The sends first (the engine's, each block: efx_send_used), then the tracks in order, slot 1 then 2
+ * (synth.c): a send never loses its memory to a track. 61 blocks: FX I's delay (24) and FX II's largest reverb (32)
+ * beside a few of the tracks', as the separate lines held them */
+#define EFX_NB 61
+#define EFX_INS_N 1024                           /* int16 a block (2 KB) */
+extern int16_t efx_pool[EFX_NB][EFX_INS_N];
+extern uint64_t efx_send_used;                   /* the blocks the sends hold (a bit each) */
+int efx_need(int ef, int mode, int send);        /* the blocks effect ef (the reverb in mode) needs on a send or a track */
+int32_t efx_rv_ring(int mode, int nb, int send); /* the reverb's line in nb blocks: its length, int16 */
 const char *efx_list_name(int ef, int k, int v);   /* an EK_LIST knob's value's name (juno's modes) */
 
 /* ---- the dirt and the color: drive, fold, crush, ring, tilt, tape, sampler (the character's) ----
@@ -73,10 +90,12 @@ static inline int rv_lush(int mode) { return mode == RV_LUSH || mode == RV_SHIMM
 extern const char *const RV_NAME[NRV];         /* "plate", "room", "studio S", ... */
 #define FX_DLY_LEN 11200              /* the delay's lines: int16 samples a side, at half rate (22.05 kHz): 0.5 s plus a
                                        * 128-sample margin (the second core's lag, 256 frames at most; the pool's budget) */
-#define FX_RV_LEN 32768               /* int16 samples: the reverb's line (the plate uses 11.4 k of it; an SPU mode at x4
-                                       * up to 32766: the chaos echo's and the delay's 1FFFh x 4) */
-#define EFX_CHO_N 2048                /* a send's chorus line: 46 ms (int16; the lofi's spread and smear's allpasses read it;
-                                       * its length the send's lag's, a block late, and smear's) */
+#define FX_RV_LEN 32768               /* int16 samples: the reverb's longest line (an SPU mode at x4 up to 32766: the chaos
+                                       * echo's and the delay's 1FFFh x 4); each mode's own: efx_rv_ring. (Its states'
+                                       * clearing and sleeping count to it whatever the line) */
+#define EFX_CHO_N 2048                /* a send's chorus line: 46 ms (int16; the lofi's spread reads it; its length the
+                                       * send's lag's, a block late) */
+#define EFX_SMEAR_N 1566              /* smear's allpasses and the send's wait: after a delay's lines */
 #define EFX_CHO_REACH ((15 + 8) * 441 / 10 + 2)   /* how far back a chorus reads: its centre 15 ms and its depth up to
                                        * 8 ms (0.3 + 7.7), a sample more between: a slot's line (no lag) is EFX_INS_N */
 /* the delay's time: one of FX_DL_N divisions of the tempo (1/32 .. 1/4; fx_delay_div), its name's note and mark (T, D
@@ -88,6 +107,7 @@ extern const char FX_DL_MARK[FX_DL_N];
 float efx_delay_secs(int time, int fine, float bpm, int *halves);   /* the delay's time at a tempo, and the times the line
                                                                      * halves it to fit (0: as set) */
 float fx_delay_fb(int v);                    /* the delay's REPEATS 0..127: its feedback (127: 1, held) */
+void efx_delay_width(float *wa, float *wb, int w);   /* PING WIDTH 0..127: a side's echo into its own side, the other */
 
 typedef struct { int32_t w; float ph, s1, s2, hl, hr, fz; } efx_chorus_t;
 typedef struct { int32_t w; float ph, hold, in1, out1, wph; } efx_lofi_t;
@@ -100,8 +120,8 @@ typedef struct {
     float wph, wdl, wdr, wsl, wsr, hl, hr;    /* wobble: the LFO's phase, the drifts, the offsets as they glide; the loop's
                                                * high-pass a side */
     uint32_t rnd;                             /* (the drift's noise) */
-    int32_t sap[5];                           /* smear: its allpasses' places in the chorus line (idle while a delay), the
-                                               * send's wait's */
+    int32_t sap[5];                           /* smear: its allpasses' places in its line (EFX_SMEAR_N), the send's
+                                               * wait's */
 } efx_delay_t;
 #define EFX_SPU_NREG 30
 typedef struct {                              /* an SPU mode's (psxrev.h) */
@@ -128,7 +148,9 @@ typedef struct {                              /* lush's */
     uint8_t phase;
 } efx_lush_t;
 typedef struct {
-    int16_t *line;                            /* FX_RV_LEN */
+    int16_t *line;                            /* its line: n long (the plate uses 11.4 k of it; an SPU mode and lush wrap
+                                               * their addresses at n) */
+    uint32_t n;
     uint8_t mode;                             /* RV_*, running */
     float shm;                                /* shimmer's feedback (0: lush) */
     int32_t cpos[4], apos[4], quiet;          /* the plate */
@@ -139,7 +161,7 @@ typedef struct {
     };
 } efx_reverb_t;
 typedef struct {                              /* a send's effects (one runs at a time: its states, its numbers) */
-    int16_t *cho;                             /* the chorus's line (EFX_CHO_N), the lofi's and smear's */
+    int16_t *cho;                             /* the chorus's line (EFX_CHO_N), the lofi's; a delay's smear's */
     float pt[6], pc[6];                       /* the effect's numbers: targets, and gliding */
     efx_chorus_t chorus;
     efx_lofi_t lofi;
@@ -164,13 +186,23 @@ void efx_chorus(efx_chorus_t *c, int16_t *line, int32_t len, int hp, const float
 void efx_phaser(efx_phaser_t *s, const float *p, const float *xl, const float *xr, float *ol, float *orr, int m);
 
 /* ---- a track's slot's effects but the dirt and the color (synth.c's: its bus): tremolo, rat, phaser, univibe, chorus,
- * lofi, juno, autowah, rumble ----
- * On its pair (bl, br: n frames, in place), its states st (zeroed: fresh), its memory mem (chorus, lofi, juno: a 2 KB
- * block; rumble two; 0: none, it passes dry), its three knobs kn (0..127, the LFO on them), its extras xt, its mix
- * (0..127: dry .. wet; rumble's its level, the dry whole), rate the LFO's speed in Hz (tremolo, univibe: the knob's,
- * synth.c lfo_hz), the tempo; in what rumble hears (0: the pair's middle; a kit: its kicks alone). ph: its phase
- * (turns; rumble's: beats since its hit). The delay and the reverb pass dry (no memory on a track: phase 3's pool) */
-#define EFX_INS_N 1024                           /* int16 a 2 KB block */
+ * lofi, juno, autowah, delay, rumble, reverb ----
+ * On its pair (bl, br: n frames, in place), its states st (zeroed: fresh), its memory mem (efx_need's blocks from the
+ * pool; 0: none, it passes dry), its three knobs kn (0..127, the LFO on them), its extras xt, its mix (0..127: dry ..
+ * wet; rumble's its level, the dry whole), rate the LFO's speed in Hz (tremolo, univibe: the knob's, efx_lfo_hz), the
+ * tempo; in what rumble hears (0: the pair's middle; a kit: its kicks alone). ph: its phase (turns; rumble's: beats
+ * since its hit). The delay and the reverb are the sends' on the pair's middle, no lag, their states at the start of
+ * their memory (efx_big_t), mixed */
+typedef struct {                                 /* a track's delay or reverb: at the start of its memory */
+    float pt[6], pc[6];                          /* its numbers (efx_nums), gliding as a send's */
+    union {
+        efx_delay_t d;
+        efx_reverb_t r;
+    } u;
+} efx_big_t;
+#define EFX_BIG_N ((int32_t)((sizeof(efx_big_t) + 7u) / 8u * 4u))   /* (int16 words: the lines after it, 8-aligned; */
+#define EFX_BIG_DN ((int32_t)((offsetof(efx_big_t, u) + sizeof(efx_delay_t) + 7u) / 8u * 4u))   /* a delay's, smaller) */
+int efx_big_awake(const int16_t *mem, int ef);   /* a track's delay or reverb still rings (its slot's tail) */
 typedef union {
     float z[16];
     efx_chorus_t chorus;
@@ -193,7 +225,7 @@ typedef struct {
                                                    * numbers' (ch) */
     uint8_t mix, xt[4];                           /* its mix 0..127, its extras */
     int8_t at;                                    /* its memory: its first block of the pool (-1 none) */
-    uint8_t nb, mef;                              /* how many, the effect it was given for */
+    uint8_t nb, mef, mmd;                         /* how many, the effect (and the reverb's mode) it was given for */
 } efx_slot_t;
 float efx_rumble_secs(float k);                  /* rumble's decay knob (0..127): its RT60, seconds */
 float efx_sin(float ph);                         /* (out of line: a sine of turns, a one-pole's coefficient at hz) */

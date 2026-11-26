@@ -1,15 +1,14 @@
 /* SPDX-License-Identifier: MPL-2.0 */
 /* LOOM-8 effects (fx.h): the send slots and the master section.
  *
- * Send slots: each takes a mono send and adds a stereo return; the effects themselves (chorus, delay, lofi, phaser,
- * the reverb in its modes) are dsp/efx.c's, the catalog's. Here: a slot's effect and lines, its knobs, its filter
- * page, the glide of its numbers.
+ * Send slots: each takes a mono send and adds a stereo return; the effects themselves are dsp/efx.c's, the catalog's
+ * (the sends' own chorus, delay, lofi, phaser and reverb; the rest as a kit's slot runs them). Here: a slot's effect
+ * and its memory (the pool's, the engine's), its knobs, its filter page, the glide of its numbers.
  *
- * Knob values are turned into the effect's numbers in fx_set (main loop) and glide toward them in
- * the interrupt a block at a time (~10 ms): no zipper noise on a turn. A change of effect clears
- * the states at the next block; fx_set zeroes the new effect's lines itself, which is safe because
- * the running effect never uses another's line (the lofi borrows the chorus's, which the chorus
- * cannot be using at the same time). The slot's filter page (high-pass, low-pass) runs on the mono
+ * Knob values are turned into the effect's numbers in fx_set (the interrupt, between blocks) and glide toward them a
+ * block at a time (~10 ms): no zipper noise on a turn. A change of effect starts it at rest at the next block, its
+ * memory cleared (another reverb mode: its states only; the SPU's and lush's lines clear themselves, a slice a block);
+ * memory given at another place is cleared as it comes. The slot's filter page (high-pass, low-pass) runs on the mono
  * send before the effect: one filter instead of two, and the same result for the linear effects.
  *
  * Master: the two groups' levels, a 3-band EQ (RBJ shelves and a peak; all three at 64 a true bypass), X0X's bus compressor behind its one-knob macro with X0X's PUMP in its gain
@@ -17,57 +16,25 @@
  * muted track keys it too; at 0 the stage is as before, sample for sample), the master level and X0X's
  * lookahead limiter.
  *
- * Everything here runs in the audio interrupt; fx_set / master_set write plain words from the main
- * loop. Float, fastmath.h; stack locals stay small (a 32-sample block). */
+ * Everything here runs in the audio interrupt; master_set writes plain words from the main loop. Float, fastmath.h;
+ * stack locals stay small (a 32-sample block). */
 #include "fx.h"
 #include "fastmath.h"
 
 #define SR 44100.0f
 #define SUB 32                                /* the block: parameter glides step here */
 #define GLIDE 0.07f                           /* a block's share of the distance: ~10 ms to settle */
-#define CHO_N EFX_CHO_N                       /* the chorus line: 46 ms (int16; the lofi's spread reads it too) */
-
-const char *const FXT_NAME[NFXT] = {"chorus", "delay", "lofi", "phaser", "reverb"};
-static const uint8_t FXT_EF[NFXT] = {EF_CHORUS, EF_DELAY, EF_LOFI, EF_PHASER, EF_REVERB};   /* (the catalog's numbers) */
-static const char *const FXT_KNOB[NFXT][4] = {
-    {"rate", "depth", "feedback", "width"}, {"time", "fine", "repeats", "tone"},
-    {"rate", "bits", "smooth", "width"},    {"freq", "depth", "rate", "feedback"},
-    {"size", "motion", "tone", "damp"},
-};
-static const char *const SPU_KNOB[4] = {"size", "decay", "tone", "damp"};
-/* the defaults, 0..127 (what each gives: fx_derive's mappings) */
-const uint8_t FXT_DEFAULT[NFXT][4] = {
-    {50, 86, 20, 127},                        /* chorus      0.33 Hz, +-5.5 ms, feedback 0.11, fully wide */
-    {83, 64, 56, 64},                         /* delay       1/8, on the beat, feedback 0.42 (~4 repeats), 4 kHz */
-    {80, 80, 64, 40},                         /* lofi        8.4 kHz, 10.8 bits, half smoothed, 3.4 ms spread */
-    {50, 90, 50, 80},                         /* phaser      466 Hz, +-2.1 octaves, 0.27 Hz, feedback 0.57 */
-    {100, 40, 44, 72},                        /* plate       combs x1.43, 2.4 samples of wander, 7.4 kHz, damp 0.45 */
-};
-const uint8_t RV_SPU_DEFAULT[4] = {127, 64, 64, 0};   /* the console's sizes, its decay, flat, its own filter */
-const uint8_t RV_LUSH_DEFAULT[4] = {64, 64, 56, 48};  /* (fx.h) */
-const uint8_t RV_SHIMMER_DEFAULT[4] = {64, 84, 72, 72};
-
-const char *fx_pick_name(int pick)
-{
-    int t = fx_pick_type(pick);
-    return t == FXT_REVERB ? RV_NAME[fx_pick_mode(pick)] : FXT_NAME[t];
-}
-const char *fx_knob_name(int pick, int k)
-{
-    int t = fx_pick_type(pick);
-    k &= 3;
-    if (t == FXT_REVERB && fx_pick_mode(pick) == RV_SHIMMER && k == 3)
-        return "shimmer";                     /* (its fourth knob: the octaves fed back; its damping fixed) */
-    return t == FXT_REVERB && fx_pick_mode(pick) != RV_PLATE ? SPU_KNOB[k] : FXT_KNOB[t][k];
-}
+#define RING_C4 261.63f                       /* a ring off the voices: a ratio of C4 (synth.h KIT_RING_HZ) */
 
 struct fxslot {
-    int16_t cho[CHO_N];
-    efx_send_t e;                             /* the effect's numbers and states, its lines (efx.h) */
-    uint8_t type, type_t, hpv, lpv;
-    uint8_t mode, mode_t;                     /* the reverb's mode: running, and as set */
-    uint8_t knob[4];
-    uint8_t dwob, dsmr;                       /* the delay's WOBBLE and SMEAR, 0..127 (fx_delay_mod) */
+    efx_send_t e;                             /* the sends' own effects: their numbers and states, their lines (efx.h) */
+    efx_slot_t s;                             /* the others' (as a kit's slot) */
+    int16_t *mem;                             /* its memory (the pool's) and its blocks */
+    uint8_t mnb, fresh;                       /* (fresh: its memory just given, cleared: the effect starts at rest) */
+    uint8_t type, type_t, mode, mode_t;       /* the effect (EF_*) and the reverb's mode: running, and as set */
+    uint8_t k[3], x[4];                       /* its knobs and extras */
+    uint8_t knob[4];                          /* a send effect's four, as efx_send_nums takes them */
+    uint8_t hpv, lpv;
     float bpm;
     float hpc, lpc, hps, lps;                 /* the filter page */
 };
@@ -75,6 +42,10 @@ _Static_assert(sizeof(struct fxslot) <= FXSLOT_BYTES, "fxslot_t does not fit FXS
 
 static inline float onepole_k(float hz) { return hz >= 20000.0f ? 1.0f : 1.0f - fm_expf(-FM_TWO_PI * hz / SR); }
 static inline float k127(int v) { return (float)(v < 0 ? 0 : v > 127 ? 127 : v) * (1.0f / 127.0f); }
+static inline int send_own(int ef)            /* one of the sends' own (efx_send_run) */
+{
+    return ef == EF_CHORUS || ef == EF_DELAY || ef == EF_LOFI || ef == EF_PHASER || ef == EF_REVERB;
+}
 
 static void zero16(int16_t *b, int32_t n)
 {
@@ -83,10 +54,27 @@ static void zero16(int16_t *b, int32_t n)
         b[i] = 0;
 }
 
-static void fx_states(fxslot_t *f)              /* a fresh effect: its states at rest */
+static void fx_point(fxslot_t *f)               /* the running effect's lines in its memory */
 {
-    zero16(f->cho, CHO_N);
+    int16_t *m = f->mem;
+    f->e.cho = f->type == EF_DELAY ? (m ? m + 2 * FX_DLY_LEN : 0) : m;
+    f->e.delay.l = m;
+    f->e.delay.r = m ? m + FX_DLY_LEN : 0;
+    f->e.reverb.line = m;
+    f->e.reverb.n = (uint32_t)efx_rv_ring(f->mode, f->mnb, 1);
+}
+
+static void fx_states(fxslot_t *f, int wipe)    /* a fresh effect: its states at rest (wipe: its memory cleared too) */
+{
+    uint8_t *z = (uint8_t *)&f->s;
+    uint32_t i;
+    if (wipe && f->mem)
+        zero16(f->mem, (int32_t)f->mnb * EFX_INS_N);
+    fx_point(f);
     efx_send_reset(&f->e, f->mode);
+    for (i = 0; i < sizeof f->s; i++)
+        z[i] = 0;
+    f->s.cef = 0xFFu;
 }
 
 int fx_delay_halves(int time, int fine, float bpm)
@@ -96,80 +84,74 @@ int fx_delay_halves(int time, int fine, float bpm)
     return h;
 }
 
-/* the knobs to the effect's numbers */
+/* the knobs to the effect's numbers (a send's own; the others' per block, fx_other) */
 static void fx_derive(fxslot_t *f)
 {
-    efx_send_nums(&f->e, FXT_EF[f->type_t], f->mode_t, f->knob, f->bpm, f->dwob, f->dsmr);
+    if (send_own(f->type_t))
+        efx_send_nums(&f->e, f->type_t, f->mode_t, f->knob, f->bpm, f->x[2], f->x[3]);
 }
 
-void fx_init(fxslot_t *f, int16_t *dly_l, int16_t *dly_r, int16_t *rv)
+void fx_init(fxslot_t *f)
 {
+    static const uint8_t K[3] = {0, 0, 0}, X[4] = {0, 0, 0, 0};
     uint32_t i;
     uint8_t *z = (uint8_t *)f;
     for (i = 0; i < sizeof *f; i++)
         z[i] = 0;
-    f->e.cho = f->cho;
-    f->e.delay.l = dly_l;
-    f->e.delay.r = dly_r;
-    f->e.reverb.line = rv;
     f->bpm = 120.0f;
     f->lpv = 127;
     f->hpc = onepole_k(20.0f);
     f->lpc = onepole_k(20000.0f);
-    f->e.delay.wa = 1.0f;                     /* (full width: the bounce hard left and right) */
-    if (dly_l) zero16(dly_l, FX_DLY_LEN);
-    if (dly_r) zero16(dly_r, FX_DLY_LEN);
-    if (rv) zero16(rv, FX_RV_LEN);
-    for (i = 0; i < 4; i++)
-        f->knob[i] = FXT_DEFAULT[FXT_CHORUS][i];
-    f->type = f->type_t = FXT_CHORUS;
-    f->mode = f->mode_t = RV_PLATE;
-    fx_derive(f);
-    fx_states(f);
+    fx_set(f, EF_OFF, K, X);
+    fx_states(f, 0);
 }
 
 void fx_clear(fxslot_t *f)
 {
-    if (f->e.delay.l) zero16(f->e.delay.l, FX_DLY_LEN);
-    if (f->e.delay.r) zero16(f->e.delay.r, FX_DLY_LEN);
-    if (f->e.reverb.line) zero16(f->e.reverb.line, FX_RV_LEN);
     f->hps = f->lps = 0.0f;
-    fx_states(f);
+    fx_states(f, 1);
 }
 
-int fx_has(const fxslot_t *f, int pick)
+int fx_need(const fxslot_t *f) { return efx_need(f->type_t, f->mode_t, 1); }
+int fx_effect(const fxslot_t *f, int *mode)
 {
-    int type = fx_pick_type(pick);
-    if (pick < 0 || pick >= NFXPICK)
-        return 0;
-    if (type == FXT_REVERB)
-        return f->e.reverb.line != 0;
-    if (type == FXT_DELAY)
-        return f->e.delay.l != 0 && f->e.delay.r != 0;
-    return 1;
+    *mode = f->mode_t;
+    return f->type_t;
+}
+int fx_room(const fxslot_t *f) { return efx_need(f->type_t, f->mode_t, 1) <= (f->mem ? f->mnb : 0); }
+
+void fx_memory(fxslot_t *f, int16_t *mem, int nb)
+{
+    if (!mem)
+        nb = 0;
+    if (mem == f->mem && nb == f->mnb)
+        return;
+    f->mem = mem;
+    f->mnb = (uint8_t)nb;
+    if (mem)
+        zero16(mem, (int32_t)nb * EFX_INS_N);
+    f->fresh = 1;
 }
 
-void fx_set(fxslot_t *f, int pick, const uint8_t knob[4])
+void fx_set(fxslot_t *f, int ef, const uint8_t k[3], const uint8_t x[4])
 {
-    int i, type, mode;
-    if (!fx_has(f, pick))
-        pick = FXT_CHORUS;
-    type = fx_pick_type(pick);
-    mode = fx_pick_mode(pick);
+    int i;
+    ef = ef > EF_OFF && ef < NEF ? ef : EF_OFF;
+    for (i = 0; i < 3; i++)
+        f->k[i] = k[i] > 127 ? 127 : k[i];
     for (i = 0; i < 4; i++)
-        f->knob[i] = knob[i] > 127 ? 127 : knob[i];
-    if (type != f->type_t) {                  /* the lines the new effect reads are idle now: clear them */
-        if (type == FXT_DELAY) {
-            zero16(f->e.delay.l, FX_DLY_LEN);
-            zero16(f->e.delay.r, FX_DLY_LEN);
-        } else if (type == FXT_REVERB) {
-            zero16(f->e.reverb.line, FX_RV_LEN);
-        }
-    }
-    /* another reverb mode while the reverb runs: its line is in use, so the interrupt clears it
-     * (fx_states: spu_reset, a slice a block) when it takes the new mode at its next block */
-    f->mode_t = (uint8_t)mode;
-    f->type_t = (uint8_t)type;
+        f->x[i] = x[i] > 127 ? 127 : x[i];
+    f->knob[0] = f->k[0];                     /* (the sends' four: the delay's time, fine, repeats, tone; the reverb's
+                                               * size, decay or motion, tone, damp; the others' three and their extra) */
+    f->knob[1] = ef == EF_DELAY ? f->x[0] : f->k[1];
+    f->knob[2] = ef == EF_DELAY ? f->k[1] : f->k[2];
+    f->knob[3] = ef == EF_DELAY ? f->k[2] : ef == EF_REVERB ? f->x[1] : f->x[0];
+    if (ef == EF_DELAY)
+        efx_delay_width(&f->e.delay.wa, &f->e.delay.wb, f->x[1]);
+    /* another reverb mode while the reverb runs: the interrupt takes it at its next block (fx_states: spu_reset, its
+     * line cleared a slice a block) */
+    f->mode_t = (uint8_t)(ef == EF_REVERB && f->x[0] < NRV ? f->x[0] : RV_PLATE);
+    f->type_t = (uint8_t)ef;
     fx_derive(f);
 }
 
@@ -177,30 +159,11 @@ void fx_tempo(fxslot_t *f, float bpm)
 {
     if (bpm > 20.0f && bpm != f->bpm) {
         f->bpm = bpm;
-        if (f->type_t == FXT_DELAY) {
+        if (f->type_t == EF_DELAY) {
             int h;
             f->e.pt[0] = efx_delay_secs(f->knob[0], f->knob[1], f->bpm, &h) * SR;
         }
     }
-}
-
-/* PING WIDTH: the echoes' mid kept, their sides times w (0 centred .. 127 hard left and right), at the same power: an
- * echo on one side (e) gives e (1 + w) / 2 and e (1 - w) / 2, power e^2 (1 + w^2) / 2, so both times sqrt(2 / (1 + w^2)) */
-void fx_width(fxslot_t *f, int w)
-{
-    float x = k127(w), g = fm_sqrtf(2.0f / (1.0f + x * x));
-    f->e.delay.wa = w >= 127 ? 1.0f : 0.5f * g * (1.0f + x);
-    f->e.delay.wb = w >= 127 ? 0.0f : 0.5f * g * (1.0f - x);
-}
-
-/* the delay's WOBBLE (a slow drift of its time, a tape's wow: each repeat drifts again, so they detune as they go)
- * and SMEAR (two allpasses a side in the loop: each repeat blurs a little more, the echoes become a wash), 0..127 */
-void fx_delay_mod(fxslot_t *f, int wobble, int smear)
-{
-    f->dwob = (uint8_t)(wobble < 0 ? 0 : wobble > 127 ? 127 : wobble);
-    f->dsmr = (uint8_t)(smear < 0 ? 0 : smear > 127 ? 127 : smear);
-    if (f->type_t == FXT_DELAY)
-        fx_derive(f);
 }
 
 void fx_filter(fxslot_t *f, int hp, int lp)
@@ -211,7 +174,35 @@ void fx_filter(fxslot_t *f, int hp, int lp)
     f->lpc = onepole_k(20000.0f * fm_exp2f(-(1.0f - k127(lp)) * 8.0f)); /* 78 Hz .. 20 kHz */
 }
 
-int fx_lags(const fxslot_t *f) { return f->type_t == FXT_CHORUS || f->type_t == FXT_DELAY || f->type_t == FXT_REVERB; }
+int fx_lags(const fxslot_t *f) { return f->type_t == EF_CHORUS || f->type_t == EF_DELAY || f->type_t == EF_REVERB; }
+
+/* the catalog's others on the send (both sides), wet, as a kit's slot runs them (synth.c slot_run): the dirt and the
+ * color (ring at a ratio of C4, tape without its wow), the inserts' effects (rate: the LFO's at its first knob) */
+static void fx_other(fxslot_t *f, float *l, float *r, int m)
+{
+    efx_slot_t *sl = &f->s;
+    const int ef = f->type;
+    if (efx_is_char(ef)) {
+        float *x = sl->u.ch.x, *z = sl->u.ch.z, *in = sl->u.ch.in;
+        float a = (float)f->k[0] * (1.0f / 127.0f), tn = (float)f->k[1] * (1.0f / 127.0f);
+        if (ef == EF_RING)
+            a = efx_ring_glide(a, in[0], &z[6], x);
+        if (ef != sl->cef || a != in[0] || tn != in[1]) {
+            efx_char_coefs(ef, a, tn, RING_C4, x);
+            sl->cef = (uint8_t)ef;
+            in[0] = a;
+            in[1] = tn;
+        }
+        x[7] = 1.0f;
+        if (ef == EF_RING)
+            efx_ring_norm(z);
+        efx_char_stage(x, z, ef, 1, l, r, m);
+    } else {
+        const float kn[3] = {(float)f->k[0], (float)f->k[1], (float)f->k[2]};
+        efx_insert(ef, &sl->u.in, &sl->ph, efx_need(ef, 0, 1) ? f->mem : 0, kn, f->x, 127,
+                   efx_lfo_hz(f->k[0], f->bpm), f->bpm, 0, l, r, (uint32_t)m);
+    }
+}
 
 void fx_process(fxslot_t *f, const float *in, float *out_l, float *out_r, uint32_t n)
 {
@@ -220,11 +211,15 @@ void fx_process(fxslot_t *f, const float *in, float *out_l, float *out_r, uint32
 void fx_process_lag(fxslot_t *f, const float *in, float *out_l, float *out_r, uint32_t n, int lag)
 {
     uint32_t o;
-    if (f->type_t != f->type || f->mode_t != f->mode) {   /* a new effect or mode: start it at rest */
+    if (f->type_t != f->type || f->mode_t != f->mode || f->fresh) {   /* a new effect or mode, new memory: at rest */
+        const int wipe = f->type_t != f->type && !f->fresh;
         f->type = f->type_t;
         f->mode = f->mode_t;
-        fx_states(f);
+        f->fresh = 0;
+        fx_states(f, wipe);
     }
+    if (f->type == EF_OFF || efx_need(f->type, f->mode, 1) > (f->mem ? f->mnb : 0))
+        return;                                /* (no memory: silent) */
     for (o = 0; o < n; o += SUB) {
         float x[SUB];
         int m = (int)(n - o < SUB ? n - o : SUB), i, any = 0;
@@ -248,11 +243,68 @@ void fx_process_lag(fxslot_t *f, const float *in, float *out_l, float *out_r, ui
         }
         f->hps = fm_flush(hps);
         f->lps = fm_flush(lps);
-        efx_send_run(&f->e, FXT_EF[f->type], x, out_l + o, out_r + o, m, any, lag);
+        if (send_own(f->type)) {
+            efx_send_run(&f->e, f->type, x, out_l + o, out_r + o, m, any, lag);
+        } else {
+            float r[SUB];
+            for (i = 0; i < m; i++)
+                r[i] = x[i];
+            fx_other(f, x, r, m);
+            for (i = 0; i < m; i++) {
+                out_l[o + i] += x[i];
+                out_r[o + i] += r[i];
+            }
+        }
     }
 }
 
-int fx_awake(const fxslot_t *f) { return efx_send_awake(&f->e, FXT_EF[f->type]); }
+int fx_awake(const fxslot_t *f)
+{
+    if (f->type == EF_OFF || efx_need(f->type, f->mode, 1) > (f->mem ? f->mnb : 0))
+        return 0;
+    return send_own(f->type) ? efx_send_awake(&f->e, f->type) : 1;
+}
+
+/* (the FX pages' names and defaults of the picks) */
+const char *const FXT_NAME[NFXT] = {"chorus", "delay", "lofi", "phaser", "reverb"};
+static const char *const FXT_KNOB[NFXT][4] = {
+    {"rate", "depth", "feedback", "width"}, {"time", "fine", "repeats", "tone"},
+    {"rate", "bits", "smooth", "width"},    {"freq", "depth", "rate", "feedback"},
+    {"size", "motion", "tone", "damp"},
+};
+static const char *const SPU_KNOB[4] = {"size", "decay", "tone", "damp"};
+const uint8_t FXT_DEFAULT[NFXT][4] = {{50, 86, 20, 127}, {83, 64, 56, 64}, {80, 80, 64, 40}, {50, 90, 50, 80},
+                                      {100, 40, 44, 72}};
+const uint8_t RV_LUSH_DEFAULT[4] = {64, 64, 56, 48};
+const char *fx_pick_name(int pick)
+{
+    int t = fx_pick_type(pick);
+    return t == FXT_REVERB ? RV_NAME[fx_pick_mode(pick)] : FXT_NAME[t];
+}
+const char *fx_knob_name(int pick, int k)
+{
+    int t = fx_pick_type(pick);
+    k &= 3;
+    if (t == FXT_REVERB && fx_pick_mode(pick) == RV_SHIMMER && k == 3)
+        return "shimmer";
+    return t == FXT_REVERB && fx_pick_mode(pick) != RV_PLATE ? SPU_KNOB[k] : FXT_KNOB[t][k];
+}
+/* an old FX track's pick, knobs and the delay's three (fx.h) as the slot's values */
+void fx_pick_slot(int pick, const uint8_t e[4], int width, int wobble, int smear, uint8_t *o)
+{
+    static const uint8_t EF[NFXT] = {EF_CHORUS, EF_DELAY, EF_LOFI, EF_PHASER, EF_REVERB};
+    const int t = fx_pick_type(pick < 0 || pick >= NFXPICK ? 0 : pick);
+    o[0] = EF[t];
+    o[1] = e[0], o[2] = e[1], o[3] = e[2];
+    o[5] = e[3], o[6] = o[7] = o[8] = 0;
+    if (t == FXT_DELAY) {                        /* time, repeats, tone; fine, width, wobble, smear */
+        o[2] = e[2], o[3] = e[3];
+        o[5] = e[1], o[6] = (uint8_t)width, o[7] = (uint8_t)wobble, o[8] = (uint8_t)smear;
+    } else if (t == FXT_REVERB) {                /* size, decay (motion), tone; the mode, damp (shimmer) */
+        o[5] = (uint8_t)fx_pick_mode(pick);
+        o[6] = e[3];
+    }
+}
 
 /* ================================================================ master === */
 /* the master's knob names, short enough for the knob strip: percussion, melodic, compressor

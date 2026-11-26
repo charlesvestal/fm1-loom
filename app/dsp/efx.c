@@ -27,44 +27,43 @@ static const char *const WORD[NW] = {"-", "amount", "tone", "distort", "filter",
 #define KN(a, b, c) {W_##a, W_##b, W_##c
 #define XS(a, b, c, d) W_##a, W_##b, W_##c, W_##d}
 const efx_info_t EFX[NEF] = {
-    {"off", EFG_NONE, 0, 0, KN(NONE, NONE, NONE), XS(NONE, NONE, NONE, NONE), {0, 0, 0}, {EK_NN, EK_NN, EK_NN}, {0, 0, 0, 0}},
-    {"drive", EFG_DIRT, 0, 0, KN(AMOUNT, TONE, NONE), XS(NONE, NONE, NONE, NONE), {64, 64, 0}, {EK_PCT, EK_BIP, EK_NN},
+    {"off", EFG_NONE, 0, KN(NONE, NONE, NONE), XS(NONE, NONE, NONE, NONE), {0, 0, 0}, {EK_NN, EK_NN, EK_NN}, {0, 0, 0, 0}},
+    {"drive", EFG_DIRT, 0, KN(AMOUNT, TONE, NONE), XS(NONE, NONE, NONE, NONE), {64, 64, 0}, {EK_PCT, EK_BIP, EK_NN},
      {0, 0, 0, 0}},
-    {"rat", EFG_DIRT, 0, 0, KN(DISTORT, FILTER, LEVEL), XS(NONE, NONE, NONE, NONE), {70, 50, 80}, {EK_NN, EK_NN, EK_NN},
+    {"rat", EFG_DIRT, 0, KN(DISTORT, FILTER, LEVEL), XS(NONE, NONE, NONE, NONE), {70, 50, 80}, {EK_NN, EK_NN, EK_NN},
      {0, 0, 0, 0}},
-    {"fold", EFG_DIRT, 0, 0, KN(AMOUNT, BIAS, NONE), XS(NONE, NONE, NONE, NONE), {64, 64, 0}, {EK_PCT, EK_BIP, EK_NN},
+    {"fold", EFG_DIRT, 0, KN(AMOUNT, BIAS, NONE), XS(NONE, NONE, NONE, NONE), {64, 64, 0}, {EK_PCT, EK_BIP, EK_NN},
      {0, 0, 0, 0}},
-    {"crush", EFG_DIRT, 0, 0, KN(AMOUNT, WHICH, NONE), XS(NONE, NONE, NONE, NONE), {64, 64, 0}, {EK_PCT, EK_BIP, EK_NN},
+    {"crush", EFG_DIRT, 0, KN(AMOUNT, WHICH, NONE), XS(NONE, NONE, NONE, NONE), {64, 64, 0}, {EK_PCT, EK_BIP, EK_NN},
      {0, 0, 0, 0}},
-    {"ring", EFG_DIRT, 0, 1, KN(DEPTH, RATIO, NONE), XS(NONE, NONE, NONE, NONE), {64, 64, 0}, {EK_PCT, EK_RATIO, EK_NN},
+    {"ring", EFG_DIRT, 1, KN(DEPTH, RATIO, NONE), XS(NONE, NONE, NONE, NONE), {64, 64, 0}, {EK_PCT, EK_RATIO, EK_NN},
      {0, 0, 0, 0}},
-    {"tilt", EFG_DIRT, 0, 0, KN(PIVOT, TILT, NONE), XS(NONE, NONE, NONE, NONE), {64, 64, 0}, {EK_NN, EK_BIP, EK_NN},
+    {"tilt", EFG_DIRT, 0, KN(PIVOT, TILT, NONE), XS(NONE, NONE, NONE, NONE), {64, 64, 0}, {EK_NN, EK_BIP, EK_NN},
      {0, 0, 0, 0}},
-    {"tape", EFG_COLOR, 0, 1, KN(AMOUNT, TONE, NONE), XS(NONE, NONE, NONE, NONE), {64, 64, 0}, {EK_PCT, EK_NN, EK_NN},
+    {"tape", EFG_COLOR, 1, KN(AMOUNT, TONE, NONE), XS(NONE, NONE, NONE, NONE), {64, 64, 0}, {EK_PCT, EK_NN, EK_NN},
      {0, 0, 0, 0}},
-    {"sampler", EFG_COLOR, 0, 0, KN(AMOUNT, TONE, NONE), XS(NONE, NONE, NONE, NONE), {64, 64, 0}, {EK_PCT, EK_NN, EK_NN},
+    {"sampler", EFG_COLOR, 0, KN(AMOUNT, TONE, NONE), XS(NONE, NONE, NONE, NONE), {64, 64, 0}, {EK_PCT, EK_NN, EK_NN},
      {0, 0, 0, 0}},
-    {"lofi", EFG_COLOR, 1, 0, KN(RATE, BITS, SMOOTH), XS(WIDTH, NONE, NONE, NONE), {80, 80, 64}, {EK_NN, EK_NN, EK_PCT},
-     {40, 0, 0, 0}},                         /* (its width reads its output back from a short line: 2 KB; a send's 4 KB,
-                                              * the chorus's) */
-    {"tremolo", EFG_MOVE, 0, 0, KN(RATE, DEPTH, PAN), XS(NONE, NONE, NONE, NONE), {4, 80, 0}, {EK_SYNC, EK_PCT, EK_PCT},
+    {"lofi", EFG_COLOR, 0, KN(RATE, BITS, SMOOTH), XS(WIDTH, NONE, NONE, NONE), {80, 80, 64}, {EK_NN, EK_NN, EK_PCT},
+     {40, 0, 0, 0}},                         /* (its width reads its output back from a short line) */
+    {"tremolo", EFG_MOVE, 0, KN(RATE, DEPTH, PAN), XS(NONE, NONE, NONE, NONE), {4, 80, 0}, {EK_SYNC, EK_PCT, EK_PCT},
      {0, 0, 0, 0}},
-    {"phaser", EFG_MOVE, 0, 0, KN(FREQ, DEPTH, RATE), XS(FEEDBACK, NONE, NONE, NONE), {50, 90, 50},
+    {"phaser", EFG_MOVE, 0, KN(FREQ, DEPTH, RATE), XS(FEEDBACK, NONE, NONE, NONE), {50, 90, 50},
      {EK_NN, EK_PCT, EK_NN}, {80, 0, 0, 0}},
-    {"univibe", EFG_MOVE, 0, 0, KN(RATE, DEPTH, VIBRATO), XS(NONE, NONE, NONE, NONE), {70, 90, 0},
+    {"univibe", EFG_MOVE, 0, KN(RATE, DEPTH, VIBRATO), XS(NONE, NONE, NONE, NONE), {70, 90, 0},
      {EK_SYNC, EK_PCT, EK_PCT}, {0, 0, 0, 0}},
-    {"chorus", EFG_MOVE, 1, 0, KN(RATE, DEPTH, FEEDBACK), XS(WIDTH, NONE, NONE, NONE), {50, 86, 20},
-     {EK_NN, EK_PCT, EK_PCT}, {127, 0, 0, 0}},   /* (its line: 2 KB, EFX_CHO_REACH; a send's 4 KB: its lag) */
-    {"juno", EFG_MOVE, 1, 0, KN(MODE, TONE, NONE), XS(NONE, NONE, NONE, NONE), {0, 70, 0}, {EK_LIST, EK_NN, EK_NN},
-     {0, 0, 0, 0}},                          /* (its line: 2 KB) */
-    {"autowah", EFG_MOVE, 0, 0, KN(SENSE, RESO, DECAY), XS(NONE, NONE, NONE, NONE), {80, 70, 50}, {EK_NN, EK_NN, EK_NN},
+    {"chorus", EFG_MOVE, 0, KN(RATE, DEPTH, FEEDBACK), XS(WIDTH, NONE, NONE, NONE), {50, 86, 20},
+     {EK_NN, EK_PCT, EK_PCT}, {127, 0, 0, 0}},
+    {"juno", EFG_MOVE, 0, KN(MODE, TONE, NONE), XS(NONE, NONE, NONE, NONE), {0, 70, 0}, {EK_LIST, EK_NN, EK_NN},
      {0, 0, 0, 0}},
-    {"delay", EFG_SPACE, 24, 0, KN(TIME, REPEATS, TONE), XS(FINE, WIDTH, WOBBLE, SMEAR), {83, 56, 64},
-     {EK_DIV, EK_NN, EK_NN}, {64, 127, 0, 0}},   /* (its two lines, 44.8 KB, and smear's 4 KB) */
-    {"rumble", EFG_SPACE, 2, 0, KN(DECAY, TONE, NONE), XS(NONE, NONE, NONE, NONE), {55, 80, 0}, {EK_NN, EK_NN, EK_NN},
-     {0, 0, 0, 0}},                          /* (its lines: 4 KB) */
-    {"reverb", EFG_SPACE, 32, 0, KN(SIZE, DECAY, TONE), XS(MODE, DAMP, NONE, NONE), {100, 40, 44}, {EK_NN, EK_NN, EK_BIP},
-     {0, 72, 0, 0}},                         /* (its line: 64 KB; the plate's defaults, its second knob its motion) */
+    {"autowah", EFG_MOVE, 0, KN(SENSE, RESO, DECAY), XS(NONE, NONE, NONE, NONE), {80, 70, 50}, {EK_NN, EK_NN, EK_NN},
+     {0, 0, 0, 0}},
+    {"delay", EFG_SPACE, 0, KN(TIME, REPEATS, TONE), XS(FINE, WIDTH, WOBBLE, SMEAR), {83, 56, 64},
+     {EK_DIV, EK_NN, EK_NN}, {64, 127, 0, 0}},
+    {"rumble", EFG_SPACE, 0, KN(DECAY, TONE, NONE), XS(NONE, NONE, NONE, NONE), {55, 80, 0}, {EK_NN, EK_NN, EK_NN},
+     {0, 0, 0, 0}},
+    {"reverb", EFG_SPACE, 0, KN(SIZE, DECAY, TONE), XS(MODE, DAMP, NONE, NONE), {100, 40, 44}, {EK_NN, EK_NN, EK_BIP},
+     {0, 72, 0, 0}},                         /* (the plate's defaults, its second knob its motion) */
 };
 #undef KN
 #undef XS
@@ -72,6 +71,22 @@ const char *efx_knob_name(int ef, int k)
 {
     int w = ef >= 0 && ef < NEF && k >= 0 && k < 7 ? EFX[ef].word[k] : W_NONE;
     return k >= 3 && w == W_NONE ? 0 : WORD[w];
+}
+const char *efx_knob_word(int ef, int mode, int k)
+{
+    if (ef == EF_REVERB && mode == RV_PLATE && k == 1)
+        return "motion";
+    if (ef == EF_REVERB && mode == RV_SHIMMER && k == 4)
+        return "shimmer";                    /* (its damping fixed: the octaves fed back) */
+    return efx_knob_name(ef, k);
+}
+/* (synth.c's SYNC_BEATS: 2/1 .. 1/64) */
+float efx_lfo_hz(int v, float bpm)
+{
+    static const float SB[8] = {8.0f, 4.0f, 2.0f, 1.0f, 0.5f, 0.25f, 0.125f, 0.0625f};
+    if (v < 8)
+        return bpm * (1.0f / 60.0f) / SB[v < 0 ? 0 : v];
+    return 0.1f * fm_exp2f((float)(v - 8) * (8.22881869f / 119.0f));   /* 0.1 .. 30 Hz */
 }
 const char *efx_list_name(int ef, int k, int v)
 {
@@ -418,19 +433,65 @@ const char FX_DL_MARK[FX_DL_N] = {0, 'T', 'D', 0, 'T', 'D', 0, 'T', 'D', 0};
 /* lush: Dattorro's plate at 22.05 kHz on the reverb line (int16, through psxrev.h's spu_rd / spu_wr: one ring whose
  * base moves a sample a tick; a line at offset o is written at o and read len ticks later at o + len). The lines in
  * Dattorro's order, each with room for the largest size (x1.5 of his lengths at 29761 Hz, scaled to 22050 Hz) and the
- * modulation: the pre-delay, four input diffusers, then each half of the tank: a modulated allpass, a delay, an
- * allpass, a delay */
+ * modulation: the pre-delay (its longest 750 ticks: 1152, so lush is 26 blocks of the pool exactly; where a line sits
+ * on the ring changes nothing it gives), four input diffusers, then each half of the tank: a modulated allpass, a
+ * delay, an allpass, a delay */
 enum { LU_PRE, LU_IN1, LU_IN2, LU_IN3, LU_IN4, LU_MAPL, LU_DL1, LU_APL, LU_DL2, LU_MAPR, LU_DR1, LU_APR, LU_DR2, NLU };
 _Static_assert(NLU == EFX_LU_N, "efx.h EFX_LU_N: lush's lines");
-static const int32_t LU_OFF[NLU + 1] = {0, 1200, 1397, 1555, 2016, 2363, 3149, 8137, 10177, 14351, 15400, 20126,
-                                        23117, 26672};
+static const int32_t LU_OFF[NLU + 1] = {0, 1152, 1349, 1507, 1968, 2315, 3101, 8089, 10129, 14303, 15352, 20078,
+                                        23069, 26624};
 static const float LU_LEN[NLU] = {0.0f, 142.0f, 107.0f, 379.0f, 277.0f, 672.0f, 4453.0f, 1800.0f, 3720.0f, 908.0f,
                                   4217.0f, 2656.0f, 3163.0f};   /* Dattorro's, at 29761 Hz */
-_Static_assert(26672 <= FX_RV_LEN, "lush's lines do not fit FX_RV_LEN");
-#define SH_OFF 26672                          /* shimmer: the plate's output, a line of SH_W after lush's (its two heads) */
+_Static_assert(26624 <= FX_RV_LEN, "lush's lines do not fit FX_RV_LEN");
+#define SH_OFF 26624                          /* shimmer: the plate's output, a line of SH_W after lush's (its two heads) */
 #define SH_W 2048
 _Static_assert(SH_OFF + SH_W <= FX_RV_LEN, "shimmer's line does not fit FX_RV_LEN");
 typedef efx_lush_t lush_t;
+/* a new mode's clearing, a slice a call (SPU_CLEAR), counted over FX_RV_LEN whatever the line (the silence it always
+ * had), the line's own part zeroed */
+static void rv_clear(int16_t *w, uint32_t n, int32_t *clear)
+{
+    int32_t k = *clear > SPU_CLEAR ? SPU_CLEAR : *clear, at = FX_RV_LEN - *clear;
+    if (at < (int32_t)n)
+        zero16(w + at, (int32_t)n - at < k ? (int32_t)n - at : k);
+    *clear -= k;
+}
+
+/* ---- the one pool (efx.h) ---- */
+#ifdef PLAT_HOST
+int16_t efx_pool[EFX_NB][EFX_INS_N] __attribute__((aligned(8)));
+#else
+int16_t efx_pool[EFX_NB][EFX_INS_N] __attribute__((section(".pool"), aligned(8)));
+#endif
+uint64_t efx_send_used;
+#define RV_PLATE_N (RV_AP0 + 556 + 441 + 579 + 457)   /* the plate's combs and allpasses */
+static int32_t rv_need16(int mode)            /* a reverb mode's line, int16: the plate's, an SPU mode's largest address at
+                                               * x4 and two more (its "-1" reads, no address aliasing another), lush's,
+                                               * shimmer's */
+{
+    return mode == RV_PLATE ? RV_PLATE_N : mode == RV_LUSH ? LU_OFF[NLU] : mode == RV_SHIMMER ? SH_OFF + SH_W
+         : mode > RV_PLATE && mode < NRV ? spu_top(mode) + 2 : FX_RV_LEN;
+}
+int efx_need(int ef, int mode, int send)
+{
+    int32_t n;
+    switch (ef) {
+    case EF_CHORUS: case EF_LOFI: return send ? EFX_CHO_N / EFX_INS_N : 1;   /* (a send's line: its lag) */
+    case EF_JUNO: return 1;
+    case EF_RUMBLE: return 2;
+    case EF_DELAY: n = 2 * FX_DLY_LEN + EFX_SMEAR_N; break;
+    case EF_REVERB: n = rv_need16(mode); break;
+    default: return 0;
+    }
+    if (!send)                                /* (a track's: its states first) */
+        n += ef == EF_DELAY ? EFX_BIG_DN : EFX_BIG_N;
+    return (int)((n + EFX_INS_N - 1) / EFX_INS_N);
+}
+int32_t efx_rv_ring(int mode, int nb, int send)
+{
+    int32_t n = (int32_t)nb * EFX_INS_N - (send ? 0 : EFX_BIG_N);
+    return mode == RV_PLATE ? RV_PLATE_N : n > FX_RV_LEN ? FX_RV_LEN : n;
+}
 
 static inline float onepole_k(float hz) { return hz >= 20000.0f ? 1.0f : 1.0f - fm_expf(-FM_TWO_PI * hz / SR); }
 static inline float k127(int v) { return (float)(v < 0 ? 0 : v > 127 ? 127 : v) * (1.0f / 127.0f); }
@@ -441,32 +502,24 @@ static inline int16_t f16(float x)
 }
 static inline float s16f(int16_t v) { return (float)v * (1.0f / 16384.0f); }
 
-void efx_send_reset(efx_send_t *e, int mode)
+static void dl_reset(efx_delay_t *d, float t)  /* a delay's states at rest (t: its time now, samples) */
 {
-    int i;
-    efx_reverb_t *r = &e->reverb;
-    efx_delay_t *d = &e->delay;
-    e->chorus.w = 0; e->chorus.ph = 0.0f;
-    e->chorus.s1 = e->chorus.s2 = e->chorus.hl = e->chorus.hr = e->chorus.fz = 0.0f;
     d->w = 0; d->quiet = 2 * FX_DLY_LEN; d->lpl = d->lpr = 0.0f;
     d->ph = 0; d->al = d->ar = 0.0f;
     d->wph = d->wdl = d->wdr = d->wsl = d->wsr = d->hl = d->hr = 0.0f;
     d->sap[0] = d->sap[1] = d->sap[2] = d->sap[3] = d->sap[4] = 0;
-    d->cur = e->pt[0];                        /* a new delay starts on time (the slew is for changes) */
-    e->lofi.w = 0;
-    e->lofi.ph = e->lofi.hold = e->lofi.in1 = e->lofi.out1 = e->lofi.wph = 0.0f;
+    d->cur = t;                               /* a new delay starts on time (the slew is for changes) */
+}
+static void rv_reset(efx_reverb_t *r, float size, int mode)   /* a reverb's, in mode (size: its numbers' first) */
+{
+    int i;
     for (i = 0; i < 4; i++) {
-        e->phaser.yl[i] = e->phaser.yr[i] = 0.0f;
         r->cpos[i] = r->apos[i] = 0;
         r->cdmp[i] = 0.0f;
-        r->cd[i] = e->pt[0] * (float)RV_COMB[i];
+        r->cd[i] = size * (float)RV_COMB[i];
     }
-    e->phaser.xl = e->phaser.xr = 0.0f;
-    e->phaser.ph = 0.0f; e->phaser.zl = e->phaser.zr = 0.0f; e->phaser.al = e->phaser.ar = 0.0f;
     r->quiet = FX_RV_LEN; r->ph = r->hp = 0.0f;
     r->tl[0] = r->tl[1] = r->tr[0] = r->tr[1] = 0.0f;
-    for (i = 0; i < 6; i++)
-        e->pc[i] = e->pt[i];
     r->mode = (uint8_t)mode;
     if (!rv_lush(mode)) {
         spu_reset(&r->spu, mode);
@@ -478,6 +531,22 @@ void efx_send_reset(efx_send_t *e, int mode)
         u->clear = FX_RV_LEN;
         u->quiet = FX_RV_LEN * 2;
     }
+}
+void efx_send_reset(efx_send_t *e, int mode)
+{
+    int i;
+    e->chorus.w = 0; e->chorus.ph = 0.0f;
+    e->chorus.s1 = e->chorus.s2 = e->chorus.hl = e->chorus.hr = e->chorus.fz = 0.0f;
+    dl_reset(&e->delay, e->pt[0]);
+    e->lofi.w = 0;
+    e->lofi.ph = e->lofi.hold = e->lofi.in1 = e->lofi.out1 = e->lofi.wph = 0.0f;
+    for (i = 0; i < 4; i++)
+        e->phaser.yl[i] = e->phaser.yr[i] = 0.0f;
+    e->phaser.xl = e->phaser.xr = 0.0f;
+    e->phaser.ph = 0.0f; e->phaser.zl = e->phaser.zr = 0.0f; e->phaser.al = e->phaser.ar = 0.0f;
+    for (i = 0; i < 6; i++)
+        e->pc[i] = e->pt[i];
+    rv_reset(&e->reverb, e->pt[0], mode);
 }
 
 /* the delay's time in seconds at a tempo, and the times the line halved it (h) */
@@ -501,6 +570,15 @@ float fx_delay_fb(int v)
     if (v >= 127)
         return 1.0f;
     return fm_exp2f(-9.966f / (7.95f * fm_exp2f(((float)v - 56.0f) * (1.0f / 14.0f))));
+}
+
+/* PING WIDTH: the echoes' mid kept, their sides times w (0 centred .. 127 hard left and right), at the same power: an
+ * echo on one side (e) gives e (1 + w) / 2 and e (1 - w) / 2, power e^2 (1 + w^2) / 2, so both times sqrt(2 / (1 + w^2)) */
+void efx_delay_width(float *wa, float *wb, int w)
+{
+    float x = k127(w), g = fm_sqrtf(2.0f / (1.0f + x * x));
+    *wa = w >= 127 ? 1.0f : 0.5f * g * (1.0f + x);
+    *wb = w >= 127 ? 0.0f : 0.5f * g * (1.0f - x);
 }
 
 /* the knobs to the effect's numbers (pt[]: what each means is in the effect's loop) */
@@ -669,7 +747,7 @@ static inline float tap16(const int16_t *b, float rp)
 static const int16_t SAP_AT[4] = {0, 379, 506, 907}, SAP_LEN[4] = {379, 127, 401, 137};
 #define SAP_COMP 522.0f
 #define SAP_IN 1044                              /* (the send's wait: SAP_COMP samples) */
-_Static_assert(SAP_IN + (int)SAP_COMP <= CHO_N, "smear's lines do not fit the chorus line");
+_Static_assert(SAP_IN + (int)SAP_COMP == EFX_SMEAR_N, "efx.h EFX_SMEAR_N: smear's lines");
 static inline float sap_run(efx_delay_t *f, int16_t *cho, int k, float x, float g)
 {
     int16_t *b = cho + SAP_AT[k];
@@ -1017,13 +1095,12 @@ static void do_spu(efx_reverb_t *f, const float *pc, const float *x, float *ol, 
 {
     spu_t *s = &f->spu;
     int16_t *w = f->line;
+    const uint32_t n = f->n;
     const float tlk = pc[2], thk = pc[5], g = -SPU_GAIN[f->mode - 1];
     float tl = s->tl, th = s->th, tr = s->tr, thr = s->thr;
     int i;
     if (s->clear > 0) {                       /* a new mode: the work area emptied first, silent meanwhile */
-        int32_t k = s->clear > SPU_CLEAR ? SPU_CLEAR : s->clear;
-        zero16(w + (FX_RV_LEN - s->clear), k);
-        s->clear -= k;
+        rv_clear(w, n, &s->clear);
         return;
     }
     if (!any && s->quiet >= FX_RV_LEN * 2)    /* silent in, an empty area: nothing to read */
@@ -1040,7 +1117,7 @@ static void do_spu(efx_reverb_t *f, const float *pc, const float *x, float *ol, 
             float lo, ro;
             int wr;
             s->ip = (uint8_t)ip;              /* (spu_decimate reads it) */
-            wr = spu_tick(s, w, -spu_decimate(s), &lo, &ro);   /* vLIN = 8000h: -1 */
+            wr = spu_tick(s, w, n, -spu_decimate(s), &lo, &ro);   /* vLIN = 8000h: -1 */
             s->quiet = (wr == 0 && !any) ? s->quiet + 2 : 0;
             s->up[0][up_w] = s->up[0][up_w + 32u] = lo;
             s->up[1][up_w] = s->up[1][up_w + 32u] = ro;
@@ -1076,33 +1153,32 @@ static void do_spu(efx_reverb_t *f, const float *pc, const float *x, float *ol, 
  * tank, its seven taps a side, then back to 44.1 kHz linearly (half a tick late) and the plate's tone. A lag is more
  * pre-delay (as the SPU's). The lengths follow the gliding size a block (whole samples); the two tank allpasses wander
  * +-12 samples (x size) on a 0.7 Hz sine, a quarter turn apart */
-#define LU_RD(l, k) spu_rd(w, b, LU_OFF[l] + (k))
-#define LU_WR(l, v) (wz |= spu_wr(w, b, LU_OFF[l], (v)))
+#define LU_RD(l, k) spu_rd(w, n, b, LU_OFF[l] + (k))
+#define LU_WR(l, v) (wz |= spu_wr(w, n, b, LU_OFF[l], (v)))
 #define LU_AP(l, g, x)                                                                        \
     do {                                                                                       \
         float d_ = LU_RD(l, u->len[l]), v_ = (x) - (g) * d_;                                  \
         LU_WR(l, v_);                                                                          \
         (x) = d_ + (g) * v_;                                                                   \
     } while (0)
-static inline float lu_rdf(const int16_t *w, uint32_t b, int32_t off, float p)   /* a read between samples */
+static inline float lu_rdf(const int16_t *w, uint32_t n, uint32_t b, int32_t off, float p)   /* a read between samples */
 {
     int32_t i = (int32_t)p;
-    float fr = p - (float)i, a0 = spu_rd(w, b, off + i), a1 = spu_rd(w, b, off + i + 1);
+    float fr = p - (float)i, a0 = spu_rd(w, n, b, off + i), a1 = spu_rd(w, n, b, off + i + 1);
     return a0 + fr * (a1 - a0);
 }
 static void do_lush(efx_reverb_t *f, const float *pc, const float *x, float *ol, float *orr, int m, int any)
 {
     lush_t *u = &f->lu;
     int16_t *w = f->line;
+    const uint32_t n = f->n;
     const float sc = pc[0] * (22050.0f / 29761.0f), dec = pc[1], damp = pc[3], tlk = pc[2], thk = pc[5];
     const float lpk = 0.55f, exc = 12.0f * pc[0];          /* (lpk: the send's low-pass, ~5.6 kHz before decimation) */
     const float shm = f->shm;                              /* (shimmer's feedback; 0: lush) */
     float tl = u->tl, th = u->th, tr = u->tr, thr = u->thr;
     int i, l;
     if (u->clear > 0) {                       /* a new mode: the line emptied first, silent meanwhile */
-        int32_t k = u->clear > SPU_CLEAR ? SPU_CLEAR : u->clear;
-        zero16(w + (FX_RV_LEN - u->clear), k);
-        u->clear -= k;
+        rv_clear(w, n, &u->clear);
         return;
     }
     if (!any && u->quiet >= FX_RV_LEN * 2)    /* silent in, an empty line: nothing to read */
@@ -1135,8 +1211,8 @@ static void do_lush(efx_reverb_t *f, const float *pc, const float *x, float *ol,
                 if (d2 >= (float)(SH_W - 2))
                     d2 -= (float)(SH_W - 4);
                 g1 = 1.0f - fm_fabsf(2.0f * (d1 - 2.0f) / (float)(SH_W - 4) - 1.0f);
-                ha = spu_rd(w, b, SH_OFF + (int32_t)d1);
-                hb = spu_rd(w, b, SH_OFF + (int32_t)d2);
+                ha = spu_rd(w, n, b, SH_OFF + (int32_t)d1);
+                hb = spu_rd(w, n, b, SH_OFF + (int32_t)d2);
                 u->sh_lp += 0.5f * (ha * g1 + hb * (1.0f - g1) - u->sh_lp);
                 u->sh_hp = 0.97f * (u->sh_hp + u->sh_lp - u->sh_x1);
                 u->sh_x1 = u->sh_lp;
@@ -1155,7 +1231,7 @@ static void do_lush(efx_reverb_t *f, const float *pc, const float *x, float *ol,
             a = s + dec * u->fb[1];
             mo = exc * fm_sin_turns(u->lfo);
             {
-                float d = lu_rdf(w, b, LU_OFF[LU_MAPL], (float)u->len[LU_MAPL] + mo), v = a + 0.7f * d;
+                float d = lu_rdf(w, n, b, LU_OFF[LU_MAPL], (float)u->len[LU_MAPL] + mo), v = a + 0.7f * d;
                 LU_WR(LU_MAPL, v);
                 a = d - 0.7f * v;
             }
@@ -1169,7 +1245,7 @@ static void do_lush(efx_reverb_t *f, const float *pc, const float *x, float *ol,
             c = s + dec * u->fb[0];
             mo = exc * fm_sin_turns(u->lfo + 0.25f);
             {
-                float d = lu_rdf(w, b, LU_OFF[LU_MAPR], (float)u->len[LU_MAPR] + mo), v = c + 0.7f * d;
+                float d = lu_rdf(w, n, b, LU_OFF[LU_MAPR], (float)u->len[LU_MAPR] + mo), v = c + 0.7f * d;
                 LU_WR(LU_MAPR, v);
                 c = d - 0.7f * v;
             }
@@ -1193,8 +1269,8 @@ static void do_lush(efx_reverb_t *f, const float *pc, const float *x, float *ol,
             u->cur[0] = l0 * 0.45f;                 /* (0.6 was a little loud beside the dry: Charles) */
             u->cur[1] = r0 * 0.45f;
             if (shm > 0.0f)                         /* (shimmer's line: the output, for its heads) */
-                wz |= spu_wr(w, b, SH_OFF, (u->cur[0] + u->cur[1]) * 0.5f);
-            u->base = b - 1u;
+                wz |= spu_wr(w, n, b, SH_OFF, (u->cur[0] + u->cur[1]) * 0.5f);
+            u->base = b ? b - 1u : n - 1u;
             u->quiet = (wz == 0 && !any) ? u->quiet + 2 : 0;
         }
         yl = u->phase ? 0.5f * (u->prev[0] + u->cur[0]) : u->cur[0];
@@ -1302,6 +1378,75 @@ static void ins_nums(float *p, int ef, const float *kn, const uint8_t *xt)   /* 
     const uint8_t k[4] = {(uint8_t)kn[0], (uint8_t)kn[1], (uint8_t)kn[2], xt[0]};
     float shm;
     efx_nums(p, &shm, ef, 0, k, 120.0f, 0, 0);
+}
+/* a track's delay or reverb: the send's on the pair's middle, no lag; its states at the start of its memory (efx_big_t:
+ * at rest when st says it is fresh, its z[0] 0), its lines after; its numbers from the knobs and extras (the send's
+ * four: the delay's time, fine, repeats, tone, its width, wobble, smear; the reverb's size, decay, tone, damp in its
+ * mode), gliding as a send's; its wet mixed with the dry, 32 frames at a time */
+#define BIG_GLIDE 0.07f                          /* (fx.c's GLIDE: a block's share, ~10 ms) */
+static __attribute__((noinline)) void big_run(int ef, efx_ins_t *st, int16_t *mem, const float *kn, const uint8_t *xt,
+                                              int mix, float bpm, float *bl, float *br, uint32_t n)
+{
+    efx_big_t *g = (efx_big_t *)(void *)mem;
+    int16_t *ln = mem + (ef == EF_DELAY ? EFX_BIG_DN : EFX_BIG_N);
+    const int dl = ef == EF_DELAY, mode = dl || xt[0] >= NRV ? RV_PLATE : xt[0];
+    const uint8_t k[4] = {(uint8_t)kn[0], dl ? xt[0] : (uint8_t)kn[1], (uint8_t)kn[dl ? 1 : 2], dl ? (uint8_t)kn[2] : xt[1]};
+    const float mx = (float)mix * (1.0f / 127.0f);
+    float shm = 0.0f;
+    efx_nums(g->pt, &shm, ef, mode, k, bpm, dl ? xt[2] : 0, dl ? xt[3] : 0);
+    if (st->z[0] == 0.0f) {                      /* fresh: at rest */
+        for (int i = 0; i < 6; i++)
+            g->pc[i] = g->pt[i];
+        if (dl) {
+            dl_reset(&g->u.d, g->pt[0]);
+            g->u.d.l = ln;
+            g->u.d.r = ln + FX_DLY_LEN;
+        } else {
+            rv_reset(&g->u.r, g->pt[0], mode);
+            g->u.r.line = ln;
+            g->u.r.n = (uint32_t)efx_rv_ring(mode, efx_need(EF_REVERB, mode, 0), 0);
+        }
+        st->z[0] = 1.0f;
+    }
+    if (dl)
+        efx_delay_width(&g->u.d.wa, &g->u.d.wb, xt[1]);
+    else
+        g->u.r.shm = shm;
+    for (uint32_t j = 0; j < n; j += 32) {
+        float x[32], ol[32], orr[32];
+        int m = n - j < 32u ? (int)(n - j) : 32, i, any = 0;
+        for (i = 0; i < 6; i++)
+            g->pc[i] += (g->pt[i] - g->pc[i]) * BIG_GLIDE;
+        for (i = 0; i < m; i++) {
+            x[i] = 0.5f * (bl[j + i] + br[j + i]);
+            any |= x[i] != 0.0f;
+            ol[i] = orr[i] = 0.0f;
+        }
+        if (dl)
+            do_delay(&g->u.d, ln + 2 * FX_DLY_LEN, g->pt, g->pc, x, ol, orr, m, any, 0);
+        else if (mode == RV_PLATE)
+            do_reverb(&g->u.r, g->pc, x, ol, orr, m, any, 0);
+        else if (rv_lush(mode))
+            do_lush(&g->u.r, g->pc, x, ol, orr, m, any);
+        else
+            do_spu(&g->u.r, g->pc, x, ol, orr, m, any);
+        for (i = 0; i < m; i++) {
+            bl[j + i] += mx * (ol[i] - bl[j + i]);
+            br[j + i] += mx * (orr[i] - br[j + i]);
+        }
+    }
+}
+int efx_big_awake(const int16_t *mem, int ef)
+{
+    const efx_big_t *g = (const efx_big_t *)(const void *)mem;
+    const efx_reverb_t *r = &g->u.r;
+    if (!mem || (ef != EF_DELAY && ef != EF_REVERB))
+        return 0;
+    if (ef == EF_DELAY)
+        return g->u.d.quiet < 2 * FX_DLY_LEN;
+    return r->mode == RV_PLATE ? r->quiet < FX_RV_LEN
+         : rv_lush(r->mode) ? r->lu.clear > 0 || r->lu.quiet < FX_RV_LEN * 2
+         : r->spu.clear > 0 || r->spu.quiet < FX_RV_LEN * 2;
 }
 static __attribute__((noinline)) void ins_one(int ef, efx_ins_t *st, float *php, int16_t *mem, const float *kn,
                                               const uint8_t *xt, int mix, float rate, float bpm, const float *in,
@@ -1588,18 +1733,23 @@ static __attribute__((noinline)) void ins_one(int ef, efx_ins_t *st, float *php,
         z[15] = fm_flush(hb);
         break;
     }
-    default:                                     /* (the delay, the reverb: no memory on a track yet) */
+    case EF_DELAY: case EF_REVERB:
+        if (mem)
+            big_run(ef, st, mem, kn, xt, mix, bpm, bl, br, n);
+        break;
+    default:
         break;
     }
     *php = ph;
 }
 /* the wet-only ones (tremolo, phaser, univibe, rat, autowah) mixed with the dry, 32 frames at a time; the others mix
- * in their own loops (chorus, juno, lofi; rumble's mix its level, the dry whole) */
+ * in their own loops (chorus, juno, lofi, delay, reverb; rumble's mix its level, the dry whole) */
 void efx_insert(int ef, efx_ins_t *st, float *ph, int16_t *mem, const float *kn, const uint8_t *xt, int mix, float rate,
                 float bpm, const float *in, float *bl, float *br, uint32_t n)
 {
     float dl[32], dr[32];
-    if (mix >= 127 || ef == EF_CHORUS || ef == EF_JUNO || ef == EF_LOFI || ef == EF_RUMBLE) {
+    if (mix >= 127 || ef == EF_CHORUS || ef == EF_JUNO || ef == EF_LOFI || ef == EF_RUMBLE || ef == EF_DELAY ||
+        ef == EF_REVERB) {
         ins_one(ef, st, ph, mem, kn, xt, mix, rate, bpm, in, bl, br, n);
         return;
     }

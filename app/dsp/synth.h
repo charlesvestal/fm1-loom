@@ -172,13 +172,12 @@ enum { TP_S1TYPE = TP_CTYPE, TP_S1K1 = TP_CAMT, TP_S1K2 = TP_CTONE, TP_S1MIX = T
  * and its sends; ring and tape run on each voice first (ring's sine follows each note; tape's wow bends the voices'
  * pitch, its saturation on the bus), so a voice's effects come before the bus's whatever the slots' order. (A second
  * ring on the bus, at a ratio of C4.) On a kit both on the kit's pair after its bus filter (ring at a ratio of C4, tape
- * without its wow: no pitch to bend; rumble hears the kicks alone). Effects with memory (chorus, lofi, juno: a 2 KB
- * block; rumble two) take it from a pool shared by every track's slots, INS_SLOTS blocks; a slot that finds none
- * passes dry (synth_slot_room), as the delay and the reverb do on a track until the one pool (phase 3) */
+ * without its wow: no pitch to bend; rumble hears the kicks alone). Effects with memory (dsp/efx.h efx_need: chorus,
+ * lofi, juno a 2 KB block, rumble two, a delay or a reverb many) take it from the one pool (efx_pool), after the sends;
+ * a slot that finds none passes dry (synth_slot_room) */
 enum { SL_EF, SL_K1, SL_K2, SL_K3, SL_MIX, SL_X1, SL_X2, SL_X3, SL_X4, SL_N };
 extern const uint16_t TP_SLOT[2][SL_N];
 int tp_slot_of(int p, int *j);                   /* the slot a parameter is in (0, 1; -1 none), and which (SL_*) */
-#define INS_SLOTS 4                                /* the slots' pool: 2 KB blocks (efx.h EFX_BLOCK) */
 _Static_assert(NTP <= 511, "a parameter's index: nine bits in the engine's queue (engine.c cq_put); a lane's is 16");
 /* knit's osc 2 wave (TP_O2WAVE): osc 1's (its wave knob and the LFO on it), or its own: saw, square and pulse are
  * points of its shape's sweep (TP_O2SHAPE: turning the wave sets the shape there), triangle and sine */
@@ -397,6 +396,8 @@ void synth_kit_slots(synth_t *s, int trk, float *l, float *r, const float *kick,
 int synth_slots_ring(synth_t *s, int trk, int sounding, uint32_t n);   /* a kit's: 1 while it sounds or a slot rings on
                                                   * after it (rumble), counted in calls of n frames */
 int synth_slot_room(const synth_t *s, int trk, int q);   /* 1: slot q has its memory (or needs none) */
+void synth_slots_evict(synth_t *s, uint64_t mask);   /* the slots holding any of these blocks give them up (a send
+                                                      * takes them: the engine, before synth_prepare) */
 void synth_bus_join(synth_t *s, float *l, float *r, float *s1, float *s2, uint32_t n);
 void synth_bus_reset(synth_t *s, int core);
 /* the same, saying which core renders (0 the first, 1 the second: the profiler's halves) */
