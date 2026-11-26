@@ -1328,6 +1328,8 @@ typedef struct {
     int32_t num, max;
     int32_t live;                                    /* (max > 0) a lock or a motion's value now, as num; -1 none: a dot */
     int32_t mod;                                     /* (max > 0) MOD VIEW: 1 + an LFO's value now, as num; 0 none: a tick */
+    uint8_t ctr;                                     /* the bar from its centre (a master filter's: LP to the left, HP
+                                                      * to the right, off a mark at the centre) */
 } knob_t;
 static void kv(knob_t *k, const char *name, const char *val, int32_t num, int32_t max)
 {
@@ -1378,6 +1380,7 @@ static void mfilt_knob(knob_t *k, int m, int v)
     char t[16];
     mfilt_text(v, t);
     kv(k, NM[f][hz > 0.0f ? 1 : hz < 0.0f ? 2 : 0], hz != 0.0f ? t + 3 : t, v, 127);
+    k->ctr = 1;
 }
 /* the master's pump: its depth (0 .. 24 dB), its source, its release */
 static void pump_text(int v, char *t)
@@ -2286,6 +2289,23 @@ static void knob_tick(const knob_t *k, int32_t x, int32_t w, int32_t y)   /* MOD
     cv_rect(x - 1, y, 4, 11, K_PANEL);
     cv_rect(x, y + 1, 2, 9, K_TEXT);
 }
+/* a knob's bar (x, w wide, at y): its value's share from the left, or (ctr) from the centre to it */
+static void knob_bar(const knob_t *k, int32_t x, int32_t w, int32_t y, int hot)
+{
+    const uint16_t c = hot ? K_SEL : K_NOW;
+    int32_t bw = w * k->num / k->max;
+    cv_round(x, y, w, 6, 3, K_LINE);
+    if (k->ctr) {                                    /* (the centre: half the knob's travel) */
+        const int32_t m = x + w / 2, at = x + bw;
+        if (at < m - 3)
+            cv_round(at, y, m - at, 6, 3, c);
+        else if (at > m + 3)
+            cv_round(m, y, at - m, 6, 3, c);
+        else
+            cv_round(m - 3, y, 6, 6, 3, c);
+    } else if (bw > 0)
+        cv_round(x, y, bw < 6 ? 6 : bw, 6, 3, c);
+}
 static void knob_large(int32_t cx, const knob_t *k, int hot, uint16_t vc)
 {
     char nm[24], a[24];
@@ -2347,10 +2367,7 @@ static void knob_large(int32_t cx, const knob_t *k, int hot, uint16_t vc)
         loom_track = 0;
     }
     if (k->max > 0) {
-        int32_t bw = 48 * k->num / k->max;
-        cv_round(cx - 24, 62, 48, 6, 3, K_LINE);
-        if (bw > 0)
-            cv_round(cx - 24, 62, bw < 6 ? 6 : bw, 6, 3, hot ? K_SEL : K_NOW);
+        knob_bar(k, cx - 24, 48, 62, hot);
         if (k->live >= 0) {
             int32_t lx = cx - 24 + 42 * k->live / k->max;
             cv_round(lx - 1, 60, 8, 10, 4, K_BG);
@@ -2399,10 +2416,7 @@ static void knobs_paint(const knob_t *k, int now_touch)   /* the knob band (draw
         } else
             text_fit(cx - 24, cap_y(12, 28, &FONT_XS), &FONT_XS, k[i].val, 48, vc);
         if (k[i].max > 0) {
-            int32_t bw = 44 * k[i].num / k[i].max;
-            cv_round(cx - 22, 41, 44, 6, 3, K_LINE);
-            if (bw > 0)
-                cv_round(cx - 22, 41, bw < 6 ? 6 : bw, 6, 3, hot ? K_SEL : K_NOW);
+            knob_bar(&k[i], cx - 22, 44, 41, hot);
             if (k[i].live >= 0) {                    /* a lock or a motion holds it now: where, a dot on the bar */
                 int32_t lx = cx - 22 + 38 * k[i].live / k[i].max;
                 cv_round(lx - 1, 39, 8, 10, 4, K_BG);
@@ -6962,23 +6976,27 @@ static void draw_mix(void)
         int32_t x = 4 + COL[t] * 18 + (COL[t] >= 8 ? 14 : 0);
         int muted = t < NSEQT && (seq.mute >> t & 1u), sound = t < NTRK || is_fx(t);
         uint16_t ink = muted ? K_FAINT : trk_ink(t);      /* (muted: its steps, grey) */
-        text_c(x + 7, 94, &FONT_XS, SHORT_NM[t], t == sel ? K_TEXT : muted || !sound ? K_FAINT : K_DIM);
+        /* the mixer's (audio) state in the number's place, centred on the column: a crossed speaker muted (grey out
+         * of a solo), "W" wet only (in its ink); else the number */
+        const int out = t < NTRK && ui.solo && !(ui.solo >> t & 1u), in = t < NTRK && (ui.solo >> t & 1u);
+        const int amute = out || (t < NTRK && proj.mixm[t] == MIX_MUTE && !in);
+        if (amute) {
+            const uint16_t c = out ? K_FAINT : t == sel ? K_TEXT : K_DIM;
+            const int32_t gx = x + 7 - 5, gy = 98;      /* (10 wide: the cone 4, a gap, the cross 5; 7 tall, on the
+                                                         * digits' middle: their caps 97 .. 105) */
+            cv_rect(gx, gy + 2, 2, 3, c);
+            cv_rect(gx + 2, gy + 1, 1, 5, c);
+            cv_rect(gx + 3, gy, 1, 7, c);
+            for (int i = 0; i < 5; i++) {
+                cv_rect(gx + 5 + i, gy + 1 + i, 1, 1, c);
+                cv_rect(gx + 9 - i, gy + 1 + i, 1, 1, c);
+            }
+        } else if (t < NTRK && proj.mixm[t] == MIX_WET)
+            text_c(x + 7, 94, &FONT_XS, "W", trk_ink(t));
+        else
+            text_c(x + 7, 94, &FONT_XS, SHORT_NM[t], t == sel ? K_TEXT : muted || !sound ? K_FAINT : K_DIM);
         if (muted)                               /* the scene's (note) mute: a dim row and a bar */
-            cv_rect(x + 2, 114, 10, 2, K_FAINT);
-        if (t < NTRK) {                          /* the mixer's (audio): a crossed speaker, "wet" */
-            const int out = ui.solo && !(ui.solo >> t & 1u), in = ui.solo >> t & 1u;
-            if ((proj.mixm[t] == MIX_MUTE && !in) || out) {
-                const uint16_t c = out ? K_FAINT : K_TEXT;
-                cv_rect(x + 2, 106, 2, 3, c);
-                cv_rect(x + 4, 105, 1, 5, c);
-                cv_rect(x + 5, 104, 1, 7, c);
-                for (int i = 0; i < 5; i++) {
-                    cv_rect(x + 7 + i, 105 + i, 1, 1, c);
-                    cv_rect(x + 11 - i, 105 + i, 1, 1, c);
-                }
-            } else if (proj.mixm[t] == MIX_WET)
-                text_c(x + 7, 103, &FONT_XS, "wet", trk_ink(t));
-        }
+            cv_rect(x + 2, 104, 10, 2, K_FAINT);
         if (t == sel)
             cv_frame(x - 2, MIX_TOP - 2, 18, MIX_H + 4, 4, K_SEL, K_BG);
         if (!sound)
@@ -6993,7 +7011,7 @@ static void draw_mix(void)
             cv_round(x + 3, y0 - lv, 8, lv, 2, ink);
         if (pk > 1)
             cv_rect(x + 3, y0 - pk, 8, 1, ink);
-        cv_round(x - 1, y0 - fy - 2, 16, 4, 1, t == sel ? K_SEL : K_DIM);   /* the fader */
+        cv_round(x - 1, y0 - fy - 2, 16, 4, 1, amute ? K_FAINT : t == sel ? K_SEL : K_DIM);   /* the fader (dim: muted) */
         cv_rect(x + 1, y0 - fy, 12, 1, K_BG);
     }
     if (ui.solo)

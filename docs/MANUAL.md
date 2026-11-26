@@ -1613,9 +1613,10 @@ in FX I and FX II rings out, and the mute stays as it is whatever scene plays or
 these mutes when you save it; the scenes don't. (Arrange's black keys mute notes, scene by scene.)
 
 - Tap a black key to mute the track's sound: its own sound and its sends to FX I and FX II go off, faded over a few
-  milliseconds. Tap it again to have it back. A crossed speaker under the track's number shows it.
+  milliseconds. Tap it again to have it back. A crossed speaker takes the place of the track's number, and its fader
+  dims.
 - Hold **SEL** and tap a black key for **wet only**: the track's own sound goes off, but its sends stay on, so you
-  hear only its reverb and echoes. "wet" shows under its number. Do it again, or tap the key, to have it back.
+  hear only its reverb and echoes. A "W" takes the place of its number. Do it again, or tap the key, to have it back.
 - Hold a kit track's black key and press white keys 1 to 11 to mute its sounds one by one, in the same way. A lit
   white key means that sound is heard.
 - Hold a black key to solo the track until you let go: every other track is muted at the mixer. Hold several to
@@ -1683,7 +1684,8 @@ without it, and a new project starts there. **KNOB 4** sets the resonance of all
 cutoff. The level is made up for it, so a resonant sweep doesn't jump. A filter glides as you turn it, by hand or
 over MIDI, and fades in when you leave the middle. To take the drums out for a breakdown, close KNOB 1 to the left
 and leave the bass and chords playing; thin the synths with KNOB 2 under a full kick; or open the mix's high-pass for
-a build and drop it back to the middle on the one. The screen draws each filter's curve.
+a build and drop it back to the middle on the one. The screen draws each filter's curve, and each knob's bar grows
+from the middle: to the left for a low-pass, to the right for a high-pass.
 
 A kit's sends go through its own filter too (its dynamic filter on Filter, under **ENV**), as its sound does. Its
 inserts don't reach its sends: a kit with drive on Insert 1 sends its clean hits to FX I and FX II.
