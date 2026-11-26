@@ -1196,8 +1196,10 @@ bass. KNOB 4 is the track's volume.
 
 <img src="img/screen-envelope.png" width="240" alt="ENV: the amp envelope&#x27;s attack, decay, sustain and release, drawn" title="The Envelope page"> <img src="img/screen-filter.png" width="240" alt="ENV&#x27;s Filter page: an lp24 filter at 481 Hz, its curve drawn; PRESETS turns the type" title="The Filter page"> <img src="img/screen-lfo.png" width="240" alt="LFO: a wave LFO at 1/4 moving the filter cutoff, its shape drawn" title="The LFO page">
 
-**ENV** opens on the amp envelope. Next comes the filter, with cutoff in Hz, resonance, envelope amount and key
-tracking. Turn **PRESETS** to change its type (lp24, ladder, lp12, hp12, bp12, off). Last is the filter's
+**ENV** opens on the amp envelope. Its attack, decay and release go from 1 ms to 10 s over most of the knob, then
+keep turning past it for up to about 40 s, for slow swells and long sweeping releases (the filter's envelope too). A
+MIDI CC reaches 10 s, as before; the longer times are turned by hand. Next comes the filter, with cutoff in Hz,
+resonance, envelope amount and key tracking. Turn **PRESETS** to change its type (lp24, ladder, lp12, hp12, bp12, off). Last is the filter's
 envelope. **FX** has the track's two inserts (see [Effects](#effects)), then its sends to FX I and FX II, its pan and
 its level, and then Throws (the two send effects are **GLO**'s). **LFO** has the type and its first three knobs on page 1, and its fourth and fifth on page
 2. When you pick a new type, it starts from its own defaults:

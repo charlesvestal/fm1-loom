@@ -1,0 +1,24 @@
+# the envelopes' long times (synth.h ENV_HI): attack, decay and release past 127 (10 s, as before) to 146 (~40 s), by
+# hand; a note released at the top still sounds 20 s on
+wait 300
+spin ALGO 1
+listen
+tap ENV
+wait 100
+expect page Envelope
+spin K4 200
+wait 100
+expect knobnum4 146
+shot long_release.png
+spin K4 -19
+wait 100
+expect knobnum4 127
+spin K4 19
+wait 100
+wav long.wav
+play 2 C3 on
+wait 200
+play 2 C3 off
+wait 20000
+expect peak_db_min -90
+wavstop

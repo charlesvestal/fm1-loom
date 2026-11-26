@@ -375,6 +375,8 @@ void synth_bend(synth_t *s, int trk, int cents);    /* performance bend (the ben
 perf_t *synth_perf(synth_t *s, int trk);            /* the track's performance state (write from the interrupt) */
 #ifndef LOCK_NONE
 #define LOCK_NONE 0xFFu               /* seq/pattern.h's: no lock */
+#define ENV_HI 146                    /* the envelopes' attack, decay and release (amp, filter): to ~40 s (127: 10 s, as
+                                       * before; past it by hand: a CC and the dice reach 127) */
 #endif
 void synth_lock(synth_t *s, int trk, int param, int val);   /* a parameter lock in effect (LOCK_NONE: the knob's) */
 #define DUCK_METRO 10                 /* the pump's source numbers: 0..7 tracks, 8 brain, 9 punch, 10 the metronome */

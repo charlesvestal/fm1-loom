@@ -326,7 +326,8 @@ static inline float soft3(float x)               /* a cubic soft clip: linear ne
     x = fm_minf(fm_maxf(x, -1.5f), 1.5f);        /* (the FPU's max and min: two instructions; fm_clampf takes four) */
     return x - x * x * x * (4.0f / 27.0f);
 }
-static float env_seconds(float p) { return p < 0.001f ? 0.001f : 0.001f * fm_exp2f(p * 13.2877124f); }  /* 1 ms .. 10 s */
+static float env_seconds(float p) { return p < 0.001f ? 0.001f : 0.001f * fm_exp2f(p * 13.2877124f); }  /* 1 ms .. 10 s
+                                                  * at 127, the same curve on to ~40 s at ENV_HI (p 146/127) */
 /* the envelopes step once a sub-block of SUB samples: the attack's increment, the decay's and the
  * release's multiplier (to 0.1 % in secs) for that step */
 static float env_rate(float secs) { return (float)SUB / (secs * SY_SR); }
@@ -4729,10 +4730,10 @@ static const tp_info_t FIXED[NTP_SOUND + 13] = {
     {"", 0, 127, 0, PK_NN, 0},                          {"", 0, 127, 0, PK_NN, 0},
     {"mode", 0, 2, VM_POLY, PK_NAMES, VMODE_N},         {"porta", 0, 127, 0, PK_NUM, 0},
     {"bend", 0, 8, 2, PK_NAMES, BEND_N},                {"volume", 0, 127, 100, PK_PCT, 0},
-    {"attack", 0, 127, 0, PK_MS, 0},                    {"decay", 0, 127, 60, PK_MS, 0},
-    {"sustain", 0, 127, 100, PK_PCT, 0},                {"release", 0, 127, 40, PK_MS, 0},
-    {"attack", 0, 127, 0, PK_MS, 0},                    {"decay", 0, 127, 60, PK_MS, 0},
-    {"sustain", 0, 127, 0, PK_PCT, 0},                  {"release", 0, 127, 40, PK_MS, 0},
+    {"attack", 0, ENV_HI, 0, PK_MS, 0},                 {"decay", 0, ENV_HI, 60, PK_MS, 0},
+    {"sustain", 0, 127, 100, PK_PCT, 0},                {"release", 0, ENV_HI, 40, PK_MS, 0},
+    {"attack", 0, ENV_HI, 0, PK_MS, 0},                 {"decay", 0, ENV_HI, 60, PK_MS, 0},
+    {"sustain", 0, 127, 0, PK_PCT, 0},                  {"release", 0, ENV_HI, 40, PK_MS, 0},
     {"cutoff", 0, 127, 110, PK_HZ, 0},                  {"reso", 0, 127, 20, PK_PCT, 0},
     {"env", 0, 127, 64, PK_BIP, 0},                     {"keytrack", 0, 127, 64, PK_PCT, 0},
     {"type", 0, NFT - 1, FT_LP24, PK_NAMES, FTYPE_N},    {"fx I", 0, 127, 0, PK_PCT, 0},
@@ -5383,8 +5384,8 @@ static void tp_text_i(const tp_info_t *i, int p, int v, int engine, char *num, c
 void tp_text(int p, int v, int engine, char *num, char *unit) { tp_text_i(tp_info(p, engine), p, v, engine, num, unit); }
 void tp_text_par(int p, int v, const uint8_t *par, char *num, char *unit)
 {
-    int j = -1, q = tp_slot_of(p, &j), ef = q >= 0 ? par[TP_SLOT[q][SL_EF]] : EF_OFF;
-    v = v > 127 ? 127 : v;
+    int j = -1, q = tp_slot_of(p, &j), ef = q >= 0 ? par[TP_SLOT[q][SL_EF]] : EF_OFF, hi = tp_info_par(p, par)->hi;
+    v = v > (hi > 127 ? hi : 127) ? (hi > 127 ? hi : 127) : v;   /* (the envelopes' times past 127: ENV_HI) */
     if ((j == SL_K1 || j == SL_K2) && efx_is_char(ef)) {   /* a low-pass, the tilt's pivot, the sampler's rate: Hz */
         float hz = efx_char_hz(ef, j == SL_K2, (float)v * (1.0f / 127.0f));
         if (hz > 0.0f) {

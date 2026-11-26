@@ -3772,7 +3772,7 @@ static void act_scramble(void)                   /* a random sound: the engine s
     }
     for (int i = 0; i < n; i++) {
         const tp_info_t *in = tp_info_par(P[i], par);
-        int span = in->hi - in->lo, v;
+        int span = (in->hi > 127 ? 127 : in->hi) - in->lo, v;   /* (the envelopes' long times by hand only) */
         r = r * 1664525u + 1013904223u;
         v = in->lo + (int)((r >> 8) % (uint32_t)(span + 1));
         if (P[i] == TP_A || P[i] == TP_S)

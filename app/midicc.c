@@ -51,7 +51,7 @@ static void cc_par(int t, int p, int v)       /* a track's parameter from a CC (
         set_tp(t, p, v);                       /* an FX track's knobs: 0..127 as they come */
     else {
         const tp_info_t *in = tp_info_par(p, proj.trk[t].par);
-        set_tp(t, p, cc_to(v, in->lo, in->hi));
+        set_tp(t, p, cc_to(v, in->lo, in->hi > 127 ? 127 : in->hi));   /* (a knob past 127, the envelopes': CCs as before) */
     }
     if (seq.rec && playing() && !is_aux(t))
         seq_rec_knob(&seq, t, p, proj.trk[t].par[p]);
@@ -284,7 +284,9 @@ static void cc_out_param(int t, int p)        /* set_tp: a track's parameter cha
         return;
     ch = t < NTRK ? t : t == AUX_FX1 ? CH_FX1 : CH_FX2;
     in = tp_info_par(p, proj.trk[t].par);
-    cc_send(0xB0 | ch, cc, is_aux(t) ? proj.trk[t].par[p] : cc_from(proj.trk[t].par[p], in->lo, in->hi));
+    cc_send(0xB0 | ch, cc, is_aux(t) ? proj.trk[t].par[p]
+                                     : in->hi > 127 ? (proj.trk[t].par[p] > 127 ? 127 : proj.trk[t].par[p])
+                                                    : cc_from(proj.trk[t].par[p], in->lo, in->hi));
 }
 static void cc_out_master(int m)              /* master_knob, the master's list rows: a master value changed */
 {
