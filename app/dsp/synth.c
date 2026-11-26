@@ -4258,7 +4258,7 @@ static void bus_prepare(synth_t *s, uint32_t n)
                 break;
             s->split[best] = (int8_t)k;
             s->lead[best] = -1;                  /* (no group: each voice its own turn) */
-            for (int c = 0; c < 2; c++)
+            for (int c = s->split_on == 2; c < 2; c++)   /* (2: the first core's pairs by synth_split_ready) */
                 for (uint32_t j = 0; j < n; j++)
                     bus_sp[c][k][0][j] = bus_sp[c][k][1][j] = 0.0f;
         }
@@ -4454,7 +4454,27 @@ void synth_bus_join(synth_t *s, float *l, float *r, float *s1, float *s2, uint32
         bus_out(s, 0, trk, bl, br, l, r, s1, s2, n, 0);
     }
 }
-void synth_split(synth_t *s, int on) { s->split_on = (uint8_t)(on != 0); }
+void synth_split(synth_t *s, int on) { s->split_on = (uint8_t)(on == 2 ? 2 : on != 0); }
+void synth_split_ready(synth_t *s, uint32_t n)
+{
+    if (s->split_on != 2 || n > BUS_N)
+        return;
+    for (int trk = 0; trk < NTRK; trk++)
+        if (s->split[trk] >= 0)
+            for (uint32_t j = 0; j < n; j++)
+                bus_sp[0][s->split[trk]][0][j] = bus_sp[0][s->split[trk]][1][j] = 0.0f;
+}
+_Static_assert(NSPLIT >= 2, "synth_kit_scratch: five buffers in the first core's pairs");
+float *synth_kit_scratch(int k)
+{
+    switch (k) {
+    case 0: return bus_px[0][0];
+    case 1: return bus_px[0][1];
+    case 2: return bus_sp[0][0][0];
+    case 3: return bus_sp[0][0][1];
+    default: return bus_sp[0][1][0];
+    }
+}
 void synth_kit_slots(synth_t *s, int trk, float *l, float *r, const float *kick, uint32_t n)
 {
     if (trk < 0 || trk >= NTRK)

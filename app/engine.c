@@ -1018,8 +1018,11 @@ static void drain(void)
 static float perc_l[STRETCH_MAX] POOL, perc_r[STRETCH_MAX] POOL, mel_l[STRETCH_MAX] POOL, mel_r[STRETCH_MAX] POOL;
 static float s1[STRETCH_MAX] POOL, s2[STRETCH_MAX] POOL;
 static float c2_l[STRETCH_MAX] POOL, c2_r[STRETCH_MAX] POOL, c2_s1[STRETCH_MAX] POOL, c2_s2[STRETCH_MAX] POOL;
-static float tl[STRETCH_MAX] POOL, tr[STRETCH_MAX] POOL, ts1[STRETCH_MAX] POOL, ts2[STRETCH_MAX] POOL;
-static float tk[STRETCH_MAX] POOL;                       /* a kit's kicks alone, for its rumble (synth_kit_slots) */
+/* the drum tracks' scratch (each kit's L, R, sends, its kicks alone for its rumble: synth_kit_slots) and, after the
+ * voices, the FX returns' (tl, tr): the first core's own buses' buffers in the synth, free while it renders the kits
+ * (synth_kit_scratch: its split pairs cleared once they are done, synth_split_ready) and once its voices are in */
+_Static_assert(STRETCH_MAX <= 256u, "the kits' scratch is the synth's buses' (BUS_N frames)");
+static float *tl, *tr, *ts1, *ts2, *tk;
 static float mix_l[256] POOL, mix_r[256] POOL;
 /* the USB audio input's track channels (fm1.toml usb_audio_channels = 10: fm1-base plat_usb_ch): channels 3..10 are
  * tracks 1..8, each at its level and before its pan, after its sound's own filter and character, without the sends'
@@ -1477,6 +1480,7 @@ static void render_sub(uint32_t n, uint32_t at)
                                                            * the voices both cores can take are left for the end (with
                                                            * the drums last, the second core, late from the effects,
                                                            * found the queue empty and waited while this one did them) */
+    synth_split_ready(SY, n);                             /* (its split pairs, the drums' scratch until now, cleared) */
     ps = plat_cycles();
     if (late)
         late = c2_late(arg, &on2);
@@ -1849,7 +1853,13 @@ void engine_init(patterns_t *P, uint8_t (*par)[NTP])
         seq_prof = &eng_prof[PR_SIX];
     }
     synth_init(SY, par);
-    synth_split(SY, 1);                                   /* (a big bus track's voices on both cores: synth_bus_join below) */
+    synth_split(SY, 2);                                   /* (a big bus track's voices on both cores: synth_bus_join below;
+                                                           * the first core's pairs cleared after the drums) */
+    tl = synth_kit_scratch(0);
+    tr = synth_kit_scratch(1);
+    ts1 = synth_kit_scratch(2);
+    ts2 = synth_kit_scratch(3);
+    tk = synth_kit_scratch(4);
     for (k = 0; k < NDL; k++)
         dl_owner[k] = 0xFF;
     for (t = 0; t < NTRK; t++) {
