@@ -37,6 +37,9 @@ main_stack = 12288              # the main loop's stack (24,320 by default): its
                                # SEL lists, help cards, playing): 8,884 B used (3,404 never), the interrupts 2,680 of 7,936 (the
                                # static 8,156 a false path through drive_rat > blt_fill), the second core 936 of 2,816
 stack_bounds = ["action_run=2"]  # (ui.c: A_CLEAR runs A_CLEAR_NOTES / LOCKS / BOTH, once)
+toolchain = "open"             # the open pi32v2 LLVM (github.com/jvitkauskas/pi32v2-llvm, ~/.pi32v2-llvm/current;
+                               # fm1-base build.py): on the FM-1 the techno song 6 % less load than JieLi's and the image
+                               # 18 KB smaller (2026-11-26); a soak before a release
 crash_history = true           # (the stacks painted at the start: perf_read.py --stacks reads their room; the crash records kept in flash)
 cpu2_stack = 4096              # its job stack (2,816 by default): tulle's grains read a block at a time (2026-11-23: a fault on it)
 # the DSP and the sequencer at -O2, apart (as LOOM-8's own build had them); bench.c: the profiler, empty unless XY_BENCH=1
