@@ -47,12 +47,13 @@ COLD = {
     "dsp/drumline.c": ["start", "knob", "drumline_filter", "drumline_hit", "reso_set", "drumline_init"],
     "dsp/fx.c": ["fx_derive", "eq_coefs", "fx_filter", "master_set", "master_init", "comp_coefs",
                  "fx_set", "fx_init", "fx_delay_halves", "color_coefs", "biq_shelf",
-                 "fx_clear", "master_clear", "coef_ms", "master_pump_ms"],
-    "dsp/sample.c": ["smp_user_scan", "fact_init", "smp_bank_crc", "smp_name"],
-    "dsp/digisophie.c": [],
-    "dsp/d909.c": ["d909_start", "d9_biquad_set", "d9_shape_prep", "d9_env_exp"],
+                 "fx_clear", "master_clear", "coef_ms", "master_pump_ms", "fx_pick_name", "fx_knob_name"],
+    "dsp/sample.c": ["smp_user_scan", "fact_init", "smp_bank_crc", "smp_name",
+                     "smp_entry", "smp_user_bytes", "smp_user_attach"],   # (the samples page's, the boot's)
+    "dsp/digisophie.c": ["ds_voice_init"],
+    "dsp/d909.c": ["d909_start", "d9_biquad_set", "d9_shape_prep", "d9_env_exp", "d909_res_ok"],
     "dsp/bass303.c": ["bass303_init", "rat_coeffs", "bq_low_shelf", "bq_lowpass", "bass303_set", "env_tables",
-                      "bass303_note_on"],
+                      "bass303_note_on", "bass303_cutoff_hz"],
     "dsp/bench.c": [],
     "dsp/synth.c": ["tp_text_i", "tp_text_par", "tp_info_par", "tp_text", "slot_picture", "slot_info", "tp_slot_of",
                     "synth_note_off", "synth_duck_trigger", "synth_all_off",
@@ -62,15 +63,19 @@ COLD = {
                     # character's coefficients, the buses' and inserts' per block)
                     "eng_prep", "wt_prep", "rayon_prep", "organ_prep", "knit_prep", "tl_prep", "lc_prep", "tt_prep",
                     "smp_prep", "slc_prep", "cn_prep", "vo_prep", "eng_init", "knit_init",
-                    "bus_prepare", "ins_alloc"],
+                    "bus_prepare", "ins_alloc",
+                    # (the pages' pictures, the presets' loading; tp_info: a knob's range, from synth_prepare a track's
+                    # LFO's destination once a block)
+                    "wt_value", "tartan_voices", "tp_info", "preset_sound", "preset_first"],
     # (the effects' coefficients, when a knob moves; the pages' pictures and texts)
     "dsp/efx.c": ["efx_char_coefs", "efx_char_picture", "efx_char_hz", "efx_knob_name", "efx_list_name", "ch_lp_hz",
                   "ch_pivot_hz", "ch_alpha", "ch_tape_hz", "ch_smp_hz", "ch_smp_rate", "efx_send_nums", "efx_nums",
-                  "efx_delay_secs"],
+                  "efx_delay_secs", "fx_delay_fb"],
     "seq/pattern.c": ["pattern_init", "patterns_init", "lane_alloc", "lane_clear", "lane_count", "lane_pool_set",
                       "lane_pool_free", "step_clear_locks", "pattern_clear_locks", "step_set_notes",
                       "step_toggle_note", "kit_set", "kit_toggle", "kit_add", "pattern_woven", "weave_step",
-                      "notes_cross", "step_hit"],   # (the UI's edits, a recording's lanes, a step's weave)
+                      "notes_cross", "step_hit",
+                      "step_has_lock", "step_vel", "kit_first", "lane_pool_get", "lane_find"],   # (the pages', a pool's)   # (the UI's edits, a recording's lanes, a step's weave)
     "seq/seq.c": ["fire_notes", "key_in", "seq_init", "bar_end", "do_start", "emit_drum", "rec_key_off",
                   "rec_key_on", "restart", "track_reset", "seq_rec_pos", "deg_to_note", "seq_cue_pattern",
                   "arp_stop", "keys_all_off", "seq_bar_go", "scene_read", "jump_set", "arp_fire", "kit_group",
@@ -78,7 +83,9 @@ COLD = {
                   "kit_lanes", "chord_at", "groove_vel", "fill_hit", "rand_wrap", "midi_on", "fill_collect",
                   "brain_chord_of_root", "fire_off", "add_off", "sounding_off", "grid_index", "loop_release",
                   "brain_set_near_notes", "lane_masks_make", "kit_rec_fresh", "tracks_go", "brain_shift", "arp_off",
-                  "bar_len_update"],
+                  "bar_len_update",
+                  # (the LEDs', the pages', PLAY's, the recording's)
+                  "punch_of_key", "seq_brain_root", "seq_start_at", "seq_cue_left", "seq_rec"],
 }
 # the two FX slots' and the master's per-sample code, closed under calls (~18 KB; the 24 KB RAMTEXT region holds
 # .ram_text's ~3 KB and the second core's loop besides)
