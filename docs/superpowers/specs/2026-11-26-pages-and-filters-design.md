@@ -80,3 +80,12 @@ Built (branch room, 2026-11-26), with these calls made in the building:
 - The fades: a synth track's mute ~2 ms (its voices' gains), wet only ~5 ms (its bus's dry), a kit key's ~5 ms; a
   kit's mute and wet only ride its level's glide (~10 ms one-pole), as the punch's mute does.
 - The pump still hears a muted kit's kicks (its notes play).
+
+## Next: CPU (the user, 2026-11-26)
+
+- **Work well at 360 MHz first**: the bit-exact optimisation pass (cached invariants, exact silence skips, hot loops in
+  RAM) — no sound or behaviour change (dsp_hash, demos and the user's project byte-identical).
+- **Then a Setup option "CPU 360 / 396 (restart)"**, off by default: fm1-base's FM1B_CPU_396 chosen at boot from
+  LOOM-8's saved setting instead of the build (a small fm1-base change: the boot reads the app's choice; safe mode's
+  fallback to 360 after two hung starts kept; the stock clock back before resets and updates). ~10 % more CPU.
+  The page and the manual say: JieLi's top speed, not for mass production, a little more battery and heat.
