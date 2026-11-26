@@ -274,13 +274,16 @@ struct drumline {
  * too). The kits all render on the first core, and their hits come between renders: one owner at a time */
 #ifdef PLAT_HOST
 #define DL_POOL
+#define DL_SPARE
 #else
 #define DL_POOL __attribute__((section(".pool")))   /* (the pool: zeroed at start, as .bss) */
+#define DL_SPARE __attribute__((section(".spare")))   /* (NOINIT's spare room, fm1-base plat.h PLAT_SPARE: zeroed at
+                                                       * start, outside the SRAM budget) */
 #endif
 typedef struct { drumline_t *d; int8_t vi; } dl_own_t;
-static int16_t dl_line[NRESO][RESO_LEN] DL_POOL;
+static int16_t dl_line[NRESO][RESO_LEN] DL_SPARE;
 static dl_own_t dl_lown[NRESO] DL_POOL;
-static d909_t d9_slot[N909] DL_POOL;
+static d909_t d9_slot[N909] DL_SPARE;
 static dl_own_t d9_own[N909] DL_POOL;
 _Static_assert(sizeof(struct drumline) <= DRUMLINE_BYTES, "drumline_t does not fit DRUMLINE_BYTES");
 #ifdef PLAT_HOST

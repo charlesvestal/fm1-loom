@@ -54,7 +54,8 @@ static uint8_t synth_mem[SYNTH_BYTES] POOL __attribute__((aligned(8)));
  * eng_kit_silent, until one of the others changes engine: dl_rehome). Three, not four, since step_t grew to twelve
  * bytes. */
 #define NDL 3
-static uint8_t dl_mem[NDL][DRUMLINE_BYTES] POOL __attribute__((aligned(8)));
+static uint8_t dl_mem[NDL][DRUMLINE_BYTES] PLAT_SPARE __attribute__((aligned(8)));   /* (the kits: in NOINIT's spare
+                                                       * room, outside the SRAM budget) */
 static uint8_t dl_slot[NTRK];                              /* the unit a drum track owns, 0xFF none */
 static uint8_t dl_owner[NDL];                              /* the track owning each unit, 0xFF free */
 static uint8_t fx_mem[2][FXSLOT_BYTES] POOL __attribute__((aligned(8)));
