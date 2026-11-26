@@ -53,3 +53,15 @@ drums filter (on the master's drums group) never reach FX I / II. Synth tracks a
 - **Inserts stay before the sends on a kit** (an insert's memory and CPU can't be run twice): a kit with drive in
   Insert 1 sends its clean hits. Said in the manual.
 - The mix filter is already after the returns (the whole mix): unchanged.
+
+## Addendum 2 (2026-11-26, the user): three filters, one resonance
+
+The page becomes: KNOB 1 **drums**, KNOB 2 **melodic**, KNOB 3 **mix**, KNOB 4 **resonance** (shared by the three).
+- **drums**: each kit's pair and its two sends (addendum 1).
+- **melodic**: the synth tracks' sum and their share of the two sends, before the kits add theirs and before the FX
+  returns join the melodic group (a filter there would catch the drums' reverb too). Sends after the filter, as the
+  drums'.
+- **mix**: after the returns, on everything (as built in 7e79153).
+- The four master values restructured in place (formats 31.. are unreleased: no migration from 31 needed; from
+  older, all off): MS_DFILT drums, MS_MELF melodic (was MS_DRES), MS_MFILT mix, MS_FRES resonance (was MS_MRES).
+  CCs: 30 drums, 31 melodic, 74 mix, 71 resonance.
