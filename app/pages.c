@@ -5837,7 +5837,7 @@ static void draw_play(void)
     char t[40];
     if (!begin_main(h))
         return;
-    const char *sub = p[TP_ENGINE] == EG_ACID ? "one voice, held notes slide" : p[TP_VMODE] % 4 == VM_POLY ? "up to 6 voices on the track"
+    const char *sub = p[TP_ENGINE] == EG_ACID ? "one voice, held notes slide" : p[TP_VMODE] % 4 == VM_POLY ? (p[TP_ENGINE] == EG_TARTAN ? "a chord and the last one's tail" : "up to 6 voices on the track")
                     : p[TP_VMODE] % 4 == VM_MONO ? "one voice, every key restarts it"
                     : p[TP_VMODE] % 4 == VM_RETRIG ? "one voice, every key from zero" : "one voice, held keys glide";
     int32_t ty;

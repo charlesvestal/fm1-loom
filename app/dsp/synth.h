@@ -19,6 +19,8 @@
 #define SY_CHUNK 64                   /* control rate: envelopes, LFO, glides, locks */
 #define NVOICE 16                     /* synth voices, all tracks */
 #define NVOICE_TRK 6                  /* the most one track takes */
+#define TT_VOICES 2                   /* tartan's voices a track: the chord playing and the last one ringing out
+                                       * (each note a chord of four oscillators; a third takes the oldest) */
 
 /* the engines (2026-10-19: knit the subtractive voice, rayon FM, jacquard the wavetables, bellows the organ; weft,
  * stack, sync, swarm, brocade, gingham and tines gone); the kit (EG_DRUMLINE) is the drum engine, EG_SAMPLE plays a

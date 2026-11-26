@@ -729,7 +729,8 @@ the song's chord at that height, and a chord you hold moves to the next one when
 conductor has a chord, conductor plays as in key.
 
 Tartan is a track like any other: follow the conductor to move its chords with the song, use the filter, envelopes,
-LFO and players as usual, and send it to the effects. Its presets are sixteen of Chordism's own, converted.
+LFO and players as usual, and send it to the effects. Each note is already a chord of four, so a tartan track plays
+two at a time: the chord you play and the last one ringing out its release; a third takes over the oldest. Its presets are sixteen of Chordism's own, converted.
 
 ### Cane and voile
 

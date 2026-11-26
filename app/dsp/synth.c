@@ -2664,7 +2664,8 @@ static int find_voice(synth_t *s, int trk)
         return best;
     if (P(s, trk, TP_ENGINE) == EG_ACID && (best = acid_find(s, trk)) >= 0)
         return best;
-    if (track_voices(s, trk) >= NVOICE_TRK) {
+    if (track_voices(s, trk) >= (P(s, trk, TP_ENGINE) == EG_TARTAN ? TT_VOICES : NVOICE_TRK)) {   /* (tartan: a chord
+                                                  * and the last one's tail; each note four oscillators) */
         for (i = 0; i < s->max_voices; i++)
             if (s->v[i].trk == trk && s->v[i].steal_phase == 0 && s->v[i].age < oldest) {
                 oldest = s->v[i].age;
