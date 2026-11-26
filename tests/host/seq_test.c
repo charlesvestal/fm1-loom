@@ -6,6 +6,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "seq.h"
+#include "fx.h"                      /* (MS_DFILT: a MOD lane on the master's drums filter) */
 
 enum { E_ON, E_OFF, E_DRUM, E_LOCK, E_BEND, E_PUNCH, E_MIDI, E_STEP, E_SCENE, E_METRO, E_PAN, E_DOFF, E_GHOST };
 typedef struct {
@@ -3732,6 +3733,42 @@ static void t_mod_edit(void)
     CHECK(lock_val(0, TP_CUT, now) == LOCK_NONE);
     printf("ok %s\n", cur);
 }
+/* a scene whose MOD pattern has no lane on a target, or none ("-"): the target back to its knob, and it stays there
+ * (the user heard the drums' filter move in a scene whose pattern does not move it) */
+static void t_mod_leave(void)
+{
+    int k, k2;
+    cur = "mod leave";
+    reset();
+    k = mod_lane(0, 4, TS_16, 0, MODT_MST, MS_DFILT, 1);  /* scene 1: the drums' filter 61 -> 20 over 2 bars */
+    P.lane[k].val[0] = 61;
+    P.lane[k].val[2] = 20;
+    P.scene[1] = P.scene[0];
+    k2 = mod_lane(1, 4, TS_16, 1, 0, TP_CUT, 1);           /* scene 2: another pattern, on T1's cutoff only */
+    P.lane[k2].val[0] = 30;
+    P.lane[k2].val[3] = 90;
+    P.scene[2] = P.scene[0];
+    P.scene_mod[2] = 0;                                    /* scene 3: none */
+    start();
+    mrun(BAR);
+    CHECK(abs(lock_val(MODT_MST, MS_DFILT, now) - 40) <= 2);
+    seq_cue_scene(&S, 1, 0);
+    mrun_to(2 * BAR + 300);
+    CHECK(lock_val(MODT_MST, MS_DFILT, now) == LOCK_NONE);   /* the knob's at the switch */
+    mrun_to(6 * BAR);
+    CHECK(locks_in(MODT_MST, MS_DFILT, 2 * BAR + 300, 6 * BAR) == 0);   /* and it stays */
+    CHECK(lock_val(0, TP_CUT, 6 * BAR) >= 30);
+    mrun_to(6 * BAR + 300);
+    seq_cue_scene(&S, 0, 0);                               /* scene 1 again (at bar 8): its glide from its step 1 */
+    mrun_to(7 * BAR + 300);
+    CHECK(lock_val(MODT_MST, MS_DFILT, now) == 61 && lock_val(0, TP_CUT, now) == LOCK_NONE);
+    seq_cue_scene(&S, 2, 0);                               /* "-" (at bar 9): both the knobs' */
+    mrun_to(8 * BAR + 300);
+    CHECK(lock_val(MODT_MST, MS_DFILT, now) == LOCK_NONE);
+    mrun_to(12 * BAR);
+    CHECK(locks_in(MODT_MST, MS_DFILT, 8 * BAR + 300, 12 * BAR) == 0 && locks_in(0, TP_CUT, 8 * BAR + 300, 12 * BAR) == 0);
+    printf("ok %s\n", cur);
+}
 static void t_mod_master(void)
 {
     int k;
@@ -3759,6 +3796,7 @@ int main(void)
     t_mod_scene();
     t_mod_mute_none();
     t_mod_edit();
+    t_mod_leave();
     t_mod_master();
     t_pattern_helpers();
     t_phase();

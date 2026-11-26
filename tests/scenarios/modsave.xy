@@ -1,0 +1,31 @@
+# a project saved with the MOD track picked loads with its settings (ee03a90: trk_sel AUX_MOD was refused by
+# settings_valid, the project came back as a new one's settings over its patterns, no sounds and 120 BPM, and the
+# autosave wrote that over the slot): the tempo, a sound and the picked track kept, by SAVE and by the project's slot
+wait 300
+preset 2 acid_line acid
+knob 2 cut 40
+tap HOME
+spin K1 12
+wait 50
+expect tempo 132
+# ALGORITHM to the MOD track (after WEAVE), its Lanes page
+spin ALGO 11
+tap SEQ
+wait 100
+expect trk 14
+expect page Lanes
+tap SAVE
+expect dirty 0
+wait 40
+reboot
+wait 400
+expect tempo 132
+expect par2.cut 40
+expect trk 14
+# saved to another slot (the one opened at the start then)
+projsave 2 modsel
+reboot
+wait 400
+expect tempo 132
+expect par2.cut 40
+expect trk 14
