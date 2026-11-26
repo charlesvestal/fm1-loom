@@ -848,6 +848,7 @@ static int expect_more(const char *what, const char *a, const char *b, const cha
  *   scenedef N P1 .. P10         scene N's pattern for tracks 1-8, COND, THROW (1-based; 0 = pattern 1); used
  *   scenemute N MASK             scene N's mutes: a character a track 1-8, COND, THROW (an 11th: MOD): x muted, . not
  *   scenemod N PAT|-             scene N's MOD pattern (1..8), or none
+ *   track N                      track N picked as ALGORITHM picks it (1..13 as knob's; 14 the MOD track)
  *   modpat PAT LEN [SCALE]       a MOD pattern's length (1..64 steps) and scale (sixteenths a step: 1 2 3 4 5 6 8 16)
  *   modlane PAT TARGET PARAM glide|step   a lane on MOD pattern PAT: TARGET a track as knob's (1..12: T1-T8, COND,
  *                                THROW, FX I, FX II) with PARAM as knob's, or mst with a master value (mst's names)
@@ -1521,6 +1522,12 @@ static int song_cmd(const char *cmd)
             if (w[2][t] == 'x')
                 m |= (uint16_t)(1u << t);
         pats.scene[sc].mute = m;
+    } else if (!strcmp(cmd, "track")) {             /* track N: track N picked, as ALGORITHM picks it (14: MOD) */
+        t = atoi(w[1]) - 1;
+        if (t < 0 || t > AUX_MOD)
+            host_die("track N (1..14)", "");
+        track_select(t);
+        run_ms(1);
     } else if (!strcmp(cmd, "scenemod")) {          /* scenemod N PAT|- */
         int sc = atoi(w[1]) - 1, pt = n > 2 && strcmp(w[2], "-") ? atoi(w[2]) : 0;
         if (sc < 0 || sc >= NSCENE || n < 3 || pt < 0 || pt > NPATT)

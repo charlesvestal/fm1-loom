@@ -101,13 +101,15 @@ second.
 ### The words
 
 - **Track** (T1 to T8): one sound and its patterns. After T8 come the aux tracks: COND (the conductor), THROW (the
-  throws), FX I and FX II.
+  throws), WEAVE, MOD (the lanes), FX I and FX II.
 - **Pattern** (P1 to P8): a track's steps, up to 64 of them in four bars. Each track has eight patterns.
 - **Step**: one cell of a pattern. It holds up to four notes (on a drum track, any of the eleven sounds), two
   tricks, a chance and parameter locks.
 - **Trick**: something a step does as it plays, such as pulse, hold, multiply, flam or jump. There are fifteen,
   and a step can have two: hold it and press ARP.
 - **Lock**: a knob value that a step sets as it plays.
+- **Lane**: a knob moved by the MOD track over many bars, with a value on the steps you choose. It glides from one
+  value to the next, or steps.
 - **Scene** (S1 to S32): which pattern each track plays, plus the mutes (a kit's individual sounds too) and the
   conductor's key.
 - **Song**: a chain of scenes, each played for a number of bars.
@@ -152,6 +154,8 @@ Count the white keys 1 to 16 from the left, and the black keys 1 to 11. "Hold **
 | give a step a chance | Hold the step and turn **KNOB 3**. Past 99 %, the A:B cycles come next. <!-- hint: turn KNOB 3; white 5 --> |
 | give one drum sound a chance or a trick | On a drum track, each sound on a step has its own chance and tricks. Hold the step, turn **PRESETS** to the sound (the header names it), then turn **KNOB 3** or press **ARP**. The step's other sounds keep theirs. <!-- hint: turn PRESETS, KNOB 3; white 5 --> |
 | lock a knob on a step | Hold the step, press **EDIT**, **ENV**, **FX** or **LFO**, and turn a knob. To clear a lock, hold **SEL** and turn that knob. The step's **SEL** list also has CLEAR LOCKS. <!-- hint: press EDIT; turn KNOB 1; white 5 --> |
+| open a filter over 32 bars | Turn **ALGORITHM** to MOD and press **SEQ**. Press **SEL**, pick the track, page and knob (T2, Filter, cutoff) and ADD LANE. Turn **KNOB 3** to 16 (a bar a step) and **KNOB 2** to 32. Tap step 1, then hold step 29 (**OCT+** for its bar) and turn **KNOB 4** up. Turn **KNOB 1** to P1 so the scene plays it. See [The MOD track](#the-mod-track). <!-- hint: turn ALGORITHM, KNOB 4; press SEQ, SEL; white 1 --> |
+| move a knob on the MOD track by turning it | On the MOD track's Lanes page, press **SEL** and pick LEARN. Then turn the knob you mean, on any page: it becomes a new lane, and the Lanes page comes back. |
 | clear a knob's automation | Hold **SEL** and turn the knob. This clears its motion and locks in the pattern (or, with steps held, only theirs). <!-- hint: hold SEL; turn KNOB 1 --> |
 | see the next bar | Press **OCT+** on Steps. (While **SEQ** is held, **PRESETS** sets the track's sound, so you can try notes before you write them; the keys play at the octave **OCT** set on the sound pages.) <!-- hint: press OCT+ --> |
 | move a whole pattern an octave | On Steps, hold **SEQ** and press **OCT−** or **OCT+**. Hold **HOME** and press **REC** to undo it. <!-- hint: hold SEQ; press OCT+ --> |
@@ -206,7 +210,7 @@ Count the white keys 1 to 16 from the left, and the black keys 1 to 11. "Hold **
 | **REC** | While it plays, hold **REC** to record for as long as you hold it. On a sound page, the knobs you turn are recorded too. While stopped, tap it to start step recording. Hold it while stopped (or on Steps) to set up recording with the knobs: click, count-in, quantize and mode. |
 | **SEL** | Opens a list of this page's settings and actions. Hold a step and press it to see the step's notes. When LOOM-8 asks a question, **SEL** means yes. |
 | **HOME** | Opens Arrange. On Arrange, it opens the Song page. Hold it as a shift key for buttons and knobs: undo and redo, fine tempo, and the scenes on **PRESETS**. When LOOM-8 asks a question, **HOME** means no. |
-| **SEQ** | Opens Steps; page 2 is Bar. Hold it on Steps and the keys play the track and set what a step writes (**PRESETS** sets the track's sound, and **OCT** moves the whole pattern an octave). Hold it on Bar and black keys 1 to 4 jump to a bar or loop bars. Hold it on Steps or Bar and press **PLAY** to start from the bar on screen. |
+| **SEQ** | Opens Steps; page 2 is Bar. On the MOD track, it opens Lanes. Hold it on Steps and the keys play the track and set what a step writes (**PRESETS** sets the track's sound, and **OCT** moves the whole pattern an octave). Hold it on Bar and black keys 1 to 4 jump to a bar or loop bars. Hold it on Steps or Bar and press **PLAY** to start from the bar on screen. |
 | **EDIT** | Opens Engine. The pages go from the sound to how it plays. On most engines, page 2 is Play (mode, glide, bend and octave) and page 3 is Play 2 (low cut and volume). On rayon and acid, page 2 is Sub, with the engine's second set of knobs, and Play and Play 2 follow it. Rayon has its Ops page after Sub. On knit, the pages are Engine, Osc 2, Mod, Levels, Play and Play 2. A sample track in a loop mode has its Loop page second. On a drum track, page 2 holds the key's model, random, pan and volume, and page 3 its sends. On the conductor, the pages are its key, the routing and Follow. |
 | **ENV** | Opens Envelope (on a drum track: lag, attack, random, length), then Filter, then the filter's envelope. |
 | **FX** | Opens Insert 1, the track's first effect, then Insert 2. Next come Sends, the track's sends to FX I and FX II, and then FX I and FX II, the two send effects, and Throws. |
@@ -216,7 +220,7 @@ Count the white keys 1 to 16 from the left, and the black keys 1 to 11. "Hold **
 | **SAVE** | Saves. Hold it and press a white key to save to a slot, or to keep a sound. |
 | **OCT−** / **OCT+** | Move the keys an octave. On Steps, they show the bar before or after (with **SEQ** held, they move the pattern an octave), and with a step held, they nudge it. In step record, they move the cursor. On Arrange and Song, they put scenes 1 to 16 or 17 to 32 on the white keys. |
 | **SELECT** | Turns to a button's next page. In a list, it moves up and down. |
-| **ALGORITHM** | Picks the track. In a list, it changes the row's value. |
+| **ALGORITHM** | Picks the track. On the MOD track's Lanes page, it picks the lane first. In a list, it changes the row's value. |
 | **PRESETS** | Steps to the next item of whatever the page shows: a preset, a drum key, an effect, a pattern, a drum sound, a scene. |
 | **KNOB 1–4** | Set the four values at the bottom of the screen. |
 
@@ -264,7 +268,7 @@ LOOM-8 couldn't do something, and the message tells you why.
 
 ### The tracks
 
-Turn **ALGORITHM** to pick a track. After T1 to T8 come COND (the conductor), THROW (the throws) and WEAVE. On Mix,
+Turn **ALGORITHM** to pick a track. After T1 to T8 come COND (the conductor), THROW (the throws), WEAVE and MOD. On Mix,
 **ALGORITHM** steps through the mixer strips instead: T1 to T8, then the effect returns FX I and FX II. On the
 Engine, Play, Envelope, Filter, LFO and Players pages, the keys play the track you picked. On a drum track, the
 black keys are the eleven drum keys, and the white keys play them too. On FX I and FX II, the keys play the
@@ -1403,7 +1407,8 @@ that is playing.
 - Hold a white key for a second to clear that scene. The playing scene keeps going while LOOM-8 asks you to
   confirm. Holding an empty scene's key does nothing.
 
-The black keys mute. Keys 1 to 8 mute the tracks, 9 mutes the conductor and 10 mutes the throws. A kit track's
+The black keys mute. Keys 1 to 8 mute the tracks, 9 mutes the conductor, 10 mutes the throws and 11 the MOD
+track. A kit track's
 black key mutes it when you let go. To mute the kit's sounds one by one in this scene, hold its black key instead
 and press white keys 1 to 11. A lit key means that sound is playing. The first four kit tracks each have their own
 sound mutes, and the row shows how many are off. A muted sound still drives the pump, and its key still plays when
@@ -1419,7 +1424,9 @@ The knobs on Arrange:
 - **KNOB 3** sets the selected track's groove amount, from −99 to 99.
 - **KNOB 4** sets the selected track's pattern in this scene ("T2 PAT"). **ALGORITHM** picks the track. While it
   plays, the new pattern comes in at the track's next bar line. Use it to set a scene's patterns track by track
-  without leaving Arrange.
+  without leaving Arrange. With the MOD track picked, it sets the scene's MOD pattern ("MOD PAT"), or none ("-").
+
+The last row, MD, is the MOD track: the scene's MOD pattern and where it is.
 
 You'll find the click on **REC**'s knobs.
 
@@ -1432,6 +1439,9 @@ plays four.
 - **KNOB 3** sets how many bars it plays, from 1 to 64. A bar is always 16 sixteenths, whatever the patterns'
   lengths, so a 64-step pattern takes four bars.
 - **KNOB 4** sets whether the song loops or stops at the end.
+
+The song follows the scenes, and so does the MOD track: each slot starts its scene's MOD pattern from step 1, so a
+sweep can span a slot of 32 bars and start again in the next.
 
 Press **PLAY** on the Song page to play the song from the selected slot. To play it from the top, pick PLAY SONG in
 the **SEL** list. As the song plays, a bar along the bottom of the playing slot fills up over its bars. The **SEL**
@@ -1470,6 +1480,7 @@ under **SEQ**.
 - **WEAVE** holds the weaves. Hold its white keys 1 to 10 to weave T1 to T8, COND and THROW. With latch on, one
   tap turns a weave on and another turns it off. Each track weaves the way its ARP's Weave page sets it, and REC
   records the weaves onto the WEAVE steps. For more, see Weave, above.
+- **MOD** moves knobs over many bars. See [The MOD track](#the-mod-track), below.
 - **THROW** holds the throws. The keys fire them, on the drum tracks from the lower octave and on the melodic
   tracks from the upper one. Slice tracks count as drums. Their fills play the pattern's own slices: the slice on
   the downbeat acts as the kick, the one on the backbeat as the snare, and an off-beat one as the hat. The octave
@@ -1500,6 +1511,52 @@ under **SEQ**.
 
 - **FX I** and **FX II** are the two send effects. Selected with **ALGORITHM**, **EDIT** has the effect's knobs and
   the return, and page 2 its high-pass, low-pass and, on FX I, the send into FX II. See [FX I and FX II](#fx-i-and-fx-ii).
+
+### The MOD track
+
+The MOD track moves knobs while the song plays: a filter opening over 32 bars, a send pushed for a bar, the master
+filter closing on the drums before a drop. It has no sound and no notes, only lanes. A lane is one knob and a value
+on the steps you choose. Lanes live in the project, so a loop can change slowly with your hands off the knobs.
+
+Turn **ALGORITHM** to MOD and press **SEQ** (or **EDIT**) for its page, Lanes. It has eight patterns, like any
+track. Each pattern has up to eight lanes, its length (1 to 64 steps, **KNOB 2**) and its scale (**KNOB 3**: a step
+is a sixteenth, an eighth, a beat ... up to a bar). At a bar a step, 64 steps last 64 bars. **KNOB 1** picks the MOD
+pattern the scene plays, or none ("-"). A new scene starts with none, so a lane plays only where you put it. The
+page shows the lane you picked as a line over the pattern's steps, with its values as dots and the playhead.
+**ALGORITHM** picks the lane. Turn it past the last lane (or the first) to go on to the next track.
+
+<img src="img/screen-mod.png" width="240" alt="The MOD track's Lanes page: T2 cutoff, a glide from step 1 to step 9 then held, the playhead at step 4; KNOB 1 P1, KNOB 2 16 steps, KNOB 3 4 (a beat a step), KNOB 4 cutoff 320 Hz" title="A lane">
+
+**Add a lane.** Press **SEL**. Under "add a lane", pick the TRACK (T1 to T8, FX I, FX II or master), the PAGE and
+the KNOB with **ALGORITHM**, as you would find the knob on its own page, then pick ADD LANE. Or pick LEARN and turn
+the knob you mean, on any page: it becomes the lane, and the Lanes page comes back. A lane can move any knob of a
+sound (a kit's keys too), FX I and FX II, and the master's: EQ, Master FX, the master filter and Master out. Knobs
+that pick something (an engine, an effect, a type, a model) can't be lanes.
+
+**Values.** The white keys are the pattern's steps, and **OCT−** and **OCT+** show its other bars. A step's key is
+lit when the lane has a value there. Tap a step to put the knob's value now on it, and tap it again to take it off.
+Hold a step and turn **KNOB 4** to set its value; the knob reads in its own units, as on its page. With steps held,
+**SEL** takes their values off. Without a step held, **KNOB 4** is the knob itself.
+
+**Glide or step.** In the **SEL** list, each lane has its row: turn **ALGORITHM** right for glide, left for step. A
+glide moves from each value to the next one over the steps between. A step lane jumps at each value. After the last
+value, the knob stays there until the pattern comes round. Before the first value, a step lane leaves the knob
+alone, and a glide moves there from wherever the knob is. The list also has CLEAR LANE (its values) and REMOVE LANE.
+
+**Record it.** While it plays, hold **REC** on Lanes and turn **KNOB 4**: the knob's moves are written on the steps
+as they play.
+
+**Who wins.** A knob you turn by hand wins: it takes the knob back until the lane's next value. Next comes the lane,
+from its first value on. While a lane holds a knob, the pattern's own locks and motion on that knob wait. They aren't
+changed, and they play again when the MOD track lets go. Last comes the knob's own value.
+
+**Scenes, the song and the mute.** When a scene starts (or a song slot), its MOD pattern starts from step 1. A knob
+the new pattern doesn't move stays where the last one left it. A scene with none ("-") leaves every knob where it
+is, and so does the mute: black key 11 on Arrange, which freezes the lanes where they are. When you stop, every knob
+goes back to its own value, as the locks do. The MOD track has no MIDI channel. It sends no CCs, and a lane's moves
+are not sent out as the knob's CC.
+
+The lanes share their room with the locks and motion: the project holds 96 in all.
 
 ## Mix and master
 
@@ -1812,6 +1869,7 @@ and the echoes fade out. Every voice sounds in the file, so a busy song can soun
 | SEQ, a step held | Steps | velocity | length | chance | pitch | white: length or more steps, black: sounds; PRESETS: the step's sound shown (drums: velocity, chance and tricks are its) |
 | SEQ, a step held + ARP | Steps | trick 1 | its value | trick 2 | its value | PRESETS: the step's sound shown (drums) |
 | SEQ, SELECT | Bar | quant | note | groove | shape | black: scale; SEQ held, black 1-4: jump or loop bars |
+| SEQ (MOD) | Lanes | the scene's MOD pattern | length | scale | the lane's knob (a step held: its value) | white: steps (tap: a value or none; hold + KNOB 4: its value), OCT: bars; ALGO: the lane; SEL: the lanes, glide or step, add a lane, LEARN |
 | EDIT | Engine | the engine's four | | | | play |
 | EDIT, SELECT | Play | mode | porta | bend | octave | play |
 | EDIT, SELECT twice | Play 2 | | | low cut | volume | play |
@@ -1856,6 +1914,7 @@ The aux tracks have their own **EDIT** pages:
   off. Page 3 is Follow, where **KNOB 1** or a black key picks the track the chords come from.
 - THROW has latch.
 - WEAVE has latch.
+- MOD has its Lanes page on **SEQ** and **EDIT** alike.
 - FX I and FX II have the effect's three knobs and the return. Page 2 has hp, lp and the send to FX II.
 
 ## Troubleshooting
@@ -1911,7 +1970,8 @@ words it uses are published with this site, so every version reads its own scree
 LOOM-8's way of working owes a great deal to teenage engineering's OP-XY. LOOM-8 is not affiliated with teenage
 engineering. It is built on fm1-base and felucca-bsp, from Felucca by Leo Kuroshita (Hügelton Instruments), and it
 borrows Polly's menus and X0X's sequencer discipline. The idea for the export page came from Bloomy, gfcalvi's
-fork of LOOM-8.
+fork of LOOM-8. The MOD track's rule that a knob you turn takes over until the lane's next value, and learning a lane
+by turning its knob, come from KrisGelero's song automation (LOOM-8 pull request 5).
 
 Cane and voile are Mutable Instruments Braids by Émilie Gillet (MIT). Acid is X0X's 303, from Open303 by Robin
 Schmidt (MIT), with jc303's Devilfish ranges by midilab and dm-Rat's RAT drive by Dave Mollen (GPL-3.0). That

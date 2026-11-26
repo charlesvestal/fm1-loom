@@ -371,3 +371,19 @@ wait 250
 shot engine_voile.png
 key w4 up
 wait 800
+# ---- the MOD track: a lane on T2's cutoff, a glide from step 1 to step 9 a beat a step, playing
+preset 2 acid_line acid
+pat 2 1 16 1 60 0
+notes 2 1 1 0.5 100 A1
+knob 2 cut 40
+modpat 1 16 4
+modlane 1 2 cut glide
+modval 1 2 cut 1 20 9 100
+scenemod 1 1
+track 14
+tap SEQ
+tap PLAY
+bars 1
+wait 50
+shot mod.png
+tap PLAY
