@@ -95,3 +95,8 @@ commit and the manual's credits.
   controlling it"): held steps -> their values; nothing held -> the step last tapped (outlined; the header "step 9:
   5.8 kHz"); none tapped -> nothing ("hold a step"). REC held while playing still writes the moves into the lane. The
   hand takeover stays on the parameter's own page.
+- **Takeover** (the user): on the parameter's own page, as it is (until the lane's next value); from the MOD page,
+  never (KNOB 4 there edits the lane only).
+- **Lane shapes** replace glide / step: step, linear (was glide), ease in, ease out, smooth (S); PRESETS on Lanes cycles
+  them, the curve drawn in its shape, SEL's "this lane" shows SHAPE; a new lane starts smooth; older lanes keep theirs
+  (glide = linear). Per block, as the glide now.
