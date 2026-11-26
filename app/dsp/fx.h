@@ -32,7 +32,9 @@ void fx_init(fxslot_t *f);
 void fx_set(fxslot_t *f, int ef, const uint8_t k[3], const uint8_t x[4]);   /* the effect (EF_*), its knobs and extras
                                                                            * (0..127; the reverb's mode its first) */
 int fx_need(const fxslot_t *f);              /* the blocks of the pool its effect (as set) needs */
-void fx_memory(fxslot_t *f, int16_t *mem, int nb);   /* its memory (0: none): another place is cleared, its effect fresh */
+int fx_memory(fxslot_t *f, int16_t *mem, int nb);    /* its memory (0: none), each block: another place is cleared a
+                                                     * slice a block (efx.h EFX_CLR), its effect fresh; the blocks
+                                                     * still to clear (the send silent till 0) */
 int fx_room(const fxslot_t *f);              /* its memory holds its effect (as set) */
 int fx_effect(const fxslot_t *f, int *mode); /* its effect (EF_*) and the reverb's mode, as set */
 void fx_tempo(fxslot_t *f, float bpm);

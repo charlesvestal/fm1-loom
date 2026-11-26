@@ -502,6 +502,19 @@ int efx_same(const efx_mask_t *a, const efx_mask_t *b)
             return 0;
     return 1;
 }
+int efx_clear_step(int16_t *mem, int nb, uint8_t *left, int max)
+{
+    int k = *left < max ? *left : max;
+    if (k <= 0 || !mem)
+        return 0;
+    {
+        uint32_t *w = (uint32_t *)(void *)(mem + (nb - *left) * EFX_INS_N);   /* (the pool's blocks 8-aligned) */
+        for (int32_t i = 0; i < k * (EFX_INS_N / 2); i++)
+            w[i] = 0u;
+    }
+    *left = (uint8_t)(*left - k);
+    return k;
+}
 #define RV_PLATE_N (RV_AP0 + 556 + 441 + 579 + 457)   /* the plate's combs and allpasses */
 static int32_t rv_need16(int mode)            /* a reverb mode's line, int16: the plate's, an SPU mode's largest address at
                                                * x4 and two more (its "-1" reads, no address aliasing another), lush's,

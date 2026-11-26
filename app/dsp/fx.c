@@ -30,7 +30,8 @@ struct fxslot {
     efx_send_t e;                             /* the sends' own effects: their numbers and states, their lines (efx.h) */
     efx_slot_t s;                             /* the others' (as a kit's slot) */
     int16_t *mem;                             /* its memory (the pool's) and its blocks */
-    uint8_t mnb, fresh;                       /* (fresh: its memory just given, cleared: the effect starts at rest) */
+    uint8_t mnb, fresh;                       /* (fresh: its memory just given: the effect starts at rest) */
+    uint8_t clr;                              /* its blocks still to clear (fx_memory, a slice a block: silent till then) */
     uint8_t type, type_t, mode, mode_t;       /* the effect (EF_*) and the reverb's mode: running, and as set */
     uint8_t k[3], x[4];                       /* its knobs and extras */
     uint8_t knob[4];                          /* a send effect's four, as efx_send_nums takes them */
@@ -47,13 +48,6 @@ static inline int send_own(int ef)            /* one of the sends' own (efx_send
     return ef == EF_CHORUS || ef == EF_DELAY || ef == EF_LOFI || ef == EF_PHASER || ef == EF_REVERB;
 }
 
-static void zero16(int16_t *b, int32_t n)
-{
-    int32_t i;
-    for (i = 0; i < n; i++)
-        b[i] = 0;
-}
-
 static void fx_point(fxslot_t *f)               /* the running effect's lines in its memory */
 {
     int16_t *m = f->mem;
@@ -64,12 +58,13 @@ static void fx_point(fxslot_t *f)               /* the running effect's lines in
     f->e.reverb.n = (uint32_t)efx_rv_ring(f->mode, f->mnb, 1);
 }
 
-static void fx_states(fxslot_t *f, int wipe)    /* a fresh effect: its states at rest (wipe: its memory cleared too) */
+static void fx_states(fxslot_t *f, int wipe)    /* a fresh effect: its states at rest (wipe: its memory cleared too, a
+                                                 * slice a block: fx_memory) */
 {
     uint8_t *z = (uint8_t *)&f->s;
     uint32_t i;
     if (wipe && f->mem)
-        zero16(f->mem, (int32_t)f->mnb * EFX_INS_N);
+        f->clr = f->mnb;
     fx_point(f);
     efx_send_reset(&f->e, f->mode);
     for (i = 0; i < sizeof f->s; i++)
@@ -120,17 +115,18 @@ int fx_effect(const fxslot_t *f, int *mode)
 }
 int fx_room(const fxslot_t *f) { return efx_need(f->type_t, f->mode_t, 1) <= (f->mem ? f->mnb : 0); }
 
-void fx_memory(fxslot_t *f, int16_t *mem, int nb)
+int fx_memory(fxslot_t *f, int16_t *mem, int nb)
 {
     if (!mem)
         nb = 0;
-    if (mem == f->mem && nb == f->mnb)
-        return;
-    f->mem = mem;
-    f->mnb = (uint8_t)nb;
-    if (mem)
-        zero16(mem, (int32_t)nb * EFX_INS_N);
-    f->fresh = 1;
+    if (mem != f->mem || nb != f->mnb) {
+        f->mem = mem;
+        f->mnb = (uint8_t)nb;
+        f->clr = (uint8_t)nb;
+        f->fresh = 1;
+    }
+    efx_clear_step(f->mem, f->mnb, &f->clr, EFX_CLR);
+    return f->clr;
 }
 
 void fx_set(fxslot_t *f, int ef, const uint8_t k[3], const uint8_t x[4])
@@ -218,8 +214,8 @@ void fx_process_lag(fxslot_t *f, const float *in, float *out_l, float *out_r, ui
         f->fresh = 0;
         fx_states(f, wipe);
     }
-    if (f->type == EF_OFF || efx_need(f->type, f->mode, 1) > (f->mem ? f->mnb : 0))
-        return;                                /* (no memory: silent) */
+    if (f->type == EF_OFF || efx_need(f->type, f->mode, 1) > (f->mem ? f->mnb : 0) || f->clr)
+        return;                                /* (no memory, or its memory not yet clear: silent) */
     for (o = 0; o < n; o += SUB) {
         float x[SUB];
         int m = (int)(n - o < SUB ? n - o : SUB), i, any = 0;

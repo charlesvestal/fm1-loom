@@ -4098,7 +4098,7 @@ static float bus_sp[2][NSPLIT][2][BUS_N] __attribute__((section(".pool")));
 #endif
 /* the slots' memory (dsp/efx.h efx_need: a chorus, lofi or juno a block, rumble two, a delay or a reverb many), from
  * the one pool, after the sends' (efx_send_used: the engine's): given when a slot asks for it (the first free run of
- * blocks, cleared), kept while its effect (and the reverb's mode) stays, given back when it changes (or its mix goes to
+ * blocks, cleared a slice at a time: slots_clear), kept while its effect (and the reverb's mode) stays, given back when it changes (or its mix goes to
  * 0: the slot off), or when a send takes it (synth_slots_evict) */
 static inline int slot_mode(const efx_slot_t *sl) { return sl->ef == EF_REVERB && sl->xt[0] < NRV ? sl->xt[0] : 0; }
 static inline int slot_need(const efx_slot_t *sl)
@@ -4114,7 +4114,7 @@ static void ins_alloc(synth_t *s)
             efx_slot_t *sl = &s->t[i].sl[q];
             if (sl->at >= 0 && (sl->mef != sl->ef || sl->mmd != slot_mode(sl)))   /* (another effect: its memory
                                                   * fresh, cleared) */
-                sl->at = -1, sl->nb = 0;
+                sl->at = -1, sl->nb = sl->clr = 0;
             if (sl->at >= 0)
                 efx_mark(&used, sl->at, sl->nb);
         }
@@ -4131,11 +4131,30 @@ static void ins_alloc(synth_t *s)
                 sl->mef = sl->ef;
                 sl->mmd = (uint8_t)slot_mode(sl);
                 sl->zef = EF_OFF;                /* (its states cleared: slot_run) */
-                for (int b = 0; b < need; b++)
-                    for (int j = 0; j < EFX_INS_N; j++)
-                        efx_pool[k + b][j] = 0;
+                sl->clr = (uint8_t)need;         /* (its memory: slots_clear) */
             }
         }
+}
+/* the slots' new memory cleared a slice at a time (efx.h efx_clear_step): a block of the pool for each 64 frames
+ * rendered (4 in a 256-frame block, 8 KB), the first slot's first; a slot passes dry till its memory is clear
+ * (slot_run). (The frames counted: a block's stretches clear no more than the block would) */
+static uint32_t clr_fr;
+static void slots_clear(synth_t *s, uint32_t n)
+{
+    int b, more = 0;
+    clr_fr += n;
+    b = (int)(clr_fr >> 6);
+    clr_fr &= 63u;
+    for (int i = 0; i < NTRK; i++)
+        for (int q = 0; q < 2; q++) {
+            efx_slot_t *sl = &s->t[i].sl[q];
+            if (sl->at < 0 || !sl->clr)
+                continue;
+            b -= efx_clear_step(efx_pool[(int)sl->at], sl->nb, &sl->clr, b);
+            more |= sl->clr;
+        }
+    if (!more)
+        clr_fr = 0;
 }
 void synth_slots_evict(synth_t *s, const efx_mask_t *mask)
 {
@@ -4143,7 +4162,7 @@ void synth_slots_evict(synth_t *s, const efx_mask_t *mask)
         for (int q = 0; q < 2; q++) {
             efx_slot_t *sl = &s->t[i].sl[q];
             if (sl->at >= 0 && efx_meets(mask, sl->at, sl->nb))
-                sl->at = -1, sl->nb = 0;
+                sl->at = -1, sl->nb = sl->clr = 0;
         }
 }
 /* a slot's delay or reverb still rings (its memory's states) */
@@ -4224,6 +4243,7 @@ static void bus_prepare(synth_t *s, uint32_t n)
             }
     }
     ins_alloc(s);
+    slots_clear(s, n);
     for (i = 0; i < NVOICE; i++) {
         const voice_t *v = &s->v[i];
         s->grp[i] = 0;
@@ -4350,6 +4370,8 @@ static void slot_run(synth_t *s, trk_t *t, efx_slot_t *sl, int kit, float *bl, f
             efx_char_stage(x, z, ef, 1, bl, br, (int)n);
         return;
     }
+    if (sl->clr)                                 /* (its memory not yet clear: dry) */
+        return;
     efx_insert(ef, &sl->u.in, &sl->ph, sl->at >= 0 ? efx_pool[(int)sl->at] : 0, sl->k, sl->xt, sl->mix,
                lfo_hz((int)sl->k[0], s->bpm), s->bpm, t->ins_in, bl, br, n);
 }

@@ -21,10 +21,14 @@ static fxslot_t *fxo;
 static uint8_t fxo_pick, fxo_k[4], fxo_w = 127, fxo_wob, fxo_smr;
 static void fxo_apply(void)
 {
+    static float z[1];
     uint8_t o[9];
     fx_pick_slot(fxo_pick, fxo_k, fxo_w, fxo_wob, fxo_smr, o);
     fx_set(fxo, o[0], o + 1, o + 5);
     fx_memory(fxo, efx_pool[0], fx_need(fxo));
+    fx_process(fxo, z, z, z, 0);                /* (the effect taken; its memory cleared, as the engine's blocks would) */
+    while (fx_memory(fxo, efx_pool[0], fx_need(fxo)))
+        ;
 }
 static void fxo_set(int pick, const uint8_t k[4])
 {
@@ -45,11 +49,9 @@ static inline void fxo_mod(int wob, int smr)
 }
 static void fxo_init(fxslot_t *f)
 {
-    static float z[1];
     fxo = f;
     fx_init(f);
     fxo_w = 127;
     fxo_wob = fxo_smr = 0;
-    fxo_set(FXT_CHORUS, FXT_DEFAULT[FXT_CHORUS]);
-    fx_process(f, z, z, z, 0);                  /* (at rest: its states as the chorus's) */
+    fxo_set(FXT_CHORUS, FXT_DEFAULT[FXT_CHORUS]);   /* (at rest: its states as the chorus's) */
 }

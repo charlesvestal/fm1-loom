@@ -357,9 +357,9 @@ typedef struct synth synth_t;         /* opaque: dsp/synth.c */
 void synth_glfo_restart(synth_t *s);              /* the shared LFO from its start (the transport started) */
 float synth_glfo_now(const synth_t *s);            /* its value now, -1..1 (the page's picture) */
 #ifdef PLAT_HOST
-#define SYNTH_BYTES 15536             /* (the host's pointers are wider) */
+#define SYNTH_BYTES 15600             /* (the host's pointers are wider) */
 #else
-#define SYNTH_BYTES 15464             /* room for the struct (checked at compile time in synth.c: 15,464 B, 2026-11-25) */
+#define SYNTH_BYTES 15528             /* room for the struct (checked at compile time in synth.c: 15,528 B, 2026-11-25) */
 #endif
 
 void synth_init(synth_t *s, uint8_t (*par)[NTP]);   /* par: the tracks' parameter arrays, NTRK + 1 of them (the conductor's, SY_GLFO_TRK: the shared LFO) */

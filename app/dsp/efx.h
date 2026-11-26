@@ -54,6 +54,13 @@ int efx_meets(const efx_mask_t *m, int at, int nb);    /* any of them in m */
 int efx_fit(const efx_mask_t *m, int need);            /* the first run of need blocks none of m, -1 */
 int efx_same(const efx_mask_t *a, const efx_mask_t *b);
 extern efx_mask_t efx_send_used;                 /* the blocks the sends hold */
+/* memory newly given (or an effect changed on it) is cleared a slice at a time, not at once in the audio interrupt (64
+ * KB at once: a block's overrun): efx_clear_step clears up to max of the nb blocks at mem still to clear (*left of
+ * them, from the start), returns how many it cleared. A send and the master EFX_CLR blocks (8 KB) a block, the tracks'
+ * slots a block of the pool for each 64 frames rendered (the same, a 256-frame block); the holder passes dry (a send:
+ * silent) until its memory is clear: a 64 KB line in 8 blocks of 256 frames (46 ms) */
+#define EFX_CLR 4
+int efx_clear_step(int16_t *mem, int nb, uint8_t *left, int max);
 int efx_need(int ef, int mode, int send);        /* the blocks effect ef (the reverb in mode) needs on a send or a track */
 int32_t efx_rv_ring(int mode, int nb, int send); /* the reverb's line in nb blocks: its length, int16 */
 const char *efx_list_name(int ef, int k, int v);   /* an EK_LIST knob's value's name (juno's modes) */
@@ -234,6 +241,7 @@ typedef struct {
     uint8_t mix, xt[4];                           /* its mix 0..127, its extras */
     int8_t at;                                    /* its memory: its first block of the pool (-1 none) */
     uint8_t nb, mef, mmd;                         /* how many, the effect (and the reverb's mode) it was given for */
+    uint8_t clr;                                  /* its blocks still to clear (efx_clear_step: dry till then) */
 } efx_slot_t;
 float efx_rumble_secs(float k);                  /* rumble's decay knob (0..127): its RT60, seconds */
 float efx_sin(float ph);                         /* (out of line: a sine of turns, a one-pole's coefficient at hz) */

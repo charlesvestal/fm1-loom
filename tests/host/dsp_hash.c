@@ -358,6 +358,9 @@ static void fx_cases(void)
             fx_old(t, kn);
             if (v == 2)
                 fx_filter(fx, 30, 90);
+            fx_process(fx, in, L, R, 0);         /* (the new effect taken, its memory cleared: the engine's blocks) */
+            while (fx_memory(fx, efx_pool[0], efx_need(o[0], o[0] == EF_REVERB ? o[5] : 0, 1)))
+                ;
             rng = 777;
             hash_init();
             for (b = 0; b < 320; b++) {                 /* (an SPU mode clears its area first) */

@@ -2199,6 +2199,8 @@ static void insert_tests(void)
             par[0][TP_SLOT[1][SL_MIX]] = 64;
             synth_init(S, par);
             synth_tempo(S, 120.0f);
+            for (int b = 0; b * N < 4410; b++)   /* (0.1 s: its memory cleared, a slice a block) */
+                block(N, &finite);
             synth_note_on(S, 0, 60, 110, 0, 1);
             for (int b = 0; b * N < 2 * 44100; b++) {
                 block(N, &finite);
