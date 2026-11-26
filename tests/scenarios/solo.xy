@@ -1,55 +1,74 @@
 # Mix: a double tap on a track's black key solos it and the solo stays, let go (any page); a tap ends it and the
-# mutes come back. A hold still adds a track while held; a mute changed elsewhere ends the solo first
+# mutes come back. A hold still adds a track while held; a mute changed elsewhere ends the solo first. The Mix page's
+# mutes and solo are the mixer's (the audio: amute, the engine's; the scene's note mutes stay as they are)
 wait 300
 tap GLO
-expect mute 0
+expect amute 0
 tapkey b2
 wait 100
 tapkey b2
 wait 40
-expect mute 1019
+expect amute 251
+expect solo 4
+expect mute 0
 wait 1200
-expect mute 1019
+expect amute 251
 shot mix_solo_latched.png
-# a hold adds track 4 while held; let go, track 2 still alone
+# a hold adds track 5 while held; let go, track 3 still alone
 key b4 down
 wait 900
-expect mute 1003
+expect amute 235
 key b4 up
 wait 40
-expect mute 1019
+expect amute 251
 # a tap: the solo ends
 tapkey b5
 wait 400
-expect mute 0
-# track 1 muted, then track 3 double tapped: the first tap's mute undone, track 1's kept to go back to
+expect amute 0
+expect solo 0
+# track 2 muted, then track 4 double tapped: the first tap's mute undone, track 2's kept to go back to
 tapkey b1
 wait 400
-expect mute 2
+expect amute 2
+expect mix2 1
 tapkey b3
 wait 100
 tapkey b3
 wait 40
-expect mute 1015
+expect amute 247
+expect mix4 0
+expect mix2 1
 # another track double tapped while soloed: it alone
 tapkey b6
 wait 100
 tapkey b6
 wait 40
-expect mute 959
+expect amute 191
 tapkey b6
 wait 400
-expect mute 2
-# a muted track still shows its steps on its meter, in grey (an empty muted track none)
+expect amute 2
+expect mute 0
+# a note-muted track (Arrange's black keys: the scene's) still shows its steps on its meter, in grey (an empty muted
+# track none); Mix's crossed speaker on track 2 (muted at the mixer)
 notes 2 1 1 1 100 60
 notes 2 1 5 1 100 62
 notes 2 1 9 1 100 64
 notes 2 1 13 1 100 65
+tap HOME
+expect page Arrange
+tapkey b1
+tapkey b3
+wait 40
+expect mute 10
+tap GLO
+expect page Mix
+tapkey b1
+wait 400
+expect mix2 0
 tap PLAY
 wait 600
-expect mute 2
-tapkey b3
-wait 900
 expect mute 10
+expect amute 0
+wait 900
 shot mix_muted_meter.png
 tap PLAY

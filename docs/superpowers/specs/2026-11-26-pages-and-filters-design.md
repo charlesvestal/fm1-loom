@@ -68,3 +68,15 @@ keep their note mutes (composition); the **Mix page** gets audio mutes (performa
 - Shown on Mix's rows apart from a scene mute (a crossed speaker; "wet"); the screen reader says it.
 - Changes from today: Mix's black keys toggled the scene's (note) mutes; they become the mixer's. Pattern / scene
   mutes on Arrange only. Manual: the mute rows of How do I, Mix, Arrange.
+
+Built (branch room, 2026-11-26), with these calls made in the building:
+- Stored after the tracks in the settings object (settings_t mixm, mixk; format 34, older projects all on). Every
+  track's kit keys (not only the first four kits', as the scenes' are).
+- A tap on a wet-only track turns it on (as on a muted one); SEL + tap on a muted one makes it wet only.
+- A solo hears a soloed track even if it was muted at the mixer (as the old solo unmuted it); wet only stays wet.
+- CC 9 (and 16-26) stay the note mutes (Arrange's, the scene's): they are what CC 9 out reports when a scene changes
+  them. The mixer's mutes have no CC.
+- FX I and FX II's black keys on Mix pick them only (no mute); COND, THROW and MOD have no key on Mix.
+- The fades: a synth track's mute ~2 ms (its voices' gains), wet only ~5 ms (its bus's dry), a kit key's ~5 ms; a
+  kit's mute and wet only ride its level's glide (~10 ms one-pole), as the punch's mute does.
+- The pump still hears a muted kit's kicks (its notes play).

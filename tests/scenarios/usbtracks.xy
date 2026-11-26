@@ -41,11 +41,11 @@ usbwav usb_panned.wav
 wait 2200
 usbwavstop
 midi B1 0A 40
-# T1 muted (GLO, its black key, b0): its channel silent, T2's as before
+# T1 muted (GLO, its black key, b0: its audio, at the mixer): its channel silent, T2's as before
 tap GLO
 tapkey b0
 wait 400
-expect mute 1
+expect amute 1
 usbwav usb_muted.wav
 wait 2200
 usbwavstop

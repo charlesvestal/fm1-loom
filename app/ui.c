@@ -304,14 +304,9 @@ static void kit_sound_mute(int trk, int snd)     /* kit track trk's sound muted 
     mark_dirty();
     say(m >> snd & 1u ? "MUTED" : "UNMUTED", DL_SOUND_NAME[snd]);
 }
-static void solo_end(void);
-static void set_mute(int trk, int on)
+static void set_mute(int trk, int on)            /* a track's note mute, in the scene playing (Arrange, CC 9) */
 {
     uint16_t m;
-    if (ui.solo_lat) {                           /* a mute changed: a double tap's solo ends first */
-        ui.solo_lat = 0;
-        solo_end();
-    }
     m = seq.mute;
     if (on)
         m |= (uint16_t)(1u << trk);
@@ -320,6 +315,50 @@ static void set_mute(int trk, int on)
     seq.mute = m;
     pats.scene[cur_scene()].mute = m;
     mark_dirty();
+}
+/* the Mix page's audio mutes (proj.mixm, mixk: the project's, never the scenes'): a track's channel on, muted (its dry
+ * and its sends off: FX I and II ring out what they have) or wet only (its dry off, its sends on); a kit's keys one by
+ * one. The notes play on (the scenes' mutes, Arrange's, stop them). Into the engine every frame (mix_send), a solo's
+ * others muted there */
+static int mix_keys(int t) { return proj.mixk[t][0] | proj.mixk[t][1] << 8; }
+static void mix_send(void)
+{
+    for (int t = 0; t < NTRK; t++) {
+        int st = proj.mixm[t] % 3u;
+        if (ui.solo)                             /* (a solo: the others muted; one soloed is heard, wet only kept) */
+            st = !(ui.solo >> t & 1u) ? MIX_MUTE : st == MIX_MUTE ? MIX_ON : st;
+        engine_amix(t, st, mix_keys(t));
+    }
+}
+static void mix_say(int t)
+{
+    say(proj.mixm[t] == MIX_MUTE ? "MUTED" : proj.mixm[t] == MIX_WET ? "WET ONLY" : "UNMUTED", TRACK_NAME[t]);
+}
+static void solo_end(void);
+static void mix_put(int t, int st)
+{
+    if (ui.solo_lat) {                           /* a mute changed: a double tap's solo ends first */
+        ui.solo_lat = 0;
+        solo_end();
+    }
+    proj.mixm[t] = (uint8_t)st;
+    mark_dirty();
+}
+static void mix_sound(int t, int snd)            /* a kit's key muted at the mixer, or back */
+{
+    const int m = mix_keys(t) ^ 1 << snd;
+    proj.mixk[t][0] = (uint8_t)m;
+    proj.mixk[t][1] = (uint8_t)(m >> 8);
+    mark_dirty();
+    say(m >> snd & 1 ? "MUTED" : "UNMUTED", DL_SOUND_NAME[snd]);
+}
+/* Mix: the key of a kit's black key held (its white keys 1-11 then its keys' audio), -1 none */
+static int mix_kit_hold(void)
+{
+    for (int i = 0; i < NKEYS; i++)
+        if (ui.kmode[i] == KM_SOLO && (ui.keys >> i & 1u) && (ui.knote[i] & 0x7F) < NTRK && is_drum(ui.knote[i] & 0x7F))
+            return i;
+    return -1;
 }
 /* a preset is the sound (its sends too); the track's level and pan stay its own */
 static void load_preset(int trk, const preset_t *pr)
@@ -1364,19 +1403,11 @@ static void track_step(int e)
         ui.mod_lane = (uint8_t)(d > 0 ? 0 : NMODL - 1);   /* (its first lane from below, its last from above) */
     track_select(L[i]);
 }
-static void solo_begin(int trk)                  /* a track joins the solo (the first: the mutes kept to go back to) */
-{
-    if (!ui.solo)
-        ui.solo_mute = seq.mute;
-    ui.solo |= (uint16_t)(1u << trk);
-    seq.mute = (uint16_t)((((1u << NSEQT) - 1u) & ~ui.solo) | (seq.mute & 1u << MOD_BIT));   /* (the MOD track's own) */
-}
+static void solo_begin(int trk) { ui.solo |= (uint16_t)(1u << trk); }   /* a track joins the solo (Mix: the others
+                                                  * muted at the mixer while it lasts, mix_send) */
 static void solo_end(void)
 {
     ui.solo_lat = 0;
-    if (!ui.solo)
-        return;
-    seq.mute = ui.solo_mute;
     ui.solo = 0;
 }
 #define SOLO_TWICE_MS 350u                       /* Mix: a track's key pressed again this soon after a tap: a double tap */
@@ -1707,13 +1738,30 @@ static void key_down(int k)
         return;
     }
     if (p == P_MIX) {
+        int kh = mix_kit_hold();
         if (b >= 0) {
             static const uint8_t T[11] = {0, 1, 2, 3, 4, 5, 6, 7, AUX_FX1, AUX_FX2, 0xFF};
             if (T[b] == 0xFF)
                 return;
-            ui.kmode[k] = KM_SOLO;               /* a tap mutes it, a hold solos it (holds()) */
+            ui.kmode[k] = KM_SOLO;               /* a tap mutes its audio, a hold solos it (holds()); FX I and II:
+                                                  * picked only (no mute) */
             ui.knote[k] = T[b];
             track_select(T[b]);
+            if (T[b] < NTRK && (ui.btn >> B_SEL & 1u)) {   /* SEL held: wet only (again: on), at once */
+                ui.kmode[k] = KM_IDLE;
+                ui.solo_tap_trk = 0xFF;
+                mix_put(T[b], proj.mixm[T[b]] == MIX_WET ? MIX_ON : MIX_WET);
+                mix_say(T[b]);
+            }
+            return;
+        }
+        if (w >= 0 && kh >= 0) {                 /* a kit's black key held: white keys 1-11 its keys' audio */
+            const int t = ui.knote[kh] & 0x7F;
+            ui.knote[kh] |= 0x80;                /* (its release then leaves the track as it is, and no solo) */
+            if ((ui.solo & ~ui.solo_lat) >> t & 1u)
+                ui.solo &= (uint16_t)~(1u << t);
+            if (w < NDRUM)
+                mix_sound(t, w);
             return;
         }
         keyboard_down(k);                        /* (the white keys play: the keys play wherever a page gives them no
@@ -1884,40 +1932,34 @@ static void key_up(int k)
     case KM_SOUND:
         engine_key(trk, ui.knote[k], 0, 0);
         break;
-    case KM_SOLO: {
+    case KM_SOLO: {                               /* Mix: a track's black key (the mixer's: audio) */
         int b = ui.knote[k];
         uint32_t now = plat_ms();
-        if (b >= NSEQT)
+        if (b >= NTRK)                            /* (FX I and II, or a kit's keys were muted while it was held) */
             break;
         if (now - ui.key_t[k] < STEP_TAP_MS && (!ui.solo || ui.solo_lat)) {   /* a tap (not while others are held) */
-            int twice = ui.solo_tap_trk == b && ui.key_t[k] - ui.solo_tap_t < SOLO_TWICE_MS, muted = ui.solo_tap_mut;
+            int twice = ui.solo_tap_trk == b && ui.key_t[k] - ui.solo_tap_t < SOLO_TWICE_MS, was = ui.solo_tap_mut;
             ui.solo_tap_trk = twice ? 0xFF : (uint8_t)b;
             ui.solo_tap_t = now;
-            ui.solo_tap_mut = (uint8_t)(!twice && !ui.solo_lat);   /* (this tap mutes: a second undoes it) */
+            ui.solo_tap_mut = (uint8_t)(!twice && !ui.solo_lat ? proj.mixm[b] + 1u : 0u);   /* (the state this tap
+                                                  * changes: a second tap puts it back) */
             if (twice) {                         /* a double tap: this track soloed, and it stays (the first tap's
                                                   * mute undone; a solo it ended is not brought back) */
-                if (muted)
-                    set_mute(b, !(seq.mute >> b & 1u));
+                if (was)
+                    mix_put(b, was - 1);
                 solo_end();
                 solo_begin(b);
                 ui.solo_lat = (uint16_t)(1u << b);
                 say("SOLO", TRACK_NAME[b]);
-            } else if (ui.solo_lat) {            /* a tap while a solo stays: the solo ends, the mutes back */
+            } else if (ui.solo_lat) {            /* a tap while a solo stays: the solo ends */
                 solo_end();
                 say("SOLO OFF", 0);
-            } else {                             /* a tap: mute */
-                set_mute(b, !(seq.mute >> b & 1u));
-                say(seq.mute >> b & 1u ? "MUTED" : "UNMUTED", TRACK_NAME[b]);
+            } else {                             /* a tap: muted, or on again (from muted or wet only) */
+                mix_put(b, proj.mixm[b] == MIX_ON ? MIX_MUTE : MIX_ON);
+                mix_say(b);
             }
-        } else if (ui.solo) {                    /* let go: that track leaves the solo (unless a double tap's); the
-                                                  * last, the mutes back */
+        } else                                   /* let go: that track leaves the solo (unless a double tap's) */
             ui.solo &= (uint16_t)~((1u << b) & ~ui.solo_lat);
-            if (!ui.solo) {
-                ui.solo = 1;                         /* (solo_end: only while one is on) */
-                solo_end();
-            } else
-                seq.mute = (uint16_t)(((1u << NSEQT) - 1u) & ~ui.solo);
-        }
         break;
     }
     default:
@@ -2100,14 +2142,8 @@ static void holds(void)
         }
     if (home_held() && now - ui.btn_t[B_HOME] >= CARD_MS)
         ui.btn_used |= 1u << B_HOME;
-    if (ui.solo && (seq.mute & ((1u << NSEQT) - 1u)) != (uint16_t)(((1u << NSEQT) - 1u) & ~ui.solo)) {   /* a scene
-                                                                              * changed the mutes under a solo: its mutes
-                                                                              * to go back to, the solo kept */
-        ui.solo_mute = seq.mute;
-        seq.mute = (uint16_t)((((1u << NSEQT) - 1u) & ~ui.solo) | (seq.mute & 1u << MOD_BIT));
-    }
-    for (int k = 0; k < NKEYS; k++)               /* Mix: a track's key held: solo while held */
-        if ((ui.keys >> k & 1u) && ui.kmode[k] == KM_SOLO && ui.knote[k] < NSEQT && !(ui.solo >> ui.knote[k] & 1u) &&
+    for (int k = 0; k < NKEYS; k++)               /* Mix: a track's key held: solo while held (at the mixer) */
+        if ((ui.keys >> k & 1u) && ui.kmode[k] == KM_SOLO && ui.knote[k] < NTRK && !(ui.solo >> ui.knote[k] & 1u) &&
             now - ui.key_t[k] >= STEP_TAP_MS)        /* (more held: more soloed) */
             solo_begin(ui.knote[k]);
     for (int k = 0; k < NKEYS; k++)
@@ -4670,15 +4706,24 @@ static void leds(void)
                     else
                         mid |= 1u << BLACK_K[i];
                 }
-        } else if (ui.page == P_MIX) {           /* Mix's black keys: T1-T8, then FX I and FX II (they have no mute) */
+        } else if (ui.page == P_MIX && mix_kit_hold() >= 0) {   /* a kit's black key held: its keys heard */
+            const int t = ui.knote[mix_kit_hold()] & 0x7F;
+            for (i = 0; i < NDRUM; i++)
+                if (!(mix_keys(t) >> i & 1))
+                    k |= 1u << WHITE_K[i];
+            k |= 1u << mix_kit_hold();
+        } else if (ui.page == P_MIX) {           /* Mix's black keys: T1-T8 off muted at the mixer (or out of a solo),
+                                                  * dim wet only, full the selected, mid the rest; then FX I and FX II */
             static const uint8_t MT[10] = {0, 1, 2, 3, 4, 5, 6, 7, AUX_FX1, AUX_FX2};
-            for (i = 0; i < 10; i++)
-                if (MT[i] >= NSEQT || !(seq.mute >> MT[i] & 1u)) {
-                    if (MT[i] == trk)
-                        k |= 1u << BLACK_K[i];
-                    else
-                        mid |= 1u << BLACK_K[i];
-                }
+            for (i = 0; i < 10; i++) {
+                const int st = MT[i] >= NTRK ? MIX_ON : eng_amix[MT[i]];   /* (as mix_send gave the engine) */
+                if (st == MIX_WET)
+                    dim |= 1u << BLACK_K[i];
+                else if (st == MIX_ON && MT[i] == trk)
+                    k |= 1u << BLACK_K[i];
+                else if (st == MIX_ON)
+                    mid |= 1u << BLACK_K[i];
+            }
             k |= ui.keys;                         /* (white keys: play, same as every other page) */
         } else {
             k |= ui.keys;
@@ -4932,6 +4977,30 @@ static void sp_main(void)
             }
         if (!n)
             sp_cat("none");
+    } else if (ui.page == P_MIX) {               /* the mixer's: muted, wet only, the solo */
+        static const char *const H[3] = {"solo: ", "muted at the mixer: ", "wet only: "};
+        for (int st = 0; st < 3; st++) {
+            int n = 0;
+            for (int t = 0; t < NTRK; t++)
+                if (st ? proj.mixm[t] == st : ui.solo >> t & 1u) {
+                    sp_cat(n++ ? ", " : H[st]);
+                    sp_cat(TRACK_NAME[t]);
+                }
+            if (n)
+                sp_cat(". ");
+        }
+        for (int t = 0; t < NTRK; t++)           /* a kit's keys muted there */
+            if (is_drum(t) && mix_keys(t)) {
+                sp_cat(TRACK_NAME[t]);
+                sp_cat(" keys muted: ");
+                for (int i = 0, n = 0; i < NDRUM; i++)
+                    if (mix_keys(t) >> i & 1) {
+                        if (n++)
+                            sp_cat(", ");
+                        sp_cat(DL_SOUND_NAME[i]);
+                    }
+                sp_cat(". ");
+            }
     } else if (ui.page == P_ARRANGE) {
         int n = 0;
         sp_cat("muted: ");
@@ -5424,6 +5493,7 @@ void ui_frame(void)
             rec_off();
     }
     cc_out_mutes();
+    mix_send();
     kits_check();
     if (cur_scene() != ui.scene_seen) {
         if (ui.scene_seen != 0xFF)               /* not boot's first catch-up: no Program Change for that */

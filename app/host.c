@@ -441,8 +441,19 @@ int app_expect(const char *what, int *got)
         *got = seq.playing;
     else if (!strcmp(what, "scene"))
         *got = seq.scene + 1;
-    else if (!strcmp(what, "mute"))
+    else if (!strcmp(what, "mute"))                 /* the scene's note mutes (bit t-1 for track t) */
         *got = seq.mute;
+    else if (!strcmp(what, "amute") || !strcmp(what, "awet")) {   /* the engine's audio mutes (the Mix page's, a
+                                                     * solo's others): muted, wet only (bit t-1 for track t) */
+        *got = 0;
+        for (int t = 0; t < NTRK; t++)
+            *got |= (eng_amix[t] == (what[1] == 'm' ? AMIX_MUTE : AMIX_WET)) << t;
+    } else if (!strcmp(what, "solo"))               /* Mix: the tracks soloed (bit t-1) */
+        *got = ui.solo;
+    else if (!strncmp(what, "mixk", 4) && isnum(what + 4))   /* mixkT: kit T's keys muted at the mixer (bit k-1) */
+        *got = mix_keys((atoi(what + 4) - 1) & 7);
+    else if (!strncmp(what, "mix", 3) && isnum(what + 3))    /* mixT: track T's channel: 0 on, 1 muted, 2 wet only */
+        *got = proj.mixm[(atoi(what + 3) - 1) & 7];
     else if (!strncmp(what, "epar", 4) && strchr(what, '.')) {   /* eparT.P: the engine's own value of a parameter
                                                      * (with the locks and the shared LFO on a kit) */
         int t = atoi(what + 4) - 1, p = param_of(strchr(what, '.') + 1);

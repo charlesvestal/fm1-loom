@@ -615,6 +615,12 @@ expect mst.dfilt 30
 expect mst.melf 64
 expect mst.mfilt 64
 expect mst.fres 90
+# (and from before the Mix page's audio mutes, format 34: every track on at the mixer)
+expect mix1 0
+expect mix2 0
+expect mixk1 0
+expect amute 0
+expect awet 0
 projsave 1 v32_saved
 reboot
 wait 400

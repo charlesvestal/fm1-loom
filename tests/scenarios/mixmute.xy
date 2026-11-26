@@ -1,0 +1,183 @@
+# the Mix page's mutes are the mixer's (audio), apart from the scenes' (notes, Arrange's): a black key's tap mutes a
+# track's audio (its dry and its sends), SEL held + a tap leaves its sends alone (wet only), again: on; a kit's black
+# key held + white keys mutes its keys' audio one by one; a hold solos (the others muted at the mixer). Scene changes
+# leave them; they are the project's (kept over a save and a restart); Arrange's black keys are still the note mutes.
+# The sound: T2 alone, a held note into FX I: on, wet only (the return alone), muted (silent once FX I rings out)
+wait 300
+projnew
+wait 100
+tap GLO
+expect page Mix
+expect amute 0
+expect awet 0
+# a tap: T3 muted at the mixer (the notes play on: the scene's mutes as they were), said
+listen
+tapkey b2
+wait 400
+said MUTED T3
+expect mix3 1
+expect amute 4
+expect mute 0
+# SEL held + a tap: T5 wet only (said; SEL's release opens no list); again: on
+press SEL
+tapkey b4
+wait 40
+release SEL
+wait 400
+said WET ONLY T5
+expect listopen 0
+expect mix5 2
+expect awet 16
+press SEL
+tapkey b4
+wait 40
+release SEL
+wait 400
+expect mix5 0
+expect awet 0
+# SEL held + a tap on a muted track: wet only; a tap on it then: on
+press SEL
+tapkey b2
+wait 40
+release SEL
+wait 400
+expect mix3 2
+expect amute 0
+expect awet 4
+tapkey b2
+wait 400
+expect mix3 0
+expect awet 0
+# T3 muted and T5 wet only, shown on Mix (a crossed speaker, "wet")
+tapkey b2
+wait 400
+press SEL
+tapkey b4
+wait 40
+release SEL
+wait 400
+expect amute 4
+expect awet 16
+wait 2000
+shot mix_mutes.png
+# a kit's black key held (T1): white keys mute its keys' audio (the kick, the snare; the snare again: back), said;
+# let go: the track as it was (not muted, no solo)
+key b0 down
+wait 100
+tapkey w0
+wait 40
+said MUTED kick
+tapkey w1
+wait 40
+said MUTED snare
+expect mixk1 3
+tapkey w1
+wait 40
+expect mixk1 1
+shot mix_kitkeys.png
+wait 900
+expect solo 0
+key b0 up
+wait 400
+expect mix1 0
+expect mixk1 1
+expect amute 4
+# a hold: T2 soloed while held (the others muted at the mixer; T5's wet only too); let go: as they were
+key b1 down
+wait 900
+expect solo 2
+expect amute 253
+expect awet 0
+key b1 up
+wait 40
+expect solo 0
+expect amute 4
+expect awet 16
+# a muted track held: soloed, heard
+key b2 down
+wait 900
+expect amute 251
+key b2 up
+wait 40
+expect amute 4
+# scene changes leave them (scene 2 cued and played; Arrange's black key: the scene's note mute, the mixer's as it was)
+scenedef 2 1 1 1 1 1 1 1 1 1 1
+tap HOME
+expect page Arrange
+tapkey w1
+wait 40
+expect scene 2
+expect mix3 1
+expect mix5 2
+expect mixk1 1
+expect amute 4
+expect awet 16
+tapkey b1
+wait 40
+expect mute 2
+expect mix2 0
+expect amute 4
+tapkey b1
+wait 40
+expect mute 0
+tapkey w0
+wait 40
+expect scene 1
+expect amute 4
+# saved with the project, kept over a restart
+projsave 1
+reboot
+wait 400
+expect mix3 1
+expect mix5 2
+expect mixk1 1
+expect amute 4
+expect awet 16
+# the sound: T2's held note into FX I (T1's kick and T3, T5 left as they are, silent here)
+tap GLO
+expect page Mix
+press SEL
+tapkey b4
+wait 40
+release SEL
+tapkey b2
+wait 40
+expect amute 0
+expect awet 0
+param 2 send1 20
+param 2 send2 0
+play 2 60 on
+wait 600
+peakreset
+wait 400
+expect peak_db_min -42
+# wet only: the return alone (quieter, there)
+press SEL
+tapkey b1
+wait 40
+release SEL
+wait 600
+peakreset
+wait 400
+expect awet 2
+expect peak_db_max -46
+expect peak_db_min -80
+# a tap on it: on again (from wet only, as from muted); another: muted, its sends too, FX I rings out to silence
+tapkey b1
+wait 400
+expect mix2 0
+tapkey b1
+wait 40
+expect mix2 1
+expect amute 2
+wait 6000
+peakreset
+wait 400
+expect peak_db_max -90
+# on again: heard
+tapkey b1
+wait 600
+peakreset
+wait 400
+expect peak_db_min -42
+play 2 60 off

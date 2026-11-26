@@ -187,11 +187,12 @@ Count the white keys 1 to 16 from the left, and the black keys 1 to 11. "Hold **
 | use a throw | Press **FX** and turn **SELECT** to Throws. Hold a key: the lower octave works on the drums and the upper octave on the melodic tracks. Hold **REC** while it plays to record throws into the THROW track. <!-- hint: press FX; turn SELECT; white 1-16 --> |
 | make a new scene | Press **HOME** and press an empty white key. It becomes a copy of the scene that is playing. **OCT+** puts scenes 17 to 32 on the white keys. <!-- hint: press HOME; white 2 --> |
 | switch scenes while playing | On Arrange, press the scene's white key, and it starts at the next bar. Press it again to switch at once. To wait for the end of T1's pattern instead, set SCENES SWITCH in the **SEL** list to "pattern end". <!-- hint: press HOME; white 2 --> |
-| mute a track | On Arrange or Mix, press its black key. On Mix, hold it to solo the track for as long as you hold it. <!-- hint: black 1 --> |
-| mute one drum sound in a scene | On Arrange, hold the kit track's black key and press white keys 1 to 11. <!-- hint: black 1; white 1-11 --> |
+| mute a track | On Mix, tap its black key: its sound goes off (its notes keep playing, so its reverb and echoes ring out), and the mute stays whatever scene plays. To take the track out of a scene's arrangement instead, press its black key on Arrange: its notes stop in that scene. <!-- hint: press GLO; black 1 --> |
+| hear only a track's reverb and echoes | On Mix, hold **SEL** and tap the track's black key: wet only, its own sound off, its sends to FX I and FX II still on. Do it again, or tap the key, to have it back. <!-- hint: press GLO; black 1 --> |
+| mute one drum sound | On Mix, hold the kit track's black key and press white keys 1 to 11: their sound goes off, in every scene. To mute a sound's notes in one scene, do the same on Arrange. <!-- hint: press GLO; black 1; white 1-11 --> |
 | sweep the mix or the drums with a filter | Press **GLO** and turn **SELECT** to Master filter. Turn **KNOB 3** left for a low-pass on the whole mix, right for a high-pass; **KNOB 1** does the same to the drums alone, **KNOB 2** to the synths. In the middle, they're off. <!-- hint: press GLO; turn SELECT, KNOB 3 --> |
 | make the whole mix pump with the kick | Press **GLO**, turn **SELECT** to Master out and turn **KNOB 4** (pump). **SEL** picks what drives it and how fast it swells back. <!-- hint: press GLO; turn SELECT, KNOB 4 --> |
-| solo a track | On Mix, hold its black key (hold several to solo them together). Let go and the mutes come back. Tap it twice and the solo stays when you let go (also on other pages); tap any track's black key on Mix to end it. <!-- hint: black 1 --> |
+| solo a track | On Mix, hold its black key (hold several to solo them together): the others are muted at the mixer. Let go and they come back. Tap it twice and the solo stays when you let go (also on other pages); tap any track's black key on Mix to end it. <!-- hint: press GLO; black 1 --> |
 | sweep a few tracks together | Press **GLO** and turn **SELECT** to LFO, the shared LFO. The black keys pick the tracks, and **KNOB 4** picks what it moves. <!-- hint: press GLO; turn SELECT, KNOB 4; black 1,2,3 --> |
 | play a progression | Turn **ALGORITHM** to COND and press **EDIT**. Play a chord, and every track that follows the conductor moves to it. To write it down, press **SEQ** and press a step to put the chord there. On the Bar page, set the scale to 4 so each step lasts a beat. <!-- hint: turn ALGORITHM; press EDIT; white 1,3,5 --> |
 | let a track lead the chords | On COND, press **EDIT** and turn **SELECT** to Follow. Press the track's black key, and its notes set the chord for the others. A chord part or a bass line works well. Press the same key again to turn it off. <!-- hint: press EDIT; turn SELECT; black 3 --> |
@@ -290,7 +291,8 @@ instrument track you picked last, so you can hear the effect.
 armed. **SAVE** lights when there is something to save, and the current page's button is lit. On Steps, the steps
 with notes glow and the step playing is bright. On Arrange, the scenes in use glow and the one playing is bright.
 On Arrange and Mix, a track's black key is lit while the track plays. It is bright for the selected track and dark
-while the track is muted. Turn Setup's LIGHTS on to make the other buttons glow too.
+while the track is muted (on Arrange, its notes in the scene; on Mix, its sound at the mixer, or left out of a solo;
+dim there while it is wet only). Turn Setup's LIGHTS on to make the other buttons glow too.
 
 ## Steps
 
@@ -1174,7 +1176,8 @@ next four are 1, 75, 91 and 93: mod wheel, decay, reverb and chorus.
 
 A MIDI track has no envelope, filter, LFO, inserts or sends, so **ENV** and **LFO** take you to its knobs.
 **FX** shows only Throws. Play keeps its glide, voice mode and octave. SCRAMBLE sets the eight
-knobs at random and leaves their CC numbers alone. CC 9 on the track's channel still mutes it, but other CCs
+knobs at random and leaves their CC numbers alone. The Mix page's mutes turn off sound, so they leave a MIDI track's
+notes alone: mute it on Arrange. CC 9 on the track's channel still mutes it, but other CCs
 coming in on its channel do nothing. That way, a synth that echoes CCs back can't change the CC numbers.
 
 ### The synth pages
@@ -1423,12 +1426,16 @@ that is playing.
 - Hold a white key for a second to clear that scene. The playing scene keeps going while LOOM-8 asks you to
   confirm. Holding an empty scene's key does nothing.
 
-The black keys mute. Keys 1 to 8 mute the tracks, 9 mutes the conductor, 10 mutes the throws and 11 the MOD
-track. A kit track's
+The black keys mute notes, in the scene playing: they are part of the arrangement, and each scene keeps its own.
+Keys 1 to 8 mute the tracks, 9 mutes the conductor, 10 mutes the throws and 11 the MOD track. A muted track's notes
+stop, and what it was playing rings out. A kit track's
 black key mutes it when you let go. To mute the kit's sounds one by one in this scene, hold its black key instead
 and press white keys 1 to 11. A lit key means that sound is playing. The first four kit tracks each have their own
 sound mutes, and the row shows how many are off. A muted sound still drives the pump, and its key still plays when
 you press it. To change scenes from any page, hold **HOME** and turn **PRESETS**.
+
+The Mix page has mutes of its own, for playing live: they mute a track's sound at the mixer, not its notes, and no
+scene changes them (see [Mix and master](#mix-and-master)). A track can be muted in both ways at once.
 
 <img src="img/screen-song.png" width="240" alt="The Song page: S1, S1 and S2 in a row, a bar each, looping" title="The song">
 
@@ -1595,14 +1602,28 @@ The lanes share their room with the locks and motion: the project holds 96 in al
 
 ## Mix and master
 
-Press **GLO** for the Mix page, with a meter for each track. Each black key belongs to its track. Tap it to mute or
-unmute the track, or hold it to solo the track until you let go. Hold several to solo them together. Each one you
-let go leaves the solo, and when you let go of the last one, the mutes come back as they were. Tap a black key
-twice and its track stays soloed after you let go, on every page, and **SOLO** shows at the right of the meters. It
-stays until you tap a track's black key on Mix again or mute a track elsewhere. Then the mutes come back. A muted
-track's meter still moves, in gray, while its steps go by, so you can tell it from an empty track. The knobs are the
-sends to FX I and FX II, the pan and the level. On a drum track, you set the sends for each key, on the Sends page
-of **FX**.
+Press **GLO** for the Mix page, with a meter for each track. Each black key belongs to its track, and its mutes are
+the mixer's: they turn the track's sound off, not its notes. The track keeps playing underneath, so what is already
+in FX I and FX II rings out, and the mute stays as it is whatever scene plays or the song does. The project keeps
+these mutes when you save it; the scenes don't. (Arrange's black keys mute notes, scene by scene.)
+
+- Tap a black key to mute the track's sound: its own sound and its sends to FX I and FX II go off, faded over a few
+  milliseconds. Tap it again to have it back. A crossed speaker under the track's number shows it.
+- Hold **SEL** and tap a black key for **wet only**: the track's own sound goes off, but its sends stay on, so you
+  hear only its reverb and echoes. "wet" shows under its number. Do it again, or tap the key, to have it back.
+- Hold a kit track's black key and press white keys 1 to 11 to mute its sounds one by one, in the same way. A lit
+  white key means that sound is heard.
+- Hold a black key to solo the track until you let go: every other track is muted at the mixer. Hold several to
+  solo them together. Each one you let go leaves the solo, and when you let go of the last one, the tracks come
+  back as they were. A soloed track is heard even if you had muted it. Tap a black key twice and its track stays
+  soloed after you let go, on every page, and **SOLO** shows at the right of the meters. It stays until you tap a
+  track's black key on Mix again or mute another track there.
+
+A black key is lit when its track is heard, dim when it is wet only, and off when it is muted at the mixer or left
+out of a solo. FX I and FX II's black keys only pick them: they have no mute. A track whose notes are muted in the
+scene is dimmed, with a bar under its number, and its meter still moves, in gray, while its steps go by, so you can
+tell it from an empty track. The knobs are the sends to FX I and FX II, the pan and the level. On a drum track, you
+set the sends for each key, on the Sends page of **FX**.
 
 Turn **SELECT** for more pages:
 
@@ -1761,7 +1782,7 @@ You can also record LOOM-8 on a computer over USB, as an audio input with ten ch
 and 2 carry the master, as you hear it. Channels 3 to 10 carry tracks 1 to 8, one track each, so you can record
 every track on its own. Each track's channel has the track at its level, before its pan, with its own filter and
 inserts. The sends' effects and the master's EQ, Master FX, filters, compressor and pump are only on channels 1 and 2. A
-muted track's channel is silent. To set the level of all ten, use USB audio on Setup's **SEL** list. With
+muted track's channel is silent (muted on Arrange or at the mixer). To set the level of all ten, use USB audio on Setup's **SEL** list. With
 **follows knob**, MASTER sets it. With **full**, the speaker follows MASTER and the recording stays at full level.
 With **stereo**, the master is recorded at full level as with **full**, and channels 3 to 10 are silent. Use it when
 you only record the master: sending the tracks takes some of LOOM-8's time, which a busy song may need.
@@ -1818,8 +1839,8 @@ the selected instrument track.
 | 71 | - | Master filter: the resonance (all three) |
 | 93 | feed into FX II (channel 9 only) | - |
 
-A mute (CC 9, or 16 to 26 on a kit) works like the mute on the Mix page and is saved into the scene that is
-playing. The mutes for a kit's sounds work on the first four kit tracks, as on Arrange. While you record, a CC on
+A mute (CC 9, or 16 to 26 on a kit) works like a black key on Arrange: it mutes the track's notes and is saved into
+the scene that is playing. The Mix page's mutes, which mute the sound, have no CC. The mutes for a kit's sounds work on the first four kit tracks, as on Arrange. While you record, a CC on
 a track's parameter records into that track's own automation. That's while you hold **REC** during playback, or
 after you keep recording on with **REC** and **PLAY**.
 
@@ -1841,8 +1862,8 @@ send. Apart from mutes, LOOM-8 never sends back what comes in. It never sends lo
 kit's 91 / 93 either, because each sound's own send is a separate parameter, and it isn't mapped.
 
 Mutes are the exception. With CC OUT on, whenever a track's mute changes, LOOM-8 sends CC 9 on the track's channel
-(127 muted, 0 playing), if the track's MIDI OUT is on. It sends it however the mute changed: on the Mix page, by a
-solo, by a scene, or by a CC 9 that came in. That way a controller's mute pads follow LOOM-8. Since the value sent
+(127 muted, 0 playing), if the track's MIDI OUT is on. It sends it however the mute changed: on Arrange, by a scene,
+or by a CC 9 that came in. These are the notes' mutes; the Mix page's mutes and solo send nothing. That way a controller's mute pads follow LOOM-8. Since the value sent
 back is the one that came in, it changes nothing on the controller.
 
 SCENES OUT comes after CC OUT in Setup's **SEL** list and is off to start with. With it on, when the scene changes
@@ -1904,7 +1925,7 @@ and the echoes fade out. Every voice sounds in the file, so a busy song can soun
 
 | Button | Page | KNOB 1 | KNOB 2 | KNOB 3 | KNOB 4 | Keys |
 | --- | --- | --- | --- | --- | --- | --- |
-| HOME | Arrange | tempo | groove | amount | the track's pattern | white: scenes (OCT: 17 to 32), black: mutes (hold a kit's: white 1-11 are its sounds); SEL: randomize presets, all notes off, the song, when scenes switch |
+| HOME | Arrange | tempo | groove | amount | the track's pattern | white: scenes (OCT: 17 to 32), black: the scene's note mutes (hold a kit's: white 1-11 are its sounds); SEL: randomize presets, all notes off, the song, when scenes switch |
 | HOME, SELECT | Song | slot | scene | bars | at end | white: add a scene (OCT: 17 to 32) |
 | SEQ | Steps | pattern | length | scale | groove | white: steps, black: sound (drums); SEQ held: a keyboard |
 | SEQ, a step held | Steps | velocity | length | chance | pitch | white: length or more steps, black: sounds; PRESETS: the step's sound shown (drums: velocity, chance and tricks are its) |
@@ -1940,7 +1961,7 @@ and the echoes fade out. Every voice sounds in the file, so a busy song can soun
 | ARP | Players | player | its first | its second | its third | play, through the player (random: Players 2 has its randomization, Players 3 the octaves down and up) |
 | ARP, SELECT | Players 2, Hold | the arp's length, style, glide, stereo; hold | | | | play |
 | ARP, SELECT (last) | Weave | with | pattern | rule | plays | black: the track woven in, white: its pattern; SEL: KEEP AS PATTERN |
-| GLO | Mix | FX I | FX II | pan | level | black: tap to mute, hold to solo (several together); SEL: the projects, save to, new project |
+| GLO | Mix | FX I | FX II | pan | level | black: tap to mute the sound, SEL held + tap: wet only, hold to solo (several together), a kit's held: white 1-11 its sounds; SEL: the projects, save to, new project |
 | GLO, SELECT | FX I, FX II | the effect's first | second | third | return | play; PRESETS: the effect; SEL: the effects, its extras, high-pass, low-pass, to FX II |
 | GLO, SELECT | Master EQ | low | mid | high | | |
 | GLO, SELECT | Master FX | the effect's first | second | third | mix | PRESETS: the effect; SEL: the effects, its extras |

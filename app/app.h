@@ -137,7 +137,9 @@ void loom_lights(uint32_t buttons, uint32_t keys, int glow, uint32_t dim_keys, i
 #define DEBUG_BUILD (APP_VERSION[0] == 'D' && APP_VERSION[1] == 'E' && APP_VERSION[2] == 'V' && \
                      (!APP_VERSION[3] || APP_VERSION[3] == 'T'))   /* DEV, or the load test's DEVTEST */
 #define PROJ_MAGIC 0x384D4F4Cu          /* "LOM8" (was "XXY1": XY-1's projects start fresh) */
-#define PROJ_FORMAT 33u                 /* (10, 0.5-beta's, to 12 load too: project.c migrate_old; older ones do not)
+#define PROJ_FORMAT 34u                 /* (10, 0.5-beta's, to 12 load too: project.c migrate_old; older ones do not)
+                                         * 34: the Mix page's audio mutes (mixm, mixk after the tracks, packed with
+                                         *     them; older: every track on);
                                          * 33: the arp's 1/4D, its slowest (every arp speed, its locks and motion
                                          *     one further); the master filter three (drums, melodic, mix) and one
                                          *     resonance (31..32's drums' resonance: the melodic filter, off);
@@ -221,7 +223,11 @@ typedef struct {
     uint8_t master[NMS];                /* fx.h MS_*: format 4's twelve end where these sixteen end (MS_NMS29; the
                                          * slot's five more since 30, MS_NMS30; the filter's four since 31) */
     trk_t trk[NALLTRK];
+    uint8_t mixm[NTRK];                 /* the Mix page's audio mutes (format 34; the scenes' are note mutes): a track's
+                                         * channel MIX_ON, MIX_MUTE (its dry and sends off) or MIX_WET (its dry off) */
+    uint8_t mixk[NTRK][2];              /* a kit's keys muted there (bit k: key k + 1; low byte first) */
 } settings_t;
+enum { MIX_ON, MIX_MUTE, MIX_WET };
 #define RSV_SCENES 8                    /* proj.rsv[RSV_SCENES]: the scenes used when saved (0: saved before 0.15) */
 
 typedef struct {

@@ -59,6 +59,10 @@ typedef char mod_last[(RAW_LEN31 + sizeof pats.mod + sizeof pats.scene_mod == RA
  * then the tracks packed (lz.c: a synth track's kit keys and an aux track's sound are mostly defaults). Formats 10..14
  * stored them raw, each track's par[] TP_DRUMX0 long (the keys' knobs 5..8 came in 15): SET_OLD bytes in all */
 #define SET_HDR ((uint32_t)offsetof(settings_t, trk))
+#define SET_TRK ((uint32_t)(sizeof proj.trk + sizeof proj.mixm + sizeof proj.mixk))   /* (packed: the tracks, then the
+                                                  * Mix page's mutes, format 34; before it the tracks alone) */
+_Static_assert(offsetof(settings_t, mixm) == offsetof(settings_t, trk) + sizeof(((settings_t *)0)->trk) &&
+               offsetof(settings_t, mixk) == offsetof(settings_t, mixm) + NTRK, "the mutes follow the tracks");
 #define SET_HDR30 (SET_HDR - (uint32_t)(NMS - MS_NMS30))   /* (format 30's: before the master filter's four) */
 #define SET_HDR29 (SET_HDR - (uint32_t)(NMS - MS_NMS29))   /* (formats 10..29's: the master's sixteen values, before
                                                             * its slot's knob 3 and extras) */
@@ -533,6 +537,11 @@ static int settings_valid(settings_t *s)
     for (k = 0; k < NMS; k++)
         if (s->master[k] > master_max(k))
             s->master[k] = (uint8_t)master_max(k);
+    for (t = 0; t < NTRK; t++) {                 /* (the mixer's: a state it knows, the kit's eleven keys) */
+        if (s->mixm[t] > MIX_WET)
+            s->mixm[t] = MIX_ON;
+        s->mixk[t][1] &= (uint8_t)((1u << (NDRUM - 8)) - 1u);
+    }
     return 1;
 }
 
@@ -893,7 +902,7 @@ static int settings_pack(void)
     lz_sink_t sink = {set_put, &o};
     for (uint32_t i = 0; i < SET_HDR; i++)
         io_buf[i] = ((const uint8_t *)&proj)[i];
-    if (lz_compress((const uint8_t *)proj.trk, (uint32_t)sizeof proj.trk, &sink))
+    if (lz_compress((const uint8_t *)proj.trk, SET_TRK, &sink))
         return -1;
     put32(io_buf + SET_HDR, o.fill - SET_HDR - 4u);
     return (int)o.fill;
@@ -928,8 +937,8 @@ static int settings_unpack(int n)
         uint32_t ntp = fmt >= 28u ? (uint32_t)NTP : fmt >= 26u ? NTP27 : fmt >= 25u ? NTP25 : fmt >= 24u ? NTP24
                      : fmt >= 23u ? NTP23 : fmt >= 22u ? NTP22 : fmt >= 19u ? NTP21 : fmt >= 16u ? NTP18 : NTP15;
         uint32_t tl = ntp + NAME_LEN + 4u;
-        if (fmt >= 28u)
-            return lz_decompress(&src, (uint8_t *)proj.trk, (uint32_t)sizeof proj.trk) ? -1 : 0;
+        if (fmt >= 28u)                          /* (before 34 no mutes at the mixer: all on, project_defaults) */
+            return lz_decompress(&src, (uint8_t *)proj.trk, fmt >= 34u ? SET_TRK : (uint32_t)sizeof proj.trk) ? -1 : 0;
         if (lz_decompress(&src, (uint8_t *)proj.trk, NALLTRK * tl))   /* formats 15..27: their tracks shorter, */
             return -1;
         for (int t = NALLTRK - 1; t >= 0; t--) {  /* spread from the last (each moves up: copied from its end) */

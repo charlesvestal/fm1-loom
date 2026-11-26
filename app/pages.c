@@ -273,11 +273,10 @@ static struct {
     uint32_t play_t;
     uint32_t punch_latched;
     uint8_t last_inst;                               /* the instrument track selected last (the FX pages audition it) */
-    uint16_t solo;                                   /* the black keys held on Mix: the tracks soloed (bit t) */
-    uint16_t solo_mute;                              /* the mutes before the solo */
+    uint16_t solo;                                   /* the black keys held on Mix: the tracks soloed at the mixer (bit t) */
     uint16_t solo_lat;                               /* the tracks a double tap soloed: they stay soloed, let go */
-    uint8_t solo_tap_trk, solo_tap_mut;              /* Mix: the last tap's track, whether it muted, and when it was
-                                                      * let go (a double tap) */
+    uint8_t solo_tap_trk, solo_tap_mut;              /* Mix: the last tap's track, the state it changed + 1 (0: none),
+                                                      * and when it was let go (a double tap) */
     uint32_t solo_tap_t;
     uint16_t preset_i, pick_preset;               /* (more than 255 presets and user slots) */
     uint8_t pick_engine, pick_slot, pick_weave, pick_save;   /* (pick_save: SAVE TO's slot) */
@@ -2710,7 +2709,13 @@ static void page_footer(char *t)
             s_cat(t, ui.page == P_BAR ? "WHITE steps|BLACK scale|SEQ held: bars" : "WHITE steps|SEQ held: play notes");
         break;
     case P_MIX:
-        s_cat(t, "BLACK mute|hold: solo|WHITE play");
+        for (int i = 0; i < NKEYS; i++)             /* a kit's black key held: its keys' audio on the white keys */
+            if (ui.kmode[i] == KM_SOLO && (ui.keys >> i & 1u) && (ui.knote[i] & 0x7F) < NTRK &&
+                is_drum(ui.knote[i] & 0x7F)) {
+                s_cat(t, "WHITE mute a sound|let go: done");
+                return;
+            }
+        s_cat(t, "BLACK mute|SEL+BLACK wet|hold: solo");
         break;
     case P_MOD:
         s_cat(t, ui.mod_learn ? "turn the knob to learn, anywhere|SEL lanes"
@@ -3062,9 +3067,9 @@ static const struct { uint8_t btn; uint64_t pages; const char *title, *l1, *l2; 
      "KNOB 2 and 4 for their values. Let go of the step when done."},
     {B_GLO, PG(P_MFILT), "Master filter", "KNOB 1 drums, KNOB 2 melodic, KNOB 3 the whole mix.",
      "Left a low-pass, right a high-pass. KNOB 4: resonance."},
-    {B_GLO, PG_ANY, "Mix", "Tap a black key to mute, hold to solo, tap twice to keep it.",
-     "Press SEL for projects. SELECT: FX I, FX II, the master."},
-    {B_HOME, PG_ANY, "Arrange", "Press white keys for scenes, black keys to mute.",
+    {B_GLO, PG_ANY, "Mix", "Black keys mute the sound, SEL held: wet only. Hold: solo.",
+     "A kit's key held: white keys its sounds. SEL: projects."},
+    {B_HOME, PG_ANY, "Arrange", "Press white keys for scenes, black keys to mute notes.",
      "Hold HOME, press REC to undo, PLAY to redo."},
     {B_SEL, PG(P_CHARACTER) | PG(P_INSERT) | PG(P_FX1) | PG(P_FX2) | PG(P_MASTER2), "Effects",
      "Every effect, then its extras. Press SEL on one to use it.", "Dimmed: no memory left for it."},
@@ -6891,6 +6896,8 @@ static void draw_mix(void)
     uint32_t now = plat_ms(), dt = now - m_last;
     int sel = sel_trk();
     uint32_t h = hash_u(hash_u(hash_u(2166136261u, 0x3Cu), (uint32_t)sel | (uint32_t)seq.mute << 4), ui.solo | (uint32_t)ui.solo_lat << 16);
+    for (int t = 0; t < NTRK; t++)               /* (the mixer's mutes) */
+        h = hash_u(h, proj.mixm[t]);
     float fall = (float)(dt > 1000u ? 1000u : dt) * 0.024f;
     m_last = now;
     for (int t = 0; t < NALLTRK; t++) {          /* the engine's loudest since the last look, then the fall */
@@ -6924,8 +6931,22 @@ static void draw_mix(void)
         int muted = t < NSEQT && (seq.mute >> t & 1u), sound = t < NTRK || is_fx(t);
         uint16_t ink = muted ? K_FAINT : trk_ink(t);      /* (muted: its steps, grey) */
         text_c(x + 7, 94, &FONT_XS, SHORT_NM[t], t == sel ? K_TEXT : muted || !sound ? K_FAINT : K_DIM);
-        if (muted)
-            cv_rect(x + 2, 108, 10, 2, K_FAINT);
+        if (muted)                               /* the scene's (note) mute: a dim row and a bar */
+            cv_rect(x + 2, 114, 10, 2, K_FAINT);
+        if (t < NTRK) {                          /* the mixer's (audio): a crossed speaker, "wet" */
+            const int out = ui.solo && !(ui.solo >> t & 1u), in = ui.solo >> t & 1u;
+            if ((proj.mixm[t] == MIX_MUTE && !in) || out) {
+                const uint16_t c = out ? K_FAINT : K_TEXT;
+                cv_rect(x + 2, 106, 2, 3, c);
+                cv_rect(x + 4, 105, 1, 5, c);
+                cv_rect(x + 5, 104, 1, 7, c);
+                for (int i = 0; i < 5; i++) {
+                    cv_rect(x + 7 + i, 105 + i, 1, 1, c);
+                    cv_rect(x + 11 - i, 105 + i, 1, 1, c);
+                }
+            } else if (proj.mixm[t] == MIX_WET)
+                text_c(x + 7, 103, &FONT_XS, "wet", trk_ink(t));
+        }
         if (t == sel)
             cv_frame(x - 2, MIX_TOP - 2, 18, MIX_H + 4, 4, K_SEL, K_BG);
         if (!sound)
@@ -6944,7 +6965,7 @@ static void draw_mix(void)
         cv_rect(x + 1, y0 - fy, 12, 1, K_BG);
     }
     if (ui.solo)
-        text_r(236, 108, &FONT_XS, ui.solo_lat ? "SOLO" : "solo", ui.solo_lat ? K_SEL : K_TEXT);
+        text_r(236, 104, &FONT_XS, ui.solo_lat ? "SOLO" : "solo", ui.solo_lat ? K_SEL : K_TEXT);
     main_blit();
 }
 static void draw_master(void)
