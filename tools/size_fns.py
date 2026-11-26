@@ -45,7 +45,9 @@ SIZE_FILES = ["app/ui.c", "app/pages.c", "app/project.c", "app/lz.c", "app/sampl
 # noise, mean and slowest block, the sequencer's share of the slowest block too; 3.3 KB of flash)
 # (drumline.c's control joined 2026-11-26: a voice's gains once a 64-sample chunk, as eng_prep)
 COLD = {
-    "dsp/drumline.c": ["start", "control", "knob", "drumline_filter", "drumline_hit", "reso_set", "drumline_init"],
+    "dsp/drumline.c": ["start", "control", "knob", "drumline_filter", "drumline_hit", "reso_set", "drumline_init",
+                       # (2026-11-26: the x models' and sophie's set-up at a hit, a choke: once a hit)
+                       "x_start", "sophie_start", "drumline_choke"],
     "dsp/fx.c": ["fx_derive", "eq_coefs", "fx_filter", "master_set", "master_init", "comp_coefs",
                  "fx_set", "fx_init", "fx_delay_halves", "slot_set", "master_room", "biq_shelf",
                  "fx_clear", "master_clear", "coef_ms", "master_pump_ms", "fx_pick_slot",
@@ -55,7 +57,7 @@ COLD = {
     "dsp/digisophie.c": ["ds_voice_init"],
     "dsp/d909.c": ["d909_start", "d9_biquad_set", "d9_shape_prep", "d9_env_exp", "d909_res_ok"],
     "dsp/bass303.c": ["bass303_init", "rat_coeffs", "bq_low_shelf", "bq_lowpass", "bass303_set", "env_tables",
-                      "bass303_note_on", "bass303_cutoff_hz"],
+                      "bass303_note_on", "bass303_cutoff_hz", "fixed_init"],
     "dsp/bench.c": [],
     "dsp/synth.c": ["tp_text_i", "tp_text_par", "tp_info_par", "tp_text", "slot_picture", "slot_info", "tp_slot_of",
                     "synth_note_off", "synth_duck_trigger", "synth_all_off",
