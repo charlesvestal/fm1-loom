@@ -1606,9 +1606,13 @@ static __attribute__((noinline)) void lc_run(voice_t *v, float *xl, float *xr, i
         if (ex == LX_MALLET) {                   /* a raised-cosine pulse of area 1 (2 sin^2 / L), then nothing */
             float n0 = v->o[0], len = c->ex[0], il = 1.0f / len;
             in = n0 < len;
-            for (i = 0; i < m; i++) {
-                float n = n0 + (float)i, s = fm_sin_turns(0.5f * n * il);
-                x[i] = n < len ? 2.0f * s * s * il : 0.0f;
+            for (i = 0; i < m; i++) {            /* (the sine only while the pulse lasts: after it, nothing) */
+                float n = n0 + (float)i, s;
+                if (n < len) {
+                    s = fm_sin_turns(0.5f * n * il);
+                    x[i] = 2.0f * s * s * il;
+                } else
+                    x[i] = 0.0f;
             }
             v->o[0] = fm_minf(n0 + (float)m, 1e6f);
         } else {
