@@ -1,0 +1,40 @@
+# Master filter: a DJ filter on the drums and on the whole mix (2026-11-26)
+
+The user, 2026-11-26: a master DJ filter, and one on the drums — "we'll want both for automation" (the MOD track,
+`2026-11-26-mod-track-design.md`, built after this so it can target them).
+
+## What
+
+A GLO page **Master filter**, between Master FX and Master out:
+
+| Knob | |
+|---|---|
+| 1 drums | one knob on the drums group (every kit track): left a low-pass, the centre off, right a high-pass |
+| 2 drums res | its resonance |
+| 3 mix | the same on the whole mix |
+| 4 mix res | its resonance |
+
+## Where
+
+- **drums**: on the percussion group (master_process's perc_l/r) before the groups meet.
+- **mix**: late in the master, after the compressor and pump, before CLIP and the limiter (a sweep not fought by
+  the compressor; CLIP and the limiter keep the output safe).
+- A 12 dB state-variable filter each (stereo), cutoff on a log scale from the centre (left: 20 kHz down to ~60 Hz;
+  right: ~20 Hz up to ~8 kHz; a small dead zone round 64 = off, bit-exact: the stage skipped), resonance 0..~0.9
+  of self-oscillation, gain-compensated so a resonant sweep doesn't jump in level.
+- Slewed like the effects (4833524): a hand, MIDI or a MOD lane sweeps without zipper; from off the filter fades in.
+
+## Storage
+
+Four master values (MS_*: NMS 21 -> 25), project format next (older: 64 / 0: off). MIDI: four free CCs on the
+master's channel 11 (beside 20-23, 29), in docs/MANUAL.md's MIDI table. Host script names (`mst dfilt ...`).
+
+## Cost
+
+No memory; ~1-1.5 KB flash (after the flash pass); a few hundred instructions a block a filter when on.
+
+## Testing
+
+Host: centre = bit-exact (dsp_hash: all the same); a sweep's response (LP at 25 %: -12 dB an octave above the cutoff;
+HP likewise); resonance bounded (a full-scale noise burst never past the limiter's ceiling, no NaN); the slew test's
+check over the new knobs; a project from before loads with both off.
