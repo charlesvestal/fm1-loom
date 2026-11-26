@@ -1512,6 +1512,62 @@ static void lc_prep(voice_t *v)
         sl->g[k] *= nrm;
     sl->key[7] = (float)top;
 }
+/* lace's modes over m samples into their side's accumulator, two samples a turn (the states trade places instead of
+ * moving): one mode (lc_one), or two of one side (lc_two: the accumulator read and written once for both, the first's
+ * sample added before the second's, as one at a time would). in: the exciter's x[] added */
+SY_INLINE void lc_one(lc_slot_t *sl, int k, const float *x, float *acc, int m, const int in)
+{
+    float y1 = sl->y1[k], y2 = sl->y2[k];
+    const float a1 = sl->a1[k], a2 = sl->a2[k], gk = sl->g[k];
+    int j;
+    for (j = m >> 1; j > 0; j--, acc += 2, x += 2) {
+        const float ya = in ? a1 * y1 - a2 * y2 + gk * x[0] : a1 * y1 - a2 * y2;
+        const float yb = in ? a1 * ya - a2 * y1 + gk * x[1] : a1 * ya - a2 * y1;
+        acc[0] += ya;
+        acc[1] += yb;
+        y2 = ya;
+        y1 = yb;
+    }
+    if (m & 1) {
+        const float y = in ? a1 * y1 - a2 * y2 + gk * x[0] : a1 * y1 - a2 * y2;
+        y2 = y1;
+        y1 = y;
+        acc[0] += y;
+    }
+    sl->y1[k] = fm_flush(y1);
+    sl->y2[k] = fm_flush(y2);
+}
+SY_INLINE void lc_two(lc_slot_t *sl, int ka, int kb, const float *x, float *acc, int m, const int in)
+{
+    float y1 = sl->y1[ka], y2 = sl->y2[ka], z1 = sl->y1[kb], z2 = sl->y2[kb];
+    const float a1 = sl->a1[ka], a2 = sl->a2[ka], ga = sl->g[ka], b1 = sl->a1[kb], b2 = sl->a2[kb], gb = sl->g[kb];
+    int j;
+    for (j = m >> 1; j > 0; j--, acc += 2, x += 2) {
+        const float ya = in ? a1 * y1 - a2 * y2 + ga * x[0] : a1 * y1 - a2 * y2;
+        const float yb = in ? a1 * ya - a2 * y1 + ga * x[1] : a1 * ya - a2 * y1;
+        const float za = in ? b1 * z1 - b2 * z2 + gb * x[0] : b1 * z1 - b2 * z2;
+        const float zb = in ? b1 * za - b2 * z1 + gb * x[1] : b1 * za - b2 * z1;
+        acc[0] = acc[0] + ya + za;
+        acc[1] = acc[1] + yb + zb;
+        y2 = ya;
+        y1 = yb;
+        z2 = za;
+        z1 = zb;
+    }
+    if (m & 1) {
+        const float y = in ? a1 * y1 - a2 * y2 + ga * x[0] : a1 * y1 - a2 * y2;
+        const float z = in ? b1 * z1 - b2 * z2 + gb * x[0] : b1 * z1 - b2 * z2;
+        y2 = y1;
+        y1 = y;
+        z2 = z1;
+        z1 = z;
+        acc[0] = acc[0] + y + z;
+    }
+    sl->y1[ka] = fm_flush(y1);
+    sl->y2[ka] = fm_flush(y2);
+    sl->y1[kb] = fm_flush(z1);
+    sl->y2[kb] = fm_flush(z2);
+}
 static __attribute__((noinline)) void lc_run(voice_t *v, float *xl, float *xr, int m)
 {
     const cfg_t *c = &v->c;
@@ -1563,28 +1619,29 @@ static __attribute__((noinline)) void lc_run(voice_t *v, float *xl, float *xr, i
             }
             v->o[1] = fm_flush(lp);
         }
-        for (k = 0; k < nm; k++) {               /* a mode at a time over the block (its state in registers) */
-            float y1 = sl->y1[k], y2 = sl->y2[k], a1 = sl->a1[k], a2 = sl->a2[k], gk = sl->g[k], *acc = k & 1 ? od : ev;
-            if (!in && fm_fabsf(y1) + fm_fabsf(y2) < 1e-6f) {   /* (rung out, nothing coming in: skipped) */
+        int on[2][LC_MODES], non[2] = {0, 0}, h;
+        for (k = 0; k < nm; k++) {
+            if (!in && fm_fabsf(sl->y1[k]) + fm_fabsf(sl->y2[k]) < 1e-6f) {   /* (rung out, nothing coming in: skipped) */
                 sl->y1[k] = sl->y2[k] = 0.0f;
                 continue;
             }
-            if (in)
-                for (i = 0; i < m; i++) {
-                    float y = a1 * y1 - a2 * y2 + gk * x[i];
-                    y2 = y1;
-                    y1 = y;
-                    acc[i] += y;
-                }
-            else
-                for (i = 0; i < m; i++) {
-                    float y = a1 * y1 - a2 * y2;
-                    y2 = y1;
-                    y1 = y;
-                    acc[i] += y;
-                }
-            sl->y1[k] = fm_flush(y1);
-            sl->y2[k] = fm_flush(y2);
+            on[k & 1][non[k & 1]++] = k;
+        }
+        for (h = 0; h < 2; h++) {                /* the even modes into ev, the odd into od, each in its order: two at a
+                                                  * time (one pass over the accumulator), the last alone */
+            float *acc = h ? od : ev;
+            for (k = 0; k + 1 < non[h]; k += 2) {
+                if (in)
+                    lc_two(sl, on[h][k], on[h][k + 1], x, acc, m, 1);
+                else
+                    lc_two(sl, on[h][k], on[h][k + 1], x, acc, m, 0);
+            }
+            if (k < non[h]) {
+                if (in)
+                    lc_one(sl, on[h][k], x, acc, m, 1);
+                else
+                    lc_one(sl, on[h][k], x, acc, m, 0);
+            }
         }
     }
     for (i = 0; i < m; i++) {
@@ -3862,6 +3919,49 @@ static __attribute__((noinline)) void low_cut(float k, float *h, float *x, int n
     h[0] = fm_flush(a);
     h[1] = fm_flush(b);
 }
+/* a sub-block of k samples whose engine gave exact silence (xl, and xr when stereo) into a voice at rest (its low
+ * cut's and filter's states 0, no character stage: the caller's): what the loops below would do, without them. The
+ * filter and the low cut on zeros from zero states give zeros (+0 or -0) and leave their states +0, as written here
+ * (a stereo voice's dynamic filter, a bypass, leaves its own as they are); the outputs and the sends then add only
+ * zeros, which leave the buses as they are (sums started at +0 by additions alone are never -0, and x + 0 = x for
+ * every other x), and the meter's peak 0 changes nothing; the ramps (the amplitude, the steal's fade, the pan's
+ * glides) step as the loops step them, a sample at a time. Returns 0 (nothing done) if any of it is not so */
+static int v_quiet(voice_t *v, const float *xl, const float *xr, int k)
+{
+    const int st = v->c.stereo;
+    int j;
+    for (j = 0; j < 4; j++)
+        if (v->f[j] != 0.0f || (st && v->f[4 + j] != 0.0f))
+            return 0;
+    if (v->c.hpk > 0.0f && (v->hp[0] != 0.0f || v->hp[1] != 0.0f || (st && (v->hp[2] != 0.0f || v->hp[3] != 0.0f))))
+        return 0;
+    for (j = 0; j < k; j++)
+        if (xl[j] != 0.0f || (st && xr[j] != 0.0f))
+            return 0;
+    if (v->c.hpk > 0.0f) {
+        v->hp[0] = v->hp[1] = 0.0f;
+        if (st)
+            v->hp[2] = v->hp[3] = 0.0f;
+    }
+    if (!st || (v->c.ftype != FT_DYNAMIC && (unsigned)v->c.ftype < NFT))
+        for (j = 0; j < (st ? 8 : 4); j++)
+            v->f[j] = 0.0f;
+    {
+        const float es = v->amp_step, sgs = v->sg_step, gls = v->gl_step, grs = v->gr_step;
+        float e = v->amp_cur, sg = v->steal_gain, glc = v->glc, grc = v->grc;
+        for (j = 0; j < k; j++) {
+            e += es;
+            sg += sgs;
+            glc += gls;
+            grc += grs;
+        }
+        v->amp_cur = e;
+        v->steal_gain = sg;
+        v->glc = glc;
+        v->grc = grc;
+    }
+    return 1;
+}
 static void voice_samples(synth_t *s, voice_t *v, float *l, float *r, float *s1, float *s2, int m)
 {
     float bl[SY_CHUNK], br[SY_CHUNK], *xl = bl, *xr = br;
@@ -3887,6 +3987,11 @@ static void voice_samples(synth_t *s, voice_t *v, float *l, float *r, float *s1,
             xl = bl;
             xr = br;
             eng_run(v, xl, xr, k);
+        }
+        if (v->c.ctype == EF_OFF && v_quiet(v, xl, xr, k)) {   /* (silence in, the states at rest: silence out) */
+            i += k;
+            v->pos = (uint16_t)(v->pos + k);
+            continue;
         }
         if (v->c.hpk > 0.0f) {                   /* the low cut, before the filter (twice the lows taken out) */
             low_cut(v->c.hpk, v->hp, xl, k);
