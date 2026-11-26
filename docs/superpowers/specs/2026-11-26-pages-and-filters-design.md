@@ -41,3 +41,10 @@ Gather the other performance elements with it before deciding.
   is a note mute: the sequencer stops the notes (the pump still hears them), what sounds rings out. Mixer mutes would
   be note mutes too (a second layer). **Wet only cannot be one**: the notes must keep playing into the sends, so it
   is an audio gain of 0 on the track's dry output, the sends untouched (the voices keep running: the CPU as playing).
+
+## Also in the next build: effects level-matched at their defaults
+
+The user, on the FM-1: "RAT is so loud as you scroll through inserts". Every catalog effect at its default knobs
+measured against the dry (noise and a synth note, host): defaults (or the effect's own make-up) brought within
+about +-1.5 dB of dry, RAT first (its level knob then trims around unity); level-changing effects (tremolo) by their
+average. A host test keeps it so.
