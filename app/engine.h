@@ -18,7 +18,8 @@
 extern seq_t seq;
 #ifdef PLAT_HOST
 void engine_lookahead(int on);
-void engine_lace_modes(int n);                   /* Setup's LACE MODES: the modes each lace voice runs (12 all) */                   /* the look-ahead on (the default) or off: LOOM_LOOKAHEAD=0 */
+void engine_lace_modes(int n);
+void engine_sound_new(int trk);                  /* a preset loaded: the track's next notes start afresh (synth.h) */                   /* Setup's LACE MODES: the modes each lace voice runs (12 all) */                   /* the look-ahead on (the default) or off: LOOM_LOOKAHEAD=0 */
 uint32_t engine_lookahead_most(void);            /* the most calls a block queued */
 uint32_t engine_lookahead_lost(void);            /* calls that found the queue full */
 #endif                      /* the sequencer (its pattern pointer is the project's) */

@@ -373,6 +373,7 @@ static void load_preset(int trk, const preset_t *pr)
         for (; i < NAME_LEN; i++)
             proj.trk[trk].name[i] = 0;
     }
+    engine_sound_new(trk);                       /* (its next notes afresh: no last sound ringing under them) */
     engine_set_all(trk);
     mark_dirty();
 }
@@ -460,6 +461,7 @@ static int preset_apply(int trk, int i)
         for (int k = 0; k < PS_N - NTP_SOUND; k++)   /* (the sound past par[0..NTP_SOUND): its fields in PS_X's order) */
             proj.trk[trk].par[PS_X[k]] = (&user_presets[u].o2fine)[k];
         memcpy(proj.trk[trk].name, user_presets[u].name, NAME_LEN);
+        engine_sound_new(trk);
         engine_set_all(trk);
         mark_dirty();
         return 1;

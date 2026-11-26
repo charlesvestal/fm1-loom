@@ -2357,6 +2357,15 @@ static inline int v_sounding(const voice_t *v) { return v->amp.stage != ENV_OFF 
 
 static float porta_ms(int glide_ms, int porta) { return glide_ms > 0 ? (float)glide_ms : (float)(porta * porta) * 0.125f; }   /* 0 .. 2 s */
 
+/* a preset loaded on a track (synth_sound_new): its voices' next notes start afresh (eng_init: lace's and cane's
+ * resonators and lines, ringing on from the last sound, else struck again), the notes ringing left to ring */
+static uint8_t trk_sgen[NTRK], voice_sgen[NVOICE];
+void synth_sound_new(int trk)
+{
+    if (trk >= 0 && trk < NTRK)
+        trk_sgen[trk]++;
+}
+static int sound_new(const voice_t *v) { return v->trk < NTRK && voice_sgen[v->vi % NVOICE] != trk_sgen[v->trk]; }
 static void voice_start(synth_t *s, voice_t *v, int note, int vel, int glide_ms, uint32_t tag, int held, int in_render)
 {
     trk_t *t = &s->t[v->trk];
@@ -2368,9 +2377,10 @@ static void voice_start(synth_t *s, voice_t *v, int note, int vel, int glide_ms,
     v->tws = v->tws_pend;                        /* cane: the slot voice_take kept for this note */
     v->as = v->as_pend;                          /* acid: its 303's */
     v->cost_m = t->cost_m;                       /* (the split's guess: what the track's voices take) */
-    if (eng != v->engine || !v_sounding(v)) {
+    if (eng != v->engine || !v_sounding(v) || sound_new(v)) {
         v->engine = (uint8_t)eng;
         eng_init(v);
+        voice_sgen[v->vi % NVOICE] = v->trk < NTRK ? trk_sgen[v->trk] : 0;
     } else if (v->engine == EG_ACID && v->as != was_as) {
         v->o[4] = 1.0f;                          /* (another slot: set up afresh) */
     }
@@ -2806,7 +2816,10 @@ void synth_note_on(synth_t *s, int trk, int note, int vel, int glide_ms, uint32_
                     smp_retrigger(v);
                 if (v->engine == EG_SLICE)
                     slc_retrigger(v);
-                if (v->engine == EG_LACE)        /* struck again, its modes ringing on */
+                if (sound_new(v)) {              /* (another sound since: afresh) */
+                    eng_init(v);
+                    voice_sgen[v->vi % NVOICE] = trk_sgen[v->trk];
+                } else if (v->engine == EG_LACE) /* struck again, its modes ringing on */
                     v->o[0] = 0.0f;
                 if (v->engine == EG_CANE)        /* the lines as they are, the exciter again */
                     cn_strike(v, 0);
