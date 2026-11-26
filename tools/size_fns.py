@@ -86,7 +86,10 @@ COLD = {
                   "brain_set_near_notes", "lane_masks_make", "kit_rec_fresh", "tracks_go", "brain_shift", "arp_off",
                   "bar_len_update",
                   # (the LEDs', the pages', PLAY's, the recording's)
-                  "punch_of_key", "seq_brain_root", "seq_start_at", "seq_cue_left", "seq_rec"],
+                  "punch_of_key", "seq_brain_root", "seq_start_at", "seq_cue_left", "seq_rec",
+                  # (2026-11-26: a step's, a sixteenth's, a ratchet's, a stop's, an external clock's tick: inlined into
+                  # seq_advance they were its 13 KB)
+                  "fire_step", "six_tick", "fire_sub", "step_arp_end", "stop_now", "ext_ticks"],
 }
 # the two FX slots' and the master's per-sample code, closed under calls (~18 KB; the 24 KB RAMTEXT region holds
 # .ram_text's ~3 KB and the second core's loop besides)
