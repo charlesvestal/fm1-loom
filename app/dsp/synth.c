@@ -1634,6 +1634,12 @@ static __attribute__((noinline)) void lc_run(voice_t *v, float *xl, float *xr, i
             }
             on[k & 1][non[k & 1]++] = k;
         }
+        if (!in && !non[0] && !non[1]) {         /* every mode rung out, nothing coming in: silent from here, the voice
+                                                  * free (it lived on through the amp's release: 40 % of lace's voice
+                                                  * time in the user's song, filter, amp and sends on silence) */
+            v->amp.stage = ENV_OFF;
+            v->amp.level = 0.0f;
+        }
         for (h = 0; h < 2; h++) {                /* the even modes into ev, the odd into od, each in its order: two at a
                                                   * time (one pass over the accumulator), the last alone */
             float *acc = h ? od : ev;
