@@ -32,6 +32,8 @@ struct fxslot {
     uint8_t mnb, fresh;                       /* (fresh: its memory just given: the effect starts at rest) */
     uint8_t clr;                              /* its blocks still to clear (fx_memory, a slice a block: silent till then) */
     uint8_t type, type_t, mode, mode_t;       /* the effect (EF_*) and the reverb's mode: running, and as set */
+    uint8_t live, fo;                         /* live: it has run; fo: the running one has faded out (fx_fading) */
+    float lv;                                 /* its return's level as a new effect comes in (0 .. 1 in a block) */
     uint8_t k[3], x[4];                       /* its knobs and extras */
     uint8_t knob[4];                          /* a send effect's four, as efx_send_nums takes them */
     uint8_t hpv, lpv;
@@ -93,6 +95,7 @@ void fx_init(fxslot_t *f)
     for (i = 0; i < sizeof *f; i++)
         z[i] = 0;
     f->bpm = 120.0f;
+    f->lv = 1.0f;
     f->lpv = 127;
     f->hpc = onepole_k(20.0f);
     f->lpc = onepole_k(20000.0f);
@@ -106,7 +109,14 @@ void fx_clear(fxslot_t *f)
     fx_states(f, 1);
 }
 
-int fx_need(const fxslot_t *f) { return efx_need(f->type_t, f->mode_t, 1); }
+/* another effect (or reverb mode) set while one plays: the old one runs a block more, its return fading out, and
+ * keeps its memory till then (fx_need, fx_lags: the running one's); then the new one from rest, its return fading in */
+static int fx_fading(const fxslot_t *f)
+{
+    return f->live && f->type != EF_OFF && (f->type_t != f->type || f->mode_t != f->mode) && !f->fo && !f->clr &&
+           efx_need(f->type, f->mode, 1) <= (f->mem ? f->mnb : 0);
+}
+int fx_need(const fxslot_t *f) { return fx_fading(f) ? efx_need(f->type, f->mode, 1) : efx_need(f->type_t, f->mode_t, 1); }
 int fx_effect(const fxslot_t *f, int *mode)
 {
     *mode = f->mode_t;
@@ -141,8 +151,8 @@ void fx_set(fxslot_t *f, int ef, const uint8_t k[3], const uint8_t x[4])
     f->knob[1] = ef == EF_DELAY ? f->x[0] : f->k[1];
     f->knob[2] = ef == EF_DELAY ? f->k[1] : f->k[2];
     f->knob[3] = ef == EF_DELAY ? f->k[2] : ef == EF_REVERB ? f->x[1] : f->x[0];
-    if (ef == EF_DELAY)
-        efx_delay_width(&f->e.delay.wa, &f->e.delay.wb, f->x[1]);
+    if (ef == EF_DELAY)                       /* (its width glides there) */
+        efx_delay_width(&f->e.delay.ta, &f->e.delay.tb, f->x[1]);
     /* another reverb mode while the reverb runs: the interrupt takes it at its next block (fx_states: spu_reset, its
      * line cleared a slice a block) */
     f->mode_t = (uint8_t)(ef == EF_REVERB && f->x[0] < NRV ? f->x[0] : RV_PLATE);
@@ -169,7 +179,11 @@ void fx_filter(fxslot_t *f, int hp, int lp)
     f->lpc = onepole_k(20000.0f * fm_exp2f(-(1.0f - k127(lp)) * 8.0f)); /* 78 Hz .. 20 kHz */
 }
 
-int fx_lags(const fxslot_t *f) { return f->type_t == EF_CHORUS || f->type_t == EF_DELAY || f->type_t == EF_REVERB; }
+int fx_lags(const fxslot_t *f)
+{
+    const int t = fx_fading(f) ? f->type : f->type_t;
+    return t == EF_CHORUS || t == EF_DELAY || t == EF_REVERB;
+}
 
 /* the catalog's others on the send (both sides), wet, as a kit's slot runs them (dsp/efx.c efx_slot_run: ring at a
  * ratio of C4, tape with its wow, the inserts' effects at the LFO's rate of their first knob) */
@@ -192,17 +206,27 @@ void fx_process(fxslot_t *f, const float *in, float *out_l, float *out_r, uint32
 void fx_process_lag(fxslot_t *f, const float *in, float *out_l, float *out_r, uint32_t n, int lag)
 {
     uint32_t o;
+    int out = 0;                               /* (fading out: the old one's last block) */
     if (f->type_t != f->type || f->mode_t != f->mode || f->fresh) {   /* a new effect or mode, new memory: at rest */
         const int wipe = f->type_t != f->type && !f->fresh;
-        f->type = f->type_t;
-        f->mode = f->mode_t;
-        f->fresh = 0;
-        fx_states(f, wipe);
+        if (fx_fading(f) && !f->fresh && n) {   /* (a call of no frames: at once) */
+            out = 1;
+            f->fo = 1;
+        } else {
+            f->type = f->type_t;
+            f->mode = f->mode_t;
+            f->fresh = 0;
+            f->fo = 0;
+            f->lv = f->live ? 0.0f : 1.0f;     /* (live: its return from silence) */
+            fx_states(f, wipe);
+        }
     }
+    for (o = 0; !f->live && o < n; o++)        /* (live once sound comes in) */
+        f->live = in[o] != 0.0f;
     if (f->type == EF_OFF || efx_need(f->type, f->mode, 1) > (f->mem ? f->mnb : 0) || f->clr)
         return;                                /* (no memory, or its memory not yet clear: silent) */
     for (o = 0; o < n; o += SUB) {
-        float x[SUB];
+        float x[2 * SUB];
         int m = (int)(n - o < SUB ? n - o : SUB), i, any = 0;
         const int hp_on = f->hpv > 0, lp_on = f->lpv < 127;
         float hps = f->hps, lps = f->lps;
@@ -224,17 +248,42 @@ void fx_process_lag(fxslot_t *f, const float *in, float *out_l, float *out_r, ui
         }
         f->hps = fm_flush(hps);
         f->lps = fm_flush(lps);
-        if (send_own(f->type)) {
+        if (send_own(f->type) && !out && f->lv >= 1.0f) {
             efx_send_run(&f->e, f->type, x, out_l + o, out_r + o, m, any, lag);
         } else {
-            float r[SUB];
-            for (i = 0; i < m; i++)
-                r[i] = x[i];
-            fx_other(f, x, r, m);
-            for (i = 0; i < m; i++) {
-                out_l[o + i] += x[i];
-                out_r[o + i] += r[i];
+            float r[SUB], g = f->lv, dg = out ? -1.0f / (float)n : 1.0f / 256.0f;   /* (out: to silence across the
+                                                 * call; in: up in 256 frames) */
+            if (out)
+                g = 1.0f - (float)o / (float)n;
+            else if (g < 1.0f) {                 /* (coming in: its input from silence too, so its lines start
+                                                  * without a step) */
+                float gi = g;
+                for (i = 0; i < m; i++) {
+                    gi = fm_minf(gi + dg, 1.0f);
+                    x[i] *= gi;
+                }
             }
+            if (send_own(f->type)) {
+                for (i = 0; i < m; i++)
+                    r[i] = 0.0f;
+                for (i = 0; i < m; i++)
+                    x[i + SUB] = 0.0f;
+                efx_send_run(&f->e, f->type, x, x + SUB, r, m, any, lag);
+                for (i = 0; i < m; i++)
+                    x[i] = x[i + SUB];
+            } else {
+                for (i = 0; i < m; i++)
+                    r[i] = x[i];
+                fx_other(f, x, r, m);
+            }
+            for (i = 0; i < m; i++) {
+                if (g < 1.0f || out)
+                    g = fm_clampf(g + dg, 0.0f, 1.0f);
+                out_l[o + i] += g * x[i];
+                out_r[o + i] += g * r[i];
+            }
+            if (!out)
+                f->lv = g;
         }
     }
 }
@@ -301,6 +350,8 @@ struct master {
     efx_slot_t sl;
     int16_t *mem, *mrun;                      /* (mrun: mem while it holds the effect, else 0) */
     uint8_t mnb;
+    uint8_t sw;                               /* the effect set (slot_set): the slot takes it at a block (master_memory),
+                                               * the old one fading out a block first while the sound plays */
     float bpm;
 };
 _Static_assert(sizeof(struct master) <= MASTER_BYTES, "master_t does not fit MASTER_BYTES");
@@ -399,8 +450,9 @@ static void comp_coefs(master_t *m)
 }
 
 /* the slot's values from the knobs (master_set): its effect (off at mix 0: the stage skipped), knobs, mix, extras; the
- * interrupt runs it as they are (efx_slot_run: a new effect from rest). Another effect (or reverb mode) runs on no
- * memory until master_memory gives it its own */
+ * interrupt runs it as they are (efx_slot_run: a new effect from rest; its knobs and mix glide). Another effect (or
+ * reverb mode) set while the sound plays: master_memory takes it at a block, the old one fading out a block first
+ * (efx_slot_want); then it runs on no memory until master_memory gives it its own */
 static int slot_mode(const efx_slot_t *sl) { return sl->ef == EF_REVERB && sl->xt[0] < NRV ? sl->xt[0] : 0; }
 static void slot_set(master_t *m)
 {
@@ -409,9 +461,13 @@ static void slot_set(master_t *m)
     sl->k[1] = (float)m->pot[MS_CTONE];
     sl->k[2] = (float)m->pot[MS_CK3];
     sl->mix = m->pot[MS_CMIX];
-    for (int i = 0; i < 4; i++)
+    for (int i = 1; i < 4; i++)
         sl->xt[i] = m->pot[MS_CX1 + i];
-    sl->ef = (uint8_t)(m->pot[MS_CMIX] && m->pot[MS_CTYPE] < NEF ? m->pot[MS_CTYPE] : EF_OFF);
+    m->sw = (uint8_t)(m->pot[MS_CMIX] && m->pot[MS_CTYPE] < NEF ? m->pot[MS_CTYPE] : EF_OFF);
+    if (!sl->live) {                             /* (before the sound: at once) */
+        sl->ef = m->sw;
+        sl->xt[0] = m->pot[MS_CX1];
+    }
     if (sl->ef != sl->mef || slot_mode(sl) != sl->mmd)
         m->mrun = 0;
 }
@@ -420,6 +476,11 @@ int master_room(const master_t *m) { return master_need(m) <= (m->mem ? m->mnb :
 int master_memory(master_t *m, int16_t *mem, int nb)
 {
     efx_slot_t *sl = &m->sl;
+    const int x0 = m->pot[MS_CX1], ef = efx_slot_want(sl, m->sw, m->sw == EF_REVERB && x0 < NRV ? x0 : 0);
+    if (!sl->fo) {                               /* (the effect set, unless the old one fades out this block) */
+        sl->ef = (uint8_t)ef;
+        sl->xt[0] = (uint8_t)x0;
+    }
     if (!mem)
         nb = 0;
     if (mem != m->mem || nb != m->mnb || sl->ef != sl->mef || slot_mode(sl) != sl->mmd) {   /* (new memory, or the
@@ -626,6 +687,8 @@ void master_process(master_t *m, float *perc_l, float *perc_r, float *mel_l, flo
     }
     if (m->sl.ef != EF_OFF && STAGE(2))          /* the slot (dsp/efx.c, from the flash) */
         ((__typeof__(&efx_slot_run))dsp_far((void *)&efx_slot_run))(&m->sl, 1, m->bpm, 0, m->mrun, mel_l, mel_r, n);
+    for (i = 0; !m->sl.live && i < n; i++)       /* (off while the sound plays: an effect set starts from dry) */
+        m->sl.live = mel_l[i] != 0.0f || mel_r[i] != 0.0f;
     {
         const float glev = m->glev, a_det = m->a_det, a_att = m->a_att, a_rel = m->a_rel, slope = m->slope;
         const float makeup = m->makeup, cg = m->cg;

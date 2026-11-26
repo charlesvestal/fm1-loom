@@ -24,9 +24,9 @@
  * the wall's feedback (0.5x .. x1 at 64 .. as far as it stays stable). */
 typedef struct fxslot fxslot_t;
 #ifdef PLAT_HOST
-#define FXSLOT_BYTES 1768             /* (the host's pointers are wider) */
+#define FXSLOT_BYTES 1832             /* (the host's pointers are wider) */
 #else
-#define FXSLOT_BYTES 1744             /* (fx.c checks it: 1,744 B, 2026-11-25) */
+#define FXSLOT_BYTES 1808             /* (fx.c checks it: 1,808 B, 2026-11-25) */
 #endif
 void fx_init(fxslot_t *f);
 void fx_set(fxslot_t *f, int ef, const uint8_t k[3], const uint8_t x[4]);   /* the effect (EF_*), its knobs and extras
@@ -91,9 +91,9 @@ enum { PB_KICK, PB_T1, PB_METRO = PB_T1 + 8, NPB };
 extern const char *const MS_NAME[NMS];
 typedef struct master master_t;
 #ifdef PLAT_HOST
-#define MASTER_BYTES 976              /* (the host's pointers are wider) */
+#define MASTER_BYTES 984              /* (the host's pointers are wider) */
 #else
-#define MASTER_BYTES 960              /* (fx.c checks it: 956 B, 2026-11-25; 1,428 with the master color's line) */
+#define MASTER_BYTES 976              /* (fx.c checks it: 976 B, 2026-11-25; 1,428 with the master color's line) */
 #endif
 void master_init(master_t *m);
 void master_clear(master_t *m);                             /* its states at rest, its settings kept */

@@ -75,17 +75,20 @@ const char *efx_list_name(int ef, int k, int v);   /* an EK_LIST knob's value's 
  *   fold:    a sine wavefolder, gain made up; tone its bias (64 = symmetric; off centre: even harmonics)
  *   crush:   fewer bits and a lower sample rate; tone which falls (0 the rate only, 127 the bits only)
  *   ring:    a sine at a ratio of freq (tone: 0.25:1 .. 7:1 in 16 steps); amount its depth. Its amount glides
- *            (efx_ring_glide, before the coefficients) and its phasor wants putting back to unit length once a chunk
- *            or a block (efx_ring_norm)
+ *            (efx_ring_glide, before the coefficients; efx_ring_from after them: its gains and its mix ramped across
+ *            the chunk from where they were) and its phasor wants putting back to unit length once a chunk or a block
+ *            (efx_ring_norm)
  *   tilt:    a tilt EQ: amount its pivot (150 Hz .. 6 kHz), tone the tilt (+-6 dB each side at the ends)
  *   tape:    a soft saturation (gain 0.5 .. 8, made up) into a two-pole roll-off (tone 1.5 .. 18 kHz); x[3] its wow's
  *            depth in cents, for whoever has a pitch to bend (the voices; the master and a send: a short line,
  *            efx_slot_run)
  *   sampler: low-passed, held at 26 .. 11 kHz and 14 .. 11 bits by the amount, its output filter (tone 2 .. 20 kHz) */
 void efx_char_coefs(int ef, float a, float t, float freq, float *x);
-void efx_char_stage(const float *x, float *z, int ef, int stereo, float *xl, float *xr, int k);
-float efx_ring_glide(float a, float was, float *run, float *x);   /* the ring's amount, glided from was (*run 0: it
-                                                                 * starts there) */
+void efx_char_stage(float *x, float *z, int ef, int stereo, float *xl, float *xr, int k);
+float efx_ring_glide(float a, float was, float *run);   /* the ring's amount, glided from was (*run 0: it starts there) */
+void efx_ring_from(float *x, float *z, const float *was, int len);   /* (after the coefficients) its gains and its mix
+                                                 * (x[7]) ramped from was (the last x[0], x[1], x[7]) across the next len
+                                                 * frames: x[4], x[6], x[5] where they are, z[7] the frames left */
 void efx_ring_norm(float *z);
 float efx_char_hz(int ef, int knob, float u);   /* a knob (0 amount, 1 tone; 0..1) that is a frequency: its Hz (the
                                                  * pages); 0: not one */
@@ -124,16 +127,19 @@ extern const char FX_DL_MARK[FX_DL_N];
 float efx_delay_secs(int time, int fine, float bpm, int *halves);   /* the delay's time at a tempo, and the times the line
                                                                      * halves it to fit (0: as set) */
 float fx_delay_fb(int v);                    /* the delay's REPEATS 0..127: its feedback (127: 1, held) */
-void efx_delay_width(float *wa, float *wb, int w);   /* PING WIDTH 0..127: a side's echo into its own side, the other */
+void efx_delay_width(float *wa, float *wb, int w);   /* PING WIDTH 0..127: a side's echo into its own side, the other
+                                                     * (into a delay's ta, tb: its wa, wb glide there) */
 
-typedef struct { int32_t w; float ph, s1, s2, hl, hr, fz; } efx_chorus_t;
-typedef struct { int32_t w; float ph, hold, in1, out1, wph; } efx_lofi_t;
-typedef struct { float xl, yl[4], xr, yr[4], ph, zl, zr, al, ar; } efx_phaser_t;
+typedef struct { int32_t w; float ph, s1, s2, hl, hr, fz, rg, sd, fb; } efx_chorus_t;   /* (rg, sd, fb: the depth, the
+                                              * width's side and the feedback as they ramp; rg 0: fresh) */
+typedef struct { int32_t w; float ph, hold, in1, out1, wph, late; } efx_lofi_t;   /* (late: the width's, ramping) */
+typedef struct { float xl, yl[4], xr, yr[4], ph, zl, zr, al, ar, fb; } efx_phaser_t;   /* (fb: the feedback, ramping) */
 typedef struct {
     int16_t *l, *r;                           /* its lines (FX_DLY_LEN a side) */
     int32_t w, quiet, ph;                     /* (the line at half rate: ph, the pair's second frame) */
     float cur, lpl, lpr, al, ar;              /* (the pair being summed into the slot at w) */
-    float wa, wb;                             /* PING WIDTH: a side's echo into its own side, into the other (fx_width) */
+    float wa, wb, ta, tb;                     /* PING WIDTH: a side's echo into its own side, into the other, gliding
+                                               * to ta, tb (efx_delay_width) */
     float wph, wdl, wdr, wsl, wsr, hl, hr;    /* wobble: the LFO's phase, the drifts, the offsets as they glide; the loop's
                                                * high-pass a side */
     uint32_t rnd;                             /* (the drift's noise) */
@@ -160,7 +166,8 @@ typedef struct {                              /* lush's */
     int32_t len[EFX_LU_N];                    /* the lines' lengths at the size now, 22.05 kHz samples */
     uint32_t base;
     int32_t clear, quiet;                     /* (as the SPU's) */
-    float lp, hold, lfo, dmp[2], fb[2], prev[2], cur[2], tl, th, tr, thr, scale;
+    float lp, hold, lfo, dmp[2], fb[2], prev[2], cur[2], tl, th, tr, thr, scale, pre;   /* (scale, pre: the size and
+                                              * the pre-delay as they glide; 0: fresh) */
     float sh_d, sh_lp, sh_hp, sh_x1;          /* shimmer: its heads' distance, its low-pass, its high-pass */
     uint8_t phase;
 } efx_lush_t;
@@ -238,15 +245,22 @@ typedef struct {
         efx_ins_t in;                             /* the others' */
     } u;
     float k[3], ph;                               /* its knobs this block (0..127: the LFO on them), its phase */
+    float g[3], gm;                               /* the knobs and the mix as they glide there (efx_slot_run) */
     uint8_t ef, zef, cef;                         /* its effect this block (EF_OFF: none on the bus), its states', its
                                                    * numbers' (ch) */
     uint8_t mix, xt[4];                           /* its mix 0..127, its extras */
     int8_t at;                                    /* its memory: its first block of the pool (-1 none) */
     uint8_t nb, mef, mmd;                         /* how many, the effect (and the reverb's mode) it was given for */
     uint8_t clr;                                  /* its blocks still to clear (efx_clear_step: dry till then) */
+    uint8_t live, fo, rise;                       /* live: it has run (or been off) while the sound played: a new
+                                                   * effect starts from dry (rise: its input from silence, pieces
+                                                   * left); fo: this block fades its effect out (efx_slot_want) */
 } efx_slot_t;
 /* a slot on a pair (bl, br: n frames), in place: this block's effect, knobs, mix and extras as sl has them (a new
- * effect starts its states clean). The dirt and the color on both sides (both: a kit's bus, a send, the master; else a
+ * effect starts its states clean; live, from dry, its mix gliding up). The knobs and the mix glide (~10 ms: EFX_GLIDE_N
+ * frames) and nothing steps on a turn: the dirt and the color ramp their numbers a sample at a time, the others take
+ * their knobs a 32-frame piece at a time and ramp their mix (a list's knob, juno's mode, at once: its reads glide); a
+ * knob at rest runs as it always did. The dirt and the color on both sides (both: a kit's bus, a send, the master; else a
  * pair whose sides are the same, mono voices in the middle, runs once), ring at a ratio of C4 (EFX_RING_C4: off the
  * voices), tape with its wow when mem holds its line (efx_need: the master's, a send's; a synth track's bends its voices,
  * a kit's has none); the rest efx_insert's, their LFO's rate the first knob's at bpm, rumble hearing in (0: the pair's
@@ -254,7 +268,13 @@ typedef struct {
 #define EFX_RING_C4 261.63f
 #define EFX_WOW_N 128                            /* tape's wow's line (int16 a side) and its centre: 1.5 ms, the pair */
 #define EFX_WOW_AT 64.0f                         /* that late while tape is on (as the master color's was) */
+#define EFX_GLIDE_N 441.0f                       /* the glides' time, frames (10 ms): a call of n frames goes
+                                                  * n / (n + EFX_GLIDE_N) of the way */
 void efx_slot_run(efx_slot_t *sl, int both, float bpm, const float *in, int16_t *mem, float *bl, float *br, uint32_t n);
+/* the effect a slot runs this block (its caller's, before its memory): ef (the reverb in mode) wanted; one running
+ * while the sound plays (live) that it changes from runs a block more, fading to dry (fo set: the caller leaves its
+ * knobs, mix and extras as they were), then ef from dry. Returns the effect to run */
+int efx_slot_want(efx_slot_t *sl, int ef, int mode);
 float efx_rumble_secs(float k);                  /* rumble's decay knob (0..127): its RT60, seconds */
 float efx_sin(float ph);                         /* (out of line: a sine of turns, a one-pole's coefficient at hz) */
 float efx_op_coef(float hz);

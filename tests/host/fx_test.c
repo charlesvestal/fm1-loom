@@ -1123,7 +1123,8 @@ int main(void)
     printf("-- the master's slot (Master FX: the one effects list, its memory the pool's)\n");
     {   /* an impulse on the melodic group through the master's delay (24 blocks of the pool, cleared a slice a call:
          * fx.h master_memory), and the same with no memory (dry, sample for sample as off); tape's wow a block there,
-         * none on a track; mix 0: off, no memory asked */
+         * none on a track; mix 0 while it sounds: the delay a block more (fading to dry, its memory kept), then off, no
+         * memory asked */
         static float pl[BLK], pr[BLK], ml[BLK], mr[BLK], ol2[BLK], or2[BLK], ref[SR];
         float late[2] = {0.0f, 0.0f};
         int calls = 0, dry_same = 1;
@@ -1158,10 +1159,20 @@ int main(void)
                  master_need(ms), calls, (double)late[1]);
         check(name, master_need(ms) == efx_need(EF_DELAY, 0, 0) && calls == (master_need(ms) + EFX_CLR - 1) / EFX_CLR &&
                     late[1] > 1e-4f && late[0] == 0.0f && dry_same && master_room(ms));
-        master_set(ms, MS_CMIX, 0);
+        master_set(ms, MS_CMIX, 0);             /* (while it sounds: the delay a block more, fading to dry, then off) */
+        for (b = 0; b < 2; b++) {
+            for (i = 0; i < BLK; i++)
+                pl[i] = pr[i] = ml[i] = mr[i] = 0.0f;
+            if (!b)
+                check("  at mix 0: the delay a block more (its fade), its memory kept",
+                      master_need(ms) == efx_need(EF_DELAY, 0, 0));
+            master_memory(ms, efx_pool[0], master_need(ms));
+            master_process(ms, pl, pr, ml, mr, ol2, or2, BLK);
+        }
         check("  at mix 0: off, no memory asked", master_need(ms) == 0);
         master_set(ms, MS_CTYPE, EF_TAPE);
         master_set(ms, MS_CMIX, 127);
+        master_memory(ms, efx_pool[0], master_need(ms));
         check("  tape: its wow's line a block on the master and a send, none on a track",
               master_need(ms) == 1 && efx_need(EF_TAPE, 0, 1) == 1 && efx_need(EF_TAPE, 0, 0) == 0);
     }

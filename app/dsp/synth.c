@@ -3251,7 +3251,7 @@ static inline int voice_ring(const synth_t *s, int trk)   /* the slot whose ring
 static void char_prep(synth_t *s, voice_t *v, int dest, float off, float gch)   /* (gch: the shared LFO on slot 1's knob 1) */
 {
     cfg_t *c = &v->c;
-    int trk = v->trk, q = voice_ring(s, trk) - 1, type, mix, i;
+    int trk = v->trk, q = voice_ring(s, trk) - 1, type, mix, i, dry = 0;
     if (q < 0) {                                 /* (no ring: slot 1's, off the bus) */
         q = 0;
         type = slot_ef(s, trk, 0);
@@ -3260,21 +3260,27 @@ static void char_prep(synth_t *s, voice_t *v, int dest, float off, float gch)   
     } else
         type = EF_RING;
     mix = PS(s, trk, TP_SLOT[q][SL_MIX]);
+    if (c->ctype == EF_RING && type != EF_RING && !v->fresh && v->cz[6] != 0.0f && c->cx[7] != 0.0f) {
+        type = EF_RING;                          /* (a ring turned off while it sounds: a chunk more, to dry) */
+        mix = 0;
+    }
     if (type != c->ctype) {
         for (i = 0; i < 8; i++)
             v->cz[i] = 0.0f;
+        dry = type == EF_RING && !v->fresh;      /* (a ring turned on while it sounds: from dry) */
         c->ctype = (uint8_t)type;
     }
     if (type == EF_OFF)
         return;
-    c->cx[7] = fm_minf((float)mix, 127.0f) * (1.0f / 127.0f);
     {   /* (the coefficients cost exps: made again only when what they come from moved) */
         const int pa = TP_SLOT[q][SL_K1], pt = TP_SLOT[q][SL_K2];
+        float was[3] = {c->cx[0], c->cx[1], c->cx[7]};
+        const int ran = v->cz[6] != 0.0f || dry; /* (cz[6]: 0 a new note or type, so it starts where it is) */
         float a = fm_clampf(pfs(s, trk, pa, dest, off) + (q ? 0.0f : gch), 0.0f, 127.0f) * (1.0f / 127.0f);
         float t = fm_minf((float)PS(s, trk, pt), 127.0f) * (1.0f / 127.0f), f = type == EF_RING ? c->freq : 0.0f;
-        if (type == EF_RING) {                   /* (cz[6]: 0 a new note or type, so it starts where it is) */
-            a = efx_ring_glide(a, c->cin[0], &v->cz[6], c->cx);
-        }
+        c->cx[7] = fm_minf((float)mix, 127.0f) * (1.0f / 127.0f);
+        if (type == EF_RING)
+            a = efx_ring_glide(a, c->cin[0], &v->cz[6]);
         if (type != c->cin_type || a != c->cin[0] || t != c->cin[1] || f != c->cin[2]) {
             efx_char_coefs(type, a, t, c->freq, c->cx);
             c->cin_type = (uint8_t)type;
@@ -3282,6 +3288,10 @@ static void char_prep(synth_t *s, voice_t *v, int dest, float off, float gch)   
             c->cin[1] = t;
             c->cin[2] = f;
         }
+        if (type == EF_RING && dry)
+            was[0] = c->cx[0], was[1] = c->cx[1], was[2] = 0.0f;
+        if (type == EF_RING)                     /* its gains and mix ramped across the chunk from where they were */
+            efx_ring_from(c->cx, v->cz, ran ? was : 0, SY_CHUNK);
     }
     if (type == EF_RING)                         /* the phasor back to unit length, once a chunk (or at 1 + 0i) */
         efx_ring_norm(v->cz);
@@ -4207,18 +4217,25 @@ static void bus_prepare(synth_t *s, uint32_t n)
         for (int q = 0; q < 2; q++) {            /* (a kit's knobs as the engine has them: its LFOs write them) */
             efx_slot_t *sl = &t->sl[q];
             int ef = q + 1 == vr ? EF_OFF : slot_ef(s, i, q);   /* (the voices' ring: not here) */
+            const int md = PS(s, i, TP_SLOT[q][SL_X1]) & 127;
+            ef = efx_slot_want(sl, ef, ef == EF_REVERB && md < NRV ? md : 0);   /* (another while it plays: the old
+                                                  * one a block more, to dry) */
             sl->ef = (uint8_t)ef;
-            if (ef == EF_OFF)
+            if (ef == EF_OFF) {                  /* (off while the track sounds: an effect turned on starts from dry) */
+                for (int vi = 0; !sl->live && vi < NVOICE; vi++)
+                    sl->live = s->v[vi].trk == i && v_sounding(&s->v[vi]);
                 continue;
-            sl->mix = (uint8_t)(PS(s, i, TP_SLOT[q][SL_MIX]) & 127);
-            for (int j = 0; j < 3; j++) {
+            }
+            for (int j = 0; !sl->fo && j < 3; j++) {
                 const int p = TP_SLOT[q][SL_K1 + j];
                 sl->k[j] = kit ? (float)(PS(s, i, p) & 127)
                                : fm_clampf(pfs(s, i, p, dest, off) + (q == 0 && j == 0 && gd == GD_CHAR ? g : 0.0f), 0.0f,
                                            127.0f);
             }
-            for (int j = 0; j < 4; j++)
+            for (int j = 0; !sl->fo && j < 4; j++)
                 sl->xt[j] = (uint8_t)(PS(s, i, TP_SLOT[q][SL_X1 + j]) & 127);
+            if (!sl->fo)
+                sl->mix = (uint8_t)(PS(s, i, TP_SLOT[q][SL_MIX]) & 127);
             t->nbus++;
             t->nins = (uint8_t)(t->nins + !efx_is_char(ef));
             if (ef == EF_TAPE && !kit) {         /* (its wow on the voices' pitch) */
@@ -4244,13 +4261,35 @@ static void bus_prepare(synth_t *s, uint32_t n)
     }
     ins_alloc(s);
     slots_clear(s, n);
-    for (i = 0; i < NVOICE; i++) {
-        const voice_t *v = &s->v[i];
-        s->grp[i] = 0;
-        if (v->trk < NTRK && s->t[v->trk].nbus && v_sounding(v)) {
-            s->grp[i] = (uint8_t)(v->trk + 1);
-            if (s->lead[v->trk] < 0)
-                s->lead[v->trk] = (int8_t)i;
+    {   /* (a sounding voice onto its track's bus or off it, a slot turned on or off: its gains rescaled by the bus's, so
+         * nothing steps; a bus that ran no voice starts at its gain. Before 2026-11-25 the voice's gain glided from the
+         * other scale: a jump of the bus's gain, 9 dB at the defaults) */
+        uint32_t had = 0;
+        for (i = 0; i < NVOICE; i++)
+            had |= s->grp[i] ? 1u << (s->grp[i] - 1) : 0u;
+        for (i = 0; i < NVOICE; i++) {
+            voice_t *v = &s->v[i];
+            const int was = s->grp[i];
+            s->grp[i] = 0;
+            if (v->trk < NTRK && s->t[v->trk].nbus && v_sounding(v)) {
+                s->grp[i] = (uint8_t)(v->trk + 1);
+                if (s->lead[v->trk] < 0)
+                    s->lead[v->trk] = (int8_t)i;
+            }
+            if (was != s->grp[i] && v_sounding(v) && !v->fresh) {
+                trk_t *t = &s->t[v->trk];
+                if (was) {
+                    v->glc *= t->bus_g;
+                    v->grc *= t->bus_g;
+                } else {
+                    if (!(had >> v->trk & 1u))
+                        t->bus_g = t->bus_gn;
+                    if (t->bus_g > 0.0f) {
+                        v->glc /= t->bus_g;
+                        v->grc /= t->bus_g;
+                    }
+                }
+            }
         }
     }
     for (i = 0; i < NTRK; i++)
