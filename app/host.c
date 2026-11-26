@@ -461,6 +461,16 @@ int app_expect(const char *what, int *got)
         *got = 0;
         for (int i = 0; i < 4; i++)
             *got |= (k[i].mod != 0) << i;
+    } else if (!strcmp(what, "modsel"))             /* the MOD page's lane picked, from 1 (0: none shown) */
+        *got = mod_lane_now() < 0 ? 0 : ui.mod_lane + 1;
+    else if (!strncmp(what, "knobnum", 7) && isnum(what + 7)) {   /* knobnumK: knob K's value as its bar shows it */
+        knob_t k[4];
+        page_knobs(k);
+        *got = k[(atoi(what + 7) - 1) & 3].num;
+    } else if (!strncmp(what, "knobtick", 8) && isnum(what + 8)) {   /* knobtickK: MOD VIEW's tick on knob K, 0 none */
+        knob_t k[4];
+        page_knobs(k);
+        *got = k[(atoi(what + 8) - 1) & 3].mod;
     } else if (!strcmp(what, "sendnotes"))            /* Setup's NOTES: MIDI notes out */
         *got = seq.send_notes;
     else if (!strcmp(what, "clock"))                /* Setup's CLOCK: SEQ_CLK_* (0 internal, 1 send, 2 receive) */

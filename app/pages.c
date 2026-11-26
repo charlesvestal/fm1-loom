@@ -346,7 +346,7 @@ static int pick_sets(int a)
     case A_FX_HP: case A_FX_LP: case A_FX_SEND: case A_PUMP_BY: case A_PUMP_REL: case A_PUMP_ACC: case A_LEVEL:
     case A_SCENE_AT: case A_AUTOSAVE: case A_MIDI_OUT: case A_LOOP_FREE: case A_CC_OUT: case A_SCENES_OUT: case A_MIDI_CC:
     case A_USB_HOST: case A_KIT_FILTER: case A_CC_IN: case A_MOD_VIEW:
-    case A_MOD_LANE: case A_MOD_TRK: case A_MOD_PG: case A_MOD_KNOB:
+    case A_MOD_TRK: case A_MOD_PG: case A_MOD_KNOB:
         return 1;
     default:
         return 0;
@@ -758,6 +758,7 @@ static const uint8_t *slot_vals(int pg, uint8_t *mp, int *trk, int *q)
     mst_par(mp);
     return mp;
 }
+static const uint8_t *mod_shown(int trk, const uint8_t *par, uint8_t *buf, int n);
 static int kit_x_page(int t)                         /* a kit whose key shown has eight knobs: its
                                                       * knobs 5..8 on Engine 2 (TP_DRUMX) */
 {
@@ -1457,7 +1458,8 @@ static int mod_pat_now(void)
     int m = pats.scene_mod[cur_scene()];
     return m ? (m - 1) % NPATT : ui.mod_pat % NPATT;
 }
-static int mod_lanes_now(uint8_t *ix) { return mod_lanes(pats.lane, mod_pat_now(), ix); }
+static int mod_none(void) { return !pats.scene_mod[cur_scene()]; }   /* the scene's MOD pattern "-": no lanes shown */
+static int mod_lanes_now(uint8_t *ix) { return mod_none() ? 0 : mod_lanes(pats.lane, mod_pat_now(), ix); }
 static int mod_lane_now(void)                        /* the lane picked: its pool index, -1 none */
 {
     uint8_t ix[NMODL];
@@ -1532,6 +1534,60 @@ static int mod_page_param(int tgt, int pg, int k)
     p = tp_page_param(pg, k, tgt);
     proj.trk_sel = keep;
     return p;
+}
+/* knob k of the page shown: its target (*tgt a track, MODT_MST the master) and parameter, -1 none (a list, a lock or
+ * step editor, a page of no sound) */
+static int knob_target(int k, int *tgt)
+{
+    int pg = ui.page, trk = sel_trk();
+    if (lst.open || ui.lockpg || ui.held || ui.trickpg || rec_settings() || k < 0 || k > 3)
+        return -1;
+    if (pg == P_MASTER || pg == P_MASTER2 || pg == P_MFILT || pg == P_MASTER3) {
+        *tgt = MODT_MST;
+        return mod_page_param(MODT_MST, pg, k);
+    }
+    if (pg == P_FX1 || pg == P_FX2)
+        trk = pg == P_FX1 ? AUX_FX1 : AUX_FX2;
+    *tgt = trk;
+    return tp_page_param(pg, k, trk);
+}
+/* the MOD VIEW of a knob a MOD lane holds (seq_mod_value): the value playing (its words, its bar), the knob's own a
+ * tick on the bar */
+static void kmod(knob_t *k, int tgt, int p)
+{
+    knob_t m;
+    const int v = seq_mod_value(&seq, tgt, p), own = k->num;
+    if (v < 0 || k->max <= 0 || !k->name)
+        return;
+    memset(&m, 0, sizeof m);
+    if (tgt == MODT_MST)
+        mod_knob_v(&m, tgt, p, v);
+    else
+        ktp_val(&m, tgt, p, v);
+    if (!m.name)
+        return;
+    memcpy(k->val, m.val, sizeof k->val);
+    k->num = m.num;
+    k->live = -1;
+    k->mod = 1 + clampi(own, 0, k->max);
+}
+/* a track's values (or the master's: trk MODT_MST, NMS of them) with MOD VIEW's: the values the MOD lanes play on it
+ * (the pictures': a filter's curve, a slot's picture at the value it sounds at) */
+static const uint8_t *mod_shown(int trk, const uint8_t *par, uint8_t *buf, int n)
+{
+    int any = 0;
+    if (!seq.mod_own || !mod_view())
+        return par;
+    for (int i = 0; i < seq.mod_n; i++) {
+        const int tg = seq.mod_tgt[i] >> 9, p = seq.mod_tgt[i] & 511, v = seq.lrt[seq.mod_lane[i] % NLANE].applied;
+        if (!(seq.mod_own >> i & 1u) || tg != trk || p >= n || v == LOCK_NONE)
+            continue;
+        if (!any)
+            memcpy(buf, par, (size_t)n);
+        any = 1;
+        buf[p] = (uint8_t)v;
+    }
+    return any ? buf : par;
 }
 static int mod_pages(int tgt, uint8_t *out)
 {
@@ -1952,13 +2008,17 @@ static void mod_knobs(knob_t *k)
         num_s((uint32_t)pt + 1u, s_cat(pn, "P"));
         kv(&k[0], "PATTERN", sm ? pn : "-", sm, NPATT);
     }
+    if (!sm)                                         /* (none: KNOB 1 alone) */
+        return;
     kn(&k[1], "LENGTH", mp->len, NSTEP);
     kname(&k[2], "SCALE", TS_NAME, mp->scale, NTS);
     if (l >= 0) {
         const lane_t *L = &pats.lane[l];
         const int tg = lane_mod_tgt(L);
         mod_knob_v(&k[3], tg, L->param, mod_val(tg, L->param));
-        if (tg != MODT_MST && k[3].max > 0) {        /* the MOD lane's value now: a dot on its bar */
+        if (mod_view())                              /* MOD VIEW: the value playing, the knob's own a tick */
+            kmod(&k[3], tg, L->param);
+        else if (tg != MODT_MST && k[3].max > 0) {   /* the MOD lane's value now: a dot on its bar */
             int lv = engine_live(tg, L->param);
             if (lv >= 0)
                 k[3].live = clampi(lv - mod_lo(tg, L->param), 0, k[3].max);
@@ -2182,6 +2242,12 @@ static void page_knobs(knob_t *k)
                 ktp(&k[i], trk, tp_page_param(p, i, trk));
         break;
     }
+    if (seq.mod_own && mod_view())                   /* MOD VIEW: a knob a MOD lane holds shows the value playing */
+        for (int i = 0, tg; i < 4; i++) {
+            int q = knob_target(i, &tg);
+            if (q >= 0)
+                kmod(&k[i], tg, q);
+        }
 }
 static int knobs_shown(void)
 {
@@ -2375,7 +2441,7 @@ static void page_tag(char *t)
     *t = 0;
     if (ui.page == P_MOD) {                          /* MOD>P2>S3>T2 cutoff (a step held: >step 5) */
         int l = mod_lane_now();
-        e = num_s((uint32_t)mod_pat_now() + 1u, s_cat(t, pats.scene_mod[cur_scene()] ? "MOD>P" : "MOD>none: P"));
+        e = mod_none() ? s_cat(t, "MOD>none") : num_s((uint32_t)mod_pat_now() + 1u, s_cat(t, "MOD>P"));
         e = num_s((uint32_t)cur_scene() + 1u, s_cat(e, ">S"));
         if (ui.held)
             e = num_s((uint32_t)step_shown(ui.held_first) + 1u, s_cat(e, ">step "));
@@ -2581,6 +2647,10 @@ static void page_footer(char *t)
             s_cat(t, "HOME back");
             return;
         }
+        if (k == LK_PICK && lst.row[lst.sel].id == A_MOD_LANE) {   /* (a MOD lane's row: its kind, or it picked) */
+            s_cat(t, "ALGO glide / step|SEL pick lane");
+            return;
+        }
         s_cat(t, k == LK_ACTION ? "SEL confirm|HOME back"                       /* (the menu's rules: an action, a */
                : k == LK_PICK && !pick_sets(lst.row[lst.sel].id) ? "ALGO pick|SEL confirm|HOME back"   /* choice, a */
                : "ALGO change|SEL back");                /* setting or a knob's row) */
@@ -2644,9 +2714,10 @@ static void page_footer(char *t)
         break;
     case P_MOD:
         s_cat(t, ui.mod_learn ? "turn the knob to learn, anywhere|SEL lanes"
+                 : mod_none() ? "KNOB 1 a MOD pattern for this scene"
                  : mod_lane_now() < 0 ? "SEL add a lane|LEARN: SEL, then turn a knob"
                  : ui.held ? "KNOB 4 the step's value|SEL clear it"
-                 : "WHITE tap: a value, again: none|hold: its value|OCT bar");
+                 : "WHITE a value|hold: set it|PRESET glide / step|OCT bar");
         break;
     case P_THROWS:
         s_cat(t, "KEYS throw: low drums, high melodic|REC held: record");
@@ -3271,29 +3342,38 @@ static void list_page_section(int p)              /* a page's knobs under its na
         lst.n = (uint8_t)n;
 }
 static int pick_amount(int v) { return v ? v : 1; }   /* SHIFT NOTES', ROTATE's amount (never 0) */
-/* the MOD page's list: its pattern's lanes (ALGORITHM: glide or step), the picked one's REMOVE and CLEAR; then a lane
- * added: its TRACK, PAGE and KNOB (ALGORITHM), ADD LANE, or LEARN (the next knob turned by hand) */
+/* the MOD page's list, in sections: "lanes" (each: its target, glide or step: ALGORITHM changes it, SEL picks the
+ * lane), "this lane: N, target" (REMOVE, CLEAR), "new lane" (TRACK, PAGE and KNOB: ALGORITHM; ADD LANE; LEARN: the
+ * next knob turned by hand). The scene's MOD pattern "-": a note */
 static const char *const MOD_ROW[NMODL] = {"LANE 1", "LANE 2", "LANE 3", "LANE 4", "LANE 5", "LANE 6", "LANE 7", "LANE 8"};
 static void list_mod(void)
 {
-    static char hd[12];
+    static char th[40];
     uint8_t ix[NMODL];
     char t[24];
     const int n = mod_lanes_now(ix), l = mod_lane_now();
     int pg, p;
-    num_s((uint32_t)mod_pat_now() + 1u, s_cat(hd, "lanes of P"));
-    list_head(hd);
+    list_head("lanes");
+    if (mod_none()) {
+        list_add("NO MOD PATTERN", "KNOB 1 picks one", LK_NOTE, 0);
+        return;
+    }
+    if (!n)
+        list_add("NO LANES YET", "add one below", LK_NOTE, 0);
     for (int i = 0; i < n; i++) {                    /* "T2 cutoff, glide" */
         mod_tgt_name(lane_mod_tgt(&pats.lane[ix[i]]), pats.lane[ix[i]].param, t);
         s_cat(s_cat(t + s_len(t), ", "), lane_glide(&pats.lane[ix[i]]) ? "glide" : "step");
         list_add(MOD_ROW[i], t, LK_PICK, A_MOD_LANE);
     }
-    if (l >= 0) {
-        mod_tgt_name(lane_mod_tgt(&pats.lane[l]), pats.lane[l].param, t);
-        list_add(ACTION_NAME[A_MOD_CLEAR], t, LK_ACTION, A_MOD_CLEAR);
-        list_add(ACTION_NAME[A_MOD_REMOVE], t, LK_ACTION, A_MOD_REMOVE);
+    if (l >= 0) {                                    /* "this lane: 2, T2 cutoff" (the heads' face has no middle dot) */
+        th[0] = 0;
+        mod_tgt_name(lane_mod_tgt(&pats.lane[l]), pats.lane[l].param,
+                     s_cat(num_s((uint32_t)ui.mod_lane % NMODL + 1u, s_cat(th, "this lane: ")), ", "));
+        list_head(th);
+        list_add(ACTION_NAME[A_MOD_REMOVE], 0, LK_ACTION, A_MOD_REMOVE);
+        list_add(ACTION_NAME[A_MOD_CLEAR], 0, LK_ACTION, A_MOD_CLEAR);
     }
-    list_head("add a lane");
+    list_head("new lane");
     {
         const int tg = mod_pick_tgt();
         list_add(ACTION_NAME[A_MOD_TRK], tg == MODT_MST ? "master" : TRACK_NAME[tg], LK_PICK, A_MOD_TRK);
@@ -3641,8 +3721,9 @@ static void list_build(void)
     }
     for (i = j = 0; i < lst.n; i++)
         j += lst.row[i].kind != LK_HEAD;
-    heads = j > LIST_SHOWN;                          /* the sections' names only where the list is longer than the
-                                                      * screen (and none with nothing under it) */
+    heads = j > LIST_SHOWN || keep == P_MOD;         /* the sections' names only where the list is longer than the
+                                                      * screen (and none with nothing under it); the MOD page's always
+                                                      * (its "this lane" names the lane picked) */
     for (i = j = 0; i < lst.n; i++)
         if (lst.row[i].kind != LK_HEAD || (heads && i + 1 < lst.n && lst.row[i + 1].kind != LK_HEAD))
             lst.row[j++] = lst.row[i];
@@ -3935,15 +4016,14 @@ static void draw_arrange(void)
     {                                                /* the MOD track: the scene's MOD pattern ("-" none), its step */
         const int32_t y = 2 + NSEQT * 10 + 4;
         const int muted = seq.mute >> MOD_BIT & 1u, m = pats.scene_mod[sc] % (NPATT + 1);
-        const int ml = m ? pats.mod[m - 1].len : 0, bw = 88 * ml / NSTEP;
+        const int ml = m ? pats.mod[m - 1].len : 0;
         text_r(22, y - 3, &FONT_XS, "MD", mod_sel() ? K_TEXT : muted ? K_FAINT : K_DIM);
-        if (m) {
+        if (m) {                                     /* (the whole pattern across the row, as a track's) */
             num_s((uint32_t)m, s_cat(t, "P"));
             text_c(37, y - 3, &FONT_XS, t, muted ? K_FAINT : theme->aux);
-            cv_rect(52, y + 3, 88, 2, K_PANEL2);
-            cv_rect(52, y + 3, bw, 2, muted ? K_LINE : K_DIM);
+            cv_rect(52, y + 3, 88, 2, muted ? K_LINE : K_DIM);
             if (playing() && !muted && seq.mod_pat == m - 1 && ml > 0)
-                cv_round(52 + (bw - 3) * (seq.mod_pos % ml) / (ml > 1 ? ml - 1 : 1), y + 1, 3, 6, 1, theme->aux);
+                cv_round(52 + 86 * (seq.mod_pos % ml) / (ml > 1 ? ml - 1 : 1), y + 1, 3, 6, 1, theme->aux);
         } else
             text_c(37, y - 3, &FONT_XS, "-", K_FAINT);
         if (muted)
@@ -6292,10 +6372,12 @@ static void draw_slot(int pg)
                                            "notches that sweep", "a lamp-swept phase", "two voices swaying apart",
                                            "the Juno's chorus", "a filter your playing opens", "repeats in time",
                                            "a low, dark tail, ducked", ""};   /* (the reverb: its type) */
-    uint8_t mp[NTP];
+    uint8_t mp[NTP], ms[NTP];
     int trk, q;
     const uint8_t *p = slot_vals(pg, mp, &trk, &q);
     const int mst = trk < 0, drum = !mst && is_drum(trk), send = !mst && is_fx(trk);
+    if (!mst)                                        /* (MOD VIEW: at the values the MOD lanes play) */
+        p = mod_shown(trk, p, ms, NTP);
     const int pe = TP_SLOT[q][SL_EF], ef = p[pe] < NEF ? p[pe] : EF_OFF;
     const float k0 = (float)p[TP_SLOT[q][SL_K1]] / 127.0f, k1 = (float)p[TP_SLOT[q][SL_K2]] / 127.0f;
     const float k2 = (float)p[TP_SLOT[q][SL_K3]] / 127.0f, mix = (float)p[TP_SLOT[q][SL_MIX]] / 127.0f;
@@ -6868,7 +6950,8 @@ static void draw_mix(void)
 static void draw_master(void)
 {
     int pg = ui.page == P_MASTER ? 0 : 2;
-    const uint8_t *m = proj.master;
+    uint8_t ms[NMS];
+    const uint8_t *m = mod_shown(MODT_MST, proj.master, ms, NMS);   /* (MOD VIEW: as the MOD lanes play them) */
     uint32_t h = hash_u(hash_u(2166136261u, 0x3Au), (uint32_t)pg);
     int32_t x0 = 16, y0 = 12, w = 208, hh = 84, cy = y0 + hh / 2;
     int pv = pg == 2 ? (int)(eng_pump_db * (float)(hh - 10) / 24.0f) : 0;   /* the pump's duck, now (pixels) */
@@ -6911,7 +6994,8 @@ static void draw_master(void)
 static void draw_mfilt(void)
 {
     static const char *const NM[3] = {"drums", "melodic", "mix"};
-    const uint8_t *m = proj.master;
+    uint8_t ms[NMS];
+    const uint8_t *m = mod_shown(MODT_MST, proj.master, ms, NMS);   /* (MOD VIEW: as the MOD lanes play them) */
     uint32_t h = hash_u(hash_u(2166136261u, 0x3Bu), (uint32_t)m[MS_DFILT] | (uint32_t)m[MS_MELF] << 8 |
                                                      (uint32_t)m[MS_MFILT] << 16 | (uint32_t)m[MS_FRES] << 24);
     const int32_t x0 = 16, w = 208, y0 = LARGE ? 2 : 10, gap = 4;
@@ -7250,26 +7334,59 @@ static void mod_curve(const lane_t *L, int len, int v0, int16_t *out)   /* each 
             out[s] = (int16_t)(lv + (L->val[q] - lv) * (s - last) / (q - last));
     }
 }
+/* the pattern's length in bars ("32 bars", "1 bar"), else beats ("3 beats"), else sixteenths */
+static void mod_len_text(int six, char *t)
+{
+    const char *u = six % 16 ? six % 4 ? " sixteenth" : " beat" : " bar";
+    const int n = six % 16 ? six % 4 ? six : six / 4 : six / 16;
+    s_cat(s_cat(num_s((uint32_t)n, t), u), n == 1 ? "" : "s");
+}
+/* the grid under a lane: lines at the bars (a bar a step or longer: every 4 bars), ticks at the beats (at the bars),
+ * each at the step nearest; ticks only where they are 2 steps apart or more (a bar a step: every step) */
+static void mod_grid(int len, int six, int32_t gx, int32_t gw, int32_t gy, int32_t gh)
+{
+    const int big = six >= 8;                        /* (a step half a bar or more: ticks the bars, lines every 4) */
+    const int lu = big ? 64 : 16, tu = big ? 16 : 4;  /* sixteenths a line, a tick */
+    for (int u = 1; u * tu < len * six; u++) {
+        const int st = (u * tu + six / 2) / six, line = !(u * tu % lu);
+        const int32_t x = gx + gw * st / len;
+        if (st <= 0 || st >= len)
+            continue;
+        if (line)
+            cv_rect(x, gy - 3, 1, gh + 6, K_FAINT);
+        else if (big || tu >= 2 * six)               /* (a beat's tick 2 steps apart at least; a bar's each) */
+            cv_rect(x, gy + gh + 1, 1, 3, K_DIM);
+    }
+}
 static void draw_mod(void)
 {
     uint8_t ix[NMODL];
     const int pt = mod_pat_now(), n = mod_lanes_now(ix), l = mod_lane_now();
     const modpat_t *mp = &pats.mod[pt];
     const int len = mp->len < 1 ? 1 : mp->len > NSTEP ? NSTEP : mp->len, pos = playing() && seq.mod_pat == pt ? seq.mod_pos : -1;
+    const int six = mod_scale_six(mp->scale);
     const lane_t *L = l >= 0 ? &pats.lane[l] : 0;
     const int tg = L ? lane_mod_tgt(L) : 0, v0 = L ? mod_val(tg, L->param) : 0;
-    const int32_t gx = 8, gw = 224, gy = LY(20, 18), fy = MAIN_H - F_CAP->h - 1, gh = fy - gy - 5;
+    const int32_t gx = 8, gw = 224, gy = LY(20, 18), fy = MAIN_H - F_CAP->h - 1, gh = fy - gy - 7;
     uint32_t h = hash_u(hash_u(2166136261u, 0x4Du), (uint32_t)pt | (uint32_t)(l + 1) << 4 | (uint32_t)len << 12 |
                                           (uint32_t)(pos + 1) << 20 | (uint32_t)ui.bar << 28);
     int16_t cv[NSTEP];
     char t[40];
     h = hash_u(h, (uint32_t)ui.held | (uint32_t)n << 16 | (uint32_t)v0 << 20 | (uint32_t)mp->scale << 28);
-    h = hash_u(h, (uint32_t)pats.scene_mod[cur_scene()] | (uint32_t)(L ? L->pat : 0) << 8 | (uint32_t)ui.mod_learn << 16);
+    h = hash_u(h, (uint32_t)pats.scene_mod[cur_scene()] | (uint32_t)(L ? L->pat : 0) << 8 | (uint32_t)ui.mod_learn << 16 |
+                      (uint32_t)ui.mod_lane << 24);
     for (int i = 0; L && i < NSTEP; i += 4)
         h = hash_u(h, (uint32_t)L->val[i] | (uint32_t)L->val[i + 1] << 8 | (uint32_t)L->val[i + 2] << 16 |
                           (uint32_t)L->val[i + 3] << 24);
     if (!begin_main(h))
         return;
+    if (mod_none()) {                                /* the scene plays none: what to do */
+        text_c(120, LY(34, 16), LY(&FONT_B, &LFONT_S), LARGE ? "No MOD pattern here" : "No MOD pattern in this scene", K_TEXT);
+        text_c(120, LY(58, 44), LY(&FONT_S, F_CAP), "Turn KNOB 1 to pick one", K_DIM);
+        text_c(120, LY(74, 60), LY(&FONT_S, F_CAP), "for this scene", K_DIM);
+        main_blit();
+        return;
+    }
     if (!L) {
         num_s((uint32_t)pt + 1u, s_cat(t, "No lanes on P"));
         text_c(120, LY(34, 16), &FONT_B, t, K_TEXT);
@@ -7279,23 +7396,24 @@ static void draw_mod(void)
         main_blit();
         return;
     }
-    {                                                /* its name, its kind, which of how many */
+    const uint16_t ink = tg < NTRK ? trk_ink(tg) : K_TEXT;   /* (a track's colour; the master, FX I and II white) */
+    {                                                /* its name, which lane of how many; glide or step, the length */
         char *e;
         mod_tgt_name(tg, L->param, t);
-        cv_text(gx, 0, LY(&FONT_S, &LFONT_S), t, K_TEXT);
-        e = num_s((uint32_t)ui.mod_lane % NMODL + 1u, s_cat(t, lane_glide(L) ? "glide " : "step "));
-        num_s((uint32_t)n, s_cat(e, "/"));
+        cv_text(gx, 0, LY(&FONT_S, &LFONT_S), t, ink);
+        e = num_s((uint32_t)ui.mod_lane % NMODL + 1u, t);
+        e = s_cat(num_s((uint32_t)n, s_cat(e, "/")), lane_glide(L) ? " glide, " : " step, ");
+        mod_len_text(len * six, e);
         text_r(gx + gw, LY(2, 0), F_CAP, t, K_DIM);
     }
-    cv_round(gx - 3, gy - 3, gw + 6, gh + 6, 4, K_PANEL);
-    {                                                /* the keys' 16 steps */
+    mod_grid(len, six, gx, gw, gy, gh);
+    if (len > 16) {                                  /* the keys' 16 steps: a bar under the curve */
         int b0 = ui.bar * 16 < len ? ui.bar * 16 : 0, b1 = b0 + 16 < len ? b0 + 16 : len;
-        cv_rect(gx + gw * b0 / len, gy - 3, gw * b1 / len - gw * b0 / len, gh + 6, K_PANEL2);
+        cv_rect(gx + gw * b0 / len, gy + gh + 5, gw * b1 / len - gw * b0 / len, 2, K_DIM);
     }
     mod_curve(L, len, v0, cv);
     {
         const int lo = mod_lo(tg, L->param), hi = mod_hi(tg, L->param), span = hi > lo ? hi - lo : 1;
-        const uint16_t ink = trk_ink(tg < NTRK ? tg : AUX_BRAIN);
         float px = -1.0f, py = 0.0f;
         for (int s = 0; s < len; s++) {
             const float x = (float)gx + ((float)s + 0.5f) * (float)gw / (float)len;
@@ -7321,7 +7439,7 @@ static void draw_mod(void)
         for (int s = 0; s < len; s++) {              /* the values: dots; the held step outlined */
             const int32_t x0 = gx + gw * s / len, x1 = gx + gw * (s + 1) / len;
             if (s / 16 == ui.bar && (ui.held >> (s % 16) & 1u))
-                cv_frame(x0, gy - 3, x1 - x0 > 3 ? x1 - x0 : 3, gh + 6, 1, K_SEL, K_PANEL2);
+                cv_frame(x0, gy - 3, x1 - x0 > 3 ? x1 - x0 : 3, gh + 6, 1, K_SEL, K_BG);
             if (L->val[s] != LOCK_NONE)
                 cv_dotf((float)gx + ((float)s + 0.5f) * (float)gw / (float)len,
                         (float)(gy + gh) - (float)(clampi(L->val[s], lo, hi) - lo) * (float)gh / (float)span,

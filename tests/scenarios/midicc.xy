@@ -396,7 +396,7 @@ projnew
 tap GLO
 turn SELECT 4
 expect page Master_FX
-turn PRESET -2
+turn PRESET 17
 wait 20
 expect mst.color 17
 out

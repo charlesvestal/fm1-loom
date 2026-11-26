@@ -13,11 +13,15 @@ spin ALGO 1
 expect trk 2
 tap FX
 expect page Insert_1
-# PRESETS from off, down the catalog: the reverb (its plate, 12), rumble (2), then past the delay to autowah
+# PRESETS stops at the catalog's ends (no wrapping round): from off, down, it stays off; from the reverb (the last,
+# its plate, 12), up, it stays; down the catalog: rumble (2), then past the delay to autowah
 turn PRESET -1
-expect par2.ctype 18
+expect par2.ctype 0
+param 2 ctype 18
 wait 50
 expect room2.1 1
+turn PRESET 1
+expect par2.ctype 18
 turn PRESET -1
 expect par2.ctype 17
 wait 50

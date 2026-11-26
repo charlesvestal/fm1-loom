@@ -1,9 +1,11 @@
 # the MOD track (docs/superpowers/specs/2026-11-26-mod-track-design.md): ALGORITHM past WEAVE reaches it, SEQ (or
 # EDIT) its Lanes page. A lane added from SEL's pickers (T2, Filter, cutoff) and one learned from a knob turned
 # elsewhere (the master filter's mix); values tapped on (the target's now) and set with a step held and KNOB 4; glide
-# or step on SEL's lane row; ALGORITHM through the lanes, then on to the tracks; REC held while playing writes the
-# knob's moves; a scene with none ("-") lets the values stay; Arrange's KNOB 4 (the scene's MOD pattern) and black
-# key 11 (its mute); the reader's words; saved and loaded
+# or step on SEL's lane row (the lane picked stays: SEL on a row picks it) and by PRESETS on the page; the list in
+# sections (lanes, this lane, new lane); a scene with none ("-"): the page and the list say so, KNOB 1 picks one;
+# ALGORITHM through the lanes, then on to the tracks; the knob a lane holds shows the value playing (MOD VIEW) and takes
+# over from it; REC held while playing writes the knob's moves; Arrange's KNOB 4 (the scene's MOD pattern) and black
+# key 11 (its mute); the grid by the scale; the reader's words; saved and loaded
 wait 300
 preset 2 acid_line acid
 pat 2 1 16 1 60 0
@@ -16,12 +18,25 @@ wait 600
 expect trk 14
 expect page Lanes
 said Lanes
-shot mod_empty.png
-# a new project's MOD track: P1 shown, no scene playing one ("-")
+# a new project's scene plays no MOD pattern ("-"): the page says so (not another pattern's lanes), KNOB 1 picks one
 expect smod1 0
-# SEL: ADD LANE from the pickers
+expect modsel 0
+shot mod_none.png
 tap SEL
 wait 100
+rowval NO MOD PATTERN = KNOB 1 picks one
+norow ADD LANE
+shot mod_none_list.png
+tap HOME
+wait 100
+spin K1 1
+expect smod1 1
+wait 100
+shot mod_empty.png
+# SEL: ADD LANE from the pickers (the "new lane" section)
+tap SEL
+wait 100
+rowval NO LANES YET = add one below
 row TRACK
 spin ALGO 1
 expect rowval TRACK T2
@@ -53,8 +68,7 @@ tapkey w4
 expect modval 1 2 cut 5 40
 tapkey w4
 expect modval 1 2 cut 5 255
-# KNOB 1: the scene plays P1; KNOB 2 the length (16), KNOB 3 a step a beat
-spin K1 1
+# KNOB 1: the scene plays P1 (above); KNOB 2 the length (16), KNOB 3 a step a beat
 expect smod1 1
 turn K3 3
 wait 400
@@ -68,10 +82,14 @@ expect live2.cut >66
 expect live2.cut <71
 wait 200
 shot mod_playing.png
-# the hand: KNOB 4 (cutoff's own knob) takes it back until the next value
+# MOD VIEW: KNOB 4 shows the value playing, the knob's own (40) a tick
+expect knobnum4 >66
+expect knobtick4 41
+# the hand: KNOB 4 (cutoff's own knob) takes it back until the next value, from the value playing (~70, not 40)
 spin K4 -10
 wait 50
-expect par2.cut 30
+expect par2.cut >55
+expect par2.cut <63
 expect live2.cut -1
 bars 1
 expect live2.cut -1
@@ -92,15 +110,40 @@ wait 100
 expect page Lanes
 expect modlanes 1 2
 expect modglide 1 2 1
-# glide or step: the learned lane's row on SEL, ALGORITHM left: step
+# the list in sections: lanes, this lane (the learned one, picked), new lane
 tap SEL
 wait 100
 expect rowval LANE_2 master_mix,_glide
+rowval lanes = 
+rowval this lane: 2, master mix = 
+rowval new lane = 
 shot mod_lanes.png
+# SEL on lane 1's row picks it (the list stays, its section renamed); glide or step on lane 2's row (ALGORITHM left:
+# step) leaves lane 1 picked: REMOVE and CLEAR act on lane 1
+row LANE 1
+tap SEL
+wait 100
+expect listopen 1
+expect modsel 1
+rowval this lane: 1, T2 cutoff = 
 row LANE 2
 spin ALGO -1
 expect modglide 1 2 0
+expect modsel 1
+rowval this lane: 1, T2 cutoff = 
+shot mod_sections.png
+row LANE 2
+tap SEL
+wait 100
+expect modsel 2
 tap HOME
+wait 100
+# PRESETS on the page: the lane picked glide, step again
+turn PRESET 1
+expect modglide 1 2 1
+said GLIDE master mix
+turn PRESET 1
+expect modglide 1 2 0
 wait 100
 # ALGORITHM: lane 1 back, then past it to WEAVE (the tracks), and back to the MOD track
 spin ALGO -1
@@ -152,5 +195,5 @@ wait 400
 expect smod1 1
 expect smod2 0
 expect modlanes 1 2
-expect modval 1 2 cut 1 40
+expect modval 1 2 cut 9 100
 expect modval 1 mst mfilt 1 255

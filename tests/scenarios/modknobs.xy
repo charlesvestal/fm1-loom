@@ -1,0 +1,104 @@
+# the knobs a MOD lane holds (docs/superpowers/specs/2026-11-26-mod-track-design.md; the user's tries on the FM-1,
+# 2026-11-26): with MOD VIEW on they show the value playing, moving with the glide, the knob's own a tick on the bar
+# (the Master filter page's knob and its curve, T2's Filter page); turned by hand, the knob takes over from the value
+# playing (not from its own: it jumped); the hand's value is what MOD gives back when it lets go ("-", the mute)
+wait 300
+preset 2 acid_line acid
+pat 2 1 16 1 60 0
+notes 2 1 1 0.5 100 A1
+knob 2 cut 40
+# P1: 16 steps a beat each; the drums' filter from 60 (LP 15 kHz) down to 20 over 8 beats, T2's cutoff 40 to 100
+modpat 1 16 4
+modlane 1 mst dfilt glide
+modval 1 mst dfilt 1 60 9 20
+modlane 1 2 cut glide
+modval 1 2 cut 1 40 9 100
+scenemod 1 1
+expect mst.dfilt 64
+tap PLAY
+bars 0.5
+expect modpat 1
+expect mlive.dfilt <53
+expect mlive.dfilt >47
+# Master filter (GLO, SELECT 5 from Mix): KNOB 1 the drums' filter as it plays, its own (64, off) a tick
+tap GLO
+turn SELECT 5
+expect page Master_filter
+expect knobnum1 <53
+expect knobtick1 65
+wait 100
+shot modknob_mfilt.png
+# T2's Filter page: the cutoff playing (~70), its own (40) a tick
+track 2
+expect trk 2
+tap ENV
+turn SELECT 1
+expect page Filter
+expect knobnum1 >60
+expect knobtick1 41
+wait 100
+shot modknob_filter.png
+# MOD VIEW off (Setup): the knob's own again (the value playing a dot, as a lock's), no tick
+tap GLO
+turn SELECT 3
+expect page Setup
+tap SEL
+row MOD VIEW
+turn ALGO -1
+wait 50
+tap HOME
+wait 50
+tap ENV
+turn SELECT 1
+expect page Filter
+expect knobnum1 40
+expect knobtick1 0
+tap GLO
+tap SEL
+row MOD VIEW
+turn ALGO 1
+wait 50
+tap HOME
+wait 50
+expect modview 1
+# the hand on the Master filter page: KNOB 1 from the value playing, not from its own (64, off)
+turn SELECT -3
+expect page Master_filter
+spin K1 -2
+wait 50
+expect mst.dfilt <36
+expect mst.dfilt >20
+expect mlive.dfilt -1
+# T2's cutoff on its Filter page: the same
+tap ENV
+turn SELECT 1
+expect page Filter
+spin K1 3
+wait 50
+expect par2.cut >70
+# the MOD track muted (Arrange, black key 11): the knobs' values back (the hands' here), not frozen
+tap HOME
+wait 50
+tapkey b10
+wait 100
+expect mute 1024
+expect live2.cut -1
+expect mlive.dfilt -1
+expect par2.cut >70
+bars 1
+expect live2.cut -1
+tapkey b10
+wait 100
+expect mute 0
+# back on: the lanes take their targets at their next values (bar 4: step 1 again); then "-": the knobs' again
+bars 3
+expect mlive.dfilt >30
+expect live2.cut >30
+scenemod 1 -
+bars 1.1
+expect smod1 0
+expect modpat 0
+expect live2.cut -1
+expect mlive.dfilt -1
+expect par2.cut >70
+expect mst.dfilt <36

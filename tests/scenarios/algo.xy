@@ -25,3 +25,17 @@ expect trk 8
 tap GLO
 turn ALGO 3
 expect trk 1
+# Arrange: its rows (T1-T8, COND, THROW, MD): ALGORITHM passes WEAVE, which has no row there
+tap HOME
+expect page Arrange
+track 1
+expect trk 1
+turn ALGO -1
+expect trk 14
+expect page Arrange
+turn ALGO -1
+expect trk 10
+turn ALGO 1
+expect trk 14
+turn ALGO 1
+expect trk 1

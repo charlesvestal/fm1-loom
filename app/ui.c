@@ -1358,6 +1358,8 @@ static void track_step(int e)
             n--;
     }
     i = ((i + d * n) % N + N) % N;
+    if (L[i] == AUX_WEAVE && ui.page == P_ARRANGE)   /* (Arrange has no WEAVE row: past it) */
+        i = ((i + d) % N + N) % N;
     if (L[i] == AUX_MOD)
         ui.mod_lane = (uint8_t)(d > 0 ? 0 : NMODL - 1);   /* (its first lane from below, its last from above) */
     track_select(L[i]);
@@ -2367,19 +2369,19 @@ static void rv_defaults(int pg, int md)
         slot_put(pg, J[i], d[i]);
 }
 /* another effect in a slot (its list: ef; PRESETS: d, the next of the catalog that finds its memory there, slot_fits;
- * off needs none): its knobs and extras at the effect's defaults, its mix kept (a track's or the master's at 0: at its
- * default, so it is heard) */
+ * off needs none; the catalog's first and last stop it, no wrapping round): its knobs and extras at the effect's
+ * defaults, its mix kept (a track's or the master's at 0: at its default, so it is heard) */
 static void slot_effect(int pg, int ef, int d)
 {
     uint8_t mp[NTP];
     int trk, q;
     const uint8_t *par = slot_vals(pg, mp, &trk, &q);
     const uint8_t was = cc_hand;
-    for (int i = 0; d && i < NEF; i++) {
-        ef = (i ? ef : par[TP_SLOT[q][SL_EF]]) + d;
-        ef = (ef + NEF) % NEF;
-        if (slot_fits(pg, ef, EFX[ef].xdef[0]))
-            break;
+    if (d) {
+        for (ef = par[TP_SLOT[q][SL_EF]] + d; ef >= 0 && ef < NEF && !slot_fits(pg, ef, EFX[ef].xdef[0]); ef += d)
+            ;
+        if (ef < 0 || ef >= NEF)                 /* (past the first or the last: it stays) */
+            return;
     }
     if (ef == par[TP_SLOT[q][SL_EF]])            /* (the one in use: as it is) */
         return;
@@ -2460,6 +2462,28 @@ static void aux_knob(int trk, int k, int32_t e)
     set_tp(trk, p, clampi(par[p] + e, 0, hi));
 }
 /* ---------------------------------------------------------- the MOD track --- */
+static int mod_row_lane(void)                    /* the SEL list's row picked: which of the pattern's lanes */
+{
+    int i = 0;
+    for (int r = 0; r < lst.sel; r++)
+        i += lst.row[r].id == A_MOD_LANE && lst.row[r].kind == LK_PICK;
+    return i;
+}
+static void mod_edited(void)                     /* a lane's values or kind, the pattern's length or scale changed */
+{
+    seq.mod_edit = 1;                            /* (the engine plans the lanes again from where they are) */
+    mark_dirty();
+}
+static void mod_set_glide(int l, int glide)      /* lane l (a pool index): glide or step */
+{
+    char t[24];
+    if (lane_glide(&pats.lane[l]) == (glide != 0))
+        return;
+    pats.lane[l].pat = (uint8_t)((pats.lane[l].pat & ~LANE_GLIDE) | (glide ? LANE_GLIDE : 0u));
+    mod_tgt_name(lane_mod_tgt(&pats.lane[l]), pats.lane[l].param, t);
+    say(glide ? "GLIDE" : "STEP", t);
+    mod_edited();
+}
 /* a lane's target set by hand (KNOB 4 on its page): the knob's own value (its CC, its undo), the MOD lane letting go
  * until its next value (the engine's seq_mod_hand); REC held while playing: written on the step playing */
 static void mod_knob(int k, int32_t e)
@@ -2482,9 +2506,11 @@ static void mod_knob(int k, int32_t e)
                 L->val[st] = (uint8_t)clampi(v + (hi < 16 ? (e > 0 ? 1 : -1) : (int)e), lo, hi);
             }
         ui.held_used = 1;
-        mark_dirty();
+        mod_edited();
         return;
     }
+    if (mod_none() && k)                         /* (the scene plays none: KNOB 1 picks one) */
+        return;
     switch (k) {
     case 0: {                                    /* the scene's MOD pattern: none ("-"), P1..P8 (in at the bar) */
         int m = clampi(pats.scene_mod[cur_scene()] + (e > 0 ? 1 : -1), 0, NPATT);
@@ -2501,9 +2527,11 @@ static void mod_knob(int k, int32_t e)
         mp->len = (uint8_t)clampi(mp->len + e, 1, NSTEP);
         if (ui.bar * 16 >= mp->len)
             ui.bar = (uint8_t)((mp->len - 1) / 16);
+        seq.mod_edit = 1;
         break;
     case 2:
         mp->scale = (uint8_t)clampi(mp->scale + (e > 0 ? 1 : -1), TS_1, NTS - 1);
+        seq.mod_edit = 1;
         break;
     default: {                                   /* the target's own knob */
         lane_t *L;
@@ -2514,14 +2542,16 @@ static void mod_knob(int k, int32_t e)
         tg = lane_mod_tgt(L);
         p = L->param;
         hi = mod_hi(tg, p);
-        n = clampi(mod_val(tg, p) + (hi < 16 ? (e > 0 ? 1 : -1) : (int)e), mod_lo(tg, p), hi);
+        n = seq_mod_value(&seq, tg, p);          /* (from the value playing: the knob takes over from there) */
+        n = clampi((n >= 0 ? n : mod_val(tg, p)) + (hi < 16 ? (e > 0 ? 1 : -1) : (int)e), mod_lo(tg, p), hi);
         if (tg == MODT_MST)
             master_to(p, n);
         else
             set_tp(tg, p, n);
-        if (seq.rec && playing() && seq.mod_pat == pt && seq.mod_pos < NSTEP)   /* REC: written as it turns */
+        if (seq.rec && playing() && seq.mod_pat == pt && seq.mod_pos < NSTEP) {   /* REC: written as it turns */
             L->val[seq.mod_pos] = (uint8_t)n;
-        else
+            seq.mod_edit = 1;
+        } else
             return;
         break;
     }
@@ -2553,7 +2583,7 @@ static void mod_step_tap(int w)
         s_cat(s_cat(s_cat(t, kv0.name ? kv0.name : ""), " "), kv0.val);
         say(a, t);
     }
-    mark_dirty();
+    mod_edited();
 }
 static void mod_clear_held(void)                 /* SEL with steps held: their values gone */
 {
@@ -2564,7 +2594,7 @@ static void mod_clear_held(void)                 /* SEL with steps held: their v
         if (ui.held >> i & 1u)
             pats.lane[l].val[step_shown(i) % NSTEP] = LOCK_NONE;
     ui.held_used = 1;
-    mark_dirty();
+    mod_edited();
     say("CLEARED", "the steps' values");
 }
 static void mod_select_lane(int l)               /* lane l (a pool index) the one picked */
@@ -2768,6 +2798,14 @@ static void knob_do(int k, int32_t e)
 static void knob(int k, int32_t e)               /* a knob turned by hand: what it changes goes out as its CC */
 {
     uint8_t was = cc_hand;
+    int tg, p = seq.mod_own && !home_held() && !(ui.btn >> B_SEL & 1u) ? knob_target(k, &tg) : -1, v;
+    if (p >= 0 && (v = seq_mod_value(&seq, tg, p)) >= 0) {   /* a MOD lane holds it: the knob takes over from the
+                                                  * value playing (its own value, turned, what MOD gives back to) */
+        if (tg == MODT_MST)
+            proj.master[p % NMS] = (uint8_t)v;
+        else
+            proj.trk[tg % NALLTRK].par[p % NTP] = (uint8_t)v;
+    }
     cc_hand = 1;
     knob_do(k, e);
     cc_hand = was;
@@ -2828,6 +2866,14 @@ static void presets(int32_t e)
         break;
     case P_THROWS: case P_WEAVE:
         break;
+    case P_MOD: {                                /* the lane picked: glide or step, in turn */
+        const int l = mod_lane_now();
+        if (l < 0)
+            say_no("NO LANE", mod_none() ? "KNOB 1 picks a pattern" : "SEL to add one");
+        else
+            mod_set_glide(l, !lane_glide(&pats.lane[l]));
+        break;
+    }
     default:
         if (is_fx(trk))
             slot_effect(fx_pg(trk), 0, d);
@@ -2986,16 +3032,12 @@ static void list_change_do(int32_t e)
             break;
         }
         case A_PASTE: ui.pick_paste = (uint8_t)(d > 0); break;
-        case A_MOD_LANE: {                       /* a lane's row: glide (right) or step (left); it is the one picked */
+        case A_MOD_LANE: {                       /* a lane's row: glide (right) or step (left); the lane picked
+                                                  * stays (SEL on the row picks it) */
             uint8_t ix[NMODL];
-            int i = 0, n = mod_lanes_now(ix);
-            for (int r = 0; r < lst.sel; r++)
-                i += lst.row[r].id == A_MOD_LANE && lst.row[r].kind == LK_PICK;
-            if (i < n) {
-                pats.lane[ix[i]].pat = (uint8_t)((pats.lane[ix[i]].pat & ~LANE_GLIDE) | (d > 0 ? LANE_GLIDE : 0u));
-                ui.mod_lane = (uint8_t)i;
-                mark_dirty();
-            }
+            int i = mod_row_lane(), n = mod_lanes_now(ix);
+            if (i < n)
+                mod_set_glide(ix[i], d > 0);
             break;
         }
         case A_MOD_TRK: case A_MOD_PG: {          /* another track (its first page), another page: its first knob a
@@ -4094,9 +4136,21 @@ static void action_run(int a)
                 ui.mod_lane--;
         } else
             memset(pats.lane[l].val, LOCK_NONE, NSTEP);
-        mark_dirty();
+        mod_edited();
         say(a == A_MOD_REMOVE ? "REMOVED" : "CLEARED", t);
         break;
+    }
+    case A_MOD_LANE: {                           /* SEL on a lane's row: that lane picked (its REMOVE and CLEAR) */
+        uint8_t ix[NMODL];
+        char t[24], w[8];
+        const int i = mod_row_lane(), n = mod_lanes_now(ix);
+        if (i >= n)
+            break;
+        ui.mod_lane = (uint8_t)i;
+        mod_tgt_name(lane_mod_tgt(&pats.lane[ix[i]]), pats.lane[ix[i]].param, t);
+        num_s((uint32_t)i + 1u, s_cat(w, "LANE "));
+        say(w, t);
+        return;                                  /* (the list stays: this lane's actions under its name) */
     }
     case A_MOD_ADD: {
         int pg, p = mod_pick_param(&pg);
@@ -4860,7 +4914,7 @@ static void sp_main(void)
         char t[24];
         int n = 0;
         if (l < 0) {
-            sp_cat("no lanes");
+            sp_cat(mod_none() ? "no MOD pattern in this scene, knob 1 picks one" : "no lanes");
             return;
         }
         mod_tgt_name(lane_mod_tgt(&pats.lane[l]), pats.lane[l].param, t);

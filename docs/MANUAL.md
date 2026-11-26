@@ -154,8 +154,8 @@ Count the white keys 1 to 16 from the left, and the black keys 1 to 11. "Hold **
 | give a step a chance | Hold the step and turn **KNOB 3**. Past 99 %, the A:B cycles come next. <!-- hint: turn KNOB 3; white 5 --> |
 | give one drum sound a chance or a trick | On a drum track, each sound on a step has its own chance and tricks. Hold the step, turn **PRESETS** to the sound (the header names it), then turn **KNOB 3** or press **ARP**. The step's other sounds keep theirs. <!-- hint: turn PRESETS, KNOB 3; white 5 --> |
 | lock a knob on a step | Hold the step, press **EDIT**, **ENV**, **FX** or **LFO**, and turn a knob. To clear a lock, hold **SEL** and turn that knob. The step's **SEL** list also has CLEAR LOCKS. <!-- hint: press EDIT; turn KNOB 1; white 5 --> |
-| open a filter over 32 bars | Turn **ALGORITHM** to MOD and press **SEQ**. Press **SEL**, pick the track, page and knob (T2, Filter, cutoff) and ADD LANE. Turn **KNOB 3** to 16 (a bar a step) and **KNOB 2** to 32. Tap step 1, then hold step 29 (**OCT+** for its bar) and turn **KNOB 4** up. Turn **KNOB 1** to P1 so the scene plays it. See [The MOD track](#the-mod-track). <!-- hint: turn ALGORITHM, KNOB 4; press SEQ, SEL; white 1 --> |
-| move a knob on the MOD track by turning it | On the MOD track's Lanes page, press **SEL** and pick LEARN. Then turn the knob you mean, on any page: it becomes a new lane, and the Lanes page comes back. |
+| open a filter over 32 bars | Turn **ALGORITHM** to MOD and press **SEQ**. Turn **KNOB 1** to P1 so the scene plays it. Press **SEL**, pick the track, page and knob (T2, Filter, cutoff) and ADD LANE. Turn **KNOB 3** to 16 (a bar a step) and **KNOB 2** to 32. Tap step 1, then hold step 29 (**OCT+** for its bar) and turn **KNOB 4** up. See [The MOD track](#the-mod-track). <!-- hint: turn ALGORITHM, KNOB 4; press SEQ, SEL; white 1 --> |
+| move a knob on the MOD track by turning it | On the MOD track's Lanes page (with a MOD pattern picked on **KNOB 1**), press **SEL** and pick LEARN. Then turn the knob you mean, on any page: it becomes a new lane, and the Lanes page comes back. |
 | clear a knob's automation | Hold **SEL** and turn the knob. This clears its motion and locks in the pattern (or, with steps held, only theirs). <!-- hint: hold SEL; turn KNOB 1 --> |
 | see the next bar | Press **OCT+** on Steps. (While **SEQ** is held, **PRESETS** sets the track's sound, so you can try notes before you write them; the keys play at the octave **OCT** set on the sound pages.) <!-- hint: press OCT+ --> |
 | move a whole pattern an octave | On Steps, hold **SEQ** and press **OCT−** or **OCT+**. Hold **HOME** and press **REC** to undo it. <!-- hint: hold SEQ; press OCT+ --> |
@@ -221,7 +221,7 @@ Count the white keys 1 to 16 from the left, and the black keys 1 to 11. "Hold **
 | **OCT−** / **OCT+** | Move the keys an octave. On Steps, they show the bar before or after (with **SEQ** held, they move the pattern an octave), and with a step held, they nudge it. In step record, they move the cursor. On Arrange and Song, they put scenes 1 to 16 or 17 to 32 on the white keys. |
 | **SELECT** | Turns to a button's next page. In a list, it moves up and down. |
 | **ALGORITHM** | Picks the track. On the MOD track's Lanes page, it picks the lane first. In a list, it changes the row's value. |
-| **PRESETS** | Steps to the next item of whatever the page shows: a preset, a drum key, an effect, a pattern, a drum sound, a scene. |
+| **PRESETS** | Steps to the next item of whatever the page shows: a preset, a drum key, an effect (it stops at the list's first and last), a pattern, a drum sound, a scene. On the MOD track's Lanes page, it switches the lane between glide and step. |
 | **KNOB 1–4** | Set the four values at the bottom of the screen. Hold **HOME** and turn one to put it back to its default (see below). |
 
 Hold any button for a second, and a card explains it. The two lines at the bottom of the screen always say
@@ -1456,8 +1456,9 @@ plays four.
   lengths, so a 64-step pattern takes four bars.
 - **KNOB 4** sets whether the song loops or stops at the end.
 
-The song follows the scenes, and so does the MOD track: each slot starts its scene's MOD pattern from step 1, so a
-sweep can span a slot of 32 bars and start again in the next.
+The song follows the scenes, and so does the MOD track: a slot whose scene plays another MOD pattern starts it from
+step 1, and a slot with the same MOD pattern carries it on, so a sweep can span a slot of 32 bars and go on through
+the next.
 
 Press **PLAY** on the Song page to play the song from the selected slot. To play it from the top, pick PLAY SONG in
 the **SEL** list. As the song plays, a bar along the bottom of the playing slot fills up over its bars. The **SEL**
@@ -1537,13 +1538,19 @@ on the steps you choose. Lanes live in the project, so a loop can change slowly 
 Turn **ALGORITHM** to MOD and press **SEQ** (or **EDIT**) for its page, Lanes. It has eight patterns, like any
 track. Each pattern has up to eight lanes, its length (1 to 64 steps, **KNOB 2**) and its scale (**KNOB 3**: a step
 is a sixteenth, an eighth, a beat ... up to a bar). At a bar a step, 64 steps last 64 bars. **KNOB 1** picks the MOD
-pattern the scene plays, or none ("-"). A new scene starts with none, so a lane plays only where you put it. The
-page shows the lane you picked as a line over the pattern's steps, with its values as dots and the playhead.
-**ALGORITHM** picks the lane. Turn it past the last lane (or the first) to go on to the next track.
+pattern the scene plays, or none ("-"). A new scene starts with none, so a lane plays only where you put it. With
+none, the page says so: turn **KNOB 1** to pick a pattern for the scene, and its lanes appear. The page shows the
+lane you picked as a line in its knob's colour (a track's colour; the master, FX I and FX II in white) over the
+pattern's steps, with its values as dots and the playhead. Under it, the grid follows the scale: at a sixteenth a
+step, a tick on each beat and a line on each bar; at a beat a step, a line on each bar; at a bar a step, a tick on
+each bar and a line every four bars. The top right says which lane it is, glide or step, and the pattern's length
+("1/2 glide, 32 bars"). **ALGORITHM** picks the lane. Turn it past the last lane (or the first) to go on to the next
+track.
 
-<img src="img/screen-mod.png" width="240" alt="The MOD track's Lanes page: T2 cutoff, a glide from step 1 to step 9 then held, the playhead at step 4; KNOB 1 P1, KNOB 2 16 steps, KNOB 3 4 (a beat a step), KNOB 4 cutoff 320 Hz" title="A lane">
+<img src="img/screen-mod.png" width="240" alt="The MOD track's Lanes page: T2 cutoff in T2's colour, a glide from step 1 to step 9 then held, a line on each bar, the playhead at step 4, 1/1 glide, 4 bars; KNOB 1 P1, KNOB 2 16 steps, KNOB 3 4 (a beat a step), KNOB 4 cutoff 680 Hz as it plays, a tick where the knob is" title="A lane">
 
-**Add a lane.** Press **SEL**. Under "add a lane", pick the TRACK (T1 to T8, FX I, FX II or master), the PAGE and
+**Add a lane.** Press **SEL**. Its list has three parts: "lanes" (each lane, with its knob and glide or step),
+"this lane" (the lane you picked, named: REMOVE LANE and CLEAR LANE) and "new lane". Under "new lane", pick the TRACK (T1 to T8, FX I, FX II or master), the PAGE and
 the KNOB with **ALGORITHM**, as you would find the knob on its own page, then pick ADD LANE. Or pick LEARN and turn
 the knob you mean, on any page: it becomes the lane, and the Lanes page comes back. A lane can move any knob of a
 sound (a kit's keys too), FX I and FX II, and the master's: EQ, Master FX, the master filter and Master out. Knobs
@@ -1554,22 +1561,34 @@ lit when the lane has a value there. Tap a step to put the knob's value now on i
 Hold a step and turn **KNOB 4** to set its value; the knob reads in its own units, as on its page. With steps held,
 **SEL** takes their values off. Without a step held, **KNOB 4** is the knob itself.
 
-**Glide or step.** In the **SEL** list, each lane has its row: turn **ALGORITHM** right for glide, left for step. A
-glide moves from each value to the next one over the steps between. A step lane jumps at each value. After the last
-value, the knob stays there until the pattern comes round. Before the first value, a step lane leaves the knob
-alone, and a glide moves there from wherever the knob is. The list also has CLEAR LANE (its values) and REMOVE LANE.
+**Glide or step.** On the Lanes page, turn **PRESETS** to switch the lane between glide and step. In the **SEL**
+list, each lane has its row too: turn **ALGORITHM** right for glide, left for step. That doesn't change which lane is
+picked; press **SEL** on a lane's row to pick it (its name moves to "this lane"). A glide moves from each value to the
+next one over the steps between. A step lane jumps at each value. After the last value, the knob stays there until
+the pattern comes round. Before the first value, a step lane leaves the knob alone, and a glide moves there from
+wherever the knob is. Change a value while the lane plays and it follows at once: the glide goes from where the knob
+is now to the new next value.
 
 **Record it.** While it plays, hold **REC** on Lanes and turn **KNOB 4**: the knob's moves are written on the steps
 as they play.
 
-**Who wins.** A knob you turn by hand wins: it takes the knob back until the lane's next value. Next comes the lane,
-from its first value on. While a lane holds a knob, the pattern's own locks and motion on that knob wait. They aren't
-changed, and they play again when the MOD track lets go. Last comes the knob's own value.
+**What you see.** While a lane holds a knob, the knob shows the value playing, moving with the glide, wherever it is
+drawn (the knob's page, the Master filter's curves, an effect's picture, Mix), with a thin tick on its bar where the
+knob itself is set. This is part of MOD VIEW: with MOD VIEW off, the knob shows its own value and the value playing is
+a red dot, as a lock's.
 
-**Scenes, the song and the mute.** When a scene starts (or a song slot), its MOD pattern starts from step 1. A knob
-the new pattern doesn't move stays where the last one left it. A scene with none ("-") leaves every knob where it
-is, and so does the mute: black key 11 on Arrange, which freezes the lanes where they are. When you stop, every knob
-goes back to its own value, as the locks do. The MOD track has no MIDI channel. It sends no CCs, and a lane's moves
+**Who wins.** A knob you turn by hand wins: it takes the knob back until the lane's next value, starting from the
+value playing (so it doesn't jump), and that is now the knob's own value. Next comes the lane, from its first value
+on. While a lane holds a knob, the pattern's own locks and motion on that knob wait. They aren't changed, and they
+play again when the MOD track lets go. Last comes the knob's own value.
+
+**Scenes, the song and the mute.** When a scene (or a song slot) starts another MOD pattern, it starts from step 1.
+When it has the same MOD pattern as the one playing, the pattern carries on where it is, so a sweep can run across
+scenes. When the MOD track lets go of a knob, the knob glides back to its own value (or the pattern's lock on it):
+with a scene of none ("-"), with the mute (black key 11 on Arrange), with a pattern that has no lane on that knob,
+and when you remove the lane. A lane of the next pattern on the same knob carries on from where it is instead. When
+the mute ends, the lanes pick up from where the pattern is. When you stop, every knob goes back to its own value, as
+the locks do. The MOD track has no MIDI channel. It sends no CCs, and a lane's moves
 are not sent out as the knob's CC.
 
 The lanes share their room with the locks and motion: the project holds 96 in all.
@@ -1891,7 +1910,7 @@ and the echoes fade out. Every voice sounds in the file, so a busy song can soun
 | SEQ, a step held | Steps | velocity | length | chance | pitch | white: length or more steps, black: sounds; PRESETS: the step's sound shown (drums: velocity, chance and tricks are its) |
 | SEQ, a step held + ARP | Steps | trick 1 | its value | trick 2 | its value | PRESETS: the step's sound shown (drums) |
 | SEQ, SELECT | Bar | quant | note | groove | shape | black: scale; SEQ held, black 1-4: jump or loop bars |
-| SEQ (MOD) | Lanes | the scene's MOD pattern | length | scale | the lane's knob (a step held: its value) | white: steps (tap: a value or none; hold + KNOB 4: its value), OCT: bars; ALGO: the lane; SEL: the lanes, glide or step, add a lane, LEARN |
+| SEQ (MOD) | Lanes | the scene's MOD pattern | length | scale | the lane's knob (a step held: its value) | white: steps (tap: a value or none; hold + KNOB 4: its value), OCT: bars; ALGO: the lane; PRESETS: glide or step; SEL: the lanes (glide or step, SEL picks one), this lane (remove, clear), a new lane, LEARN |
 | EDIT | Engine | the engine's four | | | | play |
 | EDIT, SELECT | Play | mode | porta | bend | octave | play |
 | EDIT, SELECT twice | Play 2 | | | low cut | volume | play |
