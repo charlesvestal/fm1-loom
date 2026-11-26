@@ -57,7 +57,10 @@ void engine_master(int p, int val);
 int engine_fx_room(int slot);                            /* the send's memory holds its effect (fx.h fx_room) */
 int engine_master_room(void);                            /* the master's slot's memory holds its effect (fx.h) */
 int engine_fits(int trk, int q, int need);               /* need blocks would find room in track trk's slot q (an FX
-                                                          * track: its send; -1 the master) as the pool is now */
+                                                          * track: its send; -1 the master) as the pool is now, its
+                                                          * own counted free */
+void engine_pool_fresh(void);                            /* the pool starts over: FX I, FX II, Master FX, then the
+                                                          * tracks in order (a project loaded) */
 void engine_panic(void);
 void engine_transport(int what);                         /* 0 stop, 1 start, 2 continue, 3 start from the top */
 void engine_metronome(int mode);
@@ -106,5 +109,5 @@ extern int16_t eng_scope[SCOPE_N];                       /* the last output samp
 extern volatile uint32_t eng_scope_w;
 int engine_core2_state(void);
 int engine_tulle_grains(int trk, int32_t *pos, uint8_t *lvl, int max);   /* tulle's grains sounding (synth.h) */
-int engine_slot_room(int trk, int q);               /* its slot q has its memory (synth.h synth_slot_room) */
+int engine_slot_room(int trk, int q);               /* its slot q has its memory (synth.h synth_slot_wait) */
 int engine_slice_now(int trk, int *slice, int32_t *pos);  /* the slice engine's slice playing on a track (the picture) */                            /* 0 one core (never had), 1 two, 2 lost, 3 barred */

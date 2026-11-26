@@ -584,6 +584,7 @@ int16_t efx_pool[EFX_NB][EFX_INS_N] __attribute__((aligned(8)));
 int16_t efx_pool[EFX_NB][EFX_INS_N] __attribute__((section(".pool"), aligned(8)));
 #endif
 efx_mask_t efx_send_used;
+uint8_t efx_send_wait;
 static uint32_t efx_word(int w, int at, int nb)   /* word w's bits of blocks at .. at + nb - 1 */
 {
     int lo = at - 32 * w, hi = at + nb - 32 * w;
@@ -614,13 +615,6 @@ int efx_fit(const efx_mask_t *m, int need)        /* (one pass: the first run of
             return b - need + 1;
     }
     return -1;
-}
-int efx_same(const efx_mask_t *a, const efx_mask_t *b)
-{
-    for (int w = 0; w < EFX_NW; w++)
-        if (a->w[w] != b->w[w])
-            return 0;
-    return 1;
 }
 int efx_clear_step(int16_t *mem, int nb, uint8_t *left, int max)
 {

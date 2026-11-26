@@ -26,6 +26,7 @@
 #include "sample.h"
 #include "bass303.h"                          /* bass303_cutoff_hz */
 #include "efx.h"                              /* the catalog: the slots' effects */
+#define slot_room(s, t, q) (!synth_slot_wait(s, (t) * 2 + (q)))   /* track t's slot q has its memory */
 /* the character's types (slot 1's dirt and color, the catalog's numbers: CT_EF) */
 enum { CT_OFF, CT_DRIVE, CT_FOLD, CT_CRUSH, CT_RING, CT_TILT, CT_TAPE, CT_SAMPLER, NCT };
 static const uint8_t CT_EF[NCT] = {EF_OFF, EF_DRIVE, EF_FOLD, EF_CRUSH, EF_RING, EF_TILT, EF_TAPE, EF_SAMPLER};
@@ -2110,12 +2111,12 @@ static void insert_tests(void)
                 }
                 printf("    slot %d %s: peak %.2f, level %.1f dB, from off %.1f dB%s\n", q + 1, EFX[ty].name, (double)pk,
                        10.0 * log10(e / (30.0 * N) + 1e-20), 10.0 * log10(d / (e + 1e-20) + 1e-20),
-                       synth_slot_room(S, 0, q) ? "" : " (no memory)");
+                       slot_room(S, 0, q) ? "" : " (no memory)");
                 if (ty == EF_DELAY)              /* (wet: its first echo comes after these blocks, below) */
                     e = d = 1.0;
                 if (!(pk < 2.0f && e > 1e-3))
                     ok = 0;
-                if ((ty && !(d > e * 1e-3)) || !synth_slot_room(S, 0, q))
+                if ((ty && !(d > e * 1e-3)) || !slot_room(S, 0, q))
                     ok = 0;
                 (void)dd;
             }
@@ -2184,8 +2185,7 @@ static void insert_tests(void)
     }
     {   /* a delay in a slot: its memory from the pool, its echo on the beat after the note has ended (the bus rings on:
          * slot_awake); a reverb in a slot rings on too. The pool: beside the default sends (FX I's delay, FX II's lush:
-         * 50 of its blocks), five rumbles of six, no delay; the sends gone, all six; a send taking a slot's blocks back
-         * (synth_slots_evict): that slot's memory elsewhere */
+         * 50 of its blocks), six rumbles, no delay; the sends gone, all; the sends' mask over them: they keep theirs */
         float late = 0.0f;
         int ended = 0, room = 0;
         for (int q = 0; q < 2; q++) {
@@ -2218,7 +2218,7 @@ static void insert_tests(void)
             printf("    %s in a slot, the note ended: %.1f dB before 1/8, %.1f dB at it\n", q ? "reverb" : "delay",
                    10.0 * log10((double)before + 1e-20), 10.0 * log10((double)echo + 1e-20));
             check(q ? "a reverb in a slot: its memory, its tail after the note" : "a delay in a slot: its memory, its "
-                  "echo on the beat after the note", synth_slot_room(S, 0, 1) && finite &&
+                  "echo on the beat after the note", slot_room(S, 0, 1) && finite &&
                   (q ? echo > 1e-6f : echo > before * 30.0f && echo > 1e-4f));
         }
         {   /* rumble: a short low note, then its tail after the voice has ended: low (few zero crossings) */
@@ -2333,7 +2333,7 @@ static void insert_tests(void)
             check("rumble: decay 0 gates its tail (30 dB under the default's by 0.6 s)", finite && e[1] < e[0] * 1e-3);
         }
         {
-            int got = 0, gone, moved;
+            int got = 0, kept, again;
             reset();
             for (int t = 0; t < 6; t++)
                 slot_set(t, 1, EF_RUMBLE);
@@ -2343,26 +2343,29 @@ static void insert_tests(void)
             synth_init(S, par);
             block(N, &finite);
             for (int t = 0; t < 6; t++)
-                got += synth_slot_room(S, t, 1);
-            room = got * 10 + synth_slot_room(S, 6, 0);
+                got += slot_room(S, t, 1);
+            room = got * 10 + slot_room(S, 6, 0);
             efx_send_used = (efx_mask_t){{0}};
             block(N, &finite);
             got = 0;
             for (int t = 0; t < 6; t++)
-                got += synth_slot_room(S, t, 1);
-            room = room * 100 + got * 10 + synth_slot_room(S, 6, 0);
-            efx_mark(&efx_send_used, 0, EFX_NB);   /* (a send takes every block back: none of the slots keeps one) */
-            synth_slots_evict(S, &efx_send_used);
+                got += slot_room(S, t, 1);
+            room = room * 100 + got * 10 + slot_room(S, 6, 0);
+            efx_mark(&efx_send_used, 0, EFX_NB);   /* (the sends' mask over them: whoever holds keeps it) */
+            efx_send_wait = 1;
             block(N, &finite);
-            gone = !synth_slot_room(S, 0, 1) && !synth_slot_room(S, 6, 0);
+            kept = slot_room(S, 0, 1) && slot_room(S, 6, 0);
             efx_send_used = (efx_mask_t){{0}};
-            efx_mark(&efx_send_used, 0, 20);     /* (then a third: theirs again, elsewhere) */
+            efx_send_wait = 2;                   /* (a project loaded: all given back, the tracks' in order again) */
             block(N, &finite);
-            moved = synth_slot_room(S, 0, 1) && synth_slot_room(S, 6, 0);
-            efx_send_used = (efx_mask_t){{0}};
+            efx_send_wait = 0;
+            got = 0;
+            for (int t = 0; t < 6; t++)
+                got += slot_room(S, t, 1);
+            again = got == 6 && slot_room(S, 6, 0);
             printf("    the pool: %d (rumbles, a delay: beside the sends, then alone)\n", room);
-            check("the slots' memory beside the sends: six rumbles, no delay (12 + 24 of 28 blocks); alone all; a send "
-                  "takes it back", room == 6061 && gone && moved && finite);
+            check("the slots' memory beside the sends: six rumbles, no delay (12 + 24 of 28 blocks); alone all; none "
+                  "taken from them; given back and taken again", room == 6061 && kept && again && finite);
             {
                 efx_mask_t m = {{0}};
                 int ok;

@@ -85,6 +85,7 @@ static void dl_drop(int t)
 #define FXS(k) ((fxslot_t *)(void *)fx_mem[k])
 #define MST ((master_t *)(void *)mst_mem)
 /* the sends' memory and the master's: the one pool's (dsp/efx.h efx_pool), first (pool_sends) */
+static uint8_t pool_fresh;                        /* blocks the pool starts over (a project loaded: engine_pool_fresh) */
 
 /* the engine's parameter copy (drumlines, FX read it; locks override it) and the project's
  * contiguous array (app.h proj_par: the synth and the sequencer read that one) */
@@ -138,7 +139,7 @@ int engine_slice_now(int trk, int *slice, int32_t *pos)
 {
     return trk >= 0 && trk < NTRK && synth_slice_now(SY, trk, slice, pos);
 }
-int engine_slot_room(int trk, int q) { return synth_slot_room(SY, trk, q); }
+int engine_slot_room(int trk, int q) { return !synth_slot_wait(SY, trk * 2 + q); }
 int engine_tulle_grains(int trk, int32_t *pos, uint8_t *lvl, int max)
 {
     return trk >= 0 && trk < NTRK ? synth_tulle_grains(SY, trk, pos, lvl, max) : 0;
@@ -236,7 +237,7 @@ static void guard_apply(void)
 /* uint32 commands, single producer (main loop) / single consumer (audio ISR): type:4 | a:8 | b:8 | c:12 (C_PARAM: b
  * the parameter's low eight bits, c its value and, at bit 8, its ninth: synth.h NTP) */
 enum { C_PARAM, C_ALL, C_KEY, C_KEYS_OFF, C_PUNCH, C_BRAIN_KEY, C_MASTER, C_PANIC,
-       C_METRO, C_TEMPO, C_GROOVE, C_SCENE, C_NOP };     /* at most sixteen: the type is four bits */
+       C_METRO, C_TEMPO, C_GROOVE, C_SCENE, C_POOL, C_NOP };     /* at most sixteen: the type is four bits */
 #define CQ 512u
 static uint32_t cq[CQ];
 static volatile uint32_t cq_w, cq_r;
@@ -289,6 +290,7 @@ void engine_master(int p, int val)
         cq_put(C_MASTER, (uint32_t)p, 0, (uint32_t)val);
 }
 void engine_panic(void) { cq_put(C_PANIC, 0, 0, 0); }
+void engine_pool_fresh(void) { cq_put(C_POOL, 0, 0, 0); }
 void engine_metronome(int mode) { cq_put(C_METRO, (uint32_t)mode, 0, 0); }
 void engine_tempo(int bpm_x10)                  /* 400..3000 fits the command's twelve-bit value */
 {
@@ -993,6 +995,7 @@ static void drain(void)
             seq_midi_notes_off(&seq);                /* (after the keys' offs: whatever is still on out there) */
             break;
         }
+        case C_POOL: pool_fresh = 3; break;
         case C_METRO: seq.metronome = (uint8_t)a; break;
         case C_TEMPO: seq.bpm = (float)v * 0.1f; break;
         case C_GROOVE: seq.groove_type = (uint8_t)a; break;
@@ -1180,22 +1183,46 @@ static void fx_done(void)
             fx_apply(k);
     fx_dirty = 0;
 }
-/* the sends' memory from the one pool, each block before their job (their effects as set: drain's): FX I first, then
- * FX II, each where it is while its effect needs as much, else the first free run (a track's slot in the way gives
- * its memory up: synth_slots_evict, before synth_prepare gives the tracks theirs). FX I that finds no run beside FX II
- * takes the pool's start and FX II goes after it; FX II that finds none beside FX I, when both fit, the same (both
- * start fresh). A send left without memory is silent ("no memory"). Then the master's slot (fx.h master_need: its
- * effect, tape's wow a block), where it is while its effect needs as much and the sends leave it, else the first free
- * run beside them (none: it passes dry); the tracks' slots after both. Memory newly given is cleared a slice a block
- * (efx.h EFX_CLR: fx_memory, master_memory) */
+/* the sends' memory from the one pool, each block before their job (their effects as set: drain's). Whoever holds
+ * memory keeps it (a track's slot, the master's, a send: none takes another's). FX I first, then FX II, each where it
+ * is while its effect needs as much, else the first free run beside the others (send_fit); a send left without
+ * memory is silent ("not playing: memory full"). Then the master's slot (fx.h master_need: its effect, tape's wow a
+ * block) the same (none: it passes dry); the tracks' slots after both (synth.c ins_alloc). A project loaded
+ * (engine_pool_fresh): every slot gives its memory back and takes it again in that order, a few blocks (the old
+ * effects' last block fading out), so what fitted when it was saved fits again. Memory newly given is cleared a slice a
+ * block (efx.h EFX_CLR: fx_memory, master_memory) */
 static int8_t snd_at[2] = {-1, -1};
 static uint8_t snd_nb[2];
 static int8_t mpl_at = -1;                                 /* the master's memory: its first block, how many */
 static uint8_t mpl_nb;
+/* where send k's need blocks go, the others (m: the tracks', the master's) and the other send (where it is, at no)
+ * kept: the first free run; else -2 when the two fit at the pool's start, FX I then FX II, clear of the others (the
+ * other's lines start over there: the sends' runs never split the pool); else -1 (the pages: engine_fits) */
+static int send_fit(int k, int need, int no, const efx_mask_t *m)
+{
+    efx_mask_t a = *m;
+    const int o = !k;
+    int at;
+    if (snd_at[o] >= 0)
+        efx_mark(&a, snd_at[o], no);
+    at = efx_fit(&a, need);
+    if (at < 0 && snd_at[o] >= 0 && need + no <= EFX_NB && !efx_meets(m, 0, need + no))
+        at = -2;
+    return at;
+}
 static void pool_sends(void)
 {
     int k, need[2];
-    efx_mask_t m;
+    efx_mask_t t = {{0}}, m, s = {{0}};
+    const int fresh = pool_fresh != 0;
+    if (fresh) {                                           /* (the tracks' given back this block: efx_send_wait 2) */
+        pool_fresh--;
+        snd_at[0] = snd_at[1] = mpl_at = -1;
+    } else
+        synth_slots_mark(SY, &t, -1);
+    m = t;
+    if (mpl_at >= 0)
+        efx_mark(&m, mpl_at, mpl_nb);
     for (k = 0; k < 2; k++) {
         need[k] = fx_need(FXS(k));
         if (snd_at[k] >= 0 && snd_nb[k] != need[k])
@@ -1203,43 +1230,32 @@ static void pool_sends(void)
     }
     for (k = 0; k < 2; k++)
         if (need[k] && snd_at[k] < 0) {
-            efx_mask_t other = {{0}};
-            int o = !k, at;
-            if (snd_at[o] >= 0)                       /* (the other where it is, at its need: snd_nb is last block's,
-                                                       * 0 for one placed just now, which left FX II over FX I) */
-                efx_mark(&other, snd_at[o], need[o]);
-            at = efx_fit(&other, need[k]);
-            if (at < 0 && snd_at[o] >= 0 && need[0] + need[1] <= EFX_NB) {   /* (the other in the way: FX I at the
-                                                  * start, FX II after it) */
-                snd_at[o] = -1;
-                if (k) {
-                    snd_at[0] = 0;
-                    at = need[0];
-                } else
-                    at = 0;
-            }
-            snd_at[k] = (int8_t)at;
+            int at = send_fit(k, need[k], need[!k], &m);
+            if (at == -2) {                                /* (FX I at the start, FX II after it) */
+                snd_at[0] = 0;
+                snd_at[1] = (int8_t)need[0];
+            } else
+                snd_at[k] = (int8_t)at;
         }
-    for (k = 0; k < 2; k++)
+    for (k = 0; k < 2; k++) {
         snd_nb[k] = (uint8_t)(snd_at[k] >= 0 ? need[k] : 0);
-    m = (efx_mask_t){{0}};
-    for (k = 0; k < 2; k++)
-        if (snd_at[k] >= 0)
-            efx_mark(&m, snd_at[k], snd_nb[k]);
+        if (snd_at[k] >= 0) {
+            efx_mark(&s, snd_at[k], snd_nb[k]);
+            efx_mark(&t, snd_at[k], snd_nb[k]);
+        }
+    }
     {
         const int mn = master_need(MST);
-        if (mpl_at >= 0 && (mpl_nb != mn || efx_meets(&m, mpl_at, mn)))
+        if (mpl_at >= 0 && mpl_nb != mn)
             mpl_at = -1;
         if (mn && mpl_at < 0)
-            mpl_at = (int8_t)efx_fit(&m, mn);
+            mpl_at = (int8_t)efx_fit(&t, mn);
         mpl_nb = (uint8_t)(mpl_at >= 0 ? mn : 0);
         if (mpl_at >= 0)
-            efx_mark(&m, mpl_at, mpl_nb);
+            efx_mark(&s, mpl_at, mpl_nb);
+        efx_send_wait = (uint8_t)(fresh ? 2 : (need[0] && snd_at[0] < 0) || (need[1] && snd_at[1] < 0) || (mn && mpl_at < 0));
     }
-    if (!efx_same(&m, &efx_send_used)) {
-        synth_slots_evict(SY, &m);
-        efx_send_used = m;
-    }
+    efx_send_used = s;
     for (k = 0; k < 2; k++)
         fx_memory(FXS(k), snd_at[k] >= 0 ? efx_pool[(int)snd_at[k]] : 0, snd_nb[k]);
     master_memory(MST, mpl_at >= 0 ? efx_pool[(int)mpl_at] : 0, mpl_nb);
@@ -1919,25 +1935,27 @@ void engine_init(patterns_t *P, uint8_t (*par)[NTP])
 /* the pages: the send's memory holds its effect */
 int engine_fx_room(int slot) { return fx_room(FXS(slot & 1)); }
 int engine_master_room(void) { return master_room(MST); }
-/* the pages' "no memory" (pool_sends, ins_alloc): a send beside the other, or both moved; the master beside the sends
- * (a track gives way); a track's slot where no other holds */
+/* the pages: need blocks would find room in a slot (its own memory counted free) as the allocator would place them
+ * now: the others where they are, those waiting ahead of it (FX I, FX II, Master FX, the tracks' slots in order) each
+ * in its first free run first. (A send: beside the other, or the two at the start: send_fit) */
 int engine_fits(int trk, int q, int need)
 {
     efx_mask_t m = {{0}};
-    const int o = trk == AUX_FX1;
-    if (trk == AUX_FX1 || trk == AUX_FX2) {
-        if (snd_at[o] >= 0)
-            efx_mark(&m, snd_at[o], snd_nb[o]);
-        return efx_fit(&m, need) >= 0 || need + snd_nb[o] <= EFX_NB;
+    const int me = trk < 0 ? 2 : trk >= NTRK ? trk - AUX_FX1 : 3 + trk * 2 + q;   /* (its place in the order) */
+    if (!need)
+        return 1;
+    synth_slots_mark(SY, &m, me - 3);
+    if (mpl_at >= 0 && me != 2)
+        efx_mark(&m, mpl_at, mpl_nb);
+    if (me < 2)
+        return send_fit(me, need, snd_nb[!me], &m) != -1;
+    for (int w = 0; w < me; w++) {
+        const int n = w < 2 ? (snd_at[w] < 0 ? fx_need(FXS(w)) : 0) : w == 2 ? (mpl_at < 0 ? master_need(MST) : 0)
+                    : synth_slot_wait(SY, w - 3), at = efx_fit(&m, n);
+        if (w < 2 && snd_at[w] >= 0)
+            efx_mark(&m, snd_at[w], snd_nb[w]);
+        else if (n && at >= 0)
+            efx_mark(&m, at, n);
     }
-    m = efx_send_used;
-    if (trk >= 0)
-        synth_slots_mark(SY, &m, trk * 2 + q);
-    else if (mpl_at >= 0) {                                /* (the master's own: not in the way) */
-        m = (efx_mask_t){{0}};
-        for (int k = 0; k < 2; k++)
-            if (snd_at[k] >= 0)
-                efx_mark(&m, snd_at[k], snd_nb[k]);
-    }
-    return !need || efx_fit(&m, need) >= 0;
+    return efx_fit(&m, need) >= 0;
 }

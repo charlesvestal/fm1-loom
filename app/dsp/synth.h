@@ -174,8 +174,8 @@ enum { TP_S1TYPE = TP_CTYPE, TP_S1K1 = TP_CAMT, TP_S1K2 = TP_CTONE, TP_S1MIX = T
  * pitch, its saturation on the bus), so a voice's effects come before the bus's whatever the slots' order. (A second
  * ring on the bus, at a ratio of C4.) On a kit both on the kit's pair after its bus filter (ring at a ratio of C4, tape
  * without its wow: no pitch to bend; rumble hears the kicks alone). Effects with memory (dsp/efx.h efx_need: chorus,
- * lofi, juno a 2 KB block, rumble two, a delay or a reverb many) take it from the one pool (efx_pool), after the sends;
- * a slot that finds none passes dry (synth_slot_room) */
+ * lofi, juno a 2 KB block, rumble two, a delay or a reverb many) take it from the one pool (efx_pool) where no other
+ * holds it; a slot that finds none passes dry (synth_slot_wait) */
 enum { SL_EF, SL_K1, SL_K2, SL_K3, SL_MIX, SL_X1, SL_X2, SL_X3, SL_X4, SL_N };
 extern const uint16_t TP_SLOT[2][SL_N];
 int tp_slot_of(int p, int *j);                   /* the slot a parameter is in (0, 1; -1 none), and which (SL_*) */
@@ -404,11 +404,10 @@ float *synth_kit_scratch(int k);
 void synth_kit_slots(synth_t *s, int trk, float *l, float *r, const float *kick, uint32_t n);
 int synth_slots_ring(synth_t *s, int trk, int sounding, uint32_t n);   /* a kit's: 1 while it sounds or a slot rings on
                                                   * after it (rumble), counted in calls of n frames */
-int synth_slot_room(const synth_t *s, int trk, int q);   /* 1: slot q has its memory (or needs none) */
+int synth_slot_wait(const synth_t *s, int i);   /* the blocks slot i (track * 2 + slot) waits for (0: it has them, or
+                                                 * needs none) */
 void synth_slots_mark(const synth_t *s, efx_mask_t *m, int skip);   /* the blocks the tracks' slots hold into m, but
                                                  * slot skip's (track * 2 + slot) */
-void synth_slots_evict(synth_t *s, const efx_mask_t *mask);   /* the slots holding any of these blocks give them up (a send
-                                                      * takes them: the engine, before synth_prepare) */
 void synth_bus_join(synth_t *s, float *l, float *r, float *s1, float *s2, uint32_t n);
 void synth_bus_reset(synth_t *s, int core);
 /* the same, saying which core renders (0 the first, 1 the second: the profiler's halves) */

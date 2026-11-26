@@ -1,8 +1,8 @@
 # the effects' one pool (dsp/efx.h, 78 blocks of 2 KB): a new project's sends (FX I's delay, 24 blocks; FX II's lush,
 # 26) leave room for a track's delay (24) beside them; a second track's delay finds none ("no memory": it passes dry).
 # (The sends each their own blocks: FX II placed beside FX I, not over it, engine.c pool_sends; over it, the tracks
-# had 26 blocks more, and the second delay found room). Master FX after the sends, before the tracks: its delay (24)
-# takes a track's room, its tape a block
+# had 26 blocks more, and the second delay found room). Whoever holds memory keeps it: Master FX's delay (24) finds
+# none beside the sends and the track's delay ("not playing: memory full"), its tape a block
 wait 300
 expect fxroom1 1
 expect fxroom2 1
@@ -25,13 +25,12 @@ wait 100
 expect room2.1 1
 expect fxroom1 1
 expect fxroom2 1
-# Master FX's delay: its memory before the tracks' (the second track's delay gives its blocks up); its tape's wow a
-# block, the track's delay back beside it
+# Master FX's delay: none (the second track's delay keeps its blocks); its tape's wow a block, beside them
 mst color delay
 mst cmix 64
 wait 100
-expect mstroom 1
-expect room2.1 0
+expect mstroom 0
+expect room2.1 1
 expect fxroom1 1
 expect fxroom2 1
 mst color tape

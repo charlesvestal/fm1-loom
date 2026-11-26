@@ -63,7 +63,7 @@ COLD = {
                     # character's coefficients, the buses' and inserts' per block)
                     "eng_prep", "wt_prep", "rayon_prep", "organ_prep", "knit_prep", "tl_prep", "lc_prep", "tt_prep",
                     "smp_prep", "slc_prep", "cn_prep", "vo_prep", "eng_init", "knit_init",
-                    "bus_prepare", "ins_alloc", "synth_slots_mark", "synth_slot_room",
+                    "bus_prepare", "ins_alloc", "synth_slots_mark", "synth_slot_wait",
                     # (the pages' pictures, the presets' loading; tp_info: a knob's range, from synth_prepare a track's
                     # LFO's destination once a block)
                     "wt_value", "tartan_voices", "tp_info", "preset_sound", "preset_first"],

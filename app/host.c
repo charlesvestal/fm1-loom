@@ -466,7 +466,7 @@ int app_expect(const char *what, int *got)
     else if (!strcmp(what, "listopen"))             /* a SEL list up */
         *got = lst.open;
     else if (!strncmp(what, "room", 4) && strchr(what, '.')) {   /* roomT.Q: track T's slot Q has its memory (from 1;
-                                                     * the effects' pool: synth_slot_room) */
+                                                     * the effects' pool: synth_slot_wait) */
         int t = atoi(what + 4) - 1, q = atoi(strchr(what, '.') + 1) - 1;
         if (t < 0 || t >= NTRK || q < 0 || q > 1)
             return 0;

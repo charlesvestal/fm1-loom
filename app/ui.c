@@ -2242,15 +2242,21 @@ static void rv_defaults(int pg, int md)
     for (int i = 0; i < 4; i++)
         slot_put(pg, J[i], d[i]);
 }
-/* another effect in a slot (PRESETS, its list): its knobs and extras at the effect's defaults, its mix kept (a
- * track's or the master's at 0: at its default, so it is heard) */
-static void slot_effect(int pg, int ef)
+/* another effect in a slot (its list: ef; PRESETS: d, the next of the catalog that finds its memory there, slot_fits;
+ * off needs none): its knobs and extras at the effect's defaults, its mix kept (a track's or the master's at 0: at its
+ * default, so it is heard) */
+static void slot_effect(int pg, int ef, int d)
 {
     uint8_t mp[NTP];
     int trk, q;
     const uint8_t *par = slot_vals(pg, mp, &trk, &q);
     const uint8_t was = cc_hand;
-    ef = (ef + NEF) % NEF;
+    for (int i = 0; d && i < NEF; i++) {
+        ef = (i ? ef : par[TP_SLOT[q][SL_EF]]) + d;
+        ef = (ef + NEF) % NEF;
+        if (slot_fits(pg, ef, EFX[ef].xdef[0]))
+            break;
+    }
     if (ef == par[TP_SLOT[q][SL_EF]])            /* (the one in use: as it is) */
         return;
     cc_hand = 1;                                 /* (by hand: their CCs out, as a knob's) */
@@ -2285,6 +2291,10 @@ static void slot_turn(int pg, int j, int32_t e)
     } else
         n = in->hi < 16 || (in->kind == PK_HZ_SYNC && (v < 8 || v + e < 8)) ? v + d : v + (int)e;
     n = clampi(n, in->lo, in->hi);
+    while (j == SL_X1 && ef == EF_REVERB && n != v && !slot_fits(pg, EF_REVERB, n))   /* (a reverb type with no
+                                                  * memory there: passed) */
+        if ((n += d) < in->lo || n > in->hi)
+            return;
     if (n == v)
         return;
     slot_put(pg, j, n);
@@ -2476,14 +2486,10 @@ static void presets(int32_t e)
     case P_MIX:
         track_step(d);
         break;
-    case P_FX1: case P_FX2: case P_MASTER2: case P_CHARACTER: case P_INSERT: {   /* a slot's effect: the catalog in
+    case P_FX1: case P_FX2: case P_MASTER2: case P_CHARACTER: case P_INSERT:   /* a slot's effect: the catalog in
                                                   * its groups, the next at its defaults */
-        uint8_t mp[NTP];
-        int st, q;
-        const uint8_t *par = slot_vals(ui.page, mp, &st, &q);
-        slot_effect(ui.page, par[TP_SLOT[q][SL_EF]] % NEF + d);
+        slot_effect(ui.page, 0, d);
         break;
-    }
     case P_FILTER: case P_KITF:                  /* the filter type (a kit: the key's; Kit filter: the bus on / off) */
         if (!is_aux(trk)) {
             const uint8_t *par = proj.trk[trk].par;
@@ -2501,7 +2507,7 @@ static void presets(int32_t e)
         break;
     default:
         if (is_fx(trk))
-            slot_effect(fx_pg(trk), proj.trk[trk].par[TP_CTYPE] % NEF + d);
+            slot_effect(fx_pg(trk), 0, d);
         else if (is_drum(trk) && (ui.page == P_ENGINE || ui.page == P_PLAY || ui.page == P_PLAY2 || ui.page == P_ENV ||
                                   ui.page == P_SENDS)) {
             ui.dsound = (uint8_t)((ui.dsound + d + DL_NSOUND) % DL_NSOUND);
@@ -3823,11 +3829,15 @@ static void action_run(int a)
         say("ENGINE", EG_NAME[ui.pick_engine % NENGINE]);
         break;
     }
-    case A_EFFECT: {                             /* a slot list's effect: its row's */
+    case A_EFFECT: {                             /* a slot list's effect: its row's (no memory there: refused) */
         int ef = 0;
         while (ef < NEF - 1 && lst.row[lst.sel].name != EFX[ef].name)
             ef++;
-        slot_effect(list_slot_pg(), ef);
+        if (lst.row[lst.sel].val[0] == 'n') {
+            say_no("NO MEMORY", EFX[ef].name);
+            return;
+        }
+        slot_effect(list_slot_pg(), ef, 0);
         break;
     }
     case A_PRESET:

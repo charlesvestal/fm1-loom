@@ -1430,4 +1430,5 @@ void project_apply(void)
     seq.metronome = proj.metronome;
     engine_scene(proj.scene < NSCENE ? proj.scene : 0, 0);
     engine_metronome(proj.metronome);
+    engine_pool_fresh();                                  /* (what fitted when it was saved fits again) */
 }

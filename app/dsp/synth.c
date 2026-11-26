@@ -4109,7 +4109,8 @@ static float bus_sp[2][NSPLIT][2][BUS_N] __attribute__((section(".pool")));
 /* the slots' memory (dsp/efx.h efx_need: a chorus, lofi or juno a block, rumble two, a delay or a reverb many), from
  * the one pool, after the sends' (efx_send_used: the engine's): given when a slot asks for it (the first free run of
  * blocks, cleared a slice at a time: slots_clear), kept while its effect (and the reverb's mode) stays, given back when it changes (or its mix goes to
- * 0: the slot off), or when a send takes it (synth_slots_evict) */
+ * 0: the slot off); never taken by another (a send, the master: they find theirs beside it). A project loaded: all given
+ * back at once (efx_send_wait 2), then the tracks in order */
 static inline int slot_mode(const efx_slot_t *sl) { return sl->ef == EF_REVERB && sl->xt[0] < NRV ? sl->xt[0] : 0; }
 static inline int slot_need(const efx_slot_t *sl)
 {
@@ -4118,16 +4119,18 @@ static inline int slot_need(const efx_slot_t *sl)
 static void ins_alloc(synth_t *s)
 {
     efx_mask_t used = efx_send_used;
-    int i, k, q;
+    int i, k, q, freed = 0;
     for (i = 0; i < NTRK; i++)                   /* (given back: a slot that no longer needs its memory) */
         for (q = 0; q < 2; q++) {
             efx_slot_t *sl = &s->t[i].sl[q];
-            if (sl->at >= 0 && (sl->mef != sl->ef || sl->mmd != slot_mode(sl)))   /* (another effect: its memory
-                                                  * fresh, cleared) */
-                sl->at = -1, sl->nb = sl->clr = 0;
+            if (sl->at >= 0 && (efx_send_wait > 1 || sl->mef != sl->ef || sl->mmd != slot_mode(sl)))   /* (another
+                                                  * effect: its memory fresh, cleared; the pool starting over) */
+                sl->at = -1, sl->nb = sl->clr = 0, freed = 1;
             if (sl->at >= 0)
                 efx_mark(&used, sl->at, sl->nb);
         }
+    if (freed && efx_send_wait == 1)             /* (a send or the master waiting: theirs first, the next block) */
+        return;
     for (i = 0; i < NTRK; i++)
         for (q = 0; q < 2; q++) {
             efx_slot_t *sl = &s->t[i].sl[q];
@@ -4166,15 +4169,6 @@ static void slots_clear(synth_t *s, uint32_t n)
     if (!more)
         clr_fr = 0;
 }
-void synth_slots_evict(synth_t *s, const efx_mask_t *mask)
-{
-    for (int i = 0; i < NTRK; i++)
-        for (int q = 0; q < 2; q++) {
-            efx_slot_t *sl = &s->t[i].sl[q];
-            if (sl->at >= 0 && efx_meets(mask, sl->at, sl->nb))
-                sl->at = -1, sl->nb = sl->clr = 0;
-        }
-}
 void synth_slots_mark(const synth_t *s, efx_mask_t *m, int skip)
 {
     for (int i = 0; i < 2 * NTRK; i++) {
@@ -4200,13 +4194,9 @@ static void ins_tail_set(const synth_t *s, trk_t *t, uint32_t n)
             sec = fm_maxf(sec, efx_rumble_secs(t->sl[q].k[0]));
     t->ins_tail = (uint16_t)(sec * SY_SR / (float)(n ? n : 256u) + 1.0f);
 }
-int synth_slot_room(const synth_t *s, int trk, int q)
+int synth_slot_wait(const synth_t *s, int i)
 {
-    const efx_slot_t *sl;
-    if (trk < 0 || trk >= NTRK || q < 0 || q > 1)
-        return 1;
-    sl = &s->t[trk].sl[q];
-    return !slot_need(sl) || sl->at >= 0;
+    return i >= 0 && i < 2 * NTRK && s->t[i >> 1].sl[i & 1].at < 0 ? slot_need(&s->t[i >> 1].sl[i & 1]) : 0;
 }
 /* this block's buses (synth_prepare): each track's slots (their effects, knobs, mixes), gains and wow; which voices
  * join which bus; the busiest split */

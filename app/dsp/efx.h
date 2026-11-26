@@ -39,8 +39,10 @@ float efx_lfo_hz(int v, float bpm);          /* an EK_SYNC knob (the LFO's rate)
  * A slot takes a contiguous run of blocks, first fit, when its effect needs memory (efx_need: by the effect, the
  * reverb's mode and the place: a send's chorus and lofi lines are longer, for its lag; a track's delay and reverb keep
  * their states at the start of theirs, efx_big_t), given back when the effect changes; a slot that finds none passes
- * dry ("no memory"). The sends first, then the master's slot (the engine's, each block: efx_send_used), then the
- * tracks in order, slot 1 then 2 (synth.c): a send or the master never loses its memory to a track. 78 blocks (61 until 2026-11-25, the SRAM won back since): the
+ * dry ("not playing: memory full"). Whoever holds memory keeps it: a slot asking finds its run where no other holds
+ * (the pages offer only what would: engine_fits). Those waiting: the sends first, then the master's slot (the
+ * engine's, each block: efx_send_used), then the tracks in order, slot 1 then 2 (synth.c); a project loaded starts the
+ * pool over in that order. 78 blocks (61 until 2026-11-25, the SRAM won back since): the
  * default sends (FX I's delay 24, FX II's lush 26) leave 28, a track's delay (24) beside them; FX I's delay and FX II's
  * largest reverb (32) leave 22 */
 #define EFX_NB 78
@@ -52,8 +54,10 @@ typedef struct { uint32_t w[EFX_NW]; } efx_mask_t;
 void efx_mark(efx_mask_t *m, int at, int nb);          /* blocks at .. at + nb - 1 into m */
 int efx_meets(const efx_mask_t *m, int at, int nb);    /* any of them in m */
 int efx_fit(const efx_mask_t *m, int need);            /* the first run of need blocks none of m, -1 */
-int efx_same(const efx_mask_t *a, const efx_mask_t *b);
 extern efx_mask_t efx_send_used;                 /* the blocks the sends and the master hold */
+extern uint8_t efx_send_wait;                    /* 1: a send or the master waits for memory (a track's given back
+                                                  * goes to it first, the next block); 2: the pool starts over (a
+                                                  * project loaded: every slot gives its memory back) */
 /* memory newly given (or an effect changed on it) is cleared a slice at a time, not at once in the audio interrupt (64
  * KB at once: a block's overrun): efx_clear_step clears up to max of the nb blocks at mem still to clear (*left of
  * them, from the start), returns how many it cleared. A send and the master EFX_CLR blocks (8 KB) a block, the tracks'

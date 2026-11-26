@@ -2730,7 +2730,7 @@ static const struct { uint8_t btn; uint64_t pages; const char *title, *l1, *l2; 
     {B_HOME, PG_ANY, "Arrange", "Press white keys for scenes, black keys to mute.",
      "Hold HOME, press REC to undo, PLAY to redo."},
     {B_SEL, PG(P_CHARACTER) | PG(P_INSERT) | PG(P_FX1) | PG(P_FX2) | PG(P_MASTER2), "Effects",
-     "Every effect, then its extras. Press SEL on one to use it.", "No memory: the page says who holds it."},
+     "Every effect, then its extras. Press SEL on one to use it.", "Dimmed: no memory left for it."},
     {B_SEL, PG_ANY, "Lists", "Actions, then knobs. Press SEL to run one.",
      "Turn SELECT to move, ALGORITHM to change it."},
     {B_SAVE, PG_STEPS, "Save", "Tap to save. Hold a step and press SEL to clear its locks.",
@@ -3145,20 +3145,27 @@ static void list_slot_row(const uint8_t *par, int pr, char *nm, char *vt, int ac
     s_cat(unit[0] ? s_cat(s_cat(vt, num), unit[0] == '%' ? "" : " ") : s_cat(vt, num), unit);
     list_add(nm, vt, LK_PICK, act);
 }
-/* a slot page's list: the catalog in its groups (the one in use marked, "no memory" beside what would find none where
- * the slot is: engine_fits), the effect's extras, a send's filter and FX I's feed into FX II */
+/* effect ef (the reverb in mode md) would find its memory in a slot page's slot, its own counted free (engine_fits:
+ * PRESETS and the list offer only these) */
+static int slot_fits(int pg, int ef, int md)
+{
+    int st, q = slot_page(pg, &st);
+    return engine_fits(st, q, efx_need(ef, md, st < 0 ? 2 : is_fx(st)));
+}
+/* a slot page's list: the catalog in its groups (the one in use marked; "no memory", dimmed and refused, beside what
+ * would find none where the slot is: slot_fits), the effect's extras, a send's filter and FX I's feed into FX II */
 static void list_slot(int pg)
 {
     static char nm[4][12], vt[4][16], hp[8], lp[8], fd[8];
     uint8_t mp[NTP];
     int st, q, g = EFG_NONE;
     const uint8_t *par = slot_vals(pg, mp, &st, &q);
-    const int cur = par[TP_SLOT[q][SL_EF]] % NEF, md = par[TP_SLOT[q][SL_X1]];
+    const int cur = par[TP_SLOT[q][SL_EF]] % NEF;
     for (int ef = 0; ef < NEF; ef++) {
         if (EFX[ef].group != g)
             list_head(EFG_NAME[g = EFX[ef].group]);
-        list_add(EFX[ef].name, ef == cur ? "in use" : engine_fits(st, q, efx_need(ef, ef == cur ? md : EFX[ef].xdef[0],
-                 st < 0 ? 2 : is_fx(st))) ? 0 : "no memory", LK_ACTION, A_EFFECT);
+        list_add(EFX[ef].name, ef == cur ? "in use" : slot_fits(pg, ef, EFX[ef].xdef[0]) ? 0 : "no memory", LK_ACTION,
+                 A_EFFECT);
     }
     if (efx_knob_name(cur, 3))
         list_head("extras");
@@ -3377,8 +3384,10 @@ static void list_paint(int32_t oy)
     for (int i = lst.top; i < lst.n && y + oy - 1 + list_rh(i) <= LIST_VIS; y += list_rh(i), i++) {
         int32_t ty = cap_y(y, LIST_RH - 1, &FONT_S) - 1;   /* (descenders clear the foot) */
         int on = i == lst.sel, k = lst.row[i].kind;
-        uint16_t fg = on ? K_BG : K_TEXT;
         const char *v = lst.row[i].val;
+        const int no = k == LK_ACTION && lst.row[i].id == A_EFFECT && v[0] == 'n';   /* (an effect with no memory there:
+                                                  * dimmed, SEL refuses it) */
+        uint16_t fg = on ? K_BG : no ? K_DIM : K_TEXT;
         if (k == LK_HEAD) {                          /* a section's name: small, a rule after it */
             int32_t e = cv_text(10, cap_y(y, LIST_HH, &FONT_XS) - 1, &FONT_XS, lst.row[i].name, K_DIM);
             if (e + 6 < 226)
@@ -3412,7 +3421,7 @@ static void list_paint(int32_t oy)
             }
             if (now)
                 glyph_pick(213, ty + 3, fg);
-            else
+            else if (!no)
                 glyph_enter(208, ty + 3, fg);
         }
     }
@@ -5933,39 +5942,15 @@ static float pic_atan(float x)                       /* atan x, x >= 0 (a pictur
  * ring-modulated wave, the tilt's response, the dry dimmed behind); tremolo each side's level over two of its cycles
  * (the left bright, the right faint: apart by pan); the phaser, univibe and autowah their response; chorus and juno
  * their two taps' delays crossing; the delay its repeats; rumble its ducked tail; rat its clip; lofi its steps; the
- * reverb rings spreading. An effect whose memory is taken says who has it (slot_memo) */
-static int slot_holds(int t, int r)                  /* track t's slot r holds memory of the pool */
-{
-    const uint8_t *o = proj.trk[t].par;
-    int ef = o[TP_SLOT[r][SL_EF]];
-    return ef < NEF && (is_fx(t) || o[TP_SLOT[r][SL_MIX]]) && efx_need(ef, o[TP_SLOT[r][SL_X1]], is_fx(t)) &&
-           (is_fx(t) ? engine_fx_room(t - AUX_FX1) : engine_slot_room(t, r));
-}
-static int slot_room(int pg)                         /* a slot page's effect has its memory (or needs none) */
-{
-    int t, q = slot_page(pg, &t);
-    return t < 0 ? engine_master_room() : is_fx(t) ? engine_fx_room(t - AUX_FX1) : engine_slot_room(t, q);
-}
-/* "no memory: FX I, Master FX, T3": a slot page's effect without its memory, and who holds the pool ("": it has it) */
+ * reverb rings spreading. An effect without its memory says so (slot_memo) */
+/* "not playing: memory full": a slot page's effect without its memory (set by a project, a preset, a lock or MIDI
+ * where none was free; "": it has it) */
 static void slot_memo(char *t, int pg)
 {
-    int st, q = slot_page(pg, &st), n = 0;
-    char *e = t;
+    int st, q = slot_page(pg, &st);
     *t = 0;
-    if (slot_room(pg))
-        return;
-    e = s_cat(t, "no memory");
-    for (int k = 0; k < NTRK + 3; k++) {
-        const int kt = k < 2 ? AUX_FX1 + k : k - 3;
-        int has = 0;
-        if (k == 2)
-            has = st >= 0 && efx_need(proj.master[MS_CTYPE] % NEF, proj.master[MS_CX1], 2) && engine_master_room();
-        else
-            for (int r = 0; r < (k < 2 ? 1 : 2); r++)
-                has |= (kt != st || r != q) && slot_holds(kt, r);
-        if (has)
-            e = s_cat(s_cat(e, n++ ? ", " : ": "), k == 2 ? "Master FX" : TRACK_NAME[kt]);
-    }
+    if (!(st < 0 ? engine_master_room() : is_fx(st) ? engine_fx_room(st - AUX_FX1) : engine_slot_room(st, q)))
+        s_cat(t, "not playing: memory full");
 }
 static void draw_slot(int pg)
 {
@@ -5994,8 +5979,8 @@ static void draw_slot(int pg)
     h = hash_s(h, t);
     if (!begin_main(h))
         return;
-    if (t[0])                                        /* (the memory taken: who has it) */
-        wrap(12, 74, 112, &FONT_XS, t, K_TEXT);
+    if (t[0])                                        /* (no memory: not playing) */
+        wrap(12, 74, 80, &FONT_XS, t, K_TEXT);
     s_cat(t, EFX[ef].name);
     t[0] = (char)(t[0] - 32);                        /* (its name a title: "Reverb") */
     cv_text(12, 4, &FONT_L, t, K_TEXT);

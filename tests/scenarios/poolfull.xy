@@ -1,0 +1,114 @@
+# the effects' pool full (dsp/efx.h, 78 blocks): whoever holds memory keeps it, and a slot page offers only the effects
+# that would find theirs there (engine_fits: its own memory counted free). PRESETS passes the others, the SEL list dims
+# them ("no memory") and SEL refuses them; an effect set otherwise (a preset, a lock, MIDI, a project) without memory
+# passes dry and its page says "not playing: memory full". A project loaded gives memory in a fixed order: FX I, FX II,
+# Master FX, then the tracks, slot 1 then 2
+wait 300
+# FX II's chaos echo (32 blocks) beside FX I's delay (24): 22 left, no room for a track's delay (24)
+param 12 s1x1 8
+wait 100
+expect fxroom1 1
+expect fxroom2 1
+spin ALGO 1
+expect trk 2
+tap FX
+expect page Insert_1
+# PRESETS from off, down the catalog: the reverb (its plate, 12), rumble (2), then past the delay to autowah
+turn PRESET -1
+expect par2.ctype 18
+wait 50
+expect room2.1 1
+turn PRESET -1
+expect par2.ctype 17
+wait 50
+turn PRESET -1
+expect par2.ctype 15
+turn PRESET 1
+expect par2.ctype 17
+wait 50
+expect room2.1 1
+# the SEL list: the delay dimmed, "no memory"; SEL refuses it (the list stays, rumble kept)
+tap SEL
+expect listopen 1
+rowval delay = no memory
+rowval rumble = in use
+row delay
+listen
+tap SEL
+said no memory
+expect listopen 1
+expect par2.ctype 17
+tap HOME
+# track 4's plate (12) beside it: 8 left, the reverb too dimmed on track 2 (its rumble's 2 blocks not beside them)
+param 4 ctype 18
+param 4 cmix 100
+wait 100
+expect room4.1 1
+tap SEL
+rowval reverb = no memory
+rowval delay = no memory
+wait 2000
+shot pool_list_full.png
+tap HOME
+param 4 ctype 0
+wait 100
+# FX I's delay off: its 24 blocks free, the delay offered on the track
+param 11 ctype 0
+wait 100
+tap FX
+expect page Insert_1
+tap SEL
+row delay
+tap SEL
+expect listopen 0
+expect par2.ctype 16
+wait 100
+expect room2.1 1
+# a preset with a delay (dub chord: Insert 2) onto track 3 where none is free (22 blocks left): it passes dry, its page
+# says so, and the screen reader with it
+preset 3 dub_chord
+wait 100
+expect par3.itype 16
+expect room3.2 0
+spin ALGO 1
+expect trk 3
+tap FX
+turn SELECT 1
+expect page Insert_2
+wait 40
+shot pool_not_playing.png
+listen
+where
+said not playing: memory full
+# FX I's delay set again (MIDI, a lock: the same): it waits too
+param 11 ctype 16
+wait 100
+expect fxroom1 0
+expect room2.1 1
+# track 2's delay off: its blocks to FX I, waiting first (before track 3's)
+param 2 ctype 0
+wait 100
+expect fxroom1 1
+expect room3.2 0
+# saved with track 2's delay holding, FX I waiting; loaded: FX I first (its delay), FX II, then the tracks: track 2's
+# delay and track 3's wait now
+param 2 ctype 16
+param 11 ctype 0
+wait 100
+param 11 ctype 16
+wait 100
+expect room2.1 1
+expect fxroom1 0
+projsave 1
+projsave 2
+tap GLO
+tap SEL
+row PROJ 1
+tap SEL
+wait 200
+expect projslot 1
+expect par2.ctype 16
+expect fxroom1 1
+expect fxroom2 1
+expect room2.1 0
+expect room3.2 0

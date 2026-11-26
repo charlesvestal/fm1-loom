@@ -1275,13 +1275,18 @@ the tail is filtered steeply and saturated a little, and it ducks on each kick s
 decay is about 1.8 s to start, up to eight seconds, and down to a short thump at 0. On a kit, rumble hears only the
 kicks (the first key, and any key with the kick model), so the snare and hats stay out of it.
 
-**Memory.** The effects marked in the table share one pool of memory with FX I, FX II and Master FX. The sends get
-theirs first, then Master FX, then the tracks in order, Insert 1 before Insert 2. A new project's delay and lush
-leave room for one more delay, a few reverbs or many choruses. A big reverb type takes more than a small one. When an
-effect finds none, its page says "no memory" and who holds it ("no memory: FX I, FX II, T3"), and the effect passes
-the sound through unchanged (a send stays silent) until one of them is turned off or changed. In the **SEL** list,
-"no memory" stands beside each effect that wouldn't find room there now. When you stop, a delay's repeats and a
-reverb's or rumble's tail ring out.
+**Memory.** The effects marked in the table share one pool of memory with FX I, FX II and Master FX. Whatever holds
+memory keeps it: a slot only offers the effects that would find room where it is now, counting the memory it already
+has (a delay changed to a reverb can use the delay's). **PRESETS** passes the others by, and in the **SEL** list they
+are dimmed with "no memory" beside them; **SEL** on one says "no memory" and changes nothing. Turn another effect off
+or change it, and they come back. A new project's delay and lush leave room for one more delay, a few reverbs or many
+choruses. A big reverb type takes more than a small one, and the reverb's **TYPE** skips the ones that won't fit.
+
+An effect can still arrive where there's no room: from a preset or kit, a lock, MIDI, or a project. Then it passes the
+sound through unchanged (a send stays silent) and its page says "not playing: memory full", until something else gives
+its memory back. A project gives memory out in a fixed order when it loads: FX I, FX II, Master FX, then the tracks in
+order, Insert 1 before Insert 2, so a project that played when you saved it plays the same when you load it. When you
+stop, a delay's repeats and a reverb's or rumble's tail ring out.
 
 ### Insert 1 and Insert 2
 
@@ -1320,8 +1325,8 @@ to FX I or FX II with **ALGORITHM**, **EDIT** has the same knobs, and its page 2
 ### Master FX
 
 **GLO**, then **SELECT** twice: one effect on the whole mix, after the master EQ and before the compressor. It is the
-same page again, with the mix on **KNOB 4** (at 0 it's off). An effect that needs memory takes it after FX I and FX
-II, before the tracks. A new project starts with it off. A project from an older version keeps its master color: its
+same page again, with the mix on **KNOB 4** (at 0 it's off). An effect that needs memory finds it beside the sends and
+the tracks' (when a project loads: after FX I and FX II, before the tracks). A new project starts with it off. A project from an older version keeps its master color: its
 tape or sampler is Master FX's, with the same settings.
 
 ## Players

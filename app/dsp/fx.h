@@ -15,7 +15,7 @@
  * the sends' own (efx_send_*: the knobs as the catalog has them, efx.h; the delay's fine, width, wobble and smear its
  * extras, the reverb's mode and damp, shimmer's amount, theirs); the others run as on a kit's slot (ring at a ratio of
  * C4, tape without its wow), wet. Memory from the pool (fx_need, fx_memory: the engine's, each block); without enough
- * the send is silent ("no memory": fx_room). Its filter page (high-pass, low-pass) on the send before the effect: one
+ * the send is silent ("not playing: memory full": fx_room). Its filter page (high-pass, low-pass) on the send before the effect: one
  * filter instead of two, and the same result for the linear effects.
  * The delay's time: 1/32 1/16T 1/32D 1/16 1/8T 1/16D 1/8 1/4T 1/8D 1/4 of the tempo (one too long for the line, 0.5 s,
  * halved till it fits: 1/4 below 120 BPM, 1/8D below 90), fine +-25 %; its tone the repeats' low-pass, 800 Hz .. 19
@@ -71,7 +71,7 @@ void fx_pick_slot(int pick, const uint8_t e[4], int width, int wobble, int smear
  * The slot (Master FX: after the EQ, before the compressor) is a slot of the one effects list (dsp/efx.h, as a kit's
  * bus runs one: ring at a ratio of C4, the dirt and the color on both sides): any effect of the catalog, its three
  * knobs, its mix (0: the stage skipped), its extras. Memory from the pool after the sends', before the tracks'
- * (master_need, master_memory: the engine's, each block); without enough it passes dry ("no memory": master_room).
+ * (master_need, master_memory: the engine's, each block); without enough it passes dry ("not playing": master_room).
  * Tape's wow (0.55 Hz, a 6 Hz flutter an eighth as deep; ~1 .. 6 cents by the amount, times the mix, not mixed: no
  * comb with the dry) through a short line in its memory (a block), then the saturation into the roll-off, mixed.
  * Before format 30 the slot was the master color: off, tape or sampler (0, 1, 2: the catalog's 0, 7, 8 now), amount,
