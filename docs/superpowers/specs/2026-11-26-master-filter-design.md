@@ -38,3 +38,18 @@ No memory; ~1-1.5 KB flash (after the flash pass); a few hundred instructions a 
 Host: centre = bit-exact (dsp_hash: all the same); a sweep's response (LP at 25 %: -12 dB an octave above the cutoff;
 HP likewise); resonance bounded (a full-scale noise burst never past the limiter's ceiling, no NaN); the slew test's
 check over the new knobs; a project from before loads with both off.
+
+## Addendum (2026-11-26, the user): sends after the filters
+
+Heard on the FM-1: the drums filter turned down, the drums' reverb and delay stayed full. A kit's sends are taken
+per key (drumline, the keys' own send amounts) before its bus: the kit filter (dynamic), its Insert 1 / 2, and the
+drums filter (on the master's drums group) never reach FX I / II. Synth tracks are right already (voice -> filter
+-> Insert 1 -> Insert 2 -> fader -> sends). The decision:
+- **Per-key send amounts stay.**
+- **The filters apply to the sends too**: each kit's two send signals go through the kit filter and the drums
+  filter as its pair does (a second, mono state each: linear, cheap). The drums filter moves from the master's
+  drums group into each kit's render (its pair and its sends, one setting, up to four kits), so turning it down
+  takes the drums' reverb and delay down with them (the tails already in FX I / II ring out).
+- **Inserts stay before the sends on a kit** (an insert's memory and CPU can't be run twice): a kit with drive in
+  Insert 1 sends its clean hits. Said in the manual.
+- The mix filter is already after the returns (the whole mix): unchanged.
