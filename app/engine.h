@@ -39,6 +39,20 @@ extern volatile uint32_t eng_vworst[NVOICE + 2];
 #define TRACE_K 8
 extern uint16_t trace_worst[TRACE_N][TRACE_K];
 extern volatile uint32_t eng_prof_drum[NTRK];          /* each drum track's time (in PR_DRUM) */
+/* the profiler's detail (samples.c SB_PROF part 6, tools/perf_read.py --detail): the parts of the mix, the master and the
+ * output, and what no stage times, running totals as eng_prof's. In PR_MIX: the second core's pair and sends added in,
+ * synth_bus_join (the split buses: the second core's share in, the bus's two slots, its gains and sends), the melodic
+ * group's filter with the kits' sends joining after it, the synth's meters. PD_DGRPF: the drums' group filter (the DJ
+ * filter on the kits, in PR_DRUM). Untimed by the stages: PD_MSTWAIT, the first core waiting for the last stretch's master
+ * on the second (mst_finish); PD_GAPS, render_sub's set-up past PR_PREP, the split pairs' clearing and the sends'
+ * gathering for the next block. PD_M*: master_process's parts (fx.h MP_*, in this order; on either core), PD_MC2 the
+ * master's time on the second core (in PR_MST). In PR_OUT: the NaN check, the conversion (the rest: the meters).
+ * eng_pd_worst: each part in the slowest block, eng_pd_max: each part's largest block, both permille of the block's
+ * budget, since eng_prof_reset */
+enum { PD_C2SUM, PD_JOIN, PD_MELF, PD_MMETER, PD_DGRPF, PD_MSTWAIT, PD_GAPS, PD_MGROUPS, PD_MEQ, PD_MSLOT, PD_MTAIL,
+       PD_MFILT, PD_MC2, PD_OCHK, PD_OCONV, ENG_PD_N };
+extern volatile uint32_t eng_pd[ENG_PD_N];
+extern volatile uint16_t eng_pd_worst[ENG_PD_N], eng_pd_max[ENG_PD_N];
 
 void engine_init(patterns_t *P, uint8_t (*par)[NTP]);    /* par: NALLTRK arrays (the project's) */
 void engine_render(int32_t *out_lr, uint32_t n, uint32_t gain_q12);   /* ISR: n stereo frames, 24-bit in int32 */

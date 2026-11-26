@@ -30,6 +30,12 @@ uint16_t trace[TRACE_N][TRACE_K], trace_worst[TRACE_N][TRACE_K];   /* (engine.h)
 static uint32_t trace_w, trace_take;
 #define PROF_T(v) uint32_t v = plat_cycles()
 #define PROF_ADD(k, t0) (eng_prof[k] += plat_cycles() - (t0))
+/* the detail (engine.h PD_*): a part's time since t, and t moved on to now (one clock read) */
+volatile uint32_t eng_pd[ENG_PD_N];
+volatile uint16_t eng_pd_worst[ENG_PD_N], eng_pd_max[ENG_PD_N];
+static uint32_t pd_block0[ENG_PD_N] PLAT_SPARE;          /* (NOINIT's spare room: outside the SRAM budget) */
+_Static_assert(PD_MFILT - PD_MGROUPS == MP_MFILT - MP_GROUPS && PD_MC2 == PD_MGROUPS + MP_N, "the master's parts (fx.h MP_*)");
+#define PD_LAP(k, t) do { uint32_t t_ = plat_cycles(); eng_pd[k] += t_ - (t); (t) = t_; } while (0)
 
 /* ---------------------------------------------------------------- state --- */
 seq_t seq;
@@ -1468,8 +1474,11 @@ static void render_drums(uint32_t n, float *d1, float *d2)
         meter(t, tl, tr, g * gl, g * gr, n);
         eng_prof_drum[t] += plat_cycles() - pt1;
     }
-    if (master_group_on(MST, MF_DRUMS))
+    if (master_group_on(MST, MF_DRUMS)) {
+        PROF_T(pg);
         DSP_FAR(master_group_filter)(MST, MF_DRUMS, perc_l, perc_r, d1, d2, n);
+        PD_LAP(PD_DGRPF, pg);
+    }
     metro_tick(n);
     PROF_ADD(PR_DRUM, pd);
 }
@@ -1503,7 +1512,9 @@ static void mst_job(uint32_t arg)
     (void)arg;
     mst_ran = 1;
     DSP_FAR(master_process)(MST, perc_l, perc_r, mel_l, mel_r, mix_l + mst_at, mix_r + mst_at, mst_k);
-    PROF_ADD(PR_MST, pm);
+    pm = plat_cycles() - pm;
+    eng_prof[PR_MST] += pm;
+    eng_pd[PD_MC2] += pm;                                 /* (the detail: the master's time on the second core) */
 }
 static void mst_finish(void)
 {
@@ -1555,16 +1566,20 @@ static void render_sub(uint32_t n, uint32_t at)
         plat_cpu2_sync();
     }
     PROF_ADD(PR_PREP, pp);
+    pp = plat_cycles();
     if (melf) {
         zerof(mix_l + at, n);
         zerof(mix_r + at, n);
     }
+    PD_LAP(PD_GAPS, pp);
     render_drums(n, melf ? mix_l + at : s1, melf ? mix_r + at : s2);   /* the drums first, always: only this core renders them, so
                                                            * the voices both cores can take are left for the end (with
                                                            * the drums last, the second core, late from the effects,
                                                            * found the queue empty and waited while this one did them) */
+    pp = plat_cycles();
     synth_split_ready(SY, n);                             /* (its split pairs, the drums' scratch until now, cleared) */
     ps = plat_cycles();
+    eng_pd[PD_GAPS] += ps - pp;
     if (late)
         late = c2_late(arg, &on2);
     while ((vi = ws_take0()) >= 0) {
@@ -1595,6 +1610,7 @@ static void render_sub(uint32_t n, uint32_t at)
         zerof(c2_s1, n);
         zerof(c2_s2, n);
     }
+    ps = plat_cycles();                                   /* (the detail: what follows to the mix, PD_GAPS) */
     for (i = ws_a; i < ws_n - ws_b; i++)                  /* any both gave back */
         synth_render_on(SY, 0, ws_ord[i], ws_ord[i] + 1, mel_l, mel_r, s1, s2, n);
     split_last[0] = (uint8_t)ws_a;                        /* (the profiler: the voices each core took) */
@@ -1606,17 +1622,22 @@ static void render_sub(uint32_t n, uint32_t at)
         split_blk[2] = split_last[2];
     }
     pt = plat_cycles();
+    eng_pd[PD_GAPS] += pt - ps;
+    ps = pt;                                              /* (ps: the detail's laps) */
     add_in(mel_l, c2_l, n);
     add_in(mel_r, c2_r, n);
     add_in(s1, c2_s1, n);
     add_in(s2, c2_s2, n);
+    PD_LAP(PD_C2SUM, ps);
     synth_bus_join(SY, mel_l, mel_r, s1, s2, n);          /* (the buses split across the cores: their stages, once both
                                                            * are in) */
+    PD_LAP(PD_JOIN, ps);
     if (melf) {                                           /* the melodic filter: the voices' pair and sends, then the
                                                            * kits' sends join (the FX returns after) */
         DSP_FAR(master_group_filter)(MST, MF_MEL, mel_l, mel_r, s1, s2, n);
         add_in(s1, mix_l + at, n);
         add_in(s2, mix_r + at, n);
+        PD_LAP(PD_MELF, ps);
     }
     for (t = 0; t < NTRK; t++)                            /* the synth's meters, into the common ones */
         if (!eng_drum[t]) {
@@ -1624,7 +1645,8 @@ static void render_sub(uint32_t n, uint32_t at)
             if (v > trk_peak[t])
                 trk_peak[t] = v;
         }
-    PROF_ADD(PR_MIX, pt);
+    PD_LAP(PD_MMETER, ps);
+    eng_prof[PR_MIX] += ps - pt;
     {
         for (k = 0; k < 2; k++) {                         /* (timed apart: FX I, FX II) */
             PROF_T(pf);                         /* FX I, then FX II (which hears FX I's return) */
@@ -1651,10 +1673,12 @@ static void render_sub(uint32_t n, uint32_t at)
             }
             PROF_ADD(k ? PR_FX2 : PR_FX, pf);
         }
+        pt = plat_cycles();
         for (k = 0; k < (int)n; k++) {                    /* the sends, gathered for the next block's effects */
             snd_acc[0][at + (uint32_t)k] = s1[k];
             snd_acc[1][at + (uint32_t)k] = s2[k];
         }
+        PD_LAP(PD_GAPS, pt);
     }
 }
 
@@ -1791,8 +1815,12 @@ void engine_render(int32_t *out_lr, uint32_t n, uint32_t gain_q12)
             k = STRETCH_MAX;
         if (!k)
             k = 1;
-        mst_finish();                                     /* (the last stretch's master: done before this one renders
+        if (mst_pend) {
+            PROF_T(pw);
+            mst_finish();                                 /* (the last stretch's master: done before this one renders
                                                            * into the same buffers) */
+            PD_LAP(PD_MSTWAIT, pw);
+        }
         render_sub(k, done);
         mst_at = done;
         mst_k = k;
@@ -1857,6 +1885,7 @@ void engine_render(int32_t *out_lr, uint32_t n, uint32_t gain_q12)
     PROF_T(po);
     float pk = 0.0f, chk = 0.0f;                         /* (quiet: every sample under -60 dB; the autosave waits for
                                                           * it, a flash write cuts the audio) */
+    uint32_t pc = po;
     for (i = 0; i < n; i++)                              /* a NaN or infinity anywhere: the sum is one too */
         chk += mix_l[i] + mix_r[i];
     if (!finite_bits(chk)) {                             /* the block silent; the states that would keep it (the
@@ -1865,6 +1894,7 @@ void engine_render(int32_t *out_lr, uint32_t n, uint32_t gain_q12)
         zerof(mix_r, n);
         heal_due = 1;
     }
+    PD_LAP(PD_OCHK, pc);
     for (i = 0; i < n; i++) {                            /* Felucca's -6 dBFS ceiling of the 24-bit codec (2^22) */
         float l, r;
         pk = fm_maxf(pk, fm_maxf(fm_fabsf(mix_l[i]), fm_fabsf(mix_r[i])));
@@ -1878,6 +1908,7 @@ void engine_render(int32_t *out_lr, uint32_t n, uint32_t gain_q12)
         if (i & 1u)
             eng_scope[eng_scope_w++ & (SCOPE_N - 1u)] = (int16_t)((mix_l[i] + mix_r[i]) * 16383.5f);
     }
+    PD_LAP(PD_OCONV, pc);
     eng_quiet = pk > 0.001f ? 0 : (uint16_t)(eng_quiet < 65535u ? eng_quiet + 1u : 65535u);
     for (p = 0; p < NALLTRK; p++) {                      /* meters: the loudest since the UI took them (Q14, to 2) */
         uint32_t q = (uint32_t)(fm_minf(trk_peak[p], 2.0f) * 16383.5f);
@@ -1893,6 +1924,20 @@ void engine_render(int32_t *out_lr, uint32_t n, uint32_t gain_q12)
         if (eng_prof_reset) {
             eng_prof_reset = 0;
             eng_prof_worst[PR_ALL] = 0;
+            for (p = 0; p < ENG_PD_N; p++)
+                eng_pd_max[p] = 0;
+        }
+        {   /* the detail's parts this block, permille of its budget: each one's largest, and the slowest block's */
+            uint32_t bud = n * 544u, q;
+            for (p = 0; p < ENG_PD_N; p++) {
+                q = (eng_pd[p] - pd_block0[p]) * 1000u / bud;
+                q = q > 65535u ? 65535u : q;
+                pd_block0[p] = eng_pd[p];
+                if (q > eng_pd_max[p])
+                    eng_pd_max[p] = (uint16_t)q;
+                if (d > eng_prof_worst[PR_ALL])
+                    eng_pd_worst[p] = (uint16_t)q;
+            }
         }
         {   /* the trace: each block's main stages in permille of its budget, the last TRACE_N */
             static const uint8_t K[TRACE_K - 2] = {PR_ALL, PR_SYNTH0, PR_SYNTH1, PR_SEQ, PR_DRUM, PR_NOTE};
@@ -1943,6 +1988,8 @@ void engine_init(patterns_t *P, uint8_t (*par)[NTP])
         seq_clock = plat_cycles;
         seq_prof = &eng_prof[PR_SIX];
     }
+    master_prof = &eng_pd[PD_MGROUPS];                    /* (the master's parts: the detail's) */
+    master_clock = plat_cycles;
     synth_init(SY, par);
     synth_split(SY, 2);                                   /* (a big bus track's voices on both cores: synth_bus_join below;
                                                            * the first core's pairs cleared after the drums) */

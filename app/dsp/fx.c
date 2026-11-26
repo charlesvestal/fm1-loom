@@ -838,12 +838,21 @@ void master_group_filter(master_t *m, int k, float *l, float *r, float *s1, floa
     if (master_group_on(m, k))
         mf_run(&m->mf[k], &m->mfm[k], m->pot[MF_KNOB[k]], m->pot[MS_FRES], l, r, s1, s2, s1 ? m->sc[k] : 0, n);
 }
+/* the profiler's detail (fx.h MP_*): engine.c's clock and its totals; until it sets them (the host's tests), a clock
+ * that stands still and totals of its own (the master's RAM code reads it without a test) */
+static uint32_t mp_still(void) { return 0u; }
+static volatile uint32_t mp_none[MP_N];
+uint32_t (*master_clock)(void) = mp_still;
+volatile uint32_t *master_prof = mp_none;
 /* the mix's filter over a stretch when it is on (from the flash: master_tail_f calls it through dsp_far, its RAM code
  * kept small) */
 static void mf_stage(master_t *m, float *L, float *R, uint32_t n)
 {
-    if (mf_on(m, MF_MIX))
+    if (mf_on(m, MF_MIX)) {
+        const uint32_t t = master_clock();
         mf_run(&m->mf[MF_MIX], &m->mfm[MF_MIX], m->pot[MS_MFILT], m->pot[MS_FRES], L, R, 0, 0, 0, n);
+        master_prof[MP_MFILT] += master_clock() - t;
+    }
 }
 #define MF_STAGE(m, L, R, n) ((__typeof__(&mf_stage))dsp_far((void *)&mf_stage))(m, L, R, n)
 
@@ -935,7 +944,7 @@ static inline float master_tail(master_t *m, float *mel_l, float *mel_r, float *
         if (pass != 1)
             break;
         MF_STAGE(m, mel_l, mel_r, n);             /* the mix's filter: after the compressor and the pump, before CLIP
-                                                   * and the limiter */
+                                                   * and the limiter (it times itself: MP_MFILT) */
         pass = 2;
         lev1 = lev;
         lev = glv = 1.0f;
@@ -962,6 +971,8 @@ void master_process(master_t *m, float *perc_l, float *perc_r, float *mel_l, flo
     uint32_t i;
     float gp = m->gp_c, gm = m->gm_c, grmax, pmax = 0.0f;
     const int eq_on = m->eq_on;
+    uint32_t tk[MP_TAIL + 2], f0;                /* (the profiler's detail: the clock between the parts) */
+    tk[0] = master_clock();
     /* the groups into the bus, then the EQ a band at a time, in place in mel. (Every state is a local in its loop: a
      * load from RAM costs this core more than a multiply.) */
     {   /* (with the PUMP, X0X's, on the groups as they meet: a kit's hit ducks the melodic group alone, so the kick
@@ -999,6 +1010,7 @@ void master_process(master_t *m, float *perc_l, float *perc_r, float *mel_l, flo
         m->pg_step = pg_step;
         m->pcr = (uint8_t)pcr;
     }
+    tk[1 + MP_GROUPS] = master_clock();
     if (eq_on && STAGE(1)) {
         int b;
         for (b = 0; b < 3; b++)
@@ -1007,13 +1019,20 @@ void master_process(master_t *m, float *perc_l, float *perc_r, float *mel_l, flo
                 biq_block(&m->eq[b], &m->eqs[1][b], mel_r, n);
             }
     }
+    tk[1 + MP_EQ] = master_clock();
     if (m->sl.ef != EF_OFF && STAGE(2))          /* the slot (dsp/efx.c, from the flash) */
         ((__typeof__(&efx_slot_run))dsp_far((void *)&efx_slot_run))(&m->sl, 1, m->bpm, 0, m->mrun, mel_l, mel_r, n);
     for (i = 0; !m->sl.live && i < n; i++)       /* (off while the sound plays: an effect set starts from dry) */
         m->sl.live = mel_l[i] != 0.0f || mel_r[i] != 0.0f;
+    tk[1 + MP_SLOT] = master_clock();
+    f0 = master_prof[MP_MFILT];
     grmax = master_tail(m, mel_l, mel_r, out_l, out_r, n,      /* (the mix's filter on: two passes; its knob read
                                                                 * here, not through MF_KNOB, a table in the flash) */
                         m->mfm[MF_MIX] != MFM_OFF || (unsigned)(m->pot[MS_MFILT] - (MS_FILT_OFF - 2)) > 4u);
+    tk[1 + MP_TAIL] = master_clock();
+    tk[1 + MP_TAIL] -= master_prof[MP_MFILT] - f0;   /* (the tail less the mix's filter inside it: MP_MFILT's) */
+    for (i = 0; i <= MP_TAIL; i++)
+        master_prof[i] += tk[i + 1] - tk[i];
     m->gp_c = gp;
     m->gm_c = gm;
     m->gr_view = grmax > m->gr_view ? grmax : m->gr_view * 0.93f;

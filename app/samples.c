@@ -28,7 +28,9 @@
  *                                       the clock, the frames, engine.h's stages, the slowest block's stages, the
  *                                       load, voices, their cap, saws, guard trips, dropouts, the note-start
  *                                       check's steals; part 1: synth.h's synth_prof (each engine's time, both
- *                                       halves); part 2: each drum track's time.
+ *                                       halves); part 2: each drum track's time; part 6: the mix's, the master's
+ *                                       and the output's parts (engine.h PD_*: totals, then worst | max << 16 in
+ *                                       permille of a block).
  *                                       part | 64: the slowest block starts again after this reply
  *   BENCH      27 k reps             -> k, count, name (0-terminated), runs, then 4 32-bit values (5 bytes each, as PROF):
  *                                       the fastest run, the median, the slowest, the samples a run (dsp/bench.h): the
@@ -209,6 +211,7 @@ static int smp_frame(const uint8_t *p, uint32_t n)
         break;
     case SB_PROF: {
         uint32_t part = na ? a[0] & 63u : 0u, v[2 + 2 * ENG_PROF_N + 7], nv = 0;
+        _Static_assert(2 * ENG_PD_N <= 2 + 2 * ENG_PROF_N + 7, "part 6 fits the reply's values");
         if (part == 0u) {
             v[nv++] = plat_cycles();
             v[nv++] = eng_prof_frames;
@@ -241,6 +244,12 @@ static int smp_frame(const uint8_t *p, uint32_t n)
                 v[nv++] = (uint32_t)plat_stack_left((int)i);
             for (i = 0; i < 3u; i++)
                 v[nv++] = (uint32_t)plat_stack_least_ever((int)i);
+        } else if (part == 6u) {                     /* the detail (engine.h PD_*): the running totals, then each part's
+                                                      * slowest-block and largest-block permille (worst | max << 16) */
+            for (i = 0; i < ENG_PD_N; i++)
+                v[nv++] = eng_pd[i];
+            for (i = 0; i < ENG_PD_N; i++)
+                v[nv++] = (uint32_t)eng_pd_worst[i] | (uint32_t)eng_pd_max[i] << 16;
         } else if (part == 4u) {                     /* the slowest block's voices (engine.h eng_vworst) */
             for (i = 0; i < NVOICE + 2u; i++)
                 v[nv++] = eng_vworst[i];

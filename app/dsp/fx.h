@@ -140,6 +140,13 @@ void master_key(master_t *m, int src, int vel, int kit);   /* kit: a kit's hit (
 /* perc and mel: the two groups (stereo, in place), summed with the fx returns (added into mel) */
 void master_process(master_t *m, float *perc_l, float *perc_r, float *mel_l, float *mel_r, float *out_l, float *out_r,
                     uint32_t n);
+/* the profiler's detail (engine.c sets both; 0: not timed): master_process's parts, running totals in master_clock's
+ * units at master_prof[MP_*]: the groups and the pump, the EQ, the slot (Master FX), the tail (the compressor, the
+ * level, CLIP, the limiter and the ceiling: one loop a sample, not apart) and the mix's filter (inside the tail, not
+ * in MP_TAIL) */
+enum { MP_GROUPS, MP_EQ, MP_SLOT, MP_TAIL, MP_MFILT, MP_N };
+extern uint32_t (*master_clock)(void);
+extern volatile uint32_t *master_prof;
 float master_gr_db(const master_t *m);                      /* the compressor's gain reduction (UI) */
 float master_pump_db(const master_t *m);                    /* the pump's, now (UI: falls back slowly) */
 #ifdef PLAT_HOST

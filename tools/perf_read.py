@@ -5,6 +5,20 @@ app/engine.h PR_*, app/dsp/synth.h synth_prof), as shares of the render's budget
 
   tools/perf_read.py [--every S] [--for S]      a line every S seconds (1.0) for S seconds (forever): the stages'
                                                 shares since the last line, the slowest block's, each engine's
+  tools/perf_read.py --detail                   and under each line the mix's, the master's and the output's parts
+                                                (app/engine.h PD_*; part 6): each part's mean share, then in brackets
+                                                its share in the slowest block and its largest block's (both since the
+                                                last line), and what no stage times
+
+The detail's parts: mix = c2sum (the second core's pair and sends added in) + join (synth_bus_join: the split buses,
+the second core's share in, each bus's two slots, its gains and sends) + melf (the melodic group's filter, the kits'
+sends after it) + meters; drum's grpf (the drums' group filter, the DJ filter on the kits; inside drum); master =
+groups (the two groups summed, the pump) + eq + slot (Master FX: tape...) + tail (compressor, level, CLIP, limiter,
+ceiling: one loop) + mfilt (the mix's filter), on either core: on core 2 says how much of it ran on the second core
+beside the first (core 1's master = master - on core 2); out = chk (the NaN check) + conv (the conversion, the scope)
++ the meters; untimed: mstwait (the first core waiting for the last stretch's master on the second), gaps
+(render_sub's set-up past prep, clearing the split pairs, gathering the sends) and rest (all less every stage on the
+first core, mstwait and gaps: interrupts, the loop's own work).
 
 As a module (tools/demos/device_load.py): snap(port) the running totals, diff(a, b) the shares between two snaps.
 The clock is the 24 MHz timer; a stage's share = its time / (frames / 44.1 kHz). synth0 is the first core's voices,
@@ -22,6 +36,8 @@ ENGINES = ["knit", "rayon", "jacquard", "bellows", "cane", "voile", "sample", "s
 TICK_HZ = 24e6
 SR = 44100.0
 TRAIL = ["load", "voices", "cap", "lite", "guard", "drops", "steals"]   # (lite: the 303s' switches, engine.c)
+DETAIL = ["c2sum", "join", "melf", "meters", "grpf", "mstwait", "gaps", "m.groups", "m.eq", "m.slot", "m.tail",
+          "m.mfilt", "m.core2", "o.chk", "o.conv"]   # (engine.h PD_*)
 
 
 class Port:
@@ -54,9 +70,11 @@ def ask(port, part, timeout=1.0):
     raise TimeoutError("perf_read: no PROF reply")
 
 
-def snap(port, reset_worst=True):
-    """the running totals: {'t', 'frames', 'stage': {..}, 'worst': {..}, 'load'.., 'eng': [2][16], 'drum': [8]}"""
+def snap(port, reset_worst=True, detail=False):
+    """the running totals: {'t', 'frames', 'stage': {..}, 'worst': {..}, 'load'.., 'eng': [2][16], 'drum': [8]}
+    (detail: 'pd' the parts' totals, 'pdw' each one's (slowest block, largest block) in permille)"""
     tr = ask(port, 3)                        # (first: the reset below lets the next block overwrite it)
+    pd = ask(port, 6) if detail else None    # (before the reset too)
     try:
         vb = ask(port, 4)                    # the slowest block's voices (a firmware without it: none)
     except TimeoutError:
@@ -73,6 +91,10 @@ def snap(port, reset_worst=True):
     s["drum"] = ask(port, 2)
     s["trace"] = [flat[i:i + 8] for i in range(0, len(flat), 8)]
     s["vblk"] = vb
+    if pd is not None:
+        k = len(DETAIL)
+        s["pd"] = dict(zip(DETAIL, pd[:k]))
+        s["pdw"] = {d: (w & 0xFFFF, w >> 16) for d, w in zip(DETAIL, pd[k:2 * k])}
     s["wall"] = time.time()
     return s
 
@@ -101,6 +123,9 @@ def diff(a, b):
     for k in TRAIL:
         out[k] = b[k]
     out["trace"] = b.get("trace")
+    if "pd" in b and "pd" in a:
+        out["pd"] = {k: pct(b["pd"][k] - a["pd"][k]) for k in DETAIL}
+        out["pdw"] = {k: (w / 10.0, m / 10.0) for k, (w, m) in b["pdw"].items()}
     out["vblk"] = b.get("vblk")
     vw = b.get("vworst") or [0, 0, 0]
     out["vworst"] = (100.0 * vw[0] / wb, ENGINES[vw[1]] if vw[1] < len(ENGINES) else "?", vw[2])
@@ -156,25 +181,49 @@ def line(d):
     return s
 
 
+def detail_text(d):
+    """the parts (mean % [slowest block's %, largest block's %]) and the untimed rest"""
+    if "pd" not in d:
+        return ""
+    st, pd, pw = d["stage"], d["pd"], d["pdw"]
+    f = lambda k: f"{k.split('.')[-1]} {pd[k]:.2f} [{pw[k][0]:.1f} {pw[k][1]:.1f}]"
+    mix = ["c2sum", "join", "melf", "meters"]
+    mst = ["m.groups", "m.eq", "m.slot", "m.tail", "m.mfilt"]
+    c1 = st["master"] - pd["m.core2"]
+    timed = sum(st[k] for k in ("seq", "synth0", "drum", "prep", "wait", "mix", "fx1", "fx2", "out")) + c1
+    rest = st["all"] - timed - pd["mstwait"] - pd["gaps"]
+    lines = [f"  mix {st['mix']:.2f} = " + " + ".join(f(k) for k in mix) +
+             f" (unsplit {st['mix'] - sum(pd[k] for k in mix):.2f})",
+             f"  master {st['master']:.2f} = " + " + ".join(f(k) for k in mst) +
+             f"; on core 2 {pd['m.core2']:.2f} [{pw['m.core2'][0]:.1f} {pw['m.core2'][1]:.1f}], core 1 {c1:.2f}",
+             f"  drum's {f('grpf')}; out {st['out']:.2f} = {f('o.chk')} + {f('o.conv')} + meters "
+             f"{st['out'] - pd['o.chk'] - pd['o.conv']:.2f}",
+             f"  untimed: {f('mstwait')}, {f('gaps')}, rest {rest:.2f}"]
+    return "\n".join(lines)
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--every", type=float, default=1.0)
     ap.add_argument("--for", dest="secs", type=float, default=0.0)
     ap.add_argument("--stacks", action="store_true", help="each stack's bytes never used: since the start, least ever")
+    ap.add_argument("--detail", action="store_true", help="the mix's, the master's and the output's parts (part 6)")
     a = ap.parse_args()
     p = Port()
     if a.stacks:
         v = [x - (1 << 32) if x >= 1 << 31 else x for x in ask(p, 5)]
         print("stacks left (bytes): main %d irq %d cpu1 %d | least ever: main %d irq %d cpu1 %d" % tuple(v), flush=True)
         return
-    prev = snap(p)
+    prev = snap(p, detail=a.detail)
     t0 = time.time()
     while not a.secs or time.time() - t0 < a.secs:
         time.sleep(a.every)
-        cur = snap(p)
+        cur = snap(p, detail=a.detail)
         d = diff(prev, cur)
         if d:
             print(line(d), flush=True)
+            if a.detail:
+                print(detail_text(d), flush=True)
         prev = cur
 
 
