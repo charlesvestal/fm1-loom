@@ -620,7 +620,7 @@ static void cn_drum(voice_t *v, float *pt, float *xl, int m, float g)
     cn_dpart(v, pt, 4, n2, hs, t, xl, m, g);
     cn_dpart(v, pt, 5, n2, hs, t, xl, m, g);
 }
-static void cn_run(voice_t *v, float *xl, float *xr, int m)
+static __attribute__((noinline)) void cn_run(voice_t *v, float *xl, float *xr, int m)
 {
     int md = (int)v->c.ex[19], i;
     float g = CN_GAIN[md];
@@ -966,7 +966,7 @@ static void vo_whisper(voice_t *v, float *xl, int m, float g)
     v->o[5] = fm_flush(y22);
     v->o[6] = ph;
 }
-static void vo_run(voice_t *v, float *xl, float *xr, int m)   /* (each model's gain at its last step) */
+static __attribute__((noinline)) void vo_run(voice_t *v, float *xl, float *xr, int m)   /* (each model's gain at its last step) */
 {
     int md = (int)v->c.ex[19];
     float g = VO_GAIN[md];

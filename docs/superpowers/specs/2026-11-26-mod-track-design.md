@@ -20,8 +20,10 @@ commit and the manual's credits.
 
 ## The model
 
-- **8 MOD patterns**; each scene picks one (`scenedef`'s aux columns gain MOD), the song follows the scenes, its
-  black key mutes it (black key 11, after COND 9 and THROW 10: check the free keys).
+- **8 MOD patterns**; each scene picks one **or none** (`scenedef`'s aux columns gain MOD: "-", 1..8; a new scene's
+  is "-", so modulation is only where it is put — no pattern spent as a blank one; the user, 2026-11-26). With "-"
+  the knobs stay where the last modulation left them. The song follows the scenes; its black key mutes it, live (black
+  key 11, after COND 9 and THROW 10: check the free keys).
 - **Up to 8 lanes a MOD pattern**. A lane: a **target** (any track's parameter, a kit key's, FX I / FX II's, the
   master's values incl. Master FX), **glide or step**, and a value a step. Lanes come from the **shared lane pool**
   (`pats.lane`, NLANE 96, the locks' and motion's): a lane is what a lock lane is, with a target outside its own

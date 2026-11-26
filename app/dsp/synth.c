@@ -467,7 +467,7 @@ static void wt_prep(voice_t *v)
     c->ex[6] = dr * dr * 0.6f;                   /* depth, turns */
     c->stereo = 0;
 }
-static void wt_run(voice_t *v, float *xl, float *xr, int m)
+static __attribute__((noinline)) void wt_run(voice_t *v, float *xl, float *xr, int m)
 {
     const cfg_t *c = &v->c;
     const int8_t *ta = WT[(int)c->ex[1]][(int)c->ex[2]], *tb = ta + WT_N;
@@ -602,7 +602,7 @@ static __attribute__((noinline)) void rayon_ops(voice_t *v, float *xl, int m)
     v->o[8] = y4a;
     v->o[9] = y4b;
 }
-static void rayon_run(voice_t *v, float *xl, float *xr, int m)
+static __attribute__((noinline)) void rayon_run(voice_t *v, float *xl, float *xr, int m)
 {
     const cfg_t *c = &v->c;
     float tl = c->ex[4] * v->o[7];
@@ -718,7 +718,7 @@ void organ_bars(const uint8_t *par, float bars[6])
     for (j = 0; j < 6; j++)
         bars[j] /= mx;
 }
-static void organ_run(voice_t *v, float *xl, float *xr, int m)
+static __attribute__((noinline)) void organ_run(voice_t *v, float *xl, float *xr, int m)
 {
     const cfg_t *c = &v->c;
     float re[6], im[6];
@@ -1188,7 +1188,7 @@ SY_INLINE void knit_loop(voice_t *v, float *xl, float *xr, int m, const int ster
     if (v->kanalog)                              /* analog's softer edges and saturation, last */
         knit_analog(v, xl, xr, m, stereo);
 }
-static void knit_run(voice_t *v, float *xl, float *xr, int m)
+static __attribute__((noinline)) void knit_run(voice_t *v, float *xl, float *xr, int m)
 {
     if (v->c.stereo)
         knit_loop(v, xl, xr, m, 1);
@@ -1897,7 +1897,7 @@ static int smp_xfade(voice_t *v, const smp_t *sm, int32_t *pos, float *fr, float
     }
     return k;
 }
-static void smp_run(voice_t *v, float *xl, float *xr, int m)
+static __attribute__((noinline)) void smp_run(voice_t *v, float *xl, float *xr, int m)
 {
     const cfg_t *c = &v->c;
     const smp_t *sm = smp_get((int)c->ex[6]);
@@ -2054,7 +2054,7 @@ static void slc_bounds(const smp_t *sm, int ns, int k, float gate, int32_t *s0, 
     *s0 = a;
     *e = a + (g < 32 ? 32 : g > b - a ? b - a : g);
 }
-static void slc_run(voice_t *v, float *xl, float *xr, int m)
+static __attribute__((noinline)) void slc_run(voice_t *v, float *xl, float *xr, int m)
 {
     const cfg_t *c = &v->c;
     const smp_t *sm = smp_get((int)c->ex[6]);
@@ -2212,7 +2212,7 @@ static void acid_chunk(voice_t *v)
             bass303_set(b, ACID_POT[i], (int)v->c.ex[i]);
     bass303_pitch(b, v->c.ex[NACIDP]);
 }
-static void acid_run(voice_t *v, float *xl, int m)
+static __attribute__((noinline)) void acid_run(voice_t *v, float *xl, int m)
 {
     bass303_t *b = v->as < NACID && v->o[4] < 0.5f ? &acid_mem[v->as] : 0;
     int i;
