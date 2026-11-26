@@ -54,3 +54,17 @@ average. A host test keeps it so.
 ARP speeds (seq.c ARP_NUM / ARP_DEN, synth.c ARPSPD_N; slowest first) gain **1/4D** (six sixteenths) before 1/4. A
 speed is stored as its index (TP_P1): the next project format moves every arp speed and its locks / motion up one
 (as format 21's old_arp did), presets format too if presets store it; a migrate.xy expectation.
+
+## Decided (the user, 2026-11-26): mixer mutes are audio; wet only — in this release
+
+"It's a mixer, it should mute audio, not trim notes. That's what the pattern mutes are for." Arrange and the scenes
+keep their note mutes (composition); the **Mix page** gets audio mutes (performance):
+- Each track's channel: **on**, **mute** (its dry and its sends off; what is in FX I / II rings out), **wet only**
+  (its dry off, its sends on: only its reverb and echoes heard).
+- Mix's black keys: a tap mutes / unmutes the track's audio; **SEL held + tap**: wet only. A kit's black key held +
+  white keys: its sounds' audio, one by one (the same gesture as Arrange's). Hold a black key: **audio solo** (the
+  others muted at the mixer while held; the double-tap latch as now).
+- Global: scene changes never touch it; saved with the project, not the scenes. A ~5 ms fade (no clicks).
+- Shown on Mix's rows apart from a scene mute (a crossed speaker; "wet"); the screen reader says it.
+- Changes from today: Mix's black keys toggled the scene's (note) mutes; they become the mixer's. Pattern / scene
+  mutes on Arrange only. Manual: the mute rows of How do I, Mix, Arrange.
