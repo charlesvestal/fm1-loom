@@ -218,7 +218,7 @@ static inline int midi_cc_of(int p) { return p >= TP_A && p <= TP_R ? p - TP_A :
 #define NTP_SOUND TP_PLAYER                          /* a preset keeps par[0..TP_PLAYER): the character, the engine's
                                                       * second page (TP_X1..X4) too */
 
-enum { VM_POLY, VM_MONO, VM_LEGATO };
+enum { VM_POLY, VM_MONO, VM_LEGATO, VM_RETRIG };   /* (retrig: mono, its envelopes from zero at every key) */
 /* filter types: lp24 (two state-variable stages, 24 dB, aggressive), ladder (Moog-like, saturating feedback),
  * lp12 (one resonant stage, gentle 12 dB), hp12 (its high-pass), dynamic (drum tracks: low cut, compression,
  * drive, hi cut on the Filter page's four knobs instead of cutoff / res / env / keytrack; on a synth voice a

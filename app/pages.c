@@ -5837,13 +5837,14 @@ static void draw_play(void)
     char t[40];
     if (!begin_main(h))
         return;
-    const char *sub = p[TP_ENGINE] == EG_ACID ? "one voice, held notes slide" : p[TP_VMODE] % 3 == VM_POLY ? "up to 6 voices on the track"
-                    : p[TP_VMODE] % 3 == VM_MONO ? "one voice, every key restarts it" : "one voice, held keys glide";
+    const char *sub = p[TP_ENGINE] == EG_ACID ? "one voice, held notes slide" : p[TP_VMODE] % 4 == VM_POLY ? "up to 6 voices on the track"
+                    : p[TP_VMODE] % 4 == VM_MONO ? "one voice, every key restarts it"
+                    : p[TP_VMODE] % 4 == VM_RETRIG ? "one voice, every key from zero" : "one voice, held keys glide";
     int32_t ty;
     if (LARGE)                                       /* (large type: the line on the title's, right) */
-        ty = title_sub(tp_info_par(TP_VMODE, p)->names[p[TP_VMODE] % 3], sub, K_DIM);
+        ty = title_sub(tp_info_par(TP_VMODE, p)->names[p[TP_VMODE] % 4], sub, K_DIM);
     else {
-        cv_text(12, 6, &FONT_B, tp_info_par(TP_VMODE, p)->names[p[TP_VMODE] % 3], K_TEXT);
+        cv_text(12, 6, &FONT_B, tp_info_par(TP_VMODE, p)->names[p[TP_VMODE] % 4], K_TEXT);
         cv_text(12, 26, F_CAP, sub, K_DIM);
         ty = 0;
     }

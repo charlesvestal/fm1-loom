@@ -1187,8 +1187,10 @@ EDIT's pages start with the sound and end with how it plays. On most engines, tu
 page for the Play page. Rayon has its Sub and Ops pages before it, acid its Sub page, and knit has Osc 2, Mod and Levels. For details, see
 [Knit](#knit).
 
-The Play page sets poly, mono or legato, portamento, the bend range (off, 1 to 7 semitones, or an octave) and the
-sound's octave, from two down to two up. Bass presets come an octave or two down. The octave moves every note the
+The Play page sets poly, mono, legato or retrig, portamento, the bend range (off, 1 to 7 semitones, or an octave) and
+the sound's octave, from two down to two up. Mono restarts the envelopes from where they are, so with a slow release a
+new note starts partway up; retrig is mono with both envelopes starting from zero on every note, for the same attack
+and filter sweep however the release is set. Bass presets come an octave or two down. The octave moves every note the
 track plays, including the steps. These four knobs are the same on every synth engine. Turn **SELECT** once more for
 Play 2. **low cut** (KNOB 3) takes the lows out of each note before the filter, like the Juno-106's high-pass
 slider: off at 0, then from 20 Hz up to 2 kHz. Use it to thin out pads, strings and stabs so they sit above the

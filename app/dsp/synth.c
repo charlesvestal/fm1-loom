@@ -83,7 +83,7 @@ static const uint8_t EG_DEF[NENGINE][4] = {{0, 20, 1, 0},  {40, 25, 0, 0}, {0, 4
                                            {SMP_TEXTURE, 40, 30, 0},        /* (tulle: the bowl, its texture) */
                                            {0, 64, 50, 30},                 /* (lace: a bar) */
                                            {6, 64, 0, 10}};   /* (tartan: Chordism's major, as it was) */
-static const char *const VMODE_N[3] = {"poly", "mono", "legato"};
+static const char *const VMODE_N[4] = {"poly", "mono", "legato", "retrig"};
 static const char *const FTYPE_N[NFT] = {"lp24", "ladder", "lp12", "hp12", "bp12", "off"};   /* FT_DYNAMIC: no
                                                                           * filter on a synth track; the kit's
                                                                           * bus filter (on/off of its own) on a
@@ -2810,9 +2810,12 @@ void synth_note_on(synth_t *s, int trk, int note, int vel, int glide_ms, uint32_
             v->pitch = (float)note;
             v->glide_k = ms > 0.5f ? 1.0f - fm_expf(-(float)SY_CHUNK * 1000.0f / (ms * SY_SR)) : 1.0f;
             t->last_pitch = v->pitch;
-            if (mode == VM_MONO || !was_held || v->amp.stage == ENV_RELEASE) {   /* legato: only from silence */
-                v->amp.stage = ENV_ATTACK;       /* retrigger from the level now */
+            if (mode != VM_LEGATO || !was_held || v->amp.stage == ENV_RELEASE) {   /* legato: only from silence */
+                v->amp.stage = ENV_ATTACK;       /* retrigger from the level now (retrig: from zero, the amp's ramp
+                                                  * there over a sub-block) */
                 v->flt.stage = ENV_ATTACK;
+                if (mode == VM_RETRIG)
+                    v->amp.level = v->flt.level = 0.0f;
                 v->tsec = 0.0f;
                 if (v->engine == EG_RAYON)
                     v->o[5] = v->o[7] = 1.0f;
@@ -4728,7 +4731,7 @@ int synth_voices_used(const synth_t *s)
 static const tp_info_t FIXED[NTP_SOUND + 13] = {
     {"engine", 0, NENGINE - 1, 0, PK_NAMES, EG_NAME}, {"", 0, 127, 0, PK_NN, 0}, {"", 0, 127, 0, PK_NN, 0},
     {"", 0, 127, 0, PK_NN, 0},                          {"", 0, 127, 0, PK_NN, 0},
-    {"mode", 0, 2, VM_POLY, PK_NAMES, VMODE_N},         {"porta", 0, 127, 0, PK_NUM, 0},
+    {"mode", 0, 3, VM_POLY, PK_NAMES, VMODE_N},         {"porta", 0, 127, 0, PK_NUM, 0},
     {"bend", 0, 8, 2, PK_NAMES, BEND_N},                {"volume", 0, 127, 100, PK_PCT, 0},
     {"attack", 0, ENV_HI, 0, PK_MS, 0},                 {"decay", 0, ENV_HI, 60, PK_MS, 0},
     {"sustain", 0, 127, 100, PK_PCT, 0},                {"release", 0, ENV_HI, 40, PK_MS, 0},
