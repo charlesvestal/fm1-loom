@@ -325,8 +325,10 @@ const char *const MS_NAME[NMS] = {"low", "mid", "high", "clip", "effect", "knob 
 typedef struct { float b0, b1, b2, a1, a2; } biq_t;
 typedef struct { float x1, x2, y1, y2; } biqs_t;
 /* the master filter (fx.h MS_DFILT ..): a state-variable filter's states, both sides; its cutoff (log2 Hz), damping
- * (1/Q) and wet, gliding (mf_run); a group's (the drums', the melodic one's) its sends' too (sc: s1's two, s2's) */
-typedef struct { float ic[4], lc, kc, w; } mfilt_t;
+ * (1/Q) and wet, gliding (mf_run); a group's (the drums', the melodic one's) its sends' too (sc: s1's two, s2's); the
+ * coefficients at lc, kc, w (a1 0: none yet; made again only while they glide, never at rest) */
+typedef struct { float a1, a2, a3, cx, c1, c2; } mfc_t;
+typedef struct { float ic[4], lc, kc, w; mfc_t c; } mfilt_t;
 static const uint8_t MF_KNOB[NMF] = {MS_DFILT, MS_MELF, MS_MFILT};
 enum { MFM_OFF, MFM_LP, MFM_HP };
 
@@ -679,7 +681,6 @@ float master_filter_db(int v, int r, float hz)
 /* the coefficients (Cytomic's SVF: a1..a3) and the output's mix of the input and the two states, from the cutoff, the
  * damping and the wet: low-pass v2, high-pass x - k v1 - v2; the wet's level made up for the resonance (sqrt(k /
  * sqrt 2): unity at none, -10 dB at the most, its peak then +7 dB) */
-typedef struct { float a1, a2, a3, cx, c1, c2; } mfc_t;
 static void mf_coefs(mfc_t *c, const mfilt_t *f, int mode)
 {
     const float g = fm_tanf(FM_PI * (1.0f / SR) * fm_exp2f(f->lc)), wc = f->w * fm_sqrtf(f->kc * 0.70710678f);
@@ -736,6 +737,7 @@ static void mf_run(mfilt_t *f, uint8_t *mode, int v, int r, float *L, float *R, 
             sc[0] = sc[1] = sc[2] = sc[3] = 0.0f;
         f->lc = want == MFM_HP ? MFM_HP_BOT : MF_LP_TOP;
         f->kc = kt;
+        f->c.a1 = 0.0f;
     }
     if (*mode == MFM_OFF)
         return;
@@ -744,15 +746,17 @@ static void mf_run(mfilt_t *f, uint8_t *mode, int v, int r, float *L, float *R, 
         kt = f->kc;
         wt = 0.0f;
     }
-    mf_coefs(&c, f, *mode);
-    d = c;
+    if (f->c.a1 == 0.0f)                         /* (the last call's end: this one's start) */
+        mf_coefs(&f->c, f, *mode);
+    c = f->c;
     if (f->lc != lt || f->kc != kt || f->w != wt) {
         float dl = lt - f->lc, dk = kt - f->kc;
         f->lc = fm_fabsf(dl) < 0.002f ? lt : f->lc + dl * a;
         f->kc = fm_fabsf(dk) < 0.0005f ? kt : f->kc + dk * a;
         f->w = f->w < wt ? fm_minf(f->w + wa, wt) : fm_maxf(f->w - wa, wt);
-        mf_coefs(&d, f, *mode);
+        mf_coefs(&f->c, f, *mode);
     }
+    d = f->c;
     if (S1) {                                    /* (a group's sends: mono, the same ramp) */
         mf_svf(S1, sc, &c, &d, n);
         mf_svf(S2, sc + 2, &c, &d, n);

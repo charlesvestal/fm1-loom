@@ -76,6 +76,8 @@ static double work_k = 0.226;
 static uint64_t work_c2, work_ov, work_calls, work_t0, work_c20;
 static uint32_t work_blocks, work_over, work_over92, work_prof0[ENG_PROF_N];
 static double work_sum, work_worst, work_worst_s, work_s;
+static uint64_t work_subs, work_subs0, work_mst, work_prep, work_frames;     /* the stretches (sub-blocks) and, LOOM_WORK=2, the
+                                                                 * master's and the stretches' set-up (ticks) */
 static FILE *work_log;
 static uint64_t work_skip;                                /* the simulator's own work inside the render (its MIDI log) */
 static uint64_t host_instr(void)                          /* instructions so far, the counting's own left out */
@@ -157,6 +159,11 @@ static int work_end(uint32_t n)                   /* the block's modelled load, 
                     100.0 * (double)drumline_host_cost[i][1] / ((double)n * 544.2));
         fputc('\n', work_log);
     }
+    work_frames += n;
+    work_subs += eng_prof[PR_SUBS] - work_subs0;
+    work_subs0 = eng_prof[PR_SUBS];
+    work_mst += eng_prof[PR_MST] - work_prof0[PR_MST];
+    work_prep += eng_prof[PR_PREP] - work_prof0[PR_PREP];
     for (unsigned i = 0; i < ENG_PROF_N; i++)
         work_prof0[i] = eng_prof[i];
     memset(drumline_host_cost, 0, sizeof drumline_host_cost);
@@ -170,6 +177,12 @@ static void work_print(void)
     printf("work: %u blocks, mean %.1f %%, worst %.1f %% at %.2f s, over 92 %%: %u, over 100 %%: %u (k %.3f ticks an "
            "instruction)\n", work_blocks, work_blocks ? work_sum / work_blocks : 0.0, work_worst, work_worst_s,
            work_over92, work_over, work_k);
+    if (work_blocks)                                  /* the stretches a block; the master and the set-up (LOOM_WORK=2) */
+        printf("work: %.2f stretches a block%s", (double)work_subs / work_blocks, work_fine ? "" : "\n");
+    if (work_blocks && work_fine)
+        printf(", master %.1f %%, prep %.1f %% of a block\n", 100.0 * (double)work_mst / ((double)work_frames * 544.2),
+               100.0 * (double)work_prep / ((double)work_frames * 544.2));
+    work_subs = work_mst = work_prep = work_frames = 0;
     work_blocks = work_over = work_over92 = 0;
     work_sum = work_worst = work_s = 0.0;
 }

@@ -1305,10 +1305,13 @@ static void apply_locks(seq_t *s, int t, int p, uint32_t L, const seq_sink_t *o)
     }
 }
 
-static int locks_tick(seq_t *s, uint32_t k, const seq_sink_t *o)   /* -> a lane ramps still (chunk_cap) */
+/* the lock ramps: a pattern's (shape) each chunk (chunk_cap: the stretches cut at SY_CHUNK while one runs); a MOD
+ * lane's glide (RT_MOD) once a block, at its start (k 0: engine.c's first call; its targets glide between: the
+ * effects' and the master's own slew), never cutting the block */
+static int locks_tick(seq_t *s, uint32_t k, const seq_sink_t *o)   /* -> a pattern's lane ramps still (chunk_cap) */
 {
     int i, cap = 0;
-    for (i = 0; i < NLANE; i++, cap |= s->lrt[i - 1].ramp) {
+    for (i = 0; i < NLANE; i++) {
         lane_rt_t *r = &s->lrt[i];
         const lane_t *l;
         if (!r->ramp && r->applied == LOCK_NONE)
@@ -1321,6 +1324,8 @@ static int locks_tick(seq_t *s, uint32_t k, const seq_sink_t *o)   /* -> a lane 
         if (!r->ramp)
             continue;
         r->age += k;
+        if ((r->trk & RT_MOD) && k)
+            continue;
         if (r->age >= r->len) {
             lock_put(s, l->trk, l, r, r->to, o);
             r->ramp = 0;
@@ -1329,6 +1334,8 @@ static int locks_tick(seq_t *s, uint32_t k, const seq_sink_t *o)   /* -> a lane 
             int v = (int)r->from + ((int)r->to - (int)r->from) * num / (den > 0 ? den : 1);
             lock_put(s, l->trk, l, r, v, o);
         }
+        if (!(r->trk & RT_MOD))
+            cap |= r->ramp;
     }
     return cap;
 }
@@ -1371,16 +1378,16 @@ static int mod_under(const seq_t *s, int trk, int param)
     }
     return LOCK_NONE;
 }
-/* lane i lets go of its target: by hand (the knob's value, or the pattern's lock in force, back); else it freezes (its
- * value stays, unless the pattern's lock in force takes it back) */
-static void mod_let_go(seq_t *s, int i, int hand, const seq_sink_t *o)
+/* lane i lets go of its target (a hand on its knob, a mute, "-", a pattern without it, the lane gone): the pattern's
+ * lock in force, or the knob's value, back (the target glides there: its own slew) */
+static void mod_let_go(seq_t *s, int i, const seq_sink_t *o)
 {
     lane_rt_t *r = &s->lrt[s->mod_lane[i]];
     int trk = s->mod_tgt[i] >> 9, param = s->mod_tgt[i] & 511, u;
     s->mod_own &= (uint8_t)~(1u << i);
     r->ramp = 0;
     u = mod_under(s, trk, param);
-    if ((hand && r->applied != LOCK_NONE) || u != LOCK_NONE) {
+    if (r->applied != LOCK_NONE || u != LOCK_NONE) {
         r->applied = LOCK_NONE;
         if (o->lock)
             o->lock(o->ctx, trk, param, u);
@@ -1399,33 +1406,43 @@ static int mod_now(const seq_t *s, int i)
         return s->mst && param < 32 ? s->mst[param] : 64;
     return trk < NALLTRK && param < NTP ? s->par[trk][param] : 0;
 }
-/* the lanes of MOD pattern np (-1 none) read: the ones staying keep their state, the others let go (frozen); a fresh
- * one takes over the value a lane not playing left on its target */
+int seq_mod_value(const seq_t *s, int trk, int param)
+{
+    int i = mod_owner(s, trk, param);
+    return i < 0 || s->lrt[s->mod_lane[i]].applied == LOCK_NONE ? -1 : s->lrt[s->mod_lane[i]].applied;
+}
+/* the lanes of MOD pattern np (-1 none) read: the ones staying keep their state; the others let go, unless a lane of
+ * the new pattern has the same target: that one carries on from the value (it holds it till its own values) */
 static void mod_read(seq_t *s, int np, const seq_sink_t *o)
 {
     uint8_t ix[NMODL], own = 0, held = 0;
     uint16_t tg[NMODL];
     int n = np >= 0 && np < NPATT ? mod_lanes(s->P->lane, np, ix) : 0, i, j, k;
+    for (j = 0; j < n; j++)
+        tg[j] = (uint16_t)(lane_mod_tgt(&s->P->lane[ix[j]]) << 9 | s->P->lane[ix[j]].param);
     for (i = 0; i < s->mod_n; i++) {
         for (j = 0; j < n && ix[j] != s->mod_lane[i]; j++)
             ;
         if (j < n) {
             own |= (uint8_t)((s->mod_own >> i & 1u) << j);
             held |= (uint8_t)((s->mod_held >> i & 1u) << j);
-        } else if (s->mod_own >> i & 1u)
-            mod_let_go(s, i, 0, o);
+            continue;
+        }
+        for (j = 0; j < n && tg[j] != s->mod_tgt[i]; j++)
+            ;
+        if (j == n && (s->mod_own >> i & 1u))
+            mod_let_go(s, i, o);
     }
     for (j = 0; j < n; j++) {
         const lane_t *l = &s->P->lane[ix[j]];
         lane_rt_t *r = &s->lrt[ix[j]];
-        tg[j] = (uint16_t)(lane_mod_tgt(l) << 9 | l->param);
         if (r->gen != l->gen || r->trk != (RT_MOD | (uint8_t)lane_mod_tgt(l)) || r->param != l->param) {
             lane_forget(s, r, o);     /* (the slot's last use let go) */
             r->gen = l->gen;
             r->trk = (uint8_t)(RT_MOD | lane_mod_tgt(l));
             r->param = l->param;
         }
-        for (k = 0; k < NLANE; k++) {  /* another MOD lane's value on the target: this one's now */
+        for (k = 0; k < NLANE; k++) {  /* another MOD lane's value on the target: this one's now (it carries on) */
             lane_rt_t *q = &s->lrt[k];
             if (k != ix[j] && (q->trk & RT_MOD) && q->applied != LOCK_NONE &&
                 ((q->trk & ~RT_MOD) << 9 | q->param) == tg[j]) {
@@ -1433,6 +1450,7 @@ static void mod_read(seq_t *s, int np, const seq_sink_t *o)
                     r->applied = q->applied;
                 q->applied = LOCK_NONE;
                 q->ramp = 0;
+                own |= (uint8_t)(1u << j);
             }
         }
     }
@@ -1446,51 +1464,73 @@ static void mod_read(seq_t *s, int np, const seq_sink_t *o)
     s->mod_pat = (uint8_t)(np >= 0 && np < NPATT ? np : 0xFF);
     s->mod_epoch = lane_epoch;
 }
-/* the step mod_pos: each lane's value (a glide's ramp to its next) */
-static void mod_step(seq_t *s, const seq_sink_t *o)
+/* lane i from where the pattern is (its step mod_pos, el samples into it): its last value at or before the step (pv)
+ * and its next (q). A glide with a next value ramps from the value now (at a value's own step, from it) to the next
+ * over the time left; a step lane, or a glide past its last value, sets the last; before the first a glide ramps from
+ * where the target is, a step lane lets go (none: the knob's). Its ramp's value is sent once a block (locks_tick) */
+static void mod_plan(seq_t *s, int i, uint32_t el, const seq_sink_t *o)
 {
     const modpat_t *mp = &s->P->mod[s->mod_pat % NPATT];
-    int p = s->mod_pos, len = mp->len < 1 ? 1 : mp->len > NSTEP ? NSTEP : mp->len, i;
-    uint32_t L = (six_q8(s) >> 8) * (uint32_t)mod_scale_six(mp->scale);   /* a step, samples */
-    for (i = 0; i < s->mod_n; i++) {
-        int k = s->mod_lane[i], v, q;
-        const lane_t *l = &s->P->lane[k];
-        lane_rt_t *r = &s->lrt[k];
-        if (!l->used || r->gen != l->gen)
+    const int p = s->mod_pos, len = mp->len < 1 ? 1 : mp->len > NSTEP ? NSTEP : mp->len, k = s->mod_lane[i];
+    const lane_t *l = &s->P->lane[k];
+    lane_rt_t *r = &s->lrt[k];
+    uint32_t L = (six_q8(s) >> 8) * (uint32_t)mod_scale_six(mp->scale), left;   /* a step, samples */
+    int pv, q, gl, v;
+    if (!l->used || r->gen != l->gen || p >= len)
+        return;
+    for (pv = p; pv >= 0 && l->val[pv] == LOCK_NONE; pv--)
+        ;
+    for (q = p + 1; q < len && l->val[q] == LOCK_NONE; q++)   /* its next value in this pass */
+        ;
+    gl = lane_glide(l) && q < len;
+    if (pv < 0 && !gl) {              /* (a step lane before its first value) */
+        if (s->mod_own >> i & 1u)
+            mod_let_go(s, i, o);
+        return;
+    }
+    v = gl && (pv < p || el) ? mod_now(s, i) : l->val[pv];
+    if (!(s->mod_own >> i & 1u)) {
+        s->mod_own |= (uint8_t)(1u << i);   /* (it holds it from here: sent, whatever was there) */
+        r->applied = LOCK_NONE;
+    }
+    r->ramp = 0;
+    lock_put(s, l->trk, l, r, v, o);
+    left = L * (uint32_t)(q - p);
+    left = left > el + 1u ? left - el : 1u;
+    if (!gl || l->val[q] == v)
+        return;
+    r->from = (uint8_t)v;
+    r->to = l->val[q];
+    r->len = left;
+    r->hold = 0;
+    r->age = 0u - adv_k;              /* (locks_tick adds this call's stretch, which ended here: from 0) */
+    r->ramp = 1;
+}
+/* the step mod_pos begins: each lane with a value there (it takes its target back from a hand), and at step 1 a glide
+ * to its first value from where the target is */
+static void mod_step(seq_t *s, const seq_sink_t *o)
+{
+    for (int i = 0; i < s->mod_n; i++) {
+        const lane_t *l = &s->P->lane[s->mod_lane[i]];
+        if (l->val[s->mod_pos % NSTEP] != LOCK_NONE)
+            s->mod_held &= (uint8_t)~(1u << i);
+        else if (s->mod_pos || !lane_glide(l) || (s->mod_held >> i & 1u))
             continue;
-        for (q = p + 1; q < len && l->val[q] == LOCK_NONE; q++)   /* its next value in this pass */
-            ;
-        v = l->val[p];
-        if (v == LOCK_NONE) {         /* before the first value: a glide from where the target is (a step lane waits) */
-            if (p || !lane_glide(l) || (s->mod_held >> i & 1u) || q >= len)
-                continue;
-            v = mod_now(s, i);
-        } else
-            s->mod_held &= (uint8_t)~(1u << i);   /* (a value takes it back from the hand) */
-        if (!(s->mod_own >> i & 1u)) {
-            s->mod_own |= (uint8_t)(1u << i);   /* (it holds it from here: sent, whatever was there) */
-            r->applied = LOCK_NONE;
-        }
-        r->ramp = 0;
-        lock_put(s, l->trk, l, r, v, o);
-        if (!lane_glide(l) || q >= len || l->val[q] == v)
-            continue;
-        r->from = (uint8_t)v;
-        r->to = l->val[q];
-        r->len = L * (uint32_t)(q - p);
-        r->hold = 0;
-        r->age = 0u - adv_k;          /* (locks_tick adds this call's stretch, which ended here: from 0) */
-        r->ramp = 1;
+        mod_plan(s, i, 0, o);
     }
 }
-/* a sixteenth (six_tick; line: a bar line): a restart (a scene, a start) or the scene's MOD pattern picked anew at the
- * bar line from step 1, else the next step when the step's sixteenths are done */
+static int mod_want(const seq_t *s, int sc)          /* scene sc's MOD pattern, -1 none */
+{
+    int w = (int)s->P->scene_mod[sc % NSCENE] - 1;
+    return w >= NPATT ? -1 : w;
+}
+static int mod_cur(const seq_t *s) { return s->mod_pat < NPATT ? s->mod_pat : -1; }
+/* a sixteenth (six_tick; line: a bar line): a restart (a start, a scene with another MOD pattern) or the scene's MOD
+ * pattern picked anew at the bar line from step 1, else the next step when the step's sixteenths are done */
 static void mod_tick(seq_t *s, int line, const seq_sink_t *o)
 {
-    int want = (int)s->P->scene_mod[s->scene % NSCENE] - 1, len;
-    if (want >= NPATT)
-        want = -1;
-    if (s->mod_new || (line && want != (s->mod_pat < NPATT ? s->mod_pat : -1))) {
+    int want = mod_want(s, s->scene), len;
+    if (s->mod_new || (line && want != mod_cur(s))) {
         s->mod_new = 0;
         mod_read(s, want, o);
         s->mod_pos = 0;
@@ -1498,8 +1538,6 @@ static void mod_tick(seq_t *s, int line, const seq_sink_t *o)
     } else {
         if (s->mod_pat >= NPATT)
             return;
-        if (s->mod_epoch != lane_epoch)   /* (lanes added or removed) */
-            mod_read(s, s->mod_pat, o);
         if (++s->mod_six < mod_scale_six(s->P->mod[s->mod_pat].scale))
             return;
         s->mod_six = 0;
@@ -1513,8 +1551,32 @@ static void mod_tick(seq_t *s, int line, const seq_sink_t *o)
     if (!(s->mute >> MOD_BIT & 1u))
         mod_step(s, o);
 }
-/* the knobs turned by hand (seq_mod_hand): a lane playing lets go until its next value; a lane not playing (its value
- * frozen there) lets go */
+/* each call (seq_advance, after the steps): lanes added or removed read again; the mute lets go (reverting), its end
+ * and an edit (seq.h mod_edit) plan the lanes again from where the pattern is */
+static void mod_update(seq_t *s, const seq_sink_t *o)
+{
+    int m = s->mute >> MOD_BIT & 1u, i;
+    if (s->mod_pat < NPATT && s->mod_epoch != lane_epoch) {   /* (lanes added or removed) */
+        mod_read(s, s->mod_pat, o);
+        s->mod_edit = 1;
+    }
+    if (m) {
+        for (i = 0; i < s->mod_n; i++)
+            if (s->mod_own >> i & 1u)
+                mod_let_go(s, i, o);
+    } else if (s->mod_muted)
+        s->mod_edit = 1;
+    s->mod_muted = (uint8_t)m;
+    if (s->mod_edit && !m && s->playing && !s->mod_new && s->mod_pat < NPATT) {
+        uint32_t six = six_q8(s) >> 8, to = s->six_to_next >> 8,
+                 el = (uint32_t)s->mod_six * six + (to < six ? six - to : 0);
+        for (i = 0; i < s->mod_n; i++)
+            if (!(s->mod_held >> i & 1u))
+                mod_plan(s, i, el, o);
+    }
+    s->mod_edit = 0;
+}
+/* the knobs turned by hand (seq_mod_hand): a lane playing lets go until its next value; a lane not playing lets go */
 static void mod_hands(seq_t *s, const seq_sink_t *o)
 {
     for (int h = 0; h < s->mod_hn; h++)
@@ -1525,7 +1587,7 @@ static void mod_hands(seq_t *s, const seq_sink_t *o)
                 continue;
             if ((i = mod_active(s, k)) >= 0) {
                 s->mod_held |= (uint8_t)(1u << i);
-                mod_let_go(s, i, 1, o);
+                mod_let_go(s, i, o);
             } else if (r->applied != LOCK_NONE) {
                 r->applied = LOCK_NONE;
                 r->ramp = 0;
@@ -1628,7 +1690,7 @@ static uint32_t bar_end(seq_t *s, int start, const seq_sink_t *o, int *end)
 {
     uint8_t next[NSEQT];
     uint32_t changed = 0;
-    int t, scene_now = -1, fresh = start;    /* fresh: a song's slot begins (the MOD pattern from step 1) */
+    int t, scene_now = -1;
     for (t = 0; t < NSEQT; t++)
         next[t] = s->ppat[t];
     if (song_plays(s)) {
@@ -1640,7 +1702,6 @@ static uint32_t bar_end(seq_t *s, int start, const seq_sink_t *o, int *end)
             s->song_rep--;
         } else {
             k = s->song_pos + 1;
-            fresh = 1;
             if (k >= sg->len) {
                 if (!sg->loop) {
                     *end = 1;
@@ -1657,7 +1718,7 @@ static uint32_t bar_end(seq_t *s, int start, const seq_sink_t *o, int *end)
         scene_now = s->cue;
         s->cue = 0xFF;
     }
-    if (scene_now >= 0 && (fresh || scene_now != s->scene))
+    if (scene_now >= 0 && mod_want(s, scene_now) != mod_cur(s))   /* (the same MOD pattern: it carries on) */
         s->mod_new = 1;
     if (scene_now >= 0 && (start || scene_now != s->scene || song_plays(s))) {
         scene_read(s, scene_now, next);
@@ -3778,7 +3839,8 @@ void seq_advance(seq_t *s, uint32_t k, const seq_sink_t *o)
         s->req_scene = 0xFF;
         if (k2 < NSCENE) {
             scene_read(s, k2, next);
-            s->mod_new = 1;
+            if (mod_want(s, k2) != mod_cur(s))
+                s->mod_new = 1;
             if (o->scene)
                 o->scene(o->ctx, k2);
             for (t = 0; t < NSEQT; t++)
@@ -3796,10 +3858,6 @@ void seq_advance(seq_t *s, uint32_t k, const seq_sink_t *o)
         ext_ticks(s);
     if (s->mod_hn)
         mod_hands(s, o);
-    if (s->mod_own && (s->mute >> MOD_BIT & 1u))   /* the MOD track muted: its lanes freeze where they are */
-        for (i = 0; i < s->mod_n; i++)
-            if (s->mod_own >> i & 1u)
-                mod_let_go(s, i, 0, o);
     punch_update(s, o);
     players_follow_par(s, o);
     keys_play(s, o);
@@ -3912,6 +3970,7 @@ void seq_advance(seq_t *s, uint32_t k, const seq_sink_t *o)
     /* the smooth things: bends (each stretch: the synth glides them across its chunks) and lock ramps (each chunk) */
     for (t = 0; t < NSEQT; t++)
         bend_tick(s, t, k, o);
+    mod_update(s, o);
     cap |= locks_tick(s, k, o);
     lane_masks_ok = lane_in_call = 0;
     punch_update(s, o);

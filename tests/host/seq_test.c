@@ -3462,6 +3462,17 @@ static int locks_in(int trk, int param, uint32_t from, uint32_t to)   /* locks s
         n += ev[i].kind == E_LOCK && ev[i].trk == trk && ev[i].a == param && ev[i].t >= from && ev[i].t < to;
     return n;
 }
+/* as engine_render: each block's first call (k 0: the MOD glides' values are sent there), then its stretches */
+static void mrun(uint32_t n)
+{
+    while (n) {
+        uint32_t b = n < 256u ? n : 256u;
+        seq_advance(&S, 0, &sink);
+        run(b);
+        n -= b;
+    }
+}
+static void mrun_to(uint32_t t) { mrun(t > now ? t - now : 0); }
 /* MOD pattern pat: len steps of scale; scene sc plays it */
 static int mod_lane(int pat, int len, int scale, int sc, int tgt, int param, int glide)
 {
@@ -3485,7 +3496,7 @@ static void t_mod_glide(void)
     P.lane[k].val[0] = 20;
     P.lane[k].val[2] = 100;
     start();
-    run(5 * BAR + 100);
+    mrun(5 * BAR + 100);
     CHECK(lock_val(0, TP_CUT, 0) == 20);
     CHECK(abs(lock_val(0, TP_CUT, BAR / 2) - 40) <= 1);   /* a quarter of the way: 20 + 80 / 4 */
     CHECK(abs(lock_val(0, TP_CUT, BAR) - 60) <= 1);       /* the bar between: half way */
@@ -3514,7 +3525,7 @@ static void t_mod_step(void)
     P.lane[k].val[1] = 90;
     P.lane[k].val[3] = 30;
     start();
-    run(16 * L16 + 100);
+    mrun(16 * L16 + 100);
     CHECK(locks_in(0, TP_RES, 0, 4 * L16) == 0);          /* before the first value: nothing */
     CHECK(lock_val(0, TP_RES, 4 * L16 + 100) == 90);
     CHECK(locks_in(0, TP_RES, 4 * L16 + 100, 12 * L16) == 0);   /* a step lane jumps, then holds */
@@ -3531,7 +3542,7 @@ static void t_mod_before_first(void)
     k = mod_lane(0, 4, TS_16, 0, 0, TP_CUT, 1);           /* a glide whose first value is on step 3: from the knob */
     P.lane[k].val[2] = 100;
     start();
-    run(3 * BAR);
+    mrun(3 * BAR);
     CHECK(lock_val(0, TP_CUT, 10) == 40);
     CHECK(abs(lock_val(0, TP_CUT, BAR) - 70) <= 1);
     CHECK(lock_val(0, TP_CUT, 2 * BAR + 100) == 100);
@@ -3546,12 +3557,12 @@ static void t_mod_hand(void)
     P.lane[k].val[0] = 20;
     P.lane[k].val[2] = 100;
     start();
-    run(BAR / 2);
+    mrun(BAR / 2);
     seq_mod_hand(&S, 0, TP_CUT);                          /* the knob turned: the knob's value, at once */
-    run(10);
+    mrun(10);
     CHECK(lock_val(0, TP_CUT, BAR / 2 + 100) == LOCK_NONE);
     CHECK(locks_in(0, TP_CUT, BAR / 2 + 100, 2 * BAR) == 0);   /* the hand has it until the next value */
-    run(2 * BAR);
+    mrun(2 * BAR);
     CHECK(lock_val(0, TP_CUT, 2 * BAR + 100) == 100);
     printf("ok %s\n", cur);
 }
@@ -3568,11 +3579,11 @@ static void t_mod_over_lock(void)
     k = mod_lane(0, 4, TS_4, 0, 0, TP_CUT, 0);
     P.lane[k].val[0] = 70;
     start();
-    run(8 * L16);
+    mrun(8 * L16);
     CHECK(lock_val(0, TP_CUT, 8 * L16) == 70);            /* the MOD lane wins over the lock */
     CHECK(locks_in(0, TP_CUT, 10, 8 * L16) == 0);
     S.mute |= 1u << MOD_BIT;                               /* muted: the pattern's lock plays again */
-    run(8 * L16);
+    mrun(8 * L16);
     CHECK(lock_val(0, TP_CUT, 16 * L16) == 10);
     CHECK(P.lane[l].val[3] == 10);                         /* (the pattern's lane is as it was) */
     printf("ok %s\n", cur);
@@ -3596,50 +3607,128 @@ static void t_mod_scene(void)
     P.song.slot[2].scene = 2, P.song.slot[2].rep = 2;
     S.song_on = 1;
     start();
-    run(6 * BAR + 100);
+    mrun(6 * BAR + 100);
     CHECK(lock_val(0, TP_CUT, BAR + 100) == 20);
-    CHECK(lock_val(0, TP_CUT, 2 * BAR + 100) == 10);       /* the next slot: its pattern from step 1 */
-    CHECK(lock_val(0, TP_CUT, 3 * BAR + 100) == 20);
-    CHECK(lock_val(1, TP_RES, 4 * BAR + 100) == 77);       /* scene 3's pattern */
-    CHECK(locks_in(0, TP_CUT, 4 * BAR, 6 * BAR - 100) == 0);   /* what it doesn't target stays */
-    CHECK(lock_val(0, TP_CUT, 6 * BAR - 100) == 20);
-    CHECK(lock_val(0, TP_CUT, 6 * BAR + 100) == 10);      /* the song round again: scene 1's from its step 1 */
+    CHECK(lock_val(0, TP_CUT, 2 * BAR + 100) == 30);       /* the next slot, the same MOD pattern: it carries on */
+    CHECK(lock_val(0, TP_CUT, 3 * BAR + 100) == 40);
+    CHECK(lock_val(1, TP_RES, 4 * BAR + 100) == 77);       /* scene 3's pattern, from its step 1 */
+    CHECK(lock_val(0, TP_CUT, 4 * BAR + 300) == LOCK_NONE);   /* what it doesn't target: the knob's again */
+    CHECK(locks_in(0, TP_CUT, 4 * BAR + 300, 6 * BAR - 100) == 0);
+    CHECK(lock_val(1, TP_RES, 6 * BAR + 300) == LOCK_NONE);   /* the song round again: scene 1's from its step 1 */
+    CHECK(lock_val(0, TP_CUT, 6 * BAR + 100) == 10);
+    /* a scene cued with the same MOD pattern: no restart; with another (the same target): carries on from the value */
+    reset();
+    k = mod_lane(0, 8, TS_16, 0, 0, TP_CUT, 1);           /* P1: 0 .. 80 over 8 bars */
+    P.lane[k].val[0] = 0;
+    P.lane[k].val[7] = 70;
+    P.scene[1] = P.scene[0];
+    P.scene_mod[1] = 1;
+    k2 = mod_lane(1, 4, TS_16, 2, 0, TP_CUT, 1);          /* P2 on the same target: its first value on step 3 */
+    P.lane[k2].val[2] = 120;
+    P.scene[2] = P.scene[0];
+    start();
+    mrun(2 * BAR + 100);
+    seq_cue_scene(&S, 1, 0);
+    mrun_to(4 * BAR + 100);
+    CHECK(abs(lock_val(0, TP_CUT, 4 * BAR + 100) - 40) <= 1);   /* scene 2 at bar 3: P1 went on (4 bars of 7) */
+    seq_cue_scene(&S, 2, 0);
+    mrun_to(5 * BAR + 300);
+    CHECK(abs(lock_val(0, TP_CUT, 5 * BAR + 300) - 50) <= 2);   /* P2: from P1's value (50), no jump */
+    CHECK(locks_in(0, TP_CUT, 5 * BAR - 300, 5 * BAR + 300) <= 2);
+    mrun_to(7 * BAR + 100);
+    CHECK(lock_val(0, TP_CUT, 7 * BAR + 100) == 120);      /* to P2's first value */
     printf("ok %s\n", cur);
 }
 static void t_mod_mute_none(void)
 {
-    int k;
+    int k, v;
     cur = "mod mute none";
     reset();
+    par[0][TP_CUT] = 50;
     k = mod_lane(0, 4, TS_16, 0, 0, TP_CUT, 1);
     P.lane[k].val[0] = 20;
     P.lane[k].val[2] = 100;
     start();
-    run(BAR);
-    S.mute |= 1u << MOD_BIT;                               /* muted half way up: it freezes there */
-    run(L16);
-    {
-        int v = lock_val(0, TP_CUT, BAR + L16);
-        CHECK(v >= 58 && v <= 62);
-        run_to(4 * BAR - 1000);
-        CHECK(locks_in(0, TP_CUT, BAR + 100, 4 * BAR) == 0);
-    }
-    S.mute &= ~(1u << MOD_BIT);
-    run_to(4 * BAR + 1000);                                /* unmuted: from its next value (the next pass) */
-    CHECK(lock_val(0, TP_CUT, 4 * BAR + 100) == 20);
-    /* "-": a scene with no MOD pattern; the values stay where they were */
+    mrun(BAR);
+    v = seq_mod_value(&S, 0, TP_CUT);                      /* (the value playing: the UI's) */
+    CHECK(v >= 58 && v <= 62 && v == lock_val(0, TP_CUT, now));
+    S.mute |= 1u << MOD_BIT;                               /* muted half way up: the knob's value again */
+    mrun(300);
+    CHECK(lock_val(0, TP_CUT, now) == LOCK_NONE && seq_mod_value(&S, 0, TP_CUT) == -1);
+    mrun_to(BAR + BAR / 2);
+    CHECK(locks_in(0, TP_CUT, BAR + 300, BAR + BAR / 2) == 0);
+    S.mute &= ~(1u << MOD_BIT);                            /* unmuted: from the knob's value on to the next value */
+    mrun(300);
+    CHECK(abs(lock_val(0, TP_CUT, now) - 50) <= 1);
+    mrun_to(BAR + 3 * BAR / 4);
+    CHECK(abs(lock_val(0, TP_CUT, now) - 75) <= 2);        /* half way from 50 to 100 */
+    mrun_to(2 * BAR + 300);
+    CHECK(lock_val(0, TP_CUT, now) == 100);
+    /* "-": a scene with no MOD pattern; the knob's value again */
     reset();
     k = mod_lane(0, 4, TS_16, 0, 0, TP_CUT, 0);
     P.lane[k].val[0] = 33;
     P.scene[1] = P.scene[0];
     P.scene_mod[1] = 0;
     start();
-    run(BAR);
+    mrun(BAR);
+    CHECK(lock_val(0, TP_CUT, BAR) == 33);
     seq_cue_scene(&S, 1, 0);
-    run(3 * BAR);
-    CHECK(lock_val(0, TP_CUT, 3 * BAR) == 33);
-    CHECK(locks_in(0, TP_CUT, 10, 3 * BAR) == 0);
+    mrun(3 * BAR);
+    CHECK(lock_val(0, TP_CUT, 2 * BAR + 300) == LOCK_NONE);
+    CHECK(locks_in(0, TP_CUT, 2 * BAR + 300, 4 * BAR) == 0);
+    stop();
+    /* a lane removed while it plays: the knob's value again */
+    reset();
+    k = mod_lane(0, 4, TS_16, 0, 0, TP_CUT, 0);
+    P.lane[k].val[0] = 33;
+    start();
+    mrun(BAR);
+    lane_clear(P.lane, k);
+    mrun(300);
+    CHECK(lock_val(0, TP_CUT, now) == LOCK_NONE);
     stop();                                                /* stopped: the knob's own again */
+    CHECK(lock_val(0, TP_CUT, now) == LOCK_NONE);
+    printf("ok %s\n", cur);
+}
+/* an edit while it plays: the glide planned again at once, from the value now to the new next value; a glide never
+ * cuts the blocks (its value once a block, at the block's start) */
+static void t_mod_edit(void)
+{
+    int k, v;
+    uint32_t cuts = 0;
+    cur = "mod edit";
+    reset();
+    k = mod_lane(0, 4, TS_16, 0, 0, TP_CUT, 1);
+    P.lane[k].val[0] = 20;
+    P.lane[k].val[2] = 100;
+    start();
+    while (now < BAR / 2) {                                /* (no notes: a block is one stretch but at a sixteenth) */
+        uint32_t k2 = seq_until_event(&S, 256u);
+        cuts += k2 < 256u && S.six_to_next >> 8 > k2 + 2u;
+        mrun(256);
+    }
+    CHECK(cuts == 0 && !S.chunk_cap);
+    v = lock_val(0, TP_CUT, now);
+    CHECK(abs(v - 40) <= 1);
+    P.lane[k].val[2] = 30;                                 /* the next value now 30 */
+    S.mod_edit = 1;
+    mrun(300);
+    CHECK(abs(lock_val(0, TP_CUT, now) - v) <= 1);         /* from where it was */
+    mrun_to(BAR + BAR / 4);
+    CHECK(abs(lock_val(0, TP_CUT, now) - (v + (30 - v) / 2)) <= 2);   /* half way to 30 */
+    mrun_to(2 * BAR + 300);
+    CHECK(lock_val(0, TP_CUT, now) == 30);
+    P.lane[k].val[3] = 90;                                 /* a value added past it, on a step lane now */
+    P.lane[k].pat &= (uint8_t)~LANE_GLIDE;
+    S.mod_edit = 1;
+    mrun(300);
+    CHECK(lock_val(0, TP_CUT, now) == 30);
+    mrun_to(3 * BAR + 300);
+    CHECK(lock_val(0, TP_CUT, now) == 90);
+    P.lane[k].val[0] = P.lane[k].val[2] = P.lane[k].val[3] = LOCK_NONE;   /* every value off: the knob's */
+    S.mod_edit = 1;
+    mrun(300);
     CHECK(lock_val(0, TP_CUT, now) == LOCK_NONE);
     printf("ok %s\n", cur);
 }
@@ -3651,7 +3740,7 @@ static void t_mod_master(void)
     k = mod_lane(0, 4, TS_1, 0, MODT_MST, 5, 0);
     P.lane[k].val[1] = 99;
     start();
-    run(3 * L16);
+    mrun(3 * L16);
     CHECK(lock_val(MODT_MST, 5, 2 * L16) == 99);
     CHECK(mod_lane_add(P.lane, 0, MODT_MST, 5, 1) == k);   /* the same target again: the same lane */
     for (int i = 0; i < NMODL - 1; i++)
@@ -3669,6 +3758,7 @@ int main(void)
     t_mod_over_lock();
     t_mod_scene();
     t_mod_mute_none();
+    t_mod_edit();
     t_mod_master();
     t_pattern_helpers();
     t_phase();

@@ -113,10 +113,11 @@ enum { PB_KICK, PB_T1, PB_METRO = PB_T1 + 8, NPB };
 #define MS_PUMP_REL_DEF 60
 extern const char *const MS_NAME[NMS];
 #ifdef PLAT_HOST
-#define MASTER_BYTES 1108             /* (the host's pointers are wider) */
+#define MASTER_BYTES 1180             /* (the host's pointers are wider) */
 #else
-#define MASTER_BYTES 1100             /* (fx.c checks it: 1,100 B, 2026-11-26 (976 before the master filter, 1,036 with
-                                       * two); 1,428 with the master color's line) */
+#define MASTER_BYTES 1172             /* (fx.c checks it: 1,172 B, 2026-11-26 (976 before the master filter, 1,036 with
+                                       * two, 1,100 with three, + their coefficients kept); 1,428 with the master
+                                       * color's line) */
 #endif
 void master_init(master_t *m);
 void master_clear(master_t *m);                             /* its states at rest, its settings kept */
