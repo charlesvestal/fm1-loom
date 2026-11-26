@@ -108,8 +108,8 @@ second.
 - **Trick**: something a step does as it plays, such as pulse, hold, multiply, flam or jump. There are fifteen,
   and a step can have two: hold it and press ARP.
 - **Lock**: a knob value that a step sets as it plays.
-- **Lane**: a knob moved by the MOD track over many bars, with a value on the steps you choose. It glides from one
-  value to the next, or steps.
+- **Lane**: a knob moved by the MOD track over many bars, with a value on the steps you choose. It moves from one
+  value to the next in a shape (linear, ease in, ease out, smooth), or steps.
 - **Scene** (S1 to S32): which pattern each track plays, plus the mutes (a kit's individual sounds too) and the
   conductor's key.
 - **Song**: a chain of scenes, each played for a number of bars.
@@ -222,7 +222,7 @@ Count the white keys 1 to 16 from the left, and the black keys 1 to 11. "Hold **
 | **OCT−** / **OCT+** | Move the keys an octave. On Steps, they show the bar before or after (with **SEQ** held, they move the pattern an octave), and with a step held, they nudge it. In step record, they move the cursor. On Arrange and Song, they put scenes 1 to 16 or 17 to 32 on the white keys. |
 | **SELECT** | Turns to a button's next page. In a list, it moves up and down. |
 | **ALGORITHM** | Picks the track. On the MOD track's Lanes page, it picks the lane first. In a list, it changes the row's value. |
-| **PRESETS** | Steps to the next item of whatever the page shows: a preset, a drum key, an effect (it stops at the list's first and last), a pattern, a drum sound, a scene. On the MOD track's Lanes page, it switches the lane between glide and step. |
+| **PRESETS** | Steps to the next item of whatever the page shows: a preset, a drum key, an effect (it stops at the list's first and last), a pattern, a drum sound, a scene. On the MOD track's Lanes page, it steps the lane to its next shape. |
 | **KNOB 1–4** | Set the four values at the bottom of the screen. Hold **HOME** and turn one to put it back to its default (see below). |
 
 Hold any button for a second, and a card explains it. The two lines at the bottom of the screen always say
@@ -1550,14 +1550,14 @@ none, the page says so: turn **KNOB 1** to pick a pattern for the scene, and its
 lane you picked as a line in its knob's colour (a track's colour; the master, FX I and FX II in white) over the
 pattern's steps, with its values as dots and the playhead. Under it, the grid follows the scale: at a sixteenth a
 step, a tick on each beat and a line on each bar; at a beat a step, a line on each bar; at a bar a step, a tick on
-each bar and a line every four bars. The top right says which lane it is, glide or step, and the pattern's length
-("1/2 glide, 32 bars"). **ALGORITHM** picks the lane. Turn it past the last lane (or the first) to go on to the next
+each bar and a line every four bars. The top right says which lane it is, its shape, and the pattern's length
+("1/2 smooth, 32 bars"). **ALGORITHM** picks the lane. Turn it past the last lane (or the first) to go on to the next
 track.
 
-<img src="img/screen-mod.png" width="240" alt="The MOD track's Lanes page: T2 cutoff in T2's colour, a glide from step 1 to step 9 then held, a line on each bar, the playhead at step 4, 1/1 glide, 4 bars; KNOB 1 P1, KNOB 2 16 steps, KNOB 3 4 (a beat a step), KNOB 4 STEP and a dash: no step tapped yet" title="A lane">
+<img src="img/screen-mod.png" width="240" alt="The MOD track's Lanes page: T2 cutoff in T2's colour, a linear lane from step 1 to step 9 then held, a line on each bar, the playhead at step 4, 1/1 linear, 4 bars; KNOB 1 P1, KNOB 2 16 steps, KNOB 3 4 (a beat a step), KNOB 4 STEP and a dash: no step tapped yet" title="A lane">
 
-**Add a lane.** Press **SEL**. Its list has three parts: "lanes" (each lane, with its knob and glide or step: press
-**SEL** on one to pick it), "this lane" (the lane you picked, named: its GLIDE / STEP, its target, REMOVE LANE and
+**Add a lane.** Press **SEL**. Its list has three parts: "lanes" (each lane, with its knob and its shape: press
+**SEL** on one to pick it), "this lane" (the lane you picked, named: its SHAPE, its target, REMOVE LANE and
 CLEAR LANE) and "new lane". Under "new lane", pick the TRACK (T1 to T8, FX I, FX II or master), the PAGE and
 the KNOB with **ALGORITHM**, as you would find the knob on its own page, then pick ADD LANE. Or pick LEARN and turn
 the knob you mean, on any page: it becomes the lane, and the Lanes page comes back. A lane can move any knob of a
@@ -1576,17 +1576,20 @@ held, **KNOB 4** sets the step you tapped last (it is outlined, and the knob rea
 **KNOB 4** only ever sets the lane's values: it never moves the knob itself, which you play on its own page. With
 steps held, **SEL** takes their values off.
 
-**Glide or step.** On the Lanes page, turn **PRESETS** to switch the lane between glide and step. In the **SEL**
-list, it is the GLIDE / STEP row under "this lane": turn **ALGORITHM** right for glide, left for step. A glide moves from each value to the
-next one over the steps between. A step lane jumps at each value. After the last value, the knob stays there until
-the pattern comes round. Before the first value, a step lane leaves the knob alone, and a glide moves there from
-wherever the knob is. Change a value while the lane plays and it follows at once: the glide goes from where the knob
-is now to the new next value.
+**Shape.** How the lane goes from one value to the next: **step** (it jumps at each value), **linear** (an even
+line), **ease in** (slow, then fast), **ease out** (fast, then slow) or **smooth** (slow at both ends, an S). A new
+lane starts smooth; a lane from a project saved before shapes is linear (it was a glide). On the Lanes page, turn
+**PRESETS** for the next shape (after smooth comes step again), and the curve on the screen takes it. In the **SEL**
+list, it is the SHAPE row under "this lane": turn **ALGORITHM** to go through them. A moving shape goes from each value
+to the next over the steps between. After the last value, the knob stays there until the pattern comes round. Before
+the first value, a step lane leaves the knob alone, and the others move there from wherever the knob is. Change a
+value while the lane plays and it follows at once: it goes from where the knob is now to the new next value, in its
+shape.
 
 **Record it.** While it plays, hold **REC** on Lanes and turn **KNOB 4**: the knob's moves are written on the steps
 as they play.
 
-**What you see.** While a lane holds a knob, the knob shows the value playing, moving with the glide, wherever it is
+**What you see.** While a lane holds a knob, the knob shows the value playing, moving with the lane, wherever it is
 drawn (the knob's page, the Master filter's curves, an effect's picture, Mix), with a thin tick on its bar where the
 knob itself is set. This is part of MOD VIEW: with MOD VIEW off, the knob shows its own value and the value playing is
 a red dot, as a lock's.

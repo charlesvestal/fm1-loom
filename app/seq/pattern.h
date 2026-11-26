@@ -212,13 +212,16 @@ static inline int hit_plain(const hit_t *h) { return !h->cond && !h->comp && !h-
  * scene's mute, the sequencer's). Its 8 patterns are a length and a scale each (a step a sixteenth .. a bar: TS_1 ..
  * TS_16); a scene picks one or none (patterns_t scene_mod: 0 none, "-"; 1..8). Its lanes are the pool's (lane_t): trk
  * LANE_MOD + the target's track (0..NALLTRK-1, or MODT_MST: the master's values, fx.h MS_*), pat the MOD pattern |
- * LANE_GLIDE (glide: ramp to the next value; else step), param the target's TP_* (or MS_*), val[] a value a step
+ * its shape (LANE_GLIDE: it moves to the next value, LANE_SHAPE how; else a step lane), param the target's TP_* (or MS_*), val[] a value a step
  * (LOCK_NONE none). Up to NMODL lanes a pattern, in the pool's order. seq.c plays them (mod_*) */
 #define AUX_MOD NALLTRK
 #define MOD_BIT NSEQT
 #define LANE_MOD 0x40u
 #define MODT_MST NALLTRK
 #define LANE_GLIDE 0x80u
+#define LANE_SHAPE 0x30u              /* a moving lane's shape (LANE_GLIDE set): LS_LINEAR + its two bits (a lane saved
+                                       * before shapes: linear, its glide) */
+enum { LS_STEP, LS_LINEAR, LS_EASE_IN, LS_EASE_OUT, LS_SMOOTH, NLS };   /* a MOD lane's shape between its values */
 #define NMODL 8
 typedef struct {
     uint8_t len;                      /* steps 1..64 */
@@ -227,7 +230,18 @@ typedef struct {
 static inline int lane_is_mod(const lane_t *l) { return l->trk >= LANE_MOD && l->trk <= LANE_MOD + MODT_MST; }
 static inline int lane_mod_tgt(const lane_t *l) { return l->trk - (int)LANE_MOD; }   /* its target's track (MODT_MST) */
 static inline int lane_mod_pat(const lane_t *l) { return l->pat & 7; }
-static inline int lane_glide(const lane_t *l) { return (l->pat & LANE_GLIDE) != 0; }
+static inline int lane_glide(const lane_t *l) { return (l->pat & LANE_GLIDE) != 0; }   /* (any shape but step) */
+static inline int lane_shape(const lane_t *l) { return lane_glide(l) ? LS_LINEAR + ((l->pat & LANE_SHAPE) >> 4) : LS_STEP; }
+/* a shape over x 0..1 (its share of the way from one value to the next): ease in x^2, ease out 1 - (1 - x)^2, smooth
+ * x^2 (3 - 2x), linear x */
+static inline float lane_curve(int sh, float x)
+{
+    return sh == LS_EASE_IN ? x * x : sh == LS_EASE_OUT ? x * (2.0f - x) : sh == LS_SMOOTH ? x * x * (3.0f - 2.0f * x) : x;
+}
+static inline uint8_t lane_shape_bits(int sh)  /* a shape's bits in pat */
+{
+    return sh <= LS_STEP || sh >= NLS ? 0u : (uint8_t)(LANE_GLIDE | (unsigned)(sh - LS_LINEAR) << 4);
+}
 
 /* the whole pattern store: the project's (in the pool) */
 typedef struct {
@@ -244,8 +258,8 @@ void modpats_init(patterns_t *P);     /* the MOD track empty: 16 steps a sixteen
 /* a MOD pattern's lanes (up to NMODL, in the pool's order): their indexes into out, the count */
 int mod_lanes(const lane_t *L, int pat, uint8_t *out);
 int mod_lane_find(const lane_t *L, int pat, int tgt, int param);   /* -1 none */
-/* a lane for target (tgt, param) on MOD pattern pat: -1 the pool full, -2 the pattern has NMODL already */
-int mod_lane_add(lane_t *L, int pat, int tgt, int param, int glide);
+/* a lane for target (tgt, param) on MOD pattern pat, of shape LS_*: -1 the pool full, -2 the pattern has NMODL already */
+int mod_lane_add(lane_t *L, int pat, int tgt, int param, int shape);
 /* MOD lane k to another target (its pattern, kind, steps and values kept: the caller clamps them), in its place: the
  * interrupt sees the slot go and come back as a new generation (the old target let go, as a lane removed). -1: its
  * pattern already has a lane on that target */

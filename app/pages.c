@@ -334,7 +334,7 @@ static const char *const ACTION_NAME[NACTIONS] = {
     "CLEAR", "ROTATE", "PASTE", "COPY TO EMPTY", "CLEAR BAR", "COPY SOUND", "PASTE SOUND", "COPY DRUM", "PASTE DRUM",
     "COPY SCENE", "PASTE SCENE", "DUPLICATE SLOT", "KIT FILTER", "SHIFT NOTES", "LARGE TYPE", "CC IN",
     "MOD VIEW", "CPU", "PROJ 1", "PROJ 2", "PROJ 3", "LANE", "REMOVE LANE", "CLEAR LANE", "TRACK", "PAGE", "KNOB",
-    "ADD LANE", "LEARN", "GLIDE / STEP", "TARGET TRACK", "TARGET PAGE", "TARGET KNOB", "LEARN TARGET", "FX I", "FX II", "EXTRA 1", "EXTRA 2", "EXTRA 3", "EXTRA 4"};
+    "ADD LANE", "LEARN", "SHAPE", "TARGET TRACK", "TARGET PAGE", "TARGET KNOB", "LEARN TARGET", "FX I", "FX II", "EXTRA 1", "EXTRA 2", "EXTRA 3", "EXTRA 4"};
 _Static_assert(NPROJ == 3, "GLO's list: an action a slot (A_PROJ1..A_PROJ3)");
 static const char *const CLEAR_WHAT[3] = {"notes", "locks", "notes and locks"};
 /* a pick ALGORITHM sets at once (a setting: SEL only leaves the list), as against a choice SEL then carries out */
@@ -1488,6 +1488,7 @@ static int mod_pat_now(void)
     return m ? (m - 1) % NPATT : ui.mod_pat % NPATT;
 }
 static int mod_none(void) { return !pats.scene_mod[cur_scene()]; }   /* the scene's MOD pattern "-": no lanes shown */
+static const char *const LANE_SHAPE_NAME[NLS] = {"step", "linear", "ease in", "ease out", "smooth"};   /* (LS_*) */
 static int mod_lanes_now(uint8_t *ix) { return mod_none() ? 0 : mod_lanes(pats.lane, mod_pat_now(), ix); }
 /* the step KNOB 4 sets with none held: the one last tapped on the lane picked (-1: none, or the lane or the length
  * changed since) */
@@ -2801,7 +2802,7 @@ static void page_footer(char *t)
                  : mod_none() ? "KNOB 1 a MOD pattern for this scene"
                  : mod_lane_now() < 0 ? "SEL add a lane|LEARN: SEL, then turn a knob"
                  : ui.held ? "KNOB 4 the step's value|SEL clear it"
-                 : "WHITE a value|hold: set it|PRESET glide / step|OCT bar");
+                 : "WHITE a value|hold: set it|PRESET shape|OCT bar");
         break;
     case P_THROWS:
         s_cat(t, "KEYS throw: low drums, high melodic|REC held: record");
@@ -3463,7 +3464,7 @@ static void list_mod(void)
         list_add("NO LANES YET", "add one below", LK_NOTE, 0);
     for (int i = 0; i < n; i++) {                    /* "T2 cutoff, glide" */
         mod_tgt_name(lane_mod_tgt(&pats.lane[ix[i]]), pats.lane[ix[i]].param, t);
-        s_cat(s_cat(t + s_len(t), ", "), lane_glide(&pats.lane[ix[i]]) ? "glide" : "step");
+        s_cat(s_cat(t + s_len(t), ", "), LANE_SHAPE_NAME[lane_shape(&pats.lane[ix[i]])]);
         list_add(MOD_ROW[i], t, LK_ACTION, A_MOD_LANE);
     }
     if (l >= 0) {                                    /* "this lane: 2, T2 cutoff" (the heads' face has no middle dot) */
@@ -3472,7 +3473,7 @@ static void list_mod(void)
         mod_tgt_name(lane_mod_tgt(L), L->param,
                      s_cat(num_s((uint32_t)ui.mod_lane % NMODL + 1u, s_cat(th, "this lane: ")), ", "));
         list_head(th);
-        list_add(ACTION_NAME[A_MOD_KIND], lane_glide(L) ? "glide" : "step", LK_PICK, A_MOD_KIND);
+        list_add(ACTION_NAME[A_MOD_KIND], LANE_SHAPE_NAME[lane_shape(L)], LK_PICK, A_MOD_KIND);
         list_mod_target(lane_mod_tgt(L), L->param, A_MOD_TTRK);
         list_add(ACTION_NAME[A_MOD_TLEARN], ui.mod_learn == 2 ? "turn a knob" : "a knob turned", LK_ACTION, A_MOD_TLEARN);
         list_add(ACTION_NAME[A_MOD_REMOVE], 0, LK_ACTION, A_MOD_REMOVE);
@@ -7452,11 +7453,31 @@ static void mod_curve(const lane_t *L, int len, int v0, int16_t *out)   /* each 
             ;
         if (!lane_glide(L) || q >= len)              /* a step lane, or past the last value: held (none before) */
             out[s] = (int16_t)(last >= 0 ? lv : -1);
-        else if (last < 0)                           /* a glide to the first value, from where the target is */
-            out[s] = (int16_t)(v0 + (L->val[q] - v0) * s / q);
+        else if (last < 0)                           /* moving to the first value, from where the target is */
+            out[s] = (int16_t)(v0 + (int)((float)(L->val[q] - v0) * lane_curve(lane_shape(L), (float)s / (float)q)));
         else
-            out[s] = (int16_t)(lv + (L->val[q] - lv) * (s - last) / (q - last));
+            out[s] = (int16_t)(lv + (int)((float)(L->val[q] - lv) * lane_curve(lane_shape(L), (float)(s - last) /
+                                                                                   (float)(q - last))));
     }
+}
+/* a moving lane's value at p (steps, a step's centre at its index: between them, in its shape; mod_curve's) */
+static float mod_curve_at(const lane_t *L, int len, int v0, float p)
+{
+    int a, q, la;
+    float va;
+    if (p < 0.0f)
+        p = 0.0f;
+    a = (int)p;
+    for (la = a; la >= 0 && L->val[la] == LOCK_NONE; la--)
+        ;
+    for (q = a + 1; q < len && L->val[q] == LOCK_NONE; q++)
+        ;
+    va = la >= 0 ? (float)L->val[la] : (float)v0;
+    if (q >= len)                                    /* (past the last value: held) */
+        return va;
+    if (la < 0)
+        la = 0;
+    return va + ((float)L->val[q] - va) * lane_curve(lane_shape(L), (p - (float)la) / (float)(q - la));
 }
 /* the pattern's length in bars ("32 bars", "1 bar"), else beats ("3 beats"), else sixteenths */
 static void mod_len_text(int six, char *t)
@@ -7527,7 +7548,7 @@ static void draw_mod(void)
         mod_tgt_name(tg, L->param, t);
         cv_text(gx, 0, LY(&FONT_S, &LFONT_S), t, ink);
         e = num_s((uint32_t)ui.mod_lane % NMODL + 1u, t);
-        e = s_cat(num_s((uint32_t)n, s_cat(e, "/")), lane_glide(L) ? " glide, " : " step, ");
+        e = s_cat(s_cat(s_cat(num_s((uint32_t)n, s_cat(e, "/")), " "), LANE_SHAPE_NAME[lane_shape(L)]), ", ");
         mod_len_text(len * six, e);
         text_r(gx + gw, LY(2, 0), F_CAP, t, K_DIM);
     }
@@ -7548,9 +7569,19 @@ static void draw_mod(void)
                 continue;
             }
             if (px >= 0.0f) {
-                if (lane_glide(L))
-                    cv_linef(px, py, x, y, ink, 1.6f);
-                else {                               /* stairs: along, then up or down at the step */
+                if (lane_glide(L)) {                 /* its shape: a point every 2 pixels */
+                    float qx = px, qy = py;
+                    for (float sx = px + 2.0f; qx < x; sx += 2.0f) {
+                        const float ex = sx < x ? sx : x, p = (ex - (float)gx) * (float)len / (float)gw - 0.5f;
+                        const float ey = ex < x ? (float)(gy + gh) - (fm_clampf(mod_curve_at(L, len, v0, p), (float)lo,
+                                                                                (float)hi) - (float)lo) * (float)gh /
+                                                                       (float)span
+                                                : y;
+                        cv_linef(qx, qy, ex, ey, ink, 1.6f);
+                        qx = ex;
+                        qy = ey;
+                    }
+                } else {                             /* stairs: along, then up or down at the step */
                     cv_linef(px, py, x - (float)gw / (float)len * 0.5f, py, ink, 1.6f);
                     cv_linef(x - (float)gw / (float)len * 0.5f, py, x - (float)gw / (float)len * 0.5f, y, ink, 1.6f);
                     cv_linef(x - (float)gw / (float)len * 0.5f, y, x, y, ink, 1.6f);

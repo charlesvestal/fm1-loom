@@ -99,6 +99,10 @@ commit and the manual's credits.
   hand takeover stays on the parameter's own page.
 - **Takeover** (the user): on the parameter's own page, as it is (until the lane's next value); from the MOD page,
   never (KNOB 4 there edits the lane only).
+- **Built 2026-11-26** (shapes): in the lane's pat byte (pattern.h LANE_SHAPE, two bits beside LANE_GLIDE: no format
+  change; old lanes linear); the curves pattern.h lane_curve (ease in x^2, ease out 1-(1-x)^2, smooth x^2(3-2x)),
+  per block in locks_tick over the ramp's time left (linear the old integer path, bit for bit); PRESETS round, SEL's
+  SHAPE stops at the ends; the curve drawn every 2 pixels.
 - **Lane shapes** replace glide / step: step, linear (was glide), ease in, ease out, smooth (S); PRESETS on Lanes cycles
   them, the curve drawn in its shape, SEL's "this lane" shows SHAPE; a new lane starts smooth; older lanes keep theirs
   (glide = linear). Per block, as the glide now.

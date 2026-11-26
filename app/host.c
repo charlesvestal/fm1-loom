@@ -817,6 +817,11 @@ static int expect_more(const char *what, const char *a, const char *b, const cha
     } else if (!strcmp(what, "modlanes")) {        /* expect modlanes PAT N: the lanes of MOD pattern PAT */
         uint8_t ix[NMODL];
         host_fails += expect_val(what, mod_lanes(pats.lane, (atoi(a) - 1) & (NPATT - 1), ix), b);
+    } else if (!strcmp(what, "modshape")) {        /* expect modshape PAT I V: lane I's (from 1) shape (LS_*: 0 step,
+                                                     * 1 linear, 2 ease in, 3 ease out, 4 smooth) */
+        uint8_t ix[NMODL];
+        int nl = mod_lanes(pats.lane, (atoi(a) - 1) & (NPATT - 1), ix), i = atoi(b) - 1;
+        host_fails += expect_val(what, i >= 0 && i < nl ? lane_shape(&pats.lane[ix[i]]) : -1, c);
     } else if (!strcmp(what, "modglide")) {        /* expect modglide PAT I V: lane I's (from 1) glide (1) or step (0) */
         uint8_t ix[NMODL];
         int nl = mod_lanes(pats.lane, (atoi(a) - 1) & (NPATT - 1), ix), i = atoi(b) - 1;
@@ -1581,16 +1586,22 @@ static int song_cmd(const char *cmd)
                 host_die("no MOD scale (1 2 3 4 5 6 8 16)", w[3]);
             pats.mod[pt].scale = (uint8_t)k;
         }
-    } else if (!strcmp(cmd, "modlane")) {           /* modlane PAT TARGET PARAM glide|step */
-        int pt = atoi(w[1]) - 1, tg, pm, l, gl;
-        if (n < 5 || pt < 0 || pt >= NPATT || (strcmp(w[4], "glide") && strcmp(w[4], "step")))
-            host_die("modlane PAT TARGET PARAM glide|step", "");
+    } else if (!strcmp(cmd, "modlane")) {           /* modlane PAT TARGET PARAM SHAPE: step, linear (or glide),
+                                                     * ease_in, ease_out, smooth */
+        static const char *const SH[NLS] = {"step", "linear", "ease_in", "ease_out", "smooth"};
+        int pt = atoi(w[1]) - 1, tg, pm, l, sh = -1;
+        for (int i = 0; n >= 5 && i < NLS; i++)
+            if (!strcmp(w[4], SH[i]))
+                sh = i;
+        if (n >= 5 && !strcmp(w[4], "glide"))
+            sh = LS_LINEAR;
+        if (n < 5 || pt < 0 || pt >= NPATT || sh < 0)
+            host_die("modlane PAT TARGET PARAM step|linear|glide|ease_in|ease_out|smooth", "");
         mod_target(w[2], w[3], &tg, &pm);
-        gl = !strcmp(w[4], "glide");
-        l = mod_lane_add(pats.lane, pt, tg, pm, gl);
+        l = mod_lane_add(pats.lane, pt, tg, pm, sh);
         if (l < 0)
             host_die(l == -2 ? "eight lanes a MOD pattern" : "the lanes are full", "");
-        pats.lane[l].pat = (uint8_t)(pt | (gl ? LANE_GLIDE : 0u));
+        pats.lane[l].pat = (uint8_t)(pt | lane_shape_bits(sh));
     } else if (!strcmp(cmd, "modval")) {            /* modval PAT TARGET PARAM S V [S V ...] */
         int pt = atoi(w[1]) - 1, tg, pm, l;
         if (n < 6 || pt < 0 || pt >= NPATT)

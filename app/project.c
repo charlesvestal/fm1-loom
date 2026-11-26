@@ -581,7 +581,7 @@ static void patterns_clamp(void)
         lane_t *l = &pats.lane[k];
         if (l->used && lane_is_mod(l)) {             /* a MOD lane: its target a track's parameter or the master's */
             int tg = lane_mod_tgt(l), st;
-            if ((tg == MODT_MST ? l->param >= NMS : l->param >= NTP) || (l->pat & ~(LANE_GLIDE | 7u)))
+            if ((tg == MODT_MST ? l->param >= NMS : l->param >= NTP) || (l->pat & ~(LANE_GLIDE | LANE_SHAPE | 7u)))
                 l->used = 0;
             else
                 for (st = 0; st < NSTEP; st++) {

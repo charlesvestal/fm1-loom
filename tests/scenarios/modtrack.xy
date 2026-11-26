@@ -1,6 +1,6 @@
 # the MOD track (docs/superpowers/specs/2026-11-26-mod-track-design.md): ALGORITHM past WEAVE reaches it, SEQ (or
 # EDIT) its Lanes page. A lane added from SEL's pickers (T2, Filter, cutoff) and one learned from a knob turned
-# elsewhere (the master filter's mix); values tapped on (the target's now) and set with a step held and KNOB 4; glide
+# elsewhere (the master filter's mix); values tapped on (the target's now) and set with a step held and KNOB 4; the shape
 # or step in SEL's "this lane" (SEL on a lane's row picks it) and by PRESETS on the page; the lane picked moved to
 # another target (TARGET TRACK, PAGE, KNOB; LEARN TARGET), its values kept; the list in sections (lanes, this lane,
 # new lane); a scene with none ("-"): the page and the list say so, KNOB 1 picks one;
@@ -52,6 +52,7 @@ tap SEL
 wait 100
 expect modlanes 1 1
 expect modglide 1 1 1
+expect modshape 1 1 4
 said LANE ADDED T2 cutoff
 # the lane's values: a tap on step 1 takes the knob's (40), step 9 held and KNOB 4 turned to 100
 tapkey w0
@@ -74,12 +75,13 @@ expect smod1 1
 turn K3 3
 wait 400
 shot mod_glide.png
-# playing: the glide from 40 to 100 over steps 1 to 9 (a beat each): at the end of step 4, 40 + 60 x 4 / 8 = 70
+# playing: the lane (smooth, as a new lane starts) from 40 to 100 over steps 1 to 9 (a beat each): near the middle
+# of the way at the end of step 4, ~70 (smooth is steepest there: a little under, as it is a little before)
 tap PLAY
 bars 1
 expect modpat 1
 expect modpos 4
-expect live2.cut >66
+expect live2.cut >62
 expect live2.cut <71
 wait 200
 shot mod_playing.png
@@ -114,20 +116,20 @@ said HOLD A STEP
 # the list in sections: lanes, this lane (the learned one, picked), new lane
 tap SEL
 wait 100
-expect rowval LANE_2 master_mix,_glide
+expect rowval LANE_2 master_mix,_smooth
 rowval lanes = 
 rowval this lane: 2, master mix = 
 rowval new lane = 
 shot mod_lanes.png
 # SEL on lane 1's row picks it (the list stays, its section renamed); ALGORITHM on lane 2's row changes nothing (the
-# lanes section only lists them): lane 1 stays picked, lane 2 a glide
+# lanes section only lists them): lane 1 stays picked, lane 2 as it was
 row LANE 1
 tap SEL
 wait 100
 expect listopen 1
 expect modsel 1
 rowval this lane: 1, T2 cutoff = 
-rowval GLIDE / STEP = glide
+rowval SHAPE = smooth
 rowval TARGET TRACK = T2
 rowval TARGET PAGE = Filter
 rowval TARGET KNOB = cutoff
@@ -141,9 +143,16 @@ row LANE 2
 tap SEL
 wait 100
 expect modsel 2
-# this lane's GLIDE / STEP: ALGORITHM left, a step
-row GLIDE / STEP
+# this lane's SHAPE: ALGORITHM left a shape at a time (smooth, ease out, ease in, linear, step), stopping at step
+row SHAPE
 spin ALGO -1
+expect modshape 1 2 3
+said EASE OUT master mix
+spin ALGO -1
+spin ALGO -1
+spin ALGO -1
+spin ALGO -1
+expect modshape 1 2 0
 expect modglide 1 2 0
 said STEP master mix
 # its target: TARGET KNOB left, the master's melodic filter (its steps and values kept), right, the mix's again;
@@ -200,11 +209,17 @@ spin K3 1
 wait 100
 expect page Lanes
 said TARGET master mix
-# PRESETS on the page: the lane picked glide, step again
+# PRESETS on the page: the lane picked's next shape, round (step, linear, ease in, ease out, smooth, step)
 turn PRESET 1
-expect modglide 1 2 1
-said GLIDE master mix
+expect modshape 1 2 1
+said LINEAR master mix
 turn PRESET 1
+turn PRESET 1
+turn PRESET 1
+expect modshape 1 2 4
+said SMOOTH master mix
+turn PRESET 1
+expect modshape 1 2 0
 expect modglide 1 2 0
 wait 100
 # ALGORITHM: lane 1 back, then past it to WEAVE (the tracks), and back to the MOD track

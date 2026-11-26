@@ -2514,14 +2514,15 @@ static void mod_edited(void)                     /* a lane's values or kind, the
     seq.mod_edit = 1;                            /* (the engine plans the lanes again from where they are) */
     mark_dirty();
 }
-static void mod_set_glide(int l, int glide)      /* lane l (a pool index): glide or step */
+static void mod_set_shape(int l, int sh)         /* lane l (a pool index): its shape (LS_*) */
 {
+    static const char *const SAY[NLS] = {"STEP", "LINEAR", "EASE IN", "EASE OUT", "SMOOTH"};
     char t[24];
-    if (lane_glide(&pats.lane[l]) == (glide != 0))
+    if (sh < 0 || sh >= NLS || lane_shape(&pats.lane[l]) == sh)
         return;
-    pats.lane[l].pat = (uint8_t)((pats.lane[l].pat & ~LANE_GLIDE) | (glide ? LANE_GLIDE : 0u));
+    pats.lane[l].pat = (uint8_t)((pats.lane[l].pat & ~(LANE_GLIDE | LANE_SHAPE)) | lane_shape_bits(sh));
     mod_tgt_name(lane_mod_tgt(&pats.lane[l]), pats.lane[l].param, t);
-    say(glide ? "GLIDE" : "STEP", t);
+    say(SAY[sh], t);
     mod_edited();
 }
 /* lane l (a pool index) to target (tg, p): its steps and values kept, clamped to the target's range; the old target
@@ -2720,7 +2721,7 @@ static void mod_select_lane(int l)               /* lane l (a pool index) the on
 /* a lane on the pattern edited for target (tg, p): ADD LANE's, or LEARN's; 1 = added */
 static int mod_add(int tg, int p)
 {
-    const int l = mod_lane_add(pats.lane, mod_pat_now(), tg, p, 1);
+    const int l = mod_lane_add(pats.lane, mod_pat_now(), tg, p, LS_SMOOTH);   /* (a new lane: smooth) */
     char t[24];
     if (l == -2) {
         say_no("EIGHT LANES", "a pattern has no more");
@@ -2981,12 +2982,13 @@ static void presets(int32_t e)
         break;
     case P_THROWS: case P_WEAVE:
         break;
-    case P_MOD: {                                /* the lane picked: glide or step, in turn */
+    case P_MOD: {                                /* the lane picked: its next shape (round: step, linear, ease in,
+                                                  * ease out, smooth) */
         const int l = mod_lane_now();
         if (l < 0)
             say_no("NO LANE", mod_none() ? "KNOB 1 picks a pattern" : "SEL to add one");
         else
-            mod_set_glide(l, !lane_glide(&pats.lane[l]));
+            mod_set_shape(l, (lane_shape(&pats.lane[l]) + (d < 0 ? NLS - 1 : 1)) % NLS);
         break;
     }
     default:
@@ -3147,10 +3149,11 @@ static void list_change_do(int32_t e)
             break;
         }
         case A_PASTE: ui.pick_paste = (uint8_t)(d > 0); break;
-        case A_MOD_KIND: {                       /* the lane picked: glide (right) or step (left) */
+        case A_MOD_KIND: {                       /* the lane picked: its shape, the next (right) or the one before
+                                                  * (left), stopping at the ends */
             const int l = mod_lane_now();
             if (l >= 0)
-                mod_set_glide(l, d > 0);
+                mod_set_shape(l, clampi(lane_shape(&pats.lane[l]) + (d > 0 ? 1 : -1), 0, NLS - 1));
             break;
         }
         case A_MOD_TTRK: case A_MOD_TPG: case A_MOD_TKNOB:   /* the lane picked to another target */
@@ -5055,7 +5058,9 @@ static void sp_main(void)
         }
         mod_tgt_name(lane_mod_tgt(&pats.lane[l]), pats.lane[l].param, t);
         sp_text(t);
-        sp_cat(lane_glide(&pats.lane[l]) ? ", glide, values on: " : ", step, values on: ");
+        sp_cat(", ");
+        sp_cat(LANE_SHAPE_NAME[lane_shape(&pats.lane[l])]);
+        sp_cat(", values on: ");
         for (int s = 0; s < pats.mod[mod_pat_now()].len; s++)
             if (pats.lane[l].val[s] != LOCK_NONE && n < 16) {
                 if (n++)

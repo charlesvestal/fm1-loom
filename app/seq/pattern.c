@@ -72,7 +72,7 @@ int mod_lane_find(const lane_t *L, int pat, int tgt, int param)
             return k;
     return -1;
 }
-int mod_lane_add(lane_t *L, int pat, int tgt, int param, int glide)
+int mod_lane_add(lane_t *L, int pat, int tgt, int param, int shape)
 {
     uint8_t ix[NMODL];
     int k = mod_lane_find(L, pat, tgt, param);
@@ -80,7 +80,7 @@ int mod_lane_add(lane_t *L, int pat, int tgt, int param, int glide)
         return k;
     if (mod_lanes(L, pat, ix) >= NMODL)
         return -2;
-    return lane_alloc(L, (int)LANE_MOD + tgt, pat | (glide ? (int)LANE_GLIDE : 0), param);
+    return lane_alloc(L, (int)LANE_MOD + tgt, pat | lane_shape_bits(shape), param);
 }
 
 int mod_lane_retarget(lane_t *L, int k, int tgt, int param)

@@ -1334,7 +1334,14 @@ static void locks_tick(seq_t *s, uint32_t k, const seq_sink_t *o)
             r->ramp = 0;
         } else if (r->age > r->hold && r->len > r->hold) {
             int num = (int)((r->age - r->hold) >> 4), den = (int)((r->len - r->hold) >> 4);   /* samples >> 4: the product stays in an int */
-            int v = (int)r->from + ((int)r->to - (int)r->from) * num / (den > 0 ? den : 1);
+            const int sh = lane_is_mod(l) ? lane_shape(l) : LS_LINEAR;
+            int v;
+            if (den < 1)
+                den = 1;
+            if (sh <= LS_LINEAR)
+                v = (int)r->from + ((int)r->to - (int)r->from) * num / den;
+            else                          /* a MOD lane's curve over the time left (lane_curve) */
+                v = (int)r->from + (int)((float)((int)r->to - (int)r->from) * lane_curve(sh, (float)num / (float)den));
             lock_put(s, l->trk, l, r, v, o);
         }
     }
