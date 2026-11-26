@@ -246,6 +246,10 @@ int mod_lanes(const lane_t *L, int pat, uint8_t *out);
 int mod_lane_find(const lane_t *L, int pat, int tgt, int param);   /* -1 none */
 /* a lane for target (tgt, param) on MOD pattern pat: -1 the pool full, -2 the pattern has NMODL already */
 int mod_lane_add(lane_t *L, int pat, int tgt, int param, int glide);
+/* MOD lane k to another target (its pattern, kind, steps and values kept: the caller clamps them), in its place: the
+ * interrupt sees the slot go and come back as a new generation (the old target let go, as a lane removed). -1: its
+ * pattern already has a lane on that target */
+int mod_lane_retarget(lane_t *L, int k, int tgt, int param);
 
 void pattern_init(tpat_t *p);         /* empty, 16 steps, scale 1, no groove, note length half a step */
 void patterns_init(patterns_t *P);    /* everything empty, scene 1 used with pattern 1 on every track */

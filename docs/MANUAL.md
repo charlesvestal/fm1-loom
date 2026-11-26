@@ -1556,12 +1556,18 @@ track.
 
 <img src="img/screen-mod.png" width="240" alt="The MOD track's Lanes page: T2 cutoff in T2's colour, a glide from step 1 to step 9 then held, a line on each bar, the playhead at step 4, 1/1 glide, 4 bars; KNOB 1 P1, KNOB 2 16 steps, KNOB 3 4 (a beat a step), KNOB 4 cutoff 680 Hz as it plays, a tick where the knob is" title="A lane">
 
-**Add a lane.** Press **SEL**. Its list has three parts: "lanes" (each lane, with its knob and glide or step),
-"this lane" (the lane you picked, named: REMOVE LANE and CLEAR LANE) and "new lane". Under "new lane", pick the TRACK (T1 to T8, FX I, FX II or master), the PAGE and
+**Add a lane.** Press **SEL**. Its list has three parts: "lanes" (each lane, with its knob and glide or step: press
+**SEL** on one to pick it), "this lane" (the lane you picked, named: its GLIDE / STEP, its target, REMOVE LANE and
+CLEAR LANE) and "new lane". Under "new lane", pick the TRACK (T1 to T8, FX I, FX II or master), the PAGE and
 the KNOB with **ALGORITHM**, as you would find the knob on its own page, then pick ADD LANE. Or pick LEARN and turn
 the knob you mean, on any page: it becomes the lane, and the Lanes page comes back. A lane can move any knob of a
 sound (a kit's keys too), FX I and FX II, and the master's: EQ, Master FX, the master filter and Master out. Knobs
 that pick something (an engine, an effect, a type, a model) can't be lanes.
+
+**Move a lane to another knob.** Under "this lane", turn **ALGORITHM** on TARGET TRACK, TARGET PAGE or TARGET KNOB:
+the lane moves at once to the next knob there that can be a lane (and that no other lane of the pattern has). Or pick
+LEARN TARGET and turn the knob you mean, on any page. The lane keeps its steps and values (kept inside the new knob's
+range), and the knob it left goes back to its own value.
 
 **Values.** The white keys are the pattern's steps, and **OCT−** and **OCT+** show its other bars. A step's key is
 lit when the lane has a value there. Tap a step to put the knob's value now on it, and tap it again to take it off.
@@ -1569,8 +1575,7 @@ Hold a step and turn **KNOB 4** to set its value; the knob reads in its own unit
 **SEL** takes their values off. Without a step held, **KNOB 4** is the knob itself.
 
 **Glide or step.** On the Lanes page, turn **PRESETS** to switch the lane between glide and step. In the **SEL**
-list, each lane has its row too: turn **ALGORITHM** right for glide, left for step. That doesn't change which lane is
-picked; press **SEL** on a lane's row to pick it (its name moves to "this lane"). A glide moves from each value to the
+list, it is the GLIDE / STEP row under "this lane": turn **ALGORITHM** right for glide, left for step. A glide moves from each value to the
 next one over the steps between. A step lane jumps at each value. After the last value, the knob stays there until
 the pattern comes round. Before the first value, a step lane leaves the knob alone, and a glide moves there from
 wherever the knob is. Change a value while the lane plays and it follows at once: the glide goes from where the knob
@@ -1931,7 +1936,7 @@ and the echoes fade out. Every voice sounds in the file, so a busy song can soun
 | SEQ, a step held | Steps | velocity | length | chance | pitch | white: length or more steps, black: sounds; PRESETS: the step's sound shown (drums: velocity, chance and tricks are its) |
 | SEQ, a step held + ARP | Steps | trick 1 | its value | trick 2 | its value | PRESETS: the step's sound shown (drums) |
 | SEQ, SELECT | Bar | quant | note | groove | shape | black: scale; SEQ held, black 1-4: jump or loop bars |
-| SEQ (MOD) | Lanes | the scene's MOD pattern | length | scale | the lane's knob (a step held: its value) | white: steps (tap: a value or none; hold + KNOB 4: its value), OCT: bars; ALGO: the lane; PRESETS: glide or step; SEL: the lanes (glide or step, SEL picks one), this lane (remove, clear), a new lane, LEARN |
+| SEQ (MOD) | Lanes | the scene's MOD pattern | length | scale | the lane's knob (a step held: its value) | white: steps (tap: a value or none; hold + KNOB 4: its value), OCT: bars; ALGO: the lane; PRESETS: glide or step; SEL: the lanes (SEL picks one), this lane (glide or step, its target, LEARN TARGET, remove, clear), a new lane, LEARN |
 | EDIT | Engine | the engine's four | | | | play |
 | EDIT, SELECT | Play | mode | porta | bend | octave | play |
 | EDIT, SELECT twice | Play 2 | | | low cut | volume | play |

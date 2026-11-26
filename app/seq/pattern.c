@@ -83,6 +83,23 @@ int mod_lane_add(lane_t *L, int pat, int tgt, int param, int glide)
     return lane_alloc(L, (int)LANE_MOD + tgt, pat | (glide ? (int)LANE_GLIDE : 0), param);
 }
 
+int mod_lane_retarget(lane_t *L, int k, int tgt, int param)
+{
+    const int o = mod_lane_find(L, lane_mod_pat(&L[k]), tgt, param);
+    if (o >= 0)
+        return o == k ? k : -1;
+    L[k].used = 0;                    /* (gone for the interrupt while it changes) */
+    lane_epoch++;
+    __asm__ volatile("" ::: "memory");
+    L[k].trk = (uint8_t)((int)LANE_MOD + tgt);
+    L[k].param = (uint16_t)param;
+    L[k].gen++;
+    __asm__ volatile("" ::: "memory");
+    L[k].used = 1;
+    lane_epoch++;
+    return k;
+}
+
 /* ----------------------------------------------------------------- lanes --- */
 int lane_find(const lane_t *L, int trk, int pat, int param)
 {

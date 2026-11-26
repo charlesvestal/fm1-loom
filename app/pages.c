@@ -295,7 +295,8 @@ static struct {
     uint32_t sig[6];
     uint8_t mod_pat;                                 /* the MOD page: the pattern it edits when the scene has none */
     uint8_t mod_lane;                                /* the lane picked (ALGORITHM), of the pattern's */
-    uint8_t mod_learn;                               /* LEARN armed: the next knob turned by hand is a lane's target */
+    uint8_t mod_learn;                               /* LEARN armed: the next knob turned by hand is a new lane's
+                                                      * target (1), the lane picked's new one (2) */
     uint8_t mpick_t, mpick_p, mpick_k;               /* its SEL list's ADD LANE: the track (T1-T8, FX I, FX II, the
                                                       * master), its page (of mod_pages), its knob */
     uint8_t glo_pg;                                  /* the GLO page last visited (GLO opens it again; 0: Mix) */
@@ -317,7 +318,7 @@ enum { A_CLEAR_NOTES, A_CLEAR_LOCKS, A_CLEAR_BOTH, A_COPY_PAT, A_PASTE_PAT, A_RO
        A_COPY_SOUND, A_PASTE_SOUND, A_COPY_KEY, A_PASTE_KEY, A_COPY_SCENE, A_PASTE_SCENE, A_DUP_SLOT, A_KIT_FILTER,
        A_SHIFT, A_LARGE_TYPE, A_CC_IN, A_MOD_VIEW, A_PROJ1, A_PROJ2, A_PROJ3,
        A_MOD_LANE, A_MOD_REMOVE, A_MOD_CLEAR, A_MOD_TRK, A_MOD_PG, A_MOD_KNOB, A_MOD_ADD, A_MOD_LEARN,
-       A_GO_FX1, A_GO_FX2, A_SLOT_X1, A_SLOT_X2, A_SLOT_X3, A_SLOT_X4, NACTIONS };   /* (A_SLOT_X*: a slot page's
+       A_MOD_KIND, A_MOD_TTRK, A_MOD_TPG, A_MOD_TKNOB, A_MOD_TLEARN, A_GO_FX1, A_GO_FX2, A_SLOT_X1, A_SLOT_X2, A_SLOT_X3, A_SLOT_X4, NACTIONS };   /* (A_SLOT_X*: a slot page's
                                                      * extras; A_GO_FX*: Sends' way to GLO's FX I, FX II) */
 static const char *const ACTION_NAME[NACTIONS] = {
     "CLEAR NOTES", "CLEAR LOCKS", "CLEAR NOTES AND LOCKS", "COPY PATTERN", "PASTE PATTERN", "ROTATE FORWARD",
@@ -331,7 +332,7 @@ static const char *const ACTION_NAME[NACTIONS] = {
     "CLEAR", "ROTATE", "PASTE", "COPY TO EMPTY", "CLEAR BAR", "COPY SOUND", "PASTE SOUND", "COPY DRUM", "PASTE DRUM",
     "COPY SCENE", "PASTE SCENE", "DUPLICATE SLOT", "KIT FILTER", "SHIFT NOTES", "LARGE TYPE", "CC IN",
     "MOD VIEW", "PROJ 1", "PROJ 2", "PROJ 3", "LANE", "REMOVE LANE", "CLEAR LANE", "TRACK", "PAGE", "KNOB",
-    "ADD LANE", "LEARN", "FX I", "FX II", "EXTRA 1", "EXTRA 2", "EXTRA 3", "EXTRA 4"};
+    "ADD LANE", "LEARN", "GLIDE / STEP", "TARGET TRACK", "TARGET PAGE", "TARGET KNOB", "LEARN TARGET", "FX I", "FX II", "EXTRA 1", "EXTRA 2", "EXTRA 3", "EXTRA 4"};
 _Static_assert(NPROJ == 3, "GLO's list: an action a slot (A_PROJ1..A_PROJ3)");
 static const char *const CLEAR_WHAT[3] = {"notes", "locks", "notes and locks"};
 /* a pick ALGORITHM sets at once (a setting: SEL only leaves the list), as against a choice SEL then carries out */
@@ -345,7 +346,7 @@ static int pick_sets(int a)
     case A_FX_HP: case A_FX_LP: case A_FX_SEND: case A_PUMP_BY: case A_PUMP_REL: case A_PUMP_ACC: case A_LEVEL:
     case A_SCENE_AT: case A_AUTOSAVE: case A_MIDI_OUT: case A_LOOP_FREE: case A_CC_OUT: case A_SCENES_OUT: case A_MIDI_CC:
     case A_USB_HOST: case A_KIT_FILTER: case A_CC_IN: case A_MOD_VIEW:
-    case A_MOD_TRK: case A_MOD_PG: case A_MOD_KNOB:
+    case A_MOD_TRK: case A_MOD_PG: case A_MOD_KNOB: case A_MOD_KIND: case A_MOD_TTRK: case A_MOD_TPG: case A_MOD_TKNOB:
         return 1;
     default:
         return 0;
@@ -1620,10 +1621,27 @@ static int mod_pages(int tgt, uint8_t *out)
     }
     return m;
 }
-static int mod_pick_tgt(void)                        /* ADD LANE's track: T1-T8, FX I, FX II, the master */
+static int mod_tgt_at(int i)                         /* a target's place in TRACK's choices: T1-T8, FX I, FX II, the
+                                                      * master */
 {
-    int i = ui.mpick_t % (NTRK + 3);
+    i %= NTRK + 3;
     return i < NTRK ? i : i == NTRK ? AUX_FX1 : i == NTRK + 1 ? AUX_FX2 : MODT_MST;
+}
+static int mod_tgt_place(int tgt) { return tgt == MODT_MST ? NTRK + 2 : tgt == AUX_FX1 ? NTRK : tgt == AUX_FX2 ? NTRK + 1 : tgt; }
+static int mod_pick_tgt(void) { return mod_tgt_at(ui.mpick_t); }   /* ADD LANE's track */
+/* target (tgt, p)'s page (its place among mod_pages, *pg the page) and knob (0..3), -1 none of them shows it */
+static int mod_locate(int tgt, int p, int *pi, int *pg)
+{
+    uint8_t pl[24];
+    const int n = mod_pages(tgt, pl);
+    for (int i = 0; i < n; i++)
+        for (int k = 0; k < 4; k++)
+            if (mod_page_param(tgt, pl[i], k) == p) {
+                *pi = i;
+                *pg = pl[i];
+                return k;
+            }
+    return -1;
 }
 /* ADD LANE's target as picked: its parameter, -1 none (*pg: its page) */
 static int mod_pick_param(int *pg)
@@ -2646,8 +2664,8 @@ static void page_footer(char *t)
             s_cat(t, "HOME back");
             return;
         }
-        if (k == LK_PICK && lst.row[lst.sel].id == A_MOD_LANE) {   /* (a MOD lane's row: its kind, or it picked) */
-            s_cat(t, "ALGO glide / step|SEL pick lane");
+        if (lst.row[lst.sel].id == A_MOD_LANE) {   /* (a MOD lane's row: SEL picks it) */
+            s_cat(t, "SEL pick lane|HOME back");
             return;
         }
         s_cat(t, k == LK_ACTION ? "SEL confirm|HOME back"                       /* (the menu's rules: an action, a */
@@ -3347,15 +3365,32 @@ static void list_page_section(int p)              /* a page's knobs under its na
         lst.n = (uint8_t)n;
 }
 static int pick_amount(int v) { return v ? v : 1; }   /* SHIFT NOTES', ROTATE's amount (never 0) */
-/* the MOD page's list, in sections: "lanes" (each: its target, glide or step: ALGORITHM changes it, SEL picks the
- * lane), "this lane: N, target" (REMOVE, CLEAR), "new lane" (TRACK, PAGE and KNOB: ALGORITHM; ADD LANE; LEARN: the
- * next knob turned by hand). The scene's MOD pattern "-": a note */
+/* the MOD page's list, in sections: "lanes" (each its target, glide or step; SEL picks it), "this lane: N, target"
+ * (GLIDE / STEP; its target: TRACK, PAGE and KNOB, ALGORITHM moves the lane there at once, its steps and values kept;
+ * LEARN: the next knob turned by hand; REMOVE, CLEAR), "new lane" (TRACK, PAGE and KNOB: ALGORITHM; ADD LANE; LEARN:
+ * the next knob turned by hand). The scene's MOD pattern "-": a note */
 static const char *const MOD_ROW[NMODL] = {"LANE 1", "LANE 2", "LANE 3", "LANE 4", "LANE 5", "LANE 6", "LANE 7", "LANE 8"};
+static void list_mod_target(int tg, int p, int ida)   /* TRACK, PAGE, KNOB of target (tg, p): ids ida, + 1, + 2 */
+{
+    char t[24];
+    int pg = -1, pi;
+    if (p >= 0 && ida == A_MOD_TTRK)
+        mod_locate(tg, p, &pi, &pg);
+    else if (ida == A_MOD_TRK)
+        p = mod_pick_param(&pg);
+    list_add(ACTION_NAME[ida], tg == MODT_MST ? "master" : TRACK_NAME[tg], LK_PICK, ida);
+    list_add(ACTION_NAME[ida + 1], pg < 0 ? "-" : page_name_of(pg, tg == MODT_MST ? 0 : tg), LK_PICK, ida + 1);
+    t[0] = 0;
+    if (p >= 0)
+        mod_tgt_name(tg, p, t);
+    list_add(ACTION_NAME[ida + 2], p >= 0 ? t + s_len(tg == MODT_MST ? "master " : TRACK_NAME[tg]) + (tg != MODT_MST)
+                                          : "-", LK_PICK, ida + 2);
+}
 static void list_mod(void)
 {
     static char th[40];
     uint8_t ix[NMODL];
-    char t[24];
+    char t[24], at[24];
     const int n = mod_lanes_now(ix), l = mod_lane_now();
     int pg, p;
     list_head("lanes");
@@ -3368,31 +3403,28 @@ static void list_mod(void)
     for (int i = 0; i < n; i++) {                    /* "T2 cutoff, glide" */
         mod_tgt_name(lane_mod_tgt(&pats.lane[ix[i]]), pats.lane[ix[i]].param, t);
         s_cat(s_cat(t + s_len(t), ", "), lane_glide(&pats.lane[ix[i]]) ? "glide" : "step");
-        list_add(MOD_ROW[i], t, LK_PICK, A_MOD_LANE);
+        list_add(MOD_ROW[i], t, LK_ACTION, A_MOD_LANE);
     }
     if (l >= 0) {                                    /* "this lane: 2, T2 cutoff" (the heads' face has no middle dot) */
+        const lane_t *L = &pats.lane[l];
         th[0] = 0;
-        mod_tgt_name(lane_mod_tgt(&pats.lane[l]), pats.lane[l].param,
+        mod_tgt_name(lane_mod_tgt(L), L->param,
                      s_cat(num_s((uint32_t)ui.mod_lane % NMODL + 1u, s_cat(th, "this lane: ")), ", "));
         list_head(th);
+        list_add(ACTION_NAME[A_MOD_KIND], lane_glide(L) ? "glide" : "step", LK_PICK, A_MOD_KIND);
+        list_mod_target(lane_mod_tgt(L), L->param, A_MOD_TTRK);
+        list_add(ACTION_NAME[A_MOD_TLEARN], ui.mod_learn == 2 ? "turn a knob" : "a knob turned", LK_ACTION, A_MOD_TLEARN);
         list_add(ACTION_NAME[A_MOD_REMOVE], 0, LK_ACTION, A_MOD_REMOVE);
         list_add(ACTION_NAME[A_MOD_CLEAR], 0, LK_ACTION, A_MOD_CLEAR);
     }
     list_head("new lane");
-    {
-        const int tg = mod_pick_tgt();
-        list_add(ACTION_NAME[A_MOD_TRK], tg == MODT_MST ? "master" : TRACK_NAME[tg], LK_PICK, A_MOD_TRK);
-        p = mod_pick_param(&pg);
-        list_add(ACTION_NAME[A_MOD_PG], pg < 0 ? "-" : page_name_of(pg, tg == MODT_MST ? 0 : tg), LK_PICK, A_MOD_PG);
-        t[0] = 0;
-        if (p >= 0)
-            mod_tgt_name(tg, p, t);
-        list_add(ACTION_NAME[A_MOD_KNOB], p >= 0 ? t + s_len(tg == MODT_MST ? "master " : TRACK_NAME[tg]) + (tg != MODT_MST)
-                                                 : "-", LK_PICK, A_MOD_KNOB);
-        list_add(ACTION_NAME[A_MOD_ADD], p < 0 ? "none on that knob" : n >= NMODL ? "eight already" : t, LK_ACTION,
-                 A_MOD_ADD);
-    }
-    list_add(ACTION_NAME[A_MOD_LEARN], ui.mod_learn ? "turn a knob" : "a knob turned", LK_ACTION, A_MOD_LEARN);
+    list_mod_target(mod_pick_tgt(), -1, A_MOD_TRK);
+    p = mod_pick_param(&pg);
+    at[0] = 0;
+    if (p >= 0)
+        mod_tgt_name(mod_pick_tgt(), p, at);
+    list_add(ACTION_NAME[A_MOD_ADD], p < 0 ? "none on that knob" : n >= NMODL ? "eight already" : at, LK_ACTION, A_MOD_ADD);
+    list_add(ACTION_NAME[A_MOD_LEARN], ui.mod_learn == 1 ? "turn a knob" : "a knob turned", LK_ACTION, A_MOD_LEARN);
 }
 /* Steps and Bar: the pattern's actions, then the bar's */
 static void list_steps(int trk)

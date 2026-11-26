@@ -2506,7 +2506,7 @@ static int mod_row_lane(void)                    /* the SEL list's row picked: w
 {
     int i = 0;
     for (int r = 0; r < lst.sel; r++)
-        i += lst.row[r].id == A_MOD_LANE && lst.row[r].kind == LK_PICK;
+        i += lst.row[r].id == A_MOD_LANE;
     return i;
 }
 static void mod_edited(void)                     /* a lane's values or kind, the pattern's length or scale changed */
@@ -2523,6 +2523,65 @@ static void mod_set_glide(int l, int glide)      /* lane l (a pool index): glide
     mod_tgt_name(lane_mod_tgt(&pats.lane[l]), pats.lane[l].param, t);
     say(glide ? "GLIDE" : "STEP", t);
     mod_edited();
+}
+/* lane l (a pool index) to target (tg, p): its steps and values kept, clamped to the target's range; the old target
+ * let go (its knob's value back). 0: the pattern has a lane on it already */
+static int mod_retarget(int l, int tg, int p)
+{
+    char t[24];
+    const int lo = mod_lo(tg, p), hi = mod_hi(tg, p);
+    if (mod_lane_retarget(pats.lane, l, tg, p) < 0)
+        return 0;
+    for (int i = 0; i < NSTEP; i++)
+        if (pats.lane[l].val[i] != LOCK_NONE)
+            pats.lane[l].val[i] = (uint8_t)clampi(pats.lane[l].val[i], lo, hi);
+    mod_edited();
+    mod_tgt_name(tg, p, t);
+    say("TARGET", t);
+    return 1;
+}
+/* target tg's first knob on its pages [from, from + np) (of pl) a lane can take that no lane of the pattern has: its
+ * parameter, -1 none */
+static int mod_free_knob(int tg, const uint8_t *pl, int from, int np)
+{
+    for (int q = from; q < from + np; q++)
+        for (int k = 0; k < 4; k++) {
+            const int p = mod_page_param(tg, pl[q], k);
+            if (mod_target_ok(tg, p) && mod_lane_find(pats.lane, mod_pat_now(), tg, p) < 0)
+                return p;
+        }
+    return -1;
+}
+/* the lane picked's TRACK, PAGE or KNOB (A_MOD_TTRK ..) moved d (+-1): the next track (its first page's first knob
+ * free), page (its first knob free) or knob on the page there, skipping what has no knob a lane can take or a lane
+ * already */
+static void mod_retarget_step(int a, int d)
+{
+    const int l = mod_lane_now();
+    uint8_t pl[24];
+    int tg, pi = 0, pg, k, n, p = -1;
+    if (l < 0)
+        return;
+    tg = lane_mod_tgt(&pats.lane[l]);
+    k = mod_locate(tg, pats.lane[l].param, &pi, &pg);
+    n = mod_pages(tg, pl);
+    if (a == A_MOD_TTRK) {
+        const int at = mod_tgt_place(tg);
+        for (int j = 1; j < NTRK + 3 && p < 0; j++) {
+            tg = mod_tgt_at((at + j * d + 2 * (NTRK + 3)) % (NTRK + 3));
+            p = mod_free_knob(tg, pl, 0, mod_pages(tg, pl));
+        }
+    } else if (a == A_MOD_TPG) {
+        for (int j = 1; j < n && p < 0; j++)
+            p = mod_free_knob(tg, pl, (pi + j * d + 2 * n) % n, 1);
+    } else if (k >= 0)
+        for (int j = 1; j < 4 && p < 0; j++) {
+            const int q = mod_page_param(tg, pl[pi], (k + j * d + 8) & 3);
+            if (mod_target_ok(tg, q) && mod_lane_find(pats.lane, mod_pat_now(), tg, q) < 0)
+                p = q;
+        }
+    if (p >= 0)
+        mod_retarget(l, tg, p);
 }
 /* a lane's target set by hand (KNOB 4 on its page): the knob's own value (its CC, its undo), the MOD lane letting go
  * until its next value (the engine's seq_mod_hand); REC held while playing: written on the step playing */
@@ -2664,12 +2723,15 @@ static int mod_add(int tg, int p)
     mark_dirty();
     return 1;
 }
-static void mod_learned(int tg, int p)           /* LEARN armed, a knob turned by hand: its target a lane, the MOD page */
+static int mod_retarget(int l, int tg, int p);
+static void mod_learned(int tg, int p)           /* LEARN armed, a knob turned by hand: its target a lane (or the lane
+                                                  * picked's), the MOD page */
 {
+    const int re = ui.mod_learn == 2, l = mod_lane_now();
     ui.mod_learn = 0;
     if (!mod_target_ok(tg, p))
         return;
-    if (mod_add(tg, p)) {                        /* (back to the Lanes page, the lane picked) */
+    if (re ? l >= 0 && (mod_retarget(l, tg, p) || (say_no("ALREADY A LANE", "on that knob"), 0)) : mod_add(tg, p)) {   /* (back to the Lanes page, the lane picked) */
         uint8_t keep = ui.mod_lane;
         track_select(AUX_MOD);
         ui.page = P_MOD;
@@ -3072,14 +3134,15 @@ static void list_change_do(int32_t e)
             break;
         }
         case A_PASTE: ui.pick_paste = (uint8_t)(d > 0); break;
-        case A_MOD_LANE: {                       /* a lane's row: glide (right) or step (left); the lane picked
-                                                  * stays (SEL on the row picks it) */
-            uint8_t ix[NMODL];
-            int i = mod_row_lane(), n = mod_lanes_now(ix);
-            if (i < n)
-                mod_set_glide(ix[i], d > 0);
+        case A_MOD_KIND: {                       /* the lane picked: glide (right) or step (left) */
+            const int l = mod_lane_now();
+            if (l >= 0)
+                mod_set_glide(l, d > 0);
             break;
         }
+        case A_MOD_TTRK: case A_MOD_TPG: case A_MOD_TKNOB:   /* the lane picked to another target */
+            mod_retarget_step(lst.row[lst.sel].id, d > 0 ? 1 : -1);
+            break;
         case A_MOD_TRK: case A_MOD_PG: {          /* another track (its first page), another page: its first knob a
                                                   * lane can take */
             uint8_t pl[24];
@@ -4205,8 +4268,9 @@ static void action_run(int a)
         ui.page = ui.glo_pg = (uint8_t)(a == A_GO_FX1 ? P_FX1 : P_FX2);
         ui.touched = -1;
         break;
-    case A_MOD_LEARN:
-        ui.mod_learn = 1;
+    case A_MOD_LEARN: case A_MOD_TLEARN:          /* the next knob turned by hand: a new lane's target, or the
+                                                  * lane picked's */
+        ui.mod_learn = a == A_MOD_LEARN ? 1 : 2;
         say("LEARN", "turn the knob, anywhere");
         break;
     case A_CLEAR_NOTES:

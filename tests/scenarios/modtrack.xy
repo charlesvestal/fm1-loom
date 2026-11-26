@@ -1,8 +1,9 @@
 # the MOD track (docs/superpowers/specs/2026-11-26-mod-track-design.md): ALGORITHM past WEAVE reaches it, SEQ (or
 # EDIT) its Lanes page. A lane added from SEL's pickers (T2, Filter, cutoff) and one learned from a knob turned
 # elsewhere (the master filter's mix); values tapped on (the target's now) and set with a step held and KNOB 4; glide
-# or step on SEL's lane row (the lane picked stays: SEL on a row picks it) and by PRESETS on the page; the list in
-# sections (lanes, this lane, new lane); a scene with none ("-"): the page and the list say so, KNOB 1 picks one;
+# or step in SEL's "this lane" (SEL on a lane's row picks it) and by PRESETS on the page; the lane picked moved to
+# another target (TARGET TRACK, PAGE, KNOB; LEARN TARGET), its values kept; the list in sections (lanes, this lane,
+# new lane); a scene with none ("-"): the page and the list say so, KNOB 1 picks one;
 # ALGORITHM through the lanes, then on to the tracks; the knob a lane holds shows the value playing (MOD VIEW) and takes
 # over from it; REC held while playing writes the knob's moves; Arrange's KNOB 4 (the scene's MOD pattern) and black
 # key 11 (its mute); the grid by the scale; the reader's words; saved and loaded
@@ -118,17 +119,21 @@ rowval lanes =
 rowval this lane: 2, master mix = 
 rowval new lane = 
 shot mod_lanes.png
-# SEL on lane 1's row picks it (the list stays, its section renamed); glide or step on lane 2's row (ALGORITHM left:
-# step) leaves lane 1 picked: REMOVE and CLEAR act on lane 1
+# SEL on lane 1's row picks it (the list stays, its section renamed); ALGORITHM on lane 2's row changes nothing (the
+# lanes section only lists them): lane 1 stays picked, lane 2 a glide
 row LANE 1
 tap SEL
 wait 100
 expect listopen 1
 expect modsel 1
 rowval this lane: 1, T2 cutoff = 
+rowval GLIDE / STEP = glide
+rowval TARGET TRACK = T2
+rowval TARGET PAGE = Filter
+rowval TARGET KNOB = cutoff
 row LANE 2
 spin ALGO -1
-expect modglide 1 2 0
+expect modglide 1 2 1
 expect modsel 1
 rowval this lane: 1, T2 cutoff = 
 shot mod_sections.png
@@ -136,8 +141,65 @@ row LANE 2
 tap SEL
 wait 100
 expect modsel 2
-tap HOME
+# this lane's GLIDE / STEP: ALGORITHM left, a step
+row GLIDE / STEP
+spin ALGO -1
+expect modglide 1 2 0
+said STEP master mix
+# its target: TARGET KNOB left, the master's melodic filter (its steps and values kept), right, the mix's again;
+# TARGET TRACK right from the master: T1 (its first page's first knob a lane can take); left: the master again
+row TARGET KNOB
+spin ALGO -1
+said TARGET master melodic
+expect modlanes 1 2
+expect modval 1 mst melf 1 255
+rowval this lane: 2, master melodic = 
+spin ALGO 1
+said TARGET master mix
+rowval TARGET PAGE = Master filter
+row TARGET TRACK
+spin ALGO 1
+rowval TARGET TRACK = T1
+expect modlanes 1 2
+spin ALGO -1
+rowval TARGET TRACK = master
+row TARGET PAGE
+rowval TARGET PAGE = Master EQ
+spin ALGO 1
+spin ALGO 1
+rowval TARGET PAGE = Master filter
+row TARGET KNOB
+spin ALGO 1
+spin ALGO 1
+rowval TARGET KNOB = mix
+rowval this lane: 2, master mix = 
+expect modglide 1 2 0
+# LEARN TARGET: the next knob turned by hand is the lane's new target (GLO's Master filter: the melodic), the Lanes
+# page back; then the mix again the same way
+row LEARN TARGET
+tap SEL
 wait 100
+expect page Lanes
+tap GLO
+wait 100
+expect page Master_filter
+spin K2 -10
+wait 100
+expect page Lanes
+said TARGET master melodic
+expect modlanes 1 2
+expect modsel 2
+tap SEL
+wait 100
+row LEARN TARGET
+tap SEL
+wait 100
+tap GLO
+wait 100
+spin K3 1
+wait 100
+expect page Lanes
+said TARGET master mix
 # PRESETS on the page: the lane picked glide, step again
 turn PRESET 1
 expect modglide 1 2 1
