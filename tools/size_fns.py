@@ -43,8 +43,9 @@ SIZE_FILES = ["app/ui.c", "app/pages.c", "app/project.c", "app/lz.c", "app/sampl
 # on the FM-1; at -O2 the voices -4 % (pop's both cores 47.1 -> 45.3 %), 2.35 KB of flash)
 # (seq.c's and pattern.c's per-step and per-note code joined 2026-11-14: the six demo songs on the FM-1 the same within
 # noise, mean and slowest block, the sequencer's share of the slowest block too; 3.3 KB of flash)
+# (drumline.c's control joined 2026-11-26: a voice's gains once a 64-sample chunk, as eng_prep)
 COLD = {
-    "dsp/drumline.c": ["start", "knob", "drumline_filter", "drumline_hit", "reso_set", "drumline_init"],
+    "dsp/drumline.c": ["start", "control", "knob", "drumline_filter", "drumline_hit", "reso_set", "drumline_init"],
     "dsp/fx.c": ["fx_derive", "eq_coefs", "fx_filter", "master_set", "master_init", "comp_coefs",
                  "fx_set", "fx_init", "fx_delay_halves", "slot_set", "master_room", "biq_shelf",
                  "fx_clear", "master_clear", "coef_ms", "master_pump_ms", "fx_pick_slot"],

@@ -732,7 +732,7 @@ static void sophie_start(dvoice_t *v, float note, float dec, const float *kn, co
 /* drive 58: Sophie's curve (its units 66, a gain of 5.95), and the gain that brings a full output back to 1 */
 #define SPH_DG 5.95f
 #define SPH_DN 1.14600f
-static void sophie_render(dvoice_t *v, float *t, int m, float *envp)
+static __attribute__((noinline)) void sophie_render(dvoice_t *v, float *t, int m, float *envp)
 {
     const int model = v->smodel, kick = v->skick, shaped = model >= SPH_PIPE;
     const int need_m2 = kick || model <= SPH_SPLIT, need_m3 = !kick && (model == SPH_STACK || model == SPH_SPLIT);
@@ -1238,7 +1238,7 @@ static inline float x_sqfix(uint32_t p, uint32_t i)
 
 /* the x models, m samples into t[]: env / k the gate (a choke), env2 / k2 layer 1, ph / inc oscillator 1. Returns
  * with env 0 when the layers have all faded (the voice ends) */
-static void x_render(dvoice_t *v, float *t, int m, float *envp, float *env2p, float *php)
+static __attribute__((noinline)) void x_render(dvoice_t *v, float *t, int m, float *envp, float *env2p, float *php)
 {
     int i, model = v->model;
     float env = *envp, k = v->k, env2 = *env2p, k2 = v->k2, ph = *php, inc = v->inc, g = v->g;
@@ -1449,7 +1449,9 @@ static void clang_render(dvoice_t *v, float *t, int m, float *envp)
 }
 
 /* ---- one voice, m samples (<= SUB) of mono into t[] (nine: its 909 slot, held; else 0) ---- */
-static void render_voice(dvoice_t *v, int16_t *line, smp_cache_t *sc, d909_t *nine, float *t, int m)
+/* (out of line, and x_render, sophie_render and dynf_run: inlined into drumline_render_kick, the -O2 build came to
+ * 2 KB more for the same loops; a call a voice every 32 samples) */
+static __attribute__((noinline)) void render_voice(dvoice_t *v, int16_t *line, smp_cache_t *sc, d909_t *nine, float *t, int m)
 {
     int i;
     float env = v->env, k = v->k, env2 = v->env2, k2 = v->k2, ph = v->ph, inc = v->inc, g = v->g;
@@ -1892,7 +1894,7 @@ void drumline_filter(drumline_t *d, int type, int locut, int comp, int drive, in
 
 
 /* m samples (<= SUB) of the dry pair through the filter, in place */
-static void dynf_run(dynf_t *f, float *l, float *r, int m)
+static __attribute__((noinline)) void dynf_run(dynf_t *f, float *l, float *r, int m)
 {
     int i;
     float pk = 0.0f, g0 = f->gain, g1, dg;
