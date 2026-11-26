@@ -71,7 +71,10 @@ COLD = {
     # (the effects' coefficients, when a knob moves; the pages' pictures and texts)
     "dsp/efx.c": ["efx_char_coefs", "efx_char_picture", "efx_char_hz", "efx_knob_name", "efx_list_name", "ch_lp_hz",
                   "ch_pivot_hz", "ch_alpha", "ch_tape_hz", "ch_smp_hz", "ch_smp_rate", "efx_send_nums", "efx_nums",
-                  "efx_delay_secs", "fx_delay_fb", "efx_knob_word", "efx_rv_ring", "slot_moving"],
+                  "efx_delay_secs", "fx_delay_fb", "efx_knob_word", "efx_rv_ring",
+                  # (2026-11-26: a slot's block, its decisions: what moves, the coefficients when they change; the
+                  # effects' loops are their own functions)
+                  "slot_moving", "efx_slot_run"],
     "seq/pattern.c": ["pattern_init", "patterns_init", "lane_alloc", "lane_clear", "lane_count", "lane_pool_set",
                       "lane_pool_free", "step_clear_locks", "pattern_clear_locks", "step_set_notes",
                       "step_toggle_note", "kit_set", "kit_toggle", "kit_add", "pattern_woven", "weave_step",
@@ -166,8 +169,9 @@ def reachable(funcs, glob):
     return seen
 
 
-# what only a COLD function calls but runs once a sample, kept -O2 (cold_helpers would take it along)
-HOT = {"char_ramp"}
+# what only COLD functions call but runs once a sample, kept -O2 (cold_helpers would take it along): a moving slot's
+# ramp, the tape's wow
+HOT = {"char_ramp", "wow_run"}
 
 
 def cold_helpers(funcs, glob, cold):
