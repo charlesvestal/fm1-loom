@@ -1304,6 +1304,29 @@ static uint32_t mv_sus;                             /* (when the Envelope page's
 static int32_t mv_fc, mv_dot = -1;                  /* (the host's checks: the Filter curve's cutoff, x; the
                                                      * Envelope page's dot, x, -1 none) */
 static int mod_view(void) { return !(proj.rsv[3] & MOD_VIEW_OFF) && !mv_guard; }
+/* the MOD lanes' values as MOD VIEW shows them (the knobs' words and bars, the pictures): taken each frame, or four
+ * times a second while the audio's load is over MV_SLOW % (a glide moves them every block: each frame the knob band
+ * and a page's curves drawn again, the main loop's time the audio's busy blocks leave it) */
+#define MV_SLOW 60u
+static uint8_t mv_snap[NMODL];
+static uint32_t mv_snap_ms;
+static void mv_take(uint32_t ld)
+{
+    const uint32_t now = plat_ms();
+    if (ld > MV_SLOW && now - mv_snap_ms < 250u)
+        return;
+    mv_snap_ms = now;
+    for (int i = 0; i < NMODL; i++)
+        mv_snap[i] = i < seq.mod_n ? seq.lrt[seq.mod_lane[i] % NLANE].applied : LOCK_NONE;
+}
+static int mv_value(int tgt, int p)                 /* the value MOD VIEW shows on (tgt, p), -1 none (seq_mod_value's) */
+{
+    const uint16_t key = (uint16_t)(tgt << 9 | p);
+    for (int i = 0; i < seq.mod_n && i < NMODL; i++)
+        if ((seq.mod_own >> i & 1u) && seq.mod_tgt[i] == key)
+            return mv_snap[i] == LOCK_NONE ? -1 : mv_snap[i];
+    return -1;
+}
 static void mod_take(void)
 {
     int trk = sel_trk(), want;
@@ -1312,6 +1335,7 @@ static void mod_take(void)
         mv_guard = 1;
     else if (ld < MV_GUARD_OFF)
         mv_guard = 0;
+    mv_take(ld);
     want = mod_view() && trk < NTRK;                 /* (a kit or a MIDI track: no voice of its own sounds) */
     synth_mod.trk = (uint8_t)(want ? trk : 0xFF);
     if (ui.frame & 1u)
@@ -1554,12 +1578,12 @@ static int knob_target(int k, int *tgt)
     *tgt = trk;
     return tp_page_param(pg, k, trk);
 }
-/* the MOD VIEW of a knob a MOD lane holds (seq_mod_value): the value playing (its words, its bar), the knob's own a
+/* the MOD VIEW of a knob a MOD lane holds (mv_value): the value playing (its words, its bar), the knob's own a
  * tick on the bar */
 static void kmod(knob_t *k, int tgt, int p)
 {
     knob_t m;
-    const int v = seq_mod_value(&seq, tgt, p), own = k->num;
+    const int v = mv_value(tgt, p), own = k->num;
     if (v < 0 || k->max <= 0 || !k->name)
         return;
     memset(&m, 0, sizeof m);
@@ -1582,7 +1606,7 @@ static const uint8_t *mod_shown(int trk, const uint8_t *par, uint8_t *buf, int n
     if (!seq.mod_own || !mod_view())
         return par;
     for (int i = 0; i < seq.mod_n; i++) {
-        const int tg = seq.mod_tgt[i] >> 9, p = seq.mod_tgt[i] & 511, v = seq.lrt[seq.mod_lane[i] % NLANE].applied;
+        const int tg = seq.mod_tgt[i] >> 9, p = seq.mod_tgt[i] & 511, v = i < NMODL ? mv_snap[i] : LOCK_NONE;
         if (!(seq.mod_own >> i & 1u) || tg != trk || p >= n || v == LOCK_NONE)
             continue;
         if (!any)
