@@ -2039,8 +2039,7 @@ words it uses are published with this site, so every version reads its own scree
 LOOM-8's way of working owes a great deal to teenage engineering's OP-XY. LOOM-8 is not affiliated with teenage
 engineering. It is built on fm1-base and felucca-bsp, from Felucca by Leo Kuroshita (Hügelton Instruments), and it
 borrows Polly's menus and X0X's sequencer discipline. The idea for the export page came from Bloomy, gfcalvi's
-fork of LOOM-8. The MOD track's rule that a knob you turn takes over until the lane's next value, and learning a lane
-by turning its knob, come from KrisGelero's song automation (LOOM-8 pull request 5).
+fork of LOOM-8.
 
 Cane and voile are Mutable Instruments Braids by Émilie Gillet (MIT). Acid is X0X's 303, from Open303 by Robin
 Schmidt (MIT), with jc303's Devilfish ranges by midilab and dm-Rat's RAT drive by Dave Mollen (GPL-3.0). That
