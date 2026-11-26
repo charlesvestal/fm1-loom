@@ -79,3 +79,15 @@ commit and the manual's credits.
 
 - How many lanes in all (NLANE 96 shared with locks and motion) — enough, or a separate small pool?
 - The page's picture of a lane at 64 steps on a 240-px screen.
+
+## Next (the user, 2026-11-26, after trying the fixes)
+
+- **The SEL list's "this lane" section** holds the selected lane's own settings: **TARGET** (retarget: TRACK / PAGE
+  / KNOB or LEARN; the lane keeps its steps and values, clamped to the new target's range), **GLIDE / STEP**,
+  **REMOVE**, **CLEAR**. The "lanes" section only lists the lanes (SEL picks one; no glide/step there).
+- **Reverting** (2eaa430): when MOD lets go ("-", mute, a scene without the target, a removed lane) the parameter
+  returns to its knob's value — not frozen (this replaces "freezes" above).
+- **CPU** (profiled on the FM-1 with a MOD glide on the drums filter: mix stage 6 % average, 17 % worst; master
+  12 %): filter the kits' summed pair and sends once (not each kit), coefficients once a block and cheap while
+  moving, the master's mix-filter path back in RAM.
+- The filter knobs' label shows the side at a glance (LP to the left, HP to the right).
