@@ -385,7 +385,9 @@ void project_random_sounds(uint32_t seed)
  * loaded takes them (app.h project_device_get / put around the load) */
 #define DEV_BITS (4u | 8u | 16u | 32u | 64u | 128u)   /* rsv[2]: pages.c AUTOSAVE_OFF, LOOP_FREE, CC_OUT_OFF, SCENES_OUT,
                                                         * bt.c BT_AUDIO_ON, BT_MIDI_OFF */
-#define DEV_BITS3 (1u | 2u)                            /* rsv[3]: pages.c CC_IN_ENDLESS, MOD_VIEW_OFF */
+#define CPU_396 4u                                     /* rsv[3]: the CPU at 396 MHz from the next start (Setup's CPU:
+                                                        * app_cpu_396 below; 360 by default) */
+#define DEV_BITS3 (1u | 2u | CPU_396)                  /* rsv[3]: pages.c CC_IN_ENDLESS, MOD_VIEW_OFF, CPU_396 */
 static struct { uint8_t theme, bits, bits3, lights, clock, notes, usb; } dev;
 void project_device_get(void)
 {
@@ -1219,6 +1221,21 @@ int project_last_slot(void)
         }
     }
     return best;
+}
+/* fm1-base's start (app.h APP_CPU_396), before anything of LOOM-8's: the CPU at 396 MHz when Setup's CPU says so in the
+ * project that opens at power-on (the slot saved last: its header's save count, read raw as project_last_slot does) */
+int app_cpu_396(void)
+{
+    uint8_t h[COUNT_AT + 4u];
+    uint32_t best = 0, c;
+    int on = 0;
+    for (int s = 0; s < NPROJ; s++)
+        if (plat_store_head(OBJ_PROJ(s, 0), h, sizeof h) == (int)sizeof h && get32(h) == PROJ_MAGIC &&
+            FORMAT_OK(get32(h + 4)) && (c = get32(h + COUNT_AT)) > best) {
+            best = c;
+            on = (h[offsetof(settings_t, rsv) + 3u] & CPU_396) != 0;
+        }
+    return on;
 }
 int project_touch(int slot)                       /* (only the settings change: the patterns' objects stay) */
 {

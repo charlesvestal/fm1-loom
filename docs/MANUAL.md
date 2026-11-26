@@ -1650,7 +1650,13 @@ Debug. The **SEL** list on Setup has the FM-1's own settings, in three groups:
 
 - Bluetooth: BT MIDI, MIDI DEVICE, BT AUDIO and AUDIO DEVICE.
 - USB and MIDI: the USB audio level, CLOCK, NOTES, CC IN, CC OUT and SCENES OUT.
-- LOOM-8: LIGHTS, THEME, AUTOSAVE, LOOP THROWS and MOD VIEW (see [The synth pages](#the-synth-pages)).
+- LOOM-8: LIGHTS, THEME, AUTOSAVE, LOOP THROWS, MOD VIEW (see [The synth pages](#the-synth-pages)) and CPU.
+
+CPU sets the FM-1's processor speed: 360 MHz, as it comes, or 396 MHz for about 10 % more room for voices and
+effects. The new speed starts the next time you turn the FM-1 on ("(restart)" shows until then). 396 MHz is the
+top speed the chip's maker gives, and they don't use it for mass production, so it's off to start with; it uses a
+little more battery and makes the FM-1 a little warmer. If the FM-1 can't start at 396 MHz, it starts at 360
+instead.
 
 All of Setup's settings, the theme too, belong to the FM-1, not the project. Every project you load or start keeps
 them as you left them. On every page, the header shows the scene playing ("S3") before the tempo. You'll find the

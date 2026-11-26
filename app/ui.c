@@ -3291,6 +3291,16 @@ static void list_change_do(int32_t e)
             proj.rsv[3] = (uint8_t)(d > 0 ? proj.rsv[3] & ~MOD_VIEW_OFF : proj.rsv[3] | MOD_VIEW_OFF);
             mark_dirty();
             break;
+        case A_CPU:                              /* (saved at once when stopped: the next start reads it, project.c
+                                                  * app_cpu_396) */
+            if ((d > 0) != ((proj.rsv[3] & CPU_396) != 0)) {
+                proj.rsv[3] = (uint8_t)(d > 0 ? proj.rsv[3] | CPU_396 : proj.rsv[3] & ~CPU_396);
+                mark_dirty();
+                if (!playing() && proj_slot < NPROJ)
+                    save_project(proj_slot);
+                say(d > 0 ? "CPU 396 MHz" : "CPU 360 MHz", (d > 0) == plat_cpu_396() ? "as now" : "after a restart");
+            }
+            break;
         default: break;
         }
         break;
@@ -4416,7 +4426,7 @@ static void action_run(int a)
     case A_FOLLOW: case A_USB_AUDIO: case A_COUNT_IN: case A_THEME: case A_LARGE_TYPE: case A_PLAYMODE: case A_FTYPE: case A_FX_HP: case A_FX_LP:
     case A_FX_SEND: case A_PUMP_BY: case A_PUMP_REL: case A_PUMP_ACC: case A_LEVEL: case A_SCENE_AT: case A_AUTOSAVE:
     case A_MIDI_OUT: case A_LOOP_FREE: case A_CC_OUT: case A_SCENES_OUT: case A_MIDI_CC: case A_USB_HOST: case A_KIT_FILTER:
-    case A_CC_IN: case A_MOD_VIEW: case A_SLOT_X1: case A_SLOT_X2: case A_SLOT_X3: case A_SLOT_X4:
+    case A_CC_IN: case A_MOD_VIEW: case A_CPU: case A_SLOT_X1: case A_SLOT_X2: case A_SLOT_X3: case A_SLOT_X4:
         return;   /* (ALGORITHM sets them; SEL
                                                                                     * leaves the list) */
     case A_REMOVE_NOTE: act_remove_note(lst.sel); break;

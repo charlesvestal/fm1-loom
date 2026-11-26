@@ -71,6 +71,7 @@ SEQ	sequencer
 REC	record
 ms	milliseconds
 Hz	hertz
+MHz	megahertz
 dB	decibels
 st	semitones
 ct	cents

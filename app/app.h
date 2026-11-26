@@ -94,6 +94,8 @@ void app_splash(void);
 #define MRQ 2048u                       /* the mirror's frame ring (fm1-base's 4096: RAM), a rect frame 1.1 KB at most */
 #define MR_SEGW 80u                     /* what the viewer has, by 80-pixel segments of each row (30: 4.8 KB more pool) */
 void app_redraw(void);
+#define APP_CPU_396                     /* Setup's CPU: 396 MHz from the next start (project.c, the slot opened at power-on) */
+int app_cpu_396(void);
 #define APP_SYSEX                       /* the user sample bank over USB-MIDI (samples.c: F0 7D 46 4C) */
 int app_sysex(const uint8_t *p, uint32_t n);
 #define APP_WEB                         /* the browser build's own exports (web.c: the WAV export page's render) */
