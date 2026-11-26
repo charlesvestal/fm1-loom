@@ -3,9 +3,10 @@
 # kick's reverb as a low instrument, ducked by each kick); closed hats shaped by velocity (soft, mid, the open hat on
 # the offbeat, mid), the 909's ride in eighths, a clap on 2 and 4, and a metallic FM hit every three steps against
 # the four on the floor (a 48-step kit pattern: the cycle comes round with the bar every three bars). The kit's bus
-# driven (its character: drive). T2 the 303, an acid line whose filter opens by hand over minutes; T3 a dub chord
-# into a long dark echo, the texture; T4 a noise burst every four bars in the main part. The master clipped (CLIP),
-# loud as a club master. A minor. Song: intro 16, groove 16, acid 32, breakdown 8 (no kick), main 32, outro 8.
+# driven (its character: drive). T2 the 303, an acid line whose filter opens over minutes (the MOD track: a glide over
+# the acid part and again over the main part); T3 a dub chord into a long dark echo, the texture; T4 a noise burst
+# every four bars in the main part. The master clipped (CLIP), loud as a club master. A minor. Song: intro 16, groove
+# 16, acid 32, breakdown 8 (no kick), main 32, outro 8.
 # The factory bank only: app/build/host/loom_host tools/demos/techno.xy DIR
 master 4096
 bpm 130
@@ -155,6 +156,19 @@ chance 3 1 27 1:2
 pat 4 1 64 1 100 0
 notes 4 1 61 3 100 C4
 
+# ---- the MOD track: the acid's filter over the parts, a bar a step (scale 16). P1 the acid part: 46 to 62 over 28
+# bars, then held; P2 the breakdown: half open (66); P3 the main part: from 56 back up, all the way (78 at bar 29).
+# The intro and the groove have none ("-": the knob's 44); the outro none either: it stays where the main part left it
+modpat 1 32 16
+modlane 1 2 cut glide
+modval 1 2 cut 1 46 29 62
+modpat 2 8 16
+modlane 2 2 cut step
+modval 2 2 cut 1 66
+modpat 3 32 16
+modlane 3 2 cut glide
+modval 3 2 cut 1 56 9 62 17 68 25 74 29 78
+
 # ---- scenes and the song (tracks 1-8, COND, THROW; mutes: x muted)
 scenedef 1 1 1 1 1 1 1 1 1 1 1
 scenemute 1 .xxxxxxx
@@ -168,11 +182,14 @@ scenedef 5 4 1 1 1 1 1 1 1 1 1
 scenemute 5 ....xxxx
 scenedef 6 1 1 1 1 1 1 1 1 1 1
 scenemute 6 ..x.xxxx
+scenemod 3 1
+scenemod 4 2
+scenemod 5 3
 song 1:16 2:16 3:32 4:8 5:32 6:8
 songloop 0
 
-# ---- play the song, and perform the slow changes by hand (as a player would): the acid's filter opening over the
-# acid part and again over the main part, the open hat lengthening, the echo's feedback pushed in the breakdown
+# ---- play the song, and perform the other slow changes by hand (as a player would): the open hat lengthening, the
+# echo's feedback pushed in the breakdown (the acid's filter: the MOD track, above)
 tap HOME
 turn SELECT 1
 stats reset
@@ -185,43 +202,18 @@ bars 8
 # groove 16: the dub chord in; the open hat longer
 knob 1 d4.k2 62
 bars 16
-# acid 32: the filter from closed, 2 every 4 bars
-knob 2 cut 46
-bars 4
-knob 2 cut 48
-bars 4
-knob 2 cut 50
-bars 4
-knob 2 cut 52
-bars 4
-knob 2 cut 54
-bars 4
-knob 2 cut 56
-bars 4
-knob 2 cut 59
-bars 4
-knob 2 cut 62
-bars 4
-# breakdown 8: the acid half open, the echo's feedback up, the chord's send pushed
-knob 2 cut 66
+# acid 32: the filter from closed (MOD P1)
+bars 32
+# breakdown 8: the acid half open (MOD P2), the echo's feedback up, the chord's send pushed
 knob 11 e3 88
 knob 3 send1 90
 bars 6
 knob 11 e3 74
 knob 3 send1 72
 bars 2
-# main 32: the acid back down, then opening all the way; the open hat longer
-knob 2 cut 56
+# main 32: the acid back down, then opening all the way (MOD P3); the open hat longer
 knob 1 d4.k2 70
-bars 8
-knob 2 cut 62
-bars 8
-knob 2 cut 68
-bars 8
-knob 2 cut 74
-bars 4
-knob 2 cut 78
-bars 4
+bars 32
 # outro 8: the chord alone with the kick, the hats; the acid gone
 knob 1 d4.k2 56
 bars 8
