@@ -4346,14 +4346,16 @@ static void bus_prepare(synth_t *s, uint32_t n)
             snd |= 1u << s->v[i].trk;
     for (i = 0; i < NTRK; i++) {
         trk_t *t = &s->t[i];
-        const int dest = t->ldest, kit = P(s, i, TP_ENGINE) == EG_DRUMLINE, vr = kit ? 0 : voice_ring(s, i);
+        const int ef0 = slot_ef(s, i, 0), ef1 = slot_ef(s, i, 1);   /* (each slot's effect once: voice_ring's too) */
+        const int dest = t->ldest, kit = P(s, i, TP_ENGINE) == EG_DRUMLINE,
+                  vr = kit ? 0 : ef0 == EF_RING ? 1 : ef1 == EF_RING ? 2 : 0;
         float off = t->loff[last], g = groute >> i & 1 ? s->goff[last] : 0.0f, vol, lev, ct = 0.0f;
         int gd = g != 0.0f ? gp[TP_LDEST] % NGD : -1;
         s->lead[i] = -1;
         t->nbus = t->nins = t->wowon = 0;
         for (int q = 0; q < 2; q++) {            /* (a kit's knobs as the engine has them: its LFOs write them) */
             efx_slot_t *sl = &t->sl[q];
-            int ef = q + 1 == vr ? EF_OFF : slot_ef(s, i, q);   /* (the voices' ring: not here) */
+            int ef = q + 1 == vr ? EF_OFF : q ? ef1 : ef0;   /* (the voices' ring: not here) */
             const int md = PS(s, i, TP_SLOT[q][SL_X1]) & 127;
             ef = efx_slot_want(sl, ef, ef == EF_REVERB && md < NRV ? md : 0);   /* (another while it plays: the old
                                                   * one a block more, to dry) */
