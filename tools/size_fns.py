@@ -48,7 +48,8 @@ COLD = {
     "dsp/drumline.c": ["start", "control", "knob", "drumline_filter", "drumline_hit", "reso_set", "drumline_init"],
     "dsp/fx.c": ["fx_derive", "eq_coefs", "fx_filter", "master_set", "master_init", "comp_coefs",
                  "fx_set", "fx_init", "fx_delay_halves", "slot_set", "master_room", "biq_shelf",
-                 "fx_clear", "master_clear", "coef_ms", "master_pump_ms", "fx_pick_slot"],
+                 "fx_clear", "master_clear", "coef_ms", "master_pump_ms", "fx_pick_slot",
+                 "master_memory", "fx_lags"],
     "dsp/sample.c": ["smp_user_scan", "fact_init", "smp_bank_crc", "smp_name",
                      "smp_entry", "smp_user_bytes", "smp_user_attach"],   # (the samples page's, the boot's)
     "dsp/digisophie.c": ["ds_voice_init"],
@@ -67,14 +68,19 @@ COLD = {
                     "bus_prepare", "ins_alloc", "synth_slots_mark", "synth_slot_wait",
                     # (the pages' pictures, the presets' loading; tp_info: a knob's range, from synth_prepare a track's
                     # LFO's destination once a block)
-                    "wt_value", "tartan_voices", "tp_info", "preset_sound", "preset_first"],
+                    "wt_value", "tartan_voices", "tp_info", "preset_sound", "preset_first",
+                    # (the engine's questions once a block: a kit's slots, a split's readiness; the pages' slice, grains)
+                    "synth_kit_slots", "synth_split_ready", "synth_slice_now", "synth_tulle_grains"],
     # (the effects' coefficients, when a knob moves; the pages' pictures and texts)
     "dsp/efx.c": ["efx_char_coefs", "efx_char_picture", "efx_char_hz", "efx_knob_name", "efx_list_name", "ch_lp_hz",
                   "ch_pivot_hz", "ch_alpha", "ch_tape_hz", "ch_smp_hz", "ch_smp_rate", "efx_send_nums", "efx_nums",
                   "efx_delay_secs", "fx_delay_fb", "efx_knob_word", "efx_rv_ring",
                   # (2026-11-26: a slot's block, its decisions: what moves, the coefficients when they change; the
                   # effects' loops are their own functions)
-                  "slot_moving", "efx_slot_run"],
+                  "slot_moving", "efx_slot_run",
+                  # (and the memory's and the lines' bookkeeping, a block's or a change's at most)
+                  "rv_reset", "efx_rumble_secs", "efx_meets", "efx_send_reset", "efx_delay_width", "efx_mark", "efx_need",
+                  "spu_top", "efx_send_awake", "efx_big_awake"],
     "seq/pattern.c": ["pattern_init", "patterns_init", "lane_alloc", "lane_clear", "lane_count", "lane_pool_set",
                       "lane_pool_free", "step_clear_locks", "pattern_clear_locks", "step_set_notes",
                       "step_toggle_note", "kit_set", "kit_toggle", "kit_add", "pattern_woven", "weave_step",
