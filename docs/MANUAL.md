@@ -313,11 +313,12 @@ next bar.
 - **Hold a white key** to see the step. If you hold it longer than a tap, the step stays as it is. **KNOB 1** sets
   its velocity, and **KNOB 2** sets its length in steps. **KNOB 3** sets its chance. It goes from always, through
   a percentage, to the A:B cycles, which play on the A-th of every B times round. On a drum track, each sound on a
-  step has its own velocity, chance and tricks, and the knobs show those of the sound named in the header. Pick
+  step has its own velocity, chance, tricks and pitch, and the knobs show those of the sound named in the header. Pick
   the sound with its black key before you hold the step, or turn **PRESETS** while you hold it to go through the
   step's sounds. **KNOB 4** sets the step's pitch. On a synth track, its notes move by semitones, and a chord moves
-  all together. On a drum track, the step's hits play up to 24 semitones from their key's pitch. This is the
-  step's own note, separate from the key's pitch knob and its locks. **OCT−** and **OCT+** nudge the step earlier
+  all together. On a drum track, it sets the pitch of the sound named in the header, up to 24 semitones from
+  its key's pitch, so you can pitch the snare down without moving the clap on the same step. This is separate
+  from the key's pitch knob and its locks. **OCT−** and **OCT+** nudge the step earlier
   or later.
 - **Hold a step and tap a later white key** to stretch its note to that step. The length is set when you let go
   of that key. Turn **KNOB 2** to take it further, up to the pattern's whole length. It moves in quarter steps up
@@ -350,8 +351,8 @@ done.
 On a drum track, each sound on the step has its own tricks, as it has its own chance. The knobs show the tricks
 of the sound on screen. If you flam the snare, the kick on the same step still hits once, and you can multiply the hat in
 fours while the snare flams. On an empty drum step, the tricks belong to the step itself (a jump works there), and
-a sound you add later plays them. When you take a sound off a step, it loses its own velocity, chance and tricks
-there. If you put it back or record it again, it starts plain.
+a sound you add later plays them. When you take a sound off a step, it loses its own velocity, chance, tricks and
+pitch there. If you put it back or record it again, it starts plain.
 
 | # | Trick | Values: 1 to 9, then random |
 | --- | --- | --- |

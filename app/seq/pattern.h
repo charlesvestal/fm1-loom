@@ -126,12 +126,15 @@ static inline void pat_loop(const tpat_t *p, int *from, int *to)
  * project's hit settings (patterns_t hit[]) for each step; none (LOCK_NONE): the step's own cond and tricks. A sound
  * with its own plays by them alone; the step's sounds without their own play by the step's, together, as before */
 #define LANE_HIT0 0xFF10u
+/* a kit step's own pitch for sound k: lane LANE_TUNE0 + k (as LANE_TUNE; none: the step's LANE_TUNE), only where a
+ * sound of a step has its own: the snare pitched down beside a clap that is not */
+#define LANE_TUNE0 0xFF20u
 #define LANE_POOL 0xFFFDu                     /* a random track's pattern: its pitch-class pool, val[0] | val[1] << 8
                                                * (12 bits), one lane for the whole pattern (seq.c rand_pool) */
-static inline int lane_is_step_note(unsigned param)   /* a lane of a step's notes (a kit's tunes, its sounds' velocities
-                                                       * and hit settings) */
+static inline int lane_is_step_note(unsigned param)   /* a lane of a step's notes (a kit's tunes, its sounds' velocities,
+                                                       * hit settings and tunes) */
 {
-    return param == LANE_TUNE || (param >= LANE_VEL0 && param < LANE_VEL0 + 32u);
+    return param == LANE_TUNE || (param >= LANE_VEL0 && param < LANE_TUNE0 + NDRUM);
 }
 static inline int lane_is_hit(unsigned param) { return param >= LANE_HIT0 && param < LANE_HIT0 + NDRUM; }
 static inline int lane_is_pool(unsigned param) { return param == LANE_POOL; }
@@ -275,6 +278,7 @@ int lane_count(const lane_t *L);
 int step_has_lock(const lane_t *L, int trk, int pat, int step);
 void step_clear_locks(lane_t *L, int trk, int pat, int step);
 int step_tune(const lane_t *L, int trk, int pat, int step);       /* a drum step's note: semitones, 0 = none */
+int step_tune_own(const lane_t *L, int trk, int pat, int step, int sound);   /* sound's own: TUNE_0-based, LOCK_NONE none */
 int step_vel(const lane_t *L, int trk, int pat, int step, int sound);   /* a kit step's sound's own velocity, 0 = none */
 /* a kit step's sound (0..10)'s own hit settings, 0 = none (it plays by the step's) */
 const hit_t *step_hit(const patterns_t *P, int trk, int pat, int step, int sound);

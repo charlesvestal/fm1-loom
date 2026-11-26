@@ -259,6 +259,27 @@ wait 40
 expect kvel1.1.1.2 50
 expect kvel1.1.1.1 0
 expect note 1 1 1 1
+# and their pitch: KNOB 4 turns the snare's own, the kick stays (fm1-loom#43); back to the step's: no lane of its own
+key w0 down
+turn K4 -5
+key w0 up
+wait 40
+expect ktune1.1.1.2 -5
+expect ktune1.1.1.1 0
+key w0 down
+turn K4 5
+key w0 up
+wait 40
+expect ktune1.1.1.2 0
+# the kick alone on step 2: KNOB 4 turns the step's
+hits 1 1 1 xx..............
+tapkey b0
+key w1 down
+turn K4 3
+key w1 up
+wait 40
+expect ktune1.1.2.1 3
+expect ktune1.1.1.1 0
 # SEQ held on Steps: OCT moves the pattern an octave (not the bar), PRESETS the track's sound (not its pattern)
 projnew
 turn ALGO 1

@@ -2367,6 +2367,19 @@ static void t_kit11(void)            /* a kit step holds all eleven sounds, and 
         stop();
         S.kmute[0] = 0;
     }
+    {                                             /* a sound's own pitch (LANE_TUNE0 + k): the snare 5 down, the rest
+                                                   * the step's 3 up (fm1-loom#43) */
+        int ln = lane_alloc(P.lane, 0, 0, (int)LANE_TUNE), lo = lane_alloc(P.lane, 0, 0, (int)(LANE_TUNE0 + 1u));
+        P.lane[ln].val[0] = TUNE_0 + 3;
+        P.lane[lo].val[0] = TUNE_0 - 5;
+        nev = 0;
+        start();
+        run(10);
+        CHECK(nth(E_DRUM, 0, 0)->a == 0 && nth(E_DRUM, 0, 0)->c == 3);
+        CHECK(nth(E_DRUM, 0, 1)->a == 1 && nth(E_DRUM, 0, 1)->c == -5);
+        CHECK(nth(E_DRUM, 0, 2)->a == 2 && nth(E_DRUM, 0, 2)->c == 3);
+        stop();
+    }
     printf("ok %s\n", cur);
 }
 

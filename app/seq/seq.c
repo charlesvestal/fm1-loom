@@ -1947,13 +1947,14 @@ static void jump_set(seq_t *s, int t, int cv, int p)
 }
 
 /* a sound recorded onto a kit step it was not on: none of the settings it had there before it was taken off (its own
- * hit settings, its own velocity: it plays as played, by the step's). A byte a lane, written whole */
+ * hit settings, velocity and pitch: it plays as played, by the step's). A byte a lane, written whole */
 static void kit_rec_fresh(seq_t *s, int t, int p, int sound)
 {
     for (int k = 0; k < NLANE; k++) {
         lane_t *l = &s->P->lane[k];
         if (l->used && l->trk == t && l->pat == s->ppat[t] &&
-            (l->param == LANE_HIT0 + (unsigned)(sound - 1) || l->param == LANE_VEL0 + (unsigned)(sound - 1)))
+            (l->param == LANE_HIT0 + (unsigned)(sound - 1) || l->param == LANE_VEL0 + (unsigned)(sound - 1) ||
+             l->param == LANE_TUNE0 + (unsigned)(sound - 1)))
             l->val[p] = LOCK_NONE;
     }
 }
@@ -1975,13 +1976,15 @@ static void kit_g_of(const uint8_t *act, int ok, kit_g_t *g)
     g->jump = act[SC_JUMP];
     g->flam = act[SC_FLAM];
 }
-/* the track's kit lanes on its pattern: each sound's own velocity lane (vl, -1 none) and hit settings at step p (hs,
- * 0 none), found in one pass (lane_mask) */
-static void kit_lanes(seq_t *s, int t, int p, int8_t *vl, const hit_t **hs)
+/* the track's kit lanes on its pattern: each sound's own velocity and pitch lanes (vl, tl: -1 none) and hit settings
+ * at step p (hs, 0 none), found in one pass (lane_mask) */
+static void kit_lanes(seq_t *s, int t, int p, int8_t *vl, int8_t *tl, const hit_t **hs)
 {
     int i;
     for (i = 0; i < NDRUM; i++) {
         vl[i] = -1;
+        if (tl)
+            tl[i] = -1;
         if (hs)
             hs[i] = 0;
     }
@@ -1993,9 +1996,16 @@ static void kit_lanes(seq_t *s, int t, int p, int8_t *vl, const hit_t **hs)
             continue;
         if (l->param >= LANE_VEL0 && l->param < LANE_VEL0 + NDRUM)
             vl[l->param - LANE_VEL0] = (int8_t)i;
+        else if (tl && l->param >= LANE_TUNE0 && l->param < LANE_TUNE0 + NDRUM)
+            tl[l->param - LANE_TUNE0] = (int8_t)i;
         else if (hs && lane_is_hit(l->param) && l->val[p] < NHIT && !hit_plain(&s->P->hit[l->val[p]]))
             hs[l->param - LANE_HIT0] = &s->P->hit[l->val[p]];
     }
+}
+static int kit_tune(seq_t *s, int t, int p, int sound)   /* a sound's pitch on step p: its own, else the step's */
+{
+    int own = step_tune_own(s->P->lane, t, s->ppat[t], p, sound);
+    return own != LOCK_NONE ? own - TUNE_0 : step_tune(s->P->lane, t, s->ppat[t], p);
 }
 /* the hits of the sounds in m on step p, each with its tricks in krt (its ratchet krt.i: 0 the step's own) */
 static void kit_emit(seq_t *s, int t, const step_t *st, int p, uint32_t L, uint32_t m, const seq_sink_t *o)
@@ -2005,9 +2015,9 @@ static void kit_emit(seq_t *s, int t, const step_t *st, int p, uint32_t L, uint3
     kit_rt_t *R = s->krt[t];
     int base = st->vel ? st->vel : 100, g = groove_vel(s, t, p, base), semi = step_tune(s->P->lane, t, s->ppat[t], p);
     int rv = -1, i;
-    int8_t vl[NDRUM];
+    int8_t vl[NDRUM], tl[NDRUM];
     uint32_t len0 = st->len ? len_of(L, st->len) : L / 100u * (tp->nlen > 100 ? 100u : tp->nlen);
-    kit_lanes(s, t, p, vl, 0);
+    kit_lanes(s, t, p, vl, tl, 0);
     for (; m; m &= m - 1u) {
         kit_rt_t *r;
         int v = g, own;
@@ -2046,7 +2056,8 @@ static void kit_emit(seq_t *s, int t, const step_t *st, int p, uint32_t L, uint3
         v = v < 1 ? 1 : v > 127 ? 127 : v;
         if (!r->i)
             r->svel = (uint8_t)v;
-        emit_drum(s, t, i, v, semi, TAG_STEP | (uint32_t)(r->i * 1024), len_q8, o);
+        own = tl[i] >= 0 ? s->P->lane[tl[i]].val[p] : LOCK_NONE;   /* its own pitch, else the step's */
+        emit_drum(s, t, i, v, own != LOCK_NONE ? own - TUNE_0 : semi, TAG_STEP | (uint32_t)(r->i * 1024), len_q8, o);
     }
     tr->last_vel = (uint8_t)g;
 }
@@ -2142,7 +2153,7 @@ static void kit_step(seq_t *s, int t, const step_t *st, int p, uint32_t L, uint3
         }
     mask &= ~cov;
     s->ksub[t] = 0;
-    kit_lanes(s, t, p, vl, hs);
+    kit_lanes(s, t, p, vl, 0, hs);
     for (b = mask; b; b &= b - 1u)
         if (hs[__builtin_ctz(b)])
             mine |= 1u << __builtin_ctz(b);
@@ -2169,7 +2180,7 @@ static void kit_step(seq_t *s, int t, const step_t *st, int p, uint32_t L, uint3
         for (b = cov; b; b &= b - 1u) {
             kit_rt_t *r = &R[i = __builtin_ctz(b)];
             if (r->kind == SC_PULSE && r->svel)
-                emit_drum(s, t, i, r->svel, step_tune(s->P->lane, t, s->ppat[t], r->sp), TAG_STEP,
+                emit_drum(s, t, i, r->svel, kit_tune(s, t, r->sp, i), TAG_STEP,
                           L / 100u * (tpat(s, t)->nlen > 100 ? 100u : tpat(s, t)->nlen), o);
         }
     kit_sub_next(s, t);

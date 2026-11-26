@@ -173,6 +173,17 @@ int step_tune(const lane_t *L, int trk, int pat, int step)
     return 0;
 }
 
+int step_tune_own(const lane_t *L, int trk, int pat, int step, int sound)
+{
+    int k;
+    if (step < 0 || step >= NSTEP)
+        return LOCK_NONE;
+    for (k = 0; k < NLANE; k++)
+        if (L[k].used && L[k].param == LANE_TUNE0 + (unsigned)sound && L[k].trk == trk && L[k].pat == pat)
+            return L[k].val[step];
+    return LOCK_NONE;
+}
+
 int step_vel(const lane_t *L, int trk, int pat, int step, int sound)
 {
     int k;

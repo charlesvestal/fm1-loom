@@ -542,6 +542,13 @@ int app_expect(const char *what, int *got)
         if (sscanf(what + 4, "%d.%d.%d.%d", &t, &pt, &st, &k) != 4)
             return 0;
         *got = step_vel(pats.lane, t - 1, pt - 1, st - 1, k - 1);
+    } else if (!strncmp(what, "ktune", 5)) {       /* ktuneT.PAT.S.K: kit sound K's pitch on that step (its own, or the
+                                                     * step's), semitones */
+        int t, pt, st, k, own;
+        if (sscanf(what + 5, "%d.%d.%d.%d", &t, &pt, &st, &k) != 4)
+            return 0;
+        own = step_tune_own(pats.lane, t - 1, pt - 1, st - 1, k - 1);
+        *got = own != LOCK_NONE ? own - TUNE_0 : step_tune(pats.lane, t - 1, pt - 1, st - 1);
     } else if (!strncmp(what, "kcond", 5) || !strncmp(what, "ktrick", 6)) {   /* kcondT.PAT.S.K / ktrickT.PAT.S.K: kit
                                                      * sound K's condition / first trick (its own, or the step's) */
         int t, pt, st, k, tr = what[1] == 't';

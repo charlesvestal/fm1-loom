@@ -1897,12 +1897,14 @@ static int hit_put(int trk, int pt, int s, int snd, const hit_t *h)
     pats.lane[ln].val[s] = (uint8_t)k;
     return HIT_OK;
 }
-static void hit_sound_off(int trk, int pt, int s, int snd)   /* a sound taken off a step: its settings there go */
+static void hit_sound_off(int trk, int pt, int s, int snd)   /* a sound taken off a step: its settings and pitch there go */
 {
-    int ln = lane_find(pats.lane, trk, pt, (int)(LANE_HIT0 + (unsigned)snd));
-    if (ln >= 0) {
-        pats.lane[ln].val[s] = LOCK_NONE;
-        lane_drop_empty(ln);
+    for (int i = 0; i < 2; i++) {
+        int ln = lane_find(pats.lane, trk, pt, (int)((i ? LANE_TUNE0 : LANE_HIT0) + (unsigned)snd));
+        if (ln >= 0) {
+            pats.lane[ln].val[s] = LOCK_NONE;
+            lane_drop_empty(ln);
+        }
     }
 }
 
@@ -1927,8 +1929,10 @@ static void step_knobs(knob_t *k)
         cond_text(h.cond, t);
     }
     kv(&k[2], "CHANCE", t, 0, 0);
-    if (is_drum(sel_trk())) {                         /* the step's note: semitones from the keys' pitch */
-        int semi = step_tune(pats.lane, sel_trk(), cur_pat(sel_trk()), step_shown(ui.held_first));
+    if (is_drum(sel_trk())) {                         /* the sound shown's pitch (its own, or the step's): semitones */
+        int sh = step_shown(ui.held_first), own = kit_has(st, ui.dsound % NDRUM + 1) ?
+            step_tune_own(pats.lane, sel_trk(), cur_pat(sel_trk()), sh, ui.dsound % NDRUM) : LOCK_NONE;
+        int semi = own != LOCK_NONE ? own - TUNE_0 : step_tune(pats.lane, sel_trk(), cur_pat(sel_trk()), sh);
         char *e = t;
         if (semi > 0)
             e = s_cat(e, "+");

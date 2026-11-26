@@ -906,23 +906,41 @@ static void trick_knob(int k, int32_t e)
     hit_said(r);
     mark_dirty();
 }
+/* KNOB 4 on a held kit step: the pitch of the sound shown (ui.dsound), semitones from its key's pitch (apart from the
+ * key's own pitch and its locks). With other sounds on the step its own (a LANE_TUNE0 lane, only while it differs
+ * from the step's), alone (or not on the step) the step's (LANE_TUNE), as KNOB 1's velocity (kit_vel) */
+static void kit_pitch(int trk, int s, int e)
+{
+    step_t *st = &tpat(trk)->st[s];
+    int snd = ui.dsound % NDRUM, pt = cur_pat(trk), on = lane_find(pats.lane, trk, pt, (int)(LANE_TUNE0 + (unsigned)snd));
+    int ln = lane_find(pats.lane, trk, pt, LANE_TUNE), step = ln >= 0 && pats.lane[ln].val[s] != LOCK_NONE ?
+                                                                pats.lane[ln].val[s] : TUNE_0;
+    int own = on >= 0 ? pats.lane[on].val[s] : LOCK_NONE, v = clampi((own != LOCK_NONE ? own : step) + e,
+                                                                      TUNE_0 - TUNE_MAX, TUNE_0 + TUNE_MAX);
+    int alone = !kit_has(st, snd + 1) || __builtin_popcount(kit_mask(st)) < 2;
+    if (on >= 0 && (alone || v == step)) {
+        pats.lane[on].val[s] = LOCK_NONE;
+        lane_drop_empty(on);
+    }
+    if (!alone && v == step)
+        return;
+    if (alone ? ln < 0 && v != TUNE_0 && (ln = lane_alloc(pats.lane, trk, pt, LANE_TUNE)) < 0 :
+                on < 0 && (on = lane_alloc(pats.lane, trk, pt, (int)(LANE_TUNE0 + (unsigned)snd))) < 0) {
+        say_no("NO LANE LEFT", "clear locks first");
+        return;
+    }
+    if (alone && ln >= 0)
+        pats.lane[ln].val[s] = (uint8_t)(v == TUNE_0 ? LOCK_NONE : v);
+    else if (!alone)
+        pats.lane[on].val[s] = (uint8_t)v;
+}
 /* KNOB 4 on a held step: its pitch. A synth step's notes move together by semitones (a chord keeps its shape, and
- * stops at the keyboard's ends); a drum step's hits play e semitones further from their keys' pitch (LANE_TUNE: the
- * step's note, apart from the key's own pitch and its locks) */
+ * stops at the keyboard's ends); a kit's, the sound shown's (kit_pitch) */
 static void step_pitch(int trk, int s, int e)
 {
     step_t *st = &tpat(trk)->st[s];
     if (is_drum(trk)) {
-        int pt = cur_pat(trk), ln = lane_find(pats.lane, trk, pt, LANE_TUNE), v;
-        if (ln < 0)
-            ln = lane_alloc(pats.lane, trk, pt, LANE_TUNE);
-        if (ln < 0) {
-            say_no("NO LANE LEFT", "clear locks first");
-            return;
-        }
-        v = pats.lane[ln].val[s] == LOCK_NONE ? TUNE_0 : pats.lane[ln].val[s];
-        v = clampi(v + e, TUNE_0 - TUNE_MAX, TUNE_0 + TUNE_MAX);
-        pats.lane[ln].val[s] = (uint8_t)(v == TUNE_0 ? LOCK_NONE : v);
+        kit_pitch(trk, s, e);
         return;
     }
     for (int i = 0; i < SN; i++)
