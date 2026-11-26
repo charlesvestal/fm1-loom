@@ -967,6 +967,7 @@ static void do_delay(efx_delay_t *f, int16_t *cho, const float *pt, const float 
     const float ea = ramp_to(f->wa, f->ta, m), eb = ramp_to(f->wb, f->tb, m);   /* (PING WIDTH gliding) */
     const float dwa = (ea - f->wa) / (float)m, dwb = (eb - f->wb) / (float)m;
     float wa = f->wa, wb = f->wb;
+    const int full = wa == 1.0f && wb == 0.0f && dwa == 0.0f && dwb == 0.0f;   /* (1 x tl + 0 x tr: tl) */
     const float hk = 0.0057f;                 /* (40 Hz) */
     float dcur = f->cur, lpl = f->lpl, lpr = f->lpr, al = f->al, ar = f->ar, hl = f->hl, hr = f->hr;
     float wsl = f->wsl, wsr = f->wsr, wtl = 0.0f, wtr = 0.0f;
@@ -1061,6 +1062,11 @@ static void do_delay(efx_delay_t *f, int16_t *cho, const float *pt, const float 
                 w = 0;
         }
         ph ^= 1;
+        if (full) {                           /* (full width, settled: the sides as they are, the same sums) */
+            ol[i] += tl;
+            orr[i] += tr;
+            continue;
+        }
         wa += dwa, wb += dwb;
         ol[i] += wa * tl + wb * tr;           /* PING WIDTH: at full width wa 1, wb 0, the sides as they are */
         orr[i] += wa * tr + wb * tl;

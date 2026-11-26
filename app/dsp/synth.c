@@ -4316,6 +4316,10 @@ static void bus_prepare(synth_t *s, uint32_t n)
     const uint8_t *gp = s->par[SY_GLFO_TRK];
     const int groute = (gp[TP_LX] & 15) | (gp[TP_LX2] & 15) << 4, last = s->nck - 1;
     int i;
+    uint32_t snd = 0;                            /* the tracks with a voice sounding (an off slot goes live: one pass) */
+    for (i = 0; i < NVOICE; i++)
+        if (s->v[i].trk < NTRK && v_sounding(&s->v[i]))
+            snd |= 1u << s->v[i].trk;
     for (i = 0; i < NTRK; i++) {
         trk_t *t = &s->t[i];
         const int dest = t->ldest, kit = P(s, i, TP_ENGINE) == EG_DRUMLINE, vr = kit ? 0 : voice_ring(s, i);
@@ -4331,8 +4335,8 @@ static void bus_prepare(synth_t *s, uint32_t n)
                                                   * one a block more, to dry) */
             sl->ef = (uint8_t)ef;
             if (ef == EF_OFF) {                  /* (off while the track sounds: an effect turned on starts from dry) */
-                for (int vi = 0; !sl->live && vi < NVOICE; vi++)
-                    sl->live = s->v[vi].trk == i && v_sounding(&s->v[vi]);
+                if (!sl->live)
+                    sl->live = (uint8_t)(snd >> i & 1u);
                 continue;
             }
             for (int j = 0; !sl->fo && j < 3; j++) {
