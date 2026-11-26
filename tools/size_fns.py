@@ -155,6 +155,23 @@ def reachable(funcs, glob):
     return seen
 
 
+def cold_helpers(funcs, glob, cold):
+    """the unit's static functions that only its COLD ones call (and those that only they call, and so on), cold
+    too: optimised at -O2 before being inlined into their cold caller, they came to it unrolled and expanded (a drum
+    hit's set-up 17.6 KB, 3.8 KB without its models' at -O2). One a table or a hot function names is left alone"""
+    refs = {n: set(re.findall(r"@\"?([\w.]+)", b)) for n, (_, b) in funcs.items()}
+    named = {r for v in glob.values() for r in re.findall(r"@\"?([\w.]+)", v)}
+    static = {n for n, (h, _) in funcs.items() if " internal " in h and n not in named}
+    cold, more = set(cold), set()
+    while True:
+        add = {n for n in static - cold
+               if (by := {c for c, r in refs.items() if n in r and c != n}) and by <= cold}
+        if not add:
+            return more
+        cold |= add
+        more |= add
+
+
 def ram_place(ir, names, inl, groups, made):
     """the named definitions into section .ram_dsp; the inl ones, and whatever else this file defines that
     the placed ones call, always inlined (a group of their own), so the placed code calls only itself"""
@@ -199,6 +216,7 @@ def main(src, dst, unit=None):
         missing = names - set(funcs)
         if missing:                   # renamed or gone: the list is out of date
             raise SystemExit(f"size_fns: {unit} defines no {sorted(missing)}")
+        names |= cold_helpers(funcs, glob, names)
     else:
         hot = reachable(funcs, glob)
         names = {fn for rel in SIZE_FILES for fn in definitions((SRC / rel).read_text())}
