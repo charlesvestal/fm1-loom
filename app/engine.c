@@ -1052,7 +1052,8 @@ static float c2_l[STRETCH_MAX] POOL, c2_r[STRETCH_MAX] POOL, c2_s1[STRETCH_MAX] 
  * (synth_kit_scratch: its split pairs cleared once they are done, synth_split_ready) and once its voices are in */
 _Static_assert(STRETCH_MAX <= 256u, "the kits' scratch is the synth's buses' (BUS_N frames)");
 static float *tl, *tr, *ts1, *ts2, *tk;
-static float mix_l[256] POOL, mix_r[256] POOL;
+static float mix_l[256] POOL, mix_r[256] POOL;          /* (a stretch's part free till its master: the kits' sends
+                                                         * there while the melodic filter runs, render_sub) */
 /* the USB audio input's track channels (fm1.toml usb_audio_channels = 10: fm1-base plat_usb_ch): channels 3..10 are
  * tracks 1..8, each at its level and before its pan, after its sound's own filter and character, without the sends'
  * effects and the master (those are on 1 and 2 alone). The first core's voices and the drum tracks add straight into
@@ -1413,7 +1414,10 @@ static void metro_tick(uint32_t n)
 #endif
 /* one stretch: the upper half of the voices and the drumlines here while the second core renders the
  * lower half; then the halves are summed in the order one core always used, the FX tracks, the master */
-static void render_drums(uint32_t n)                    /* the drum tracks (the first core's: render_sub) */
+/* the drum tracks (the first core's: render_sub), each kit's pair into perc and its sends into d1, d2 (s1, s2: the
+ * voices come after; this stretch's master output while the melodic filter runs, the voices' sends filtered apart);
+ * the drums' filter on them all (master_group_filter: the pair and the sends, as one); the metronome after it */
+static void render_drums(uint32_t n, float *d1, float *d2)
 {
     int t;
     PROF_T(pd);
@@ -1435,7 +1439,7 @@ static void render_drums(uint32_t n)                    /* the drum tracks (the 
         } else
             drumline_render(DL(t), tl, tr, ts1, ts2, n);
         synth_kit_slots(SY, t, tl, tr, rumble ? tk : 0, n);   /* its slots, after its bus filter (the keys' sends
-                                                          * taken before them) */
+                                                          * taken before them, through the filter too) */
         g = perf_mute[t] || !HOST_ON(t) ? 0.0f : tp_level_gain(epar[t][TP_LEVEL]);
         pan_gains(epar[t][TP_PAN] + perf_pan[t], &gl, &gr);
         glide_set(&trk_glide[t][GL_L], g * gl);
@@ -1447,11 +1451,13 @@ static void render_drums(uint32_t n)                    /* the drum tracks (the 
         glide_set(&trk_glide[t][GL_SEND], g);
         add_glide(perc_l, tl, &trk_glide[t][GL_L], n);
         add_glide(perc_r, tr, &trk_glide[t][GL_R], n);
-        add_glide(s1, ts1, &trk_glide[t][GL_SEND], n);
-        add_glide(s2, ts2, &trk_glide[t][GL_SEND], n);
+        add_glide(d1, ts1, &trk_glide[t][GL_SEND], n);
+        add_glide(d2, ts2, &trk_glide[t][GL_SEND], n);
         meter(t, tl, tr, g * gl, g * gr, n);
         eng_prof_drum[t] += plat_cycles() - pt1;
     }
+    if (master_group_on(MST, MF_DRUMS))
+        DSP_FAR(master_group_filter)(MST, MF_DRUMS, perc_l, perc_r, d1, d2, n);
     metro_tick(n);
     PROF_ADD(PR_DRUM, pd);
 }
@@ -1505,6 +1511,7 @@ static void render_sub(uint32_t n, uint32_t at)
 {
     uint32_t arg = n & 0xFFu, pt, ps;
     int on2 = 0, t, k, vi, i, late, late_at0;
+    const int melf = master_group_on(MST, MF_MEL);       /* the melodic filter: the kits' sends kept apart till it ran */
     PROF_T(pp);
     eng_prof[PR_SUBS]++;
     zerof(perc_l, n);
@@ -1536,7 +1543,11 @@ static void render_sub(uint32_t n, uint32_t at)
         plat_cpu2_sync();
     }
     PROF_ADD(PR_PREP, pp);
-    render_drums(n);                                      /* the drums first, always: only this core renders them, so
+    if (melf) {
+        zerof(mix_l + at, n);
+        zerof(mix_r + at, n);
+    }
+    render_drums(n, melf ? mix_l + at : s1, melf ? mix_r + at : s2);   /* the drums first, always: only this core renders them, so
                                                            * the voices both cores can take are left for the end (with
                                                            * the drums last, the second core, late from the effects,
                                                            * found the queue empty and waited while this one did them) */
@@ -1589,6 +1600,12 @@ static void render_sub(uint32_t n, uint32_t at)
     add_in(s2, c2_s2, n);
     synth_bus_join(SY, mel_l, mel_r, s1, s2, n);          /* (the buses split across the cores: their stages, once both
                                                            * are in) */
+    if (melf) {                                           /* the melodic filter: the voices' pair and sends, then the
+                                                           * kits' sends join (the FX returns after) */
+        DSP_FAR(master_group_filter)(MST, MF_MEL, mel_l, mel_r, s1, s2, n);
+        add_in(s1, mix_l + at, n);
+        add_in(s2, mix_r + at, n);
+    }
     for (t = 0; t < NTRK; t++)                            /* the synth's meters, into the common ones */
         if (!eng_drum[t]) {
             float v = (float)synth_peak[t] * (1.0f / 16383.5f);

@@ -220,23 +220,38 @@ static float trace_min(const float *g, int a, int b)
     return m;
 }
 
-/* the master filter (fx.h MS_DFILT ..): a sine of hz at amplitude amp on the drums (drums) or the melodic group, the
- * filter knob v, resonance r; the output's RMS after 0.3 s (the bus at unity here, the limiter never reached) */
-static float mf_tone(int drums, int v, int r, float hz, float amp)
+/* the master as the engine runs it (engine.c render_sub): the drums' filter on their pair (and their sends, s1 s2:
+ * 0 none), the melodic group's on its pair, then the master */
+static void mst_run(float *pl, float *pr, float *ml, float *mr, float *s1, float *s2, float *ol, float *orr, int n)
 {
-    static float pl[BLK], pr[BLK], ml[BLK], mr[BLK], ol[BLK], orr[BLK];
+    master_group_filter(ms, MF_DRUMS, pl, pr, s1, s2, (uint32_t)n);
+    master_group_filter(ms, MF_MEL, ml, mr, 0, 0, (uint32_t)n);
+    master_process(ms, pl, pr, ml, mr, ol, orr, (uint32_t)n);
+}
+static const uint8_t MF_K[NMF] = {MS_DFILT, MS_MELF, MS_MFILT};
+/* the master filter (fx.h MS_DFILT ..): a sine of hz at amplitude amp on the drums (k MF_DRUMS: on their pair, or
+ * send 1: on their first send, the output that send) or the melodic group (MF_MEL, MF_MIX), filter k at knob v,
+ * resonance r; the output's RMS after 0.3 s (the bus at unity here, the limiter never reached) */
+static float mf_tone(int k, int v, int r, float hz, float amp, int send)
+{
+    static float pl[BLK], pr[BLK], ml[BLK], mr[BLK], ol[BLK], orr[BLK], s1[BLK], s2[BLK];
     float e = 0.0f;
     int b, i, nb = SR / BLK, n = 0;
     MS_INIT();
-    master_set(ms, drums ? MS_DFILT : MS_MFILT, v);
-    master_set(ms, drums ? MS_DRES : MS_MRES, r);
+    master_set(ms, MF_K[k], v);
+    master_set(ms, MS_FRES, r);
     for (b = 0; b < nb; b++) {
         for (i = 0; i < BLK; i++) {
             float x = amp * fm_sin_turns((float)(b * BLK + i) * (hz / SR));
-            pl[i] = pr[i] = drums ? x : 0.0f;
-            ml[i] = mr[i] = drums ? 0.0f : x;
+            pl[i] = pr[i] = k == MF_DRUMS && !send ? x : 0.0f;
+            ml[i] = mr[i] = k != MF_DRUMS ? x : 0.0f;
+            s1[i] = send ? x : 0.0f;
+            s2[i] = 0.0f;
         }
-        master_process(ms, pl, pr, ml, mr, ol, orr, BLK);
+        mst_run(pl, pr, ml, mr, s1, s2, ol, orr, BLK);
+        if (send)
+            for (i = 0; i < BLK; i++)
+                ol[i] = orr[i] = s1[i];
         if (b * BLK > SR * 3 / 10)
             for (i = 0; i < BLK; i++, n++)
                 e += ol[i] * ol[i] + orr[i] * orr[i];
@@ -928,13 +943,13 @@ int main(void)
         }
     }
 
-    printf("-- the master filter (drums, mix)\n");
+    printf("-- the master filter (drums, melodic, mix)\n");
     {
         static float pl[BLK], pr[BLK], mll[BLK], mlr[BLK], ol2[BLK], or2[BLK], hl[BLK * 4], hr[BLK * 4];
         int k;
-        for (k = 0; k < 2; k++) {                /* the drums' (k 0), the mix's (1) */
-            const int fk = k ? MS_MFILT : MS_DFILT, rk = k ? MS_MRES : MS_DRES;
-            const char *wh = k ? "mix" : "drums";
+        for (k = 0; k < NMF; k++) {              /* the drums' (MF_DRUMS), the melodic group's, the mix's */
+            const int fk = MF_K[k], rk = MS_FRES;
+            const char *wh = k == MF_DRUMS ? "drums" : k == MF_MEL ? "melodic" : "mix";
             /* the centre and its dead zone (62..66), any resonance: bit-transparent; on and back: transparent again
              * once it has faded out */
             {
@@ -950,7 +965,7 @@ int main(void)
                         hl[(n + i) % (BLK * 4)] = pl[i] + mll[i];
                         hr[(n + i) % (BLK * 4)] = pr[i] + mlr[i];
                     }
-                    master_process(ms, pl, pr, mll, mlr, ol2, or2, BLK);
+                    mst_run(pl, pr, mll, mlr, 0, 0, ol2, or2, BLK);
                     for (i = 0; i < BLK; i++) {
                         int t0 = n + i - 64;
                         if (t0 >= 0 && (b < 100 || b >= 260))      /* (60 blocks, 87 ms, to fade out) */
@@ -964,20 +979,26 @@ int main(void)
             /* a quarter of the way left: a low-pass; a tone an octave above its cutoff ~12 dB down from one three
              * octaves below. A quarter right: a high-pass, an octave below its cutoff likewise */
             {
-                float hz = master_filter_hz(48), pass = mf_tone(!k, 48, 0, hz * 0.125f, 0.1f), at = mf_tone(!k, 48, 0, hz * 2.0f, 0.1f);
+                float hz = master_filter_hz(48), pass = mf_tone(k, 48, 0, hz * 0.125f, 0.1f, 0), at = mf_tone(k, 48, 0, hz * 2.0f, 0.1f, 0);
                 snprintf(name, sizeof name, "%s low-pass at 48 (%.0f Hz): an octave above %.1f dB", wh, (double)hz,
                          (double)(at - pass));
                 check(name, at - pass < -10.0f && at - pass > -18.0f);
                 hz = -master_filter_hz(80);
-                pass = mf_tone(!k, 80, 0, hz * 8.0f, 0.1f);
-                at = mf_tone(!k, 80, 0, hz * 0.5f, 0.1f);
+                pass = mf_tone(k, 80, 0, hz * 8.0f, 0.1f, 0);
+                at = mf_tone(k, 80, 0, hz * 0.5f, 0.1f, 0);
                 snprintf(name, sizeof name, "%s high-pass at 80 (%.0f Hz): an octave below %.1f dB", wh, (double)hz,
                          (double)(at - pass));
                 check(name, at - pass < -10.0f && at - pass > -18.0f);
+                if (k == MF_DRUMS) {             /* their sends through it as their pair (the low-pass at 48) */
+                    float h2 = master_filter_hz(48), sp = mf_tone(k, 48, 0, h2 * 0.125f, 0.1f, 1),
+                          sa = mf_tone(k, 48, 0, h2 * 2.0f, 0.1f, 1);
+                    snprintf(name, sizeof name, "  the drums' sends too: an octave above %.1f dB", (double)(sa - sp));
+                    check(name, sa - sp < -10.0f && sa - sp > -18.0f);
+                }
                 /* the resonance made up for: at the cutoff a peak, the pass band a little lower, never a jump */
                 {
-                    float p0 = mf_tone(!k, 48, 127, master_filter_hz(48) * 0.125f, 0.1f);
-                    float pk = mf_tone(!k, 48, 127, master_filter_hz(48), 0.1f);
+                    float p0 = mf_tone(k, 48, 127, master_filter_hz(48) * 0.125f, 0.1f, 0);
+                    float pk = mf_tone(k, 48, 127, master_filter_hz(48), 0.1f, 0);
                     snprintf(name, sizeof name, "  res 127: pass band %+.1f dB, the cutoff %+.1f dB", (double)(p0 - pass),
                              (double)(pk - pass));
                     check(name, p0 - pass > -12.0f && p0 - pass < 0.5f && pk - pass < 9.0f && pk - pass > 3.0f);
@@ -999,7 +1020,7 @@ int main(void)
                         mll[i] = noise();
                         mlr[i] = noise();
                     }
-                    master_process(ms, pl, pr, mll, mlr, ol2, or2, BLK);
+                    mst_run(pl, pr, mll, mlr, 0, 0, ol2, or2, BLK);
                     for (i = 0; i < BLK; i++) {
                         ok &= ol2[i] == ol2[i] && or2[i] == or2[i];
                         pk = fm_maxf(pk, fm_maxf(fm_fabsf(ol2[i]), fm_fabsf(or2[i])));
@@ -1143,27 +1164,29 @@ int main(void)
         MS_INIT();
         master_set(ms, MS_COMP, 80);
         master_set(ms, MS_DFILT, 40);
+        master_set(ms, MS_MELF, 30);
         master_set(ms, MS_MFILT, 90);
-        master_set(ms, MS_MRES, 60);
+        master_set(ms, MS_FRES, 60);
         for (b = 0; b < 10; b++)
-            master_process(ms, p1, p2, m1, m2, a, c, 256);
+            mst_run(p1, p2, m1, m2, 0, 0, a, c, 256);
         i0 = instr_now();
         for (b = 0; b < 20; b++)
-            master_process(ms, p1, p2, m1, m2, a, c, 256);
+            mst_run(p1, p2, m1, m2, 0, 0, a, c, 256);
         di = instr_now() - i0;
-        printf("  master filt %5.0f  (comp, the drums' and the mix's filters)\n", (double)di / (20.0 * 256.0));
+        printf("  master filt %5.0f  (comp, the three filters)\n", (double)di / (20.0 * 256.0));
         for (b = 0; b < 20; b++) {
             master_set(ms, MS_MFILT, 90 + (b & 1));
-            master_process(ms, p1, p2, m1, m2, a, c, 256);
+            mst_run(p1, p2, m1, m2, 0, 0, a, c, 256);
         }
         i0 = instr_now();
         for (b = 0; b < 20; b++) {
             master_set(ms, MS_MFILT, 90 + (b & 1) * 20);
             master_set(ms, MS_DFILT, 40 - (b & 1) * 20);
-            master_process(ms, p1, p2, m1, m2, a, c, 256);
+            master_set(ms, MS_MELF, 30 + (b & 1) * 10);
+            mst_run(p1, p2, m1, m2, 0, 0, a, c, 256);
         }
         di = instr_now() - i0;
-        printf("  master move %5.0f  (the same, both filters gliding)\n", (double)di / (20.0 * 256.0));
+        printf("  master move %5.0f  (the same, the filters gliding)\n", (double)di / (20.0 * 256.0));
     }
     {   /* the engine runs the chorus, the delay and the plate a block behind (fx_process_lag): their output must be
          * where it was, but for the lines' rounding (a noise burst, then its tail; the send a block late) */

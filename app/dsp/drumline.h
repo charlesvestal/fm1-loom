@@ -74,10 +74,11 @@ extern const uint8_t DL_DEFAULT_KIT[DL_NSOUND][DP_N];  /* DP_* of each key of a 
 
 typedef struct drumline drumline_t;
 #ifdef PLAT_HOST
-#define DRUMLINE_BYTES 2488                            /* (the host's pointers are wider) */
+#define DRUMLINE_BYTES 2520                            /* (the host's pointers are wider) */
 #else
-#define DRUMLINE_BYTES 2448                            /* 8 voices (each with its key's envelope and filter state),
-                                                        * four sample windows (80 B each), the dynamic filter (the
+#define DRUMLINE_BYTES 2480                            /* 8 voices (each with its key's envelope and filter state),
+                                                        * four sample windows (80 B each), the dynamic filter (its
+                                                        * sends' states too, 2026-11-26: +32 B, in NOINIT's spare; the
                                                         * strings' lines and the 909 slots: drumline.c, every kit's) */
 #endif
 

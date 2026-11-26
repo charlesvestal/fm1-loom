@@ -1,12 +1,13 @@
-# the master filter: GLO's Master filter page (between Master FX and Master out), its four knobs (the drums' filter
-# and resonance, the mix's): left a low-pass, the centre off, right a high-pass; the screen reader's words; saved and
-# loaded with the project; the MIDI CCs on the master's channel 11 (30, 31 the drums', 74, 71 the mix's)
+# the master filter: GLO's Master filter page (between Master FX and Master out), its four knobs (the drums' filter,
+# the melodic group's, the mix's, their one resonance): left a low-pass, the centre off, right a high-pass; the screen
+# reader's words; saved and loaded with the project; the MIDI CCs on the master's channel 11 (30 the drums', 31 the
+# melodic, 74 the mix's, 71 the resonance)
 wait 300
 hits 1 1 1 x...x...x...x...
 expect mst.dfilt 64
-expect mst.dres 0
+expect mst.melf 64
 expect mst.mfilt 64
-expect mst.mres 0
+expect mst.fres 0
 listen
 tap GLO
 expect page Mix
@@ -21,15 +22,18 @@ spin K1 -16
 expect mst.dfilt 48
 wait 400
 said drums LP 5.8 kHz
-spin K2 90
-expect mst.dres 90
+# KNOB 2: the melodic group's a quarter right, a high-pass (80: 73 Hz)
+spin K2 16
+expect mst.melf 80
+wait 400
+said mel HP 73 Hz
+spin K4 90
+expect mst.fres 90
 # KNOB 3: the mix's a quarter right, a high-pass (80: 73 Hz)
 spin K3 16
 expect mst.mfilt 80
 wait 400
 said mix HP 73 Hz
-spin K4 40
-expect mst.mres 40
 # the dead zone: 62 .. 66 off
 spin K3 -15
 expect mst.mfilt 65
@@ -46,19 +50,19 @@ projsave 1 filt
 reboot
 wait 400
 expect mst.dfilt 48
-expect mst.dres 90
+expect mst.melf 80
 expect mst.mfilt 80
-expect mst.mres 40
-# the CCs on channel 11: 30 the drums' filter, 31 its resonance, 74 the mix's, 71 its resonance (0..127 as they come)
+expect mst.fres 90
+# the CCs on channel 11: 30 the drums' filter, 31 the melodic, 74 the mix's, 71 the resonance (0..127 as they come)
 midi BA 1E 7F
 midi BA 1F 00
 midi BA 4A 00
 midi BA 47 7F
 wait 40
 expect mst.dfilt 127
-expect mst.dres 0
+expect mst.melf 0
 expect mst.mfilt 0
-expect mst.mres 127
+expect mst.fres 127
 # the help card: GLO held on the page
 tap GLO
 turn SELECT 3

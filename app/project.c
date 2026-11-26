@@ -481,8 +481,9 @@ void project_defaults(void)
     proj.master[MS_PUMP_REL] = MS_PUMP_REL_DEF;
     proj.master[MS_PUMP_ACC] = 1;
     proj.master[MS_LEVEL] = 100;
-    proj.master[MS_DFILT] = proj.master[MS_MFILT] = MS_FILT_OFF;   /* the master filter off (a project before 31 too) */
-    proj.master[MS_DRES] = proj.master[MS_MRES] = 0;
+    proj.master[MS_DFILT] = proj.master[MS_MELF] = proj.master[MS_MFILT] = MS_FILT_OFF;   /* the master filter off (a
+                                                          * project before 31 too) */
+    proj.master[MS_FRES] = 0;
     patterns_init(&pats);
 }
 
@@ -1051,6 +1052,10 @@ int project_load(int slot)
                 if (fx_pick_type(proj.trk[t].par[TP_ENGINE] % NFXPICK) == FXT_DELAY)
                     proj.trk[t].par[TP_E1] = OLD_DLY[(proj.trk[t].par[TP_E1] & 127u) >> 4];
         }
+        if (load_format < 33u)                        /* (31..32: the master filter's second value was the drums'
+                                                       * resonance, now the melodic filter: off; the fourth, the mix's
+                                                       * resonance, now the three's) */
+            proj.master[MS_MELF] = MS_FILT_OFF;
         if (load_format < 33u)                        /* (before 33 no 1/4D: every speed one further) */
             for (int t = 0; t < NTRK; t++)
                 if (proj.trk[t].par[TP_PLAYER] % NPL == PL_ARP)

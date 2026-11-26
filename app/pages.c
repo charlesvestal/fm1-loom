@@ -1327,7 +1327,9 @@ static void kn(knob_t *k, const char *name, int32_t v, int32_t max)
     k->num = v;
     k->max = max;
 }
-/* a master filter's knob (fx.h MS_DFILT, MS_MFILT): "LP 5.8 kHz", "off", "HP 120 Hz" */
+/* the master filter's three knobs (fx.h MS_DFILT, MS_MELF, MS_MFILT): which (0 drums, 1 melodic, 2 mix; -1 another) */
+static int mfilt_k(int m) { return m == MS_DFILT ? 0 : m == MS_MELF ? 1 : m == MS_MFILT ? 2 : -1; }
+/* a master filter's knob: "LP 5.8 kHz", "off", "HP 120 Hz" */
 static void mfilt_text(int v, char *t)
 {
     float hz = master_filter_hz(v);
@@ -1346,6 +1348,17 @@ static void mfilt_text(int v, char *t)
         *e++ = '.';
         s_cat(num_i(d % 10, e), " kHz");
     }
+}
+/* its knob: "drums LP" "5.8 kHz", "melodic" "off", "mix HP" "120 Hz" */
+static void mfilt_knob(knob_t *k, int m, int v)
+{
+    static const char *const NM[3][3] = {{"drums", "drums LP", "drums HP"}, {"melodic", "mel LP", "mel HP"},
+                                         {"mix", "mix LP", "mix HP"}};
+    const float hz = master_filter_hz(v);
+    const int f = mfilt_k(m);
+    char t[16];
+    mfilt_text(v, t);
+    kv(k, NM[f][hz > 0.0f ? 1 : hz < 0.0f ? 2 : 0], hz != 0.0f ? t + 3 : t, v, 127);
 }
 /* the master's pump: its depth (0 .. 24 dB), its source, its release */
 static void pump_text(int v, char *t)
@@ -1467,13 +1480,9 @@ static void mod_knob_v(knob_t *k, int tgt, int p, int v)
             if (k->name)
                 return;
         }
-    if (p == MS_DFILT || p == MS_MFILT) {
-        static const char *const NM[2][3] = {{"drums", "drums LP", "drums HP"}, {"mix", "mix LP", "mix HP"}};
-        const float hz = master_filter_hz(v);
-        char t[16];
-        mfilt_text(v, t);
-        kv(k, NM[p == MS_MFILT][hz > 0.0f ? 1 : hz < 0.0f ? 2 : 0], hz != 0.0f ? t + 3 : t, v, 127);
-    } else if (p == MS_PUMP) {
+    if (mfilt_k(p) >= 0)
+        mfilt_knob(k, p, v);
+    else if (p == MS_PUMP) {
         char t[12];
         pump_text(v, t);
         kv(k, MS_NAME[p], t, v, 127);
@@ -1481,13 +1490,13 @@ static void mod_knob_v(knob_t *k, int tgt, int p, int v)
         kn(k, MS_NAME[p % NMS], v, master_max(p));
 }
 /* its name: "T2 cutoff", "T1 hat decay", "FX I time", "master mix" (the knob's name: drums LP / HP, mix LP / HP
- * name the filter's side now; the lane's is the knob's) */
+ * name the filter's side now; the lane's is the knob's: "master melodic") */
 static void mod_tgt_name(int tgt, int p, char *t)
 {
     knob_t k;
     char *e;
     memset(&k, 0, sizeof k);
-    mod_knob_v(&k, tgt, p, tgt == MODT_MST && (p == MS_DFILT || p == MS_MFILT) ? MS_FILT_OFF : mod_val(tgt, p));
+    mod_knob_v(&k, tgt, p, tgt == MODT_MST && mfilt_k(p) >= 0 ? MS_FILT_OFF : mod_val(tgt, p));
     e = s_cat(s_cat(t, tgt == MODT_MST ? "master" : TRACK_NAME[tgt % NALLTRK]), " ");
     if (tgt < NTRK && (tp_is_dkey(p) || tp_is_dknob2(p)))   /* a kit key's: which */
         e = s_cat(s_cat(e, DL_SOUND_NAME[(tp_is_dkey(p) ? (p - TP_DRUM0) / DP_N : (p - TP_DRUMX0) / DPX_N) % DL_NSOUND]), " ");
@@ -2120,14 +2129,9 @@ static void page_knobs(knob_t *k)
     case P_MASTER: case P_MFILT: case P_MASTER3:
         for (int i = 0; i < 4; i++) {
             int m = mst_m(p, i);
-            if (m == MS_DFILT || m == MS_MFILT) {    /* drums LP 5.8 kHz, drums off, mix HP 120 Hz */
-                static const char *const NM[2][3] = {{"drums", "drums LP", "drums HP"}, {"mix", "mix LP", "mix HP"}};
-                const float hz = master_filter_hz(proj.master[m]);
-                char t[16];
-                mfilt_text(proj.master[m], t);
-                kv(&k[i], NM[m == MS_MFILT][hz > 0.0f ? 1 : hz < 0.0f ? 2 : 0], hz != 0.0f ? t + 3 : t, proj.master[m],
-                   127);
-            } else if (m == MS_PUMP) {
+            if (mfilt_k(m) >= 0)                     /* drums LP 5.8 kHz, melodic off, mix HP 120 Hz */
+                mfilt_knob(&k[i], m, proj.master[m]);
+            else if (m == MS_PUMP) {
                 char t[12];
                 pump_text(proj.master[m], t);
                 kv(&k[i], MS_NAME[m], t, proj.master[m], 127);
@@ -2967,8 +2971,8 @@ static const struct { uint8_t btn; uint64_t pages; const char *title, *l1, *l2; 
      "Random: tap steps for slots, hold one and press SEQ for the pool."},
     {B_ARP, PG_STEPS, "Tricks", "Hold a step and press ARP. Turn KNOB 1 and 3 for its tricks,",
      "KNOB 2 and 4 for their values. Let go of the step when done."},
-    {B_GLO, PG(P_MFILT), "Master filter", "KNOB 1 filters the drums, KNOB 3 the whole mix.",
-     "Left a low-pass, right a high-pass. KNOB 2 and 4: resonance."},
+    {B_GLO, PG(P_MFILT), "Master filter", "KNOB 1 the drums, KNOB 2 the synths, KNOB 3 the mix.",
+     "Left a low-pass, right a high-pass. KNOB 4: resonance."},
     {B_GLO, PG_ANY, "Mix", "Tap a black key to mute, hold to solo, tap twice to keep it.",
      "Press SEL for projects. Turn SELECT for the master, Setup."},
     {B_HOME, PG_ANY, "Arrange", "Press white keys for scenes, black keys to mute.",
@@ -6880,18 +6884,20 @@ static void draw_master(void)
     main_blit();
 }
 /* Master filter: each filter's response (fx.c master_filter_db), 20 Hz .. 20 kHz across, +12 .. -24 dB down; the
- * drums' above, the mix's below, their knobs' values beside */
+ * drums', the melodic group's and the mix's, one above the other, their knobs' values beside */
 static void draw_mfilt(void)
 {
+    static const char *const NM[3] = {"drums", "melodic", "mix"};
     const uint8_t *m = proj.master;
-    uint32_t h = hash_u(hash_u(2166136261u, 0x3Bu), (uint32_t)m[MS_DFILT] | (uint32_t)m[MS_DRES] << 8 |
-                                                     (uint32_t)m[MS_MFILT] << 16 | (uint32_t)m[MS_MRES] << 24);
-    const int32_t x0 = 16, w = 208, y0 = LARGE ? 2 : 12, ph = (MAIN_H - y0 - 10) / 2 < 38 ? (MAIN_H - y0 - 10) / 2 : 38;
+    uint32_t h = hash_u(hash_u(2166136261u, 0x3Bu), (uint32_t)m[MS_DFILT] | (uint32_t)m[MS_MELF] << 8 |
+                                                     (uint32_t)m[MS_MFILT] << 16 | (uint32_t)m[MS_FRES] << 24);
+    const int32_t x0 = 16, w = 208, y0 = LARGE ? 2 : 10, gap = 4;
+    const int32_t ph = (MAIN_H - y0 - 2 * gap - 6) / 3 < 30 ? (MAIN_H - y0 - 2 * gap - 6) / 3 : 30;
     if (!begin_main(h))
         return;
-    for (int j = 0; j < 2; j++) {
-        const int v = m[j ? MS_MFILT : MS_DFILT], r = m[j ? MS_MRES : MS_DRES];
-        const int32_t top = y0 + j * (ph + 8), zero = top + ph / 3;   /* (0 dB a third down: +12 above, -24 below) */
+    for (int j = 0; j < 3; j++) {
+        const int v = m[j == 0 ? MS_DFILT : j == 1 ? MS_MELF : MS_MFILT], r = m[MS_FRES];
+        const int32_t top = y0 + j * (ph + gap), zero = top + ph / 3;   /* (0 dB a third down: +12 above, -24 below) */
         const int on = master_filter_hz(v) != 0.0f;
         pen_t pn = {0};
         char t[16];
@@ -6904,11 +6910,10 @@ static void draw_mfilt(void)
         }
         mfilt_text(v, t);
         {   /* (the names over the curve, on the panel's ground) */
-            const int32_t ty = top + ph - 3 - FONT_XS.h, tw = text_w(&FONT_XS, t);
-            const char *nm = j ? "mix" : "drums";
-            cv_rect(x0 + 6, ty, text_w(&FONT_XS, nm) + 4, FONT_XS.h, K_PANEL);
+            const int32_t ty = top + ph - 2 - FONT_XS.h, tw = text_w(&FONT_XS, t);
+            cv_rect(x0 + 6, ty, text_w(&FONT_XS, NM[j]) + 4, FONT_XS.h, K_PANEL);
             cv_rect(x0 + w - 10 - tw, ty, tw + 4, FONT_XS.h, K_PANEL);
-            cv_text(x0 + 8, ty, &FONT_XS, nm, K_DIM);
+            cv_text(x0 + 8, ty, &FONT_XS, NM[j], K_DIM);
             text_r(x0 + w - 8, ty, &FONT_XS, t, on ? K_TEXT : K_DIM);
         }
     }

@@ -189,7 +189,7 @@ Count the white keys 1 to 16 from the left, and the black keys 1 to 11. "Hold **
 | switch scenes while playing | On Arrange, press the scene's white key, and it starts at the next bar. Press it again to switch at once. To wait for the end of T1's pattern instead, set SCENES SWITCH in the **SEL** list to "pattern end". <!-- hint: press HOME; white 2 --> |
 | mute a track | On Arrange or Mix, press its black key. On Mix, hold it to solo the track for as long as you hold it. <!-- hint: black 1 --> |
 | mute one drum sound in a scene | On Arrange, hold the kit track's black key and press white keys 1 to 11. <!-- hint: black 1; white 1-11 --> |
-| sweep the mix or the drums with a filter | Press **GLO** and turn **SELECT** to Master filter. Turn **KNOB 3** left for a low-pass on the whole mix, right for a high-pass; **KNOB 1** does the same to the drums alone. In the middle, they're off. <!-- hint: press GLO; turn SELECT, KNOB 3 --> |
+| sweep the mix or the drums with a filter | Press **GLO** and turn **SELECT** to Master filter. Turn **KNOB 3** left for a low-pass on the whole mix, right for a high-pass; **KNOB 1** does the same to the drums alone, **KNOB 2** to the synths. In the middle, they're off. <!-- hint: press GLO; turn SELECT, KNOB 3 --> |
 | make the whole mix pump with the kick | Press **GLO**, turn **SELECT** to Master out and turn **KNOB 4** (pump). **SEL** picks what drives it and how fast it swells back. <!-- hint: press GLO; turn SELECT, KNOB 4 --> |
 | solo a track | On Mix, hold its black key (hold several to solo them together). Let go and the mutes come back. Tap it twice and the solo stays when you let go (also on other pages); tap any track's black key on Mix to end it. <!-- hint: black 1 --> |
 | sweep a few tracks together | Press **GLO** and turn **SELECT** to LFO, the shared LFO. The black keys pick the tracks, and **KNOB 4** picks what it moves. <!-- hint: press GLO; turn SELECT, KNOB 4; black 1,2,3 --> |
@@ -1579,7 +1579,7 @@ Turn **SELECT** for more pages:
 - Master EQ has low, mid and high (64 is flat) and **clip**: 0 is off; turning it up drives the mix into a soft
   clipper before the limiter, so it gets louder and denser, the kick's and snare's peaks rounded off.
 - Master FX has one effect on the whole mix (see [Effects](#effects)).
-- Master filter has a DJ filter on the drums and one on the whole mix (below).
+- Master filter has DJ filters on the drums, on the synths and on the whole mix (below).
 - Master out has the drums' level, the melodic tracks' level, the compressor and the pump. The **SEL** list on
   these pages lists their knobs, page by page, along with what the pump follows, its release and accent, and the
   master level.
@@ -1616,15 +1616,20 @@ the whole kit's.
 **Master FX** puts one effect on the whole mix, after the EQ and before the compressor: any effect of the list the
 inserts and FX I and FX II use. See [Master FX](#master-fx).
 
-**Master filter** has two DJ filters, one knob each. **KNOB 1** filters the drums, every kit track together, before
-they meet the rest. **KNOB 3** filters the whole mix, after the compressor and the pump and before CLIP and the
+**Master filter** has three DJ filters, one knob each. **KNOB 1** filters the drums: every kit track, and what they
+send to FX I and FX II, so their reverb and echoes follow the filter (what is already ringing in FX I and FX II rings
+out). **KNOB 2** filters the melodic tracks, the synths, and what they send, before the drums and the FX returns join
+them. **KNOB 3** filters the whole mix, returns and all, after the compressor and the pump and before CLIP and the
 limiter. Turn a knob left of the middle for a low-pass that closes from 20 kHz down to 60 Hz, or right of it for a
 high-pass that opens from 20 Hz up to 8 kHz. In the middle (62 to 66) the filter is off and the sound is exactly as
-without it, and a new project starts there. **KNOB 2** and **KNOB 4** set their resonance, up to a strong peak at the
+without it, and a new project starts there. **KNOB 4** sets the resonance of all three, up to a strong peak at the
 cutoff. The level is made up for it, so a resonant sweep doesn't jump. A filter glides as you turn it, by hand or
 over MIDI, and fades in when you leave the middle. To take the drums out for a breakdown, close KNOB 1 to the left
-and leave the bass and chords playing, or open the mix's high-pass for a build and drop it back to the middle on the
-one. The screen draws each filter's curve.
+and leave the bass and chords playing; thin the synths with KNOB 2 under a full kick; or open the mix's high-pass for
+a build and drop it back to the middle on the one. The screen draws each filter's curve.
+
+A kit's sends go through its own filter too (its dynamic filter on Filter, under **ENV**), as its sound does. Its
+inserts don't reach its sends: a kit with drive on Insert 1 sends its clean hits to FX I and FX II.
 
 **Pump** is Master out's fourth knob. It lowers the mix each time the kick plays, by up to 24 dB, and lets it swell
 back up, for the big-beat breathing of house and French touch. When a kit drives it, through its kick or as a kit
@@ -1646,7 +1651,7 @@ to a beat nobody hears. At 0 it is off, and a new project starts there. Its **SE
 This pump works on the whole mix. A track's own pump LFO (above) still ducks just that track. Use it for a bass that
 gets out of the kick's way while the rest plays on.
 
-<img src="img/screen-mix.png" width="240" alt="Mix: a meter for each track while playing; knobs fx I, fx II, pan and level" title="The mixer"> <img src="img/screen-sends.png" width="240" alt="FX&#x27;s Sends page: the track&#x27;s sends to FX I (delay) and FX II (reverb lush), its pan and level" title="The sends"> <img src="img/screen-master.png" width="240" alt="Master EQ: low, mid and high, flat at 64" title="Master EQ"> <img src="img/screen-master-filter.png" width="240" alt="Master filter: the drums' curve, a resonant low-pass at 5.8 kHz, and the mix's, a high-pass at 73 Hz; knobs drums LP 5.8 kHz, drum res 90, mix HP 73 Hz, mix res 0" title="Master filter"> <img src="img/screen-master-out.png" width="240" alt="Master out: bars for drums, melodic, comp and pump; knobs drums 100, melodic 100, comp 30, pump 4.0 dB" title="Master out">
+<img src="img/screen-mix.png" width="240" alt="Mix: a meter for each track while playing; knobs fx I, fx II, pan and level" title="The mixer"> <img src="img/screen-sends.png" width="240" alt="FX&#x27;s Sends page: the track&#x27;s sends to FX I (delay) and FX II (reverb lush), its pan and level" title="The sends"> <img src="img/screen-master.png" width="240" alt="Master EQ: low, mid and high, flat at 64" title="Master EQ"> <img src="img/screen-master-filter.png" width="240" alt="Master filter: three curves, the drums' a resonant low-pass at 5.8 kHz, the melodic group's and the mix's high-passes at 73 Hz; knobs drums LP 5.8 kHz, mel HP 73 Hz, mix HP 73 Hz, res 90" title="Master filter"> <img src="img/screen-master-out.png" width="240" alt="Master out: bars for drums, melodic, comp and pump; knobs drums 100, melodic 100, comp 30, pump 4.0 dB" title="Master out">
 
 ### Bluetooth
 
@@ -1777,9 +1782,9 @@ the selected instrument track.
 | 24-27 | - | drums level / melodic level / comp / pump |
 | 28 | - | pump release |
 | 29 | - | Master FX: knob 3 |
-| 30 / 31 | - | Master filter: the drums' filter / its resonance |
+| 30 / 31 | - | Master filter: the drums' filter / the melodic filter |
 | 74 / 75 | low-pass / high-pass | Master filter: the mix's filter (74) |
-| 71 | - | Master filter: the mix's resonance |
+| 71 | - | Master filter: the resonance (all three) |
 | 93 | feed into FX II (channel 9 only) | - |
 
 A mute (CC 9, or 16 to 26 on a kit) works like the mute on the Mix page and is saved into the scene that is
@@ -1908,7 +1913,7 @@ and the echoes fade out. Every voice sounds in the file, so a busy song can soun
 | GLO | Mix | FX I | FX II | pan | level | black: tap to mute, hold to solo (several together); SEL: the projects, save to, new project |
 | GLO, SELECT | Master EQ | low | mid | high | | |
 | GLO, SELECT | Master FX | the effect's first | second | third | mix | PRESETS: the effect; SEL: the effects, its extras |
-| GLO, SELECT | Master filter | drums | drum res | mix | mix res | |
+| GLO, SELECT | Master filter | drums | melodic | mix | res | |
 | GLO, SELECT | Master out | drums | melodic | comp | pump | SEL: pump by, release, accent, level |
 | GLO, SELECT | LFO | shape | rate | amount | dest | black: the tracks it moves; white 1-11: a kit's sound, 12 all |
 | GLO, SELECT | Setup | lights | clock | notes | theme | SEL: Bluetooth MIDI and audio, their devices, USB audio, loop throws, autosave, CC out, scenes out |

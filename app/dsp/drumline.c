@@ -25,11 +25,13 @@
  * Levels: a balanced gain per key: every model is trimmed (SPEC[].trim) so that its defaults at
  * velocity 127 and volume 0 dB peak between -12 and -6 dBFS, the kick and snare on top (-6), the hats
  * and the shaker under them. The key's DP_VOLUME, DP_PAN and the hit's velocity are applied here;
- * the track's TP_SEND1/2/T scale the three send buffers (mono, pre track fader, pre filter). The track's TP_LEVEL and TP_PAN (and the punch-in mute) belong to the
+ * the track's TP_SEND1/2/T scale the three send buffers (mono, pre track fader; through the dynamic filter as the pair,
+ * since 2026-11-26). The track's TP_LEVEL and TP_PAN (and the punch-in mute) belong to the
  * engine layer, which applies them to all five buffers after drumline_render. Pan, volume and the
  * sends are re-read every SY_CHUNK samples and ramped across the chunk, so a knob turn is heard
  * without zipper noise. The dynamic filter (drumline_filter, FT_DYNAMIC) runs on the summed dry
- * output of the track: a 12 dB low cut and hi cut, a one-knob compressor and a tanh-shaped drive.
+ * output of the track and its two sends: a 12 dB low cut and hi cut, a one-knob compressor (keyed by the pair) and a
+ * tanh-shaped drive.
  *
  * Threads: drumline_hit / release / choke / filter and drumline_render run in one context (the
  * audio interrupt: the engine queues the keys' hits and the page's knobs). par[] is written by the
@@ -258,7 +260,7 @@ typedef struct {
     float thr, slope, makeup;         /* the compressor: threshold (linear), dB taken per dB over, gain */
     float drive, dcomp;               /* tanh drive and its level compensation */
     float env, gain;                  /* the follower and the gain it last chose */
-    float lo[4], hi[4];               /* low cut L1 L2 R1 R2, hi cut the same */
+    float lo[8], hi[8];               /* low cut L1 L2 R1 R2, then the sends' (S1 two, S2 two), hi cut the same */
 } dynf_t;
 
 #define NDSC 4                        /* sample caches: sample keys sounding at once (a fifth takes the oldest's) */
@@ -1867,7 +1869,7 @@ void drumline_filter(drumline_t *d, int type, int locut, int comp, int drive, in
     if (type != FT_DYNAMIC) {
         if (f->on) {                                  /* leaving: the states start clean next time */
             int i;
-            for (i = 0; i < 4; i++)
+            for (i = 0; i < 8; i++)
                 f->lo[i] = f->hi[i] = 0.0f;
             f->env = 0.0f;
             f->gain = 1.0f;
@@ -1893,39 +1895,44 @@ void drumline_filter(drumline_t *d, int type, int locut, int comp, int drive, in
 }
 
 
-/* m samples (<= SUB) of the dry pair through the filter, in place */
-static __attribute__((noinline)) void dynf_run(dynf_t *f, float *l, float *r, int m)
+/* a channel through the low cut (two one-poles' high-passes) or the hi cut (two low-passes), its states st[2] */
+static void dynf_lo(float c, float *st, float *x, int m)
 {
-    int i;
+    float a0 = st[0], a1 = st[1];
+    for (int i = 0; i < m; i++) {
+        float y;
+        a0 += c * (x[i] - a0);
+        y = x[i] - a0;
+        a1 += c * (y - a1);
+        x[i] = y - a1;
+    }
+    st[0] = fm_flush(a0);
+    st[1] = fm_flush(a1);
+}
+static void dynf_hi(float c, float *st, float *x, int m)
+{
+    float a0 = st[0], a1 = st[1];
+    for (int i = 0; i < m; i++) {
+        a0 += c * (x[i] - a0);
+        a1 += c * (a0 - a1);
+        x[i] = a1;
+    }
+    st[0] = fm_flush(a0);
+    st[1] = fm_flush(a1);
+}
+/* m samples (<= SUB) of the dry pair and its two sends (mono) through the filter, in place: the sends as the pair (its
+ * cuts, the compressor's gain the pair's, the drive) */
+static __attribute__((noinline)) void dynf_run(dynf_t *f, float *l, float *r, float *s1, float *s2, int m)
+{
+    int i, c;
     float pk = 0.0f, g0 = f->gain, g1, dg;
-    if (f->lo_on) {
-        float c = f->lc, a0 = f->lo[0], a1 = f->lo[1], b0 = f->lo[2], b1 = f->lo[3];
-        for (i = 0; i < m; i++) {
-            float x = l[i], y;
-            a0 += c * (x - a0);
-            y = x - a0;
-            a1 += c * (y - a1);
-            l[i] = y - a1;
-            x = r[i];
-            b0 += c * (x - b0);
-            y = x - b0;
-            b1 += c * (y - b1);
-            r[i] = y - b1;
-        }
-        f->lo[0] = fm_flush(a0); f->lo[1] = fm_flush(a1); f->lo[2] = fm_flush(b0); f->lo[3] = fm_flush(b1);
-    }
-    if (f->hi_on) {
-        float c = f->hc, a0 = f->hi[0], a1 = f->hi[1], b0 = f->hi[2], b1 = f->hi[3];
-        for (i = 0; i < m; i++) {
-            a0 += c * (l[i] - a0);
-            a1 += c * (a0 - a1);
-            l[i] = a1;
-            b0 += c * (r[i] - b0);
-            b1 += c * (b0 - b1);
-            r[i] = b1;
-        }
-        f->hi[0] = fm_flush(a0); f->hi[1] = fm_flush(a1); f->hi[2] = fm_flush(b0); f->hi[3] = fm_flush(b1);
-    }
+    float *x[4] = {l, r, s1, s2};
+    if (f->lo_on)
+        for (c = 0; c < 4; c++)
+            dynf_lo(f->lc, f->lo + 2 * c, x[c], m);
+    if (f->hi_on)
+        for (c = 0; c < 4; c++)
+            dynf_hi(f->hc, f->hi + 2 * c, x[c], m);
     /* the compressor: a peak follower (instant up, ~100 ms down, stepped per sub-block), the gain
      * ramped across the block */
     for (i = 0; i < m; i++)
@@ -1939,18 +1946,21 @@ static __attribute__((noinline)) void dynf_run(dynf_t *f, float *l, float *r, in
         g1 *= fm_exp2f(-f->slope * fm_log2f(f->env / f->thr));
     f->gain = g1;
     dg = (g1 - g0) * (1.0f / (float)m);
-    if (f->drv_on) {
-        float dv = f->drive, dc = f->dcomp;
-        for (i = 0; i < m; i++) {
-            g0 += dg;
-            l[i] = tanh_r(l[i] * g0 * dv) * dc;
-            r[i] = tanh_r(r[i] * g0 * dv) * dc;
-        }
-    } else {
-        for (i = 0; i < m; i++) {
-            g0 += dg;
-            l[i] *= g0;
-            r[i] *= g0;
+    for (c = 0; c < 4; c += 2) {                 /* (the pair, then the sends) */
+        float g = g0, *a = x[c], *b = x[c + 1];
+        if (f->drv_on) {
+            float dv = f->drive, dc = f->dcomp;
+            for (i = 0; i < m; i++) {
+                g += dg;
+                a[i] = tanh_r(a[i] * g * dv) * dc;
+                b[i] = tanh_r(b[i] * g * dv) * dc;
+            }
+        } else {
+            for (i = 0; i < m; i++) {
+                g += dg;
+                a[i] *= g;
+                b[i] *= g;
+            }
         }
     }
 }
@@ -2040,7 +2050,7 @@ void drumline_render_kick(drumline_t *d, float *l, float *r, float *s1, float *s
         for (c = 0; c < n; c += SUB) {
             int mm = (int)(n - c < SUB ? n - c : SUB);
             if ((any >> (c / SUB) & 1u) || d->f.env > 1e-5f)
-                dynf_run(&d->f, l + c, r + c, mm);
+                dynf_run(&d->f, l + c, r + c, s1 + c, s2 + c, mm);
         }
 }
 

@@ -28,9 +28,10 @@ static const struct { uint8_t cc; uint16_t par; uint8_t fx1; } CC_FX[] = {
 static const struct { uint8_t cc, m; } CC_MST[] = {
     {7, MS_LEVEL},  {16, MS_EQ_LO}, {17, MS_EQ_MID}, {18, MS_EQ_HI}, {19, MS_CLIP},  {20, MS_CTYPE}, {21, MS_CAMT},
     {22, MS_CTONE}, {23, MS_CMIX},  {24, MS_PERC},   {25, MS_MEL},   {26, MS_COMP},  {27, MS_PUMP},  {28, MS_PUMP_REL},
-    {29, MS_CK3},   {30, MS_DFILT}, {31, MS_DRES},   {74, MS_MFILT}, {71, MS_MRES}};   /* (20..23 and 29: its slot's
-                                              * effect, knobs 1, 2, mix, knob 3; 30, 31 the drums' filter and its
-                                              * resonance, 74, 71 the mix's: a track's cutoff and resonance CCs) */
+    {29, MS_CK3},   {30, MS_DFILT}, {31, MS_MELF},   {74, MS_MFILT}, {71, MS_FRES}};   /* (20..23 and 29: its slot's
+                                              * effect, knobs 1, 2, mix, knob 3; 30 the drums' filter, 31 the melodic
+                                              * group's, 74 the mix's, 71 their resonance: a track's cutoff and
+                                              * resonance CCs) */
 
 static int cc_to(int v, int lo, int hi) { return lo + (v * (hi - lo) + 63) / 127; }   /* 0..127 onto lo..hi */
 /* CC IN endless (Setup; proj.rsv[3] CC_IN_ENDLESS): an encoder's value is a turn, not a place (fm1-base midi_rel.h:

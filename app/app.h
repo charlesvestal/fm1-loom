@@ -139,7 +139,8 @@ void loom_lights(uint32_t buttons, uint32_t keys, int glow, uint32_t dim_keys, i
 #define PROJ_MAGIC 0x384D4F4Cu          /* "LOM8" (was "XXY1": XY-1's projects start fresh) */
 #define PROJ_FORMAT 33u                 /* (10, 0.5-beta's, to 12 load too: project.c migrate_old; older ones do not)
                                          * 33: the arp's 1/4D, its slowest (every arp speed, its locks and motion
-                                         *     one further);
+                                         *     one further); the master filter three (drums, melodic, mix) and one
+                                         *     resonance (31..32's drums' resonance: the melodic filter, off);
                                          * 32: the MOD track (pattern.h AUX_MOD: its patterns and the scenes' MOD
                                          *     column after the store's end; its lanes the pool's; older: empty);
                                          * 31: the master filter (Master filter: the drums' and the mix's, four

@@ -310,8 +310,9 @@ static float limit(int ef, int mode, int c)
 {
     return ef == EF_REVERB && mode != RV_PLATE && !rv_lush(mode) && c == C_K1 ? SPU_DB : SLEW_DB;
 }
-/* the master filter (fx.h MS_DFILT, MS_DRES, MS_MFILT, MS_MRES: v[0..3]): the pair, half on the drums' group and half
- * on the melodic, through the master; v from block TB (a == b: never moved) */
+/* the master filter (fx.h MS_DFILT, MS_MELF, MS_MFILT, MS_FRES: v[0..3]): the pair, half on the drums' group and half
+ * on the melodic, through their filters (as the engine runs them) and the master; v from block TB (a == b: never
+ * moved) */
 static void mf_render(const uint8_t *a, const uint8_t *b, float (*o)[LEN])
 {
     static float L[N], R[N], P1[N], P2[N], S1[N], S2[N];
@@ -328,6 +329,8 @@ static void mf_render(const uint8_t *a, const uint8_t *b, float (*o)[LEN])
             P1[i] = S1[i] = 0.5f * sig[0][at + i];
             P2[i] = S2[i] = 0.5f * sig[1][at + i];
         }
+        master_group_filter(MS, MF_DRUMS, P1, P2, 0, 0, N);
+        master_group_filter(MS, MF_MEL, S1, S2, 0, 0, N);
         master_process(MS, P1, P2, S1, S2, L, R, N);
         memcpy(o[0] + at, L, sizeof L);
         memcpy(o[1] + at, R, sizeof R);
@@ -439,25 +442,26 @@ int main(int argc, char **argv)
                 fflush(stdout);
             }
         }
-    {   /* the master filter's four knobs: its cutoff from off, to off, along one side, across the centre, end to end
-         * (no resonance and some); its resonance (a low-pass, a high-pass) */
+    {   /* the master filter's four knobs: each filter's cutoff from off, to off, along one side, across the centre, end
+         * to end (no resonance and some); the resonance (the three on a low-pass, on a high-pass) */
         static const uint8_t CUT[7][2] = {{64, 40}, {40, 64}, {30, 20}, {96, 110}, {20, 100}, {0, 127}, {127, 0}};
         static const char *const CN[7] = {"from off", "to off", "small", "small up", "across", "full up", "full down"};
         static const uint8_t RES[3][2] = {{0, 127}, {127, 0}, {32, 96}};
         static const char *const RN[3] = {"res up", "res down", "res half"};
-        static const char *const KN[4] = {"drums", "drum res", "mix", "mix res"};
+        static const char *const KN[4] = {"drums", "melodic", "mix", "res"};
         for (int k = 0; k < 4; k++) {
             float w = -99.0f;
-            const int cut = !(k & 1);
+            const int cut = k < 3;
             for (int r = 0; r < (cut ? 14 : 6); r++) {
-                uint8_t a[4] = {64, 0, 64, 0}, b[4];
+                uint8_t a[4] = {64, 64, 64, 0}, b[4];
                 char what[40];
                 float d;
                 if (cut) {                       /* (the cutoff, at no resonance, then at 90) */
                     a[k] = CUT[r % 7][0];
-                    a[k + 1] = r < 7 ? 0 : 90;
-                } else {                         /* (the resonance, on a low-pass at 30, then a high-pass at 100) */
-                    a[k - 1] = r < 3 ? 30 : 100;
+                    a[3] = r < 7 ? 0 : 90;
+                } else {                         /* (the resonance, the three on a low-pass at 30, then a high-pass at
+                                                  * 100) */
+                    a[0] = a[1] = a[2] = r < 3 ? 30 : 100;
                     a[k] = RES[r % 3][0];
                 }
                 memcpy(b, a, 4);

@@ -523,9 +523,9 @@ expect mst.lo 80
 expect mst.comp 50
 expect mst.level 110
 expect mst.dfilt 64
-expect mst.dres 0
+expect mst.melf 64
 expect mst.mfilt 64
-expect mst.mres 0
+expect mst.fres 0
 projsave 1 v29_saved
 reboot
 wait 400
@@ -534,9 +534,9 @@ expect mst.camount 70
 expect mst.cmix 100
 expect mst.level 110
 # a format 30 project (tests/fixtures/make_v30.xy), from before the master filter (format 31): Master FX's slot, its
-# knob 3 and extras (format 30's last values) where they were; both filters off (64, resonance 0); kept by a save
+# knob 3 and extras (format 30's last values) where they were; the filters off (64, resonance 0); kept by a save
 mst dfilt 10
-mst mres 90
+mst fres 90
 storeload tests/fixtures/store_v30.bin
 reboot
 wait 400
@@ -550,18 +550,18 @@ expect mst.lo 80
 expect mst.comp 50
 expect mst.level 110
 expect mst.dfilt 64
-expect mst.dres 0
+expect mst.melf 64
 expect mst.mfilt 64
-expect mst.mres 0
+expect mst.fres 0
 mst mfilt 30
-mst dres 77
+mst melf 77
 projsave 1 v30_saved
 reboot
 wait 400
 expect mst.ck3 33
 expect mst.cx2 5
 expect mst.mfilt 30
-expect mst.dres 77
+expect mst.melf 77
 expect mst.dfilt 64
 # a format 31 project (tests/fixtures/make_v31.xy), from before the MOD track (format 32): its notes, its lock, its
 # scenes, song and master where they were; the MOD track empty (no lanes, each pattern 16 steps a sixteenth, no scene
@@ -598,8 +598,10 @@ expect modglide 2 1 1
 expect modval 2 2 cut 5 90
 expect modval 2 2 cut 3 255
 expect lock 2 1 5 cut 30
-# a format 32 project (tests/fixtures/make_v32.xy), from before the arp's 1/4D (format 33): every arp speed one further
-# (T2's 1/8 3 -> 4, its locks 1/4 0 -> 1 and 1/64 10 -> 11; T3's 1/4 0 -> 1), the notes where they were
+# a format 32 project (tests/fixtures/make_v32.xy), from before the arp's 1/4D and the three master filters (format 33):
+# every arp speed one further (T2's 1/8 3 -> 4, its locks 1/4 0 -> 1 and 1/64 10 -> 11; T3's 1/4 0 -> 1), the notes
+# where they were; the drums' filter where it was, the second value (the drums' resonance, 0) now the melodic filter:
+# off; the fourth (the mix's resonance) now the three's
 storeload tests/fixtures/store_v32.bin
 reboot
 wait 400
@@ -609,6 +611,10 @@ expect lock 2 1 5 p1 1
 expect lock 2 1 9 p1 11
 expect par3.p1 1
 expect note 2 1 1 48
+expect mst.dfilt 30
+expect mst.melf 64
+expect mst.mfilt 64
+expect mst.fres 90
 projsave 1 v32_saved
 reboot
 wait 400
