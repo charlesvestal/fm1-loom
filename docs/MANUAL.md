@@ -1230,11 +1230,16 @@ FX, and the return level on FX I and FX II.
 The effects come in four groups, and **PRESETS** steps through them in this order. Picking an effect sets its knobs
 to their starting values. What doesn't fit on the knobs is in the page's **SEL** list, under the effects.
 
+At their starting values the effects sound about as loud as the sound without them (within about 1.5 dB, on a track at
+an everyday level), so scrolling through them compares sounds, not levels: the dirt keeps the level, tremolo keeps
+it on average, and the effects with a dry and a wet (chorus, juno, lofi, delay, reverb) are as loud half mixed as dry.
+Rumble is the one that adds: its tail rings between the kicks, the kicks as loud as dry.
+
 | Group | Effect | Knob 1 | Knob 2 | Knob 3 | In SEL | Memory |
 | --- | --- | --- | --- | --- | --- | --- |
 | | off | | | | | |
 | dirt | drive | amount: how hard it saturates; the level stays the same | tone: a low-pass after it, 400 Hz to 20 kHz | | | |
-| dirt | rat | distort, after the RAT pedal: more gain, and darker as it rises | filter: darker turned up | level: at its starting value about as loud as without it | | |
+| dirt | rat | distort, after the RAT pedal: more gain, and darker as it rises | filter: darker turned up | level: at its starting value (80) as loud as without it, whatever the distortion and however loud the track; it trims from there | | |
 | dirt | fold | amount: how far the wave folds over | bias: away from the center it folds one side more | | | |
 | dirt | crush | amount: how far it drops | which: the sample rate to the left, the bits to the right, both in the middle | | | |
 | dirt | ring | depth of the ring modulation | ratio of its sine to the note, 0.25:1 to 7:1 | | | |

@@ -244,6 +244,86 @@ static float mf_tone(int drums, int v, int r, float hz, float amp)
     return 10.0f * 0.30103f * fm_log2f(e / (2.0f * (float)n) + 1e-20f);
 }
 
+
+/* ---- every catalog effect in a track's slot (efx_slot_run, as on its bus) at its knobs' defaults against the dry: pink
+ * noise and a held note (a filtered saw at 110 Hz), each at -18 dBFS RMS (a track's level, about), at full mix and at
+ * 100 (slot 1's when an effect is picked); the level of the last 2 s of 2.5 against the dry's, dB. The tremolo by its
+ * average (its power); rumble adds its tail to the dry (on a held sound it is louder: on a kick the hit is as dry,
+ * synth_test) ---- */
+static efx_slot_t lm_sl;
+static float lm_p[7];
+static float lm_pink(void)                     /* Paul Kellet's pink noise filter on the white */
+{
+    float w = noise(), o;
+    lm_p[0] = 0.99886f * lm_p[0] + w * 0.0555179f;
+    lm_p[1] = 0.99332f * lm_p[1] + w * 0.0750759f;
+    lm_p[2] = 0.96900f * lm_p[2] + w * 0.1538520f;
+    lm_p[3] = 0.86650f * lm_p[3] + w * 0.3104856f;
+    lm_p[4] = 0.55000f * lm_p[4] + w * 0.5329522f;
+    lm_p[5] = -0.7616f * lm_p[5] - w * 0.0168980f;
+    o = lm_p[0] + lm_p[1] + lm_p[2] + lm_p[3] + lm_p[4] + lm_p[5] + lm_p[6] + w * 0.5362f;
+    lm_p[6] = w * 0.115926f;
+    return o * 0.0703f;                        /* (-18 dBFS RMS) */
+}
+static float level_db(int ef, int note, int mix)
+{
+    static float L[256], R[256];
+    const int nb = (int)(2.5f * SR / 256.0f);
+    double e = 0.0, d = 0.0;
+    float ph = 0.0f, lp = 0.0f;
+    int16_t *mem;
+    memset(&lm_sl, 0, sizeof lm_sl);
+    memset(efx_pool, 0, sizeof efx_pool);
+    memset(lm_p, 0, sizeof lm_p);
+    rng = 1;
+    lm_sl.ef = (uint8_t)ef;
+    lm_sl.mix = (uint8_t)mix;
+    for (int j = 0; j < 3; j++)
+        lm_sl.k[j] = (float)EFX[ef].def[j];
+    for (int j = 0; j < 4; j++)
+        lm_sl.xt[j] = EFX[ef].xdef[j];
+    mem = efx_need(ef, lm_sl.xt[0], 0) ? efx_pool[0] : 0;
+    for (int b = 0; b < nb; b++) {
+        float eb = 0.0f, db_ = 0.0f;
+        for (int i = 0; i < 256; i++) {
+            float x;
+            if (!note)
+                x = lm_pink();
+            else {
+                ph += 110.0f / SR;
+                ph -= ph >= 1.0f ? 1.0f : 0.0f;
+                lp += 0.35f * (2.0f * ph - 1.0f - lp);
+                x = lp * 0.2218f;              /* (-18 dBFS RMS) */
+            }
+            L[i] = R[i] = x;
+            db_ += x * x;
+        }
+        efx_slot_run(&lm_sl, 0, 120.0f, 0, mem, L, R, 256);
+        for (int i = 0; i < 256; i++)
+            eb += 0.5f * (L[i] * L[i] + R[i] * R[i]);
+        if (b >= nb / 5)
+            e += (double)eb, d += (double)db_;
+    }
+    return 3.0103f * fm_log2f((float)(e / d) + 1e-30f);
+}
+static void level_match(void)
+{
+    int ok = 1;
+    printf("-- every effect in a track's slot at its defaults against the dry, dB (pink noise / a note at -18 dBFS;\n"
+           "   full mix, mix 100): within 1.5 dB on average, 3 dB each\n");
+    for (int ef = 1; ef < NEF; ef++) {
+        float a = level_db(ef, 0, 127), b = level_db(ef, 1, 127), c = level_db(ef, 0, 100), d = level_db(ef, 1, 100);
+        int good = fm_fabsf(a + b) <= 3.0f && fm_fabsf(c + d) <= 3.0f && fm_fabsf(a) <= 3.0f && fm_fabsf(b) <= 3.0f &&
+                   fm_fabsf(c) <= 3.0f && fm_fabsf(d) <= 3.0f;
+        if (ef == EF_RUMBLE)                   /* (the dry whole and a tail added: its hit as dry, synth_test) */
+            good = 1;
+        printf("  %-8s %+5.1f %+5.1f  %+5.1f %+5.1f%s\n", EFX[ef].name, (double)a, (double)b, (double)c, (double)d,
+               ef == EF_RUMBLE ? "  (its tail added to the dry: on a kick, the hit as dry)" : good ? "" : "  <-");
+        ok &= good;
+    }
+    check("every effect at its defaults as loud as the dry (within 1.5 dB)", ok);
+}
+
 int main(void)
 {
     static float in[BLK], ol[BLK], orr[BLK];
@@ -1307,6 +1387,7 @@ int main(void)
         check("  tape: its wow's line a block on the master and a send, none on a track",
               master_need(ms) == 1 && efx_need(EF_TAPE, 0, 1) == 1 && efx_need(EF_TAPE, 0, 0) == 0);
     }
+    level_match();
     printf("%s\n", bad ? "FX TESTS FAILED" : "fx tests passed");
     return bad != 0;
 }

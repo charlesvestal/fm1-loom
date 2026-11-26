@@ -117,8 +117,17 @@ static float ch_tape_hz(float t) { return 1500.0f * ch_exp2(t * 3.585f); }      
 static float ch_smp_hz(float t) { return 2000.0f * ch_exp2(t * 3.322f); }         /* tone 0..1: 2 .. 20 kHz */
 static float ch_smp_rate(float a) { return 26040.0f * ch_exp2(-a * 1.243f); }     /* amount 0..1: 26 .. 11 kHz */
 #define CH_DC (FM_TWO_PI * 12.0f * INV_SR)       /* the DC blocker's one-pole: 12 Hz */
-#define CH_REF 0.7f                              /* the drive keeps the level of a peak here (an engine's, about) */
-#define CH_FOLD 0.6f                             /* the fold's level once it folds (a folded wave's RMS: about a saw's) */
+#ifndef CH_REF
+#define CH_REF 0.4f                              /* the drive keeps the level of a peak here (a track's, about: -18 dBFS
+                                                  * RMS; 0.7 until 2026-11-26, louder than dry below it) */
+#endif
+#ifndef CH_TREF
+#define CH_TREF 0.6f                             /* the tape's (gentler: on a voice, its peak) */
+#endif
+#ifndef CH_FOLD
+#define CH_FOLD 0.45f                            /* the fold's level once it folds (0.6 until 2026-11-26: louder than dry
+                                                  * at its default) */
+#endif
 #define CH_RING_SLEW 0.135f                      /* the ring's amount glides, a chunk's step: about 10 ms (a turned knob
                                                   * clicked: the depth stepped at once) */
 /* ring: the modulator's ratios to the note, tone / 8 */
@@ -208,7 +217,7 @@ void efx_char_coefs(int type, float a, float t, float freq, float *x)
     case EF_TAPE: {                              /* the drive's curve, gentler; a two-pole roll-off; the wow's depth */
         float g = 0.5f * ch_exp2(a * 4.0f);
         x[0] = g;
-        x[1] = CH_REF / sat_c(g * CH_REF) * (1.0f - 0.15f * a);
+        x[1] = CH_TREF / sat_c(g * CH_TREF) * (1.0f - 0.15f * a);
         x[2] = ch_alpha(ch_tape_hz(t));
         x[3] = 2.0f + 8.0f * a;                  /* cents (synth.c voice_chunk) */
         break;
@@ -1657,12 +1666,23 @@ static __attribute__((noinline)) float ap_k(float hz)   /* a first-order allpass
     float w = in_tan(FM_PI * fm_minf(hz, 0.45f * EFX_SR) * INV_SR);
     return (w - 1.0f) / (w + 1.0f);
 }
+/* a mix of the dry and the wet, mx 0..1: their gains (1 - mx, mx) made up by the mean of the two ways they add (in
+ * phase: 1; apart: rsqrt((1 - mx)^2 + mx^2)): a chorus, a delay or a reverb half mixed as loud as dry or wet alone */
+static __attribute__((noinline)) float mix_up(float mx)
+{
+    return 0.5f + 0.5f * fm_rsqrtf((1.0f - mx) * (1.0f - mx) + mx * mx);
+}
 /* a one-pole's coefficient at hz */
 __attribute__((noinline)) float efx_op_coef(float hz) { return 1.0f - fm_expf(-FM_TWO_PI * hz * INV_SR); }
 #ifndef RB_DRIVE
 #define RB_DRIVE 1.5f                            /* rumble's saturation: sat_c's gain on the low-passed reverb over the
                                                   * track's peak (light: its 2nd and 3rd harmonics) */
 #endif
+#define RAT_LV0 80.0f                            /* rat's level at unity (its default): (level / 80)^2 */
+#define RAT_SMOOTH 1323.0f                       /* its make-up's smoothing: 30 ms */
+#define RAT_MAX 8.0f                             /* (at the most +18 dB) */
+#define RB_WET 1.5f                              /* its level at full mix (the dry whole: on a kick its hit as dry,
+                                                  * between the hits its tail; on a held sound +4 dB) */
 #define RB_GAIN 4.0f                             /* its make-up: the reverb's tail, low-passed, near the track's level */
 /* rumble's memory (two slots, int16 at 1/8192): its places (the diffusers', the lines'), the two diffusers, the four
  * lines (mutually prime, at 1.38 kHz: 213 .. 365 ms) */
@@ -1701,6 +1721,10 @@ static void ins_nums(float *p, int ef, const float *kn, const uint8_t *xt)   /* 
  * at rest when st says it is fresh, its z[0] 0), its lines after; its numbers from the knobs and extras (the send's
  * four: the delay's time, fine, repeats, tone, its width, wobble, smear; the reverb's size, decay, tone, damp in its
  * mode), gliding as a send's; its wet mixed with the dry, 32 frames at a time */
+#define DL_WET 1.26f                             /* a track's delay's echoes made up (+2 dB: as loud as the dry on a
+                                                  * held sound at its defaults) */
+#define RVI_WET 1.12f                            /* its reverb's (+1 dB) */
+#define CHO_WET 1.19f                            /* its chorus's (+1.5 dB) */
 #define BIG_GLIDE 0.07f                          /* (fx.c's GLIDE: a block's share, ~10 ms) */
 static __attribute__((noinline)) void big_run(int ef, efx_ins_t *st, int16_t *mem, const float *kn, const uint8_t *xt,
                                               int mix, float bpm, float *bl, float *br, uint32_t n)
@@ -1709,7 +1733,7 @@ static __attribute__((noinline)) void big_run(int ef, efx_ins_t *st, int16_t *me
     int16_t *ln = mem + (ef == EF_DELAY ? EFX_BIG_DN : EFX_BIG_N);
     const int dl = ef == EF_DELAY, mode = dl || xt[0] >= NRV ? RV_PLATE : xt[0];
     const uint8_t k[4] = {(uint8_t)kn[0], dl ? xt[0] : (uint8_t)kn[1], (uint8_t)kn[dl ? 1 : 2], dl ? (uint8_t)kn[2] : xt[1]};
-    const float mx = (float)mix * (1.0f / 127.0f);
+    const float mx = (float)mix * (1.0f / 127.0f), mu = mix_up(mx), wu = dl ? DL_WET : RVI_WET;
     float shm = 0.0f;
     efx_nums(g->pt, &shm, ef, mode, k, bpm, dl ? xt[2] : 0, dl ? xt[3] : 0);
     if (dl)
@@ -1749,8 +1773,8 @@ static __attribute__((noinline)) void big_run(int ef, efx_ins_t *st, int16_t *me
         else
             do_spu(&g->u.r, g->pc, x, ol, orr, m, any);
         for (i = 0; i < m; i++) {
-            bl[j + i] += mx * (ol[i] - bl[j + i]);
-            br[j + i] += mx * (orr[i] - br[j + i]);
+            bl[j + i] = mu * (bl[j + i] + mx * (wu * ol[i] - bl[j + i]));
+            br[j + i] = mu * (br[j + i] + mx * (wu * orr[i] - br[j + i]));
         }
     }
 }
@@ -1777,12 +1801,14 @@ static __attribute__((noinline)) void ins_one(int ef, efx_ins_t *st, float *php,
     switch (ef) {
     case EF_TREMOLO: {
         const float d = k1 * 0.5f, pn = k2 * 0.5f, dph = rate * INV_SR;
-        float gl = 1.0f - d - d * efx_sin(ph), gr = 1.0f - d - d * efx_sin(ph + pn);
+        const float mu = fm_rsqrtf((1.0f - d) * (1.0f - d) + 0.5f * d * d), e0 = (1.0f - d) * mu, e1 = d * mu;   /* (its
+                                                  * make-up: the swing as loud as the dry on average, its power) */
+        float gl = e0 - e1 * efx_sin(ph), gr = e0 - e1 * efx_sin(ph + pn);
         if (z[2] != 0.0f && (fm_fabsf(gl - z[0]) > 1e-4f || fm_fabsf(gr - z[1]) > 1e-4f))
             gl = z[0], gr = z[1];                /* (its depth or pan turned: on from where its gains were, z[0..1]) */
         for (uint32_t j = 0; j < n; j += 16) {
             uint32_t m = n - j < 16u ? n - j : 16u;
-            float ph2 = ph + dph * (float)m, gl2 = 1.0f - d - d * efx_sin(ph2), gr2 = 1.0f - d - d * efx_sin(ph2 + pn);
+            float ph2 = ph + dph * (float)m, gl2 = e0 - e1 * efx_sin(ph2), gr2 = e0 - e1 * efx_sin(ph2 + pn);
             float sl = (gl2 - gl) / (float)m, sr = (gr2 - gr) / (float)m;
             for (uint32_t i = j; i < j + m; i++) {
                 bl[i] *= gl;
@@ -1810,7 +1836,7 @@ static __attribute__((noinline)) void ins_one(int ef, efx_ins_t *st, float *php,
         break;
     }
     case EF_UNIVIBE: {                           /* z[0..3] the left's stages, z[4..7] the right's, z[8] the lamp */
-        const float span = k1 * 3.2f, wet = 0.5f + 0.5f * k2, dph = rate * INV_SR;
+        const float span = k1 * 3.2f, wet = 0.5f + 0.5f * k2, dph = rate * INV_SR, mu = mix_up(wet);
         const float kl = efx_op_coef(12.0f * 16.0f);  /* (the lamp's lag: about 12 Hz, a step each 16 frames) */
         for (uint32_t j = 0; j < n; j += 16) {
             uint32_t m = n - j < 16u ? n - j : 16u;
@@ -1828,7 +1854,7 @@ static __attribute__((noinline)) void ins_one(int ef, efx_ins_t *st, float *php,
                         zs[st] = v - a[st] * y;
                         v = y;
                     }
-                    x[i] += wet * (v - x[i]);
+                    x[i] = mu * (x[i] + wet * (v - x[i]));
                 }
                 for (int st = 0; st < 4; st++)
                     zs[st] = fm_flush(zs[st]);
@@ -1841,12 +1867,13 @@ static __attribute__((noinline)) void ins_one(int ef, efx_ins_t *st, float *php,
     case EF_RAT: {                               /* z[4c..4c+3]: the input high-pass's low, the op-amp's, the last input
                                                   * (the 2x step), the filter */
         const float g = 1.0f + 2000.0f * k0 * k0 * k0, chp = efx_op_coef(300.0f), cg = efx_op_coef(fm_minf(1.0e6f / g, 18000.0f));
-        const float ct = efx_op_coef(20000.0f * in_exp2(-5.3f * k1)), lv = k2 * k2 * 1.5f;   /* (level 80: about as loud
-                                                  * as the track dry) */
+        const float ct = efx_op_coef(20000.0f * in_exp2(-5.3f * k1)), lv = kn[2] * kn[2] * (1.0f / (RAT_LV0 * RAT_LV0));
+        float ei = 0.0f, eo = 0.0f, g0, g1, gs;
         for (int c = 0; c < 2; c++) {
             float *x = c ? br : bl, *zs = z + 4 * c, lo = zs[0], op = zs[1], pv = zs[2], tn = zs[3];
             for (uint32_t i = 0; i < n; i++) {
                 float u0, u1, y;
+                ei += x[i] * x[i];
                 lo += chp * (x[i] - lo);
                 op += cg * (x[i] + g * (x[i] - lo) - op);
                 u0 = 0.5f * (pv + op);           /* (twice the rate: the step between, then the sample) */
@@ -1857,9 +1884,26 @@ static __attribute__((noinline)) void ins_one(int ef, efx_ins_t *st, float *php,
                     y = 0.5f * (u0 * s0 * fm_rsqrtf(s0) + u1 * s1 * fm_rsqrtf(s1));
                 }
                 tn += ct * (y - tn);
-                x[i] = tn * lv;
+                eo += tn * tn;
+                x[i] = tn;
             }
             zs[0] = fm_flush(lo), zs[1] = fm_flush(op), zs[2] = fm_flush(pv), zs[3] = fm_flush(tn);
+        }
+        {                                        /* its make-up: the input's power over the clipped output's (each
+                                                  * smoothed, RAT_SMOOTH), so at level 80 it sounds as loud as the track
+                                                  * dry, at any distortion and any level in; ramped across the call */
+            const float a = (float)n / ((float)n + RAT_SMOOTH);
+            z[8] = fm_flush(z[8] + (ei - z[8]) * a);
+            z[9] = fm_flush(z[9] + (eo - z[9]) * a);
+            g1 = lv * fm_minf(fm_sqrtf((z[8] + 1e-12f) / (z[9] + 1e-12f)), RAT_MAX);
+            g0 = z[10] > 0.0f ? z[10] : g1;
+            gs = (g1 - g0) / (float)n;
+            for (uint32_t i = 0; i < n; i++) {
+                g0 += gs;
+                bl[i] *= g0;
+                br[i] *= g0;
+            }
+            z[10] = g1 > 0.0f ? g1 : 1e-9f;
         }
         break;
     }
@@ -1893,6 +1937,7 @@ static __attribute__((noinline)) void ins_one(int ef, efx_ins_t *st, float *php,
                                                   * extra (width); mixed. The chorus's wet whole (a send's loses its
                                                   * lows: at full mix a slot's would be thin) */
         float p[6], x[16], ol[16], orr[16];
+        const float mu = mix_up(mx), wu = ef == EF_CHORUS ? CHO_WET : 1.0f;
         if (!mem)
             break;
         ins_nums(p, ef, kn, xt);
@@ -1907,8 +1952,8 @@ static __attribute__((noinline)) void ins_one(int ef, efx_ins_t *st, float *php,
             else
                 do_lofi(&st->lofi, mem, EFX_INS_N, p, p, x, ol, orr, m);
             for (i = 0; i < m; i++) {
-                bl[j + i] += mx * (ol[i] - bl[j + i]);
-                br[j + i] += mx * (orr[i] - br[j + i]);
+                bl[j + i] = mu * (bl[j + i] + mx * (wu * ol[i] - bl[j + i]));
+                br[j + i] = mu * (br[j + i] + mx * (wu * orr[i] - br[j + i]));
             }
         }
         break;
@@ -1921,7 +1966,7 @@ static __attribute__((noinline)) void ins_one(int ef, efx_ins_t *st, float *php,
         int16_t *ln = mem;
         const float dph = JR[jm] * INV_SR;
         const float d0 = JD0[jm] * 0.001f * EFX_SR, dm = JDM[jm] * 0.001f * EFX_SR;
-        const float wet = mx, kt = efx_op_coef(3000.0f + 9000.0f * k1);
+        const float wet = mx, kt = efx_op_coef(3000.0f + 9000.0f * k1), mu = mix_up(mx);
         float tl = z[1], tr = z[2];
         int w = (int)z[0];
         if (!ln)
@@ -1953,8 +1998,8 @@ static __attribute__((noinline)) void ins_one(int ef, efx_ins_t *st, float *php,
                 }
                 tl += kt * (yl - tl);            /* (the bucket brigade's darkening) */
                 tr += kt * (yr - tr);
-                bl[i] += wet * (tl - bl[i]);
-                br[i] += wet * (tr - br[i]);
+                bl[i] = mu * (bl[i] + wet * (tl - bl[i]));
+                br[i] = mu * (br[i] + wet * (tr - br[i]));
                 w = (w + 1) & (EFX_INS_N - 1);
             }
             z[3] = dl, z[4] = dr;
@@ -1980,7 +2025,7 @@ static __attribute__((noinline)) void ins_one(int ef, efx_ins_t *st, float *php,
                                                   * memory's first */
         int16_t *m = mem;
         const float rt = efx_rumble_secs(kn[0]), fc = 80.0f * in_exp2(k1 * 2.0f), ko = efx_op_coef(fc), kt = efx_op_coef(3.0f * fc);
-        const float kh = efx_op_coef(120.0f), ka = efx_op_coef(300.0f), wet = mx * 1.5f;
+        const float kh = efx_op_coef(120.0f), ka = efx_op_coef(300.0f), wet = mx * RB_WET;
         const float rel = 1.0f - efx_op_coef(1.0f / 0.03f), prel = 1.0f - efx_op_coef(1.0f / 3.0f);
         const float dbt = INV_SR * fm_maxf(bpm, 20.0f) * (1.0f / 60.0f);
         float g[4], sum = z[0], h1 = z[2], h2 = z[3], a = z[4], b = z[5], y0 = z[6], y1 = z[7];
@@ -2190,6 +2235,8 @@ static __attribute__((noinline)) void slot_moving(efx_slot_t *sl, float bpm, con
                                                   float *br, uint32_t n)
 {
     const int ef = sl->ef, dip = sl->fo;
+    const int up = ef == EF_CHORUS || ef == EF_LOFI || ef == EF_JUNO || ef == EF_DELAY || ef == EF_REVERB;   /* (their
+                                                  * own mix made up: mix_up) */
     for (int c = 0; c < 3; c++)                  /* (a list's knob at once: juno's mode glides its own way) */
         if (EFX[ef].kind[c] == EK_LIST)
             sl->g[c] = sl->k[c];
@@ -2245,11 +2292,20 @@ static __attribute__((noinline)) void slot_moving(efx_slot_t *sl, float bpm, con
                    bl + j, br + j, m);
         w = m0 * (1.0f / 127.0f);
         dw = (m1 - m0) * (1.0f / 127.0f) / (float)m;
-        for (uint32_t i = 0; i < m; i++) {
-            w += dw;
-            bl[j + i] = dl[i] + w * (bl[j + i] - dl[i]);
-            br[j + i] = dr[i] + w * (br[j + i] - dr[i]);
-        }
+        if (up) {                                /* (made up as at rest: mix_up, ramped across the piece) */
+            float u = mix_up(w), du = (mix_up(m1 * (1.0f / 127.0f)) - u) / (float)m;
+            for (uint32_t i = 0; i < m; i++) {
+                w += dw;
+                u += du;
+                bl[j + i] = u * (dl[i] + w * (bl[j + i] - dl[i]));
+                br[j + i] = u * (dr[i] + w * (br[j + i] - dr[i]));
+            }
+        } else
+            for (uint32_t i = 0; i < m; i++) {
+                w += dw;
+                bl[j + i] = dl[i] + w * (bl[j + i] - dl[i]);
+                br[j + i] = dr[i] + w * (br[j + i] - dr[i]);
+            }
         sl->gm = m1;
     }
 }
