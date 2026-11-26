@@ -415,6 +415,7 @@ static void steps_print(int t, int p)
 static int isnum(const char *s);
 static int ieq(const char *a, const char *b);
 static int param_of(const char *s);
+static void mod_target(const char *tw, const char *pw, int *tgt, int *param);
 static const char *const MN[NMS] = {"lo", "mid", "hi", "clip", "color", "camount", "ctone", "cmix", "perc", "mel",
                                     "comp", "pump", "pumpby", "release", "accent", "level", "ck3", "cx1", "cx2",
                                     "cx3", "cx4", "dfilt", "dres", "mfilt", "mres"};   /* (color .. cmix, ck3 .. cx4:
@@ -458,6 +459,25 @@ int app_expect(const char *what, int *got)
         if (sc < 0 || sc >= NSCENE || t < 0 || t >= NSEQT)
             return 0;
         *got = pats.scene[sc].pat[t] + 1;
+    } else if (!strcmp(what, "modpat"))             /* the MOD pattern playing, from 1 (0 none) */
+        *got = seq.mod_pat < NPATT ? seq.mod_pat + 1 : 0;
+    else if (!strcmp(what, "modpos"))               /* its step, from 1 */
+        *got = seq.mod_pos + 1;
+    else if (!strncmp(what, "smod", 4) && isnum(what + 4))   /* smodS: scene S's MOD pattern (0 none) */
+        *got = pats.scene_mod[(atoi(what + 4) - 1) & (NSCENE - 1)];
+    else if (!strncmp(what, "live", 4) && strchr(what, '.')) {   /* liveT.P: a lock's (or a MOD lane's) value on the
+                                                     * parameter now, -1 none */
+        int t = atoi(what + 4) - 1, p = param_of(strchr(what, '.') + 1);
+        if (t < 0 || t >= NALLTRK || p < 0 || p >= NTP)
+            return 0;
+        *got = engine_live(t, p);
+    } else if (!strncmp(what, "mlive.", 6)) {       /* mlive.NAME: a MOD lane's value on a master value now, -1 none */
+        int k;
+        for (k = 0; k < NMS && !ieq(what + 6, MN[k]); k++)
+            ;
+        if (k == NMS)
+            return 0;
+        *got = host_mst_live[k];
     } else if (!strcmp(what, "songlen"))            /* the song's slots */
         *got = pats.song.len;
     else if (!strncmp(what, "slotsc", 6))          /* slotscN: song slot N's scene, both from 1 */
@@ -725,6 +745,26 @@ static int expect_more(const char *what, const char *a, const char *b, const cha
             host_fails++;
         } else
             printf("  ok lock %s %s %s %s: %d\n", t, pt, st, pn, got);
+    } else if (!strcmp(what, "modval")) {          /* expect modval PAT TARGET PARAM S V: a MOD lane's value on a step
+                                                     * (-1: no lane; 255 none) */
+        char pt[16] = {0}, tw[16] = {0}, pn[24] = {0}, st[16] = {0}, v[16] = {0};
+        int tg, pm, ln, got;
+        sscanf(plat_host_line, "%*s %*s %15s %15s %23s %15s %15s", pt, tw, pn, st, v);
+        mod_target(tw, pn, &tg, &pm);
+        ln = mod_lane_find(pats.lane, atoi(pt) - 1, tg, pm);
+        got = ln >= 0 && atoi(st) >= 1 && atoi(st) <= NSTEP ? pats.lane[ln].val[atoi(st) - 1] : -1;
+        if (got != atoi(v)) {
+            printf("FAIL expect modval %s %s %s %s = %s, got %d\n", pt, tw, pn, st, v, got);
+            host_fails++;
+        } else
+            printf("  ok modval %s %s %s %s: %d\n", pt, tw, pn, st, got);
+    } else if (!strcmp(what, "modlanes")) {        /* expect modlanes PAT N: the lanes of MOD pattern PAT */
+        uint8_t ix[NMODL];
+        host_fails += expect_val(what, mod_lanes(pats.lane, (atoi(a) - 1) & (NPATT - 1), ix), b);
+    } else if (!strcmp(what, "modglide")) {        /* expect modglide PAT I V: lane I's (from 1) glide (1) or step (0) */
+        uint8_t ix[NMODL];
+        int nl = mod_lanes(pats.lane, (atoi(a) - 1) & (NPATT - 1), ix), i = atoi(b) - 1;
+        host_fails += expect_val(what, i >= 0 && i < nl ? lane_glide(&pats.lane[ix[i]]) : -1, c);
     } else if (!strcmp(what, "weave")) {           /* expect weave PAT S MASK LEN: the WEAVE track's step */
         char pt[16] = {0}, st[16] = {0}, m[16] = {0}, l[16] = {0};
         const wv_step_t *w;
@@ -785,7 +825,12 @@ static int expect_more(const char *what, const char *a, const char *b, const cha
  *   nudge T PAT S TICKS          -12..12 (24 a step)
  *   lock T PAT S PARAM VALUE     a parameter lock on the step (PARAM / VALUE as knob)
  *   scenedef N P1 .. P10         scene N's pattern for tracks 1-8, COND, THROW (1-based; 0 = pattern 1); used
- *   scenemute N MASK             scene N's mutes: a character a track 1-8, COND, THROW: x muted, . not
+ *   scenemute N MASK             scene N's mutes: a character a track 1-8, COND, THROW (an 11th: MOD): x muted, . not
+ *   scenemod N PAT|-             scene N's MOD pattern (1..8), or none
+ *   modpat PAT LEN [SCALE]       a MOD pattern's length (1..64 steps) and scale (sixteenths a step: 1 2 3 4 5 6 8 16)
+ *   modlane PAT TARGET PARAM glide|step   a lane on MOD pattern PAT: TARGET a track as knob's (1..12: T1-T8, COND,
+ *                                THROW, FX I, FX II) with PARAM as knob's, or mst with a master value (mst's names)
+ *   modval PAT TARGET PARAM S V [S V ...]   the lane's values: step S (1..64) at V (as knob's or mst's values; - none)
  *   song S:R [S:R ...]           the song: scene S (1-based) for R bars (16 sixteenths each)
  *   songloop 0|1
  *   mst NAME VALUE               a master knob (lo mid hi clip, perc mel comp pump), Master FX's slot (color: the
@@ -1158,6 +1203,26 @@ static void mst_override(void)                      /* LOOM_MSTSET: knobs held w
     }
 }
 
+/* a MOD lane's target from a script's words (modlane, modval, expect modval): mst NAME, or a track and a parameter */
+static void mod_target(const char *tw, const char *pw, int *tgt, int *param)
+{
+    if (ieq(tw, "mst")) {
+        int k;
+        for (k = 0; k < NMS && !ieq(pw, MN[k]); k++)
+            ;
+        if (k == NMS)
+            host_die("no master value", pw);
+        *tgt = MODT_MST;
+        *param = k;
+        return;
+    }
+    *tgt = atoi(tw) - 1;
+    if (*tgt < 0 || *tgt >= NALLTRK)
+        host_die("no track", tw);
+    *param = param_of(pw);
+    if (*param < 0 || *param >= NTP)
+        host_die("no parameter", pw);
+}
 static int song_cmd(const char *cmd)
 {
     char buf[512], *w[80];
@@ -1430,10 +1495,52 @@ static int song_cmd(const char *cmd)
         uint16_t m = 0;
         if (sc < 0 || sc >= NSCENE || n < 3)
             host_die("scenemute N MASK", "");
-        for (t = 0; t < NSEQT && w[2][t]; t++)
+        for (t = 0; t <= MOD_BIT && w[2][t]; t++)
             if (w[2][t] == 'x')
                 m |= (uint16_t)(1u << t);
         pats.scene[sc].mute = m;
+    } else if (!strcmp(cmd, "scenemod")) {          /* scenemod N PAT|- */
+        int sc = atoi(w[1]) - 1, pt = n > 2 && strcmp(w[2], "-") ? atoi(w[2]) : 0;
+        if (sc < 0 || sc >= NSCENE || n < 3 || pt < 0 || pt > NPATT)
+            host_die("scenemod N PAT|-", "");
+        pats.scene_mod[sc] = (uint8_t)pt;
+    } else if (!strcmp(cmd, "modpat")) {            /* modpat PAT LEN [SCALE] */
+        static const char *const SC[NTS] = {"h", "1", "2", "3", "4", "5", "6", "8", "16"};
+        int pt = atoi(w[1]) - 1;
+        if (n < 3 || pt < 0 || pt >= NPATT || atoi(w[2]) < 1 || atoi(w[2]) > NSTEP)
+            host_die("modpat PAT LEN [SCALE]", "");
+        pats.mod[pt].len = (uint8_t)atoi(w[2]);
+        if (n > 3) {
+            for (k = TS_1; k < NTS && strcmp(w[3], SC[k]); k++)
+                ;
+            if (k == NTS)
+                host_die("no MOD scale (1 2 3 4 5 6 8 16)", w[3]);
+            pats.mod[pt].scale = (uint8_t)k;
+        }
+    } else if (!strcmp(cmd, "modlane")) {           /* modlane PAT TARGET PARAM glide|step */
+        int pt = atoi(w[1]) - 1, tg, pm, l, gl;
+        if (n < 5 || pt < 0 || pt >= NPATT || (strcmp(w[4], "glide") && strcmp(w[4], "step")))
+            host_die("modlane PAT TARGET PARAM glide|step", "");
+        mod_target(w[2], w[3], &tg, &pm);
+        gl = !strcmp(w[4], "glide");
+        l = mod_lane_add(pats.lane, pt, tg, pm, gl);
+        if (l < 0)
+            host_die(l == -2 ? "eight lanes a MOD pattern" : "the lanes are full", "");
+        pats.lane[l].pat = (uint8_t)(pt | (gl ? LANE_GLIDE : 0u));
+    } else if (!strcmp(cmd, "modval")) {            /* modval PAT TARGET PARAM S V [S V ...] */
+        int pt = atoi(w[1]) - 1, tg, pm, l;
+        if (n < 6 || pt < 0 || pt >= NPATT)
+            host_die("modval PAT TARGET PARAM S V ..", "");
+        mod_target(w[2], w[3], &tg, &pm);
+        if ((l = mod_lane_find(pats.lane, pt, tg, pm)) < 0)
+            host_die("no such MOD lane (modlane first)", plat_host_line);
+        for (int i = 4; i + 1 < n; i += 2) {
+            int st = atoi(w[i]) - 1;
+            if (st < 0 || st >= NSTEP)
+                host_die("no step", w[i]);
+            pats.lane[l].val[st] = !strcmp(w[i + 1], "-") ? LOCK_NONE
+                                 : (uint8_t)(tg == MODT_MST ? mst_value(pm, w[i + 1]) : value_of(tg, pm, w[i + 1]));
+        }
     } else if (!strcmp(cmd, "song")) {              /* song S:R ... */
         pats.song.len = 0;
         for (int i = 1; i < n && pats.song.len < NSONG; i++) {

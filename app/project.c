@@ -34,8 +34,10 @@ uint8_t proj_slot;
 #define STREAM_HDR 16u                  /* in the first object: format, raw length, raw CRC, packed length */
 #define STREAM_CAP ((uint32_t)NSTREAM * (PLAT_STORE_MAX - 4u) - (STREAM_HDR - 4u))
 #define RAW_LEN sizeof(patterns_t)
-/* formats 12..17: the store without the kits' hit settings (pats.hit, last: none then) */
-#define RAW_LEN17 (sizeof(patterns_t) - sizeof pats.hit)
+/* formats 18..31: the store without the MOD track (pats.mod, pats.scene_mod, last: an empty MOD track then) */
+#define RAW_LEN31 ((uint32_t)offsetof(patterns_t, mod))
+/* formats 12..17: without the kits' hit settings too (pats.hit, before them: none then) */
+#define RAW_LEN17 (RAW_LEN31 - sizeof pats.hit)
 /* format 10 (0.5-beta): the same store but 16 scenes of scene10_t, the song after them */
 #define RAW_LEN10 (RAW_LEN17 - sizeof pats.scene + NSCENE10 * sizeof(scene10_t))
 /* format 11: 32 scenes of scene11_t (one kit mute mask for every kit) */
@@ -49,7 +51,10 @@ static uint8_t migrated = 0xFF;                   /* the slot loaded from an old
                                                    * none): its next touch saves it whole, never its settings alone
                                                    * beside the old format's patterns */
 #define FORMAT_OK(f) ((f) >= 10u && (f) <= PROJ_FORMAT)   /* the formats a slot loads (migrate_old, before 13 glfo_defaults) */
-typedef char raw_fits[(RAW_LEN < 0x100000u) ? 1 : -1];   /* (lz.c packs up to 16 MB; the header's length is a u32) */
+typedef char raw_fits[(RAW_LEN < 0x100000u) ? 1 : -1];
+typedef char mod_last[(RAW_LEN31 + sizeof pats.mod + sizeof pats.scene_mod == RAW_LEN &&
+                       offsetof(patterns_t, hit) + sizeof pats.hit == RAW_LEN31) ? 1 : -1];   /* (the MOD track after the
+                                                   * hits, nothing between: an older store is its prefix) */   /* (lz.c packs up to 16 MB; the header's length is a u32) */
 /* the settings object (format 15 on): the settings before the tracks as they are (SET_HDR), the packed tracks' length,
  * then the tracks packed (lz.c: a synth track's kit keys and an aux track's sound are mostly defaults). Formats 10..14
  * stored them raw, each track's par[] TP_DRUMX0 long (the keys' knobs 5..8 came in 15): SET_OLD bytes in all */
@@ -571,6 +576,19 @@ static void patterns_clamp(void)
         }
     for (k = 0; k < NLANE; k++) {
         lane_t *l = &pats.lane[k];
+        if (l->used && lane_is_mod(l)) {             /* a MOD lane: its target a track's parameter or the master's */
+            int tg = lane_mod_tgt(l), st;
+            if ((tg == MODT_MST ? l->param >= NMS : l->param >= NTP) || (l->pat & ~(LANE_GLIDE | 7u)))
+                l->used = 0;
+            else
+                for (st = 0; st < NSTEP; st++) {
+                    int hi = tg == MODT_MST ? master_max(l->param) : tp_info_par(l->param, proj.trk[tg].par)
+                                                                   ? tp_info_par(l->param, proj.trk[tg].par)->hi : 127;
+                    if (l->val[st] != LOCK_NONE && l->val[st] > hi)
+                        l->val[st] = (uint8_t)hi;
+                }
+            continue;
+        }
         if (l->used && (l->trk >= NALLTRK || l->pat >= NPATT || (l->param >= NTP && !lane_is_note(l->param))))
             l->used = 0;                  /* (a drum step's tune lane is no parameter: kept; it was dropped before 10) */
         if (l->used && lane_is_hit(l->param))                   /* a kit hit's settings: an index into pats.hit */
@@ -605,6 +623,15 @@ static void patterns_clamp(void)
         if (sc->brain_key >= 12)
             sc->brain_key = 0;
     }
+    for (k = 0; k < NPATT; k++) {                     /* the MOD track: 1..64 steps, a sixteenth .. a bar each */
+        if (pats.mod[k].len < 1 || pats.mod[k].len > NSTEP)
+            pats.mod[k].len = 16;
+        if (pats.mod[k].scale < TS_1 || pats.mod[k].scale >= NTS)
+            pats.mod[k].scale = TS_1;
+    }
+    for (k = 0; k < NSCENE; k++)
+        if (pats.scene_mod[k] > NPATT)
+            pats.scene_mod[k] = 0;
     if (pats.song.len > NSONG)
         pats.song.len = NSONG;
     for (k = 0; k < NSONG; k++) {
@@ -830,7 +857,7 @@ static int load_stream(int n, uint32_t prev)
     uint32_t crc = get32(io_buf + 8), plen = get32(io_buf + 12), len = get32(io_buf + 4);
     st_in_t s = {0, n, STREAM_HDR, plen, prev};
     lz_src_t src = {st_get, &s};
-    if (n < (int)STREAM_HDR || (len != RAW_LEN && len != RAW_LEN17 && len != RAW_LEN10 && len != RAW_LEN11) ||
+    if (n < (int)STREAM_HDR || (len != RAW_LEN && len != RAW_LEN31 && len != RAW_LEN17 && len != RAW_LEN10 && len != RAW_LEN11) ||
         plen > STREAM_CAP)
         return -1;                                /* (its own length says its format: settings saved alone, as
                                                    * this format's, before a power cut beside format 10's patterns) */
@@ -838,8 +865,12 @@ static int load_stream(int n, uint32_t prev)
     stored_hash[stream_obj[0]] = hash_of(io_buf, (uint32_t)n);
     if (lz_decompress(&src, raw, len) || crc32_of(raw, len) != crc)
         return -1;
-    if (len != RAW_LEN)                           /* (an older store: no hit settings) */
+    if (len != RAW_LEN)                           /* (an older store: no MOD track) */
+        modpats_init(&pats);
+    if (len != RAW_LEN && len != RAW_LEN31)       /* (an older one: no hit settings) */
         memset(pats.hit, 0, sizeof pats.hit);
+    if (len == RAW_LEN31 && load_format > 31u)
+        load_format = 31u;
     if (len == RAW_LEN17 && load_format > 17u)
         load_format = 17u;
     else if (len == RAW_LEN10 || len == RAW_LEN11) {

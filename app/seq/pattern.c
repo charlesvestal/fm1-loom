@@ -44,6 +44,43 @@ void patterns_init(patterns_t *P)
     P->scene[0].used = 1;             /* scene 1: pattern 1 on every track (pat[] is already 0) */
     P->song.len = 0;
     P->song.loop = 1;
+    modpats_init(P);
+}
+
+/* ---------------------------------------------------------- the MOD track --- */
+void modpats_init(patterns_t *P)
+{
+    for (int k = 0; k < NPATT; k++) {
+        P->mod[k].len = 16;
+        P->mod[k].scale = TS_1;
+    }
+    zero(P->scene_mod, sizeof P->scene_mod);
+}
+int mod_lanes(const lane_t *L, int pat, uint8_t *out)
+{
+    int n = 0;
+    for (int k = 0; k < NLANE && n < NMODL; k++)
+        if (L[k].used && lane_is_mod(&L[k]) && lane_mod_pat(&L[k]) == pat)
+            out[n++] = (uint8_t)k;
+    return n;
+}
+int mod_lane_find(const lane_t *L, int pat, int tgt, int param)
+{
+    for (int k = 0; k < NLANE; k++)
+        if (L[k].used && lane_is_mod(&L[k]) && lane_mod_pat(&L[k]) == pat && lane_mod_tgt(&L[k]) == tgt &&
+            L[k].param == param)
+            return k;
+    return -1;
+}
+int mod_lane_add(lane_t *L, int pat, int tgt, int param, int glide)
+{
+    uint8_t ix[NMODL];
+    int k = mod_lane_find(L, pat, tgt, param);
+    if (k >= 0)
+        return k;
+    if (mod_lanes(L, pat, ix) >= NMODL)
+        return -2;
+    return lane_alloc(L, (int)LANE_MOD + tgt, pat | (glide ? (int)LANE_GLIDE : 0), param);
 }
 
 /* ----------------------------------------------------------------- lanes --- */

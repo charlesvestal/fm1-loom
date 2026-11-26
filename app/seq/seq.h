@@ -318,6 +318,15 @@ typedef struct {
      * the keys, which happen at the sound's time: what they set counting from now counts from that much earlier */
     volatile uint32_t ahead;
     uint32_t live_lead;
+    /* the MOD track (seq.c mod_*; pattern.h AUX_MOD): the MOD pattern playing (0xFF none), its step, the sixteenths
+     * into it; its lanes (pool indexes) and their targets (trk << 9 | param), and bit i: lane i holds its target (own),
+     * a knob took it until its next value (held); the knobs turned since (mod_hq: their targets, seq_mod_hand); a
+     * restart due at the next sixteenth (a scene, a start); the pool's epoch the lanes were read at; the master's
+     * values (proj.master: where a glide on one starts) */
+    uint8_t mod_pat, mod_pos, mod_six, mod_n, mod_own, mod_held, mod_hn, mod_new;
+    uint8_t mod_lane[NMODL];
+    uint16_t mod_tgt[NMODL], mod_hq[4], mod_epoch;
+    const uint8_t *mst;
 } seq_t;
 
 void seq_init(seq_t *s, patterns_t *P, uint8_t (*par)[NTP_ALL]);
@@ -366,6 +375,19 @@ int punch_group_of(const seq_t *s, int trk);        /* 0 percussive (a drumline 
 uint32_t seq_punch_mask(const seq_t *s, int trk);   /* the 12 PX_* bits in force on track trk now (held keys aimed at
                                                      * it or its group, and the sequenced ones); the engine's per-track
                                                      * view, finer than the two masks the punch sink gets */
+
+/* the MOD track. A lane plays from its first value: at a step with a value a step lane sets it, a glide lane sets it
+ * and ramps to the lane's next value (in this pass) over the steps between; past the last value it holds; before the
+ * first a glide lane ramps there from the value its target has now (a step lane waits). While a lane holds its
+ * target, the pattern's own locks on it wait (they come back when it lets go). A knob turned by hand (the engine's
+ * C_PARAM, C_MASTER: seq_mod_hand, in the interrupt) takes its target back until the lane's next value. A scene
+ * starts its MOD pattern at step 1 (none: the lanes let go, their values staying where they are, as on a mute) */
+void seq_mod_hand(seq_t *s, int trk, int param);   /* (the interrupt) a knob turned: trk MODT_MST for the master's */
+static inline int mod_scale_six(int scale)         /* a MOD step's sixteenths: TS_1 .. TS_16 */
+{
+    static const uint8_t SIX[NTS] = {1, 1, 2, 3, 4, 5, 6, 8, 16};
+    return SIX[scale < NTS ? scale : TS_1];
+}
 
 /* live / step recording (main loop) */
 /* on: 0 off; 1 the keys write steps (quantised) while playing (momentary: on while REC is held); 2 the same,

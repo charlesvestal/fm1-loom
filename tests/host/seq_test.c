@@ -3437,8 +3437,232 @@ static void t_hit_rec(void)                       /* a sound recorded back onto 
     printf("ok %s\n", cur);
 }
 
+
+/* ------------------------------------------------------- the MOD track --- */
+#define BAR (16u * L16)
+static int lock_val(int trk, int param, uint32_t t)   /* the last lock sent to (trk, param) by time t, -1 none */
+{
+    int v = -1;
+    for (int i = 0; i < nev && ev[i].t <= t; i++)
+        if (ev[i].kind == E_LOCK && ev[i].trk == trk && ev[i].a == param)
+            v = ev[i].b;
+    return v;
+}
+static int locks_in(int trk, int param, uint32_t from, uint32_t to)   /* locks sent to (trk, param) in [from, to) */
+{
+    int n = 0;
+    for (int i = 0; i < nev; i++)
+        n += ev[i].kind == E_LOCK && ev[i].trk == trk && ev[i].a == param && ev[i].t >= from && ev[i].t < to;
+    return n;
+}
+/* MOD pattern pat: len steps of scale; scene sc plays it */
+static int mod_lane(int pat, int len, int scale, int sc, int tgt, int param, int glide)
+{
+    int k;
+    P.mod[pat].len = (uint8_t)len;
+    P.mod[pat].scale = (uint8_t)scale;
+    P.scene_mod[sc] = (uint8_t)(pat + 1);
+    k = mod_lane_add(P.lane, pat, tgt, param, glide);
+    if (k < 0)
+        fail("mod_lane_add");
+    return k;
+}
+static void t_mod_glide(void)
+{
+    int k;
+    cur = "mod glide";
+    reset();
+    par[0][TP_CUT] = 64;
+    /* four steps of a bar each: 20 on the first, 100 on the third, a glide */
+    k = mod_lane(0, 4, TS_16, 0, 0, TP_CUT, 1);
+    P.lane[k].val[0] = 20;
+    P.lane[k].val[2] = 100;
+    start();
+    run(5 * BAR + 100);
+    CHECK(lock_val(0, TP_CUT, 0) == 20);
+    CHECK(abs(lock_val(0, TP_CUT, BAR / 2) - 40) <= 1);   /* a quarter of the way: 20 + 80 / 4 */
+    CHECK(abs(lock_val(0, TP_CUT, BAR) - 60) <= 1);       /* the bar between: half way */
+    CHECK(abs(lock_val(0, TP_CUT, 3 * BAR / 2) - 80) <= 1);
+    CHECK(lock_val(0, TP_CUT, 2 * BAR + 100) == 100);
+    CHECK(locks_in(0, TP_CUT, 2 * BAR + 100, 4 * BAR) == 0);   /* past the last value: it holds */
+    CHECK(lock_val(0, TP_CUT, 4 * BAR + 100) == 20);       /* the next pass */
+    /* every value of the ramp on the way, one at a time (a glide, not a jump) */
+    {
+        int last = 20, ok = 1;
+        for (int i = 0; i < nev && ev[i].t < 2 * BAR + 10; i++)
+            if (ev[i].kind == E_LOCK && ev[i].trk == 0 && ev[i].a == TP_CUT) {
+                ok &= ev[i].b >= last && ev[i].b <= last + 1;
+                last = ev[i].b;
+            }
+        CHECK(ok && last == 100);
+    }
+    printf("ok %s\n", cur);
+}
+static void t_mod_step(void)
+{
+    int k;
+    cur = "mod step";
+    reset();
+    k = mod_lane(0, 4, TS_4, 0, 0, TP_RES, 0);
+    P.lane[k].val[1] = 90;
+    P.lane[k].val[3] = 30;
+    start();
+    run(16 * L16 + 100);
+    CHECK(locks_in(0, TP_RES, 0, 4 * L16) == 0);          /* before the first value: nothing */
+    CHECK(lock_val(0, TP_RES, 4 * L16 + 100) == 90);
+    CHECK(locks_in(0, TP_RES, 4 * L16 + 100, 12 * L16) == 0);   /* a step lane jumps, then holds */
+    CHECK(lock_val(0, TP_RES, 12 * L16 + 100) == 30);
+    CHECK(locks_in(0, TP_RES, 12 * L16 + 100, 16 * L16 + 100) == 0);   /* the next pass: held till step 2 */
+    printf("ok %s\n", cur);
+}
+static void t_mod_before_first(void)
+{
+    int k;
+    cur = "mod before first";
+    reset();
+    par[0][TP_CUT] = 40;
+    k = mod_lane(0, 4, TS_16, 0, 0, TP_CUT, 1);           /* a glide whose first value is on step 3: from the knob */
+    P.lane[k].val[2] = 100;
+    start();
+    run(3 * BAR);
+    CHECK(lock_val(0, TP_CUT, 10) == 40);
+    CHECK(abs(lock_val(0, TP_CUT, BAR) - 70) <= 1);
+    CHECK(lock_val(0, TP_CUT, 2 * BAR + 100) == 100);
+    printf("ok %s\n", cur);
+}
+static void t_mod_hand(void)
+{
+    int k;
+    cur = "mod hand";
+    reset();
+    k = mod_lane(0, 4, TS_16, 0, 0, TP_CUT, 1);
+    P.lane[k].val[0] = 20;
+    P.lane[k].val[2] = 100;
+    start();
+    run(BAR / 2);
+    seq_mod_hand(&S, 0, TP_CUT);                          /* the knob turned: the knob's value, at once */
+    run(10);
+    CHECK(lock_val(0, TP_CUT, BAR / 2 + 100) == LOCK_NONE);
+    CHECK(locks_in(0, TP_CUT, BAR / 2 + 100, 2 * BAR) == 0);   /* the hand has it until the next value */
+    run(2 * BAR);
+    CHECK(lock_val(0, TP_CUT, 2 * BAR + 100) == 100);
+    printf("ok %s\n", cur);
+}
+static void t_mod_over_lock(void)
+{
+    int k, l;
+    cur = "mod over lock";
+    reset();
+    for (int i = 0; i < 16; i++)
+        note(0, i, 60, 100);
+    l = lane_alloc(P.lane, 0, 0, TP_CUT);                  /* the pattern's own lock on every step: 10 */
+    for (int i = 0; i < 16; i++)
+        P.lane[l].val[i] = 10;
+    k = mod_lane(0, 4, TS_4, 0, 0, TP_CUT, 0);
+    P.lane[k].val[0] = 70;
+    start();
+    run(8 * L16);
+    CHECK(lock_val(0, TP_CUT, 8 * L16) == 70);            /* the MOD lane wins over the lock */
+    CHECK(locks_in(0, TP_CUT, 10, 8 * L16) == 0);
+    S.mute |= 1u << MOD_BIT;                               /* muted: the pattern's lock plays again */
+    run(8 * L16);
+    CHECK(lock_val(0, TP_CUT, 16 * L16) == 10);
+    CHECK(P.lane[l].val[3] == 10);                         /* (the pattern's lane is as it was) */
+    printf("ok %s\n", cur);
+}
+static void t_mod_scene(void)
+{
+    int k, k2;
+    cur = "mod scene";
+    reset();
+    k = mod_lane(0, 4, TS_16, 0, 0, TP_CUT, 0);           /* 10 20 30 40, a bar each, in scenes 1 and 2 */
+    for (int i = 0; i < 4; i++)
+        P.lane[k].val[i] = (uint8_t)(10 * (i + 1));
+    P.scene[1] = P.scene[0];
+    P.scene_mod[1] = 1;
+    k2 = mod_lane(1, 4, TS_16, 2, 1, TP_RES, 0);          /* scene 3: another pattern, another target */
+    P.lane[k2].val[0] = 77;
+    P.scene[2] = P.scene[0];
+    P.song.len = 3;
+    P.song.slot[0].scene = 0, P.song.slot[0].rep = 2;
+    P.song.slot[1].scene = 1, P.song.slot[1].rep = 2;
+    P.song.slot[2].scene = 2, P.song.slot[2].rep = 2;
+    S.song_on = 1;
+    start();
+    run(6 * BAR + 100);
+    CHECK(lock_val(0, TP_CUT, BAR + 100) == 20);
+    CHECK(lock_val(0, TP_CUT, 2 * BAR + 100) == 10);       /* the next slot: its pattern from step 1 */
+    CHECK(lock_val(0, TP_CUT, 3 * BAR + 100) == 20);
+    CHECK(lock_val(1, TP_RES, 4 * BAR + 100) == 77);       /* scene 3's pattern */
+    CHECK(locks_in(0, TP_CUT, 4 * BAR, 6 * BAR - 100) == 0);   /* what it doesn't target stays */
+    CHECK(lock_val(0, TP_CUT, 6 * BAR - 100) == 20);
+    CHECK(lock_val(0, TP_CUT, 6 * BAR + 100) == 10);      /* the song round again: scene 1's from its step 1 */
+    printf("ok %s\n", cur);
+}
+static void t_mod_mute_none(void)
+{
+    int k;
+    cur = "mod mute none";
+    reset();
+    k = mod_lane(0, 4, TS_16, 0, 0, TP_CUT, 1);
+    P.lane[k].val[0] = 20;
+    P.lane[k].val[2] = 100;
+    start();
+    run(BAR);
+    S.mute |= 1u << MOD_BIT;                               /* muted half way up: it freezes there */
+    run(L16);
+    {
+        int v = lock_val(0, TP_CUT, BAR + L16);
+        CHECK(v >= 58 && v <= 62);
+        run_to(4 * BAR - 1000);
+        CHECK(locks_in(0, TP_CUT, BAR + 100, 4 * BAR) == 0);
+    }
+    S.mute &= ~(1u << MOD_BIT);
+    run_to(4 * BAR + 1000);                                /* unmuted: from its next value (the next pass) */
+    CHECK(lock_val(0, TP_CUT, 4 * BAR + 100) == 20);
+    /* "-": a scene with no MOD pattern; the values stay where they were */
+    reset();
+    k = mod_lane(0, 4, TS_16, 0, 0, TP_CUT, 0);
+    P.lane[k].val[0] = 33;
+    P.scene[1] = P.scene[0];
+    P.scene_mod[1] = 0;
+    start();
+    run(BAR);
+    seq_cue_scene(&S, 1, 0);
+    run(3 * BAR);
+    CHECK(lock_val(0, TP_CUT, 3 * BAR) == 33);
+    CHECK(locks_in(0, TP_CUT, 10, 3 * BAR) == 0);
+    stop();                                                /* stopped: the knob's own again */
+    CHECK(lock_val(0, TP_CUT, now) == LOCK_NONE);
+    printf("ok %s\n", cur);
+}
+static void t_mod_master(void)
+{
+    int k;
+    cur = "mod master";
+    reset();
+    k = mod_lane(0, 4, TS_1, 0, MODT_MST, 5, 0);
+    P.lane[k].val[1] = 99;
+    start();
+    run(3 * L16);
+    CHECK(lock_val(MODT_MST, 5, 2 * L16) == 99);
+    CHECK(mod_lane_add(P.lane, 0, MODT_MST, 5, 1) == k);   /* the same target again: the same lane */
+    for (int i = 0; i < NMODL - 1; i++)
+        CHECK(mod_lane_add(P.lane, 0, 1, TP_CUT + i, 0) >= 0);
+    CHECK(mod_lane_add(P.lane, 0, 2, TP_CUT, 0) == -2);   /* eight a pattern */
+    printf("ok %s\n", cur);
+}
+
 int main(void)
 {
+    t_mod_glide();
+    t_mod_step();
+    t_mod_before_first();
+    t_mod_hand();
+    t_mod_over_lock();
+    t_mod_scene();
+    t_mod_mute_none();
+    t_mod_master();
     t_pattern_helpers();
     t_phase();
     t_cue_bar();

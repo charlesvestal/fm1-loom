@@ -1,0 +1,21 @@
+# a format 31 project, from before the MOD track (format 32: the MOD track's patterns and the scenes' MOD column after
+# the store's end, project.c RAW_LEN31): saved by that build, for the migration's test (tests/scenarios/migrate.xy).
+# T2's pattern 1 with notes and a cutoff lock on step 5, a second scene playing pattern 2, a song of both; the master
+# filter's mix at 40 (format 31's last values).
+# Run by a format 31 build (0cb4814): its loom_host tests/fixtures/make_v31.xy
+wait 300
+bpm 121
+pat 2 1 16 1 50 0
+notes 2 1 1 0.5 100 C3
+notes 2 1 5 0.5 100 E3
+lock 2 1 5 cut 30
+pat 2 2 16 1 50 0
+notes 2 2 3 0.5 100 G3
+scenedef 1 1 1 1 1 1 1 1 1 1 1
+scenedef 2 1 2 1 1 1 1 1 1 1 1
+scenemute 2 x.........
+song 1:2 2:2
+mst mfilt 40
+wait 40
+projsave 1 v31_test
+storesave tests/fixtures/store_v31.bin

@@ -85,7 +85,8 @@ COLD = {
                       "lane_pool_free", "step_clear_locks", "pattern_clear_locks", "step_set_notes",
                       "step_toggle_note", "kit_set", "kit_toggle", "kit_add", "pattern_woven", "weave_step",
                       "notes_cross", "step_hit",
-                      "step_has_lock", "step_vel", "kit_first", "lane_pool_get", "lane_find"],   # (the pages', a pool's)   # (the UI's edits, a recording's lanes, a step's weave)
+                      "step_has_lock", "step_vel", "kit_first", "lane_pool_get", "lane_find",
+                      "modpats_init", "mod_lanes", "mod_lane_find", "mod_lane_add"],   # (the pages', a pool's)   # (the UI's edits, a recording's lanes, a step's weave)
     "seq/seq.c": ["fire_notes", "key_in", "seq_init", "bar_end", "do_start", "emit_drum", "rec_key_off",
                   "rec_key_on", "restart", "track_reset", "seq_rec_pos", "deg_to_note", "seq_cue_pattern",
                   "arp_stop", "keys_all_off", "seq_bar_go", "scene_read", "jump_set", "arp_fire", "kit_group",
@@ -102,7 +103,10 @@ COLD = {
                   # (and seq_advance's bookkeeping once a block, most of it a look and out: the keys' queue, the
                   # throws, the players' and FOLLOW's settings, a track's grid, its bend, the locks' ramps)
                   "keys_play", "punch_update", "players_follow_par", "brain_follow_par", "resync", "bend_tick",
-                  "locks_tick"],
+                  "locks_tick",
+                  # (2026-11-26: the MOD track's, a sixteenth's at most: its steps, a scene's lanes, a knob let go)
+                  "mod_tick", "mod_step", "mod_read", "mod_let_go", "mod_hands", "mod_now", "mod_under", "mod_active",
+                  "seq_mod_hand"],
 }
 # the two FX slots' and the master's per-sample code, closed under calls (~18 KB; the 24 KB RAMTEXT region holds
 # .ram_text's ~3 KB and the second core's loop besides)

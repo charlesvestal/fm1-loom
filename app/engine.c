@@ -455,6 +455,7 @@ static void midi_cc_forget(int trk);
 static void apply_param(int trk, int param, int val)       /* ISR: C_PARAM */
 {
     int locked = (lock_on[trk][param >> 3] >> (param & 7)) & 1;
+    seq_mod_hand(&seq, trk, param);                         /* (a MOD lane on it lets go: the hand's now) */
     if (!locked)
         epar[trk][param] = (uint8_t)val;
     if (trk < NTRK && epar[trk][TP_ENGINE] == EG_MIDI && synth_lock_value(SY, trk, param) < 0)
@@ -515,6 +516,13 @@ static void apply_all(int trk)                             /* ISR: C_ALL (a load
 /* the master's PUMP keys while the second core runs the master on a stretch (engine_render: beside the sequencer's
  * next call): held, then given in order once it is done (mst_finish), when the master would have had them anyway */
 static uint8_t mst_pend, mk_n;
+#ifdef PLAT_HOST
+static int16_t host_mst_live[NMS] = {-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+                                     -1, -1, -1, -1, -1};   /* (host.c expect mlive: a MOD lane's master value, -1 none) */
+_Static_assert(NMS == 25, "host_mst_live: a -1 each");
+#endif
+static uint32_t mst_modm;                                 /* the MOD track's master values held meanwhile (bit MS_*) */
+static uint8_t mst_modv[NMS];
 static struct { uint8_t src, vel, kit; } mk_q[32];
 static void mst_finish(void);
 static void eng_master_key(int src, int vel, int kit)
@@ -612,6 +620,21 @@ static void s_lock(void *x, int trk, int param, int val)
 {
     PROF_T(pn);
     (void)x;
+    if (trk == MODT_MST) {                             /* a MOD lane on the master: its value, or the knob's again */
+        if (param >= 0 && param < NMS) {
+            int v = val == LOCK_NONE ? proj.master[param] : val;
+#ifdef PLAT_HOST
+            host_mst_live[param] = (int16_t)(val == LOCK_NONE ? -1 : val);
+#endif
+            if (mst_pend) {                            /* (the second core has the master: when it is done) */
+                mst_modv[param] = (uint8_t)v;
+                mst_modm |= 1u << param;
+            } else
+                master_set(MST, param, v);
+        }
+        PROF_ADD(PR_NOTE, pn);
+        return;
+    }
     if (trk < 0 || trk >= NALLTRK || param < 0 || param >= NTP)
         return;
     if (trk < NTRK && !eng_drum[trk]) {
@@ -982,7 +1005,10 @@ static void drain(void)
         case C_KEYS_OFF: seq_key_all_off(&seq, (int)a); break;
         case C_PUNCH: seq_punch_key(&seq, (int)a, (int)b, v == 0xFFu ? -1 : (int)v); break;
         case C_BRAIN_KEY: seq_brain_key(&seq, (int)a, (int)b); break;
-        case C_MASTER: master_set(MST, (int)a, (int)v); break;
+        case C_MASTER:
+            master_set(MST, (int)a, (int)v);
+            seq_mod_hand(&seq, MODT_MST, (int)a);
+            break;
         case C_PANIC: {
             int t;
             synth_all_off(SY, -1);
@@ -1472,6 +1498,8 @@ static void mst_finish(void)
     for (k = 0; k < mk_n; k++)                            /* the keys held meanwhile, in order */
         master_key(MST, mk_q[k].src, mk_q[k].vel, mk_q[k].kit);
     mk_n = 0;
+    for (; mst_modm; mst_modm &= mst_modm - 1u)           /* and the MOD track's values */
+        master_set(MST, __builtin_ctz(mst_modm), mst_modv[__builtin_ctz(mst_modm)]);
 }
 static void render_sub(uint32_t n, uint32_t at)
 {
@@ -1925,6 +1953,7 @@ void engine_init(patterns_t *P, uint8_t (*par)[NTP])
     mpl_nb = 0;
     master_init(MST);
     seq_init(&seq, P, par);
+    seq.mst = proj.master;
     seq.groove_type = (uint8_t)(proj.groove < NGROOVE ? proj.groove : GR_SWING);
     seq.brain_link = (uint8_t)(par[AUX_BRAIN][TP_E4] > NTRK ? NTRK : par[AUX_BRAIN][TP_E4]);
     for (t = 0; t < NSEQT; t++)

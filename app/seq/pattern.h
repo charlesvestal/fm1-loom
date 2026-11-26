@@ -207,6 +207,28 @@ typedef struct {
 #define NHIT 48
 static inline int hit_plain(const hit_t *h) { return !h->cond && !h->comp && !h->comp2; }
 
+/* the MOD track (format 32): an aux track of automation lanes beside COND and THROW, after WEAVE on the screen. It
+ * is none of NALLTRK (no sound, no par[]): AUX_MOD is its number in proj.trk_sel only, MOD_BIT its mute's bit (the
+ * scene's mute, the sequencer's). Its 8 patterns are a length and a scale each (a step a sixteenth .. a bar: TS_1 ..
+ * TS_16); a scene picks one or none (patterns_t scene_mod: 0 none, "-"; 1..8). Its lanes are the pool's (lane_t): trk
+ * LANE_MOD + the target's track (0..NALLTRK-1, or MODT_MST: the master's values, fx.h MS_*), pat the MOD pattern |
+ * LANE_GLIDE (glide: ramp to the next value; else step), param the target's TP_* (or MS_*), val[] a value a step
+ * (LOCK_NONE none). Up to NMODL lanes a pattern, in the pool's order. seq.c plays them (mod_*) */
+#define AUX_MOD NALLTRK
+#define MOD_BIT NSEQT
+#define LANE_MOD 0x40u
+#define MODT_MST NALLTRK
+#define LANE_GLIDE 0x80u
+#define NMODL 8
+typedef struct {
+    uint8_t len;                      /* steps 1..64 */
+    uint8_t scale;                    /* TS_1 .. TS_16 */
+} modpat_t;
+static inline int lane_is_mod(const lane_t *l) { return l->trk >= LANE_MOD && l->trk <= LANE_MOD + MODT_MST; }
+static inline int lane_mod_tgt(const lane_t *l) { return l->trk - (int)LANE_MOD; }   /* its target's track (MODT_MST) */
+static inline int lane_mod_pat(const lane_t *l) { return l->pat & 7; }
+static inline int lane_glide(const lane_t *l) { return (l->pat & LANE_GLIDE) != 0; }
+
 /* the whole pattern store: the project's (in the pool) */
 typedef struct {
     tpat_t pat[NSEQT][NPATT];
@@ -215,7 +237,15 @@ typedef struct {
     scene_t scene[NSCENE];
     song_t song;
     hit_t hit[NHIT];                  /* the kits' hit settings (format 18 on; an older store: none) */
+    modpat_t mod[NPATT];              /* the MOD track's patterns (format 32 on; an older store: empty, 16 steps) */
+    uint8_t scene_mod[NSCENE];        /* each scene's MOD pattern + 1, 0 none ("-": a new scene's) */
 } patterns_t;
+void modpats_init(patterns_t *P);     /* the MOD track empty: 16 steps a sixteenth, no scene playing one */
+/* a MOD pattern's lanes (up to NMODL, in the pool's order): their indexes into out, the count */
+int mod_lanes(const lane_t *L, int pat, uint8_t *out);
+int mod_lane_find(const lane_t *L, int pat, int tgt, int param);   /* -1 none */
+/* a lane for target (tgt, param) on MOD pattern pat: -1 the pool full, -2 the pattern has NMODL already */
+int mod_lane_add(lane_t *L, int pat, int tgt, int param, int glide);
 
 void pattern_init(tpat_t *p);         /* empty, 16 steps, scale 1, no groove, note length half a step */
 void patterns_init(patterns_t *P);    /* everything empty, scene 1 used with pattern 1 on every track */

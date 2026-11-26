@@ -137,7 +137,9 @@ void loom_lights(uint32_t buttons, uint32_t keys, int glow, uint32_t dim_keys, i
 #define DEBUG_BUILD (APP_VERSION[0] == 'D' && APP_VERSION[1] == 'E' && APP_VERSION[2] == 'V' && \
                      (!APP_VERSION[3] || APP_VERSION[3] == 'T'))   /* DEV, or the load test's DEVTEST */
 #define PROJ_MAGIC 0x384D4F4Cu          /* "LOM8" (was "XXY1": XY-1's projects start fresh) */
-#define PROJ_FORMAT 31u                 /* (10, 0.5-beta's, to 12 load too: project.c migrate_old; older ones do not)
+#define PROJ_FORMAT 32u                 /* (10, 0.5-beta's, to 12 load too: project.c migrate_old; older ones do not)
+                                         * 32: the MOD track (pattern.h AUX_MOD: its patterns and the scenes' MOD
+                                         *     column after the store's end; its lanes the pool's; older: empty);
                                          * 31: the master filter (Master filter: the drums' and the mix's, four
                                          *     values after the slot's; older projects: off, 64 / 0);
                                          * 30: the master color is a slot of the one effects list (its type the

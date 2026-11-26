@@ -563,3 +563,38 @@ expect mst.cx2 5
 expect mst.mfilt 30
 expect mst.dres 77
 expect mst.dfilt 64
+# a format 31 project (tests/fixtures/make_v31.xy), from before the MOD track (format 32): its notes, its lock, its
+# scenes, song and master where they were; the MOD track empty (no lanes, each pattern 16 steps a sixteenth, no scene
+# playing one); a MOD pattern set up, saved, kept
+storeload tests/fixtures/store_v31.bin
+reboot
+wait 400
+expect tempo 121
+expect note 2 1 1 48
+expect note 2 1 5 52
+expect lock 2 1 5 cut 30
+expect note 2 2 3 55
+expect used 3
+expect spat2.2 2
+expect songlen 2
+expect mst.mfilt 40
+expect smod1 0
+expect smod2 0
+expect modlanes 1 0
+expect lanes 1
+scene 2
+wait 40
+expect mute 1
+modpat 2 8 4
+modlane 2 2 cut glide
+modval 2 2 cut 1 20 5 90
+scenemod 2 2
+projsave 1 v31_saved
+reboot
+wait 400
+expect smod2 2
+expect modlanes 2 1
+expect modglide 2 1 1
+expect modval 2 2 cut 5 90
+expect modval 2 2 cut 3 255
+expect lock 2 1 5 cut 30
