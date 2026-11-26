@@ -32,7 +32,8 @@
  *                                master value, the mst command's names), pump (the
  *                                pump's duck now, tenths of a dB), modview (MOD VIEW shows), modcut / envdot (the
  *                                Filter curve's cutoff and the Envelope dot as last drawn: x, -1 none), modticks (the
- *                                knobs with MOD VIEW's tick, a bit each); and with more words: step T VALUE, page NAME, comp T S VALUE (prints
+ *                                knobs with MOD VIEW's tick, a bit each), roomT.Q / fxroomK (track T's slot Q, FX K, has
+ *                                its memory in the effects' pool); and with more words: step T VALUE, page NAME, comp T S VALUE (prints
  *                                both components; checks the first), note T PAT S VALUE
  * The demos' stems and taps (tools/demos/render.sh --stems), from the environment:
  *   LOOM_SOLO=1,3,fx1,fx2        only these tracks (dry and their sends) and FX returns sound
