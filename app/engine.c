@@ -150,7 +150,6 @@ int engine_tulle_grains(int trk, int32_t *pos, uint8_t *lvl, int max)
 {
     return trk >= 0 && trk < NTRK ? synth_tulle_grains(SY, trk, pos, lvl, max) : 0;
 }
-void engine_lace_modes(int n) { synth_lace_modes(n); }
 void engine_sound_new(int trk) { synth_sound_new(trk); }
 int engine_core2_state(void)
 {

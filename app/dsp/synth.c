@@ -1463,8 +1463,6 @@ static void lc_init(voice_t *v)
     for (i = 0; i < 6; i++)
         v->o[i] = 0.0f;
 }
-static uint8_t lc_max = LC_MODES;               /* the modes lace runs (Setup's LACE MODES: synth_lace_modes) */
-void synth_lace_modes(int n) { lc_max = (uint8_t)(n < 4 ? 4 : n > LC_MODES ? LC_MODES : n); }
 static void lc_prep(voice_t *v)
 {
     cfg_t *c = &v->c;
@@ -1481,12 +1479,11 @@ static void lc_prep(voice_t *v)
     c->ex[6] = 3.0f / (FM_TWO_PI * f * fm_exp2f(LC_LRATIO[m][0]) * INV_SR);
     if (!sl)
         return;
-    const int lmax = lc_max;                     /* (the highest modes left out: the rest's power kept, normalised below) */
-    if (sl->key[0] == f && sl->key[1] == (float)(m + 1 + 16 * lmax) && sl->key[2] == c->e[1] && sl->key[3] == damp &&
+    if (sl->key[0] == f && sl->key[1] == (float)(m + 1) && sl->key[2] == c->e[1] && sl->key[3] == damp &&
         sl->key[4] == c->e[3] && sl->key[5] == stretch && sl->key[6] == (float)ex)
         return;
     sl->key[0] = f;
-    sl->key[1] = (float)(m + 1 + 16 * lmax);
+    sl->key[1] = (float)(m + 1);
     sl->key[2] = c->e[1];
     sl->key[3] = damp;
     sl->key[4] = c->e[3];
@@ -1496,7 +1493,7 @@ static void lc_prep(voice_t *v)
     hfd = LC_HF[m] * (0.25f + 3.0f * damp);
     for (k = 0; k < LC_MODES; k++) {
         float lvl, r = fm_exp2f(lc_mode(m, k, stretch, c->e[1], c->e[3], &lvl)), fk = f * r, w, rr, t;
-        if (k >= lmax || fk > 0.45f * SY_SR) {   /* past the band (or the modes asked for): silent */
+        if (fk > 0.45f * SY_SR) {                /* past the band: silent */
             sl->a1[k] = sl->a2[k] = sl->g[k] = 0.0f;
             sl->y1[k] = sl->y2[k] = 0.0f;
             continue;

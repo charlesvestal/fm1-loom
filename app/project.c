@@ -387,10 +387,8 @@ void project_random_sounds(uint32_t seed)
                                                         * bt.c BT_AUDIO_ON, BT_MIDI_OFF */
 #define CPU_396 4u                                     /* rsv[3]: the CPU at 396 MHz from the next start (Setup's CPU:
                                                         * app_cpu_396 below; 360 by default) */
-#define LACE_FEWER (3u << 3)                           /* rsv[3]: Setup's LACE MODES, 12 less two a step (12, 10, 8, 6:
-                                                        * lace_modes; 0, all, by default) */
-#define DEV_BITS3 (1u | 2u | CPU_396 | LACE_FEWER)     /* rsv[3]: pages.c CC_IN_ENDLESS, MOD_VIEW_OFF, CPU_396, LACE_FEWER */
-static int lace_modes(void) { return 12 - 2 * (int)((proj.rsv[3] & LACE_FEWER) >> 3); }
+#define DEV_BITS3 (1u | 2u | CPU_396)                  /* rsv[3]: pages.c CC_IN_ENDLESS, MOD_VIEW_OFF, CPU_396 (8, 16:
+                                                        * free; LACE MODES had them for an evening: cleared at a load) */
 static struct { uint8_t theme, bits, bits3, lights, clock, notes, usb; } dev;
 void project_device_get(void)
 {
@@ -1485,7 +1483,7 @@ void project_apply(void)
         engine_set_all(t);
     for (k = 0; k < NMS; k++)
         engine_master(k, proj.master[k]);
-    engine_lace_modes(lace_modes());
+    proj.rsv[3] &= (uint8_t)~(3u << 3);                   /* (LACE MODES's bits, an evening's experiment) */
     seq.bpm = (float)proj.tempo_x10 * 0.1f;               /* at once (a save right after reads it back) */
     engine_tempo(proj.tempo_x10);
     engine_groove(proj.groove);

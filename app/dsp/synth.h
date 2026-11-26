@@ -395,7 +395,6 @@ void synth_render(synth_t *s, int v0, int v1, float *l, float *r, float *s1, flo
  * stage, gains and sends into the first's l, r, s1, s2. synth_bus_reset: a core's shares cleared (its render failed:
  * rendered again) */
 void synth_split(synth_t *s, int on);
-void synth_lace_modes(int n);
 void synth_sound_new(int trk);        /* a preset loaded on trk: its voices' next notes start afresh (lace's resonators) */         /* the modes lace runs, 4..12 (12: all; fewer: the highest left out, the level kept) */
 /* the first core's own buses' buffers, free from synth_prepare until it renders its voices: synth_kit_scratch(k), five
  * of BUS_N (256) floats each (k 0..4: its pair for a bus on one core, then its pairs for the split buses), for the
