@@ -295,6 +295,8 @@ static struct {
     uint32_t sig[6];
     uint8_t mod_pat;                                 /* the MOD page: the pattern it edits when the scene has none */
     uint8_t mod_lane;                                /* the lane picked (ALGORITHM), of the pattern's */
+    uint8_t mod_tap, mod_tap_l;                      /* the step last tapped + 1 (KNOB 4 sets its value with no step
+                                                      * held: mod_tap_step) and its lane (a pool index + 1) */
     uint8_t mod_learn;                               /* LEARN armed: the next knob turned by hand is a new lane's
                                                       * target (1), the lane picked's new one (2) */
     uint8_t mpick_t, mpick_p, mpick_k;               /* its SEL list's ADD LANE: the track (T1-T8, FX I, FX II, the
@@ -1487,6 +1489,13 @@ static int mod_pat_now(void)
 }
 static int mod_none(void) { return !pats.scene_mod[cur_scene()]; }   /* the scene's MOD pattern "-": no lanes shown */
 static int mod_lanes_now(uint8_t *ix) { return mod_none() ? 0 : mod_lanes(pats.lane, mod_pat_now(), ix); }
+/* the step KNOB 4 sets with none held: the one last tapped on the lane picked (-1: none, or the lane or the length
+ * changed since) */
+static int mod_tap_step(int l)
+{
+    const int st = ui.mod_tap - 1;
+    return l >= 0 && ui.mod_tap && ui.mod_tap_l == l + 1 && st < pats.mod[mod_pat_now()].len ? st : -1;
+}
 static int mod_lane_now(void)                        /* the lane picked: its pool index, -1 none */
 {
     uint8_t ix[NMODL];
@@ -2056,7 +2065,21 @@ static void mod_knobs(knob_t *k)
         return;
     kn(&k[1], "LENGTH", mp->len, NSTEP);
     kname(&k[2], "SCALE", TS_NAME, mp->scale, NTS);
-    if (l >= 0) {
+    if (l >= 0 && !(seq.rec && playing())) {         /* KNOB 4 sets the lane's value on the step last tapped ("-" none
+                                                      * there; "STEP -": none tapped) */
+        static char sn[10];
+        const lane_t *L = &pats.lane[l];
+        const int tg = lane_mod_tgt(L), st = mod_tap_step(l), v = st < 0 ? LOCK_NONE : L->val[st];
+        mod_knob_v(&k[3], tg, L->param, v == LOCK_NONE ? mod_val(tg, L->param) : v);
+        sn[0] = 0;
+        if (st < 0)
+            s_cat(sn, "STEP -");
+        else
+            num_s((uint32_t)st + 1u, s_cat(sn, "STEP "));
+        k[3].name = sn;
+        if (v == LOCK_NONE)
+            kv(&k[3], sn, "-", 0, 0);
+    } else if (l >= 0) {                             /* REC while playing: the target's own, written as it turns */
         const lane_t *L = &pats.lane[l];
         const int tg = lane_mod_tgt(L);
         mod_knob_v(&k[3], tg, L->param, mod_val(tg, L->param));
@@ -7474,6 +7497,7 @@ static void draw_mod(void)
     int16_t cv[NSTEP];
     char t[40];
     h = hash_u(h, (uint32_t)ui.held | (uint32_t)n << 16 | (uint32_t)v0 << 20 | (uint32_t)mp->scale << 28);
+    h = hash_u(h, (uint32_t)ui.mod_tap | (uint32_t)ui.mod_tap_l << 8);
     h = hash_u(h, (uint32_t)pats.scene_mod[cur_scene()] | (uint32_t)(L ? L->pat : 0) << 8 | (uint32_t)ui.mod_learn << 16 |
                       (uint32_t)ui.mod_lane << 24);
     for (int i = 0; L && i < NSTEP; i += 4)
@@ -7539,7 +7563,7 @@ static void draw_mod(void)
         }
         for (int s = 0; s < len; s++) {              /* the values: dots; the held step outlined */
             const int32_t x0 = gx + gw * s / len, x1 = gx + gw * (s + 1) / len;
-            if (s / 16 == ui.bar && (ui.held >> (s % 16) & 1u))
+            if (s / 16 == ui.bar && (ui.held ? ui.held >> (s % 16) & 1u : s == mod_tap_step(l)))
                 cv_frame(x0, gy - 3, x1 - x0 > 3 ? x1 - x0 : 3, gh + 6, 1, K_SEL, K_BG);
             if (L->val[s] != LOCK_NONE)
                 cv_dotf((float)gx + ((float)s + 0.5f) * (float)gw / (float)len,

@@ -83,19 +83,15 @@ expect live2.cut >66
 expect live2.cut <71
 wait 200
 shot mod_playing.png
-# MOD VIEW: KNOB 4 shows the value playing, the knob's own (40) a tick
-expect knobnum4 >66
-expect knobtick4 41
-# the hand: KNOB 4 (cutoff's own knob) takes it back until the next value, from the value playing (~70, not 40)
-spin K4 -10
+# KNOB 4 sets the lane's value on the step last tapped (step 5, empty: from the knob's 40), never the cutoff itself
+# (the hand takes over on the parameter's own page: modknobs.xy); the lane plays on
+spin K4 10
 wait 50
-expect par2.cut >55
-expect par2.cut <63
-expect live2.cut -1
+expect modval 1 2 cut 5 50
+expect par2.cut 40
+shot mod_tap.png
 bars 1
-expect live2.cut -1
-bars 0.25
-expect live2.cut 100
+expect live2.cut >40
 # LEARN: the master filter's mix turned on GLO's page becomes a lane, the Lanes page back
 tap SEL
 wait 100
@@ -111,6 +107,10 @@ wait 100
 expect page Lanes
 expect modlanes 1 2
 expect modglide 1 2 1
+# lane 2 picked, no step tapped on it: KNOB 4 sets nothing
+spin K4 5
+wait 50
+said HOLD A STEP
 # the list in sections: lanes, this lane (the learned one, picked), new lane
 tap SEL
 wait 100
@@ -216,9 +216,9 @@ expect trk 13
 spin ALGO 1
 expect trk 14
 expect page Lanes
-# REC held while playing: KNOB 4 (lane 1: cutoff) written on the steps as they play (two values before; a step is a
-# beat, half a second: the knob turned for two seconds writes four or five)
-expect modvals 1 2 cut 2
+# REC held while playing: KNOB 4 (lane 1: cutoff) written on the steps as they play (three values before: 1, 5, 9; a
+# step is a beat, half a second: the knob turned for two seconds writes four or five)
+expect modvals 1 2 cut 3
 press REC
 turn K4 -20 100
 release REC

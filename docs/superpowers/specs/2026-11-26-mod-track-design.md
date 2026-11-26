@@ -91,6 +91,8 @@ commit and the manual's credits.
   12 %): filter the kits' summed pair and sends once (not each kit), coefficients once a block and cheap while
   moving, the master's mix-filter path back in RAM.
 - The filter knobs' label shows the side at a glance (LP to the left, HP to the right).
+- **Built 2026-11-26** (KNOB 4 on Lanes): the knob's box reads "STEP 9" and the value (not a header line), the step
+  outlined; "HOLD A STEP / or tap one" with none tapped; the step last tapped is kept per lane picked (ui.mod_tap).
 - **KNOB 4 on the Lanes page edits the lane, never the live parameter** (the user: "we're just setting a value, not
   controlling it"): held steps -> their values; nothing held -> the step last tapped (outlined; the header "step 9:
   5.8 kHz"); none tapped -> nothing ("hold a step"). REC held while playing still writes the moves into the lane. The

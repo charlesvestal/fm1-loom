@@ -1554,7 +1554,7 @@ each bar and a line every four bars. The top right says which lane it is, glide 
 ("1/2 glide, 32 bars"). **ALGORITHM** picks the lane. Turn it past the last lane (or the first) to go on to the next
 track.
 
-<img src="img/screen-mod.png" width="240" alt="The MOD track's Lanes page: T2 cutoff in T2's colour, a glide from step 1 to step 9 then held, a line on each bar, the playhead at step 4, 1/1 glide, 4 bars; KNOB 1 P1, KNOB 2 16 steps, KNOB 3 4 (a beat a step), KNOB 4 cutoff 680 Hz as it plays, a tick where the knob is" title="A lane">
+<img src="img/screen-mod.png" width="240" alt="The MOD track's Lanes page: T2 cutoff in T2's colour, a glide from step 1 to step 9 then held, a line on each bar, the playhead at step 4, 1/1 glide, 4 bars; KNOB 1 P1, KNOB 2 16 steps, KNOB 3 4 (a beat a step), KNOB 4 STEP and a dash: no step tapped yet" title="A lane">
 
 **Add a lane.** Press **SEL**. Its list has three parts: "lanes" (each lane, with its knob and glide or step: press
 **SEL** on one to pick it), "this lane" (the lane you picked, named: its GLIDE / STEP, its target, REMOVE LANE and
@@ -1571,8 +1571,10 @@ range), and the knob it left goes back to its own value.
 
 **Values.** The white keys are the pattern's steps, and **OCT−** and **OCT+** show its other bars. A step's key is
 lit when the lane has a value there. Tap a step to put the knob's value now on it, and tap it again to take it off.
-Hold a step and turn **KNOB 4** to set its value; the knob reads in its own units, as on its page. With steps held,
-**SEL** takes their values off. Without a step held, **KNOB 4** is the knob itself.
+Hold a step and turn **KNOB 4** to set its value; the knob reads in its own units, as on its page. Without a step
+held, **KNOB 4** sets the step you tapped last (it is outlined, and the knob reads STEP and its number). Here
+**KNOB 4** only ever sets the lane's values: it never moves the knob itself, which you play on its own page. With
+steps held, **SEL** takes their values off.
 
 **Glide or step.** On the Lanes page, turn **PRESETS** to switch the lane between glide and step. In the **SEL**
 list, it is the GLIDE / STEP row under "this lane": turn **ALGORITHM** right for glide, left for step. A glide moves from each value to the

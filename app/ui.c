@@ -2632,15 +2632,26 @@ static void mod_knob(int k, int32_t e)
         mp->scale = (uint8_t)clampi(mp->scale + (e > 0 ? 1 : -1), TS_1, NTS - 1);
         seq.mod_edit = 1;
         break;
-    default: {                                   /* the target's own knob */
+    default: {                                   /* the lane's value on the step last tapped; REC while playing:
+                                                  * the target's own knob, its moves written into the lane */
         lane_t *L;
-        int tg, p, hi, n;
+        int tg, p, hi, n, st;
         if (l < 0)
             return;
         L = &pats.lane[l];
         tg = lane_mod_tgt(L);
         p = L->param;
         hi = mod_hi(tg, p);
+        if (!(seq.rec && playing())) {           /* (setting a value, not playing the parameter) */
+            if ((st = mod_tap_step(l)) < 0) {
+                say_no("HOLD A STEP", "or tap one");
+                return;
+            }
+            n = L->val[st] == LOCK_NONE ? mod_val(tg, p) : L->val[st];
+            L->val[st] = (uint8_t)clampi(n + (hi < 16 ? (e > 0 ? 1 : -1) : (int)e), mod_lo(tg, p), hi);
+            mod_edited();
+            return;
+        }
         n = seq_mod_value(&seq, tg, p);          /* (from the value playing: the knob takes over from there) */
         n = clampi((n >= 0 ? n : mod_val(tg, p)) + (hi < 16 ? (e > 0 ? 1 : -1) : (int)e), mod_lo(tg, p), hi);
         if (tg == MODT_MST)
@@ -2670,6 +2681,8 @@ static void mod_step_tap(int w)
     if (st >= pats.mod[mod_pat_now()].len)
         return;
     L = &pats.lane[l];
+    ui.mod_tap = (uint8_t)(st + 1);              /* (KNOB 4 sets its value from here: mod_knob) */
+    ui.mod_tap_l = (uint8_t)(l + 1);
     num_s((uint32_t)st + 1u, s_cat(a, "STEP "));
     if (L->val[st] != LOCK_NONE) {
         L->val[st] = LOCK_NONE;
