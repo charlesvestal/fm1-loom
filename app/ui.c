@@ -2987,7 +2987,15 @@ static void weave_set(int t, int from, int pat, int rule)
 /* SEL on Weave: KEEP AS PATTERN, the weave written whole into the track's first empty pattern */
 static void act_keep_weave(void)
 {
-    static tpat_t out PLAT_POOL;
+#ifdef PLAT_HOST
+    static tpat_t out_buf;
+    tpat_t *const out = &out_buf;
+#else
+    /* the weave made in the screen's canvas, as lz.c's hash heads: nothing reads it between frames (every page fills it
+     * before it sends it), once its last transfer is done (lcd_sync, below) */
+    _Static_assert(sizeof(tpat_t) <= sizeof cv_px, "a pattern fits the canvas");
+    tpat_t *const out = (tpat_t *)(void *)cv_px;
+#endif
     int trk = sel_trk(), f = wv_from(trk), to = pat_first_empty(trk);
     char t[8];
     if (!f)
@@ -2997,8 +3005,11 @@ static void act_keep_weave(void)
         return;
     }
     undo_pat(trk, to, UNDO_RUN_MS);
-    pattern_woven(&out, tpat(trk), wv_kind(trk), &pats.pat[f - 1][wv_pat(trk)], wv_kind(f - 1), wv_rule(trk));
-    pats.pat[trk][to] = out;
+#ifndef PLAT_HOST
+    lcd_sync();
+#endif
+    pattern_woven(out, tpat(trk), wv_kind(trk), &pats.pat[f - 1][wv_pat(trk)], wv_kind(f - 1), wv_rule(trk));
+    pats.pat[trk][to] = *out;
     mark_dirty();
     num_s((uint32_t)to + 1u, s_cat(t, "P"));
     say("KEPT AS", t);
