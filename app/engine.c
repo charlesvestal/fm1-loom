@@ -1750,6 +1750,7 @@ void engine_render(int32_t *out_lr, uint32_t n, uint32_t gain_q12)
         fx_tempo(FXS(0), bpm);
         fx_tempo(FXS(1), bpm);
         master_tempo(MST, bpm);
+        master_filters_block(MST, n);                 /* (the master filters' glides: once a block) */
         fx_lag_on[0] = (uint8_t)fx_lags(FXS(0));         /* (the type as set: fx_process takes it at its next call) */
         fx_lag_on[1] = (uint8_t)fx_lags(FXS(1));
         if (fx_lag_on[0] || fx_lag_on[1]) {               /* the effects' job (the last block's sends) now, on the

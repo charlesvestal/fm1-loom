@@ -109,14 +109,18 @@ float master_filter_db(int v, int r, float hz);   /* its response at hz (the pag
  * sends (mono), when it is on or fading (master_group_on); the engine's, before they meet the rest */
 int master_group_on(const master_t *m, int k);
 void master_group_filter(master_t *m, int k, float *l, float *r, float *s1, float *s2, uint32_t n);
+/* the three filters' plan for the next block of n frames (the engine's, at the block's start, before any stretch): their
+ * glides moved on once a block, the coefficients stepped across it */
+void master_filters_block(master_t *m, uint32_t n);
 enum { PB_KICK, PB_T1, PB_METRO = PB_T1 + 8, NPB };
 #define MS_PUMP_REL_DEF 60
 extern const char *const MS_NAME[NMS];
 #ifdef PLAT_HOST
-#define MASTER_BYTES 1180             /* (the host's pointers are wider) */
+#define MASTER_BYTES 1264             /* (the host's pointers are wider) */
 #else
-#define MASTER_BYTES 1172             /* (fx.c checks it: 1,172 B, 2026-11-26 (976 before the master filter, 1,036 with
-                                       * two, 1,100 with three, + their coefficients kept); 1,428 with the master
+#define MASTER_BYTES 1256             /* (fx.c checks it: 1,256 B, 2026-11-26 (976 before the master filter, 1,036 with
+                                       * two, 1,100 with three, + their coefficients kept, + their steps: a plan a
+                                       * block); 1,428 with the master
                                        * color's line) */
 #endif
 void master_init(master_t *m);

@@ -325,10 +325,11 @@ const char *const MS_NAME[NMS] = {"low", "mid", "high", "clip", "effect", "knob 
 typedef struct { float b0, b1, b2, a1, a2; } biq_t;
 typedef struct { float x1, x2, y1, y2; } biqs_t;
 /* the master filter (fx.h MS_DFILT ..): a state-variable filter's states, both sides; its cutoff (log2 Hz), damping
- * (1/Q) and wet, gliding (mf_run); a group's (the drums', the melodic one's) its sends' too (sc: s1's two, s2's); the
- * coefficients at lc, kc, w (a1 0: none yet; made again only while they glide, never at rest) */
+ * (1/Q) and wet, gliding once a block (mf_plan); a group's (the drums', the melodic one's) its sends' too (sc: s1's
+ * two, s2's); the coefficients now (c: a1 0, none yet; made again only while they glide, never at rest), their step a
+ * frame across the plan (dc, while mv), the frames the plan has left */
 typedef struct { float a1, a2, a3, cx, c1, c2; } mfc_t;
-typedef struct { float ic[4], lc, kc, w; mfc_t c; } mfilt_t;
+typedef struct { float ic[4], lc, kc, w; mfc_t c, dc; uint16_t left; uint8_t mv; } mfilt_t;
 static const uint8_t MF_KNOB[NMF] = {MS_DFILT, MS_MELF, MS_MFILT};
 enum { MFM_OFF, MFM_LP, MFM_HP };
 
@@ -678,12 +679,19 @@ float master_filter_db(int v, int r, float hz)
     g2 = (md == MFM_HP ? x2 * x2 : 1.0f) * k * 0.70710678f / ((1.0f - x2) * (1.0f - x2) + k * k * x2);
     return 3.0103f * fm_log2f(g2 + 1e-12f);
 }
+/* tan(x) on [0, 1.43] (the cutoffs up to 20 kHz): Pade's [5/4], within 0.01 % up to 8 kHz, 0.1 % at 20 kHz (the
+ * low-pass's open end); one division (fm_tanf's two sines and a division, at each plan of a moving filter) */
+static inline float mf_tan(float x)
+{
+    const float x2 = x * x;
+    return x * (945.0f + x2 * (-105.0f + x2)) / (945.0f + x2 * (-420.0f + x2 * 15.0f));
+}
 /* the coefficients (Cytomic's SVF: a1..a3) and the output's mix of the input and the two states, from the cutoff, the
  * damping and the wet: low-pass v2, high-pass x - k v1 - v2; the wet's level made up for the resonance (sqrt(k /
  * sqrt 2): unity at none, -10 dB at the most, its peak then +7 dB) */
 static void mf_coefs(mfc_t *c, const mfilt_t *f, int mode)
 {
-    const float g = fm_tanf(FM_PI * (1.0f / SR) * fm_exp2f(f->lc)), wc = f->w * fm_sqrtf(f->kc * 0.70710678f);
+    const float g = mf_tan(FM_PI * (1.0f / SR) * fm_exp2f(f->lc)), wc = f->w * fm_sqrtf(f->kc * 0.70710678f);
     c->a1 = 1.0f / (1.0f + g * (g + f->kc));
     c->a2 = g * c->a1;
     c->a3 = g * c->a2;
@@ -697,39 +705,15 @@ static void mf_coefs(mfc_t *c, const mfilt_t *f, int mode)
         c->c2 = wc;
     }
 }
-/* one filter over a stretch (in place, both sides; L may be R; S1, S2 the sends, mono, sc their states: 0 none): v its
- * knob, r its resonance (MS_*). Runs from the flash (only while it is on or fading). Its cutoff and damping glide as
- * the master's levels do (~10 ms), its wet in 10 ms straight; the coefficients ramp across the stretch, the sends'
- * as the pair's. Another mode (or off) while it sounds: it fades out first, then the new one fades in from its open
- * end, its states at rest */
-static void mf_svf(float *X, float *s, const mfc_t *c, const mfc_t *d, uint32_t n)   /* (one side, its states s[2]) */
-{
-    const float inv = 1.0f / (float)n;
-    const float da1 = (d->a1 - c->a1) * inv, da2 = (d->a2 - c->a2) * inv, da3 = (d->a3 - c->a3) * inv;
-    const float dcx = (d->cx - c->cx) * inv, dc1 = (d->c1 - c->c1) * inv, dc2 = (d->c2 - c->c2) * inv;
-    float a1 = c->a1, a2 = c->a2, a3 = c->a3, cx = c->cx, c1 = c->c1, c2 = c->c2, l1 = s[0], l2 = s[1];
-    for (uint32_t i = 0; i < n; i++) {
-        const float x = X[i];
-        float v3, v1, v2;
-        a1 += da1, a2 += da2, a3 += da3, cx += dcx, c1 += dc1, c2 += dc2;
-        v3 = x - l2;
-        v1 = a1 * l1 + a2 * v3;
-        v2 = l2 + a2 * l1 + a3 * v3;
-        l1 = 2.0f * v1 - l1;
-        l2 = 2.0f * v2 - l2;
-        X[i] = cx * x + c1 * v1 + c2 * v2;
-    }
-    s[0] = fm_flush(l1);
-    s[1] = fm_flush(l2);
-}
-static void mf_run(mfilt_t *f, uint8_t *mode, int v, int r, float *L, float *R, float *S1, float *S2, float *sc,
-                   uint32_t n)
+/* a filter's plan over the next n frames (a block: master_filters_block; or a stretch the plan did not cover): its
+ * cutoff and damping glide as the master's levels do (~10 ms), its wet in 10 ms straight, the coefficients from where
+ * they are to there, a step a frame (mf_pair). Another mode (or off) while it sounds: it fades out first, then the new
+ * one fades in from its open end, its states at rest */
+static void mf_plan(mfilt_t *f, uint8_t *mode, int v, int r, float *sc, uint32_t n)
 {
     const int want = mf_mode(v);
     float lt = mf_log2hz(v), kt = mf_k(r), wt = 1.0f;
     const float a = fm_minf((float)n * 0.0022651f, 1.0f), wa = (float)n * (1.0f / 441.0f);
-    mfc_t c, d;
-    uint32_t i;
     if (want != *mode && f->w == 0.0f) {         /* (faded out, or never in: the one wanted, from its open end) */
         *mode = (uint8_t)want;
         f->ic[0] = f->ic[1] = f->ic[2] = f->ic[3] = 0.0f;
@@ -739,6 +723,8 @@ static void mf_run(mfilt_t *f, uint8_t *mode, int v, int r, float *L, float *R, 
         f->kc = kt;
         f->c.a1 = 0.0f;
     }
+    f->left = (uint16_t)n;
+    f->mv = 0;
     if (*mode == MFM_OFF)
         return;
     if (want != *mode) {                         /* (fading out where it is) */
@@ -746,48 +732,93 @@ static void mf_run(mfilt_t *f, uint8_t *mode, int v, int r, float *L, float *R, 
         kt = f->kc;
         wt = 0.0f;
     }
-    if (f->c.a1 == 0.0f)                         /* (the last call's end: this one's start) */
+    if (f->c.a1 == 0.0f)                         /* (fresh: from here) */
         mf_coefs(&f->c, f, *mode);
-    c = f->c;
     if (f->lc != lt || f->kc != kt || f->w != wt) {
-        float dl = lt - f->lc, dk = kt - f->kc;
+        const float dl = lt - f->lc, dk = kt - f->kc, inv = 1.0f / (float)n;
+        mfc_t e;
         f->lc = fm_fabsf(dl) < 0.002f ? lt : f->lc + dl * a;
         f->kc = fm_fabsf(dk) < 0.0005f ? kt : f->kc + dk * a;
         f->w = f->w < wt ? fm_minf(f->w + wa, wt) : fm_maxf(f->w - wa, wt);
-        mf_coefs(&f->c, f, *mode);
+        mf_coefs(&e, f, *mode);
+        f->dc = (mfc_t){(e.a1 - f->c.a1) * inv, (e.a2 - f->c.a2) * inv, (e.a3 - f->c.a3) * inv,
+                        (e.cx - f->c.cx) * inv, (e.c1 - f->c.c1) * inv, (e.c2 - f->c.c2) * inv};
+        f->mv = 1;
     }
-    d = f->c;
-    if (S1) {                                    /* (a group's sends: mono, the same ramp) */
-        mf_svf(S1, sc, &c, &d, n);
-        mf_svf(S2, sc + 2, &c, &d, n);
-    }
-    {
-        const float inv = 1.0f / (float)n;
-        const float da1 = (d.a1 - c.a1) * inv, da2 = (d.a2 - c.a2) * inv, da3 = (d.a3 - c.a3) * inv;
-        const float dcx = (d.cx - c.cx) * inv, dc1 = (d.c1 - c.c1) * inv, dc2 = (d.c2 - c.c2) * inv;
-        float a1 = c.a1, a2 = c.a2, a3 = c.a3, cx = c.cx, c1 = c.c1, c2 = c.c2;
-        float l1 = f->ic[0], l2 = f->ic[1], r1 = f->ic[2], r2 = f->ic[3];
-        for (i = 0; i < n; i++) {
-            const float xl = L[i], xr = R[i];
-            float v3, v1, v2, w3, w1, w2;
-            a1 += da1, a2 += da2, a3 += da3, cx += dcx, c1 += dc1, c2 += dc2;
-            v3 = xl - l2;
-            v1 = a1 * l1 + a2 * v3;
-            v2 = l2 + a2 * l1 + a3 * v3;
+}
+/* one filter's coefficients over n frames on two signals in place (the pair, or a group's two sends, mono each: their
+ * states s[4]): moving, they step every 16 frames (each piece at its middle's values; 0.36 ms), every 4 while the
+ * output's mix moves too (the resonance's make-up, a fade: in 16-frame steps a resonance turned clicked, slew_test
+ * +4.6 dB; in 4, -0.4, as a ramp a frame), else the one set. lp: a low-pass's (c1 0: the band-pass state not in the
+ * output; a register fewer, the loop's coefficients stay in them) */
+static inline __attribute__((always_inline)) void mf_pair_k(const mfilt_t *f, float *X, float *Y, float *s,
+                                                             uint32_t n, const int lp)
+{
+    float l1 = s[0], l2 = s[1], r1 = s[2], r2 = s[3];
+    const uint32_t pc = f->dc.cx != 0.0f || f->dc.c1 != 0.0f || f->dc.c2 != 0.0f ? 4u : 16u;
+    uint32_t i = 0;
+    while (i < n) {
+        const uint32_t e = f->mv && n - i > pc ? i + pc : n;
+        const float t = f->mv ? (float)i + 0.5f * (float)(e - i) : 0.0f;
+        const float a1 = f->c.a1 + f->dc.a1 * t, a2 = f->c.a2 + f->dc.a2 * t, a3 = f->c.a3 + f->dc.a3 * t;
+        const float cx = f->c.cx + f->dc.cx * t, c1 = f->c.c1 + f->dc.c1 * t, c2 = f->c.c2 + f->dc.c2 * t;
+        for (; i < e; i++) {
+            const float xl = X[i], xr = Y[i];
+            const float v3 = xl - l2, w3 = xr - r2;
+            const float v1 = a1 * l1 + a2 * v3, w1 = a1 * r1 + a2 * w3;
+            const float v2 = l2 + a2 * l1 + a3 * v3, w2 = r2 + a2 * r1 + a3 * w3;
             l1 = 2.0f * v1 - l1;
             l2 = 2.0f * v2 - l2;
-            w3 = xr - r2;
-            w1 = a1 * r1 + a2 * w3;
-            w2 = r2 + a2 * r1 + a3 * w3;
             r1 = 2.0f * w1 - r1;
             r2 = 2.0f * w2 - r2;
-            L[i] = cx * xl + c1 * v1 + c2 * v2;
-            R[i] = cx * xr + c1 * w1 + c2 * w2;
+            X[i] = lp ? cx * xl + c2 * v2 : cx * xl + c1 * v1 + c2 * v2;
+            Y[i] = lp ? cx * xr + c2 * w2 : cx * xr + c1 * w1 + c2 * w2;
         }
-        f->ic[0] = fm_flush(l1);
-        f->ic[1] = fm_flush(l2);
-        f->ic[2] = fm_flush(r1);
-        f->ic[3] = fm_flush(r2);
+    }
+    s[0] = fm_flush(l1);
+    s[1] = fm_flush(l2);
+    s[2] = fm_flush(r1);
+    s[3] = fm_flush(r2);
+}
+static void mf_pair(const mfilt_t *f, float *X, float *Y, float *s, uint32_t n)
+{
+    if (f->c.c1 == 0.0f && (!f->mv || f->dc.c1 == 0.0f))
+        mf_pair_k(f, X, Y, s, n, 1);
+    else
+        mf_pair_k(f, X, Y, s, n, 0);
+}
+/* two signals silent over n frames and their states at rest (a group's sends: nothing to filter) */
+static int mf_quiet(const float *a, const float *b, const float *s, uint32_t n)
+{
+    if (s[0] != 0.0f || s[1] != 0.0f || s[2] != 0.0f || s[3] != 0.0f)
+        return 0;
+    for (uint32_t i = 0; i < n; i++)
+        if (a[i] != 0.0f || b[i] != 0.0f)
+            return 0;
+    return 1;
+}
+/* one filter over a stretch (in place, both sides; L may be R; S1, S2 the sends, mono, sc their states: 0 none): v its
+ * knob, r its resonance (MS_*). Runs from the flash (only while it is on or fading), on the block's plan (else one of
+ * its own: a filter turned on within a block, a stretch past the plan); the sends on the pair's coefficients */
+static void mf_run(mfilt_t *f, uint8_t *mode, int v, int r, float *L, float *R, float *S1, float *S2, float *sc,
+                   uint32_t n)
+{
+    if (*mode == MFM_OFF || f->left < n)
+        mf_plan(f, mode, v, r, sc, n);
+    if (*mode == MFM_OFF)
+        return;
+    if (S1 && !mf_quiet(S1, S2, sc, n))
+        mf_pair(f, S1, S2, sc, n);
+    mf_pair(f, L, R, f->ic, n);
+    f->left = (uint16_t)(f->left - n);
+    if (f->mv) {
+        const float k = (float)n;
+        f->c.a1 += f->dc.a1 * k;
+        f->c.a2 += f->dc.a2 * k;
+        f->c.a3 += f->dc.a3 * k;
+        f->c.cx += f->dc.cx * k;
+        f->c.c1 += f->dc.c1 * k;
+        f->c.c2 += f->dc.c2 * k;
     }
 }
 /* filter k (MF_*) wanted on (its knob off the centre) or still running (fading out) */
@@ -796,6 +827,12 @@ static inline int mf_on(const master_t *m, int k)
     return m->mfm[k] != MFM_OFF || (unsigned)(m->pot[MF_KNOB[k]] - (MS_FILT_OFF - 2)) > 4u;
 }
 int master_group_on(const master_t *m, int k) { return k >= 0 && k < MF_MIX && mf_on(m, k); }
+void master_filters_block(master_t *m, uint32_t n)
+{
+    for (int k = 0; k < NMF; k++)
+        if (mf_on(m, k))
+            mf_plan(&m->mf[k], &m->mfm[k], m->pot[MF_KNOB[k]], m->pot[MS_FRES], k < MF_MIX ? m->sc[k] : 0, n);
+}
 void master_group_filter(master_t *m, int k, float *l, float *r, float *s1, float *s2, uint32_t n)
 {
     if (master_group_on(m, k))
@@ -812,10 +849,10 @@ static void mf_stage(master_t *m, float *L, float *R, uint32_t n)
 
 /* the compressor, the level, CLIP and the limiter (master_process's last loop), over mel in place into out; the
  * compressor's largest reduction. filt: with the mix's filter between the level and CLIP (the loop twice: pass 1 up
- * to the filter, pass 2 from it, the compressor and the level then at rest, x 1.0: exact), master_tail_f's, from the
- * flash; without (a constant 0: the one loop, as before), master_process's own, in RAM */
+ * to the filter, pass 2 from it, the compressor and the level then at rest, x 1.0: exact); without, the one loop. One
+ * copy, in RAM (master_process's) */
 static inline float master_tail(master_t *m, float *mel_l, float *mel_r, float *out_l, float *out_r, uint32_t n,
-                                const int filt)
+                                int filt)
 {
     uint32_t i;
     const float glev = m->glev, a_det = m->a_det, a_att = m->a_att, a_rel = m->a_rel, slope = m->slope;
@@ -918,10 +955,6 @@ static inline float master_tail(master_t *m, float *mel_l, float *mel_r, float *
     m->cr = (uint8_t)cr;
     return grmax;
 }
-static float master_tail_f(master_t *m, float *mel_l, float *mel_r, float *out_l, float *out_r, uint32_t n)
-{
-    return master_tail(m, mel_l, mel_r, out_l, out_r, n, 1);
-}
 
 void master_process(master_t *m, float *perc_l, float *perc_r, float *mel_l, float *mel_r, float *out_l,
                     float *out_r, uint32_t n)
@@ -978,10 +1011,9 @@ void master_process(master_t *m, float *perc_l, float *perc_r, float *mel_l, flo
         ((__typeof__(&efx_slot_run))dsp_far((void *)&efx_slot_run))(&m->sl, 1, m->bpm, 0, m->mrun, mel_l, mel_r, n);
     for (i = 0; !m->sl.live && i < n; i++)       /* (off while the sound plays: an effect set starts from dry) */
         m->sl.live = mel_l[i] != 0.0f || mel_r[i] != 0.0f;
-    if (m->mfm[MF_MIX] != MFM_OFF || (unsigned)(m->pot[MS_MFILT] - (MS_FILT_OFF - 2)) > 4u)   /* (the mix's filter on: the flash's copy of the last stages, with it) */
-        grmax = ((__typeof__(&master_tail_f))dsp_far((void *)&master_tail_f))(m, mel_l, mel_r, out_l, out_r, n);
-    else
-        grmax = master_tail(m, mel_l, mel_r, out_l, out_r, n, 0);
+    grmax = master_tail(m, mel_l, mel_r, out_l, out_r, n,      /* (the mix's filter on: two passes; its knob read
+                                                                * here, not through MF_KNOB, a table in the flash) */
+                        m->mfm[MF_MIX] != MFM_OFF || (unsigned)(m->pot[MS_MFILT] - (MS_FILT_OFF - 2)) > 4u);
     m->gp_c = gp;
     m->gm_c = gm;
     m->gr_view = grmax > m->gr_view ? grmax : m->gr_view * 0.93f;
