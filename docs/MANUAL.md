@@ -2,7 +2,7 @@
 
 LOOM-8 turns your M-VAVE FM-1 into a pocket groovebox: eight threads of sound on a 64-step loom.
 
-Each track can play one of seven synths, a sample, a chopped-up break, a cloud of grains, a drum kit, or another
+Each track can play one of nine synths, a sample, a chopped-up break, a cloud of grains, a drum kit, or another
 synth over MIDI.
 Write patterns of up to 64 steps, then give any step a trick, or lock a knob to its own value there. Use the
 conductor to lead the band through a chord progression, and hold a key to throw in a momentary effect while it
@@ -798,7 +798,8 @@ The picture shows what rings, shaking as it sounds. The mallet, the breath or th
 turning **position** moves it. **bright** sends sparks off it, **damp** presses a felt pad on it, and **hardness**
 gives the mallet a soft, fuzzy head or a small, hard one. Up to four lace notes
 play at once across all tracks, and a fifth takes over the oldest. Each note keeps its modes in memory, and a
-repeated note on a ringing voice strikes it again. There are fourteen presets: lace, rosewood, kalimba, church bell,
+repeated note on a ringing voice strikes it again; after you change the preset, the next note starts on silent modes.
+A note frees its voice once its modes have died away, so a long release doesn't hold one of the four. There are fourteen presets: lace, rosewood, kalimba, church bell,
 glass harp, air glass, harp, bowed wire, steel plate, wood block, gong, storm bell, prayer bowl and rubbed bowl.
 
 ### Acid
@@ -1955,7 +1956,7 @@ and the echoes fade out. Every voice sounds in the file, so a busy song can soun
 | SEQ, a step held | Steps | velocity | length | chance | pitch | white: length or more steps, black: sounds; PRESETS: the step's sound shown (drums: velocity, chance and tricks are its) |
 | SEQ, a step held + ARP | Steps | trick 1 | its value | trick 2 | its value | PRESETS: the step's sound shown (drums) |
 | SEQ, SELECT | Bar | quant | note | groove | shape | black: scale; SEQ held, black 1-4: jump or loop bars |
-| SEQ (MOD) | Lanes | the scene's MOD pattern | length | scale | the lane's knob (a step held: its value) | white: steps (tap: a value or none; hold + KNOB 4: its value), OCT: bars; ALGO: the lane; PRESETS: glide or step; SEL: the lanes (SEL picks one), this lane (glide or step, its target, LEARN TARGET, remove, clear), a new lane, LEARN |
+| SEQ (MOD) | Lanes | the scene's MOD pattern | length | scale | the value on the step held, or the step tapped last (REC held while playing: the knob itself, written as it moves) | white: steps (tap: a value or none; hold + KNOB 4: its value), OCT: bars; ALGO: the lane; PRESETS: the lane's shape; SEL: the lanes (SEL picks one), this lane (SHAPE, its target, LEARN TARGET, remove, clear), a new lane, LEARN |
 | EDIT | Engine | the engine's four | | | | play |
 | EDIT, SELECT | Play | mode | porta | bend | octave | play |
 | EDIT, SELECT twice | Play 2 | | | low cut | volume | play |
