@@ -758,6 +758,27 @@ static int expect_more(const char *what, const char *a, const char *b, const cha
             host_fails++;
         } else
             printf("  ok modval %s %s %s %s: %d\n", pt, tw, pn, st, got);
+    } else if (!strcmp(what, "rowval")) {          /* expect rowval NAME VALUE: the open list's row NAME shows VALUE ('_'
+                                                     * for a space in both) */
+        int r, bad = 1;
+        list_build();
+        for (r = 0; r < lst.n; r++)
+            if (ieq(lst.row[r].name, a)) {
+                bad = !ieq(lst.row[r].val, b);
+                break;
+            }
+        printf("%s rowval %s: \"%s\"%s%s\n", bad ? "FAIL" : "  ok", a, r < lst.n ? lst.row[r].val : "(no row)",
+               bad ? ", expected " : "", bad ? b : "");
+        host_fails += bad;
+    } else if (!strcmp(what, "modvals")) {         /* expect modvals PAT TARGET PARAM N: the steps a MOD lane has values on */
+        char pt[16] = {0}, tw[16] = {0}, pn[24] = {0}, v[16] = {0};
+        int tg, pm, ln, got = -1;
+        sscanf(plat_host_line, "%*s %*s %15s %15s %23s %15s", pt, tw, pn, v);
+        mod_target(tw, pn, &tg, &pm);
+        if ((ln = mod_lane_find(pats.lane, atoi(pt) - 1, tg, pm)) >= 0)
+            for (int i = got = 0; i < NSTEP; i++)
+                got += pats.lane[ln].val[i] != LOCK_NONE;
+        host_fails += expect_val(what, got, v);
     } else if (!strcmp(what, "modlanes")) {        /* expect modlanes PAT N: the lanes of MOD pattern PAT */
         uint8_t ix[NMODL];
         host_fails += expect_val(what, mod_lanes(pats.lane, (atoi(a) - 1) & (NPATT - 1), ix), b);
@@ -1244,13 +1265,14 @@ static int song_cmd(const char *cmd)
         else
             set_tp(t, k, value_of(t, k, w[3]));
         run_ms(1);
-    } else if (!strcmp(cmd, "listdump")) {          /* listdump: the page's SEL list, a row a line (the menu inventory) */
+    } else if (!strcmp(cmd, "listdump")) {          /* listdump: the page's SEL list, a row a line (the menu inventory),
+                                                     * each row's value last */
         static const char *const KIND[] = {"knob", "more", "action", "pick", "note", "head"};
         list_build();
         for (uint32_t i = 0; i < lst.n; i++) {
             int k = lst.row[i].kind, set = k == LK_PICK && pick_sets(lst.row[i].id);
-            printf("LIST\t%s\t%s\t%s\t%s\n", page_name_of(ui.page, sel_trk()), KIND[k % 6],
-                   k == LK_PICK ? (set ? "setting" : "choice") : "", lst.row[i].name);
+            printf("LIST\t%s\t%s\t%s\t%s\t%s\n", page_name_of(ui.page, sel_trk()), KIND[k % 6],
+                   k == LK_PICK ? (set ? "setting" : "choice") : "", lst.row[i].name, lst.row[i].val);
         }
     } else if (!strcmp(cmd, "large")) {             /* large 0|1: large type (Setup > SEL > LARGE TYPE) off or on */
         large_type_set(n > 1 && atoi(w[1]) != 0);

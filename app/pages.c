@@ -106,13 +106,13 @@ static uint16_t col_mix(uint16_t a, uint16_t b, uint32_t s)   /* a moved s/16 of
  * Engine and Play; the conductor Engine, Play (routing), Sub (Follow) */
 enum { P_ARRANGE, P_SONG, P_STEPS, P_BAR, P_ENGINE, P_PLAY, P_PLAY2, P_SUB, P_OSC2, P_KMOD, P_ENV, P_FILTER, P_ENV2, P_KITF, P_CHARACTER, P_INSERT, P_SENDS,
        P_FX1, P_FX2, P_THROWS, P_LFO, P_LFO2, P_PLAYERS, P_PLAYERS2, P_PLAYERS3, P_WEAVE, P_MIX, P_MASTER, P_MASTER2, P_MFILT, P_MASTER3, P_GLFO, P_SETUP,
-       P_STATUS, NPAGES };
+       P_STATUS, P_MOD, NPAGES };   /* (P_MOD: the MOD track's one page, SEQ's when it is picked) */
 static const char *const PAGE_NAME[NPAGES] = {"Arrange", "Song", "Steps", "Bar", "Engine", "Play", "Play 2", "Sub", "Osc 2", "Mod",
                                               "Envelope",
                                               "Filter", "Filter env", "Kit filter", "Insert 1", "Insert 2", "Sends", "FX I",
                                               "FX II", "Throws", "LFO", "LFO 2", "Players", "Players 2", "Hold", "Weave", "Mix",
                                               "Master EQ", "Master FX", "Master filter", "Master out", "LFO", "Setup",
-                                              "Debug"};
+                                              "Debug", "Lanes"};
 static char *s_cat(char *b, const char *s);
 static char *num_s(uint32_t v, char *b);
 static const char *const GLFO_SHAPE[NGS + 1] = {"off", "sine", "triangle", "saw up", "saw down", "square", "random"};
@@ -152,7 +152,8 @@ static void mst_par(uint8_t *par)
 }
 static const struct { uint8_t btn, first, n; } PAGE_BTN[] = {
     {B_HOME, P_ARRANGE, 2}, {B_SEQ, P_STEPS, 2}, {B_EDIT, P_ENGINE, 6}, {B_ENV, P_ENV, 4}, {B_FX, P_CHARACTER, 6},
-    {B_LFO, P_LFO, 2}, {B_ARP, P_PLAYERS, 4}, {B_GLO, P_MIX, 8}};
+    {B_LFO, P_LFO, 2}, {B_ARP, P_PLAYERS, 4}, {B_GLO, P_MIX, 8}, {B_SEQ, P_MOD, 1}};   /* (the last: the MOD track's,
+                                                     * page_button) */
 #define NPAGE_BTN (sizeof PAGE_BTN / sizeof PAGE_BTN[0])
 static int page_group(int p)
 {
@@ -288,6 +289,11 @@ static struct {
     uint8_t scene_from, scene_made;                  /* a scene key's press: the scene playing before it (0xFF none),
                                                       * and whether the press made the scene (a copy) */
     uint32_t sig[6];
+    uint8_t mod_pat;                                 /* the MOD page: the pattern it edits when the scene has none */
+    uint8_t mod_lane;                                /* the lane picked (ALGORITHM), of the pattern's */
+    uint8_t mod_learn;                               /* LEARN armed: the next knob turned by hand is a lane's target */
+    uint8_t mpick_t, mpick_p, mpick_k;               /* its SEL list's ADD LANE: the track (T1-T8, FX I, FX II, the
+                                                      * master), its page (of mod_pages), its knob */
 } ui;
 
 /* SEL: the screen as a list: the page's knobs, then its actions */
@@ -303,6 +309,7 @@ enum { A_CLEAR_NOTES, A_CLEAR_LOCKS, A_CLEAR_BOTH, A_COPY_PAT, A_PASTE_PAT, A_RO
        A_BT_FORGET, A_BT_DISCONNECT, A_CLEAR, A_ROTATE, A_PASTE, A_COPY_EMPTY, A_CLEAR_BAR,
        A_COPY_SOUND, A_PASTE_SOUND, A_COPY_KEY, A_PASTE_KEY, A_COPY_SCENE, A_PASTE_SCENE, A_DUP_SLOT, A_KIT_FILTER,
        A_SHIFT, A_LARGE_TYPE, A_CC_IN, A_MOD_VIEW, A_PROJ1, A_PROJ2, A_PROJ3,
+       A_MOD_LANE, A_MOD_REMOVE, A_MOD_CLEAR, A_MOD_TRK, A_MOD_PG, A_MOD_KNOB, A_MOD_ADD, A_MOD_LEARN,
        A_SLOT_X1, A_SLOT_X2, A_SLOT_X3, A_SLOT_X4, NACTIONS };   /* (A_SLOT_X*: a slot page's extras) */
 static const char *const ACTION_NAME[NACTIONS] = {
     "CLEAR NOTES", "CLEAR LOCKS", "CLEAR NOTES AND LOCKS", "COPY PATTERN", "PASTE PATTERN", "ROTATE FORWARD",
@@ -315,7 +322,8 @@ static const char *const ACTION_NAME[NACTIONS] = {
     "USB PORT", "BT MIDI", "BT AUDIO", "AUDIO DEVICE", "MIDI DEVICE", "DEVICE", "LOOK AGAIN", "FORGET", "DISCONNECT",
     "CLEAR", "ROTATE", "PASTE", "COPY TO EMPTY", "CLEAR BAR", "COPY SOUND", "PASTE SOUND", "COPY DRUM", "PASTE DRUM",
     "COPY SCENE", "PASTE SCENE", "DUPLICATE SLOT", "KIT FILTER", "SHIFT NOTES", "LARGE TYPE", "CC IN",
-    "MOD VIEW", "PROJ 1", "PROJ 2", "PROJ 3", "EXTRA 1", "EXTRA 2", "EXTRA 3", "EXTRA 4"};
+    "MOD VIEW", "PROJ 1", "PROJ 2", "PROJ 3", "LANE", "REMOVE LANE", "CLEAR LANE", "TRACK", "PAGE", "KNOB",
+    "ADD LANE", "LEARN", "EXTRA 1", "EXTRA 2", "EXTRA 3", "EXTRA 4"};
 _Static_assert(NPROJ == 3, "GLO's list: an action a slot (A_PROJ1..A_PROJ3)");
 static const char *const CLEAR_WHAT[3] = {"notes", "locks", "notes and locks"};
 /* a pick ALGORITHM sets at once (a setting: SEL only leaves the list), as against a choice SEL then carries out */
@@ -329,6 +337,7 @@ static int pick_sets(int a)
     case A_FX_HP: case A_FX_LP: case A_FX_SEND: case A_PUMP_BY: case A_PUMP_REL: case A_PUMP_ACC: case A_LEVEL:
     case A_SCENE_AT: case A_AUTOSAVE: case A_MIDI_OUT: case A_LOOP_FREE: case A_CC_OUT: case A_SCENES_OUT: case A_MIDI_CC:
     case A_USB_HOST: case A_KIT_FILTER: case A_CC_IN: case A_MOD_VIEW:
+    case A_MOD_LANE: case A_MOD_TRK: case A_MOD_PG: case A_MOD_KNOB:
         return 1;
     default:
         return 0;
@@ -619,6 +628,7 @@ static const bands_t *band = &BANDS[0];
 enum { AL_INFO, AL_DONE, AL_UNDO, AL_REDO, AL_ASK, AL_NO };
 
 static int sel_trk(void) { return proj.trk_sel < NALLTRK ? proj.trk_sel : 0; }
+static int mod_sel(void) { return proj.trk_sel == AUX_MOD; }   /* the MOD track picked (sel_trk: T1's, unused there) */
 static int is_aux(int t) { return t >= NTRK; }
 static int is_seqt(int t) { return t < NSEQT; }
 static int steps_page(int p) { return p == P_STEPS || p == P_BAR; }   /* SEQ's pages: both write steps */
@@ -1181,9 +1191,10 @@ static void draw_header(void)
         const char *bn = BTN_LABEL[PAGE_BTN[page_group(ui.page)].btn];
         const char *pn = lst.open && lst.bt ? (lst.bt == 1 ? "Audio devices" : "MIDI devices") : page_name_of(ui.page, sel_trk());
         int32_t w = text_w(&FONT_XS, bn) + 6;
-        if (((ui.page >= P_STEPS && ui.page <= P_PLAYERS3) || ui.page == P_WEAVE) && ui.page != P_THROWS) {   /* a track's page */
-            int pt = page_trk(ui.page);
-            const char *tn = TRACK_NAME[pt];
+        if (((ui.page >= P_STEPS && ui.page <= P_PLAYERS3) || ui.page == P_WEAVE || ui.page == P_MOD) &&
+            ui.page != P_THROWS) {                   /* a track's page (the MOD track's: its own pill) */
+            int pt = ui.page == P_MOD ? AUX_BRAIN : page_trk(ui.page);
+            const char *tn = ui.page == P_MOD ? "MOD" : TRACK_NAME[pt];
             int32_t tw = text_w(&FONT_XS, tn) + 10;
             cv_round(x, py, 5, ph, 2, K_PANEL);      /* the meter's well, then its level from the foot */
             if (mh)
@@ -1406,6 +1417,144 @@ static void ktp(knob_t *k, int trk, int p)
         }
     }
 }
+/* ---------------------------------------------------------- the MOD track --- */
+/* its page (P_MOD) edits the scene's MOD pattern (a scene with none, "-": the one edited last, ui.mod_pat); ALGORITHM
+ * picks one of its lanes (ui.mod_lane). A lane's target: a parameter of T1-T8, FX I or FX II, or the master's
+ * (MODT_MST: fx.h MS_*) */
+static int mod_pat_now(void)
+{
+    int m = pats.scene_mod[cur_scene()];
+    return m ? (m - 1) % NPATT : ui.mod_pat % NPATT;
+}
+static int mod_lanes_now(uint8_t *ix) { return mod_lanes(pats.lane, mod_pat_now(), ix); }
+static int mod_lane_now(void)                        /* the lane picked: its pool index, -1 none */
+{
+    uint8_t ix[NMODL];
+    int n = mod_lanes_now(ix);
+    return n ? ix[ui.mod_lane < n ? ui.mod_lane : n - 1] : -1;
+}
+static int mod_val(int tgt, int p) { return tgt == MODT_MST ? proj.master[p % NMS] : proj.trk[tgt % NALLTRK].par[p % NTP]; }
+static int mod_lo(int tgt, int p) { return tgt == MODT_MST ? 0 : tp_info_par(p, proj.trk[tgt % NALLTRK].par)->lo; }
+static int mod_hi(int tgt, int p) { return tgt == MODT_MST ? master_max(p) : tp_info_par(p, proj.trk[tgt % NALLTRK].par)->hi; }
+/* a target a lane can take: a knob of a sound, an effect or the master (not what picks an engine, an effect, a
+ * player, a type, a model, a channel, a route) */
+static int mod_target_ok(int tgt, int p)
+{
+    const tp_info_t *in;
+    if (tgt == MODT_MST)
+        return p >= 0 && p < NMS && p != MS_CTYPE && p != MS_PUMP_BY && p != MS_PUMP_ACC;
+    if ((tgt < 0 || tgt >= NTRK) && tgt != AUX_FX1 && tgt != AUX_FX2)
+        return 0;
+    if (p < 0 || p >= NTP || p == TP_ENGINE || p == TP_PLAYER || p == TP_CHAN || p == TP_BRAIN || p == TP_LTYPE ||
+        p == TP_FTYPE || p == TP_SLOT[0][SL_EF] || p == TP_SLOT[1][SL_EF] ||
+        (tp_is_dkey(p) && ((p - TP_DRUM0) % DP_N == DP_MODEL || (p - TP_DRUM0) % DP_N == DP_FTYPE)))
+        return 0;
+    in = tp_info_par(p, proj.trk[tgt].par);
+    return in && in->name && in->name[0] && in->name[0] != '-' && in->kind != PK_NAMES && in->kind != PK_SAMPLE;
+}
+/* a target's knob: its name and the value v as its page shows them */
+static void mod_knob_v(knob_t *k, int tgt, int p, int v)
+{
+    if (tgt != MODT_MST) {
+        ktp_val(k, tgt, p, v);
+        return;
+    }
+    for (int j = 0; j < SL_N; j++)
+        if (MS_SLOT[j] == p) {                       /* Master FX's knobs: as its page says them */
+            uint8_t mp[NTP];
+            mst_par(mp);
+            kpar_val(k, mp, TP_SLOT[0][j], v);
+            if (k->name)
+                return;
+        }
+    if (p == MS_DFILT || p == MS_MFILT) {
+        static const char *const NM[2][3] = {{"drums", "drums LP", "drums HP"}, {"mix", "mix LP", "mix HP"}};
+        const float hz = master_filter_hz(v);
+        char t[16];
+        mfilt_text(v, t);
+        kv(k, NM[p == MS_MFILT][hz > 0.0f ? 1 : hz < 0.0f ? 2 : 0], hz != 0.0f ? t + 3 : t, v, 127);
+    } else if (p == MS_PUMP) {
+        char t[12];
+        pump_text(v, t);
+        kv(k, MS_NAME[p], t, v, 127);
+    } else
+        kn(k, MS_NAME[p % NMS], v, master_max(p));
+}
+/* its name: "T2 cutoff", "T1 hat decay", "FX I time", "master mix" (the knob's name: drums LP / HP, mix LP / HP
+ * name the filter's side now; the lane's is the knob's) */
+static void mod_tgt_name(int tgt, int p, char *t)
+{
+    knob_t k;
+    char *e;
+    memset(&k, 0, sizeof k);
+    mod_knob_v(&k, tgt, p, tgt == MODT_MST && (p == MS_DFILT || p == MS_MFILT) ? MS_FILT_OFF : mod_val(tgt, p));
+    e = s_cat(s_cat(t, tgt == MODT_MST ? "master" : TRACK_NAME[tgt % NALLTRK]), " ");
+    if (tgt < NTRK && (tp_is_dkey(p) || tp_is_dknob2(p)))   /* a kit key's: which */
+        e = s_cat(s_cat(e, DL_SOUND_NAME[(tp_is_dkey(p) ? (p - TP_DRUM0) / DP_N : (p - TP_DRUMX0) / DPX_N) % DL_NSOUND]), " ");
+    s_cat(e, k.name ? k.name : "?");
+}
+/* the pages a lane's target is picked from (the SEL list's ADD LANE): a track's sound pages (EDIT's, ENV's, Insert 1
+ * and 2, Sends, LFO's), an FX track's two, the master's four; each with a knob a lane can take */
+static int mod_page_param(int tgt, int pg, int k)
+{
+    uint8_t keep = proj.trk_sel;
+    int p;
+    if (tgt == MODT_MST)
+        return pg == P_MASTER2 ? MS_SLOT[k == 3 ? SL_MIX : SL_K1 + k] : mst_m(pg, k);
+    proj.trk_sel = (uint8_t)tgt;                     /* (the pages' knobs are the track picked's) */
+    p = tp_page_param(pg, k, tgt);
+    proj.trk_sel = keep;
+    return p;
+}
+static int mod_pages(int tgt, uint8_t *out)
+{
+    static const uint8_t BT[4] = {B_EDIT, B_ENV, B_FX, B_LFO}, MP[4] = {P_MASTER, P_MASTER2, P_MFILT, P_MASTER3};
+    uint8_t keep = proj.trk_sel, all[24];
+    int n = 0, m = 0;
+    if (tgt == MODT_MST)
+        for (int i = 0; i < 4; i++)
+            all[n++] = MP[i];
+    else if (tgt == AUX_FX1 || tgt == AUX_FX2) {
+        all[n++] = P_ENGINE;
+        all[n++] = P_PLAY;
+    } else {
+        proj.trk_sel = (uint8_t)tgt;
+        for (uint32_t b = 0; b < 4; b++)
+            for (uint32_t g = 0; g < NPAGE_BTN; g++)
+                if (PAGE_BTN[g].btn == BT[b] && PAGE_BTN[g].first != P_MOD)
+                    for (int i = 0; i < group_n((int)g) && n < 24; i++) {
+                        int pg = grp_page((int)g, i);
+                        if (pg != P_FX1 && pg != P_FX2 && pg != P_THROWS)
+                            all[n++] = (uint8_t)pg;
+                    }
+        proj.trk_sel = keep;
+    }
+    for (int i = 0; i < n; i++) {
+        int any = 0;
+        for (int k = 0; k < 4; k++)
+            any |= mod_target_ok(tgt, mod_page_param(tgt, all[i], k));
+        if (any)
+            out[m++] = all[i];
+    }
+    return m;
+}
+static int mod_pick_tgt(void)                        /* ADD LANE's track: T1-T8, FX I, FX II, the master */
+{
+    int i = ui.mpick_t % (NTRK + 3);
+    return i < NTRK ? i : i == NTRK ? AUX_FX1 : i == NTRK + 1 ? AUX_FX2 : MODT_MST;
+}
+/* ADD LANE's target as picked: its parameter, -1 none (*pg: its page) */
+static int mod_pick_param(int *pg)
+{
+    uint8_t pl[24];
+    int tgt = mod_pick_tgt(), n = mod_pages(tgt, pl), p;
+    *pg = n ? pl[ui.mpick_p % n] : -1;
+    if (!n)
+        return -1;
+    p = mod_page_param(tgt, *pg, ui.mpick_k & 3);
+    return mod_target_ok(tgt, p) ? p : -1;
+}
+
 /* a length in steps, from quarter steps: "1/2", "1", "1 1/2", "8"; 0: the pattern's note length, "1/2 auto" */
 static void quarters_text(int q, char *t)
 {
@@ -1754,6 +1903,41 @@ static void aux_engine_knobs(knob_t *k, int trk)
     } else
         slot_knobs(k, fx_pg(trk));
 }
+/* the MOD page's knobs: KNOB 1 the scene's MOD pattern ("-" none), 2 its length, 3 its scale, 4 the lane's target (its
+ * own knob: the value a MOD lane holds now a dot); a step held: KNOB 4 the lane's value there ("-" none) */
+static void mod_knobs(knob_t *k)
+{
+    const int pt = mod_pat_now(), sm = pats.scene_mod[cur_scene()], l = mod_lane_now();
+    const modpat_t *mp = &pats.mod[pt];
+    if (ui.held) {
+        if (l >= 0) {
+            const lane_t *L = &pats.lane[l];
+            const int tg = lane_mod_tgt(L), v = L->val[step_shown(ui.held_first) % NSTEP];
+            mod_knob_v(&k[3], tg, L->param, v == LOCK_NONE ? mod_val(tg, L->param) : v);
+            if (v == LOCK_NONE)
+                kv(&k[3], k[3].name, "-", 0, 0);
+        }
+        return;
+    }
+    {
+        static char pn[6];
+        pn[0] = 0;
+        num_s((uint32_t)pt + 1u, s_cat(pn, "P"));
+        kv(&k[0], "PATTERN", sm ? pn : "-", sm, NPATT);
+    }
+    kn(&k[1], "LENGTH", mp->len, NSTEP);
+    kname(&k[2], "SCALE", TS_NAME, mp->scale, NTS);
+    if (l >= 0) {
+        const lane_t *L = &pats.lane[l];
+        const int tg = lane_mod_tgt(L);
+        mod_knob_v(&k[3], tg, L->param, mod_val(tg, L->param));
+        if (tg != MODT_MST && k[3].max > 0) {        /* the MOD lane's value now: a dot on its bar */
+            int lv = engine_live(tg, L->param);
+            if (lv >= 0)
+                k[3].live = clampi(lv - mod_lo(tg, L->param), 0, k[3].max);
+        }
+    }
+}
 static void page_knobs(knob_t *k)
 {
     int trk = sel_trk(), p = ui.page;
@@ -1776,6 +1960,10 @@ static void page_knobs(knob_t *k)
         lock_knobs(k);
         return;
     }
+    if (p == P_MOD) {
+        mod_knobs(k);
+        return;
+    }
     if (steps_page(p) && ui.trickpg && is_seqt(trk)) {
         comp_knobs(k);
         return;
@@ -1793,7 +1981,13 @@ static void page_knobs(knob_t *k)
         tempo_text(t);
         kv(&k[0], "TEMPO", t, (int)proj.tempo_x10 / 10 - 40, 180);
         kname(&k[1], "GROOVE", GR_NAME, proj.groove, NGROOVE);
-        if (is_seqt(trk)) {
+        if (mod_sel()) {                             /* the MOD track: its pattern in this scene ("-" none) */
+            static char mpn[6];
+            const int m = pats.scene_mod[cur_scene()];
+            mpn[0] = 0;
+            num_s((uint32_t)m, s_cat(mpn, "P"));
+            kv(&k[3], "MOD PAT", m ? mpn : "-", m, NPATT);
+        } else if (is_seqt(trk)) {
             static char pn[12];                      /* the track's pattern in this scene ("T2 PAT"; cued: "1>2";
                                                       * THROW's name too long for a knob: "PATTERN") */
             char c[8], *ce;
@@ -2157,6 +2351,16 @@ static void page_tag(char *t)
 {
     char *e;
     *t = 0;
+    if (ui.page == P_MOD) {                          /* MOD>P2>S3>T2 cutoff (a step held: >step 5) */
+        int l = mod_lane_now();
+        e = num_s((uint32_t)mod_pat_now() + 1u, s_cat(t, pats.scene_mod[cur_scene()] ? "MOD>P" : "MOD>none: P"));
+        e = num_s((uint32_t)cur_scene() + 1u, s_cat(e, ">S"));
+        if (ui.held)
+            e = num_s((uint32_t)step_shown(ui.held_first) + 1u, s_cat(e, ">step "));
+        if (l >= 0)
+            mod_tgt_name(lane_mod_tgt(&pats.lane[l]), pats.lane[l].param, s_cat(e, ">"));
+        return;
+    }
     switch (ui.page) {
     case P_ARRANGE:
         e = num_s((uint32_t)cur_scene() + 1u, s_cat(t, "S"));
@@ -2416,6 +2620,12 @@ static void page_footer(char *t)
     case P_MIX:
         s_cat(t, "BLACK mute|hold: solo|WHITE play");
         break;
+    case P_MOD:
+        s_cat(t, ui.mod_learn ? "turn the knob to learn, anywhere|SEL lanes"
+                 : mod_lane_now() < 0 ? "SEL add a lane|LEARN: SEL, then turn a knob"
+                 : ui.held ? "KNOB 4 the step's value|SEL clear it"
+                 : "WHITE tap: a value, again: none|hold: its value|OCT bar");
+        break;
     case P_THROWS:
         s_cat(t, "KEYS throw: low drums, high melodic|REC held: record");
         break;
@@ -2493,6 +2703,8 @@ static void enc_line(char *t)
                      : p == P_LFO ? "SELECT more" : "SELECT page");
     if (p != P_ARRANGE && p != P_SONG && p != P_THROWS && p < P_MASTER)
         e = s_cat(e, *t ? "|ALGO track" : "ALGO track");
+    if (p == P_MOD)
+        e = s_cat(e, *t ? "|ALGO lane, track" : "ALGO lane, track");
     {
         const char *a = p == P_ARRANGE ? "scene" : p == P_SONG ? "slot"
                         : steps_page(p) && is_drum(trk) ? "sound"
@@ -2738,6 +2950,8 @@ static void draw_footer_as(void)
 static const struct { uint8_t btn; uint64_t pages; const char *title, *l1, *l2; } CARD[] = {
     {B_SEQ, PG(P_BAR), "Bars", "Hold SEQ and press black key 1-4 to jump to that bar.",
      "Hold two to loop them. Tap one twice to loop it."},
+    {B_SEQ, PG(P_MOD), "MOD lanes", "Each lane moves a knob over the pattern's steps. Tap a step for",
+     "a value, hold it and turn KNOB 4. SEL adds lanes; ALGO picks one."},
     {B_SEQ, PG_ANY, "Steps", "The white keys are the bar's 16 steps. Hold SEQ and play notes,",
      "then press steps to write them. Hold several to edit them all."},
     {B_EDIT, PG_STEPS, "Lock", "Hold a step and press EDIT, ENV, FX or LFO for its knobs.",
@@ -3035,6 +3249,44 @@ static void list_page_section(int p)              /* a page's knobs under its na
         lst.n = (uint8_t)n;
 }
 static int pick_amount(int v) { return v ? v : 1; }   /* SHIFT NOTES', ROTATE's amount (never 0) */
+/* the MOD page's list: its pattern's lanes (ALGORITHM: glide or step), the picked one's REMOVE and CLEAR; then a lane
+ * added: its TRACK, PAGE and KNOB (ALGORITHM), ADD LANE, or LEARN (the next knob turned by hand) */
+static const char *const MOD_ROW[NMODL] = {"LANE 1", "LANE 2", "LANE 3", "LANE 4", "LANE 5", "LANE 6", "LANE 7", "LANE 8"};
+static void list_mod(void)
+{
+    static char hd[12];
+    uint8_t ix[NMODL];
+    char t[24];
+    const int n = mod_lanes_now(ix), l = mod_lane_now();
+    int pg, p;
+    num_s((uint32_t)mod_pat_now() + 1u, s_cat(hd, "lanes of P"));
+    list_head(hd);
+    for (int i = 0; i < n; i++) {                    /* "T2 cutoff, glide" */
+        mod_tgt_name(lane_mod_tgt(&pats.lane[ix[i]]), pats.lane[ix[i]].param, t);
+        s_cat(s_cat(t + s_len(t), ", "), lane_glide(&pats.lane[ix[i]]) ? "glide" : "step");
+        list_add(MOD_ROW[i], t, LK_PICK, A_MOD_LANE);
+    }
+    if (l >= 0) {
+        mod_tgt_name(lane_mod_tgt(&pats.lane[l]), pats.lane[l].param, t);
+        list_add(ACTION_NAME[A_MOD_CLEAR], t, LK_ACTION, A_MOD_CLEAR);
+        list_add(ACTION_NAME[A_MOD_REMOVE], t, LK_ACTION, A_MOD_REMOVE);
+    }
+    list_head("add a lane");
+    {
+        const int tg = mod_pick_tgt();
+        list_add(ACTION_NAME[A_MOD_TRK], tg == MODT_MST ? "master" : TRACK_NAME[tg], LK_PICK, A_MOD_TRK);
+        p = mod_pick_param(&pg);
+        list_add(ACTION_NAME[A_MOD_PG], pg < 0 ? "-" : page_name_of(pg, tg == MODT_MST ? 0 : tg), LK_PICK, A_MOD_PG);
+        t[0] = 0;
+        if (p >= 0)
+            mod_tgt_name(tg, p, t);
+        list_add(ACTION_NAME[A_MOD_KNOB], p >= 0 ? t + s_len(tg == MODT_MST ? "master " : TRACK_NAME[tg]) + (tg != MODT_MST)
+                                                 : "-", LK_PICK, A_MOD_KNOB);
+        list_add(ACTION_NAME[A_MOD_ADD], p < 0 ? "none on that knob" : n >= NMODL ? "eight already" : t, LK_ACTION,
+                 A_MOD_ADD);
+    }
+    list_add(ACTION_NAME[A_MOD_LEARN], ui.mod_learn ? "turn a knob" : "a knob turned", LK_ACTION, A_MOD_LEARN);
+}
 /* Steps and Bar: the pattern's actions, then the bar's */
 static void list_steps(int trk)
 {
@@ -3309,7 +3561,10 @@ static void list_build(void)
         list_clip_step();
         return;
     }
-    if (keep == P_STEPS && trk == AUX_WEAVE) {     /* WEAVE: its pattern cleared */
+    if (keep == P_MOD) {
+        list_mod();
+        knobs = 0;
+    } else if (keep == P_STEPS && trk == AUX_WEAVE) {     /* WEAVE: its pattern cleared */
         list_add(ACTION_NAME[A_CLEAR_NOTES], 0, LK_ACTION, A_CLEAR_NOTES);
     } else if (steps_page(keep)) {
         if (is_seqt(trk))
@@ -3600,6 +3855,8 @@ static void draw_arrange(void)
                           (uint32_t)tpat(tr)->len << 20 | (uint32_t)tpat(tr)->lstart << 24 | (uint32_t)tpat(tr)->lend << 16);
     for (int i = 0; i < NSCENE; i++)
         h = hash_u(h, pats.scene[i].used);
+    h = hash_u(h, (uint32_t)pats.scene_mod[sc] | (uint32_t)seq.mod_pos << 8 | (uint32_t)seq.mod_pat << 16 |
+                      (uint32_t)mod_sel() << 24 | (uint32_t)(seq.mute >> MOD_BIT & 1u) << 25);
     if (!begin_main(h))
         return;
     if (LARGE) {                                     /* large type: the tracks as cells (the scenes: the tag) */
@@ -3616,7 +3873,7 @@ static void draw_arrange(void)
             num_s((uint32_t)tr + 1u, nm);
         else
             s_cat(nm, tr == AUX_BRAIN ? "CO" : tr == AUX_PUNCH ? "TH" : "TP");
-        text_r(22, y - 3, &FONT_XS, nm, tr == sel_trk() ? K_TEXT : ink);
+        text_r(22, y - 3, &FONT_XS, nm, tr == sel_trk() && !mod_sel() ? K_TEXT : ink);
         if (tr < NTRK && mh[tr] > 0)                 /* (its meter, at the left of its number) */
             cv_rect(4, y + 5 - mh[tr], 3, mh[tr], muted ? K_FAINT : trk_ink(tr));
         else if (tr >= NTRK && amh[tr - NTRK] > 0)
@@ -3647,6 +3904,23 @@ static void draw_arrange(void)
             s_cat(num_s((uint32_t)__builtin_popcount(seq.kmute[kit_slot(tr)]), ko), " off");
             cv_text(144, y - 3, &FONT_XS, ko, K_DIM);
         }
+    }
+    {                                                /* the MOD track: the scene's MOD pattern ("-" none), its step */
+        const int32_t y = 2 + NSEQT * 10 + 4;
+        const int muted = seq.mute >> MOD_BIT & 1u, m = pats.scene_mod[sc] % (NPATT + 1);
+        const int ml = m ? pats.mod[m - 1].len : 0, bw = 88 * ml / NSTEP;
+        text_r(22, y - 3, &FONT_XS, "MD", mod_sel() ? K_TEXT : muted ? K_FAINT : K_DIM);
+        if (m) {
+            num_s((uint32_t)m, s_cat(t, "P"));
+            text_c(37, y - 3, &FONT_XS, t, muted ? K_FAINT : theme->aux);
+            cv_rect(52, y + 3, 88, 2, K_PANEL2);
+            cv_rect(52, y + 3, bw, 2, muted ? K_LINE : K_DIM);
+            if (playing() && !muted && seq.mod_pat == m - 1 && ml > 0)
+                cv_round(52 + (bw - 3) * (seq.mod_pos % ml) / (ml > 1 ? ml - 1 : 1), y + 1, 3, 6, 1, theme->aux);
+        } else
+            text_c(37, y - 3, &FONT_XS, "-", K_FAINT);
+        if (muted)
+            cv_text(144, y - 3, &FONT_XS, "mute", K_DIM);
     }
     cv_rect(168, 4, 1, 112, K_LINE);
     text_c(204, 8, &FONT_XS, cue == 0xFF || cue == sc ? "scene" : seq.cue_end ? "at the end" : "next bar", K_DIM);
@@ -6927,6 +7201,122 @@ static void draw_weave_play(void)
             K_DIM);
     main_blit();
 }
+/* the MOD page: the lane picked as it plays over the pattern's steps (a glide's line, a step's stairs; its values dots,
+ * the held step outlined, the keys' 16 steps shaded, the playhead), its name and kind above, the pattern below */
+static void mod_curve(const lane_t *L, int len, int v0, int16_t *out)   /* each step's value as it plays (-1 none) */
+{
+    int last = -1, lv = v0;
+    for (int s = 0, q; s < len; s++) {
+        if (L->val[s] != LOCK_NONE) {
+            out[s] = (int16_t)(lv = L->val[s]);
+            last = s;
+            continue;
+        }
+        for (q = s + 1; q < len && L->val[q] == LOCK_NONE; q++)
+            ;
+        if (!lane_glide(L) || q >= len)              /* a step lane, or past the last value: held (none before) */
+            out[s] = (int16_t)(last >= 0 ? lv : -1);
+        else if (last < 0)                           /* a glide to the first value, from where the target is */
+            out[s] = (int16_t)(v0 + (L->val[q] - v0) * s / q);
+        else
+            out[s] = (int16_t)(lv + (L->val[q] - lv) * (s - last) / (q - last));
+    }
+}
+static void draw_mod(void)
+{
+    uint8_t ix[NMODL];
+    const int pt = mod_pat_now(), n = mod_lanes_now(ix), l = mod_lane_now();
+    const modpat_t *mp = &pats.mod[pt];
+    const int len = mp->len < 1 ? 1 : mp->len > NSTEP ? NSTEP : mp->len, pos = playing() && seq.mod_pat == pt ? seq.mod_pos : -1;
+    const lane_t *L = l >= 0 ? &pats.lane[l] : 0;
+    const int tg = L ? lane_mod_tgt(L) : 0, v0 = L ? mod_val(tg, L->param) : 0;
+    const int32_t gx = 8, gw = 224, gy = LY(20, 18), fy = MAIN_H - F_CAP->h - 1, gh = fy - gy - 5;
+    uint32_t h = hash_u(hash_u(2166136261u, 0x4Du), (uint32_t)pt | (uint32_t)(l + 1) << 4 | (uint32_t)len << 12 |
+                                          (uint32_t)(pos + 1) << 20 | (uint32_t)ui.bar << 28);
+    int16_t cv[NSTEP];
+    char t[40];
+    h = hash_u(h, (uint32_t)ui.held | (uint32_t)n << 16 | (uint32_t)v0 << 20 | (uint32_t)mp->scale << 28);
+    h = hash_u(h, (uint32_t)pats.scene_mod[cur_scene()] | (uint32_t)(L ? L->pat : 0) << 8 | (uint32_t)ui.mod_learn << 16);
+    for (int i = 0; L && i < NSTEP; i += 4)
+        h = hash_u(h, (uint32_t)L->val[i] | (uint32_t)L->val[i + 1] << 8 | (uint32_t)L->val[i + 2] << 16 |
+                          (uint32_t)L->val[i + 3] << 24);
+    if (!begin_main(h))
+        return;
+    if (!L) {
+        num_s((uint32_t)pt + 1u, s_cat(t, "No lanes on P"));
+        text_c(120, LY(34, 16), &FONT_B, t, K_TEXT);
+        text_c(120, LY(58, 44), LY(&FONT_S, F_CAP), ui.mod_learn ? "Turn the knob it is to move" : "Press SEL to add one", K_DIM);
+        if (!ui.mod_learn)
+            text_c(120, LY(74, 60), LY(&FONT_S, F_CAP), "or LEARN it from a knob", K_DIM);
+        main_blit();
+        return;
+    }
+    {                                                /* its name, its kind, which of how many */
+        char *e;
+        mod_tgt_name(tg, L->param, t);
+        cv_text(gx, 0, LY(&FONT_S, &LFONT_S), t, K_TEXT);
+        e = num_s((uint32_t)ui.mod_lane % NMODL + 1u, s_cat(t, lane_glide(L) ? "glide " : "step "));
+        num_s((uint32_t)n, s_cat(e, "/"));
+        text_r(gx + gw, LY(2, 0), F_CAP, t, K_DIM);
+    }
+    cv_round(gx - 3, gy - 3, gw + 6, gh + 6, 4, K_PANEL);
+    {                                                /* the keys' 16 steps */
+        int b0 = ui.bar * 16 < len ? ui.bar * 16 : 0, b1 = b0 + 16 < len ? b0 + 16 : len;
+        cv_rect(gx + gw * b0 / len, gy - 3, gw * b1 / len - gw * b0 / len, gh + 6, K_PANEL2);
+    }
+    mod_curve(L, len, v0, cv);
+    {
+        const int lo = mod_lo(tg, L->param), hi = mod_hi(tg, L->param), span = hi > lo ? hi - lo : 1;
+        const uint16_t ink = trk_ink(tg < NTRK ? tg : AUX_BRAIN);
+        float px = -1.0f, py = 0.0f;
+        for (int s = 0; s < len; s++) {
+            const float x = (float)gx + ((float)s + 0.5f) * (float)gw / (float)len;
+            const float y = (float)(gy + gh) - (float)(clampi(cv[s], lo, hi) - lo) * (float)gh / (float)span;
+            if (cv[s] < 0) {
+                px = -1.0f;
+                continue;
+            }
+            if (px >= 0.0f) {
+                if (lane_glide(L))
+                    cv_linef(px, py, x, y, ink, 1.6f);
+                else {                               /* stairs: along, then up or down at the step */
+                    cv_linef(px, py, x - (float)gw / (float)len * 0.5f, py, ink, 1.6f);
+                    cv_linef(x - (float)gw / (float)len * 0.5f, py, x - (float)gw / (float)len * 0.5f, y, ink, 1.6f);
+                    cv_linef(x - (float)gw / (float)len * 0.5f, y, x, y, ink, 1.6f);
+                }
+            }
+            px = x;
+            py = y;
+            if (s == len - 1)
+                cv_linef(x, y, (float)(gx + gw), y, ink, 1.6f);
+        }
+        for (int s = 0; s < len; s++) {              /* the values: dots; the held step outlined */
+            const int32_t x0 = gx + gw * s / len, x1 = gx + gw * (s + 1) / len;
+            if (s / 16 == ui.bar && (ui.held >> (s % 16) & 1u))
+                cv_frame(x0, gy - 3, x1 - x0 > 3 ? x1 - x0 : 3, gh + 6, 1, K_SEL, K_PANEL2);
+            if (L->val[s] != LOCK_NONE)
+                cv_dotf((float)gx + ((float)s + 0.5f) * (float)gw / (float)len,
+                        (float)(gy + gh) - (float)(clampi(L->val[s], lo, hi) - lo) * (float)gh / (float)span,
+                        len > 32 ? 1.6f : 2.4f, K_TEXT);
+        }
+    }
+    if (pos >= 0 && pos < len)                       /* the playhead */
+        cv_rect(gx + gw * pos / len + gw / len / 2, gy - 3, 2, gh + 6, K_TEXT);
+    {                                                /* the pattern: its steps, a step's sixteenths; its bars */
+        char *e = num_s((uint32_t)len, t);
+        e = s_cat(e, len == 1 ? " step, " : " steps, ");
+        if (mp->scale == TS_1 || mp->scale == TS_2 || mp->scale == TS_4 || mp->scale == TS_16)   /* "a beat each" */
+            s_cat(e, mp->scale == TS_1 ? "a sixteenth each" : mp->scale == TS_2 ? "an eighth each"
+                     : mp->scale == TS_4 ? "a beat each" : "a bar each");
+        else
+            s_cat(s_cat(e, TS_NAME[mp->scale % NTS]), " sixteenths each");
+        cv_text(gx, fy, F_CAP, t, K_DIM);
+        for (int b = 0; b < (len + 15) / 16; b++)
+            cv_round(gx + gw - 4 * 12 + b * 12, fy + 3, 9, 7, 2,
+                     b == ui.bar ? K_TEXT : pos >= 0 && pos / 16 == b ? K_NOW : K_LINE);
+    }
+    main_blit();
+}
 static void draw_main(int trk);
 static void draw_page(void)
 {
@@ -7006,6 +7396,7 @@ static void draw_main(int trk)
     case P_MIX: draw_mix(); break;
     case P_THROWS: draw_punch(); break;
     case P_WEAVE: draw_weave(); break;
+    case P_MOD: draw_mod(); break;
     case P_MASTER: case P_MASTER3: draw_master(); break;
     case P_MFILT: draw_mfilt(); break;
     case P_MASTER2: draw_slot(P_MASTER2); break;

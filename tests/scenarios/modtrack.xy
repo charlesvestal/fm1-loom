@@ -1,0 +1,156 @@
+# the MOD track (docs/superpowers/specs/2026-11-26-mod-track-design.md): ALGORITHM past WEAVE reaches it, SEQ (or
+# EDIT) its Lanes page. A lane added from SEL's pickers (T2, Filter, cutoff) and one learned from a knob turned
+# elsewhere (the master filter's mix); values tapped on (the target's now) and set with a step held and KNOB 4; glide
+# or step on SEL's lane row; ALGORITHM through the lanes, then on to the tracks; REC held while playing writes the
+# knob's moves; a scene with none ("-") lets the values stay; Arrange's KNOB 4 (the scene's MOD pattern) and black
+# key 11 (its mute); the reader's words; saved and loaded
+wait 300
+preset 2 acid_line acid
+pat 2 1 16 1 60 0
+notes 2 1 1 0.5 100 A1
+knob 2 cut 40
+listen
+tap SEQ
+spin ALGO 11
+wait 600
+expect trk 14
+expect page Lanes
+said Lanes
+shot mod_empty.png
+# a new project's MOD track: P1 shown, no scene playing one ("-")
+expect smod1 0
+# SEL: ADD LANE from the pickers
+tap SEL
+wait 100
+row TRACK
+spin ALGO 1
+expect rowval TRACK T2
+row PAGE
+turn ALGO 4
+expect rowval PAGE Filter
+expect rowval KNOB cutoff
+wait 100
+shot mod_picker.png
+row ADD LANE
+tap SEL
+wait 100
+expect modlanes 1 1
+expect modglide 1 1 1
+said LANE ADDED T2 cutoff
+# the lane's values: a tap on step 1 takes the knob's (40), step 9 held and KNOB 4 turned to 100
+tapkey w0
+wait 100
+expect modval 1 2 cut 1 40
+key w8 down
+wait 100
+spin K4 60
+wait 100
+key w8 up
+expect modval 1 2 cut 9 100
+expect par2.cut 40
+# a tap on a value takes it off; again puts it back
+tapkey w4
+expect modval 1 2 cut 5 40
+tapkey w4
+expect modval 1 2 cut 5 255
+# KNOB 1: the scene plays P1; KNOB 2 the length (16), KNOB 3 a step a beat
+spin K1 1
+expect smod1 1
+turn K3 3
+wait 400
+shot mod_glide.png
+# playing: the glide from 40 to 100 over steps 1 to 9 (a beat each): at the end of step 4, 40 + 60 x 4 / 8 = 70
+tap PLAY
+bars 1
+expect modpat 1
+expect modpos 4
+expect live2.cut >66
+expect live2.cut <71
+wait 200
+shot mod_playing.png
+# the hand: KNOB 4 (cutoff's own knob) takes it back until the next value
+spin K4 -10
+wait 50
+expect par2.cut 30
+expect live2.cut -1
+bars 1
+expect live2.cut -1
+bars 0.25
+expect live2.cut 100
+# LEARN: the master filter's mix turned on GLO's page becomes a lane, the Lanes page back
+tap SEL
+wait 100
+row LEARN
+tap SEL
+wait 100
+expect page Lanes
+tap GLO
+turn SELECT 3
+expect page Master_filter
+spin K3 -10
+wait 100
+expect page Lanes
+expect modlanes 1 2
+expect modglide 1 2 1
+# glide or step: the learned lane's row on SEL, ALGORITHM left: step
+tap SEL
+wait 100
+expect rowval LANE_2 master_mix,_glide
+shot mod_lanes.png
+row LANE 2
+spin ALGO -1
+expect modglide 1 2 0
+tap HOME
+wait 100
+# ALGORITHM: lane 1 back, then past it to WEAVE (the tracks), and back to the MOD track
+spin ALGO -1
+expect trk 14
+expect page Lanes
+spin ALGO -1
+expect trk 13
+spin ALGO 1
+expect trk 14
+expect page Lanes
+# REC held while playing: KNOB 4 (lane 1: cutoff) written on the steps as they play (two values before; a step is a
+# beat, half a second: the knob turned for two seconds writes four or five)
+expect modvals 1 2 cut 2
+press REC
+turn K4 -20 100
+release REC
+expect modvals 1 2 cut >5
+# 64 steps a bar each: the whole pattern on the page, the keys' bar shaded (OCT+ the next)
+spin K2 48
+turn K3 4
+tap OCT+
+wait 400
+shot mod_64.png
+spin K2 -48
+turn K3 -4
+tap OCT-
+# Arrange: KNOB 4 the scene's MOD pattern (with T... none: "-"); black key 11 mutes it
+tap HOME
+wait 100
+spin K4 -1
+expect smod1 0
+spin K4 1
+expect smod1 1
+tapkey b10
+expect mute 1024
+wait 200
+shot mod_arrange.png
+tapkey b10
+expect mute 0
+# a new scene: "-"
+tapkey w1
+wait 100
+expect smod2 0
+tap PLAY
+# saved and loaded
+projsave 1 mod
+reboot
+wait 400
+expect smod1 1
+expect smod2 0
+expect modlanes 1 2
+expect modval 1 2 cut 1 40
+expect modval 1 mst mfilt 1 255

@@ -199,6 +199,11 @@ expect trk 13
 wait 40
 shot weave_track.png
 spin ALGO 1
+expect trk 14
+expect page Lanes
+wait 40
+shot mod_track.png
+spin ALGO 1
 expect trk 1
 # the effects: FX's FX I and FX II pages (not tracks on ALGORITHM)
 tap FX

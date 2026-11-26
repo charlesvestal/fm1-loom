@@ -181,12 +181,17 @@ static void sound_reset(uint8_t *par, int engine)   /* the engine's defaults; MI
     sound_default(par, engine);
     par[TP_CHAN] = (uint8_t)out;
 }
+static void mod_learned(int tg, int p);
+static void mod_step_tap(int w);
+static void mod_clear_held(void);
 static void set_tp(int trk, int p, int v)
 {
     uint8_t *par = proj.trk[trk].par;
     int was_rand;
     if (p < 0 || p >= NTP)
         return;
+    if (ui.mod_learn && cc_hand)                 /* the MOD track's LEARN: this knob */
+        mod_learned(trk, p);
     if (!is_aux(trk)) {
         const tp_info_t *in = tp_info_par(p, par);
         v = clampi(v, in->lo, in->hi);
@@ -666,7 +671,7 @@ static void rec_tap(void)                        /* REC released, unused, while 
 {
     if (plat_ms() - ui.btn_t[B_REC] >= REC_TAP_MS)
         return;
-    if (playing())
+    if (playing() || mod_sel())                  /* (the MOD track: no step record; REC held while playing writes) */
         return;
     ui.rec_armed = (uint8_t)!ui.rec_armed;
     if (ui.rec_armed) {
@@ -1235,6 +1240,7 @@ static void scene_go(int n, int when)
         undo_arr();
         pats.scene[n] = pats.scene[cur];
         pats.scene[n].used = 1;
+        pats.scene_mod[n] = 0;                   /* (a new scene's MOD: none, "-") */
         mark_dirty();
         num_s((uint32_t)n + 1u, s_cat(t, "S"));
         say("NEW", t);
@@ -1290,8 +1296,10 @@ static int scene_hold(int w)
 }
 static void track_select(int t)
 {
-    t = (t % NALLTRK + NALLTRK) % NALLTRK;
-    if (t == sel_trk())
+    const int was_mod = mod_sel();
+    if (t != AUX_MOD)
+        t = (t % NALLTRK + NALLTRK) % NALLTRK;
+    if (t == proj.trk_sel)
         return;
     engine_keys_off(sel_trk());
     ui.nchord = 0;
@@ -1302,7 +1310,14 @@ static void track_select(int t)
     proj.trk_sel = (uint8_t)t;
     if (!is_aux(t))
         ui.last_inst = (uint8_t)t;
-    {                                            /* a track with fewer pages: back to the button's first */
+    ui.mod_learn = 0;
+    if (t == AUX_MOD) {                          /* the MOD track: its page (Arrange, Song and GLO's stay) */
+        int b = PAGE_BTN[page_group(ui.page)].btn;
+        if (b != B_HOME && b != B_GLO)
+            ui.page = P_MOD;
+    } else if (was_mod && ui.page == P_MOD)
+        ui.page = P_STEPS;
+    else {                                       /* a track with fewer pages: back to the button's first */
         int g = page_group(ui.page);
         if (grp_index(ui.page) < 0)
             ui.page = (uint8_t)grp_page(g, 0);
@@ -1318,9 +1333,22 @@ static void track_select(int t)
 static void track_step(int e)
 {
     static const uint8_t MIXT[10] = {0, 1, 2, 3, 4, 5, 6, 7, AUX_FX1, AUX_FX2};
-    static const uint8_t SEQT[11] = {0, 1, 2, 3, 4, 5, 6, 7, AUX_BRAIN, AUX_PUNCH, AUX_WEAVE};
+    static const uint8_t SEQT[12] = {0, 1, 2, 3, 4, 5, 6, 7, AUX_BRAIN, AUX_PUNCH, AUX_WEAVE, AUX_MOD};
     const uint8_t *L = ui.page == P_MIX ? MIXT : SEQT;
-    int N = ui.page == P_MIX ? 10 : 11, cur = sel_trk(), i, d = e > 0 ? 1 : -1, n = e > 0 ? e : -e;
+    int N = ui.page == P_MIX ? 10 : 12, cur = mod_sel() && ui.page != P_MIX ? AUX_MOD : sel_trk(), i, d = e > 0 ? 1 : -1,
+        n = e > 0 ? e : -e;
+    if (ui.page == P_MOD && mod_sel()) {         /* the MOD page: ALGORITHM through its lanes, then on to the tracks */
+        uint8_t ix[NMODL];
+        int nl = mod_lanes_now(ix), at = ui.mod_lane < nl ? ui.mod_lane : nl - 1;
+        if (nl && at + d >= 0 && at + d < nl) {
+            char t[24], a[8];
+            ui.mod_lane = (uint8_t)(at + d);
+            mod_tgt_name(lane_mod_tgt(&pats.lane[ix[ui.mod_lane]]), pats.lane[ix[ui.mod_lane]].param, t);
+            num_s((uint32_t)ui.mod_lane + 1u, s_cat(a, "LANE "));
+            say(a, t);
+            return;
+        }
+    }
     for (i = 0; i < N && L[i] != cur; i++)
         ;
     if (i == N) {                                /* (not in the list: from where it would sit) */
@@ -1330,6 +1358,8 @@ static void track_step(int e)
             n--;
     }
     i = ((i + d * n) % N + N) % N;
+    if (L[i] == AUX_MOD)
+        ui.mod_lane = (uint8_t)(d > 0 ? 0 : NMODL - 1);   /* (its first lane from below, its last from above) */
     track_select(L[i]);
 }
 static void solo_begin(int trk)                  /* a track joins the solo (the first: the mutes kept to go back to) */
@@ -1337,7 +1367,7 @@ static void solo_begin(int trk)                  /* a track joins the solo (the 
     if (!ui.solo)
         ui.solo_mute = seq.mute;
     ui.solo |= (uint16_t)(1u << trk);
-    seq.mute = (uint16_t)(((1u << NSEQT) - 1u) & ~ui.solo);
+    seq.mute = (uint16_t)((((1u << NSEQT) - 1u) & ~ui.solo) | (seq.mute & 1u << MOD_BIT));   /* (the MOD track's own) */
 }
 static void solo_end(void)
 {
@@ -1536,6 +1566,9 @@ static void key_down(int k)
                 return;
             set_mute(b, !(seq.mute >> b & 1u));
             say(seq.mute >> b & 1u ? "MUTED" : "UNMUTED", TRACK_NAME[b]);
+        } else if (b == MOD_BIT && p == P_ARRANGE) {   /* black key 11: the MOD track (its lanes freeze where they are) */
+            set_mute(MOD_BIT, !(seq.mute >> MOD_BIT & 1u));
+            say(seq.mute >> MOD_BIT & 1u ? "MUTED" : "UNMUTED", "MOD");
         }
         return;
     }
@@ -1553,6 +1586,20 @@ static void key_down(int k)
             ui.kmode[k] = KM_SCALE;
             say("SCALE", TS_NAME[BAR_SCALE_KEY[b]]);
             mark_dirty();
+        }
+        return;
+    }
+    if (p == P_MOD) {                            /* the MOD page: white keys its steps (held: KNOB 4 their value) */
+        if (w >= 0) {
+            ui.kmode[k] = KM_STEP;
+            if (!ui.held) {
+                ui.held_first = (uint8_t)w;
+                ui.held_used = 0;
+                ui.held_multi = 0;
+            } else
+                ui.held_multi = 1;
+            ui.held |= (uint16_t)(1u << w);
+            ui.touched = -1;
         }
         return;
     }
@@ -1767,6 +1814,18 @@ static void key_up(int k)
         int w = ordinal(WHITE_K, 16, k);
         if (w < 0)
             break;
+        if (ui.page == P_MOD) {                  /* the MOD page's step let go: a tap a value, or none */
+            if (!ui.held_used && !ui.held_multi && plat_ms() - ui.key_t[k] < STEP_TAP_MS)
+                mod_step_tap(w);
+            ui.held &= (uint16_t)~(1u << w);
+            for (int i = 0; ui.held && i < 16; i++)
+                if (ui.held >> i & 1u) {
+                    ui.held_first = (uint8_t)i;
+                    break;
+                }
+            ui.touched = -1;
+            break;
+        }
         if (sel_trk() == AUX_WEAVE) {            /* WEAVE's step let go: a tap adds or clears */
             wvpat_t *wp = &pats.weave[pats.scene[cur_scene()].weave % NPATT];
             int s = ui.bar * 16 + w;
@@ -1873,7 +1932,16 @@ static int save_project(int slot);
 static void save_user_preset(int slot);
 static void page_button(int b)
 {
-    if (b != B_GLO && is_fx(sel_trk()))          /* (FX I and FX II are Mix's strips: elsewhere the instrument again) */
+    if (mod_sel() && (b == B_SEQ || b == B_EDIT)) {   /* the MOD track: its one page (no sound to edit) */
+        ui.page = P_MOD;
+        ui.touched = -1;
+        ui.held = 0;
+        return;
+    }
+    if (mod_sel() && (b == B_ENV || b == B_FX || b == B_LFO || b == B_ARP))
+        track_select(ui.last_inst);              /* (as the conductor's: the track played last) */
+    if (b != B_GLO && is_fx(sel_trk()) && !mod_sel())   /* (FX I and FX II are Mix's strips: elsewhere the instrument
+                                                       * again) */
         track_select(ui.last_inst);
     if (is_aux(sel_trk()) && (b == B_ENV || b == B_LFO || (b == B_ARP && sel_trk() == AUX_WEAVE)))
         track_select(ui.last_inst);              /* (the conductor, the throws, WEAVE have no such page: the track
@@ -1924,6 +1992,8 @@ static void button_up(int b)
             ask_end(1);
         else if (lst.open)
             list_sel();
+        else if (ui.page == P_MOD && ui.held)    /* the MOD page, steps held: their values gone */
+            mod_clear_held();
         else
             list_open();
         break;
@@ -1989,8 +2059,9 @@ static void button_up(int b)
             say("SCENES", ui.scene_pg ? "17 to 32" : "1 to 16");
             break;
         }
-        if ((steps_page(ui.page) && !(ui.btn >> B_SEQ & 1u)) || (ui.page == P_WEAVE && wv_from(sel_trk()))) {
-            ui.bar = (uint8_t)clampi(ui.bar + d, 0, NBAR - 1);   /* (SEQ held: the keyboard's octave, below; Weave:
+        if ((steps_page(ui.page) && !(ui.btn >> B_SEQ & 1u)) || (ui.page == P_WEAVE && wv_from(sel_trk())) ||
+            ui.page == P_MOD) {
+            ui.bar = (uint8_t)clampi(ui.bar + d, 0, ui.page == P_MOD ? (pats.mod[mod_pat_now()].len - 1) / 16 : NBAR - 1);   /* (SEQ held: the keyboard's octave, below; Weave:
                                                                   * the bar its rows show) */
             num_s((uint32_t)ui.bar + 1u, t);
             say("BAR", t);
@@ -2020,10 +2091,11 @@ static void holds(void)
         }
     if (home_held() && now - ui.btn_t[B_HOME] >= CARD_MS)
         ui.btn_used |= 1u << B_HOME;
-    if (ui.solo && seq.mute != (uint16_t)(((1u << NSEQT) - 1u) & ~ui.solo)) {   /* a scene changed the mutes under a
-                                                                              * solo: its mutes to go back to, the solo kept */
+    if (ui.solo && (seq.mute & ((1u << NSEQT) - 1u)) != (uint16_t)(((1u << NSEQT) - 1u) & ~ui.solo)) {   /* a scene
+                                                                              * changed the mutes under a solo: its mutes
+                                                                              * to go back to, the solo kept */
         ui.solo_mute = seq.mute;
-        seq.mute = (uint16_t)(((1u << NSEQT) - 1u) & ~ui.solo);
+        seq.mute = (uint16_t)((((1u << NSEQT) - 1u) & ~ui.solo) | (seq.mute & 1u << MOD_BIT));
     }
     for (int k = 0; k < NKEYS; k++)               /* Mix: a track's key held: solo while held */
         if ((ui.keys >> k & 1u) && ui.kmode[k] == KM_SOLO && ui.knote[k] < NSEQT && !(ui.solo >> ui.knote[k] & 1u) &&
@@ -2057,6 +2129,16 @@ static void pattern_pick(int trk, int p);
 static void arrange_knob(int k, int32_t e)
 {
     int trk = sel_trk();
+    if (mod_sel() && k >= 2) {                   /* the MOD track: KNOB 4 its pattern in this scene (none: "-") */
+        int m = clampi(pats.scene_mod[cur_scene()] + (e > 0 ? 1 : -1), 0, NPATT);
+        if (k == 3 && m != pats.scene_mod[cur_scene()]) {
+            pats.scene_mod[cur_scene()] = (uint8_t)m;
+            if (m)
+                ui.mod_pat = (uint8_t)(m - 1);
+            mark_dirty();
+        }
+        return;
+    }
     if (k == 0)
         set_tempo_x10((int)proj.tempo_x10 + (home_held() ? (int)e : (int)e * 10));
     else if (k == 1)
@@ -2211,6 +2293,8 @@ static void glfo_knob(int k, int32_t e)          /* the shared LFO's knobs (synt
 /* a master value set by hand: its undo step, the engine, its CC (fx.h MS_*) */
 static void master_to(int m, int v)
 {
+    if (ui.mod_learn && cc_hand)                 /* the MOD track's LEARN: this knob */
+        mod_learned(MODT_MST, m);
     if (v == proj.master[m])
         return;                                  /* (a knob past its end: no undo step, no CC) */
     undo_master();
@@ -2335,6 +2419,154 @@ static void aux_knob(int trk, int k, int32_t e)
         hi = 1;
     set_tp(trk, p, clampi(par[p] + e, 0, hi));
 }
+/* ---------------------------------------------------------- the MOD track --- */
+/* a lane's target set by hand (KNOB 4 on its page): the knob's own value (its CC, its undo), the MOD lane letting go
+ * until its next value (the engine's seq_mod_hand); REC held while playing: written on the step playing */
+static void mod_knob(int k, int32_t e)
+{
+    const int l = mod_lane_now(), pt = mod_pat_now();
+    modpat_t *mp = &pats.mod[pt];
+    if (ui.held) {                               /* a step held: KNOB 4 its value (none yet: from the knob's) */
+        lane_t *L;
+        int tg, p, lo, hi;
+        if (k != 3 || l < 0)
+            return;
+        L = &pats.lane[l];
+        tg = lane_mod_tgt(L);
+        p = L->param;
+        lo = mod_lo(tg, p);
+        hi = mod_hi(tg, p);
+        for (int i = 0; i < 16; i++)
+            if (ui.held >> i & 1u) {
+                int st = step_shown(i) % NSTEP, v = L->val[st] == LOCK_NONE ? mod_val(tg, p) : L->val[st];
+                L->val[st] = (uint8_t)clampi(v + (hi < 16 ? (e > 0 ? 1 : -1) : (int)e), lo, hi);
+            }
+        ui.held_used = 1;
+        mark_dirty();
+        return;
+    }
+    switch (k) {
+    case 0: {                                    /* the scene's MOD pattern: none ("-"), P1..P8 (in at the bar) */
+        int m = clampi(pats.scene_mod[cur_scene()] + (e > 0 ? 1 : -1), 0, NPATT);
+        if (m == pats.scene_mod[cur_scene()])
+            return;
+        pats.scene_mod[cur_scene()] = (uint8_t)m;
+        if (m)
+            ui.mod_pat = (uint8_t)(m - 1);
+        ui.mod_lane = 0;
+        ui.bar = 0;
+        break;
+    }
+    case 1:
+        mp->len = (uint8_t)clampi(mp->len + e, 1, NSTEP);
+        if (ui.bar * 16 >= mp->len)
+            ui.bar = (uint8_t)((mp->len - 1) / 16);
+        break;
+    case 2:
+        mp->scale = (uint8_t)clampi(mp->scale + (e > 0 ? 1 : -1), TS_1, NTS - 1);
+        break;
+    default: {                                   /* the target's own knob */
+        lane_t *L;
+        int tg, p, hi, n;
+        if (l < 0)
+            return;
+        L = &pats.lane[l];
+        tg = lane_mod_tgt(L);
+        p = L->param;
+        hi = mod_hi(tg, p);
+        n = clampi(mod_val(tg, p) + (hi < 16 ? (e > 0 ? 1 : -1) : (int)e), mod_lo(tg, p), hi);
+        if (tg == MODT_MST)
+            master_to(p, n);
+        else
+            set_tp(tg, p, n);
+        if (seq.rec && playing() && seq.mod_pat == pt && seq.mod_pos < NSTEP)   /* REC: written as it turns */
+            L->val[seq.mod_pos] = (uint8_t)n;
+        else
+            return;
+        break;
+    }
+    }
+    mark_dirty();
+}
+/* a step tapped: a value (the target's now), again: none */
+static void mod_step_tap(int w)
+{
+    const int l = mod_lane_now(), st = ui.bar * 16 + w;
+    char a[16], t[32];
+    lane_t *L;
+    if (l < 0) {
+        say_no("NO LANE", "SEL to add one");
+        return;
+    }
+    if (st >= pats.mod[mod_pat_now()].len)
+        return;
+    L = &pats.lane[l];
+    num_s((uint32_t)st + 1u, s_cat(a, "STEP "));
+    if (L->val[st] != LOCK_NONE) {
+        L->val[st] = LOCK_NONE;
+        say(a, "no value");
+    } else {
+        knob_t kv0;
+        memset(&kv0, 0, sizeof kv0);
+        L->val[st] = (uint8_t)mod_val(lane_mod_tgt(L), L->param);
+        mod_knob_v(&kv0, lane_mod_tgt(L), L->param, L->val[st]);
+        s_cat(s_cat(s_cat(t, kv0.name ? kv0.name : ""), " "), kv0.val);
+        say(a, t);
+    }
+    mark_dirty();
+}
+static void mod_clear_held(void)                 /* SEL with steps held: their values gone */
+{
+    const int l = mod_lane_now();
+    if (l < 0)
+        return;
+    for (int i = 0; i < 16; i++)
+        if (ui.held >> i & 1u)
+            pats.lane[l].val[step_shown(i) % NSTEP] = LOCK_NONE;
+    ui.held_used = 1;
+    mark_dirty();
+    say("CLEARED", "the steps' values");
+}
+static void mod_select_lane(int l)               /* lane l (a pool index) the one picked */
+{
+    uint8_t ix[NMODL];
+    const int n = mod_lanes_now(ix);
+    for (int i = 0; i < n; i++)
+        if (ix[i] == l)
+            ui.mod_lane = (uint8_t)i;
+}
+/* a lane on the pattern edited for target (tg, p): ADD LANE's, or LEARN's; 1 = added */
+static int mod_add(int tg, int p)
+{
+    const int l = mod_lane_add(pats.lane, mod_pat_now(), tg, p, 1);
+    char t[24];
+    if (l == -2) {
+        say_no("EIGHT LANES", "a pattern has no more");
+        return 0;
+    }
+    if (l < 0) {
+        say_no("LANES FULL", "locks and lanes: 96");
+        return 0;
+    }
+    mod_select_lane(l);
+    mod_tgt_name(tg, p, t);
+    say("LANE ADDED", t);
+    mark_dirty();
+    return 1;
+}
+static void mod_learned(int tg, int p)           /* LEARN armed, a knob turned by hand: its target a lane, the MOD page */
+{
+    ui.mod_learn = 0;
+    if (!mod_target_ok(tg, p))
+        return;
+    if (mod_add(tg, p)) {                        /* (back to the Lanes page, the lane picked) */
+        uint8_t keep = ui.mod_lane;
+        track_select(AUX_MOD);
+        ui.page = P_MOD;
+        ui.held = 0;
+        ui.mod_lane = keep;
+    }
+}
 /* SEL held, a knob turned: that knob's automation (its motion and locks) cleared, from the pattern, or from the steps
  * held (the lock editor's knob) */
 static void knob_clear(int k)
@@ -2373,7 +2605,8 @@ static void knob_do(int k, int32_t e)
     touch(k);
     if (home_held())                             /* (HOME as shift: its release opens no page) */
         ui.btn_used |= 1u << B_HOME;
-    if ((ui.btn >> B_SEL & 1u) && !lst.open && !ui.ask) {   /* SEL held: the knob's automation cleared */
+    if ((ui.btn >> B_SEL & 1u) && !lst.open && !ui.ask && ui.page != P_MOD) {   /* SEL held: the knob's automation
+                                                                                * cleared */
         knob_clear(k);
         return;
     }
@@ -2391,6 +2624,10 @@ static void knob_do(int k, int32_t e)
     }
     if (steps_page(ui.page) && ui.held) {
         step_knob(k, e);
+        return;
+    }
+    if (ui.page == P_MOD) {
+        mod_knob(k, e);
         return;
     }
     if (slot_pg(ui.page) >= 0 || (ui.page == P_ENGINE && is_fx(trk))) {   /* a slot's knobs: its three, its mix */
@@ -2663,6 +2900,40 @@ static void list_change_do(int32_t e)
             break;
         }
         case A_PASTE: ui.pick_paste = (uint8_t)(d > 0); break;
+        case A_MOD_LANE: {                       /* a lane's row: glide (right) or step (left); it is the one picked */
+            uint8_t ix[NMODL];
+            int i = 0, n = mod_lanes_now(ix);
+            for (int r = 0; r < lst.sel; r++)
+                i += lst.row[r].id == A_MOD_LANE && lst.row[r].kind == LK_PICK;
+            if (i < n) {
+                pats.lane[ix[i]].pat = (uint8_t)((pats.lane[ix[i]].pat & ~LANE_GLIDE) | (d > 0 ? LANE_GLIDE : 0u));
+                ui.mod_lane = (uint8_t)i;
+                mark_dirty();
+            }
+            break;
+        }
+        case A_MOD_TRK: case A_MOD_PG: {          /* another track (its first page), another page: its first knob a
+                                                  * lane can take */
+            uint8_t pl[24];
+            int n, pg;
+            if (lst.row[lst.sel].id == A_MOD_TRK) {
+                ui.mpick_t = (uint8_t)((ui.mpick_t + d + NTRK + 3) % (NTRK + 3));
+                ui.mpick_p = 0;
+            } else if ((n = mod_pages(mod_pick_tgt(), pl)) > 0)
+                ui.mpick_p = (uint8_t)((ui.mpick_p % n + d + n) % n);
+            for (ui.mpick_k = 0; ui.mpick_k < 3 && mod_pick_param(&pg) < 0; ui.mpick_k++)
+                ;
+            break;
+        }
+        case A_MOD_KNOB: {                       /* the page's next knob a lane can take */
+            int pg;
+            for (int i = 0; i < 4; i++) {
+                ui.mpick_k = (uint8_t)((ui.mpick_k + d + 4) & 3);
+                if (mod_pick_param(&pg) >= 0)
+                    break;
+            }
+            break;
+        }
         case A_PRESET: ui.pick_preset = (uint16_t)((ui.pick_preset + d + NPRESETS) % (NPRESETS ? NPRESETS : 1)); break;
         case A_SAVE_PRESET: ui.pick_slot = (uint8_t)((ui.pick_slot + d + NUSER_PRESETS) % NUSER_PRESETS); break;
         case A_KIT: ui.pick_kit = (uint8_t)((ui.pick_kit + d + NKITS) % NKITS); break;
@@ -3139,6 +3410,7 @@ static void act_paste_scene(void)
     undo_arr();
     pats.scene[n] = pats.scene[src];
     pats.scene[n].used = 1;
+    pats.scene_mod[n] = pats.scene_mod[src];
     engine_scene(n, playing() ? SCENE_BAR : SCENE_NOW);
     mark_dirty();
     num_s((uint32_t)src + 1u, s_cat(t, "S"));
@@ -3397,13 +3669,18 @@ static void act_clear_scene(void)
             memset(pats.scene[n].pat, 0, sizeof pats.scene[n].pat);   /* (the brain's key stays) */
             pats.scene[n].mute = 0;
             pats.scene[n].weave = 0;
+            pats.scene_mod[n] = 0;
             to = n;
-        } else
+        } else {
             pats.scene[n].used = 0;
+            pats.scene_mod[n] = 0;
+        }
         engine_scene(to, SCENE_NOW);
         proj.scene = (uint8_t)to;
-    } else
+    } else {
         pats.scene[n].used = 0;
+        pats.scene_mod[n] = 0;
+    }
     mark_dirty();
     num_s((uint32_t)n + 1u, s_cat(t, "S"));
     say("CLEARED", t);
@@ -3719,6 +3996,34 @@ static void action_run(int a)
     song_t *sg = &pats.song;
     int cur = ui.name_slot <= sg->len ? ui.name_slot : sg->len;
     switch (a) {
+    case A_MOD_REMOVE: case A_MOD_CLEAR: {       /* the lane picked: gone, or its values */
+        const int l = mod_lane_now();
+        char t[24];
+        if (l < 0)
+            break;
+        mod_tgt_name(lane_mod_tgt(&pats.lane[l]), pats.lane[l].param, t);
+        if (a == A_MOD_REMOVE) {
+            lane_clear(pats.lane, l);
+            if (ui.mod_lane)
+                ui.mod_lane--;
+        } else
+            memset(pats.lane[l].val, LOCK_NONE, NSTEP);
+        mark_dirty();
+        say(a == A_MOD_REMOVE ? "REMOVED" : "CLEARED", t);
+        break;
+    }
+    case A_MOD_ADD: {
+        int pg, p = mod_pick_param(&pg);
+        if (p < 0)
+            say_no("NO KNOB", "pick a page and a knob");
+        else
+            mod_add(mod_pick_tgt(), p);
+        break;
+    }
+    case A_MOD_LEARN:
+        ui.mod_learn = 1;
+        say("LEARN", "turn the knob, anywhere");
+        break;
     case A_CLEAR_NOTES:
         if (sel_trk() == AUX_WEAVE) {            /* WEAVE: the scene's weave pattern, empty */
             wvpat_t *wp = &pats.weave[pats.scene[cur_scene()].weave % NPATT];
@@ -4177,6 +4482,16 @@ static void leds(void)
             if (is_drum(trk))
                 k |= 1u << BLACK_K[ui.dsound % 11];
             k |= ui.keys;
+        } else if (ui.page == P_MOD) {           /* the MOD page: the steps the lane picked has a value on, the playhead */
+            const int l = mod_lane_now(), pt = mod_pat_now(), len = pats.mod[pt].len;
+            for (i = 0; i < 16; i++) {
+                int st = ui.bar * 16 + (int)i;
+                if (l >= 0 && st < len && pats.lane[l].val[st] != LOCK_NONE)
+                    mid |= 1u << WHITE_K[i];
+                if (playing() && seq.mod_pat == pt && st == seq.mod_pos)
+                    k |= 1u << WHITE_K[i];
+            }
+            k |= ui.keys;
         } else if (ui.page == P_GLFO) {          /* the shared LFO: the tracks it moves, the kit sound (12: all) */
             int ks = proj.trk[AUX_BRAIN].par[TP_P1];
             for (i = 0; i < NTRK; i++)
@@ -4200,9 +4515,10 @@ static void leds(void)
             if (playing() && seq.cue < NSCENE && seq.cue / 16 == ui.scene_pg && seq.cue != cur_scene() &&
                 (seq.step_tick & 3u) < 2u)
                 k |= 1u << WHITE_K[seq.cue % 16];        /* the scene cued blinks on the beat */
-            for (i = 0; i < NSEQT; i++)              /* a track's black key: off muted, full the selected, mid the rest */
+            for (i = 0; i <= MOD_BIT; i++)           /* a track's black key: off muted, full the selected, mid the rest
+                                                      * (11: the MOD track) */
                 if (!(seq.mute >> i & 1u)) {
-                    if ((int)i == trk)
+                    if (i == MOD_BIT ? mod_sel() : (int)i == trk && !mod_sel())
                         k |= 1u << BLACK_K[i];
                     else
                         mid |= 1u << BLACK_K[i];
@@ -4450,14 +4766,33 @@ static void sp_main(void)
             }
         if (!n)
             sp_cat("none");
+    } else if (ui.page == P_MOD) {               /* the lane picked: which, glide or step, its values' steps */
+        const int l = mod_lane_now();
+        char t[24];
+        int n = 0;
+        if (l < 0) {
+            sp_cat("no lanes");
+            return;
+        }
+        mod_tgt_name(lane_mod_tgt(&pats.lane[l]), pats.lane[l].param, t);
+        sp_text(t);
+        sp_cat(lane_glide(&pats.lane[l]) ? ", glide, values on: " : ", step, values on: ");
+        for (int s = 0; s < pats.mod[mod_pat_now()].len; s++)
+            if (pats.lane[l].val[s] != LOCK_NONE && n < 16) {
+                if (n++)
+                    sp_cat(", ");
+                sp_int(s + 1);
+            }
+        if (!n)
+            sp_cat("none");
     } else if (ui.page == P_ARRANGE) {
         int n = 0;
         sp_cat("muted: ");
-        for (int t = 0; t < NSEQT; t++)
+        for (int t = 0; t <= MOD_BIT; t++)
             if (seq.mute >> t & 1u) {
                 if (n++)
                     sp_cat(", ");
-                sp_cat(TRACK_NAME[t]);
+                sp_cat(t == MOD_BIT ? "MOD" : TRACK_NAME[t]);
             }
         if (!n)
             sp_cat("none");

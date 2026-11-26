@@ -38,6 +38,8 @@ FENV	envelope amount
 FREQ	frequency
 FDBK	feedback
 MOD	modulation
+MD	modulation
+PAT	pattern
 ENV AMT	envelope amount
 KTRK	key tracking
 keytrack	key tracking

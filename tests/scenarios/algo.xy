@@ -1,12 +1,15 @@
-# ALGORITHM: the tracks that play on every page (T1-T8, COND, THROW), Mix's strips on Mix (T1-T8, FX I, FX II); off Mix
-# an FX track gives way to the instrument picked last
+# ALGORITHM: the tracks that play on every page (T1-T8, COND, THROW, WEAVE, MOD), Mix's strips on Mix (T1-T8, FX I,
+# FX II); off Mix an FX track gives way to the instrument picked last
 wait 300
 expect trk 1
+turn ALGO -1
+expect trk 14
+expect page Lanes
 turn ALGO -1
 expect trk 13
 turn ALGO -1
 expect trk 10
-turn ALGO 2
+turn ALGO 3
 expect trk 1
 tap GLO
 turn ALGO -1
