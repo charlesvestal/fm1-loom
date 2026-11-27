@@ -2610,8 +2610,7 @@ static void slot_turn(int pg, int j, int32_t e)
     if (in->name[0] == '-')                      /* (no such knob) */
         return;
     if (j == SL_K1 && ef == EF_DELAY) {
-        n = fx_delay_div(v) + d;
-        n = n < 0 ? 6 : n >= FX_DL_N ? 13 * FX_DL_N - 7 : 13 * n + 6;
+        n = fx_delay_at(fx_delay_div(v) + d);
     } else
         n = in->hi < 16 || (in->kind == PK_HZ_SYNC && (v < 8 || v + e < 8)) ? v + d : v + (int)e;
     n = clampi(n, in->lo, in->hi);

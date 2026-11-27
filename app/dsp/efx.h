@@ -127,8 +127,10 @@ enum { RV_PLATE, RV_ROOM, RV_STUDIO_S, RV_STUDIO_M, RV_STUDIO_L, RV_HALL, RV_HAL
 static inline int rv_lush(int mode) { return mode == RV_LUSH || mode == RV_SHIMMER; }   /* (shimmer is lush's) */
 #define NSPU RV_ECHO_ONE                           /* the SPU modes: RV_ROOM .. RV_ECHO_ONE */
 extern const char *const RV_NAME[NRV];         /* "plate", "room", "studio S", ... */
-#define FX_DLY_LEN 11200              /* the delay's lines: int16 samples a side, at half rate (22.05 kHz): 0.5 s plus a
-                                       * 128-sample margin (the second core's lag, 256 frames at most; the pool's budget) */
+#define FX_DLY_LEN 22400              /* the delay's longest lines: int16 samples a side, at half rate (22.05 kHz): 1.01 s
+                                       * plus a 128-sample margin (the second core's lag, 256 frames at most): 1/4D to 89 BPM,
+                                       * 1/4 to 60 (2026-11-27; was 0.5 s). A delay takes what its time needs of the pool
+                                       * (efx_delay_blocks), so only a long time costs it */
 #define FX_RV_LEN 32768               /* int16 samples: the reverb's longest line (an SPU mode at x4 up to 32766: the chaos
                                        * echo's and the delay's 1FFFh x 4); each mode's own: efx_rv_ring. (Its states'
                                        * clearing and sleeping count to it whatever the line) */
@@ -137,10 +139,20 @@ extern const char *const RV_NAME[NRV];         /* "plate", "room", "studio S", .
 #define EFX_SMEAR_N 1566              /* smear's allpasses and the send's wait: after a delay's lines */
 #define EFX_CHO_REACH ((15 + 8) * 441 / 10 + 2)   /* how far back a chorus reads: its centre 15 ms and its depth up to
                                        * 8 ms (0.3 + 7.7), a sample more between: a slot's line (no lag) is EFX_INS_N */
-/* the delay's time: one of FX_DL_N divisions of the tempo (1/32 .. 1/4; fx_delay_div), its name's note and mark (T, D
- * or none) */
-#define FX_DL_N 10
-static inline int fx_delay_div(int time) { return (time < 0 ? 0 : time > 127 ? 127 : time) * FX_DL_N >> 7; }
+/* the delay's time: one of FX_DL_N divisions of the tempo (1/32 .. 1/4D; fx_delay_div), its name's note and mark (T, D
+ * or none). The knob: 1/32 .. 1/8D a tenth each as before (0..115), then 1/4 (116..121) and 1/4D (122..127, 2026-11-27,
+ * project format 35: 1/4's top until then, project.c dl_old) */
+#define FX_DL_N 11
+#define FX_DL_14D 122                 /* the knob's first 1/4D */
+static inline int fx_delay_div(int time)
+{
+    time = time < 0 ? 0 : time > 127 ? 127 : time;
+    return time >= FX_DL_14D ? FX_DL_N - 1 : time * 10 >> 7;
+}
+static inline int fx_delay_at(int d)  /* the knob in the middle of division d */
+{
+    return d <= 0 ? 6 : d >= FX_DL_N - 1 ? 124 : d == FX_DL_N - 2 ? 118 : 13 * d + 6;
+}
 extern const uint8_t FX_DL_NOTE[FX_DL_N];
 extern const char FX_DL_MARK[FX_DL_N];
 float efx_delay_secs(int time, int fine, float bpm, int32_t len, int *halves);   /* the delay's time at a tempo, and the times the line

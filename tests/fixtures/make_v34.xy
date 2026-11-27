@@ -1,0 +1,24 @@
+# a format 34 project and its presets (format 17), from before the delay's 1/4D (format 35: the TIME knob's 122..127,
+# 1/4 then, now 1/4D; project.c dl_old): saved by that build, for the migration's test (tests/scenarios/migrate.xy).
+# Track 2's slot 2 a delay at 127 with a lock at 125 on step 5, saved as user preset U1; track 3's delay at 110 (1/8D:
+# kept); FX I's delay at 124; Master FX a delay at 123.
+# Run by a format 34 build (354044e): its loom_host tests/fixtures/make_v34.xy
+wait 300
+bpm 100
+pat 2 1 16 1 50 0
+notes 2 1 1 0.5 100 C3
+notes 2 1 5 0.5 100 E3
+param 2 itype 16
+param 2 i1 127
+param 2 s2mix 100
+lock 2 1 5 i1 125
+param 3 itype 16
+param 3 i1 110
+param 11 camt 124
+mst color delay
+mst camount 123
+mst cmix 64
+wait 40
+usersave 2 1
+projsave 1 v34_test
+storesave tests/fixtures/store_v34.bin

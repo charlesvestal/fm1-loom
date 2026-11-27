@@ -626,3 +626,19 @@ reboot
 wait 400
 expect par2.p1 4
 expect lock 2 1 9 p1 11
+# a format 34 project and its presets (format 17), from before the delay's 1/4D (tests/fixtures/make_v34.xy): a delay's
+# TIME at 122..127 (1/4 then, 1/4D now) loads as 121, still 1/4: a track's slot, its lock, FX I, Master FX, the user
+# preset; a time below them as it was
+storeload tests/fixtures/store_v34.bin
+reboot
+wait 400
+expect tempo 100
+expect par2.itype 16
+expect par2.i1 121
+expect lock 2 1 5 i1 121
+expect par3.i1 110
+expect par11.camt 121
+expect mst.camount 121
+preset 4 U1
+expect par4.itype 16
+expect par4.i1 121

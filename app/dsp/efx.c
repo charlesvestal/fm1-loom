@@ -556,9 +556,9 @@ static const int32_t RV_AP[4] = {556, 441, 579, 457};
 _Static_assert(RV_AP0 + 556 + 441 + 579 + 457 <= FX_RV_LEN, "the reverb's lines do not fit FX_RV_LEN");
 /* the delay's times in sixteenths: 1/32, 1/16T, 1/32D, 1/16, 1/8T, 1/16D, 1/8, 1/4T, 1/8D, 1/4 (dotted = 1.5x, a
  * triplet 2/3); its name's note and mark (efx.h) */
-static const float DL_DIV[FX_DL_N] = {0.5f, 2.0f / 3.0f, 0.75f, 1.0f, 4.0f / 3.0f, 1.5f, 2.0f, 8.0f / 3.0f, 3.0f, 4.0f};
-const uint8_t FX_DL_NOTE[FX_DL_N] = {32, 16, 32, 16, 8, 16, 8, 4, 8, 4};
-const char FX_DL_MARK[FX_DL_N] = {0, 'T', 'D', 0, 'T', 'D', 0, 'T', 'D', 0};
+static const float DL_DIV[FX_DL_N] = {0.5f, 2.0f / 3.0f, 0.75f, 1.0f, 4.0f / 3.0f, 1.5f, 2.0f, 8.0f / 3.0f, 3.0f, 4.0f, 6.0f};
+const uint8_t FX_DL_NOTE[FX_DL_N] = {32, 16, 32, 16, 8, 16, 8, 4, 8, 4, 4};
+const char FX_DL_MARK[FX_DL_N] = {0, 'T', 'D', 0, 'T', 'D', 0, 'T', 'D', 0, 'D'};
 
 /* lush: Dattorro's plate at 22.05 kHz on the reverb line (int16, through psxrev.h's spu_rd / spu_wr: one ring whose
  * base moves a sample a tick; a line at offset o is written at o and read len ticks later at o + len). The lines in

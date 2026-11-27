@@ -401,7 +401,7 @@ int main(void)
         check("picks: chorus .. phaser, plate .. shimmer; their knobs the catalog's, named as before (at most 8 letters)", ok);
     }
     {   /* the memory each needs of the pool on a send (2 KB blocks): the reverb's modes their own */
-        static const uint8_t want[NFXPICK] = {2, 24, 2, 0, 12, 5, 4, 10, 14, 22, 4, 31, 32, 32, 26, 28};
+        static const uint8_t want[NFXPICK] = {2, 46, 2, 0, 12, 5, 4, 10, 14, 22, 4, 31, 32, 32, 26, 28};
         int ok = 1;
         for (t = 0; t < NFXPICK; t++) {
             uint8_t o[9];
@@ -411,7 +411,7 @@ int main(void)
             if (efx_need(o[0], md, 1) != want[t])
                 printf("  %s: %d blocks\n", fx_pick_name(t), efx_need(o[0], md, 1));
         }
-        check("the pool: delay 24 blocks, plate 12, room 5 .. chaos echo 32, lush 26, shimmer 28, chorus 2", ok);
+        check("the pool: delay 46 blocks at its longest, plate 12, room 5 .. chaos echo 32, lush 26, shimmer 28, chorus 2", ok);
         fxo_init(fx);
         fx_memory(fx, 0, 0);
         check("no memory: silent, not awake", !fx_room(fx) && !fx_awake(fx));
@@ -460,14 +460,17 @@ int main(void)
             check(name, at_l >= at[s] - 2 && at_l <= at[s] + 3 && at_r >= 2 * at[s] - 2 && at_r <= 2 * at[s] + 4 &&
                         pl > 0.3f && pr > 0.1f);
         }
-        {   /* the times too long for the line (0.5 s) halved: 1/4 from 120 BPM down, 1/8D from 90 down, fine counted */
-            int ok = fx_delay_halves(121, 64, 120.0f, 0) == 0 && fx_delay_halves(121, 64, 119.0f, 0) == 1 &&
-                     fx_delay_halves(121, 64, 59.0f, 0) == 2 && fx_delay_halves(108, 64, 90.0f, 0) == 0 &&
-                     fx_delay_halves(108, 64, 89.0f, 0) == 1 && fx_delay_halves(108, 127, 110.0f, 0) == 1 &&
-                     fx_delay_halves(6, 0, 30.0f, 0) == 0;
+        {   /* the times too long for the longest line (1.01 s) halved: 1/4 below 60 BPM, 1/4D below 90, 1/8D below 45,
+             * fine counted */
+            int ok = fx_delay_halves(121, 64, 60.0f, 0) == 0 && fx_delay_halves(121, 64, 59.0f, 0) == 1 &&
+                     fx_delay_halves(121, 64, 29.0f, 0) == 2 && fx_delay_halves(124, 64, 90.0f, 0) == 0 &&
+                     fx_delay_halves(124, 64, 89.0f, 0) == 1 && fx_delay_halves(108, 64, 45.0f, 0) == 0 &&
+                     fx_delay_halves(108, 64, 44.0f, 0) == 1 && fx_delay_halves(108, 127, 55.0f, 0) == 1 &&
+                     fx_delay_halves(6, 0, 30.0f, 0) == 0 && fx_delay_div(121) == 9 && fx_delay_div(122) == 10 &&
+                     fx_delay_div(115) == 8;
             for (i = 0; i < 128; i++)                        /* every knob a time, in order */
                 ok &= fx_delay_div(i) >= 0 && fx_delay_div(i) < FX_DL_N && (!i || fx_delay_div(i) >= fx_delay_div(i - 1));
-            check("delay: 1/4 halved below 120 BPM, 1/8D below 90; the knob's ten times in order", ok);
+            check("delay: 1/4 halved below 60 BPM, 1/4D below 90, 1/8D below 45; the knob's eleven times in order", ok);
         }
         {   /* the delay returns only its echoes: the send itself is not passed through */
             static const uint8_t kd[4] = {100, 64, 127, 127};

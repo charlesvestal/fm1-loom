@@ -2379,8 +2379,9 @@ static void insert_tests(void)
                 check("the pool's masks: 78 blocks, the default sends and a track's delay beside them, 4 left", ok &&
                       EFX_NB == 78);
             }
-            check("a track's memory needs: delay 24 blocks, plate 12, lush 27, a chorus 1 (a send's 2)",
-                  efx_need(EF_DELAY, 0, 0) == 24 && efx_need(EF_REVERB, RV_PLATE, 0) == 12 &&
+            check("a track's memory needs: delay 46 at its longest (1.01 s: 1/4D at 89 BPM), plate 12, lush 27, a chorus 1 "
+                  "(a send's 2)",
+                  efx_need(EF_DELAY, 0, 0) == 46 && efx_need(EF_REVERB, RV_PLATE, 0) == 12 &&
                   efx_need(EF_REVERB, RV_LUSH, 0) == 27 && efx_need(EF_CHORUS, 0, 0) == 1 && efx_need(EF_CHORUS, 0, 1) == 2);
         }
         (void)late, (void)ended;

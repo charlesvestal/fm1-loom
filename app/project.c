@@ -117,6 +117,26 @@ static uint8_t old_repeats(uint8_t v)            /* a delay's REPEATS before 27 
     return r;
 }
 static uint8_t old_arp(uint8_t v) { return v == LOCK_NONE ? v : v > 8u ? 10u : (uint8_t)(v + (v > 0u) + (v > 2u)); }
+/* before 35 (presets 18) the delay's TIME had no 1/4D: its top, 122..127, was 1/4 (now 1/4D): as it was, 121 */
+static uint8_t dl_old(uint8_t v) { return v >= FX_DL_14D && v <= 127u ? (uint8_t)(FX_DL_14D - 1) : v; }
+static void kit_dl_old(uint8_t *img)             /* a kit's slots (ui.c kit_pack's order) */
+{
+    uint8_t *k = img + KIT_LEN16;
+    if (img[NAME_LEN + TP_CTYPE] == EF_DELAY)
+        img[NAME_LEN + TP_CAMT] = dl_old(img[NAME_LEN + TP_CAMT]);
+    if (k[0] == EF_DELAY)
+        k[1] = dl_old(k[1]);
+}
+/* is (t, p) a delay's TIME in the project as loaded (t a track, or MODT_MST: the master's) */
+static int dl_time(int t, int p)
+{
+    if (t == MODT_MST)
+        return p == MS_CAMT && proj.master[MS_CTYPE] == EF_DELAY;
+    if (t < 0 || t >= NALLTRK || (t >= NTRK && t != AUX_FX1 && t != AUX_FX2))
+        return 0;                                /* (the tracks' slots, and the sends': theirs since 29) */
+    return (p == TP_CAMT && proj.trk[t].par[TP_CTYPE] == EF_DELAY) ||
+           (p == TP_I1 && proj.trk[t].par[TP_ITYPE] == EF_DELAY);
+}
 /* before 33: no 1/4D, the slowest now (every speed one further) */
 static uint8_t arp_up(uint8_t v) { return v == LOCK_NONE ? v : v >= NARPSPD - 1u ? (uint8_t)(NARPSPD - 1u) : (uint8_t)(v + 1u); }
 /* before 28 (presets 17) a track had a character (slot 1 now: its types the catalog's first, numbered as there) and an
@@ -239,7 +259,8 @@ typedef char preset_packed[(sizeof(user_preset_t) == NAME_LEN + 28u + NTP_SOUND 
 #define PRESETS_KITS (4u + (uint32_t)sizeof user_presets)         /* 17: where the kits start */
 #define PRESETS_LEN (PRESETS_KITS + NUSER_KITS * KIT_LEN)
 typedef char presets_fit[(PRESETS_LEN <= PLAT_STORE_MAX && PRESETS_V7 == 836u) ? 1 : -1];
-#define PRESETS_FORMAT 17u               /* 17: the one effects list: the slots' third knob, mix and extras (user_preset_t
+#define PRESETS_FORMAT 18u               /* 18: the delay's 1/4D (as 17; a delay TIME's 122..127 as 121: dl_old);
+                                          * 17: the one effects list: the slots' third knob, mix and extras (user_preset_t
                                           *     s1k3 .. s2x), a kit's slot 2 and slot 1's third knob (KIT_LEN); the
                                           *     character's and the insert's values as the slots' (project.c old_slots);
                                           * 16: the insert (user_preset_t itype, i1, i2, i3);
@@ -1057,6 +1078,14 @@ int project_load(int slot)
                                                        * resonance, now the melodic filter: off; the fourth, the mix's
                                                        * resonance, now the three's) */
             proj.master[MS_MELF] = MS_FILT_OFF;
+        if (load_format < 35u) {                      /* (before 35 the delay's TIME had no 1/4D: dl_old) */
+            for (int t = 0; t < NALLTRK; t++)
+                for (int p = 0; p < NTP; p++)
+                    if (dl_time(t, p))
+                        proj.trk[t].par[p] = dl_old(proj.trk[t].par[p]);
+            if (dl_time(MODT_MST, MS_CAMT))
+                proj.master[MS_CAMT] = dl_old(proj.master[MS_CAMT]);
+        }
         if (load_format < 33u)                        /* (before 33 no 1/4D: every speed one further) */
             for (int t = 0; t < NTRK; t++)
                 if (proj.trk[t].par[TP_PLAYER] % NPL == PL_ARP)
@@ -1115,6 +1144,15 @@ int project_load(int slot)
     } else {
         bad = 1;
     }
+    if (load_format < 35u)                            /* (the delay times' locks and motion too: above; a MOD lane's
+                                                       * target its track less LANE_MOD) */
+        for (int k = 0; k < NLANE; k++) {
+            lane_t *L = &pats.lane[k];
+            const int t = L->trk >= LANE_MOD && L->trk <= LANE_MOD + MODT_MST ? L->trk - (int)LANE_MOD : L->trk;
+            if (L->used && L->param < NTP && dl_time(t, L->param))
+                for (int i = 0; i < NSTEP; i++)
+                    L->val[i] = L->val[i] == LOCK_NONE ? L->val[i] : dl_old(L->val[i]);
+        }
     if (load_format < 33u)                            /* (the arp speeds' locks and motion too: above) */
         for (int k = 0; k < NLANE; k++) {
             lane_t *L = &pats.lane[k];
@@ -1291,7 +1329,7 @@ static uint32_t kits_at(uint32_t fmt, int n, uint32_t *cnt, uint32_t *len)
 {
     *len = fmt >= 17u ? KIT_LEN : KIT_LEN16;
     *cnt = NUSER_KITS;
-    if (fmt == PRESETS_FORMAT && n == (int)PRESETS_LEN)
+    if ((fmt == PRESETS_FORMAT || fmt == 17u) && n == (int)PRESETS_LEN)
         return PRESETS_KITS;
     if (fmt == 16u && n == (int)PRESETS_V16)
         return PRESETS_KITS16;
@@ -1388,6 +1426,14 @@ int presets_load(void)
                 u->s1x[i] = u->s2x[i] = 0;
         }
     }
+    if (fmt < 18u)                               /* (before 18 no 1/4D: dl_old) */
+        for (k = 0; k < NUSER_PRESETS; k++) {
+            user_preset_t *u = &user_presets[k];
+            if (u->par[TP_CTYPE] == EF_DELAY)
+                u->par[TP_CAMT] = dl_old(u->par[TP_CAMT]);
+            if (u->itype == EF_DELAY)
+                u->i1 = dl_old(u->i1);
+        }
     if (fmt < 7u)                                /* (before 7, off (FT_DYNAMIC) sat at 4 and bp12 at 5: swap) */
         for (k = 0; k < NUSER_PRESETS; k++) {
             uint8_t ft = user_presets[k].par[TP_FTYPE];
@@ -1417,13 +1463,16 @@ int presets_load(void)
 static void presets_image(void)
 {
     int n = plat_store_load(OBJ_PRESETS, io_buf, sizeof io_buf);
-    uint32_t i, k, cnt, len, from = kits_at(get32(io_buf), n, &cnt, &len);
+    const uint32_t fmt = get32(io_buf);
+    uint32_t i, k, cnt, len, from = kits_at(fmt, n, &cnt, &len);
     for (k = cnt; k-- > 0;) {                    /* (up, the last first: each copied from its end) */
         const uint32_t src = from + k * len, dst = PRESETS_KITS + k * KIT_LEN;
         for (i = len; i-- > 0;)
             io_buf[dst + i] = io_buf[src + i];
         if (len < KIT_LEN)
             kit_old(io_buf + dst);
+        if (fmt < 18u)
+            kit_dl_old(io_buf + dst);
     }
     for (i = PRESETS_KITS + cnt * KIT_LEN; i < PRESETS_LEN; i++)
         io_buf[i] = 0;
@@ -1453,6 +1502,8 @@ int kit_load(int slot, uint8_t *img)
         img[i] = io_buf[at + (uint32_t)slot * len + i];
     if (len < KIT_LEN)
         kit_old(img);
+    if (fmt < 18u)
+        kit_dl_old(img);
     img[NAME_LEN - 1] = 0;
     return img[NAME_LEN + TP_ENGINE] != EG_DRUMLINE ? -1 : fmt >= 10u ? 0 : 1;
 }

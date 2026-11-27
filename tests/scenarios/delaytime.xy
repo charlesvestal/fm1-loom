@@ -1,5 +1,6 @@
-# the delay's TIME: a note value a click (1/8 -> 1/4T -> 1/8D -> 1/4, the last held), each the middle of its tenth
-# (fx.h fx_delay_div); the knob prints the note, and what plays where the line halves it
+# the delay's TIME: a note value a click (1/8 -> 1/4T -> 1/8D -> 1/4 -> 1/4D, the last held), each the middle of its
+# division (fx.h fx_delay_div, fx_delay_at: 1/4 and 1/4D share the old tenth of 1/4); the knob prints the note, and
+# what plays where the line halves it
 wait 300
 tap GLO
 turn SELECT 1
@@ -13,11 +14,11 @@ turn K1 1
 turn K1 1
 turn K1 1
 wait 40
-expect par11.camt 123
+expect par11.camt 124
 turn K1 -1
 wait 40
-expect par11.camt 110
-expect epar11.camt 110
+expect par11.camt 118
+expect epar11.camt 118
 bpm 80
 wait 40
 shot delaytime_80bpm.png

@@ -1282,9 +1282,13 @@ type. On a synth track, ring and tape work on each note on its own: ring's sine 
 tape's wow bends every note together. On a kit, on FX I and FX II and on Master FX, ring uses a ratio of C4 and
 tape's wow runs through a short line.
 
-**The delay.** Its time runs from 1/32 to 1/4 of the tempo, with triplets and dotted values, a value a click, and
-**fine** (in **SEL**) moves it up to 25 % either way. The delay holds half a second, so it halves a time longer than
-that, and the knob shows what plays: below 120 BPM a 1/4 shows "1/4 as 1/8". **repeats** at 56 gives about eight;
+**The delay.** Its time runs from 1/32 to 1/4D of the tempo, with triplets and dotted values, a value a click, and
+**fine** (in **SEL**) moves it up to 25 % either way. A delay takes only the memory its time needs, so a short delay
+leaves room for other effects. It holds at most a second: below 60 BPM a 1/4 (below 90, a 1/4D) plays at half its
+time, and the knob says "max". When you turn the time up and there is no memory for it, the delay keeps the memory it
+has and plays at half time, and LOOM-8 tells you: "CAPPED AT 1/8, FREE AN FX" (turn off an effect you don't need, or
+pick a smaller reverb). When there is memory, the echoes fade out for a moment and start again at the new time.
+**repeats** at 56 gives about eight;
 each 14 steps doubles them, and at 127 the knob says "hold": they ring on until you turn it down. **width** sets how
 far apart the echoes bounce (at 127, hard left and right; at 0, in the center). **wobble** makes the time drift
 slowly, like tape, more with each repeat, and **smear** blurs each repeat a little more than the last, until the
