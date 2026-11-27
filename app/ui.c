@@ -2599,10 +2599,20 @@ static void slot_turn(int pg, int j, int32_t e)
     } else
         n = in->hi < 16 || (in->kind == PK_HZ_SYNC && (v < 8 || v + e < 8)) ? v + d : v + (int)e;
     n = clampi(n, in->lo, in->hi);
-    while (j == SL_X1 && ef == EF_REVERB && n != v && !slot_fits(pg, EF_REVERB, n))   /* (a reverb type with no
-                                                  * memory there: passed) */
-        if ((n += d) < in->lo || n > in->hi)
-            return;
+    {   /* a reverb type with no memory there: passed, and said (the user could not find lush: the delays held the
+         * memory, and the row stepped past it without a word) */
+        int passed = -1;
+        while (j == SL_X1 && ef == EF_REVERB && n != v && !slot_fits(pg, EF_REVERB, n)) {
+            if (passed < 0)
+                passed = n;
+            if ((n += d) < in->lo || n > in->hi) {
+                say_no("NO MEMORY", RV_NAME[passed]);   /* (nothing further fits: the first one passed) */
+                return;
+            }
+        }
+        if (passed >= 0)
+            say_no("NO MEMORY", RV_NAME[passed]);
+    }
     if (n == v)
         return;
     slot_put(pg, j, n);
