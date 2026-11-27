@@ -245,7 +245,8 @@ tap SEL
 wait 40
 shot fx2_list.png
 tap HOME
-# PRESET: the one effects list (the reverb its last: back to rumble, and on again, the plate at its defaults)
+# PRESET: the one effects list (the reverb its last: back to rumble, and on again, lush at its defaults: a reverb
+# picked starts as lush where its memory is there, 2026-11-27)
 turn PRESET -1
 wait 40
 expect par12.ctype 17
@@ -253,6 +254,6 @@ shot fx2_rumble.png
 turn PRESET 1
 wait 40
 expect par12.ctype 18
-expect par12.s1x1 0
-expect par12.camt 100
+expect par12.s1x1 10
+expect par12.camt 64
 expect trk 1

@@ -2575,6 +2575,11 @@ static void slot_effect(int pg, int ef, int d)
         slot_put(pg, SL_K1 + j, EFX[ef].def[j]);
     for (int j = 0; j < 4; j++)
         slot_put(pg, SL_X1 + j, EFX[ef].xdef[j]);
+    if (ef == EF_REVERB && slot_fits(pg, EF_REVERB, RV_LUSH)) {   /* (the reverb: lush where its memory is there, the
+                                                  * user's choice 2026-11-27; else the plate, the catalog's) */
+        slot_put(pg, SL_X1, RV_LUSH);
+        rv_defaults(pg, RV_LUSH);
+    }
     if (trk < 0)
         par = slot_vals(pg, mp, &trk, &q);
     if (!par[TP_SLOT[q][SL_MIX]] && ef && (trk < 0 || !is_fx(trk)))
