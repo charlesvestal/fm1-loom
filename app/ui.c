@@ -5311,6 +5311,8 @@ static void sp_main(void)
         sp_text("BT MIDI");
         sp_cat(" ");
         sp_text(t);
+        sp_cat(", version ");                    /* (its row's: the list's VERSION is a note, the cursor passes it) */
+        sp_cat(APP_VERSION);
     } else if (ui.page == P_STATUS) {
         sp_cat("audio load ");
         sp_int((int)plat_cpu_pct());
