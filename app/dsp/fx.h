@@ -116,7 +116,7 @@ enum { PB_KICK, PB_T1, PB_METRO = PB_T1 + 8, NPB };
 #define MS_PUMP_REL_DEF 60
 extern const char *const MS_NAME[NMS];
 #ifdef PLAT_HOST
-#define MASTER_BYTES 1272             /* (the host's pointers are wider) */
+#define MASTER_BYTES 1280             /* (the host's pointers are wider) */
 #else
 #define MASTER_BYTES 1264             /* (fx.c checks it: 1,264 B, 2026-11-27, CLIP's meter: 1,256 B, 2026-11-26 (976 before the master filter, 1,036 with
                                        * two, 1,100 with three, + their coefficients kept, + their steps: a plan a

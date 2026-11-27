@@ -359,6 +359,43 @@ static float mf_step(const uint8_t *a, const uint8_t *b, int c, const char *what
     return d;
 }
 
+/* CLIP (fx.h MS_CLIP): the pair on the melodic group, hot enough (x 3) that the drive reaches the knee; a from block TB
+ * (a == b: never moved) */
+static void clip_render(int a, int b, float (*o)[LEN])
+{
+    static float L[N], R[N], P1[N], P2[N], S1[N], S2[N];
+    master_init(MS);
+    master_tempo(MS, 120.0f);
+    master_set(MS, MS_CLIP, a);
+    for (int bk = 0; bk < NB; bk++) {
+        const int at = bk * N;
+        if (bk == TB && b != a)
+            master_set(MS, MS_CLIP, b);
+        for (int i = 0; i < N; i++) {
+            P1[i] = P2[i] = 0.0f;
+            S1[i] = 3.0f * sig[0][at + i];
+            S2[i] = 3.0f * sig[1][at + i];
+        }
+        master_process(MS, P1, P2, S1, S2, L, R, N);
+        memcpy(o[0] + at, L, sizeof L);
+        memcpy(o[1] + at, R, sizeof R);
+    }
+}
+static float clip_step(int a, int b, const char *what)
+{
+    float d;
+    clip_render(a, b, outv[0]);
+    clip_render(a, a, outv[1]);
+    clip_render(b, b, outv[2]);
+    nref = 3;
+    for (int k = 1; k <= 3; k++)                 /* (a sweep passes every value between) */
+        clip_render(a + (b - a) * k / 4, a + (b - a) * k / 4, outv[nref++]);
+    d = click_db();
+    if (verbose)
+        printf("      %-8s %-18s %-24s %+6.1f dB\n", "master", "clip", what, (double)d);
+    return d;
+}
+
 static int fails;
 static float worst_all;
 int main(int argc, char **argv)
@@ -476,6 +513,16 @@ int main(int argc, char **argv)
             fails += w > SLEW_DB;
             worst_all = w > worst_all ? w : worst_all;
         }
+    }
+    {   /* CLIP (Master EQ's KNOB 4): from off, to off, half the range, a small turn */
+        float w = -99.0f;
+        for (int k = 0; k < 4; k++) {
+            float d = clip_step(ST[k][0], ST[k][1], STN[k]);
+            w = d > w ? d : w;
+        }
+        printf("  %-18s %-7s %10s %10s %10s %9.1f%s\n", "master", "clip", "-", "-", "-", (double)w, w > SLEW_DB ? "!" : " ");
+        fails += w > SLEW_DB;
+        worst_all = w > worst_all ? w : worst_all;
     }
     printf("worst %+.1f dB; %d over their limit\n", (double)worst_all, fails);
     return fails ? 1 : 0;

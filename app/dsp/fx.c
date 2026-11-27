@@ -338,6 +338,8 @@ struct master {
     float gp, gm, glev;                       /* the group and master levels (targets) */
     float gp_c, gm_c, lev_c;                  /* gliding */
     float cg;                                 /* CLIP's drive (1 .. 2.5x); 0: off */
+    float cg_c;                               /* its drive gliding there (~10 ms, as the level: a turn stepped it a block
+                                               * at a time); 1 at rest when off; 0 until first set (taken at once) */
     /* EQ */
     biq_t eq[3];
     biqs_t eqs[2][3];
@@ -561,10 +563,12 @@ void master_set(master_t *m, int p, int v)
     m->pot[p] = (uint8_t)(v < 0 ? 0 : v > master_max(p) ? master_max(p) : v);
     if (p <= MS_EQ_HI)
         eq_coefs(m);
-    else if (p == MS_CLIP)
+    else if (p == MS_CLIP) {
         m->cg = v ? fm_exp2f((float)v * (1.3288f / 127.0f)) : 0.0f;   /* 0 .. +8 dB of drive (at +12 the top half
                                                                      * flattened a mix); 0: the stage skipped */
-    else if (p <= MS_CMIX || (p >= MS_CK3 && p <= MS_CX4))
+        if (m->cg_c == 0.0f)                                      /* (a new master: no glide in) */
+            m->cg_c = m->cg != 0.0f ? m->cg : 1.0f;
+    } else if (p <= MS_CMIX || (p >= MS_CK3 && p <= MS_CX4))
         slot_set(m);
     else if (p >= MS_DFILT)
         return;                                           /* (the filters: master_process reads them, mf_run) */
@@ -876,7 +880,9 @@ static inline float master_tail(master_t *m, float *mel_l, float *mel_r, float *
 {
     uint32_t i;
     const float glev = m->glev, a_det = m->a_det, a_att = m->a_att, a_rel = m->a_rel, slope = m->slope;
-    const float makeup = m->makeup, cg = m->cg;
+    const float makeup = m->makeup, cgt = m->cg != 0.0f ? m->cg : 1.0f;   /* (CLIP off: down to unity, then skipped) */
+    float cgc = m->cg_c != 0.0f ? m->cg_c : 1.0f;
+    const int clip_on = m->cg != 0.0f || cgc != 1.0f;
     float ms = m->ms, want = m->want, gr = m->gr;
     float g_lin = m->g_lin, g_step = m->g_step, env = m->env, inv_env = m->inv_env, gain = m->gain;
     float *la = m->la, *la_r = m->la_r;
@@ -916,9 +922,10 @@ static inline float master_tail(master_t *m, float *mel_l, float *mel_r, float *
                 mel_r[i] = sr;
                 continue;
             }
-            if (cg != 0.0f && STAGE(4)) {         /* CLIP: the drive into the knee, before the limiter */
-                s = clip_knee(s * cg);
-                sr = clip_knee(sr * cg);
+            if (clip_on && STAGE(4)) {            /* CLIP: the drive into the knee, before the limiter */
+                cgc = glide1(cgc, cgt);
+                s = clip_knee(s * cgc);
+                sr = clip_knee(sr * cgc);
             }
             {       /* X0X's limiter: a peak is seen MST_LA samples before it comes out of the line; the gain
                  * eases down over those samples and holds for them */
@@ -975,6 +982,7 @@ static inline float master_tail(master_t *m, float *mel_l, float *mel_r, float *
     m->hold = hold;
     m->cr = (uint8_t)cr;
     m->clip_pk = cpk;
+    m->cg_c = cgc;
     return grmax;
 }
 
