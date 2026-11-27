@@ -792,9 +792,10 @@ static int group_n(int g)
         return 1;                                    /* (WEAVE's steps: no Bar page) */
     if (b == B_EDIT)                                 /* (grp_page: the conductor's Sub third; a kit, an FX track: two) */
         return trk == AUX_PUNCH || trk == AUX_WEAVE ? 1 : trk == AUX_BRAIN ? 3 : is_aux(trk) ? 2
-             : is_knit(trk) ? 6 : is_rayon(trk) || is_tulle(trk) ? 5 : x_page(trk) ? 4 : 3;   /* (a kit: Engine, Key, Sends: the
+             : is_knit(trk) ? 6 : is_rayon(trk) || is_tulle(trk) || is_tartan(trk) ? 5 : x_page(trk) ? 4 : 3;   /* (a kit: Engine, Key, Sends: the
                                           * key's own; Engine 2 after Engine when the key's model has eight knobs;
-                                          * knit: Osc 2, Mod, Levels, Play, Play 2; rayon: Sub, Ops, Play, Play 2) */
+                                          * knit: Osc 2, Mod, Levels, Play, Play 2; rayon: Sub, Ops, Play, Play 2;
+                                          * tulle and tartan as rayon: tartan had 4, its Play 2 out of reach) */
     if (b == B_ARP)                                  /* (grp_page: Players, Players 2, Hold the arp's, Weave) */
         return is_aux(trk) ? 1
              : is_drum(trk) || pl_type(trk) == PL_OFF ? 2

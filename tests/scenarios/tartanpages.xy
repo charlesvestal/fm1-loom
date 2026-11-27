@@ -1,0 +1,16 @@
+# tartan's EDIT pages: Engine, Voices, Morph, Play, Play 2 (its volume and low cut). The count was 4, so SELECT
+# stopped at Play and Play 2 was out of reach (pages.c group_n, 2026-11-27)
+wait 300
+knob 2 engine tartan
+spin ALGO 1
+expect trk 2
+tap EDIT
+expect page Engine
+turn SELECT 1
+expect page Voices
+turn SELECT 1
+expect page Morph
+turn SELECT 1
+expect page Play
+turn SELECT 1
+expect page Play_2
