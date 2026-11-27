@@ -1018,14 +1018,15 @@ static void start(drumline_t *d, dvoice_t *v, int sound, int vel, int pitch_semi
         v->b = 0.25f + 0.9f * k4;                     /* the tail's level */
         reso_set(v, hz, 900.0f + 600.0f * k4);
         break;
-    case DM_SHAKER:                                   /* noise through a resonator (color), a fade-in
-                                                       * (swell), then the shake back (return = how soon) */
-        hz = 2000.0f * fm_exp2f(k1 * 2.2f + semi * (1.0f / 12.0f));
-        v->k2 = dec_k(0.002f + 0.06f * k3);           /* the swell: 2 .. 60 ms */
-        v->cnt = (int32_t)(0.2f * fm_exp2f(-3.0f * k4) * SR);
+    case DM_SHAKER:                                   /* differenced noise (no lows) through a broad band high
+                                                       * up (color 3.2 .. 9.7 kHz), a short fade-in (swell),
+                                                       * then a softer second grain (return = how soon) */
+        hz = 3200.0f * fm_exp2f(k1 * 1.6f + semi * (1.0f / 12.0f));
+        v->k2 = dec_k(0.0005f + 0.0145f * k3);        /* the swell: 0.5 .. 15 ms */
+        v->cnt = (int32_t)((0.008f + 0.06f * (1.0f - k4)) * SR);   /* the grain back: 8 .. 68 ms */
         v->bursts = 1;
-        reso_set(v, hz, 2500.0f - 1500.0f * k1);
-        v->g *= 1.0f + 0.5f * k1;                     /* a narrow band is quieter in RMS, peakier */
+        v->a = 0.0f;                                  /* the last noise sample (the difference) */
+        reso_set(v, hz, hz * 1.1f);
         break;
     case DM_TAMB: {                                   /* jingles: six high partials (jingle = how long they
                                                        * ring, their share) and a high-passed noise (hiss = its share and
@@ -1569,18 +1570,19 @@ static __attribute__((noinline)) void render_voice(dvoice_t *v, int16_t *line, s
         break;
     }
     case DM_SHAKER: {
-        float c1 = v->c1, c2 = v->c2, c3 = v->c3, f1 = v->f1, f2 = v->f2;
+        float c1 = v->c1, c2 = v->c2, c3 = v->c3, f1 = v->f1, f2 = v->f2, x1 = v->a;
         int32_t cnt = v->cnt, bursts = v->bursts;
         for (i = 0; i < m; i++) {
-            float n = noise(&rng) * c3 + c1 * f1 + c2 * f2;
+            float x = noise(&rng), n = (x - x1) * c3 + c1 * f1 + c2 * f2;
+            x1 = x;
             f2 = f1;
             f1 = n;
-            if (bursts && --cnt == 0) {               /* the shake back: a second, softer hit */
+            if (bursts && --cnt == 0) {               /* the shake back: a second grain, ~10 dB under the
+                                                       * first, on top of what still sounds (never a gap) */
                 bursts--;
-                env2 = 1.0f;
-                env = fm_maxf(env, 0.7f);
+                env = fm_maxf(env, 0.32f);
             }
-            t[i] = n * env * (1.0f - env2) * 0.8f * g;
+            t[i] = n * env * (1.0f - env2) * g;
             env *= k;
             env2 *= k2;
         }
@@ -1588,6 +1590,7 @@ static __attribute__((noinline)) void render_voice(dvoice_t *v, int16_t *line, s
         v->bursts = bursts;
         v->f1 = f1;
         v->f2 = f2;
+        v->a = x1;
         break;
     }
     case DM_TAMB: {
