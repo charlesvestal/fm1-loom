@@ -315,7 +315,7 @@ static int smp_frame(const uint8_t *p, uint32_t n)
         if (!rc) {                               /* (said: where it went, its name) */
             char t[12] = "U";
             s_cat(num_s(k + 1u, t + 1), " SAVED");
-            ui_say(t, user_presets[k].name);
+            ui_say(t, user_name[k]);
         }
         break;
     }

@@ -35,12 +35,16 @@
 #define NPROJ 3                         /* project slots in flash */
 #define PROJ_NOSLOT 0xFFu                /* proj_slot of a new project when every slot is taken: SAVE TO gives it one */
 #define PROJ_NOBJ 7
-enum { OBJ_PANEL, OBJ_PRESETS, OBJ_PROJ0, OBJ_BLE = OBJ_PROJ0 + NPROJ * PROJ_NOBJ, OBJ_NOBJ };
+/* OBJ_UP0, OBJ_UP1: the user presets, 32 each (presets format 19, 2026-11-27: 64 of them; the presets object the kits
+ * alone), pooled after the projects' objects; OBJ_BLE after them (its id moved from 23: the radio's pairing kept in
+ * Felucca's settings pair under its old id is read as none once, and made again) */
+enum { OBJ_PANEL, OBJ_PRESETS, OBJ_PROJ0, OBJ_UP0 = OBJ_PROJ0 + NPROJ * PROJ_NOBJ, OBJ_UP1, OBJ_BLE, OBJ_NOBJ };
 #define OBJ_PROJ(slot, k) (OBJ_PROJ0 + (slot) * PROJ_NOBJ + (k))
 #define APP_STORE_MAP {0xDC000u, 0xDE000u, \
     0x97000u, 0x99000u, 0x9B000u, 0x9D000u, 0x9F000u, 0xA1000u, 0xA3000u, \
     0xA5000u, 0xA7000u, 0xA9000u, 0xAB000u, 0xAD000u, 0xAF000u, 0xB1000u, \
     0xB3000u, 0xB5000u, 0xB7000u, 0xB9000u, 0xBB000u, 0xBD000u, 0xBF000u, \
+    0x97000u, 0x97000u,                 /* OBJ_UP0, OBJ_UP1: pooled (storage.c: no pair; not read) */ \
     0xFC000u}                          /* OBJ_BLE: the radio's address and pairing, in Felucca's settings pair */
 /* the projects' objects pooled (fm1-base storage.c, 2026-10-31): 20 sectors from 0x97000 for the three slots' 21
  * objects, which until 0.12 had a pair each (42 sectors, to 0xC0FFF: the map above, kept for that), so a project of a
@@ -52,7 +56,7 @@ enum { OBJ_PANEL, OBJ_PRESETS, OBJ_PROJ0, OBJ_BLE = OBJ_PROJ0 + NPROJ * PROJ_NOB
 #define APP_STORE_POOL_N 20u
 #define APP_STORE_POOL_OLD 42u
 #define APP_STORE_POOL_OBJ0 OBJ_PROJ0
-#define APP_STORE_POOL_OBJN (NPROJ * PROJ_NOBJ)
+#define APP_STORE_POOL_OBJN (NPROJ * PROJ_NOBJ + 2)   /* (and OBJ_UP0, OBJ_UP1) */
 /* up to 0.12 a save wrote every stream object past the packed stream as its format word alone (project.c st_flush:
  * PROJ_STREAM, 4 bytes): nothing to keep, so not moved into the pool (a stream object holds data after the word) */
 /* the resource region (fm1-base device/res.c; fm1.toml resources): the 909 cymbals' samples (tools/gen_909res.py), in
@@ -68,9 +72,11 @@ enum { OBJ_PANEL, OBJ_PRESETS, OBJ_PROJ0, OBJ_BLE = OBJ_PROJ0 + NPROJ * PROJ_NOB
 #define APP_BACKUP_OBJS {OBJ_PRESETS, \
     OBJ_PROJ0 + 0, OBJ_PROJ0 + 1, OBJ_PROJ0 + 2, OBJ_PROJ0 + 3, OBJ_PROJ0 + 4, OBJ_PROJ0 + 5, OBJ_PROJ0 + 6, \
     OBJ_PROJ0 + 7, OBJ_PROJ0 + 8, OBJ_PROJ0 + 9, OBJ_PROJ0 + 10, OBJ_PROJ0 + 11, OBJ_PROJ0 + 12, OBJ_PROJ0 + 13, \
-    OBJ_PROJ0 + 14, OBJ_PROJ0 + 15, OBJ_PROJ0 + 16, OBJ_PROJ0 + 17, OBJ_PROJ0 + 18, OBJ_PROJ0 + 19, OBJ_PROJ0 + 20}
+    OBJ_PROJ0 + 14, OBJ_PROJ0 + 15, OBJ_PROJ0 + 16, OBJ_PROJ0 + 17, OBJ_PROJ0 + 18, OBJ_PROJ0 + 19, OBJ_PROJ0 + 20, \
+    OBJ_UP0, OBJ_UP1}
 #define APP_BACKUP_MAGIC 0x42384D4Cu     /* "LM8B" */
-#define APP_BACKUP_VERSION 1u
+#define APP_BACKUP_VERSION 2u            /* 2: the user presets' objects at the end (OBJ_UP0, OBJ_UP1) */
+#define APP_BACKUP_VERSION_MIN 1u        /* 1's backups restore too: their presets in the presets object, moved at load */
 #define APP_BACKUP_WHAT "replaces projects, presets"
 #define APP_BACKUP_BUF loom_io_buf      /* project.c's object buffer, lent to a restore (fm1-base's own: 3.8 KB of the pool) */
 extern uint8_t loom_io_buf[];
@@ -213,7 +219,7 @@ void loom_lights(uint32_t buttons, uint32_t keys, int glow, uint32_t dim_keys, i
                                          * bytes, out of rsv[]); 4: no tape (its track and send), the reverb's modes, the master's tape,
                                          * and each drum key its envelope and filter (DP_N 9 -> 18); 2: the character
                                          * stage moved TP_PLAYER on (and every index after it) */
-#define NUSER_PRESETS 16
+#define NUSER_PRESETS 64                 /* (16 until presets format 19) */
 #define NAME_LEN 12
 
 typedef struct {
@@ -273,7 +279,10 @@ extern uint8_t proj_par[NALLTRK][NTP];  /* the tracks' par[] as one contiguous a
                                          * sequencer read (engine_init gets it); engine_set / engine_set_all
                                          * keep it in step with proj.trk[].par (the UI writes those) */
 extern patterns_t pats;                 /* its patterns, lanes, scenes, song (pool) */
-extern user_preset_t user_presets[NUSER_PRESETS];
+extern char user_name[NUSER_PRESETS][NAME_LEN];   /* the user presets' names ("" none), in RAM */
+extern uint8_t user_engine[NUSER_PRESETS];        /* and their engines */
+int user_preset_get(int k, user_preset_t *u);     /* preset k from the flash: 0, or -1 (none) */
+int user_preset_set(int k, const user_preset_t *u);   /* preset k saved: 0, or the store's error */
 uint32_t preset_len(uint32_t fmt);       /* a user preset's bytes in presets format fmt */
 int user_preset_from(user_preset_t *u, const uint8_t *src, uint32_t fmt);   /* as saved in fmt: one now (0), or -1 */
 int user_preset_put(int k, const uint8_t *src, uint32_t fmt, uint32_t len);   /* USER_PUT: into slot k, saved: 0 or rc */

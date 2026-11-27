@@ -1345,14 +1345,15 @@ static int song_cmd(const char *cmd)
                                                      * format (4 bytes, little-endian), then its bytes (tools/loom_presets.py) */
         FILE *f;
         k = atoi(w[1]) - 1;
-        if (k < 0 || k >= NUSER_PRESETS || n < 3 || !user_presets[k].name[0])
+        user_preset_t up;
+        if (k < 0 || k >= NUSER_PRESETS || n < 3 || user_preset_get(k, &up))
             host_die("userdump SLOT FILE: no user preset", w[1]);
         if (!(f = fopen(w[2], "wb")))
             host_die("cannot write", w[2]);
         {
             const uint32_t fmt = PRESETS_FORMAT;
             fwrite(&fmt, 4, 1, f);
-            fwrite(&user_presets[k], sizeof user_presets[k], 1, f);
+            fwrite(&up, sizeof up, 1, f);
         }
         fclose(f);
     } else if (!strcmp(cmd, "sysexfile")) {         /* sysexfile FILE: each F0 .. F7 frame of a .syx as from USB (smp_frame);
@@ -2054,13 +2055,21 @@ int app_host_cmd(const char *cmd, const char *a, const char *b, const char *c, c
                 fwrite(&n, 4, 1, f);
                 if (n > 0)
                     fwrite(store[o], 1, (size_t)n, f);
-            } else {
-                if (o == OBJ_BLE && fread(&n, 4, 1, f) != 1) {   /* a file from before OBJ_BLE (0.8): none */
-                    store_len[o] = -1;
-                    store_prev_len[o] = -1;
-                    continue;
+            } else {                             /* (past the projects' objects a file holds 3 (UP0, UP1, the radio's:
+                                                  * since presets format 19), 1 (the radio's: 0.8 ..) or none) */
+                if (o >= OBJ_UP0 && fread(&n, 4, 1, f) != 1) {
+                    if (o == OBJ_UP1) {          /* (one past the projects': the radio's, read into UP0's place) */
+                        memcpy(store[OBJ_BLE], store[OBJ_UP0], PLAT_STORE_MAX);
+                        store_len[OBJ_BLE] = store_len[OBJ_UP0];
+                        store_prev_len[OBJ_BLE] = -1;
+                        o = OBJ_BLE;
+                    }
+                    for (uint32_t r = OBJ_UP0; r < OBJ_NOBJ; r++)
+                        if (r != o || o != OBJ_BLE)
+                            store_len[r] = store_prev_len[r] = -1;
+                    break;
                 }
-                if ((o != OBJ_BLE && fread(&n, 4, 1, f) != 1) || n > (int32_t)PLAT_STORE_MAX ||
+                if ((o < OBJ_UP0 && fread(&n, 4, 1, f) != 1) || n > (int32_t)PLAT_STORE_MAX ||
                     (n > 0 && fread(store[o], 1, (size_t)n, f) != (size_t)n))
                     host_die("storeload: a short or broken file", a);
                 store_len[o] = n;

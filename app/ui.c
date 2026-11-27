@@ -385,10 +385,10 @@ static const char *preset_name(int i, char *t)
     {
         int u = i - NPRESETS;
         char *e = num_s((uint32_t)u + 1u, s_cat(t, "U"));
-        if (user_presets[u].name[0]) {
+        if (user_name[u][0]) {
             e = s_cat(e, " ");
-            for (int k = 0; k < NAME_LEN && user_presets[u].name[k]; k++)
-                *e++ = user_presets[u].name[k];
+            for (int k = 0; k < NAME_LEN && user_name[u][k]; k++)
+                *e++ = user_name[u][k];
             *e = 0;
         }
         return t;
@@ -399,7 +399,7 @@ static int preset_engine(int i)                  /* a preset's engine (a user sl
     if (i < NPRESETS)
         return PRESETS[i].engine;
     i -= NPRESETS;
-    return user_presets[i].name[0] ? user_presets[i].engine : -1;
+    return user_name[i][0] ? user_engine[i] : -1;
 }
 static int name_is(const char *a, const char *b) /* two preset names (NAME_LEN, maybe unterminated) */
 {
@@ -422,7 +422,7 @@ static void preset_step(int trk, int d)
      * factory sound it came from: by name alone it is that sound, and its neighbours came next), else the first of
      * that name */
     if (last >= presets_all() || preset_engine(last) != eng ||
-        !name_is(last < NPRESETS ? PRESETS[last].name : user_presets[last - NPRESETS].name, proj.trk[trk].name))
+        !name_is(last < NPRESETS ? PRESETS[last].name : user_name[last - NPRESETS], proj.trk[trk].name))
         last = -1;
     for (i = 0; i < presets_all(); i++)
         if (preset_engine(i) == eng) {
@@ -452,15 +452,15 @@ static int preset_apply(int trk, int i)
         return 1;
     }
     {
-        int u = i - NPRESETS;
-        if (!user_presets[u].name[0] && !user_presets[u].par[TP_E1])
+        user_preset_t up;                        /* (read from the flash: project.c user_preset_get) */
+        if (user_preset_get(i - NPRESETS, &up))
             return 0;
         undo_sound(trk);
-        memcpy(proj.trk[trk].par, user_presets[u].par, NTP_SOUND);
-        proj.trk[trk].par[TP_ENGINE] = user_presets[u].engine;
+        memcpy(proj.trk[trk].par, up.par, NTP_SOUND);
+        proj.trk[trk].par[TP_ENGINE] = up.engine;
         for (int k = 0; k < PS_N - NTP_SOUND; k++)   /* (the sound past par[0..NTP_SOUND): its fields in PS_X's order) */
-            proj.trk[trk].par[PS_X[k]] = (&user_presets[u].o2fine)[k];
-        memcpy(proj.trk[trk].name, user_presets[u].name, NAME_LEN);
+            proj.trk[trk].par[PS_X[k]] = (&up.o2fine)[k];
+        memcpy(proj.trk[trk].name, up.name, NAME_LEN);
         engine_sound_new(trk);
         engine_set_all(trk);
         mark_dirty();
@@ -3933,14 +3933,16 @@ static void save_user_preset(int slot)
     char t[16];
     if (is_aux(trk))
         return;
-    user_presets[slot].engine = proj.trk[trk].par[TP_ENGINE];
-    memcpy(user_presets[slot].par, proj.trk[trk].par, NTP_SOUND);
+    user_preset_t up;
+    memset(&up, 0, sizeof up);
+    up.engine = proj.trk[trk].par[TP_ENGINE];
+    memcpy(up.par, proj.trk[trk].par, NTP_SOUND);
     for (int k = 0; k < PS_N - NTP_SOUND; k++)   /* (the sound past par[0..NTP_SOUND): PS_X's order) */
-        (&user_presets[slot].o2fine)[k] = proj.trk[trk].par[PS_X[k]];
-    memcpy(user_presets[slot].name, proj.trk[trk].name, NAME_LEN);
-    if (!user_presets[slot].name[0])
-        s_cat(user_presets[slot].name, EG_NAME[proj.trk[trk].par[TP_ENGINE] % NENGINE]);
-    if (presets_save() != 0) {
+        (&up.o2fine)[k] = proj.trk[trk].par[PS_X[k]];
+    memcpy(up.name, proj.trk[trk].name, NAME_LEN);
+    if (!up.name[0])
+        s_cat(up.name, EG_NAME[proj.trk[trk].par[TP_ENGINE] % NENGINE]);
+    if (user_preset_set(slot, &up) != 0) {
         say_not_saved();
         return;
     }
@@ -3950,7 +3952,7 @@ static void save_user_preset(int slot)
 static void act_save_preset(int slot)
 {
     ui.ask_arg = (uint8_t)slot;
-    if (user_presets[slot].name[0]) {
+    if (user_name[slot][0]) {
         char q[32];
         num_s((uint32_t)slot + 1u, s_cat(q, "REPLACE USER PRESET "));
         s_cat(q + s_len(q), "?");

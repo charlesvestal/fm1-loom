@@ -25,7 +25,9 @@
 settings_t proj;
 uint8_t proj_par[NALLTRK][NTP] PLAT_POOL;
 patterns_t pats PLAT_POOL;
-user_preset_t user_presets[NUSER_PRESETS];
+char user_name[NUSER_PRESETS][NAME_LEN];     /* the user presets' names ("" none) and engines, in RAM; the presets
+                                                  * in the flash (OBJ_UP0, OBJ_UP1: user_preset_get) */
+uint8_t user_engine[NUSER_PRESETS];
 char user_kit_name[NUSER_KITS][NAME_LEN];
 uint8_t proj_slot;
 
@@ -240,26 +242,34 @@ typedef char preset_packed[(sizeof(user_preset_t) == NAME_LEN + 28u + NTP_SOUND 
 #define PRESET_V14 (NAME_LEN + 12u + NTP_SOUND)                   /* 14: without knit's analog */
 #define PRESET_V15 (NAME_LEN + 13u + NTP_SOUND)                   /* 15: without the insert */
 #define PRESET_V16 (NAME_LEN + 18u + NTP_SOUND)                   /* 16: without the slots' third knob, mix, extras */
-#define PRESETS_V7 (4u + NUSER_PRESETS * PRESET_OLD)              /* 6, 7: the user presets alone */
+#define PRESETS_OLD_N 16u                                          /* (presets formats 6 .. 18 held 16) */
+#define PRESETS_V7 (4u + PRESETS_OLD_N * PRESET_OLD)              /* 6, 7: the user presets alone */
 #define OLD_KITS 4u                                               /* formats 8..10: four user kits */
 #define PRESETS_V8 (PRESETS_V7 + OLD_KITS * KIT_LEN16)            /* 8: the user kits after them */
-#define PRESETS_KITS11 (4u + NUSER_PRESETS * PRESET_V11)          /* 9..11: where the kits start */
+#define PRESETS_KITS11 (4u + PRESETS_OLD_N * PRESET_V11)          /* 9..11: where the kits start */
 #define PRESETS_V10 (PRESETS_KITS11 + OLD_KITS * KIT_LEN16)      /* 9, 10: four kits */
 #define PRESETS_V11 (PRESETS_KITS11 + NUSER_KITS * KIT_LEN16)    /* 11: eight */
-#define PRESETS_KITS12 (4u + NUSER_PRESETS * PRESET_V12)          /* 12: where the kits start */
+#define PRESETS_KITS12 (4u + PRESETS_OLD_N * PRESET_V12)          /* 12: where the kits start */
 #define PRESETS_V12 (PRESETS_KITS12 + NUSER_KITS * KIT_LEN16)
-#define PRESETS_KITS13 (4u + NUSER_PRESETS * PRESET_V13)          /* 13: where the kits start */
+#define PRESETS_KITS13 (4u + PRESETS_OLD_N * PRESET_V13)          /* 13: where the kits start */
 #define PRESETS_V13 (PRESETS_KITS13 + NUSER_KITS * KIT_LEN16)
-#define PRESETS_KITS14 (4u + NUSER_PRESETS * PRESET_V14)          /* 14: where the kits start */
+#define PRESETS_KITS14 (4u + PRESETS_OLD_N * PRESET_V14)          /* 14: where the kits start */
 #define PRESETS_V14 (PRESETS_KITS14 + NUSER_KITS * KIT_LEN16)
-#define PRESETS_KITS15 (4u + NUSER_PRESETS * PRESET_V15)          /* 15: where the kits start */
+#define PRESETS_KITS15 (4u + PRESETS_OLD_N * PRESET_V15)          /* 15: where the kits start */
 #define PRESETS_V15 (PRESETS_KITS15 + NUSER_KITS * KIT_LEN16)
-#define PRESETS_KITS16 (4u + NUSER_PRESETS * PRESET_V16)          /* 16: where the kits start */
+#define PRESETS_KITS16 (4u + PRESETS_OLD_N * PRESET_V16)          /* 16: where the kits start */
 #define PRESETS_V16 (PRESETS_KITS16 + NUSER_KITS * KIT_LEN16)
-#define PRESETS_KITS (4u + (uint32_t)sizeof user_presets)         /* 17: where the kits start */
+#define PRESETS_KITS18 (4u + 16u * (uint32_t)sizeof(user_preset_t))   /* 17, 18: where the kits start (16 presets) */
+#define PRESETS_LEN18 (PRESETS_KITS18 + NUSER_KITS * KIT_LEN)
+#define PRESETS_KITS 4u                                            /* 19: the kits alone (the presets: OBJ_UP0, 1) */
 #define PRESETS_LEN (PRESETS_KITS + NUSER_KITS * KIT_LEN)
-typedef char presets_fit[(PRESETS_LEN <= PLAT_STORE_MAX && PRESETS_V7 == 836u) ? 1 : -1];
-#define PRESETS_FORMAT 18u               /* 18: the delay's 1/4D (as 17; a delay TIME's 122..127 as 121: dl_old);
+#define UP_PER 32                                                  /* user presets an object (OBJ_UP0, OBJ_UP1) */
+#define UP_LEN (4u + UP_PER * (uint32_t)sizeof(user_preset_t))
+typedef char presets_fit[(PRESETS_LEN18 <= PLAT_STORE_MAX && UP_LEN <= PLAT_STORE_MAX && PRESETS_V7 == 836u &&
+                          NUSER_PRESETS == 2 * UP_PER && OBJ_UP1 == OBJ_UP0 + 1) ? 1 : -1];
+#define PRESETS_FORMAT 19u               /* 19: 64 user presets, 32 an object of their own in the pool (OBJ_UP0, OBJ_UP1:
+                                          *     the presets object the kits alone; 17, 18 moved there at boot);
+                                          * 18: the delay's 1/4D (as 17; a delay TIME's 122..127 as 121: dl_old);
                                           * 17: the one effects list: the slots' third knob, mix and extras (user_preset_t
                                           *     s1k3 .. s2x), a kit's slot 2 and slot 1's third knob (KIT_LEN); the
                                           *     character's and the insert's values as the slots' (project.c old_slots);
@@ -1329,8 +1339,10 @@ static uint32_t kits_at(uint32_t fmt, int n, uint32_t *cnt, uint32_t *len)
 {
     *len = fmt >= 17u ? KIT_LEN : KIT_LEN16;
     *cnt = NUSER_KITS;
-    if ((fmt == PRESETS_FORMAT || fmt == 17u) && n == (int)PRESETS_LEN)
+    if (fmt == PRESETS_FORMAT && n == (int)PRESETS_LEN)
         return PRESETS_KITS;
+    if ((fmt == 17u || fmt == 18u) && n == (int)PRESETS_LEN18)
+        return PRESETS_KITS18;
     if (fmt == 16u && n == (int)PRESETS_V16)
         return PRESETS_KITS16;
     if (fmt == 15u && n == (int)PRESETS_V15)
@@ -1446,23 +1458,95 @@ int user_preset_put(int k, const uint8_t *src, uint32_t fmt, uint32_t len)
         return 1;
     if (user_preset_from(&u, src, fmt) || !u.name[0])
         return 5;
-    user_presets[k] = u;
-    return presets_save() ? 3 : 0;
+    return user_preset_set(k, &u) ? 3 : 0;
+}
+/* an OBJ_UP object into io_buf: its format, or 0 (none, or not one this build reads) */
+static uint32_t up_load(uint32_t obj)
+{
+    int n = plat_store_load(obj, io_buf, sizeof io_buf);
+    uint32_t fmt = n >= 4 ? get32(io_buf) : 0u;
+    return fmt >= 19u && fmt <= PRESETS_FORMAT && n == (int)(4u + UP_PER * preset_len(fmt)) ? fmt : 0u;
+}
+static void up_empty(user_preset_t *u)
+{
+    memset(u, 0, sizeof *u);
+    u->engine = 0xFFu;
+}
+/* io_buf as OBJ_UP object obj will be saved: its presets made this format's in place (the last first: a preset is
+ * never shorter in a later format), fmt the format io_buf holds (0: none: all empty); n of them from io_buf + at
+ * (the rest empty) */
+static void up_image(uint32_t fmt, uint32_t at, uint32_t n)
+{
+    const uint32_t lo = fmt ? preset_len(fmt) : 0u;
+    for (int k = UP_PER; k-- > 0;) {
+        user_preset_t u;
+        if (!fmt || (uint32_t)k >= n || user_preset_from(&u, io_buf + at + (uint32_t)k * lo, fmt))
+            up_empty(&u);
+        memcpy(io_buf + 4u + (uint32_t)k * sizeof u, &u, sizeof u);
+    }
+    put32(io_buf, PRESETS_FORMAT);
+}
+/* user preset k (0 .. NUSER_PRESETS - 1) from the flash: 0, or -1 (none) */
+int user_preset_get(int k, user_preset_t *u)
+{
+    uint32_t fmt;
+    if (k < 0 || k >= NUSER_PRESETS || !user_name[k][0] || !(fmt = up_load(OBJ_UP0 + (uint32_t)k / UP_PER)))
+        return -1;
+    return user_preset_from(u, io_buf + 4u + (uint32_t)(k % UP_PER) * preset_len(fmt), fmt) || !u->name[0] ? -1 : 0;
+}
+/* user preset k saved (its object rewritten); its name and engine kept in RAM: 0, or the store's error */
+int user_preset_set(int k, const user_preset_t *u)
+{
+    const uint32_t obj = OBJ_UP0 + (uint32_t)k / UP_PER, fmt = up_load(obj);
+    int rc;
+    if (k < 0 || k >= NUSER_PRESETS)
+        return -1;
+    if (fmt != PRESETS_FORMAT)
+        up_image(fmt, 4u, UP_PER);
+    memcpy(io_buf + 4u + (uint32_t)(k % UP_PER) * sizeof *u, u, sizeof *u);
+    rc = save_buf(obj, UP_LEN);
+    if (rc == 0) {
+        memcpy(user_name[k], u->name, NAME_LEN);
+        user_name[k][NAME_LEN - 1] = 0;
+        user_engine[k] = u->engine;
+    }
+    return rc;
 }
 
 int presets_load(void)
 {
-    int n = plat_store_load(OBJ_PRESETS, io_buf, sizeof io_buf), k;
-    uint32_t i, fmt = get32(io_buf), cnt, klen, kat;
-    for (k = 0; k < NUSER_PRESETS; k++)
-        user_presets[k].name[0] = 0;
+    int n, k;
+    uint32_t i, fmt, cnt, klen, kat, ob;
     for (k = 0; k < NUSER_KITS; k++)
         user_kit_name[k][0] = 0;
+    stored_known[OBJ_PRESETS] = stored_known[OBJ_UP0] = stored_known[OBJ_UP1] = 0;   /* (what the flash holds read
+                                                  * again: a restore, the simulator's storeload) */
+    n = plat_store_load(OBJ_PRESETS, io_buf, sizeof io_buf);
+    fmt = n >= 4 ? get32(io_buf) : 0u;
+    if (fmt < 19u && (kits_at(fmt, n, &cnt, &klen) || ((fmt == 6u || fmt == 7u) && n == (int)PRESETS_V7))) {
+        /* (before 19 the presets object held 16 presets, the kits after: the presets to OBJ_UP0's first 16 (the
+         * object made in io_buf, over the old one), then the kits moved down (presets_image reads the old object
+         * again); cut short between, the next boot does it again, the same) */
+        up_image(fmt, 4u, 16u);
+        if (save_buf(OBJ_UP0, UP_LEN) == 0)
+            presets_save();
+    }
+    for (ob = 0; ob < 2u; ob++) {                /* the names and engines */
+        const uint32_t f = up_load(OBJ_UP0 + ob), lo = f ? preset_len(f) : 0u;
+        for (i = 0; i < UP_PER; i++) {
+            user_preset_t u;
+            const uint32_t j = ob * UP_PER + i;
+            if (!f || user_preset_from(&u, io_buf + 4u + i * lo, f))
+                up_empty(&u);
+            memcpy(user_name[j], u.name, NAME_LEN);
+            user_engine[j] = u.engine;
+        }
+    }
+    n = plat_store_load(OBJ_PRESETS, io_buf, sizeof io_buf);
+    fmt = n >= 4 ? get32(io_buf) : 0u;
     kat = kits_at(fmt, n, &cnt, &klen);
-    if (!kat && !((fmt == 6u || fmt == 7u) && n == (int)PRESETS_V7))
+    if (!kat)
         return -1;
-    for (k = 0; k < NUSER_PRESETS; k++)
-        user_preset_from(&user_presets[k], io_buf + 4u + (uint32_t)k * preset_len(fmt), fmt);
     for (k = 0; k < (int)cnt; k++) {
         const uint8_t *img = io_buf + kat + (uint32_t)k * klen;
         for (i = 0; i < NAME_LEN; i++)
@@ -1476,27 +1560,33 @@ int presets_load(void)
     return 0;
 }
 
-/* the presets object in io_buf as it will be saved: the user presets as they are in RAM, the kits as the flash
- * holds them (moved up from an older format's place, made this format's; none, from an unknown one) */
+/* the presets object in io_buf as it will be saved (19: the kits alone): the kits as the flash holds them, moved down
+ * from an older format's place (after its presets), each made this format's; none, from an unknown one. (Down, the
+ * first first: a kit grown by kit_old ends before the next one's start, the old presets' room between) */
 static void presets_image(void)
 {
     int n = plat_store_load(OBJ_PRESETS, io_buf, sizeof io_buf);
-    const uint32_t fmt = get32(io_buf);
+    const uint32_t fmt = n >= 4 ? get32(io_buf) : 0u;
     uint32_t i, k, cnt, len, from = kits_at(fmt, n, &cnt, &len);
-    for (k = cnt; k-- > 0;) {                    /* (up, the last first: each copied from its end) */
-        const uint32_t src = from + k * len, dst = PRESETS_KITS + k * KIT_LEN;
-        for (i = len; i-- > 0;)
-            io_buf[dst + i] = io_buf[src + i];
+    for (k = 0; from && k < cnt; k++) {
+        const uint32_t dst = PRESETS_KITS + k * KIT_LEN;
+        for (i = 0; i < len; i++)                /* (forward: dst is never past the source) */
+            io_buf[dst + i] = io_buf[from + k * len + i];
         if (len < KIT_LEN)
             kit_old(io_buf + dst);
         if (fmt < 18u)
             kit_dl_old(io_buf + dst);
+        if (fmt < 10u) {                         /* (a development build's kit: its keys' models as kit_load's callers
+                                                  * fixed them, keys_fix; stored this format's, it is not told again) */
+            uint8_t kp[NTP];                     /* (on the stack: a migration once) */
+            memcpy(kp + TP_DRUM0, io_buf + dst + NAME_LEN + NTP_SOUND, KIT_KEYS);
+            keys_fix(kp, 1);
+            memcpy(io_buf + dst + NAME_LEN + NTP_SOUND, kp + TP_DRUM0, KIT_KEYS);
+        }
     }
-    for (i = PRESETS_KITS + cnt * KIT_LEN; i < PRESETS_LEN; i++)
+    for (i = PRESETS_KITS + (from ? cnt : 0u) * KIT_LEN; i < PRESETS_LEN; i++)
         io_buf[i] = 0;
     put32(io_buf, PRESETS_FORMAT);
-    for (i = 0; i < sizeof user_presets; i++)
-        io_buf[4u + i] = ((const uint8_t *)user_presets)[i];
 }
 
 int presets_save(void)

@@ -16,3 +16,23 @@ reboot
 wait 400
 preset 6 U3
 expect par6.cut 40
+# 64 user presets (presets format 19: 32 an object of their own, OBJ_UP0 and OBJ_UP1): U40 and U64 saved, kept through a
+# restart; a backup (version 2) holds them: changed, restored, back
+param 2 cut 77
+usersave 2 40
+param 2 cut 33
+usersave 2 64
+reboot
+wait 400
+preset 3 U40
+expect par3.cut 77
+preset 3 U64
+expect par3.cut 33
+backup out:up64.bkp
+param 2 cut 5
+usersave 2 64
+restore out:up64.bkp
+expect restore_rc 0
+wait 300
+preset 3 U64
+expect par3.cut 33
