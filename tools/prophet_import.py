@@ -152,11 +152,13 @@ def convert(p):
     else:
         out += [("e2", 0), ("e3", 1), ("e4", 0), ("vmode", "poly")]
     # osc 2: the other, at its interval; its wave
-    iv = st[o2] - st[o1]
+    # (the interval and Fine B together, then split into semitones and the cents left: knit's fine reaches +-50,
+    # Fine B 84 cents at 112 (Iconic Brass: B a semitone down and 84 up, 16 cents flat; clamped, a quarter-tone off)
+    cents = (st[o2] - st[o1]) * 100.0 + p[FINE_B] * 0.75 * (1 if o2 == "B" else -1)   # (Fine B 24 = +18 cents)
+    iv = round(cents / 100.0)
     if abs(iv) > 24:
         notes.append(f"osc {o2} {iv:+d} semitones from osc {o1}: knit's osc 2 reaches 24")
-    fine = p[FINE_B] * 0.75 * (1 if o2 == "B" else -1)    # (cents: Fine B 24 = +18)
-    out += [("x1", clamp(64 + iv, 40, 88)), ("fine", clamp(64 + fine, 14, 114))]
+    out += [("x1", clamp(64 + iv, 40, 88)), ("fine", clamp(64 + cents - 100.0 * iv, 14, 114))]
     if o2 == "A":
         out += ([("o2wave", "saw")] if p[SAW_A] and not p[PULSE_A] else
                 [("o2wave", "pulse"), ("o2shape", pulse_wave(p[PW_A]))] if p[PULSE_A] and not p[SAW_A] else
