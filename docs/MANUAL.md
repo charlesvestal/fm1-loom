@@ -199,7 +199,8 @@ Count the white keys 1 to 16 from the left, and the black keys 1 to 11. "Hold **
 | harmonize a track to the chords | Give the conductor some chords: play them on COND's keys, or let a track lead from its Follow page. Then go to the track you want to harmonize, press **SEL** and set FOLLOWS CONDUCTOR to harmony. Each of its notes snaps to the nearest note of the conductor's chord. With **ch. deg**, each note's place in the scale picks a chord note instead. <!-- hint: press EDIT; press SEL; turn ALGORITHM --> |
 | get new sounds for the band | Press **HOME**, press **SEL** and pick RANDOMIZE PRESETS: T2 to T8 each get a random preset for their part. Press **SEL** for yes. |
 | save | LOOM-8 saves by itself when it is stopped and quiet. **SAVE** saves at once. Hold **SAVE** and press white key 1 to 3 to save to that slot. <!-- hint: press SAVE --> |
-| keep a sound | On a sound page, hold **SAVE** and press a white key. The sound becomes that user preset. <!-- hint: hold SAVE; white 1 --> |
+| keep a sound | On a sound page, hold **SAVE** and press a white key. The sound becomes that user preset (U1 to U16; SAVE AS PRESET on the **SEL** list reaches U64). <!-- hint: hold SAVE; white 1 --> |
+| add a preset pack | Open the site's Presets page in Chrome or Edge, connect, open the pack (or a Juno-106 or Prophet-5 bank), drag presets onto slots and press Send to the FM-1. |
 | load a project | Press **GLO** and press **SEL**. The list starts with your three projects, each with its tempo and scenes. Pick one with **SELECT** and press **SEL** to load it. An empty slot starts a new project there, with its sounds picked at random. <!-- hint: press GLO, SEL; turn SELECT --> |
 | listen on Bluetooth headphones | Put them in pairing mode. Press **GLO**, turn **SELECT** to Setup and press **SEL**. Turn **SELECT** to AUDIO DEVICE and press **SEL**. Turn **SELECT** to the headphones and press **SEL**. |
 
@@ -564,7 +565,9 @@ plucks and leads send to the delay. Press **SEL** for the list:
 
 - PRESET picks a preset by name. ENGINE changes the engine and loads its first sound.
 - SCRAMBLE gives you a random sound.
-- The list also has SAVE AS PRESET and RESET SOUND.
+- The list also has SAVE AS PRESET and RESET SOUND. SAVE AS PRESET keeps the sound as one of your 64 user presets,
+  U1 to U64: turn **ALGORITHM** to the slot and press **SEL**. If the slot holds a preset, LOOM-8 asks first. For
+  U1 to U16 there's a shortcut: hold **SAVE** and press a white key.
 - Use COPY SOUND, then PASTE SOUND on another track, to put the same sound there, just as loading a preset would.
   The track keeps its own level, pan, player and MIDI OUT. A synth's sound pastes onto a synth track, and a kit onto
   a kit track. Undo takes it back.
@@ -648,6 +651,11 @@ tones. It works even when osc 2's level is 0, so you hear only its effect. **sub
 square an octave down, or a square or a narrow pulse two octaves down, like the SH-101's. At 0 and off, the four
 knobs leave knit as it was. To hear the Mod page, try the presets sync lead, rubber bass, poly sync, cross growl and
 step bleeps.
+
+On the Mod page, the **SEL** list has two extras after the knobs. **OSC 1 LEVEL** turns osc 1 down, from 100% to 0,
+so in a synced patch you hear only osc 2, or the two oscillators balance either way. **SWEEP TO** picks what
+**sweep** moves: osc 2's pitch (as it always did) or osc 1's pulse width, so the filter envelope narrows the pulse as
+a Prophet-5's Poly-Mod does. Both start where knit always was, so older projects and presets sound the same.
 
 Turn **SELECT** once more for the Levels page. **osc 2** sets how loud osc 2 is, and 0 turns it off, so osc 2 sounds
 only when this is above 0. **sub** sets how loud the sub is, and **noise** adds noise. **analog** makes knit behave
@@ -1306,8 +1314,11 @@ far apart the echoes bounce (at 127, hard left and right; at 0, in the center). 
 slowly, like tape, more with each repeat, and **smear** blurs each repeat a little more than the last, until the
 echoes turn into a wash. With repeats high and a little of each, a single pluck rings on for many bars.
 
-**The reverb.** It has twelve types, picked in **SEL** by name, and each starts at its own settings. **plate** is
-LOOM-8's own. Nine come from the original PlayStation's sound chip, the reverbs its games used, and are named PSX:
+**The reverb.** It has thirteen types, picked in **SEL** by name, and each starts at its own settings. A reverb you
+pick starts as **lush S**, a small, wide reverb built like lush (Jon Dattorro's plate) at the scale of the
+reverbs in Mutable Instruments' Clouds and Rings. It needs the least memory of the smooth types. **TYPE** turns
+through them in this order: lush S, the PSX types, lush, shimmer, and the plate last. **plate** is the reverb LOOM-8
+started with, after 9W9's. Nine come from the original PlayStation's sound chip, the reverbs its games used, and are named PSX:
 **PSX room**, **PSX studio S**, **PSX studio M** and **PSX studio L**, **PSX hall**, **PSX half echo**, **PSX space
 echo**, **PSX chaos echo** (it almost never stops) and **PSX one echo** (a single repeat). They run at the console's
 22 kHz, so their top is soft and a little grainy, as the games sounded. The bigger types need more of LOOM-8's effects
@@ -1315,8 +1326,8 @@ memory: with two delays already holding it (a track's insert and FX I), the larg
 its own sound fed back an octave up, so the tail rises in octaves; its **shimmer** sets how much goes back in. On
 the console types, **size** stretches their delays, from small and metallic to the console's own at the top,
 **decay** sets how long the tail lasts (the console's own in the middle), **tone** darkens the tail below the
-middle and thins it above, and **damp** softens the reflections. On lush, size also lengthens the gap before the
-tail, and damp darkens the tail as it fades. The page's title shows the type: "Reverb · hall".
+middle and thins it above, and **damp** softens the reflections. On lush and lush S, size also lengthens the gap before the
+tail, and damp darkens the tail as it fades. Lush S's size goes from a small room to about half of lush's. The page's title shows the type: "Reverb · hall".
 
 **Rumble** is for techno: the kick's reverb treated as a bass instrument. The lowest of the kick is kept out of it,
 the tail is filtered steeply and saturated a little, and it ducks on each kick so it swells back between them. Its
@@ -1327,7 +1338,7 @@ kicks (the first key, and any key with the kick model), so the snare and hats st
 memory keeps it: a slot only offers the effects that would find room where it is now, counting the memory it already
 has (a delay changed to a reverb can use the delay's). **PRESETS** passes the others by, and in the **SEL** list they
 are dimmed with "no memory" beside them; **SEL** on one says "no memory" and changes nothing. Turn another effect off
-or change it, and they come back. A new project's delay and lush leave room for one more delay, a few reverbs or many
+or change it, and they come back. A new project's delay and lush S leave room for another delay or two, a few reverbs, or many
 choruses. A big reverb type takes more than a small one, and the reverb's **TYPE** skips the ones that won't fit.
 
 An effect can still arrive where there's no room: from a preset or kit, a lock, MIDI, or a project. Then it passes the
@@ -1367,7 +1378,7 @@ makes; the track's own sound stays on the track. The keys play the track you wer
 <img src="img/screen-fx1.png" width="240" alt="GLO&#x27;s FX I page: the delay with time, repeats, tone and return" title="FX I"> <img src="img/screen-fx2-hall.png" width="240" alt="GLO&#x27;s FX II page: the reverb, hall, with size, decay, tone and return" title="FX II, the reverb">
 
 The **SEL** list has the effects, the effect's extras, and then the send's own **HIGH-PASS** and **LOW-PASS** and,
-on FX I, **TO FX II**, the send from FX I into FX II. A new project starts with a delay on FX I and lush on FX II,
+on FX I, **TO FX II**, the send from FX I into FX II. A new project starts with a delay on FX I and lush S on FX II,
 and its high-passes keep the lows dry: the echoes start at about 130 Hz and the reverb at about 230 Hz. If you turn
 to FX I or FX II with **ALGORITHM**, **EDIT** has the same knobs, and its page 2 the high-pass, low-pass and feed.
 
@@ -1956,7 +1967,14 @@ they are. To do the same from a terminal, run these in the firmware's folder:
   page's file)
 
 To keep a track's sound, go to a sound page, hold **SAVE** and press white key 1 to 16. The sound becomes that
-user preset.
+user preset, U1 to U16. For U17 to U64, use SAVE AS PRESET on the page's **SEL** list.
+
+**Preset packs.** The site's Presets page (<https://charlesvestal.github.io/fm1-loom/presets/>, Chrome or Edge with
+the FM-1 connected by USB) shows a library beside the FM-1's 64 user presets and 8 user kits. Open a preset pack, a
+backup, or a Juno-106 or Prophet-5 bank of your own (a `.syx` file: its patches become knit sounds, there in the
+page). Drag the presets and kits you want onto the FM-1's slots, or select several and click a slot to fill the slots
+from there on, then press **Send to the FM-1**. LOOM-8 saves each one and says so. **Save the FM-1's presets** keeps
+what the FM-1 holds as a pack, to share or to put back later. Sending replaces only the slots you filled.
 
 ## Export a song
 
@@ -2084,8 +2102,8 @@ fork of LOOM-8.
 
 Cane and voile are Mutable Instruments Braids by Émilie Gillet (MIT). Acid is X0X's 303, from Open303 by Robin
 Schmidt (MIT), with jc303's Devilfish ranges by midilab and dm-Rat's RAT drive by Dave Mollen (GPL-3.0). That
-makes LOOM-8 GPL-3.0 as a whole. The plate reverb is after 9W9 by athousanddetails, and its PlayStation modes are
-PSXVerb's.
+makes LOOM-8 GPL-3.0 as a whole. The plate reverb is after 9W9 by athousanddetails, its PlayStation modes are
+PSXVerb's, and lush and lush S follow Jon Dattorro's plate, the design Mutable Instruments' Clouds and Rings use.
 
 The factory breaks are free loops by u/FCTRYBEATS. The 909 kick, snare and clap are renders of 9W9 by
 athousanddetails, and the hat is ER-99's, by Matthew Cieplak. The recorded instruments come from the Versilian
