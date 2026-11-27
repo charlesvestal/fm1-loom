@@ -29,7 +29,7 @@ import sys
 
 N = 256                                            # the points a frame is made at
 OUT_N = 128                                        # and stored at (halve)
-FRAMES = 16
+FRAMES = 8
 NHARM = 40
 TWO_PI = 2.0 * math.pi
 

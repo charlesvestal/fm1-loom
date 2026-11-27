@@ -304,7 +304,7 @@ float slot_picture(const uint8_t *par, int q, int mix, float u);
 void organ_bars(const uint8_t *par, float bars[6]);
 /* jacquard's table t (0..8) at scan 0..1 and phase 0..1, -1..1, as a voice reads it (the engine's picture) */
 float wt_value(int t, float scan, float ph);
-#define WT_FRAMES 16                               /* (wavetables.h's WT_NFRAME) */
+#define WT_FRAMES 8                               /* (wavetables.h's WT_NFRAME) */
 /* a track's level (TP_LEVEL) as a gain: a fader's law, cubic (60 dB over 0..100: half way -18 dB), 100 = 0 dB,
  * 127 = +6.2 dB, 0 = off. The drums and the FX returns take it as is; the synth's voices with 100/127 under it
  * (their headroom: synth.c) */

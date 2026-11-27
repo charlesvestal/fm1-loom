@@ -4681,14 +4681,16 @@ static void pic_wave(int32_t x0, int32_t y0, int32_t w, int32_t h, const uint8_t
      * in the stack, bent as bend bends the phase (synth.c wt_run) and pushed by ripple's second cycle, which slides
      * while the track sounds */
     int t = p[TP_E1];
+    enum { WT_PIC = 16 };
     float scan = (float)p[TP_E2] / 127.0f, wp = 0.5f + (float)p[TP_E3] / 127.0f * 0.45f, dr = (float)p[TP_E4] / 127.0f;
     float ka = 0.5f / wp, kb = 0.5f / (1.0f - wp), depth = dr * dr * 0.6f;
     float rate = dr > 0.001f ? fm_exp2f(-7.0f + 8.0f * dr) : 0.0f, mp0 = (float)f / 90.0f;
     int32_t dx = 40, dy = 22, ww = w - dx;
     float amp = (float)(h - dy - 6) / 2.0f, cy0 = (float)(y0 + h) - amp - 3.0f;
-    for (int fr = WT_FRAMES - 1; fr >= 0; fr--) {
+    for (int fr = WT_PIC - 1; fr >= 0; fr--) {    /* (16 waves in the stack: the table's 8 frames and the crossfades
+                                                  * between them, as wt_value scans it) */
         pen_t pn = {0};
-        float d = (float)fr / (float)(WT_FRAMES - 1), ox = (float)x0 + d * (float)dx, cy = cy0 - d * (float)dy;
+        float d = (float)fr / (float)(WT_PIC - 1), ox = (float)x0 + d * (float)dx, cy = cy0 - d * (float)dy;
         for (int32_t x = 0; x <= ww; x += 3)
             pen_to(&pn, ox + (float)x, cy - wt_value(t, d, (float)x / (float)ww) * amp, K_FAINT);
     }
