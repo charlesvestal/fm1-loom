@@ -3561,12 +3561,19 @@ static void voice_chunk(synth_t *s, voice_t *v)
                                                   * tt_prep: waves, shape, width, FM) */
             for (i = 0; i < 4; i++) {
                 float xv = (float)P(s, trk, TP_X1 + i);
+                if (v->engine == EG_TARTAN && i && !v->fresh)   /* (tartan's shape, width and FM glide as the engine
+                                                  * knobs do, ~10 ms: a turn stepped them a chunk at a time, the pulse's
+                                                  * width and the saw's blend zippering; the waves are a choice) */
+                    xv = glide_to(c->ex[10 + i], xv);
                 moved |= xv != c->ex[10 + i];
                 c->ex[10 + i] = xv;
             }
-        if (v->engine == EG_TARTAN)              /* its Morph page (knit's Mod page's bytes: tt_prep) */
+        if (v->engine == EG_TARTAN)              /* its Morph page (knit's Mod page's bytes: tt_prep): the voices'
+                                                  * levels and places glide too */
             for (i = 0; i < 4; i++) {
                 float mv = (float)P2(s, trk, TP_KSYNC + i);
+                if (!v->fresh)
+                    mv = glide_to(v->o[8 + i], mv);
                 moved |= mv != v->o[8 + i];
                 v->o[8 + i] = mv;
             }
