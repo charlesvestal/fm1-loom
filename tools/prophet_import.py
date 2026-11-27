@@ -43,7 +43,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from juno_import import clamp, knit_cut, knit_time  # noqa: E402
+from juno_import import OCT_NAME, clamp, knit_cut, knit_time  # noqa: E402
 
 FRAME, RAW = 159, 133
 (FREQ_A, FREQ_B, FINE_B, SAW_A, PULSE_A, SAW_B, TRI_B, PULSE_B, PW_A, PW_B, SYNC, LOW_B, KEY_B, GLIDE, LEVEL_A,
@@ -175,7 +175,7 @@ def convert(p):
     octs, rem = divmod(st[o1], 12)
     if rem:
         notes.append(f"osc {o1} {rem} semitones above an octave: knit plays it on the octave")
-    out.append(("oct", clamp(2 + octs, 0, 4)))
+    out.append(("oct", OCT_NAME[clamp(2 + octs, 0, 4)]))
     # the Mod page
     sweep = round(p[POLY_ENV] * 2.65 * 12 / 127) if sweep_a else 0
     cross = round(127 * math.sqrt(min(1.0, p[POLY_B] / 127 * 1.1 / 6.0))) if fm_a and not a_is_2 else 0

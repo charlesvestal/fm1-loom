@@ -83,6 +83,9 @@ def read_bank(path):
     return out
 
 
+OCT_NAME = ("-2", "-1", "0", "+1", "+2")              # (the octave by its name: "0" as a number is its name, the middle)
+
+
 def clamp(v, lo=0, hi=127):
     return max(lo, min(hi, int(round(v))))
 
@@ -176,7 +179,7 @@ def convert(p):
     else:
         out += [("ltype", "off")]
     # the rest
-    out += [("hpf", {0: 0, 1: 0, 2: 69, 3: 99}[hpf]), ("oct", 1 + rng), ("vmode", "poly"),
+    out += [("hpf", {0: 0, 1: 0, 2: 69, 3: 99}[hpf]), ("oct", OCT_NAME[1 + rng]), ("vmode", "poly"),
             ("volume", clamp(90 * 2.0 ** ((p[VCA_LEVEL] - 64) / 127.0)))]
     if hpf == 0:
         notes.append("HPF 0's bass lift: not made")

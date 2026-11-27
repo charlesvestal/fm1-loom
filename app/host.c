@@ -1307,9 +1307,17 @@ static int song_cmd(const char *cmd)
     char buf[512], *w[80];
     int n = words(buf, w, 80), t, k;
     host_env();
-    if (!strcmp(cmd, "knob")) {                     /* knob T PARAM VALUE */
+    if (!strcmp(cmd, "knob")) {                     /* knob T PARAM VALUE (a name of words: "filter free") */
+        static char val[80];
         if (n < 4)
             host_die("knob T PARAM VALUE", "");
+        if (n > 4) {                             /* (the value's words together: until 2026-11-27 only the first was
+                                                  * read, "ldest filter free" the key-synced "filter") */
+            snprintf(val, sizeof val, "%s", w[3]);
+            for (k = 4; k < n; k++)
+                snprintf(val + strlen(val), sizeof val - strlen(val), " %s", w[k]);
+            w[3] = val;
+        }
         t = atoi(w[1]) - 1;
         if (t < 0 || t >= NALLTRK)
             host_die("no track", w[1]);
@@ -1335,6 +1343,53 @@ static int song_cmd(const char *cmd)
     } else if (!strcmp(cmd, "large")) {             /* large 0|1: large type (Setup > SEL > LARGE TYPE) off or on */
         large_type_set(n > 1 && atoi(w[1]) != 0);
         run_ms(40);
+    } else if (!strcmp(cmd, "webtables")) {         /* webtables FILE: what the presets page needs to make a knit preset
+                                                     * of a Juno or Prophet patch (app/web/presets/convert.js), as JSON:
+                                                     * knit's defaults, a preset's layout, the converters' parameters'
+                                                     * indices and their lists' names (tools/make_pages.py) */
+        static const char *const NM[] = {"engine", "e1", "e2", "e3", "e4", "x1", "fine", "kanalog", "o2wave", "o2shape",
+            "x2", "x3", "ksub", "x4", "a", "d", "s", "r", "fa", "fd", "fs", "fr", "ftype", "cut", "res", "fenv", "ktrk",
+            "ltype", "lspeed", "lamt", "ldest", "lx", "lx2", "hpf", "oct", "vmode", "volume", "itype", "ctype", "i1",
+            "i2", "s2mix", "ksync", "ksweep", "kcross", "kswto", "k1cut", "porta", "bend"};
+        FILE *f = fopen(w[1], "w");
+        uint8_t par[NTP];
+        if (!f)
+            host_die("webtables: cannot write", w[1]);
+        sound_default(par, EG_KNIT);
+        memcpy(proj.trk[1].par, par, NTP);       /* (the lists' names as knit has them: tp_info_par; the LFO's with
+                                                  * it a wave, as the converters set it) */
+        proj.trk[1].par[TP_LTYPE] = LT_WAVE;
+        fprintf(f, "{\"fmt\": %u, \"name_len\": %d, \"ntp_sound\": %d, \"knit\": %d, \"preset_len\": %u,\n",
+                (unsigned)PRESETS_FORMAT, NAME_LEN, NTP_SOUND, EG_KNIT, (unsigned)sizeof(user_preset_t));
+        fprintf(f, " \"ps_x\": [");
+        for (k = 0; k < PS_N - NTP_SOUND; k++)
+            fprintf(f, "%s%d", k ? ", " : "", PS_X[k]);
+        fprintf(f, "],\n \"defaults\": [");
+        for (k = 0; k < NTP; k++)
+            fprintf(f, "%s%d", k ? ", " : "", par[k]);
+        fprintf(f, "],\n \"params\": {");
+        for (k = 0; k < (int)(sizeof NM / sizeof NM[0]); k++)
+            fprintf(f, "%s\"%s\": %d", k ? ", " : "", NM[k], param_of(NM[k]));
+        fprintf(f, "},\n \"lists\": {");
+        for (k = 0, t = 0; k < (int)(sizeof NM / sizeof NM[0]); k++) {
+            const int p = param_of(NM[k]);
+            const tp_info_t *in = p == TP_ENGINE ? 0 : tp_info_par(p, proj.trk[1].par);
+            if (p == TP_ENGINE) {                /* (the engines by name) */
+                fprintf(f, "%s\"%s\": [", t++ ? ", " : "", NM[k]);
+                for (int e = 0; e < NENGINE; e++)
+                    fprintf(f, "%s\"%s\"", e ? ", " : "", EG_NAME[e]);
+                fprintf(f, "]");
+                continue;
+            }
+            if (!in || in->kind != PK_NAMES || !in->names)
+                continue;
+            fprintf(f, "%s\"%s\": [", t++ ? ", " : "", NM[k]);
+            for (int v = 0; v <= in->hi; v++)
+                fprintf(f, "%s\"%s\"", v ? ", " : "", v >= in->lo && in->names[v] ? in->names[v] : "");
+            fprintf(f, "]");
+        }
+        fprintf(f, "}}\n");
+        fclose(f);
     } else if (!strcmp(cmd, "trkname")) {           /* trkname T NAME: track T's name (_ a space; a user preset takes it) */
         t = atoi(w[1]) - 1;
         if (t < 0 || t >= NALLTRK || n < 3)

@@ -77,12 +77,13 @@
   <a class="home" href="../">LOOM-8</a>
   <h1>Presets</h1>
   <p>LOOM-8 holds 64 user presets (U1 to U64, after its own sounds on PRESETS) and 8 user kits (K1 to K8). Open a
-    <b>preset pack</b> (<code>.syx</code>) or a LOOM-8 <b>backup</b> (<code>.loom8</code>) here as a library, put the
-    presets and kits you want into the FM-1's slots, and send them. Or save what the FM-1 holds as a pack to share. The
-    FM-1 connects by USB; use Chrome or Edge.</p>
+    <b>preset pack</b> (<code>.syx</code>), a LOOM-8 <b>backup</b> (<code>.loom8</code>), or a <b>Roland Juno-106</b> or
+    <b>Sequential Prophet-5</b> bank you own (<code>.syx</code>: its patches become knit sounds, here in the page) as a
+    library, put the presets and kits you want into the FM-1's slots, and send them. Or save what the FM-1 holds as a
+    pack to share. The FM-1 connects by USB; use Chrome or Edge.</p>
   <div class="row">
     <button id="connect">Connect</button>
-    <label class="file">Open a pack or backup<input id="file" type="file" accept=".syx,.loom8" hidden></label>
+    <label class="file">Open a pack, a backup, or a Juno-106 or Prophet-5 bank<input id="file" type="file" accept=".syx,.loom8" hidden></label>
     <button id="export" class="quiet" disabled>Save the FM-1's presets</button>
   </div>
   <p id="status" role="status" aria-live="polite"></p>
@@ -107,15 +108,17 @@
 
   <h2>Where packs come from</h2>
   <p class="small">A pack holds LOOM-8's own presets and kits, any engine: saved from an FM-1 here, from a backup, or
-    made on a computer with <a href="https://github.com/charlesvestal/fm1-loom">LOOM-8's source</a>:
-    <code>tools/loom_presets.py</code>, or <code>tools/juno_import.py pack</code> and
-    <code>tools/prophet_import.py pack</code> for a Roland Juno-106 or Sequential Prophet-5 bank you own, on LOOM-8's
-    knit engine. A pack made by one version of LOOM-8 loads in later ones. Sending replaces the slots it goes to; the
-    others stay as they are.</p>
+    made on a computer with <a href="https://github.com/charlesvestal/fm1-loom">LOOM-8's source</a>
+    (<code>tools/loom_presets.py</code>). A Juno-106 or Prophet-5 bank is turned into knit sounds here as the source's
+    <code>tools/juno_import.py</code> and <code>tools/prophet_import.py</code> do (the same sounds), each set to the
+    level of LOOM-8's own pads; what knit can't do is listed beside it. A pack made by one version of LOOM-8 loads in
+    later ones. Sending replaces the slots it goes to; the others stay as they are.</p>
 </main>
 <script type="module">
 /*LIB*/
+/*TABLES*/
 const $ = (id) => document.getElementById(id);
+let emu = null;                                // (the emulator, for the level fit: booted the first time a bank opens)
 let link = null, names = null, knames = null, lib = [], libName = "", busy = false;
 let sel = [], anchor = -1;                     // the library's selection (indices), shift's anchor
 const placed = new Map(), done = new Map();    // "U3" / "K1" -> library index; -> rc of the last send
@@ -166,6 +169,7 @@ function libItem(i) {
   b.innerHTML = `<span class="n"></span><span></span>`;
   b.firstChild.textContent = lib[i].kind === KIT_PUT ? "kit" : String(lib.slice(0, i + 1).filter((x) => x.kind === USER_PUT).length);
   b.lastChild.textContent = lib[i].name;
+  if (lib[i].notes && lib[i].notes.length) b.title = "Not made on knit: " + lib[i].notes.join("; ");
   b.onclick = (ev) => pick(i, ev);
   b.ondragstart = (ev) => {
     if (!sel.includes(i)) { sel = [i]; anchor = i; }
@@ -257,17 +261,47 @@ $("file").onchange = async (ev) => {
   ev.target.value = "";
   if (!f) return;
   const b = new Uint8Array(await f.arrayBuffer());
-  const items = parseBackup(b) || parsePack(b);
+  let items = parseBackup(b) || parsePack(b);
   if (!items.length) {
-    const what = b[0] === 0xF0 && b[1] === 0x41 && b[2] === 0x30 ? "a Roland Juno-106 bank"
-               : b[0] === 0xF0 && b[1] === 0x01 && (b[2] === 0x32 || b[2] === 0x31) ? "a Sequential Prophet-5 bank" : "";
-    say(what ? `${f.name} is ${what}: turn it into a LOOM-8 pack first (see below).` : `${f.name} holds no LOOM-8 presets or kits.`, true);
-    return;
+    const juno = readJuno(b), prophet = juno.size ? new Map() : readProphet(b);
+    if (juno.size || prophet.size) {
+      busy = true; render();
+      try { items = await convertBank(juno, prophet); }
+      catch (e) { say(e.message || String(e), true); busy = false; render(); return; }
+      busy = false;
+    } else if (b[0] === 0xF0 && b[1] === 0x01 && b[2] === 0x31) {
+      say(`${f.name} is a Prophet-5 bank in the older (1.4) layout: save it from the Prophet as a Rev 4 bank.`, true);
+      return;
+    } else {
+      say(`${f.name} holds no LOOM-8 presets or kits, and no Juno-106 or Prophet-5 patches.`, true);
+      return;
+    }
   }
   lib = items; libName = f.name; sel = []; anchor = -1; placed.clear();
   say(link ? "Drag from the library onto a slot, or select and click a slot." : "Connect to the FM-1 to place them.");
   render();
 };
+// a Juno-106 or Prophet-5 bank's patches as knit presets (convert.js: the tools' converters), each set to the level
+// of LOOM-8's pads in the emulator (the site's ../emu/app.wasm)
+async function convertBank(juno, prophet) {
+  if (!emu) {
+    say("Loading LOOM-8's emulator, to set each sound's level…");
+    const r = await fetch("../emu/app.wasm");
+    if (!r.ok) throw new Error("Couldn't load LOOM-8's emulator (../emu/app.wasm). Check the connection and try again.");
+    emu = await bootEmu(await r.arrayBuffer());
+  }
+  const src = juno.size ? [...juno].map(([k, p]) => [`J106 ${junoLabel(k)}`, convertJuno(p)])
+                        : [...prophet].map(([k, p]) => [prophetName(p) || `P5 ${prophetLabel(k)}`, convertProphet(p)]);
+  const out = [];
+  for (let i = 0; i < src.length; i++) {
+    const [name, c] = src[i];
+    if (i % 8 === 0) { say(`Turning ${src.length} ${juno.size ? "Juno-106 patches" : "Prophet-5 programs"} into knit sounds (${i} of ${src.length})…`); await new Promise((r) => setTimeout(r)); }
+    const fit = levelFit(emu, T, buildPreset(T, name.slice(0, PNAME_LEN), c.out));
+    out.push({ kind: USER_PUT, slot: i & 127, fmt: T.fmt, data: packBytes([...fit.raw]), name,   // (its name in full
+               notes: c.notes });                                                                 // here; 11 on the FM-1)
+  }
+  return out;
+}
 $("filter").oninput = () => render();
 $("clear").onclick = () => { placed.clear(); render(); };
 

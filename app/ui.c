@@ -445,27 +445,29 @@ static void preset_step(int trk, int d)
     num_s((uint32_t)all, s_cat(num_s((uint32_t)to + 1u, s_cat(s_cat(a, i < NPRESETS ? RL_NAME[PRESETS[i].role % NRL] : "PRESET"), " ")), "/"));
     say(a, preset_name(i, b));
 }
+static void preset_apply_u(int trk, const user_preset_t *up)   /* a user preset's sound on track trk */
+{
+    undo_sound(trk);
+    memcpy(proj.trk[trk].par, up->par, NTP_SOUND);
+    proj.trk[trk].par[TP_ENGINE] = up->engine;
+    for (int k = 0; k < PS_N - NTP_SOUND; k++)   /* (the sound past par[0..NTP_SOUND): its fields in PS_X's order) */
+        proj.trk[trk].par[PS_X[k]] = (&up->o2fine)[k];
+    memcpy(proj.trk[trk].name, up->name, NAME_LEN);
+    engine_sound_new(trk);
+    engine_set_all(trk);
+    mark_dirty();
+}
 static int preset_apply(int trk, int i)
 {
+    user_preset_t up;                            /* (a user preset read from the flash: project.c user_preset_get) */
     if (i < NPRESETS) {
         load_preset(trk, &PRESETS[i]);
         return 1;
     }
-    {
-        user_preset_t up;                        /* (read from the flash: project.c user_preset_get) */
-        if (user_preset_get(i - NPRESETS, &up))
-            return 0;
-        undo_sound(trk);
-        memcpy(proj.trk[trk].par, up.par, NTP_SOUND);
-        proj.trk[trk].par[TP_ENGINE] = up.engine;
-        for (int k = 0; k < PS_N - NTP_SOUND; k++)   /* (the sound past par[0..NTP_SOUND): its fields in PS_X's order) */
-            proj.trk[trk].par[PS_X[k]] = (&up.o2fine)[k];
-        memcpy(proj.trk[trk].name, up.name, NAME_LEN);
-        engine_sound_new(trk);
-        engine_set_all(trk);
-        mark_dirty();
-        return 1;
-    }
+    if (user_preset_get(i - NPRESETS, &up))
+        return 0;
+    preset_apply_u(trk, &up);
+    return 1;
 }
 
 /* ------------------------------------------------------------- undo --- */

@@ -228,6 +228,21 @@ def export_lib(backup_page=None):
             "return { readFM1, PB };\n})();")
 
 
+def web_tables():
+    """the presets page's tables (app/web/presets/convert.js T): the simulator's webtables (knit's defaults, a preset's
+    layout, the converters' parameters and their lists' names), as JSON; the simulator built if it is not"""
+    import subprocess
+    import tempfile
+    host = SRC / "app" / "build" / "host" / "loom_host"
+    if not host.exists():
+        subprocess.run(["sh", "build.sh", "--host"], cwd=SRC, check=True)
+    with tempfile.TemporaryDirectory() as d:
+        (Path(d) / "w.xy").write_text(f"wait 50\nwebtables {Path(d) / 't.json'}\n")
+        subprocess.run([str(host), str(Path(d) / "w.xy"), d], check=True, capture_output=True,
+                       env={**__import__("os").environ, "LOOM_LOAD": "0"})
+        return (Path(d) / "t.json").read_text().strip()
+
+
 def main(pkg, version, out):
     pkg, out = Path(pkg), Path(out)
     raw = pkg.read_bytes()
@@ -314,7 +329,9 @@ def main(pkg, version, out):
         raise SystemExit("app/web/presets/index.html must contain /*LIB*/ once")
     (out / "presets").mkdir()
     (out / "presets" / "index.html").write_text(ppage.replace("/*LIB*/", slib + "\n" + strip_module(
-        (SRC / "app" / "web" / "presets" / "presets.js").read_text(encoding="utf-8"))), encoding="utf-8")
+        (SRC / "app" / "web" / "presets" / "presets.js").read_text(encoding="utf-8")) + "\n" + strip_module(
+        (SRC / "app" / "web" / "presets" / "convert.js").read_text(encoding="utf-8"))).replace(
+        "/*TABLES*/", "const T = " + web_tables() + ";"), encoding="utf-8")
     # the break pack (out of the firmware since 0.7): the samples page's "Add the breaks" fetches these
     import gen_samples
     import sampleio

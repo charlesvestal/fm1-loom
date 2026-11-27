@@ -64,8 +64,9 @@ import make_site as base_site
 from make_site import strip_module
 from pathlib import Path
 src = Path("app/web/presets/index.html").read_text()
-lib = base_site.ports_js() + "\\n" + strip_module(Path("app/web/samples/loom_samples.js").read_text()) + "\\n" + strip_module(Path("app/web/presets/presets.js").read_text())
-print(src.replace("/*LIB*/", lib))
+import make_pages
+lib = base_site.ports_js() + "\\n" + strip_module(Path("app/web/samples/loom_samples.js").read_text()) + "\\n" + strip_module(Path("app/web/presets/presets.js").read_text()) + "\\n" + strip_module(Path("app/web/presets/convert.js").read_text())
+print(src.replace("/*LIB*/", lib).replace("/*TABLES*/", "const T = " + make_pages.web_tables() + ";"))
 `], { encoding: "utf8", maxBuffer: 1 << 26 });
 const m = page.match(/<script type="module">([\s\S]*?)<\/script>/);
 const dir = mkdtempSync(join(tmpdir(), "loom-presets-"));

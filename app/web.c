@@ -44,3 +44,46 @@ WEB_EXPORT int loom_x_start(int scene, int loops)   /* scene < 0: the song; its 
     return loom_render_start(scene, loops);
 }
 WEB_EXPORT int loom_x_playing(void) { return loom_render_playing(); }
+
+/* the presets page's level fit (app/web/presets/convert.js fitVolume, as tools/loom_presets.py level_fit): a preset as
+ * saved (presets format fmt) in loom_x_pbuf, on track 2 (ui.c preset_apply_u), a two-octave chord at full velocity
+ * (C3 E3 G3 C4 E4 G4, 1.2 s, then 0.5 s let go): the output's peak, a millionth of full scale; -1 not a preset */
+static uint8_t x_pb[192];
+WEB_EXPORT uint8_t *loom_x_pbuf(void) { return x_pb; }
+static float x_drain(float pk)                   /* the ring's frames since the last look: their peak with pk */
+{
+    while (ring_r != ring_w) {
+        const uint32_t i = (ring_r++ % RING) * 2u;
+        const float l = ring[i] < 0.0f ? -ring[i] : ring[i], r = ring[i + 1] < 0.0f ? -ring[i + 1] : ring[i + 1];
+        pk = l > pk ? l : pk;
+        pk = r > pk ? r : pk;
+    }
+    return pk;
+}
+WEB_EXPORT int32_t loom_x_chord_peak(uint32_t fmt)
+{
+    static const uint8_t CH[6] = {48, 52, 55, 60, 64, 67};
+    user_preset_t u;
+    float pk = 0.0f;
+    int k;
+    if (user_preset_from(&u, x_pb, fmt))
+        return -1;
+    preset_apply_u(1, &u);
+    for (k = 0; k < 300; k++) {
+        run_ms(1);
+        ring_r = ring_w;
+    }
+    for (k = 0; k < 6; k++)
+        engine_key(1, CH[k], 1, 127);
+    for (k = 0; k < 1200; k++) {
+        run_ms(1);
+        pk = x_drain(pk);
+    }
+    for (k = 0; k < 6; k++)
+        engine_key(1, CH[k], 0, 0);
+    for (k = 0; k < 500; k++) {
+        run_ms(1);
+        pk = x_drain(pk);
+    }
+    return (int32_t)(pk * 1000000.0f);
+}
