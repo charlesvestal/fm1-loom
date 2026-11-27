@@ -2378,6 +2378,7 @@ static void voice_start(synth_t *s, voice_t *v, int note, int vel, int glide_ms,
     if (!eg_synth(eng))
         eng = EG_KNIT;
     uint8_t was_as = v->as;
+    v->pend_note = 0;                            /* (no choke: CHOKE) */
     v->tws = v->tws_pend;                        /* cane: the slot voice_take kept for this note */
     v->as = v->as_pend;                          /* acid: its 303's */
     v->cost_m = t->cost_m;                       /* (the split's guess: what the track's voices take) */
@@ -2653,6 +2654,8 @@ static float load_add(const synth_t *s, int trk)
 /* a voice for a new note: a free one (inside the load check); else the track's oldest if it holds NVOICE_TRK
  * already; else the quietest releasing; else the oldest of all. A stolen voice fades 15 ms first. knit and cane
  * first keep to their own caps (knit_find, cn_find). */
+#define CHOKE 0xFFu                              /* pend_note while no steal is pending: the voice choked (a cane string
+                                                  * struck again at its pitch, synth_note_on): its release ~8 ms */
 static int find_voice(synth_t *s, int trk)
 {
     int i, best = -1, over, free = -1;
@@ -2786,6 +2789,17 @@ void synth_note_on(synth_t *s, int trk, int note, int vel, int glide_ms, uint32_
     lfo_retrigger(s, trk);
     t->pb_snap = 1;
     if (mode == VM_POLY) {
+        if (P(s, trk, TP_ENGINE) == EG_CANE)    /* cane: a string struck again at its pitch stops ringing first (the
+                                                  * user: rapid notes lost their attack, the new pluck under the old one,
+                                                  * as loud: a string re-plucked damps what it was doing). ~8 ms */
+            for (int i = 0; i < s->max_voices; i++) {
+                voice_t *o = &s->v[i];
+                if (o->trk == trk && o->engine == EG_CANE && o->note == note && v_sounding(o) && o->steal_phase == 0) {
+                    o->held = 0;
+                    o->amp.stage = ENV_RELEASE;
+                    o->pend_note = CHOKE;
+                }
+            }
         voice_take(s, find_voice(s, trk), trk, note, vel, glide_ms, tag);
         return;
     }
@@ -3452,6 +3466,12 @@ static void voice_chunk(synth_t *s, voice_t *v)
         co[4] = &c->flt_ar; co[5] = &c->flt_dc; co[6] = &c->flt_sl; co[7] = &c->flt_rc;
         for (i = 0; i < 8; i++) {
             float x = pf(s, trk, EP[i], dest, off) * (1.0f / 127.0f);
+            if (i == 3 && v->pend_note == CHOKE && !v->steal_phase) {   /* (choked: its release ~8 ms, the knob's again
+                                                  * at its next note) */
+                *co[3] = env_coef(0.008f);
+                v->env_in[3] = -1.0f;
+                continue;
+            }
             if (x == v->env_in[i])
                 continue;
             v->env_in[i] = x;
