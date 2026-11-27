@@ -237,10 +237,10 @@ def main():
         return
     if a[0] == "pack":
         import loom_presets
-        progs = [program_of(s) for s in opt.get("--patches", "").split(",") if s]
+        progs = [program_of(s) for s in opt.get("--patches", "").split(",") if s] or sorted(bank)
         slot = int(opt.get("--slot", 1))
-        if len(a) < 3 or not progs or slot < 1 or slot - 1 + len(progs) > 64:
-            sys.exit("juno_import: pack BANK.syx PACK.syx --patches A11,... (1 to 64, in U1..U64)")
+        if len(a) < 3 or not progs or slot < 1:
+            sys.exit("juno_import: pack BANK.syx PACK.syx --patches A11,... (any number: a library)")
         out = bytearray()
         for i, k in enumerate(progs):
             if k not in bank:
@@ -249,8 +249,8 @@ def main():
             ls, pk, vol = loom_presets.level_fit(ls)   # (as loud as the factory pads on a chord: the 106's
                                                           # levels, all summed, clipped LOOM-8's output)
             fmt, data = loom_presets.preset_from_lines(nm.get(k) or f"J106 {label(k)}", ls)
-            out += loom_presets.frame(slot - 1 + i, fmt, data)
-            print(f"U{slot + i} {loom_presets.name_of(data):12s} {label(k)}  chord {pk:+.1f} dB -> volume {vol}")
+            out += loom_presets.frame((slot - 1 + i) & 127, fmt, data)
+            print(f"{i + 1:3d} {loom_presets.name_of(data):12s} {label(k)}  chord {pk:+.1f} dB -> volume {vol}")
         Path(a[2]).write_bytes(bytes(out))
         print(f"{a[2]}: {len(progs)} presets; send: tools/loom_presets.py send {a[2]}")
         return

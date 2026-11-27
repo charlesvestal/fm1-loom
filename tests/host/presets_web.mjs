@@ -46,6 +46,17 @@ check("sent: U11..U13, their data as packed; the newer format refused (9)",
       rc.join() === "0,0,9" && sent.map((a) => a[0]).join() === "10,11,12" &&
       sent[0].slice(3).join() === pack[0].data.join());
 
+// a backup (presets format 19: tests/fixtures/presets_v19.bkp, a preset and a kit) read as loom_presets.py reads it:
+// the same messages, byte for byte, as its frombackup made (tests/fixtures/kitpack.syx)
+const items = P.parseBackup(new Uint8Array(readFileSync("tests/fixtures/presets_v19.bkp")));
+const kp = P.parsePack(new Uint8Array(readFileSync("tests/fixtures/kitpack.syx")));
+check("a backup: a preset and a kit (round sub, Nylon), as loom_presets.py frombackup has them",
+      items.length === 2 && items[0].kind === P.USER_PUT && items[1].kind === P.KIT_PUT && items[1].name === "Nylon" &&
+      JSON.stringify(items.map((x) => [x.kind, x.fmt, x.data])) === JSON.stringify(kp.map((x) => [x.kind, x.fmt, x.data])));
+check("a backup's message as frame() makes it is the pack's", JSON.stringify(P.frame(P.KIT_PUT, 0, items[1].fmt,
+      P.packUnpack(items[1].data))) === JSON.stringify([0xF0, ...readFileSync("tests/fixtures/kitpack.syx").subarray(
+      readFileSync("tests/fixtures/kitpack.syx").indexOf(0xF0, 1) + 1)].slice(0, items[1].data.length + 9)));
+
 // the page as assembled
 const page = execFileSync(PY, ["-c", `
 import sys; sys.path.insert(0, "tools"); sys.path.insert(0, "base/tools")

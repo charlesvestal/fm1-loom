@@ -297,6 +297,7 @@ int user_preset_put(int k, const uint8_t *src, uint32_t fmt, uint32_t len);   /*
 #define KIT_LEN16 (NAME_LEN + NTP_SOUND + KIT_KEYS)   /* (presets formats 8..16: without them) */
 #define KIT_LEN (KIT_LEN16 + KIT_NSLOT)
 extern char user_kit_name[NUSER_KITS][NAME_LEN];   /* "" = an empty slot */
+int kit_put(int k, const uint8_t *src, uint32_t fmt, uint32_t len);   /* KIT_PUT: into user kit k, saved: 0 or rc */
 int kit_load(int slot, uint8_t *img);  /* img: KIT_LEN bytes; 0 = the slot holds a kit, 1 = one saved before presets
                                         * format 10 (its keys past the sample model: a development build's, keys_fix) */
 int kit_save(int slot, const uint8_t *img);   /* 0 = saved (the user presets with it, as they are) */

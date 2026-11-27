@@ -1,0 +1,16 @@
+# a pack with a kit (tests/fixtures/kitpack.syx: tools/loom_presets.py frombackup of tests/fixtures/presets_v19.bkp,
+# a user preset "round sub" with its cutoff at 41 and the factory kit Nylon saved as K1): sent in (USER_PUT 29, KIT_PUT
+# 31), the preset on U1 and the kit on K1, as they were
+wait 300
+sysexfile tests/fixtures/kitpack.syx
+preset 3 U1
+expect par3.cut 41
+expect trk 1
+tap EDIT
+tap SEL
+row KIT
+turn ALGO -8
+tap SEL
+wait 40
+expect par1.d1.model 11
+expect par1.d1.k1 36

@@ -286,15 +286,15 @@ def main():
     progs = [program_of(s) for s in opt["--programs"].split(",")] if "--programs" in opt else sorted(bank)
     if a[0] == "pack":
         slot = int(opt.get("--slot", 1))
-        if len(a) < 3 or not progs or slot < 1 or slot - 1 + len(progs) > 64:
-            sys.exit("prophet_import: pack BANK.syx PACK.syx --programs 111,... (1 to 64, in U1..U64)")
+        if len(a) < 3 or not progs or slot < 1:
+            sys.exit("prophet_import: pack BANK.syx PACK.syx --programs 111,... (any number: a library)")
         out = bytearray()
         for i, k in enumerate(progs):
             ls, _ = lines(bank[k])
             ls, pk, vol = loom_presets.level_fit(ls)
             fmt, data = loom_presets.preset_from_lines(name_of(bank[k]), ls)
-            out += loom_presets.frame(slot - 1 + i, fmt, data)
-            print(f"U{slot + i} {loom_presets.name_of(data):12s} {label(k)} {name_of(bank[k])}  chord {pk:+.1f} dB -> "
+            out += loom_presets.frame((slot - 1 + i) & 127, fmt, data)
+            print(f"{i + 1:3d} {loom_presets.name_of(data):12s} {label(k)} {name_of(bank[k])}  chord {pk:+.1f} dB -> "
                   f"volume {vol}")
         Path(a[2]).write_bytes(bytes(out))
         print(f"{a[2]}: {len(progs)} presets; send: tools/loom_presets.py send {a[2]}")

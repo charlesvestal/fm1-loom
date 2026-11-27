@@ -1,9 +1,10 @@
 <!doctype html>
 <!-- SPDX-License-Identifier: MPL-2.0
-     LOOM-8's presets page: a preset pack (a .syx of USER_PUT messages, tools/loom_presets.py) sent into the FM-1's user
-     presets, U1 .. U64 (Chrome or Edge, Web MIDI). Connect reads the slots' names (USER_NAMES, 30); a pack is read in the
-     page (presets.js), placed from a starting slot (the first room for it, by default), shown against what each slot
-     holds, and sent a preset at a time (USER_PUT, 29: LOOM-8 saves each and says it). fm1-base's web/fm1ports.js,
+     LOOM-8's presets page: a preset pack (a .syx of USER_PUT messages, tools/loom_presets.py; any number of presets) as a
+     library beside the FM-1's user presets, U1 .. U64 (Chrome or Edge, Web MIDI). Connect reads the slots' names
+     (USER_NAMES, 30). Presets are dragged from the library onto a slot (a selection of several fills the slots from
+     there on), or selected and placed with a click or Enter on a slot; each slot placed shows what it replaces, until
+     Send writes them (USER_PUT, 29: LOOM-8 saves each and says it). fm1-base's web/fm1ports.js,
      app/web/samples/loom_samples.js (its Link and seekLink) and presets.js are inlined at LIB by tools/make_pages.py. -->
 <html lang="en">
 <head>
@@ -44,107 +45,192 @@
            border-radius: 8px; padding: 5px 8px; }
   #status { min-height: 1.6em; margin: 0 0 1rem; }
   #status.bad { color: var(--bad); }
-  table { width: 100%; border-collapse: collapse; background: var(--card); border: 1px solid var(--rule); border-radius: 10px;
-          overflow: hidden; font-size: 15px; }
-  th, td { text-align: left; padding: 7px 12px; border-bottom: 1px solid var(--rule); }
-  th { font-weight: 600; color: var(--muted); font-size: 13px; letter-spacing: .02em; }
-  tr:last-child td { border-bottom: 0; }
-  td.slot { font-variant-numeric: tabular-nums; width: 4.5rem; }
-  .replace { color: var(--bad); }
-  .empty { color: var(--muted); }
-  .ok { color: var(--good); }
-  .slots { display: grid; grid-template-columns: repeat(auto-fill, minmax(10.5rem, 1fr)); gap: 4px 14px; font-size: 14px;
-           background: var(--card); border: 1px solid var(--rule); border-radius: 10px; padding: 10px 14px; }
-  .slots span b { display: inline-block; width: 2.6rem; color: var(--muted); font-weight: 600; font-variant-numeric: tabular-nums; }
+  .panes { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; align-items: start; }
+  @media (max-width: 720px) { .panes { grid-template-columns: 1fr; } }
+  .pane { background: var(--card); border: 1px solid var(--rule); border-radius: 10px; padding: 10px; }
+  .pane h2 { margin: 2px 4px 8px; }
+  .filter { width: 100%; box-sizing: border-box; font: 400 15px "Barlow", sans-serif; background: var(--ground);
+            color: var(--ink); border: 1px solid var(--rule); border-radius: 8px; padding: 6px 10px; margin: 0 0 8px; }
+  .list { max-height: 34rem; overflow-y: auto; display: flex; flex-direction: column; gap: 2px; }
+  .item, .slot { display: flex; gap: 10px; align-items: baseline; width: 100%; text-align: left; font: 400 15px "Barlow", sans-serif;
+                 color: var(--ink); background: none; border: 1px solid transparent; border-radius: 7px; padding: 4px 8px; }
+  .item { cursor: grab; }
+  .item[aria-pressed="true"] { background: var(--accent); color: var(--on-accent); }
+  .item .n, .slot .n { color: var(--muted); font-variant-numeric: tabular-nums; min-width: 2.6rem; font-size: 13px; font-weight: 600; }
+  .item[aria-pressed="true"] .n { color: inherit; }
+  .slot { cursor: pointer; }
+  .slot:hover, .slot.over { border-color: var(--accent); }
+  .slot .now { flex: 1; }
+  .slot .empty { color: var(--muted); }
+  .slot.new { background: color-mix(in srgb, var(--accent) 14%, transparent); }
+  .slot .was { color: var(--bad); font-size: 13px; }
+  .slot .done { color: var(--good); font-size: 13px; }
+  .slot .undo { margin-left: auto; padding: 0 6px; background: none; color: var(--muted); border: 0; font: 600 15px "Barlow", sans-serif; }
+  .item:focus-visible, .slot:focus-visible, .filter:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .grp { font: 700 13px "Barlow Semi Condensed", sans-serif; letter-spacing: .04em; color: var(--muted); margin: 10px 8px 2px;
+         text-transform: uppercase; }
+  .grp:first-child { margin-top: 0; }
 </style>
 </head>
 <body>
 <main>
   <a class="home" href="../">LOOM-8</a>
   <h1>Presets</h1>
-  <p>LOOM-8 holds 64 user presets, U1 to U64, after its own sounds on the PRESETS button. A <b>preset pack</b> is a
-    file of them (<code>.syx</code>): open one here and send it to the FM-1, connected by USB, in Chrome or Edge.</p>
+  <p>LOOM-8 holds 64 user presets (U1 to U64, after its own sounds on PRESETS) and 8 user kits (K1 to K8). Open a
+    <b>preset pack</b> (<code>.syx</code>) or a LOOM-8 <b>backup</b> (<code>.loom8</code>) here as a library, put the
+    presets and kits you want into the FM-1's slots, and send them. Or save what the FM-1 holds as a pack to share. The
+    FM-1 connects by USB; use Chrome or Edge.</p>
   <div class="row">
     <button id="connect">Connect</button>
-    <label class="file">Open a pack<input id="file" type="file" accept=".syx" hidden></label>
+    <label class="file">Open a pack or backup<input id="file" type="file" accept=".syx,.loom8" hidden></label>
+    <button id="export" class="quiet" disabled>Save the FM-1's presets</button>
   </div>
   <p id="status" role="status" aria-live="polite"></p>
 
-  <section id="packbox" hidden>
-    <h2 id="packname">The pack</h2>
-    <div class="row">
-      <label for="start">Start at</label>
-      <select id="start"></select>
-      <button id="send" disabled>Send to the FM-1</button>
-    </div>
-    <table>
-      <thead><tr><th scope="col">Slot</th><th scope="col">Preset</th><th scope="col">Now in the slot</th></tr></thead>
-      <tbody id="rows"></tbody>
-    </table>
-  </section>
+  <div class="row">
+    <button id="send" disabled>Send to the FM-1</button>
+    <button id="clear" class="quiet" disabled>Clear what's placed</button>
+  </div>
+  <p class="small">Drag from the library onto a slot, or select (shift-click for a run) and click a slot: several fill
+    the slots from there on. Presets go to U slots, kits to K slots.</p>
+  <div class="panes">
+    <section class="pane" aria-labelledby="libh">
+      <h2 id="libh">Library</h2>
+      <input id="filter" class="filter" type="search" placeholder="Filter by name" aria-label="Filter the library by name">
+      <div id="lib" class="list" role="list"><p class="small">Open a pack or a backup to see what's in it.</p></div>
+    </section>
+    <section class="pane" aria-labelledby="slotsh">
+      <h2 id="slotsh">On the FM-1</h2>
+      <div id="slots" class="list" role="list"><p class="small">Connect to see the FM-1's user presets and kits.</p></div>
+    </section>
+  </div>
 
-  <section id="slotsbox" hidden>
-    <h2>On the FM-1</h2>
-    <div id="slots" class="slots"></div>
-  </section>
-
-  <h2>Making packs</h2>
-  <p class="small">From a computer, in <a href="https://github.com/charlesvestal/fm1-loom">LOOM-8's source</a>:
-    <code>tools/loom_presets.py make PACK.syx SOUND.xy ...</code> makes a pack from sounds written as the simulator's
-    lines; <code>tools/juno_import.py pack</code> and <code>tools/prophet_import.py pack</code> turn a Roland Juno-106 or
-    Sequential Prophet-5 bank you own into one, on LOOM-8's knit engine. A pack made by one version of LOOM-8 loads in
-    later ones. Sending replaces the slots it goes to; the others stay as they are.</p>
+  <h2>Where packs come from</h2>
+  <p class="small">A pack holds LOOM-8's own presets and kits, any engine: saved from an FM-1 here, from a backup, or
+    made on a computer with <a href="https://github.com/charlesvestal/fm1-loom">LOOM-8's source</a>:
+    <code>tools/loom_presets.py</code>, or <code>tools/juno_import.py pack</code> and
+    <code>tools/prophet_import.py pack</code> for a Roland Juno-106 or Sequential Prophet-5 bank you own, on LOOM-8's
+    knit engine. A pack made by one version of LOOM-8 loads in later ones. Sending replaces the slots it goes to; the
+    others stay as they are.</p>
 </main>
 <script type="module">
 /*LIB*/
 const $ = (id) => document.getElementById(id);
-let link = null, names = null, pack = [], busy = false, results = [];
-const lab = (s) => `U${s + 1}`;
+let link = null, names = null, knames = null, lib = [], libName = "", busy = false;
+let sel = [], anchor = -1;                     // the library's selection (indices), shift's anchor
+const placed = new Map(), done = new Map();    // "U3" / "K1" -> library index; -> rc of the last send
+const key = (kind, s) => `${kind === KIT_PUT ? "K" : "U"}${s + 1}`;
 function say(t, bad = false) { $("status").textContent = t; $("status").className = bad ? "bad" : ""; }
 
+function shown() {
+  const f = $("filter").value.trim().toLowerCase();
+  return lib.map((_, i) => i).filter((i) => !f || lib[i].name.toLowerCase().includes(f));
+}
+function pick(i, ev) {
+  const vis = shown().filter((j) => lib[j].kind === lib[i].kind);
+  if (ev.shiftKey && anchor >= 0 && lib[anchor].kind === lib[i].kind) {
+    const a = vis.indexOf(anchor), b = vis.indexOf(i);
+    if (a >= 0 && b >= 0) sel = vis.slice(Math.min(a, b), Math.max(a, b) + 1);
+  } else if (ev.metaKey || ev.ctrlKey) {
+    sel = (sel.includes(i) ? sel.filter((x) => x !== i) : [...sel, i]).filter((j) => lib[j].kind === lib[i].kind);
+    sel.sort((x, y) => x - y);
+    anchor = i;
+  } else {
+    sel = sel.length === 1 && sel[0] === i ? [] : [i];
+    anchor = i;
+  }
+  render();
+}
+// library items of one kind into that kind's slots from s on (presets past U64, kits past K8: none)
+function placeItems(kind, s, list) {
+  list = list.filter((i) => lib[i] && lib[i].kind === kind);
+  if (!list.length) { say(kind === KIT_PUT ? "Only kits go into K slots." : "Only presets go into U slots.", true); return; }
+  const n = kind === KIT_PUT ? NKITS : NUSER;
+  let k = 0;
+  for (const i of list) {
+    if (s + k >= n) break;
+    placed.set(key(kind, s + k), i);
+    done.delete(key(kind, s + k));
+    k++;
+  }
+  say(`${k} placed from ${key(kind, s)}${k < list.length ? `; ${list.length - k} had no room` : ""}. Send when ready.`);
+  sel = [];
+  render();
+}
+function libItem(i) {
+  const b = document.createElement("button");
+  b.className = "item";
+  b.setAttribute("role", "listitem");
+  b.setAttribute("aria-pressed", sel.includes(i) ? "true" : "false");
+  b.draggable = true;
+  b.innerHTML = `<span class="n"></span><span></span>`;
+  b.firstChild.textContent = lib[i].kind === KIT_PUT ? "kit" : String(lib.slice(0, i + 1).filter((x) => x.kind === USER_PUT).length);
+  b.lastChild.textContent = lib[i].name;
+  b.onclick = (ev) => pick(i, ev);
+  b.ondragstart = (ev) => {
+    if (!sel.includes(i)) { sel = [i]; anchor = i; }
+    ev.dataTransfer.setData("text/plain", sel.join(","));
+    ev.dataTransfer.effectAllowed = "copy";
+  };
+  return b;
+}
+function slotRow(kind, s, now) {
+  const b = document.createElement("button"), k = key(kind, s), p = placed.get(k), rc = done.get(k);
+  b.className = "slot" + (p !== undefined ? " new" : "");
+  b.setAttribute("role", "listitem");
+  b.innerHTML = `<span class="n">${k}</span><span class="now"></span>`;
+  const el = b.querySelector(".now");
+  if (p !== undefined) {
+    el.textContent = lib[p].name;
+    if (now) { const w = document.createElement("span"); w.className = "was"; w.textContent = ` replaces ${now}`; el.append(w); }
+    const u = document.createElement("span");
+    u.className = "undo"; u.textContent = "×"; u.title = `Take ${lib[p].name} off ${k}`;
+    u.onclick = (ev) => { ev.stopPropagation(); placed.delete(k); render(); };
+    b.append(u);
+    b.setAttribute("aria-label", `${k}: ${lib[p].name}, to send${now ? `, replacing ${now}` : ""}`);
+  } else {
+    el.textContent = now || "empty";
+    if (!now) el.className = "now empty";
+    if (rc !== undefined) {
+      const d = document.createElement("span");
+      d.className = rc ? "was" : "done"; d.textContent = rc ? ` ${PUT_RC[rc] || `not saved (${rc})`}` : " saved";
+      el.append(d);
+    }
+  }
+  b.onclick = () => { if (sel.length) placeItems(kind, s, sel); };
+  b.ondragover = (ev) => { ev.preventDefault(); b.classList.add("over"); };
+  b.ondragleave = () => b.classList.remove("over");
+  b.ondrop = (ev) => {
+    ev.preventDefault(); b.classList.remove("over");
+    placeItems(kind, s, (ev.dataTransfer.getData("text/plain") || "").split(",").filter(Boolean).map(Number));
+  };
+  return b;
+}
+function grp(t) { const h = document.createElement("p"); h.className = "grp"; h.textContent = t; return h; }
 function render() {
   $("connect").disabled = busy;
-  $("packbox").hidden = !pack.length;
-  $("slotsbox").hidden = !names;
-  if (names) {
-    $("slots").replaceChildren(...names.map((n, i) => {
-      const e = document.createElement("span");
-      e.innerHTML = `<b>${lab(i)}</b>`;
-      e.append(n || "–");
-      if (!n) e.className = "empty";
-      return e;
-    }));
+  $("export").disabled = busy || !link;
+  $("send").disabled = busy || !link || !placed.size;
+  $("clear").disabled = busy || !placed.size;
+  if (lib.length) {
+    const vis = shown(), pre = vis.filter((i) => lib[i].kind === USER_PUT), kits = vis.filter((i) => lib[i].kind === KIT_PUT);
+    const np = lib.filter((x) => x.kind === USER_PUT).length, nk = lib.length - np;
+    $("libh").textContent = `${libName}: ${np} preset${np === 1 ? "" : "s"}${nk ? `, ${nk} kit${nk === 1 ? "" : "s"}` : ""}`;
+    $("lib").replaceChildren(...(pre.length ? [grp("Presets"), ...pre.map(libItem)] : []),
+                             ...(kits.length ? [grp("Kits"), ...kits.map(libItem)] : []));
   }
-  if (!pack.length) return;
-  const start = +$("start").value, at = placeFrom(pack, start);
-  $("rows").replaceChildren(...pack.map((p, i) => {
-    const tr = document.createElement("tr"), now = names && at[i] >= 0 ? names[at[i]] : "";
-    const r = results[i];
-    tr.innerHTML = `<td class="slot"></td><td></td><td></td>`;
-    tr.children[0].textContent = at[i] >= 0 ? lab(at[i]) : "–";
-    tr.children[1].textContent = p.name;
-    tr.children[2].textContent = r !== undefined ? (r ? PUT_RC[r] || `not saved (${r})` : "saved")
-      : at[i] < 0 ? "no room past U64" : !names ? "connect to see" : now ? `replaces ${now}` : "empty";
-    tr.children[2].className = r !== undefined ? (r ? "replace" : "ok") : now ? "replace" : "empty";
-    return tr;
-  }));
-  $("send").disabled = busy || !link || at.every((s) => s < 0);
-}
-function fillStart(keep) {
-  const sel = $("start"), room = names ? firstRoom(names, pack.length) : -1;
-  const want = keep !== undefined ? keep : room >= 0 ? room : pack.length ? pack[0].slot : 0;
-  sel.replaceChildren(...Array.from({ length: NUSER }, (_, s) => {
-    const o = document.createElement("option");
-    o.value = s;
-    o.textContent = lab(s) + (s === room ? " (first room)" : "");
-    return o;
-  }));
-  sel.value = Math.min(NUSER - 1, Math.max(0, want));
+  if (names)
+    $("slots").replaceChildren(grp("User presets"), ...names.map((n, s) => slotRow(USER_PUT, s, n)),
+                               grp("User kits"), ...(knames || []).map((n, s) => slotRow(KIT_PUT, s, n)));
 }
 async function run(fn) {
   busy = true; render();
   try { await fn(); } catch (e) { say(e.message || String(e), true); }
   busy = false; render();
+}
+async function readSlots() {
+  names = await readNames(link);
+  knames = await readKitNames(link);
 }
 
 $("connect").onclick = () => run(async () => {
@@ -158,43 +244,58 @@ $("connect").onclick = () => run(async () => {
   if (!res.link) throw new Error(notFound(res, "the presets page"));
   link = res.link;
   say("Reading the presets…");
-  try { names = await readNames(link); }
+  try { await readSlots(); }
   catch (_) { throw new Error("This LOOM-8 doesn't know preset packs yet. Update it on the install page, then connect again."); }
-  const used = names.filter(Boolean).length;
-  say(`Connected: ${used} of ${NUSER} user presets in use.`);
+  done.clear();
   $("connect").textContent = "Read again";
-  if (pack.length) fillStart();
+  say(`Connected: ${names.filter(Boolean).length} of ${NUSER} user presets and ${knames.filter(Boolean).length} of ` +
+      `${NKITS} kits in use.` + (lib.length ? " Drag from the library onto a slot." : ""));
 });
 
 $("file").onchange = async (ev) => {
   const f = ev.target.files[0];
   ev.target.value = "";
   if (!f) return;
-  const p = parsePack(new Uint8Array(await f.arrayBuffer()));
-  if (!p.length) { say(`${f.name} holds no LOOM-8 presets.`, true); return; }
-  pack = p;
-  results = [];
-  $("packname").textContent = `${f.name}: ${p.length} preset${p.length === 1 ? "" : "s"}`;
-  fillStart();
-  say(link ? "Pick where they go, then send." : "Connect to the FM-1 to see what each slot holds, and to send.");
+  const b = new Uint8Array(await f.arrayBuffer());
+  const items = parseBackup(b) || parsePack(b);
+  if (!items.length) {
+    const what = b[0] === 0xF0 && b[1] === 0x41 && b[2] === 0x30 ? "a Roland Juno-106 bank"
+               : b[0] === 0xF0 && b[1] === 0x01 && (b[2] === 0x32 || b[2] === 0x31) ? "a Sequential Prophet-5 bank" : "";
+    say(what ? `${f.name} is ${what}: turn it into a LOOM-8 pack first (see below).` : `${f.name} holds no LOOM-8 presets or kits.`, true);
+    return;
+  }
+  lib = items; libName = f.name; sel = []; anchor = -1; placed.clear();
+  say(link ? "Drag from the library onto a slot, or select and click a slot." : "Connect to the FM-1 to place them.");
   render();
 };
-$("start").onchange = () => { results = []; render(); };
+$("filter").oninput = () => render();
+$("clear").onclick = () => { placed.clear(); render(); };
+
+$("export").onclick = () => run(async () => {
+  const pk = await exportPack(link, (d, n) => say(`Reading the FM-1's presets and kits (${d} of ${n})…`));
+  const items = parsePack(pk);
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([pk], { type: "application/octet-stream" }));
+  a.download = "loom-8-presets.syx";
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+  say(`Saved ${items.filter((x) => x.kind === USER_PUT).length} presets and ${items.filter((x) => x.kind === KIT_PUT).length} kits as loom-8-presets.syx.`);
+});
 
 $("send").onclick = () => run(async () => {
-  const at = placeFrom(pack, +$("start").value);
-  results = [];
-  let ok = 0;
-  for (let i = 0; i < pack.length; i++) {
-    if (at[i] < 0) { results[i] = 1; continue; }
-    say(`Sending ${pack[i].name} to ${lab(at[i])} (${i + 1} of ${pack.length})…`);
-    results[i] = await putPreset(link, at[i], pack[i]);
-    ok += results[i] === 0;
-    render();
+  const todo = [...placed].sort((a, b) => (a[0] < b[0] ? -1 : 1));
+  let ok = 0, k = 0;
+  done.clear();
+  for (const [slot, i] of todo) {
+    say(`Sending ${lib[i].name} to ${slot} (${++k} of ${todo.length})…`);
+    const rc = await putPreset(link, +slot.slice(1) - 1, lib[i]);
+    done.set(slot, rc);
+    ok += rc === 0;
+    if (!rc) placed.delete(slot);
   }
-  names = await readNames(link);
-  const bad = pack.length - ok;
-  say(bad ? `${ok} saved; ${bad} not: see the list.` : `Done: ${ok} preset${ok === 1 ? "" : "s"} saved on the FM-1.`, bad > 0);
+  await readSlots();
+  const bad = todo.length - ok;
+  say(bad ? `${ok} saved; ${bad} not: see the slots.` : `Done: ${ok} saved on the FM-1.`, bad > 0);
 });
 render();
 </script>

@@ -1560,6 +1560,15 @@ int presets_load(void)
     return 0;
 }
 
+/* a development build's kit (presets format before 10): its keys' models as kit_load's callers fixed them (keys_fix);
+ * stored this format's, it is not told again */
+static void kit_keys_dev(uint8_t *img)
+{
+    uint8_t kp[NTP];                             /* (on the stack: a migration, a kit sent) */
+    memcpy(kp + TP_DRUM0, img + NAME_LEN + NTP_SOUND, KIT_KEYS);
+    keys_fix(kp, 1);
+    memcpy(img + NAME_LEN + NTP_SOUND, kp + TP_DRUM0, KIT_KEYS);
+}
 /* the presets object in io_buf as it will be saved (19: the kits alone): the kits as the flash holds them, moved down
  * from an older format's place (after its presets), each made this format's; none, from an unknown one. (Down, the
  * first first: a kit grown by kit_old ends before the next one's start, the old presets' room between) */
@@ -1576,13 +1585,8 @@ static void presets_image(void)
             kit_old(io_buf + dst);
         if (fmt < 18u)
             kit_dl_old(io_buf + dst);
-        if (fmt < 10u) {                         /* (a development build's kit: its keys' models as kit_load's callers
-                                                  * fixed them, keys_fix; stored this format's, it is not told again) */
-            uint8_t kp[NTP];                     /* (on the stack: a migration once) */
-            memcpy(kp + TP_DRUM0, io_buf + dst + NAME_LEN + NTP_SOUND, KIT_KEYS);
-            keys_fix(kp, 1);
-            memcpy(io_buf + dst + NAME_LEN + NTP_SOUND, kp + TP_DRUM0, KIT_KEYS);
-        }
+        if (fmt < 10u)
+            kit_keys_dev(io_buf + dst);
     }
     for (i = PRESETS_KITS + (from ? cnt : 0u) * KIT_LEN; i < PRESETS_LEN; i++)
         io_buf[i] = 0;
@@ -1632,6 +1636,29 @@ int kit_save(int slot, const uint8_t *img)
         user_kit_name[slot][NAME_LEN - 1] = 0;
     }
     return rc;
+}
+
+/* a kit sent over USB (samples.c KIT_PUT: preset packs, a backup's kits) into user kit k (0 .. NUSER_KITS - 1), in
+ * presets format fmt (KIT_LEN bytes from 17, KIT_LEN16 from 8), made this format's as the flash's are (kit_old, the
+ * 1/4D, a development build's models), saved at once: 0, 1 slot or size, 5 not a kit, 9 a newer format, 3 not saved */
+int kit_put(int k, const uint8_t *src, uint32_t fmt, uint32_t len)
+{
+    uint8_t img[KIT_LEN];
+    if (fmt > PRESETS_FORMAT || fmt < 8u)
+        return 9;
+    if (k < 0 || k >= NUSER_KITS || len != (fmt >= 17u ? KIT_LEN : KIT_LEN16))
+        return 1;
+    memcpy(img, src, len);
+    if (len < KIT_LEN)
+        kit_old(img);
+    if (fmt < 18u)
+        kit_dl_old(img);
+    if (fmt < 10u)
+        kit_keys_dev(img);
+    img[NAME_LEN - 1] = 0;
+    if (!img[0] || img[NAME_LEN + TP_ENGINE] != EG_DRUMLINE)
+        return 5;
+    return kit_save(k, img) ? 3 : 0;
 }
 
 /* every value to the engine (boot, load): the tracks, the FX, the master, the transport */

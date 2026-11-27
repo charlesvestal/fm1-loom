@@ -49,6 +49,12 @@
  *   USER_NAMES 30 from              -> from, k, NUSER_PRESETS, then k names (0-terminated; "" an empty slot) of
  *                                       the user presets from .. from + k - 1, k at most 16 (the presets page:
  *                                       app/web/presets/)
+ *   KIT_PUT    31 slot fmt2 data     -> slot, rc     a user kit (K1..K8: slot 0..7) as LOOM-8 saves one (KIT_LEN
+ *                                       bytes from presets format 17, KIT_LEN16 before), packed; made this format's
+ *                                       and saved (project.c kit_put). rc as USER_PUT's; 5 not a kit
+ *   USER_GET   32 slot               -> slot, rc, fmt2, data    user preset slot as saved (packed); rc 1 none there
+ *   KIT_GET    33 slot               -> slot, rc, fmt2, data    user kit slot the same (the presets page's export)
+ *   KIT_NAMES  34                    -> NUSER_KITS, then their names (0-terminated; "" an empty kit)
  * rc: 0 ok, 1 size / offset, 2 erase, 3 write, 4 not begun (the bank is live), 5 header, 6 CRC, 7 no samples,
  * 8 an update record's mark ("AT" at 0xF06 of a sector in PLAT_XDATA1: the loader would erase it).
  * Every frame is answered (the tool waits for each). The erases and writes run with the interrupts off a
@@ -60,14 +66,14 @@
 #define SB_HDR2 0x4C
 #include "dsp/bench.h"
 enum { SB_INFO = 1, SB_BEGIN = 11, SB_WRITE, SB_END, SB_ERASE, SB_SINFO, SB_HDR, SB_READ, SB_PING = 25, SB_PROF, SB_BENCH, SB_SOUND,
-       SB_UPUT, SB_UNAMES };
+       SB_UPUT, SB_UNAMES, SB_KPUT, SB_UGET, SB_KGET, SB_KNAMES };
 #define SB_PART 320u                                 /* SMP_HDR: a header part, bytes */
 #define SB_NPART ((SMP_HDR_USED + SB_PART - 1u) / SB_PART)
 #define SB_INFO_K 12u                                /* SMP_INFO: samples a reply (12 x 18 bytes at most) */
 #define SB_READ_MAX 224u                             /* SMP_READ: bytes a reply (256 packed) */
 
 /* the reply being made: F0 7D 46 4C cmd, then 7-bit bytes (rp_*), F7 added as it goes out */
-static struct { uint8_t b[320]; uint32_t n; } rp;
+static struct { uint8_t b[400]; uint32_t n; } rp;   /* (KIT_GET's: a kit packed, 367 B, and its head) */
 /* the staged header (1344 bytes used) and a page of data live in project.c's io_buf (3840 B): a project is
  * never loaded or saved between the frames of an upload (a save in the middle spoils the staged header: the
  * END then fails and the tool says so) */
@@ -105,6 +111,17 @@ static void rp_text(const char *s, uint32_t max)     /* up to max characters, th
     while (s && *s && max--)
         rp_byte((uint8_t)*s++);
     rp_byte(0);
+}
+static void rp_pack(const uint8_t *p, uint32_t n)   /* n bytes packed (rp_unpack's way: a byte of eighth bits first) */
+{
+    for (uint32_t g = 0; g < n; g += 7u) {
+        uint32_t k = n - g < 7u ? n - g : 7u, hb = 0;
+        for (uint32_t j = 0; j < k; j++)
+            hb |= (uint32_t)(p[g + j] >> 7) << j;
+        rp_byte(hb);
+        for (uint32_t j = 0; j < k; j++)
+            rp_byte(p[g + j]);
+    }
 }
 static void rp_end(void)
 {
@@ -308,6 +325,51 @@ static int smp_frame(const uint8_t *p, uint32_t n)
         rp_text(PRESETS[k].name, SMP_NAME);
         break;
     }
+    case SB_KPUT: {
+        uint8_t b[KIT_LEN];
+        const uint32_t k = na ? a[0] : 127u, fmt = na > 2u ? rp_arg(a + 1, 2) : 0u;
+        const uint32_t nb = na > 3u ? rp_unpack(a + 3, na - 3u, b, sizeof b) : 0u;
+        rc = (uint32_t)kit_put((int)k, b, fmt, nb);
+        rp_byte(k);
+        rp_byte(rc);
+        if (!rc) {
+            char t[12] = "K";
+            s_cat(num_s(k + 1u, t + 1), " SAVED");
+            ui_say(t, user_kit_name[k]);
+        }
+        break;
+    }
+    case SB_UGET: {
+        user_preset_t u;
+        const uint32_t k = na ? a[0] : 127u;
+        rp_byte(k);
+        if (user_preset_get((int)k, &u)) {
+            rp_byte(1);
+            break;
+        }
+        rp_byte(0);
+        rp_num(PRESETS_FORMAT, 2);
+        rp_pack((const uint8_t *)&u, sizeof u);
+        break;
+    }
+    case SB_KGET: {
+        uint8_t img[KIT_LEN];
+        const uint32_t k = na ? a[0] : 127u;
+        rp_byte(k);
+        if (kit_load((int)k, img) < 0) {
+            rp_byte(1);
+            break;
+        }
+        rp_byte(0);
+        rp_num(PRESETS_FORMAT, 2);
+        rp_pack(img, KIT_LEN);
+        break;
+    }
+    case SB_KNAMES:
+        rp_byte(NUSER_KITS);
+        for (i = 0; i < NUSER_KITS; i++)
+            rp_text(user_kit_name[i], NAME_LEN - 1);
+        break;
     case SB_UNAMES: {
         const uint32_t from = na ? a[0] : 0u, left = from < NUSER_PRESETS ? NUSER_PRESETS - from : 0u;
         const uint32_t k = left < 16u ? left : 16u;
