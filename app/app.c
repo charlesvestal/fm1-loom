@@ -169,10 +169,11 @@ void app_say(const char *a, const char *b) { ui_say(a, b); }
 void app_redraw(void) { ui_redraw(); }
 int app_sysex(const uint8_t *p, uint32_t n) { return smp_frame(p, n); }
 
-/* the name over the eight tracks' inks woven as threads, in the default theme (pages.c THEMES[0]) */
+/* the name over the eight tracks' inks woven as threads, in the default theme (pages.c THEME_BW: the splash comes
+ * before the project, so before the theme picked) */
 void app_splash(void)
 {
-    const theme_t *t = &THEMES[0];
+    const theme_t *t = &THEMES[THEME_BW];
     lcd_fill(0, 0, 240, 240, t->bg);
     cv_begin(240, 96, t->bg);
     {
