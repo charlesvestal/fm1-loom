@@ -1,0 +1,21 @@
+# knit's extras on its SEL list (the Prophet's: a synced patch's master quiet, the sweep on osc 1's pulse width), in
+# rayon's Ops page's bytes (synth.h TP_K1CUT, TP_KSWTO): OSC 1 LEVEL 100% at first, ALGORITHM down to 92%; SWEEP TO
+# osc 2's pitch, then osc 1's width (an engine change sets them back: ui.c sound_reset)
+wait 300
+param 2 engine knit
+spin ALGO 1
+expect trk 2
+tap EDIT
+tap SEL
+expect listopen 1
+rowval OSC 1 LEVEL = 100%
+rowval SWEEP TO = osc 2 pitch
+row OSC 1 LEVEL
+turn ALGO -10
+expect par2.k1cut 10
+rowval OSC 1 LEVEL = 92%
+row SWEEP TO
+turn ALGO 1
+expect par2.kswto 1
+rowval SWEEP TO = osc 1 width
+tap HOME

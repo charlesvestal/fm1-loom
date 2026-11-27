@@ -19,10 +19,11 @@ Bring your own bank: Sequential's programs are never committed or published here
 How a program maps (knit's page: the Prophet's section)
   Engine    osc 1's wave: saw, pulse (its width) or the two (a blend); unison: mono, its voices (5 for 0) and detune
   Osc 2     the other oscillator at its interval (+-24 semitones) and fine tune, its own wave (saw, pulse, triangle)
-  Levels    osc 2's level against osc 1's (knit's osc 1 always sounds at full); noise
+  Levels    the louder oscillator full, the other against it (osc 1's level: knit's extra); noise
   Mod       SYNC: A synced to B -> osc 2 synced to osc 1 (so A is osc 2, B osc 1); Poly-Mod's filter envelope on A's
             frequency -> sweep (osc 2: A is osc 2 then); Poly-Mod's osc B on A's frequency -> cross (osc 2 into osc 1:
-            A osc 1, B osc 2, without sync)
+            A osc 1, B osc 2, without sync); Poly-Mod's envelope on A's pulse width -> the sweep on osc 1's width
+            (knit's extra), where A is osc 1 and its frequency is not swept
   Envelope  the amp's and the filter's ADSRs, each its own
   Filter    ladder; cutoff, resonance, keyboard (off, half, full), the envelope amount (Poly-Mod's on the filter
             added)
@@ -143,8 +144,6 @@ def convert(p):
         if p[TRI_B] and not (p[SAW_B] or p[PULSE_B]):
             notes.append("osc B a triangle as osc 1: knit's osc 1 plays a saw")
         out.append(("e1", osc_wave(p[SAW_B], p[PULSE_B], p[PW_B])))
-    if lev[o1] == 0:
-        notes.append(f"osc {o1} silent: knit's osc 1 cannot be, it plays")
     # unison
     if p[UNISON]:
         n = p[UNI_COUNT] if 0 < p[UNI_COUNT] <= 7 else 5 if p[UNI_COUNT] == 0 else 7
@@ -167,9 +166,11 @@ def convert(p):
         out += ([("o2wave", "triangle")] if p[TRI_B] and not (p[SAW_B] or p[PULSE_B]) else
                 [("o2wave", "pulse"), ("o2shape", pulse_wave(p[PW_B]))] if p[PULSE_B] and not p[SAW_B] else
                 [("o2wave", "saw")])
-    lv1 = max(lev[o1], 1)
-    out += [("x2", clamp(127 * min(1.0, lev[o2] / lv1))), ("x3", 0), ("x4", clamp(p[NOISE] * 0.8 * 127 / lv1)),
-            ("kanalog", p[VINTAGE])]
+    # the levels: the louder oscillator full, the other against it (osc 1 turned down: knit's extra, TP_K1CUT; a synced
+    # patch's master silent)
+    top = max(lev[o1], lev[o2], 1)
+    out += [("k1cut", clamp(127 * (1.0 - lev[o1] / top))), ("x2", clamp(127 * lev[o2] / top)), ("x3", 0),
+            ("x4", clamp(p[NOISE] * 0.8 * 127 / top)), ("kanalog", p[VINTAGE])]
     # the octave: osc 1's coarse tuning (8' at its root); a remainder off the octaves is lost
     octs, rem = divmod(st[o1], 12)
     if rem:
@@ -181,11 +182,17 @@ def convert(p):
     if fm_a and a_is_2:
         notes.append("Poly-Mod osc B on A's frequency beside sync or the sweep: not made (knit's cross runs osc 2 "
                      "into osc 1)")
-    if p[POLY_PW] and (p[POLY_ENV] or p[POLY_B]):
-        notes.append("Poly-Mod on A's pulse width: not made")
+    # Poly-Mod's envelope on A's pulse width: knit's sweep on osc 1's width (its extra, TP_KSWTO), where A is osc 1,
+    # pulsed, and the sweep is free (A's frequency not swept)
+    swto = 0
+    if p[POLY_PW] and p[POLY_ENV] and o1 == "A" and p[PULSE_A] and not sweep:
+        swto, sweep = 1, round(p[POLY_ENV] * 48 / 127)
+    elif p[POLY_PW] and (p[POLY_ENV] or p[POLY_B]):
+        notes.append("Poly-Mod on A's pulse width: not made" + (" (by osc B)" if not p[POLY_ENV] else ""))
     if p[POLY_FILTER] and p[POLY_B]:
         notes.append("Poly-Mod osc B on the filter: not made")
-    out += [("ksync", 1 if p[SYNC] else 0), ("ksweep", min(sweep, 48)), ("kcross", cross), ("ksub", "sine")]
+    out += [("ksync", 1 if p[SYNC] else 0), ("ksweep", min(sweep, 48)), ("kcross", cross), ("ksub", "sine"),
+            ("kswto", swto)]
     # the envelopes
     rel_a = p[REL_A] if p[RELEASE_ON] else 0
     rel_f = p[REL_F] if p[RELEASE_ON] else 0

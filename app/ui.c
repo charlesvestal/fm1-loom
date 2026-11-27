@@ -3427,6 +3427,14 @@ static void list_change_do(int32_t e)
         case A_SLOT_X1: case A_SLOT_X2: case A_SLOT_X3: case A_SLOT_X4:
             slot_turn(list_slot_pg(), SL_X1 + lst.row[lst.sel].id - A_SLOT_X1, accel(EN_ALGO, e));
             break;
+        case A_K1LEVEL: {                        /* knit's osc 1 level (stored as how far down: TP_K1CUT) */
+            const int t = sel_trk();
+            set_tp(t, TP_K1CUT, clampi(proj.trk[t].par[TP_K1CUT] - (int)accel(EN_ALGO, e), 0, 127));
+            break;
+        }
+        case A_KSWTO:                            /* knit's sweep: osc 2's pitch / osc 1's width */
+            set_tp(sel_trk(), TP_KSWTO, d > 0);
+            break;
         case A_FX_HP: case A_FX_LP: case A_FX_SEND: {
             int ft = list_slot_pg() == P_FX2 ? AUX_FX2 : AUX_FX1, id = lst.row[lst.sel].id;
             int q = id == A_FX_HP ? TP_FENV : id == A_FX_LP ? TP_CUT : TP_SEND2;
@@ -4614,6 +4622,7 @@ static void action_run(int a)
     case A_FX_SEND: case A_PUMP_BY: case A_PUMP_REL: case A_PUMP_ACC: case A_LEVEL: case A_SCENE_AT: case A_AUTOSAVE:
     case A_MIDI_OUT: case A_LOOP_FREE: case A_CC_OUT: case A_SCENES_OUT: case A_MIDI_CC: case A_USB_HOST: case A_KIT_FILTER:
     case A_CC_IN: case A_MOD_VIEW: case A_CPU: case A_SLOT_X1: case A_SLOT_X2: case A_SLOT_X3: case A_SLOT_X4:
+    case A_K1LEVEL: case A_KSWTO:
         return;   /* (ALGORITHM sets them; SEL
                                                                                     * leaves the list) */
     case A_REMOVE_NOTE: act_remove_note(lst.sel); break;

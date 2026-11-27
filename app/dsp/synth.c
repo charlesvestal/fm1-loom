@@ -209,6 +209,8 @@ typedef struct {
     float kan_lp[2];                  /* its softer edges: a one-pole low-pass's state, L and R */
     uint8_t ksync, ksub, ksweep, kcross;   /* knit's Mod page as set: osc 2 synced to osc 1, the sub's type (KS_*), the
                                        * filter envelope's reach on osc 2 (semitones), osc 2's FM on osc 1 (0..127) */
+    uint8_t kswto, k1cut;             /* its extras (SEL): the sweep on osc 1's width instead of osc 2's pitch
+                                       * (TP_KSWTO), osc 1 turned down (TP_K1CUT, 0 full .. 127 silent) */
     float o[16];                      /* the engine's state */
     float cz[8];                      /* the character stage's: low-pass / hold L R, DC L R, phase, -, the
                                        * sampler's output filter L R (tape: cz[4..5] its wow's phases; ring:
@@ -1063,8 +1065,8 @@ static __attribute__((noinline)) float knit_mod_osc2(voice_t *v, float d0, float
 {
     const cfg_t *c = &v->c;
     float m2 = mix, w2 = pw;
-    float d2 = fm_clampf(c->ex[13] * dr * (v->ksweep ? fm_exp2f((float)v->ksweep * (1.0f / 12.0f) * v->flt.level)
-                                                     : 1.0f), 1e-6f, 0.45f);
+    float d2 = fm_clampf(c->ex[13] * dr * (v->ksweep && !v->kswto ? fm_exp2f((float)v->ksweep * (1.0f / 12.0f) *
+                                                                             v->flt.level) : 1.0f), 1e-6f, 0.45f);
     if (v->o2w == 1) {                           /* (its own shape: as knit_prep makes osc 1's) */
         float s2 = v->o[9];
         m2 = s2 < 0.5f ? s2 * 2.0f : 1.0f;
@@ -1128,7 +1130,11 @@ SY_INLINE void knit_loop(voice_t *v, float *xl, float *xr, int m, const int ster
 {
     const cfg_t *c = &v->c;
     const int n = (int)c->ex[2];
-    const float *co = KNIT_COEF[n / 2], mix = c->ex[3], pw = c->ex[4], g = c->ex[12], dr = c->ex[22];
+    const float *co = KNIT_COEF[n / 2], mix = c->ex[3], dr = c->ex[22];
+    const float g = c->ex[12] * (1.0f - (float)v->k1cut * (1.0f / 127.0f));   /* (osc 1's level: its extra) */
+    const float pw = v->kswto && v->ksweep ? fm_maxf(0.05f, c->ex[4] - (float)v->ksweep * (0.45f / KSWEEP_MAX) *
+                                                                      v->flt.level)
+                                           : c->ex[4];   /* (the sweep on its width: the Prophet's Poly-Mod on PW) */
     float d[KNIT_MAX + 1], gg[2 * KNIT_MAX + 2];
     int i, k;
     for (k = 0; k < n; k++) {                    /* the voices: the centre, then the pairs (upper right, lower left); an
@@ -3633,6 +3639,8 @@ static void voice_chunk(synth_t *s, voice_t *v)
                 v->ksweep = (uint8_t)(sw > KSWEEP_MAX ? KSWEEP_MAX : sw);
                 v->kcross = (uint8_t)(cr > 127 ? 127 : cr);
                 v->ksub = (uint8_t)(P2(s, trk, TP_KSUB) % NKS);
+                v->kswto = (uint8_t)(P2(s, trk, TP_KSWTO) != 0);
+                v->k1cut = (uint8_t)(P2(s, trk, TP_K1CUT) > 127 ? 127 : P2(s, trk, TP_K1CUT));
             }
             {   /* analog (knit_loop, knit_chunk read it; its spread drawn at the note: voice_start) */
                 int an = P2(s, trk, TP_KANALOG);

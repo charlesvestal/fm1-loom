@@ -985,6 +985,8 @@ static int param_of(const char *s)                 /* a TP_* name, dK.NAME (drum
     if ((s[0] == 's' || s[0] == 'S') && (s[1] == '1' || s[1] == '2') && (s[2] == 'x' || s[2] == 'X') && s[3] >= '1' &&
         s[3] <= '4' && !s[4])
         return (s[1] == '1' ? TP_S1X1 : TP_S2X1) + (s[3] - '1');
+    if (ieq(s, "k1cut") || ieq(s, "kswto"))      /* knit's extras (rayon's Ops bytes: synth.h TP_K1CUT, TP_KSWTO) */
+        return ieq(s, "k1cut") ? TP_K1CUT : TP_KSWTO;
     if (ieq(s, "rops") || ieq(s, "rratio") || ieq(s, "rdepth") || ieq(s, "rfb"))   /* rayon's Ops page */
         return ieq(s, "rops") ? TP_ROPS : ieq(s, "rratio") ? TP_RRATIO : ieq(s, "rdepth") ? TP_RDEPTH : TP_RFB;
     host_die("no parameter", s);

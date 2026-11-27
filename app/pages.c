@@ -325,7 +325,7 @@ enum { A_CLEAR_NOTES, A_CLEAR_LOCKS, A_CLEAR_BOTH, A_COPY_PAT, A_PASTE_PAT, A_RO
        A_COPY_SOUND, A_PASTE_SOUND, A_COPY_KEY, A_PASTE_KEY, A_COPY_SCENE, A_PASTE_SCENE, A_DUP_SLOT, A_KIT_FILTER,
        A_SHIFT, A_LARGE_TYPE, A_CC_IN, A_MOD_VIEW, A_CPU, A_PROJ1, A_PROJ2, A_PROJ3,
        A_MOD_LANE, A_MOD_REMOVE, A_MOD_CLEAR, A_MOD_TRK, A_MOD_PG, A_MOD_KNOB, A_MOD_ADD, A_MOD_LEARN,
-       A_MOD_KIND, A_MOD_TTRK, A_MOD_TPG, A_MOD_TKNOB, A_MOD_TLEARN, A_GO_FX1, A_GO_FX2, A_SLOT_X1, A_SLOT_X2, A_SLOT_X3, A_SLOT_X4, NACTIONS };   /* (A_SLOT_X*: a slot page's
+       A_MOD_KIND, A_MOD_TTRK, A_MOD_TPG, A_MOD_TKNOB, A_MOD_TLEARN, A_GO_FX1, A_GO_FX2, A_K1LEVEL, A_KSWTO, A_SLOT_X1, A_SLOT_X2, A_SLOT_X3, A_SLOT_X4, NACTIONS };   /* (A_SLOT_X*: a slot page's
                                                      * extras; A_GO_FX*: Sends' way to GLO's FX I, FX II) */
 static const char *const ACTION_NAME[NACTIONS] = {
     "CLEAR NOTES", "CLEAR LOCKS", "CLEAR NOTES AND LOCKS", "COPY PATTERN", "PASTE PATTERN", "ROTATE FORWARD",
@@ -339,7 +339,7 @@ static const char *const ACTION_NAME[NACTIONS] = {
     "CLEAR", "ROTATE", "PASTE", "COPY TO EMPTY", "CLEAR BAR", "COPY SOUND", "PASTE SOUND", "COPY DRUM", "PASTE DRUM",
     "COPY SCENE", "PASTE SCENE", "DUPLICATE SLOT", "KIT FILTER", "SHIFT NOTES", "LARGE TYPE", "CC IN",
     "MOD VIEW", "CPU", "PROJ 1", "PROJ 2", "PROJ 3", "LANE", "REMOVE LANE", "CLEAR LANE", "TRACK", "PAGE", "KNOB",
-    "ADD LANE", "LEARN", "SHAPE", "TARGET TRACK", "TARGET PAGE", "TARGET KNOB", "LEARN TARGET", "FX I", "FX II", "EXTRA 1", "EXTRA 2", "EXTRA 3", "EXTRA 4"};
+    "ADD LANE", "LEARN", "SHAPE", "TARGET TRACK", "TARGET PAGE", "TARGET KNOB", "LEARN TARGET", "FX I", "FX II", "OSC 1 LEVEL", "SWEEP TO", "EXTRA 1", "EXTRA 2", "EXTRA 3", "EXTRA 4"};
 _Static_assert(NPROJ == 3, "GLO's list: an action a slot (A_PROJ1..A_PROJ3)");
 static const char *const CLEAR_WHAT[3] = {"notes", "locks", "notes and locks"};
 /* a pick ALGORITHM sets at once (a setting: SEL only leaves the list), as against a choice SEL then carries out */
@@ -354,6 +354,7 @@ static int pick_sets(int a)
     case A_SCENE_AT: case A_AUTOSAVE: case A_MIDI_OUT: case A_LOOP_FREE: case A_CC_OUT: case A_SCENES_OUT: case A_MIDI_CC:
     case A_USB_HOST: case A_KIT_FILTER: case A_CC_IN: case A_MOD_VIEW: case A_CPU:
     case A_MOD_TRK: case A_MOD_PG: case A_MOD_KNOB: case A_MOD_KIND: case A_MOD_TTRK: case A_MOD_TPG: case A_MOD_TKNOB:
+    case A_K1LEVEL: case A_KSWTO:
         return 1;
     default:
         return 0;
@@ -3837,9 +3838,22 @@ static void list_build(void)
             }
             list_page_section(keep);
         }
-        else
-            for (int gi = 0; gi < group_n(g); gi++)
+        else {
+            int kmod = 0;
+            for (int gi = 0; gi < group_n(g); gi++) {
                 list_page_section(grp_page(g, gi));
+                kmod |= grp_page(g, gi) == P_KMOD;
+            }
+            if (kmod && is_knit(trk)) {          /* knit's extras (the Prophet's: a synced patch's master quiet, the
+                                                  * sweep on the pulse's width): no knob of their own */
+                static char lv[8];
+                const uint8_t *par = proj.trk[trk].par;
+                s_cat(num_s((uint32_t)((127 - par[TP_K1CUT] % 128) * 100 + 63) / 127u, lv), "%");
+                list_head("extras");
+                list_add(ACTION_NAME[A_K1LEVEL], lv, LK_PICK, A_K1LEVEL);
+                list_add(ACTION_NAME[A_KSWTO], par[TP_KSWTO] ? "osc 1 width" : "osc 2 pitch", LK_PICK, A_KSWTO);
+            }
+        }
     }
     for (i = j = 0; i < lst.n; i++)
         j += lst.row[i].kind != LK_HEAD;

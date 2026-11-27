@@ -167,6 +167,10 @@ enum {
                                                      * so format 27's indices stay */
     NTP
 };
+/* knit's extras (its SEL list, 2026-11-27: the Prophet's), in rayon's Ops page's bytes (an engine change resets them;
+ * 0 on any other engine's, so old projects and presets are knit as before): osc 1 turned down (0 full .. 127 silent: a
+ * synced patch's master quiet), the sweep (TP_KSWEEP) on osc 1's pulse width instead of osc 2's pitch (0 / 1) */
+enum { TP_K1CUT = TP_RDEPTH, TP_KSWTO = TP_RFB };
 enum { TP_S1TYPE = TP_CTYPE, TP_S1K1 = TP_CAMT, TP_S1K2 = TP_CTONE, TP_S1MIX = TP_CMIX,
        TP_S2TYPE = TP_ITYPE, TP_S2K1 = TP_I1, TP_S2K2 = TP_I2, TP_S2K3 = TP_I3 };
 /* a track's two slots (the one effects list: docs/superpowers/specs/2026-11-25-one-effects-list-design.md), each any
@@ -360,9 +364,9 @@ typedef struct synth synth_t;         /* opaque: dsp/synth.c */
 void synth_glfo_restart(synth_t *s);              /* the shared LFO from its start (the transport started) */
 float synth_glfo_now(const synth_t *s);            /* its value now, -1..1 (the page's picture) */
 #ifdef PLAT_HOST
-#define SYNTH_BYTES 15856             /* (the host's pointers are wider) */
+#define SYNTH_BYTES 15920             /* (the host's pointers are wider) */
 #else
-#define SYNTH_BYTES 15784             /* room for the struct (checked at compile time in synth.c: 15,784 B, 2026-11-25) */
+#define SYNTH_BYTES 15848             /* room for the struct (checked in synth.c: 15,848 B, 2026-11-27: knit's extras) */
 #endif
 
 void synth_init(synth_t *s, uint8_t (*par)[NTP]);   /* par: the tracks' parameter arrays, NTRK + 1 of them (the conductor's, SY_GLFO_TRK: the shared LFO) */
