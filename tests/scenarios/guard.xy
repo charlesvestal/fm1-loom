@@ -28,10 +28,17 @@ wait 6
 load 60
 wait 500
 expect guard 16
-# three in a row do: eight voices; then, the average under 70 % with blocks of 90 % now and then (a song's
-# spikes), two voices back each second
+# a run of them neither (fm1-base drops a half only when one missed: the block rendered ahead carries a run whose
+# lateness stays under a block; until 2026-11-27 three in a row tripped it)
 load 98
 wait 25
+load 60
+wait 500
+expect guard 16
+# a load over the average's 85 % does: eight voices; then, the average under 70 % with blocks of 90 % now and
+# then (a song's spikes), two voices back each second
+load 98
+wait 200
 load 60
 wait 200
 expect guard 8

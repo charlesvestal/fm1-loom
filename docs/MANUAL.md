@@ -753,7 +753,7 @@ on the model. The fourth knob is LOOM-8's own.
 
 **damp** darkens the sound. The pluck gets softer, the bridge or bore duller, and on the bell and the drum the
 upper partials die first. The pluck and the strikes play once on each note. The bow and the breath start again on
-each note, and when you play legato they carry on while the pitch moves. Cane plays at most four voices at once,
+each note, and when you play legato they carry on while the pitch moves. Cane plays at most five voices at once,
 because each voice keeps its own strings and tubes in memory. A new note beyond that takes over the oldest one. If a
 note is too low for the bow or the flute, you hear it an octave up.
 

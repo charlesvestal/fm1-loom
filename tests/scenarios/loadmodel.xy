@@ -368,7 +368,7 @@ play 2 76 on 100
 play 2 79 on 100
 wait 300
 meter 1500
-expect voices 4
+expect voices 5
 expect model_avg >25
 expect model_avg <38
 play 2 48 off

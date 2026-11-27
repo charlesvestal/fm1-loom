@@ -52,7 +52,7 @@ enum { EG_KNIT, EG_RAYON, EG_JACQUARD, EG_BELLOWS, EG_CANE, EG_VOILE, EG_SAMPLE,
  * ms), density (grains a second, 2 .. 60), pitch (each grain detuned at random, up to an octave), width (the grains
  * across the stereo field). At most CN_SLOTS of its voices (cane's slots: a cap), their grains from one pool of
  * TL_POOL, each with its own decode window */
-#define TL_POOL 32                                   /* eight a note: its slot's own (TL_POOL / CN_SLOTS) */
+#define TL_POOL (8 * CN_SLOTS)                      /* eight a note: its slot's own (TL_POOL / CN_SLOTS) */
 #define TL_VOICE_MAX 8                               /* a note's grains at most (its voice on one core: the FM-1's budget) */
 /* EG_LACE (2026-11-23): a modal resonator: LC_MODES tuned two-pole resonators, struck, blown or bowed. Its Engine page
  * E1 the material (the modes' ratios and how long each rings: NLACE of them), E2 bright (the higher modes' share), E3
@@ -84,7 +84,7 @@ void tartan_voices(const uint8_t *par, float *semis, float *lvl, float *pan);   
  * (each a slot of CN_LEN int16 for its lines); voile: vosim, vowel, choir, whisper */
 #define NCANE 6
 #define NVOILE 4
-#define CN_SLOTS 4
+#define CN_SLOTS 5                                   /* (4 until 2026-11-27: three lace tracks stole a note a step) */
 #define CN_LEN 1536
 static inline int eg_synth(int e) { return e >= 0 && e < NENGINE && e != EG_DRUMLINE && e != EG_MIDI; }   /* a voice
                                                                                                          * engine */

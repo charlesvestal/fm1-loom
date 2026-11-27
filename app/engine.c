@@ -161,21 +161,21 @@ int engine_core2_state(void)
 }
 
 /* ------------------------------------------------------- overload guard --- */
-/* past the CPU (85 % on average, or three blocks in a row over 92 %: a load that keeps the audio late) the synth
- * plays eight voices instead of sixteen (the quietest end early). A single block's spike does not trip it (a chord's
- * note-ons, a hit: capping the voices afterwards would not have saved that block). It lets go a step at a time: once
- * the average has stayed under 70 % for a second with no such run, two voices more, and so on each further second
- * (8, 10 .. 16: the load the voices bring back is measured on the way); a trip on the way starts again from eight.
- * (Before, it waited for every block under 65 %, which a song averaging 60 % with its spikes never gave: one trip
- * kept eight voices for the rest of the song.) The platform reports each block's load after rendering it (same
- * context as engine_render); the change is made at the start of the next block. */
-#define GUARD_ON_LAST 92u
-#define GUARD_ON_RUN 3u
+/* past the CPU (85 % on average: a load that keeps the audio late) the synth plays eight voices instead of sixteen
+ * (the quietest end early). Spikes do not trip it, a run of them neither: fm1-base drops a half only when one missed
+ * anyway, and the block rendered ahead carries a run of late blocks whose lateness stays under a block (until
+ * 2026-11-27 three blocks in a row over 92 % tripped it too, after fm1-base's old rule of three late renders in a row
+ * dropping a half: it held a busy scene at eight voices and 70 % where sixteen played 80 %, its worst block 113 %,
+ * without a dropout). It lets go a step at a time: once the average has stayed under 70 % for a second, two voices
+ * more, and so on each further second (8, 10 .. 16: the load the voices bring back is measured on the way); a trip on
+ * the way starts again from eight. (Before, it waited for every block under 65 %, which a song averaging 60 % with its
+ * spikes never gave: one trip kept eight voices for the rest of the song.) The platform reports each block's load
+ * after rendering it (same context as engine_render); the change is made at the start of the next block. */
 #define GUARD_ON_AVG 85u
 #define GUARD_OFF 70u
 #define GUARD_STEP_FRAMES 44100u
 #define GUARD_VOICES 8
-static uint8_t guard_on, guard_applied, guard_cap = NVOICE, guard_run;
+static uint8_t guard_on, guard_applied, guard_cap = NVOICE;
 static uint32_t guard_avg_q8, guard_calm, guard_frames;
 /* before it, the acid engine's 303s (dsp/bass303.c, X0X's guard): a block over ACID_LITE_ON % and they render without
  * their oversampling from the next block (about half their cost; some aliasing on bright, resonant notes), until a
@@ -204,8 +204,7 @@ void engine_load(uint32_t pct)
         acid_lite = 0;
     }
     guard_avg_q8 = (guard_avg_q8 * 15u + pct * 256u) / 16u;
-    guard_run = pct > GUARD_ON_LAST ? (uint8_t)(guard_run < 255u ? guard_run + 1u : 255u) : 0u;
-    if (guard_run >= GUARD_ON_RUN || guard_avg_q8 > GUARD_ON_AVG * 256u) {
+    if (guard_avg_q8 > GUARD_ON_AVG * 256u) {
         if (!guard_on || guard_cap > GUARD_VOICES)
             eng_guard_count++;                       /* a trip (or one on the way back) */
         guard_on = 1;
@@ -213,7 +212,7 @@ void engine_load(uint32_t pct)
         guard_calm = 0;
     } else if (!guard_on) {
         return;
-    } else if (guard_avg_q8 >= GUARD_OFF * 256u || guard_run) {
+    } else if (guard_avg_q8 >= GUARD_OFF * 256u) {
         guard_calm = 0;
     } else if ((guard_calm += frames) >= GUARD_STEP_FRAMES) {
         guard_calm = 0;
