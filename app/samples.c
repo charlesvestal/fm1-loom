@@ -132,13 +132,31 @@ static int sb_erase(uint32_t v)                      /* the 4 KB sector at virtu
     uint32_t off;
     return smp_reg_of(v, &off) < 0 ? -1 : plat_data_erase(off);
 }
+/* plat_data_write from io_buf: the flash programs only from the main RAM (felucca-bsp fm1_flash_policy.h FL_RAM_OK),
+ * and io_buf lives in the cache RAM since c8b8558 (app.h LOOM_CR): every page through 256 bytes of main RAM. (Before
+ * this, every bank write failed there: an upload, the installer's or the samples page's, erased the bank and left it
+ * empty) */
+static int sb_data_write(uint32_t off, const uint8_t *p, uint32_t n)
+{
+    static uint8_t bounce[256] __attribute__((aligned(4)));
+    while (n) {
+        uint32_t k = n < sizeof bounce ? n : (uint32_t)sizeof bounce;
+        memcpy(bounce, p, k);
+        if (plat_data_write(off, bounce, k))
+            return -1;
+        off += k;
+        p += k;
+        n -= k;
+    }
+    return 0;
+}
 static int sb_write(uint32_t v, const uint8_t *p, uint32_t n)   /* n bytes at v, inside one window */
 {
     uint32_t off;
     int r = smp_reg_of(v, &off);
     if (r < 0 || n > smp_reg_off(r) + smp_reg_size(r) - off)
         return -1;
-    return plat_data_write(off, p, n);
+    return sb_data_write(off, p, n);
 }
 /* an update record's mark in the bank's data: "AT" at bytes 0xF06..0xF07 of a sector of the extra window (the
  * update loader erases a sector it takes for a record: base/bsp/loader/ldr_core.c) */
@@ -165,7 +183,7 @@ static uint32_t sb_end(void)
         return 6;
     if (sb_record_mark(len))
         return 8;
-    if (plat_data_write(SMP_BANK_BASE, sb_hdr, SMP_ENT0 + cnt * SMP_ENT))
+    if (sb_data_write(SMP_BANK_BASE, sb_hdr, SMP_ENT0 + cnt * SMP_ENT))
         return 3;
     sb_open = 0;
     return smp_user_scan() == (int)cnt ? 0u : 7u;
