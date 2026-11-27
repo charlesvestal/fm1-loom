@@ -544,8 +544,9 @@ static void zero16(int16_t *b, int32_t n)
 }
 #include "psxrev.h"
 
-const char *const RV_NAME[NRV] = {"plate", "room", "studio S", "studio M", "studio L", "hall", "half echo",
-                                  "space echo", "chaos echo", "one echo", "lush", "shimmer"};
+const char *const RV_NAME[NRV] = {"plate", "PSX room", "PSX studio S", "PSX studio M", "PSX studio L", "PSX hall",
+                                  "PSX half echo", "PSX space echo", "PSX chaos echo", "PSX one echo", "lush", "shimmer"};
+                                  /* (the user's names: PSX, the original PlayStation's SPU presets, schwung-psxverb's) */
 /* the reverb's lines inside the int16 buffer: 9W9's comb lengths, each with room to grow 1.9x,
  * and its four allpasses (left 556 / 441, right 579 / 457) */
 static const int32_t RV_COMB[4] = {1116, 1188, 1277, 1356};

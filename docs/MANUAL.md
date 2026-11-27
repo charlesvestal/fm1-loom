@@ -1291,9 +1291,11 @@ slowly, like tape, more with each repeat, and **smear** blurs each repeat a litt
 echoes turn into a wash. With repeats high and a little of each, a single pluck rings on for many bars.
 
 **The reverb.** It has twelve types, picked in **SEL** by name, and each starts at its own settings. **plate** is
-LOOM-8's own. Nine come from the PlayStation's sound chip, the reverbs its games used: **room**, **studio S**,
-**studio M** and **studio L**, **hall**, **half echo**, **space echo**, **chaos echo** (it almost never stops) and
-**one echo** (a single repeat). **lush** is a smooth, wide plate based on Jon Dattorro's. **shimmer** is lush with
+LOOM-8's own. Nine come from the original PlayStation's sound chip, the reverbs its games used, and are named PSX:
+**PSX room**, **PSX studio S**, **PSX studio M** and **PSX studio L**, **PSX hall**, **PSX half echo**, **PSX space
+echo**, **PSX chaos echo** (it almost never stops) and **PSX one echo** (a single repeat). They run at the console's
+22 kHz, so their top is soft and a little grainy, as the games sounded. The bigger types need more of LOOM-8's effects
+memory: with two delays already holding it (a track's insert and FX I), the largest are not offered until one goes. **lush** is a smooth, wide plate based on Jon Dattorro's. **shimmer** is lush with
 its own sound fed back an octave up, so the tail rises in octaves; its **shimmer** sets how much goes back in. On
 the console types, **size** stretches their delays, from small and metallic to the console's own at the top,
 **decay** sets how long the tail lasts (the console's own in the middle), **tone** darkens the tail below the

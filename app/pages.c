@@ -1456,7 +1456,7 @@ static void ktp_val(knob_t *k, int trk, int p, int v)
 static void kpar_val(knob_t *k, const uint8_t *par, int p, int v)
 {
     const tp_info_t *in;
-    char num[12], unit[6], val[24], *e;
+    char num[16], unit[6], val[24], *e;
     in = tp_info_par(p, par);
     if (!in->name || !in->name[0] || s_eq(in->name, "-"))
         return;
@@ -3631,7 +3631,7 @@ static void list_sound(int trk)
 static void list_slot_row(const uint8_t *par, int pr, char *nm, char *vt, int act)
 {
     const tp_info_t *in = tp_info_par(pr, par);
-    char num[12], unit[6];
+    char num[16], unit[6];
     if (in->name[0] == '-')
         return;
     for (int c = 0; c < 11 && in->name[c]; c++)
@@ -6036,7 +6036,7 @@ static void draw_rayon_ops(void)
     uint32_t h = hash_u(hash_u(2166136261u, 0xA9u), (uint32_t)trk | (uint32_t)ro << 4 | (uint32_t)p[TP_RRATIO] << 8 |
                                                     (uint32_t)(fb > 0) << 16 | (uint32_t)p[TP_E2] << 20);
     int32_t bw = 40, bh = 16, rs = 20, cs = 60, ox = 50, oy = 8, bx[4], by[4];
-    char rt[4][12], num[12], unit[6], cap[48];
+    char rt[4][12], num[16], unit[6], cap[48];
     if (!begin_main(h))
         return;
     s_cat(rt[0], "1");
@@ -6741,7 +6741,7 @@ static void draw_lfo(void)
         }
     }
     if (lt == LT_WAVE || lt == LT_DRIFT) {
-        char t[40], num[12], unit[6], *e = s_cat(t, "to ");
+        char t[40], num[16], unit[6], *e = s_cat(t, "to ");
         tp_text_par(TP_LDEST, p[TP_LDEST], p, num, unit);
         e = s_cat(s_cat(e, num), " ");
         tp_text_par(TP_LX, p[TP_LX], p, num, unit);

@@ -991,7 +991,8 @@ static int value_of(int t, int p, const char *s)   /* a number, a name of the va
     const tp_info_t *in = t < NTRK || t == AUX_FX1 || t == AUX_FX2 ? tp_info_par(p, proj.trk[t].par) : 0;
     if (in && in->kind == PK_NAMES && in->names)
         for (int k = in->lo; k <= in->hi; k++)
-            if (in->names[k] && ieq(s, in->names[k]))
+            if (in->names[k] && (ieq(s, in->names[k]) ||   /* (a reverb's SPU mode: "hall" or "PSX hall") */
+                                 (!strncmp(in->names[k], "PSX ", 4) && ieq(s, in->names[k] + 4))))
                 return k;
     if (s[0] == 'u' && isnum(s + 1))
         return smp_factory() + atoi(s + 1) - 1;
@@ -1019,7 +1020,8 @@ static void fx_old_knob(int t, int k, const char *val)
     int w = dl ? p[TP_S1X2] : 127, wob = dl ? p[TP_S1X3] : 0, smr = dl ? p[TP_S1X4] : 0, lev = p[TP_CMIX], v = -1;
     if (k == TP_ENGINE)
         for (int i = 0; i < NFXPICK && v < 0; i++)
-            if (ieq(val, i < FXT_REVERB ? FXN[i] : RV_NAME[i - FXT_REVERB]))
+            if (ieq(val, i < FXT_REVERB ? FXN[i] : RV_NAME[i - FXT_REVERB]) ||   /* (an SPU mode: "hall" or "PSX hall") */
+                (i >= FXT_REVERB && !strncmp(RV_NAME[i - FXT_REVERB], "PSX ", 4) && ieq(val, RV_NAME[i - FXT_REVERB] + 4)))
                 v = i;
     if (v < 0 && !isnum(val))
         host_die("no value", val);
