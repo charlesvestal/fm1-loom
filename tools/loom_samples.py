@@ -29,8 +29,8 @@
 
 load, build and syx add the factory set after the samples given (if no SPEC says where: "factory"), so a load
 never leaves the kits silent; --no-factory leaves it out; --make-room puts samples kept as stored (bank:FILE) at a
-lower rate when the bank would not fit otherwise. Its 12 entries are not user slots: user 1 is still the
-first sample given. It takes 86 KB of the bank.
+lower rate when the bank would not fit otherwise. Its 13 entries are not user slots: user 1 is still the
+first sample given. It takes about 110 KB of the bank.
 
 Each file becomes one sample: mixed to mono, resampled to its rate (a windowed-sinc anti-alias filter first),
 pre-emphasised for the playback's linear interpolation (flat to 0.4 x its rate as it plays), its peak normalised, IMA
@@ -45,8 +45,8 @@ unless given.
 The rate: %RATE for one sample, --rate for the rest: 11025, 16000, 22050 or 32000 (or 11k, 16k, 22k, 32k), or
 auto (the default): the highest of 22050, 16000 and 11025 at which the whole bank fits, the same for every
 sample that did not choose. Higher is brighter (a sample keeps what lies below half its rate) and costs more
-room, and a little more of the FM-1's time while it plays. The bank holds 214 KB of sound (the factory set's 86 KB of it):
-about 18.7 s in all at 22050 Hz, 25.8 s at 16000, 37.4 s at 11025, 12.9 s at 32000 (a bar at 120 BPM takes 2 s). A sample may be as
+room, and a little more of the FM-1's time while it plays. The bank holds 200 KB of sound (the factory set's ~110 KB of it):
+about 17.3 s in all at 22050 Hz, 23.9 s at 16000, 34.6 s at 11025, 11.9 s at 32000 (a bar at 120 BPM takes 2 s). A sample may be as
 long as the bank's first two windows (about 16 s at 22050 Hz).
 On a track, the sample engine's (and the kit's sample model's) sample knob counts the factory samples first,
 then user 1, user 2 ...: a load replaces them all, in the order given.
