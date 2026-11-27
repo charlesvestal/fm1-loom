@@ -3494,7 +3494,7 @@ static void list_mod(void)
         list_head(th);
         list_add(ACTION_NAME[A_MOD_KIND], LANE_SHAPE_NAME[lane_shape(L)], LK_PICK, A_MOD_KIND);
         list_mod_target(lane_mod_tgt(L), L->param, A_MOD_TTRK);
-        list_add(ACTION_NAME[A_MOD_TLEARN], ui.mod_learn == 2 ? "turn a knob" : "a knob turned", LK_ACTION, A_MOD_TLEARN);
+        list_add(ACTION_NAME[A_MOD_TLEARN], ui.mod_learn == 2 ? "turn a knob" : "by turning", LK_ACTION, A_MOD_TLEARN);
         list_add(ACTION_NAME[A_MOD_REMOVE], 0, LK_ACTION, A_MOD_REMOVE);
         list_add(ACTION_NAME[A_MOD_CLEAR], 0, LK_ACTION, A_MOD_CLEAR);
     }
@@ -3505,7 +3505,7 @@ static void list_mod(void)
     if (p >= 0)
         mod_tgt_name(mod_pick_tgt(), p, at);
     list_add(ACTION_NAME[A_MOD_ADD], p < 0 ? "none on that knob" : n >= NMODL ? "eight already" : at, LK_ACTION, A_MOD_ADD);
-    list_add(ACTION_NAME[A_MOD_LEARN], ui.mod_learn == 1 ? "turn a knob" : "a knob turned", LK_ACTION, A_MOD_LEARN);
+    list_add(ACTION_NAME[A_MOD_LEARN], ui.mod_learn == 1 ? "turn a knob" : "by turning", LK_ACTION, A_MOD_LEARN);
 }
 /* Steps and Bar: the pattern's actions, then the bar's */
 static void list_steps(int trk)
