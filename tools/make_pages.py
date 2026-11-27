@@ -82,7 +82,7 @@ SITE_CSS = """<style>
 @media (max-width: 520px) { .lm-top nav { margin-left: 0; width: 100%%; } }
 </style>""" % (tokens(PALETTE["light"]), tokens(PALETTE["dark"]), tokens(PALETTE["dark"]))
 
-SECTIONS = [("emu/", "Try it"), ("manual/", "Manual"), ("install/", "Install"), ("samples/", "Samples"),
+SECTIONS = [("emu/", "Try it"), ("manual/", "Manual"), ("install/", "Install"), ("samples/", "Samples"), ("presets/", "Presets"),
             ("backup/", "Backup"), ("export/", "Export")]   # (no Mirror since 0.19: the firmware has no mirroring)
 
 
@@ -164,6 +164,7 @@ firmware, and the installer can always put M-VAVE's own firmware back. Install a
   <a href="manual/"><strong>Read the manual</strong><span>Start with the ten-minute quick start, then look up any page or gesture.</span></a>
   <a href="install/"><strong>Install</strong><span>Connect your FM-1 by USB and install from Chrome or Edge. There's nothing to install on your computer.</span></a>
   <a href="samples/"><strong>Samples</strong><span>Load up to 32 of your own samples onto the FM-1, and rename, reorder or swap them any time.</span></a>
+  <a href="presets/"><strong>Presets</strong><span>Send preset packs to the FM-1's 64 user presets.</span></a>
   <a href="backup/"><strong>Backup</strong><span>Save your projects, presets and samples to a file, and load them back later.</span></a>
   <a href="export/"><strong>Export</strong><span>Make a WAV of a song or a scene from one of your projects, in your browser.</span></a>
   <a href="firmware/__PKG__"><strong>Download __PKG__</strong><span>For the command-line installer: <code>python3 base/tools/fm1_install.py __PKG__</code></span></a>
@@ -307,6 +308,13 @@ def main(pkg, version, out):
             strip_module((SRC / "app" / "web" / "samples" / "loom_samples.js").read_text(encoding="utf-8")))
     (out / "samples").mkdir()
     (out / "samples" / "index.html").write_text(spage.replace("/*LIB*/", slib), encoding="utf-8")
+    # the presets page (app/web/presets/): preset packs into U1 .. U64, through the samples page's Link
+    ppage = (SRC / "app" / "web" / "presets" / "index.html").read_text(encoding="utf-8")
+    if ppage.count("/*LIB*/") != 1:
+        raise SystemExit("app/web/presets/index.html must contain /*LIB*/ once")
+    (out / "presets").mkdir()
+    (out / "presets" / "index.html").write_text(ppage.replace("/*LIB*/", slib + "\n" + strip_module(
+        (SRC / "app" / "web" / "presets" / "presets.js").read_text(encoding="utf-8"))), encoding="utf-8")
     # the break pack (out of the firmware since 0.7): the samples page's "Add the breaks" fetches these
     import gen_samples
     import sampleio

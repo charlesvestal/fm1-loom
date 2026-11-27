@@ -1,0 +1,202 @@
+<!doctype html>
+<!-- SPDX-License-Identifier: MPL-2.0
+     LOOM-8's presets page: a preset pack (a .syx of USER_PUT messages, tools/loom_presets.py) sent into the FM-1's user
+     presets, U1 .. U64 (Chrome or Edge, Web MIDI). Connect reads the slots' names (USER_NAMES, 30); a pack is read in the
+     page (presets.js), placed from a starting slot (the first room for it, by default), shown against what each slot
+     holds, and sent a preset at a time (USER_PUT, 29: LOOM-8 saves each and says it). fm1-base's web/fm1ports.js,
+     app/web/samples/loom_samples.js (its Link and seekLink) and presets.js are inlined at LIB by tools/make_pages.py. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Presets · LOOM-8</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;600&family=Barlow+Semi+Condensed:wght@600;700&display=swap">
+<style>
+  :root { --ground: #f4f3f1; --ink: #1c1c20; --muted: #5f5f67; --rule: #dcdbd8; --card: #fff;
+          --accent: #b0285f; --on-accent: #fff; --bad: #b3261e; --good: #1f6f43; color-scheme: light; }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) { --ground: #000; --ink: #ebebee; --muted: #a2a2aa; --rule: #2e2e34; --card: #141418;
+      --accent: #ff5caa; --on-accent: #1a0010; --bad: #ff8a80; --good: #7fd8a4; color-scheme: dark; }
+  }
+  :root[data-theme="dark"] { --ground: #000; --ink: #ebebee; --muted: #a2a2aa; --rule: #2e2e34; --card: #141418;
+    --accent: #ff5caa; --on-accent: #1a0010; --bad: #ff8a80; --good: #7fd8a4; color-scheme: dark; }
+  body { margin: 0; background: var(--ground); color: var(--ink); padding-inline: 16px; padding-block: 48px 64px;
+         font: 400 16px/1.6 "Barlow", "Helvetica Neue", Arial, sans-serif; }
+  main { max-width: 46rem; margin: 0 auto; }
+  h1 { font: 700 2.4rem/1 "Barlow Semi Condensed", "Barlow", sans-serif; margin: 0 0 1rem; }
+  h2 { font: 700 1.3rem/1.2 "Barlow Semi Condensed", "Barlow", sans-serif; margin: 2rem 0 .6rem; }
+  p { margin: 0 0 1rem; }
+  a { color: var(--accent); }
+  code { font-size: .92em; }
+  .small { color: var(--muted); font-size: .9rem; }
+  .home { display: inline-block; font: 700 1rem "Barlow Semi Condensed", sans-serif; letter-spacing: .03em; color: var(--muted);
+          text-decoration: none; margin: 0 0 .8rem; }
+  .home:hover, .home:focus-visible { color: var(--accent); }
+  button, .file { font: 600 15px "Barlow", sans-serif; background: var(--accent); color: var(--on-accent); border: 0;
+                  border-radius: 999px; padding: 7px 18px; cursor: pointer; display: inline-block; }
+  button.quiet, .file { background: none; color: var(--ink); border: 1px solid var(--rule); }
+  button:disabled { opacity: .35; cursor: default; }
+  button:focus-visible, .file:focus-within, select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin: 0 0 1rem; }
+  select { font: 400 15px "Barlow", sans-serif; background: var(--card); color: var(--ink); border: 1px solid var(--rule);
+           border-radius: 8px; padding: 5px 8px; }
+  #status { min-height: 1.6em; margin: 0 0 1rem; }
+  #status.bad { color: var(--bad); }
+  table { width: 100%; border-collapse: collapse; background: var(--card); border: 1px solid var(--rule); border-radius: 10px;
+          overflow: hidden; font-size: 15px; }
+  th, td { text-align: left; padding: 7px 12px; border-bottom: 1px solid var(--rule); }
+  th { font-weight: 600; color: var(--muted); font-size: 13px; letter-spacing: .02em; }
+  tr:last-child td { border-bottom: 0; }
+  td.slot { font-variant-numeric: tabular-nums; width: 4.5rem; }
+  .replace { color: var(--bad); }
+  .empty { color: var(--muted); }
+  .ok { color: var(--good); }
+  .slots { display: grid; grid-template-columns: repeat(auto-fill, minmax(10.5rem, 1fr)); gap: 4px 14px; font-size: 14px;
+           background: var(--card); border: 1px solid var(--rule); border-radius: 10px; padding: 10px 14px; }
+  .slots span b { display: inline-block; width: 2.6rem; color: var(--muted); font-weight: 600; font-variant-numeric: tabular-nums; }
+</style>
+</head>
+<body>
+<main>
+  <a class="home" href="../">LOOM-8</a>
+  <h1>Presets</h1>
+  <p>LOOM-8 holds 64 user presets, U1 to U64, after its own sounds on the PRESETS button. A <b>preset pack</b> is a
+    file of them (<code>.syx</code>): open one here and send it to the FM-1, connected by USB, in Chrome or Edge.</p>
+  <div class="row">
+    <button id="connect">Connect</button>
+    <label class="file">Open a pack<input id="file" type="file" accept=".syx" hidden></label>
+  </div>
+  <p id="status" role="status" aria-live="polite"></p>
+
+  <section id="packbox" hidden>
+    <h2 id="packname">The pack</h2>
+    <div class="row">
+      <label for="start">Start at</label>
+      <select id="start"></select>
+      <button id="send" disabled>Send to the FM-1</button>
+    </div>
+    <table>
+      <thead><tr><th scope="col">Slot</th><th scope="col">Preset</th><th scope="col">Now in the slot</th></tr></thead>
+      <tbody id="rows"></tbody>
+    </table>
+  </section>
+
+  <section id="slotsbox" hidden>
+    <h2>On the FM-1</h2>
+    <div id="slots" class="slots"></div>
+  </section>
+
+  <h2>Making packs</h2>
+  <p class="small">From a computer, in <a href="https://github.com/charlesvestal/fm1-loom">LOOM-8's source</a>:
+    <code>tools/loom_presets.py make PACK.syx SOUND.xy ...</code> makes a pack from sounds written as the simulator's
+    lines; <code>tools/juno_import.py pack</code> and <code>tools/prophet_import.py pack</code> turn a Roland Juno-106 or
+    Sequential Prophet-5 bank you own into one, on LOOM-8's knit engine. A pack made by one version of LOOM-8 loads in
+    later ones. Sending replaces the slots it goes to; the others stay as they are.</p>
+</main>
+<script type="module">
+/*LIB*/
+const $ = (id) => document.getElementById(id);
+let link = null, names = null, pack = [], busy = false, results = [];
+const lab = (s) => `U${s + 1}`;
+function say(t, bad = false) { $("status").textContent = t; $("status").className = bad ? "bad" : ""; }
+
+function render() {
+  $("connect").disabled = busy;
+  $("packbox").hidden = !pack.length;
+  $("slotsbox").hidden = !names;
+  if (names) {
+    $("slots").replaceChildren(...names.map((n, i) => {
+      const e = document.createElement("span");
+      e.innerHTML = `<b>${lab(i)}</b>`;
+      e.append(n || "–");
+      if (!n) e.className = "empty";
+      return e;
+    }));
+  }
+  if (!pack.length) return;
+  const start = +$("start").value, at = placeFrom(pack, start);
+  $("rows").replaceChildren(...pack.map((p, i) => {
+    const tr = document.createElement("tr"), now = names && at[i] >= 0 ? names[at[i]] : "";
+    const r = results[i];
+    tr.innerHTML = `<td class="slot"></td><td></td><td></td>`;
+    tr.children[0].textContent = at[i] >= 0 ? lab(at[i]) : "–";
+    tr.children[1].textContent = p.name;
+    tr.children[2].textContent = r !== undefined ? (r ? PUT_RC[r] || `not saved (${r})` : "saved")
+      : at[i] < 0 ? "no room past U64" : !names ? "connect to see" : now ? `replaces ${now}` : "empty";
+    tr.children[2].className = r !== undefined ? (r ? "replace" : "ok") : now ? "replace" : "empty";
+    return tr;
+  }));
+  $("send").disabled = busy || !link || at.every((s) => s < 0);
+}
+function fillStart(keep) {
+  const sel = $("start"), room = names ? firstRoom(names, pack.length) : -1;
+  const want = keep !== undefined ? keep : room >= 0 ? room : pack.length ? pack[0].slot : 0;
+  sel.replaceChildren(...Array.from({ length: NUSER }, (_, s) => {
+    const o = document.createElement("option");
+    o.value = s;
+    o.textContent = lab(s) + (s === room ? " (first room)" : "");
+    return o;
+  }));
+  sel.value = Math.min(NUSER - 1, Math.max(0, want));
+}
+async function run(fn) {
+  busy = true; render();
+  try { await fn(); } catch (e) { say(e.message || String(e), true); }
+  busy = false; render();
+}
+
+$("connect").onclick = () => run(async () => {
+  say("Connecting…");
+  if (!navigator.requestMIDIAccess) throw new Error("This browser can't talk to MIDI devices. Use Chrome or Edge.");
+  let midi;
+  try { midi = await navigator.requestMIDIAccess({ sysex: true }); }
+  catch (_) { throw new Error("MIDI with SysEx was not allowed. Allow MIDI in the site settings (the address bar), then try again."); }
+  if (link) link.close();
+  const res = await seekLink(midi);
+  if (!res.link) throw new Error(notFound(res, "the presets page"));
+  link = res.link;
+  say("Reading the presets…");
+  try { names = await readNames(link); }
+  catch (_) { throw new Error("This LOOM-8 doesn't know preset packs yet. Update it on the install page, then connect again."); }
+  const used = names.filter(Boolean).length;
+  say(`Connected: ${used} of ${NUSER} user presets in use.`);
+  $("connect").textContent = "Read again";
+  if (pack.length) fillStart();
+});
+
+$("file").onchange = async (ev) => {
+  const f = ev.target.files[0];
+  ev.target.value = "";
+  if (!f) return;
+  const p = parsePack(new Uint8Array(await f.arrayBuffer()));
+  if (!p.length) { say(`${f.name} holds no LOOM-8 presets.`, true); return; }
+  pack = p;
+  results = [];
+  $("packname").textContent = `${f.name}: ${p.length} preset${p.length === 1 ? "" : "s"}`;
+  fillStart();
+  say(link ? "Pick where they go, then send." : "Connect to the FM-1 to see what each slot holds, and to send.");
+  render();
+};
+$("start").onchange = () => { results = []; render(); };
+
+$("send").onclick = () => run(async () => {
+  const at = placeFrom(pack, +$("start").value);
+  results = [];
+  let ok = 0;
+  for (let i = 0; i < pack.length; i++) {
+    if (at[i] < 0) { results[i] = 1; continue; }
+    say(`Sending ${pack[i].name} to ${lab(at[i])} (${i + 1} of ${pack.length})…`);
+    results[i] = await putPreset(link, at[i], pack[i]);
+    ok += results[i] === 0;
+    render();
+  }
+  names = await readNames(link);
+  const bad = pack.length - ok;
+  say(bad ? `${ok} saved; ${bad} not: see the list.` : `Done: ${ok} preset${ok === 1 ? "" : "s"} saved on the FM-1.`, bad > 0);
+});
+render();
+</script>
+</body>
+</html>

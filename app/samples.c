@@ -46,6 +46,9 @@
  *                                       bytes packed (preset_len(fmt) of them), saved at once. A preset pack is a
  *                                       .syx of these (tools/loom_presets.py). rc 1 slot or size, 5 no sound, 9 a
  *                                       newer format, 3 the save failed
+ *   USER_NAMES 30 from              -> from, k, NUSER_PRESETS, then k names (0-terminated; "" an empty slot) of
+ *                                       the user presets from .. from + k - 1, k at most 16 (the presets page:
+ *                                       app/web/presets/)
  * rc: 0 ok, 1 size / offset, 2 erase, 3 write, 4 not begun (the bank is live), 5 header, 6 CRC, 7 no samples,
  * 8 an update record's mark ("AT" at 0xF06 of a sector in PLAT_XDATA1: the loader would erase it).
  * Every frame is answered (the tool waits for each). The erases and writes run with the interrupts off a
@@ -57,7 +60,7 @@
 #define SB_HDR2 0x4C
 #include "dsp/bench.h"
 enum { SB_INFO = 1, SB_BEGIN = 11, SB_WRITE, SB_END, SB_ERASE, SB_SINFO, SB_HDR, SB_READ, SB_PING = 25, SB_PROF, SB_BENCH, SB_SOUND,
-       SB_UPUT };
+       SB_UPUT, SB_UNAMES };
 #define SB_PART 320u                                 /* SMP_HDR: a header part, bytes */
 #define SB_NPART ((SMP_HDR_USED + SB_PART - 1u) / SB_PART)
 #define SB_INFO_K 12u                                /* SMP_INFO: samples a reply (12 x 18 bytes at most) */
@@ -303,6 +306,16 @@ static int smp_frame(const uint8_t *p, uint32_t n)
         proj.trk_sel = (uint8_t)t;
         rp_byte(PRESETS[k].engine);
         rp_text(PRESETS[k].name, SMP_NAME);
+        break;
+    }
+    case SB_UNAMES: {
+        const uint32_t from = na ? a[0] : 0u, left = from < NUSER_PRESETS ? NUSER_PRESETS - from : 0u;
+        const uint32_t k = left < 16u ? left : 16u;
+        rp_byte(from);
+        rp_byte(k);
+        rp_byte(NUSER_PRESETS);
+        for (i = 0; i < k; i++)
+            rp_text(user_name[from + i], NAME_LEN - 1);
         break;
     }
     case SB_UPUT: {
