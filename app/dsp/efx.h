@@ -123,8 +123,10 @@ float efx_char_picture(int ef, int amt, int tone, int mix, float u);
  * 22.05 kHz) and shimmer (lush with its output an octave up fed back: Chordism's, MIT). Saved by number: a new mode
  * at the end */
 enum { RV_PLATE, RV_ROOM, RV_STUDIO_S, RV_STUDIO_M, RV_STUDIO_L, RV_HALL, RV_HALF_ECHO, RV_SPACE_ECHO,
-       RV_CHAOS_ECHO, RV_ECHO_ONE, RV_LUSH, RV_SHIMMER, NRV };
-static inline int rv_lush(int mode) { return mode == RV_LUSH || mode == RV_SHIMMER; }   /* (shimmer is lush's) */
+       RV_CHAOS_ECHO, RV_ECHO_ONE, RV_LUSH, RV_SHIMMER, RV_LUSH_S, NRV };   /* (lush S: lush small, 2026-11-27,
+                                                                              * last: the modes saved keep their numbers) */
+static inline int rv_lush(int mode) { return mode == RV_LUSH || mode == RV_SHIMMER || mode == RV_LUSH_S; }   /* (shimmer
+                                                                                * and lush S are lush's) */
 #define NSPU RV_ECHO_ONE                           /* the SPU modes: RV_ROOM .. RV_ECHO_ONE */
 extern const char *const RV_NAME[NRV];         /* "plate", "room", "studio S", ... */
 #define FX_DLY_LEN 22400              /* the delay's longest lines: int16 samples a side, at half rate (22.05 kHz): 1.01 s

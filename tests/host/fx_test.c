@@ -377,9 +377,10 @@ int main(void)
         static const char *const picks[NFXPICK] = {"chorus", "delay", "lofi", "phaser", "plate", "PSX room",
                                                    "PSX studio S", "PSX studio M", "PSX studio L", "PSX hall",
                                                    "PSX half echo", "PSX space echo", "PSX chaos echo", "PSX one echo",
-                                                   "lush", "shimmer"};   /* (PSX: the console's, named so 2026-11-27) */
+                                                   "lush", "shimmer", "lush S"};   /* (PSX: the console's, named so
+                                                   * 2026-11-27; lush S the same day) */
         int ok = 1, k;
-        check("five send effects (no distortion), the reverb with twelve modes", NFXT == 5 && NRV == 12 && NFXPICK == 16 &&
+        check("five send effects (no distortion), the reverb with thirteen modes", NFXT == 5 && NRV == 13 && NFXPICK == 17 &&
                                                                               !strcmp(FXT_NAME[FXT_REVERB], "reverb"));
         for (t = 0; t < NFXT; t++)
             for (k = 0; k < 4; k++)
@@ -401,7 +402,7 @@ int main(void)
         check("picks: chorus .. phaser, plate .. shimmer; their knobs the catalog's, named as before (at most 8 letters)", ok);
     }
     {   /* the memory each needs of the pool on a send (2 KB blocks): the reverb's modes their own */
-        static const uint8_t want[NFXPICK] = {2, 46, 2, 0, 12, 5, 4, 10, 14, 22, 4, 31, 32, 32, 26, 28};
+        static const uint8_t want[NFXPICK] = {2, 46, 2, 0, 12, 5, 4, 10, 14, 22, 4, 31, 32, 32, 26, 28, 11};
         int ok = 1;
         for (t = 0; t < NFXPICK; t++) {
             uint8_t o[9];

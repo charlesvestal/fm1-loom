@@ -545,7 +545,8 @@ static void zero16(int16_t *b, int32_t n)
 #include "psxrev.h"
 
 const char *const RV_NAME[NRV] = {"plate", "PSX room", "PSX studio S", "PSX studio M", "PSX studio L", "PSX hall",
-                                  "PSX half echo", "PSX space echo", "PSX chaos echo", "PSX one echo", "lush", "shimmer"};
+                                  "PSX half echo", "PSX space echo", "PSX chaos echo", "PSX one echo", "lush", "shimmer",
+                                  "lush S"};
                                   /* (the user's names: PSX, the original PlayStation's SPU presets, schwung-psxverb's) */
 /* the reverb's lines inside the int16 buffer: 9W9's comb lengths, each with room to grow 1.9x,
  * and its four allpasses (left 556 / 441, right 579 / 457) */
@@ -572,6 +573,10 @@ static const int32_t LU_OFF[NLU + 1] = {0, 1152, 1349, 1507, 1968, 2315, 3101, 8
                                         23069, 26624};
 static const float LU_LEN[NLU] = {0.0f, 142.0f, 107.0f, 379.0f, 277.0f, 672.0f, 4453.0f, 1800.0f, 3720.0f, 908.0f,
                                   4217.0f, 2656.0f, 3163.0f};   /* Dattorro's, at 29761 Hz */
+/* lush S (lush small): the same tank in room for x0.6 of Dattorro's lengths (the size x0.25 .. x0.6: Clouds' reverb's
+ * scale, Mutable Instruments', the same Griesinger topology), each line its longest plus the wander's 40, the
+ * pre-delay 300 (12 ms at most): 10,786 samples, 11 blocks (the plate's 12) */
+static const int32_t LU_OFF_S[NLU + 1] = {0, 300, 404, 492, 701, 865, 1204, 3224, 4065, 5759, 6203, 8118, 9339, 10786};
 _Static_assert(26624 <= FX_RV_LEN, "lush's lines do not fit FX_RV_LEN");
 #define SH_OFF 26624                          /* shimmer: the plate's output, a line of SH_W after lush's (its two heads) */
 #define SH_W 2048
@@ -644,7 +649,8 @@ static int32_t rv_need16(int mode)            /* a reverb mode's line, int16: th
                                                * x4 and two more (its "-1" reads, no address aliasing another), lush's,
                                                * shimmer's */
 {
-    return mode == RV_PLATE ? RV_PLATE_N : mode == RV_LUSH ? LU_OFF[NLU] : mode == RV_SHIMMER ? SH_OFF + SH_W
+    return mode == RV_PLATE ? RV_PLATE_N : mode == RV_LUSH ? LU_OFF[NLU] : mode == RV_LUSH_S ? LU_OFF_S[NLU]
+         : mode == RV_SHIMMER ? SH_OFF + SH_W
          : mode > RV_PLATE && mode < NRV ? spu_top(mode) + 2 : FX_RV_LEN;
 }
 int efx_need(int ef, int mode, int send)
@@ -836,17 +842,20 @@ void efx_nums(float *pt, float *shm, int ef, int mode, const uint8_t *k, float b
         break;
     case EF_REVERB:
         if (rv_lush(mode)) {
-            pt[0] = 0.5f + a;                                         /* size: Dattorro's lengths x0.5 .. x1.5 */
+            const float sz = mode == RV_LUSH_S ? 0.25f + 0.35f * a : 0.5f + a;   /* size: Dattorro's lengths x0.5 ..
+                                                                      * x1.5 (lush S: x0.25 .. x0.6) */
+            pt[0] = sz;
             /* decay: the tail's time, the tank's gain from it and the size (a trip round both halves ~0.715 s x size,
              * the gain met twice: 40 log10(g) = -60 trip / T, T 0.4 .. 19 s); the damping takes more, so measured
              * (an impulse, 60 dB down): 0 0.56 s, 45 0.9 s, 64 ~1.4 s, 100 3.7 s, 127 7.2 s, whatever the size */
-            pt[1] = fm_exp2f(-1.5f * 3.32192809f * 0.715f * (0.5f + a) / (0.4f * fm_exp2f(b * 5.6f)));
+            pt[1] = fm_exp2f(-1.5f * 3.32192809f * 0.715f * sz / (0.4f * fm_exp2f(b * 5.6f)));
             pt[2] = c < 0.5f ? onepole_k(20000.0f * fm_exp2f(-(0.5f - c) * 9.29f)) : 1.0f;   /* tone: the plate's */
             pt[5] = c > 0.5f ? onepole_k(20.0f * fm_exp2f((c - 0.5f) * 13.29f)) : 0.0f;
             pt[3] = mode == RV_SHIMMER ? 0.2f : 0.05f + 0.85f * d;   /* damp: the tank's low-pass, 0.05 open .. 0.9
                                                                       * (shimmer: light, its knob the octaves) */
             *shm = mode == RV_SHIMMER ? 0.45f * d : 0.0f;
-            pt[4] = (0.004f + 0.03f * a) * 22050.0f;                  /* the pre-delay grows with the size: 4 .. 34 ms */
+            pt[4] = (mode == RV_LUSH_S ? 0.002f + 0.01f * a : 0.004f + 0.03f * a) * 22050.0f;   /* the pre-delay grows
+                                                                      * with the size: 4 .. 34 ms (lush S 2 .. 12) */
             break;
         }
         if (mode != RV_PLATE) {                                       /* an SPU mode: */
@@ -1494,11 +1503,11 @@ static void do_spu(efx_reverb_t *f, const float *pc, const float *x, float *ol, 
  * tank, its seven taps a side, then back to 44.1 kHz linearly (half a tick late) and the plate's tone. A lag is more
  * pre-delay (as the SPU's). The lengths follow the gliding size a block (whole samples); the two tank allpasses wander
  * +-12 samples (x size) on a 0.7 Hz sine, a quarter turn apart */
-#define LU_RD(l, k) spu_rd(w, n, b, LU_OFF[l] + (k))
-#define LU_WR(l, v) (wz |= spu_wr(w, n, b, LU_OFF[l], (v)))
+#define LU_RD(l, k) spu_rd(w, n, b, off[l] + (k))
+#define LU_WR(l, v) (wz |= spu_wr(w, n, b, off[l], (v)))
 /* a line read at its length, a tap at Dattorro's count k: whole samples, or (its size gliding: mv) between them */
-#define LU_RL(l) (mv ? lu_rdm(w, n, b, LU_OFF[l], lf[l]) : LU_RD(l, u->len[l]))
-#define LU_TAP(l, k) (mv ? lu_rdm(w, n, b, LU_OFF[l], (float)(k) * sc) : LU_RD(l, (int32_t)((float)(k) * sc)))
+#define LU_RL(l) (mv ? lu_rdm(w, n, b, off[l], lf[l]) : LU_RD(l, u->len[l]))
+#define LU_TAP(l, k) (mv ? lu_rdm(w, n, b, off[l], (float)(k) * sc) : LU_RD(l, (int32_t)((float)(k) * sc)))
 #define LU_AP(l, g, x)                                                                        \
     do {                                                                                       \
         float d_ = LU_RL(l), v_ = (x) - (g) * d_;                                             \
@@ -1512,6 +1521,7 @@ static void do_lush(efx_reverb_t *f, const float *pc, const float *x, float *ol,
     lush_t *u = &f->lu;
     int16_t *w = f->line;
     const uint32_t n = f->n;
+    const int32_t *off = f->mode == RV_LUSH_S ? LU_OFF_S : LU_OFF;   /* (its lines' places: lush S's room smaller) */
     const float sct = pc[0] * (22050.0f / 29761.0f), dec = pc[1], damp = pc[3], tlk = pc[2], thk = pc[5];
     const float lpk = 0.55f, exc = 12.0f * pc[0];          /* (lpk: the send's low-pass, ~5.6 kHz before decimation) */
     const float shm = f->shm;                              /* (shimmer's feedback; 0: lush) */
@@ -1584,7 +1594,7 @@ static void do_lush(efx_reverb_t *f, const float *pc, const float *x, float *ol,
             a = s + dec * u->fb[1];
             mo = exc * fm_sin_turns(u->lfo);
             {
-                float d = lu_rdf(w, n, b, LU_OFF[LU_MAPL], (mv ? lf[LU_MAPL] : (float)u->len[LU_MAPL]) + mo), v = a + 0.7f * d;
+                float d = lu_rdf(w, n, b, off[LU_MAPL], (mv ? lf[LU_MAPL] : (float)u->len[LU_MAPL]) + mo), v = a + 0.7f * d;
                 LU_WR(LU_MAPL, v);
                 a = d - 0.7f * v;
             }
@@ -1598,7 +1608,7 @@ static void do_lush(efx_reverb_t *f, const float *pc, const float *x, float *ol,
             c = s + dec * u->fb[0];
             mo = exc * fm_sin_turns(u->lfo + 0.25f);
             {
-                float d = lu_rdf(w, n, b, LU_OFF[LU_MAPR], (mv ? lf[LU_MAPR] : (float)u->len[LU_MAPR]) + mo), v = c + 0.7f * d;
+                float d = lu_rdf(w, n, b, off[LU_MAPR], (mv ? lf[LU_MAPR] : (float)u->len[LU_MAPR]) + mo), v = c + 0.7f * d;
                 LU_WR(LU_MAPR, v);
                 c = d - 0.7f * v;
             }
