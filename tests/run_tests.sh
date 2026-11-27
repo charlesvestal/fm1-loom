@@ -23,6 +23,7 @@ run() {
         echo "  ok   $name"
     else
         echo "  FAIL $name (see $OUT/$name.log)"
+        grep -E '^(LAYOUT [A-Z]|FAIL )' "$OUT/$name.log" | head -10 | sed 's/^/       /'   # (the findings themselves: CI keeps no logs)
         tail -15 "$OUT/$name.log" | sed 's/^/       /'
         FAIL=1
     fi
