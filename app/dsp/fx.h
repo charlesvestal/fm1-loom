@@ -116,9 +116,9 @@ enum { PB_KICK, PB_T1, PB_METRO = PB_T1 + 8, NPB };
 #define MS_PUMP_REL_DEF 60
 extern const char *const MS_NAME[NMS];
 #ifdef PLAT_HOST
-#define MASTER_BYTES 1264             /* (the host's pointers are wider) */
+#define MASTER_BYTES 1272             /* (the host's pointers are wider) */
 #else
-#define MASTER_BYTES 1256             /* (fx.c checks it: 1,256 B, 2026-11-26 (976 before the master filter, 1,036 with
+#define MASTER_BYTES 1264             /* (fx.c checks it: 1,264 B, 2026-11-27, CLIP's meter: 1,256 B, 2026-11-26 (976 before the master filter, 1,036 with
                                        * two, 1,100 with three, + their coefficients kept, + their steps: a plan a
                                        * block); 1,428 with the master
                                        * color's line) */
@@ -149,6 +149,7 @@ extern uint32_t (*master_clock)(void);
 extern volatile uint32_t *master_prof;
 float master_gr_db(const master_t *m);                      /* the compressor's gain reduction (UI) */
 float master_pump_db(const master_t *m);                    /* the pump's, now (UI: falls back slowly) */
+float master_clip_depth(master_t *m);                       /* CLIP's, now: how deep into its knee, 0..1 (once a block) */
 #ifdef PLAT_HOST
 extern int fx_host_stage;                                   /* the host's master taps (host.c LOOM_MST) */
 #endif

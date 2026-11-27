@@ -49,6 +49,7 @@ volatile uint8_t eng_usb_stereo;
 volatile uint32_t eng_acid_lite_count;
 volatile uint32_t eng_punch_drum, eng_punch_mel;
 volatile float eng_pump_db;
+volatile float eng_clip;
 volatile uint8_t eng_scene_now, eng_scene_cue = 0xFF;
 int16_t eng_scope[SCOPE_N];
 volatile uint32_t eng_scope_w;
@@ -1882,6 +1883,7 @@ void engine_render(int32_t *out_lr, uint32_t n, uint32_t gain_q12)
     snd_n = n;                                           /* this block's sends: the next block's effects' */
     eng_scene_cue = seq.cue;
     eng_pump_db = master_pump_db(MST);
+    eng_clip = master_clip_depth(MST);
     PROF_T(po);
     float pk = 0.0f, chk = 0.0f;                         /* (quiet: every sample under -60 dB; the autosave waits for
                                                           * it, a flash write cuts the audio) */

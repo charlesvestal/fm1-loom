@@ -348,6 +348,8 @@ struct master {
     /* PUMP (X0X's): its depth (dB), its envelope (dB) and the target it rises to; the rise and the release
      * as coefficients of MST_CR samples (it moves where the gain is computed) */
     float pump_db, pump, pump_tgt, a_up, a_down, pump_view;
+    float clip_pk, clip_view;         /* CLIP: the block's peak out of its knee; how deep into it, held and falling
+                                       * (the Master EQ page) */
     float pg, pg_step;                /* its gain on the groups, ramped as a linear gain over MST_CR samples */
     uint8_t pcr, duck_mel;            /* (the countdown); duck_mel: a kit's hit keyed it, the melodic group ducks alone */
 #define MST_CR 8                              /* (the gain computed every 8 samples, ramped between: 5.5 kHz) */
@@ -578,6 +580,15 @@ void master_set(master_t *m, int p, int v)
 
 float master_gr_db(const master_t *m) { return m->gr_view; }
 float master_pump_db(const master_t *m) { return m->pump_view; }
+/* CLIP's meter, once a block (engine.c, in the flash: the RAM's master_process only keeps the block's peak): how deep
+ * into the knee that peak went, 0 (under its 0.5: untouched) .. 1 (at its 0.8 ceiling), held and falling (~130 ms to
+ * half: a hit stays long enough to read) */
+float master_clip_depth(master_t *m)
+{
+    float d = m->cg != 0.0f ? fm_clampf((m->clip_pk - 0.5f) * (1.0f / 0.3f), 0.0f, 1.0f) : 0.0f;
+    m->clip_view = d > m->clip_view ? d : m->clip_view * 0.97f;
+    return m->clip_view;
+}
 
 void master_key(master_t *m, int src, int vel, int kit)
 {
@@ -871,7 +882,7 @@ static inline float master_tail(master_t *m, float *mel_l, float *mel_r, float *
     float *la = m->la, *la_r = m->la_r;
     int32_t la_pos = m->la_pos, hold = m->hold;
     int cr = m->cr;
-    float glv = glev, lev = m->lev_c, lev1 = lev, grmax = 0.0f;
+    float glv = glev, lev = m->lev_c, lev1 = lev, grmax = 0.0f, cpk = 0.0f;
     int comp_go = m->comp_on, pass = filt;
     for (;;) {                                   /* (pass 2: the compressor and the level at rest, x 1.0: exact) */
         for (i = 0; i < n; i++) {
@@ -912,6 +923,7 @@ static inline float master_tail(master_t *m, float *mel_l, float *mel_r, float *
             {       /* X0X's limiter: a peak is seen MST_LA samples before it comes out of the line; the gain
                  * eases down over those samples and holds for them */
                 float a = fm_maxf(fm_fabsf(s), fm_fabsf(sr)), d, dr, w;
+                cpk = fm_maxf(cpk, a);            /* (CLIP's meter: the block's peak out of its knee) */
                 if (a >= env) {
                     float r = 1.0f / fm_maxf(a, 0.8f);                   /* safe on its own: a clamp inside
                                                                           * the branch is folded away */
@@ -962,6 +974,7 @@ static inline float master_tail(master_t *m, float *mel_l, float *mel_r, float *
     m->la_pos = la_pos;
     m->hold = hold;
     m->cr = (uint8_t)cr;
+    m->clip_pk = cpk;
     return grmax;
 }
 

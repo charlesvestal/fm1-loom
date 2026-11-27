@@ -123,6 +123,7 @@ extern volatile uint32_t eng_acid_lite_count;      /* the 303s switched to lite 
 extern volatile uint16_t eng_heals;                      /* NaNs caught in the mix: the states cleared */
 extern volatile uint32_t eng_punch_drum, eng_punch_mel;  /* the FX in effect */
 extern volatile float eng_pump_db;                       /* the master's pump: its duck now, dB (the Master out page) */
+extern volatile float eng_clip;                          /* the master's CLIP: how deep into its knee now, 0..1 (Master EQ) */
 extern volatile uint8_t eng_scene_now, eng_scene_cue;
 #define SCOPE_N 256u
 extern int16_t eng_scope[SCOPE_N];                       /* the last output samples, for the screen */

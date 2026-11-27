@@ -1647,7 +1647,9 @@ Turn **SELECT** for more pages:
 
 - FX I and FX II, the two send effects (see [FX I and FX II](#fx-i-and-fx-ii)).
 - Master EQ has low, mid and high (64 is flat) and **clip**: 0 is off; turning it up drives the mix into a soft
-  clipper before the limiter, so it gets louder and denser, the kick's and snare's peaks rounded off.
+  clipper before the limiter, so it gets louder and denser, the kick's and snare's peaks rounded off. Its column at
+  the right of the page shows the drive set, and a grey bar hanging from the top shows how hard the peaks are being
+  clipped right now: a bar that keeps reaching the bottom means the mix is clipping hard, so turn clip down.
 - Master FX has one effect on the whole mix (see [Effects](#effects)).
 - Master filter has DJ filters on the drums, on the synths and on the whole mix (below).
 - Master out has the drums' level, the melodic tracks' level, the compressor and the pump. The **SEL** list on

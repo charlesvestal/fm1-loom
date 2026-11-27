@@ -608,6 +608,8 @@ int app_expect(const char *what, int *got)
         *got = (int)eng_punch_mel;
     else if (!strcmp(what, "pump"))                 /* the pump's duck now, tenths of a dB */
         *got = (int)(eng_pump_db * 10.0f + 0.5f);
+    else if (!strcmp(what, "clip"))                 /* how deep CLIP clips now, % of its knee (Master EQ's column) */
+        *got = (int)(eng_clip * 100.0f + 0.5f);
     else if (!strncmp(what, "mst.", 4)) {           /* mst.NAME: a master value */
         int k;
         for (k = 0; k < NMS && !ieq(what + 4, MN[k]); k++)

@@ -7093,15 +7093,25 @@ static void draw_master(void)
     const uint8_t *m = mod_shown(MODT_MST, proj.master, ms, NMS);   /* (MOD VIEW: as the MOD lanes play them) */
     uint32_t h = hash_u(hash_u(2166136261u, 0x3Au), (uint32_t)pg);
     int32_t x0 = 16, y0 = 12, w = 208, hh = 84, cy = y0 + hh / 2;
-    int pv = pg == 2 ? (int)(eng_pump_db * (float)(hh - 10) / 24.0f) : 0;   /* the pump's duck, now (pixels) */
+    int pv = pg == 2 ? (int)(eng_pump_db * (float)(hh - 10) / 24.0f)   /* the pump's duck, now (pixels) */
+                     : (int)(eng_clip * (float)(hh - 10));   /* how deep CLIP is clipping, now (its ceiling: all) */
     for (int i = 0; i < NMS; i++)
         h = hash_u(h, m[i]);
     h = hash_u(h, (uint32_t)pv);
     if (!begin_main(h))
         return;
+    if (pg == 0)
+        w = 150;                                     /* (CLIP, KNOB 4, its column on the right) */
     cv_rect(x0, cy, w, 1, K_LINE);
     if (pg == 0) {
         pen_t pn = {0};
+        const int32_t cx = 186, v = m[MS_CLIP] * (hh - 10) / 127;
+        cv_round(cx, y0, 30, hh, 4, K_PANEL);        /* CLIP: its drive up from the bottom, as Master out's knobs; */
+        cv_round(cx, y0 + hh - v, 30, v, 4, K_NOW);
+        if (pv > 0)                                  /* how deep it clips now, hanging from the top, as the pump's
+                                                      * duck */
+            cv_round(cx + 4, y0 + 2, 22, pv < hh - 4 ? pv : hh - 4, 3, K_NOW_M);
+        text_c(cx + 15, y0 + hh + 3, &FONT_XS, m[MS_CLIP] ? "clip" : "no clip", K_DIM);
         for (int32_t x = 0; x <= w; x++) {           /* the three bands, eased into each other */
             float u = (float)x / (float)w * 3.0f - 0.5f, g0, g1, t, b;
             int i = u < 0.0f ? 0 : u >= 2.0f ? 2 : (int)u;
