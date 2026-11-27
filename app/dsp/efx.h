@@ -125,6 +125,10 @@ float efx_char_picture(int ef, int amt, int tone, int mix, float u);
 enum { RV_PLATE, RV_ROOM, RV_STUDIO_S, RV_STUDIO_M, RV_STUDIO_L, RV_HALL, RV_HALF_ECHO, RV_SPACE_ECHO,
        RV_CHAOS_ECHO, RV_ECHO_ONE, RV_LUSH, RV_SHIMMER, RV_LUSH_S, NRV };   /* (lush S: lush small, 2026-11-27,
                                                                               * last: the modes saved keep their numbers) */
+/* the reverb's TYPE row in its order (its turning, its list): lush S first, the console's, lush, shimmer, the plate
+ * last (2026-11-27); a mode's number stays what it was saved as */
+static const uint8_t RV_ORDER[NRV] = {RV_LUSH_S, RV_ROOM, RV_STUDIO_S, RV_STUDIO_M, RV_STUDIO_L, RV_HALL, RV_HALF_ECHO,
+                                      RV_SPACE_ECHO, RV_CHAOS_ECHO, RV_ECHO_ONE, RV_LUSH, RV_SHIMMER, RV_PLATE};
 static inline int rv_lush(int mode) { return mode == RV_LUSH || mode == RV_SHIMMER || mode == RV_LUSH_S; }   /* (shimmer
                                                                                 * and lush S are lush's) */
 #define NSPU RV_ECHO_ONE                           /* the SPU modes: RV_ROOM .. RV_ECHO_ONE */

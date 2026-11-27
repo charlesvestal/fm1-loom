@@ -2575,11 +2575,7 @@ static void slot_effect(int pg, int ef, int d)
         slot_put(pg, SL_K1 + j, EFX[ef].def[j]);
     for (int j = 0; j < 4; j++)
         slot_put(pg, SL_X1 + j, EFX[ef].xdef[j]);
-    if (ef == EF_REVERB && slot_fits(pg, EF_REVERB, RV_LUSH)) {   /* (the reverb: lush where its memory is there, the
-                                                  * user's choice 2026-11-27; else the plate, the catalog's) */
-        slot_put(pg, SL_X1, RV_LUSH);
-        rv_defaults(pg, RV_LUSH);
-    }
+    /* (the reverb: lush S at its defaults, the catalog's: the user's choice 2026-11-27) */
     if (trk < 0)
         par = slot_vals(pg, mp, &trk, &q);
     if (!par[TP_SLOT[q][SL_MIX]] && ef && (trk < 0 || !is_fx(trk)))
@@ -2621,13 +2617,22 @@ static void slot_turn(int pg, int j, int32_t e)
     } else
         n = in->hi < 16 || (in->kind == PK_HZ_SYNC && (v < 8 || v + e < 8)) ? v + d : v + (int)e;
     n = clampi(n, in->lo, in->hi);
+    if (j == SL_X1 && ef == EF_REVERB) {         /* the types in their row's order (RV_ORDER: lush S first, the plate
+                                                  * last), not their numbers' */
+        int at = 0;
+        while (at < NRV && RV_ORDER[at] != v)
+            at++;
+        n = at + d < 0 || at + d >= NRV ? v : RV_ORDER[at + d];
+    }
     {   /* a reverb type with no memory there: passed, and said (the user could not find lush: the delays held the
          * memory, and the row stepped past it without a word) */
-        int passed = -1;
+        int passed = -1, at = 0;
+        while (j == SL_X1 && ef == EF_REVERB && at < NRV && RV_ORDER[at] != n)
+            at++;
         while (j == SL_X1 && ef == EF_REVERB && n != v && !slot_fits(pg, EF_REVERB, n)) {
             if (passed < 0)
                 passed = n;
-            if ((n += d) < in->lo || n > in->hi) {
+            if ((at += d) < 0 || at >= NRV || (n = RV_ORDER[at]) < 0) {
                 say_no("NO MEMORY", RV_NAME[passed]);   /* (nothing further fits: the first one passed) */
                 return;
             }

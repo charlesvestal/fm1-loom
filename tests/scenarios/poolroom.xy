@@ -1,11 +1,12 @@
-# the effects' one pool (dsp/efx.h, 78 blocks of 2 KB): a new project's sends (FX I's delay, 24 blocks; FX II's lush,
-# 26) leave room for a track's delay (24) beside them; a second track's delay finds none ("no memory": it passes dry).
+# the effects' one pool (dsp/efx.h, 78 blocks of 2 KB): a new project's sends (FX I's delay, 24 blocks; FX II on lush,
+# 26: a new project's is lush S, 11, since 2026-11-27, so set here) leave room for a track's delay (24) beside them; a second track's delay finds none ("no memory": it passes dry).
 # (The sends each their own blocks: FX II placed beside FX I, not over it, engine.c pool_sends; over it, the tracks
 # had 26 blocks more, and the second delay found room). Whoever holds memory keeps it: Master FX's delay (24) finds
 # none beside the sends and the track's delay ("not playing: memory full"), its tape a block
 # (2026-11-27: a delay takes what its time needs at the tempo, efx_delay_blocks; at 60 BPM a default delay
 # needs its longest line, 24 blocks, as these counts assume)
 bpm 60
+knob 12 s1x1 lush
 wait 300
 expect fxroom1 1
 expect fxroom2 1

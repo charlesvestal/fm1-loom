@@ -66,7 +66,7 @@ DESTS = ["synth", "envelope", "filter", "voice", "synth free", "envelope free", 
 EFFECTS = ["off", "drive", "rat", "fold", "crush", "ring", "tilt", "tape", "sampler", "lofi", "tremolo", "phaser",
            "univibe", "chorus", "juno", "autowah", "delay", "rumble", "reverb"]   # dsp/efx.h EF_* (the catalog)
 XDEF = {"lofi": (40, 0, 0, 0), "phaser": (80, 0, 0, 0), "chorus": (127, 0, 0, 0), "delay": (64, 127, 0, 0),
-        "reverb": (0, 72, 0, 0)}   # the extras' defaults (dsp/efx.c EFX[].xdef; the rest 0)
+        "reverb": (12, 48, 0, 0)}   # the extras' defaults (dsp/efx.c EFX[].xdef; the rest 0): lush S
 O2WAVES = ["same", "saw", "square", "pulse", "triangle", "sine"]   # O2W_*
 NOOSC2 = ("same", 0, 64)
 SUBS = ["sine", "square", "low square", "low pulse"]   # KS_*

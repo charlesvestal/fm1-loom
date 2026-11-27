@@ -305,6 +305,12 @@ static void defaults(setting_t *s, int ef, int mode)
         s->v[C_X1 + j] = EFX[ef].xdef[j];
     if (ef == EF_REVERB)
         s->v[C_X1] = (uint8_t)mode;
+    if (ef == EF_REVERB && !rv_lush(mode)) {     /* (the plate's and the console's at the values they were measured at:
+                                                  * the catalog's defaults are lush S's since 2026-11-27, 64 64 56, damp
+                                                  * 48, and at those PSX one echo's size steps +8.3 dB) */
+        s->v[C_K1] = 100, s->v[C_K2] = 40, s->v[C_K3] = 44;
+        s->v[C_X1 + 1] = 72;
+    }
 }
 static int has(int ef, int c)
 {

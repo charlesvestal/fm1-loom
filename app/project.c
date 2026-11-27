@@ -364,11 +364,11 @@ static void aux_defaults(void)
     set_name(&proj.trk[AUX_FX1], "delay");
     set_name(&proj.trk[AUX_FX2], "reverb");
     /* the notebook's default project: FX I a delay at its defaults (1/8, ~4 repeats, 4 kHz, the bounce full), FX II
-     * the lush reverb (size 64, decay 64: ~1.4 s, a little darker, damp 48), returns at unity; the FX I track's
-     * second send feeds its return into FX II */
+     * the lush S reverb (size 64, decay 64, a little darker, damp 48: the user's choice 2026-11-27; lush until then),
+     * returns at unity; the FX I track's second send feeds its return into FX II */
     for (k = AUX_FX1; k <= AUX_FX2; k++) {
         uint8_t *p = proj.trk[k].par;
-        static const uint8_t LUSH[SL_N] = {EF_REVERB, 64, 64, 56, 100, RV_LUSH, 48, 0, 0};
+        static const uint8_t LUSH[SL_N] = {EF_REVERB, 64, 64, 56, 100, RV_LUSH_S, 48, 0, 0};
         for (int j = 0; j < SL_N; j++)
             p[TP_SLOT[0][j]] = k == AUX_FX2 ? LUSH[j] : j == SL_EF ? EF_DELAY : j == SL_MIX ? 100
                              : j <= SL_K3 ? EFX[EF_DELAY].def[j - SL_K1] : EFX[EF_DELAY].xdef[j - SL_X1];

@@ -62,8 +62,9 @@ const efx_info_t EFX[NEF] = {
      {EK_DIV, EK_NN, EK_NN}, {64, 127, 0, 0}},
     {"rumble", EFG_SPACE, 0, KN(DECAY, TONE, NONE), XS(NONE, NONE, NONE, NONE), {55, 80, 0}, {EK_NN, EK_NN, EK_NN},
      {0, 0, 0, 0}},
-    {"reverb", EFG_SPACE, 0, KN(SIZE, DECAY, TONE), XS(TYPE, DAMP, NONE, NONE), {100, 40, 44}, {EK_NN, EK_NN, EK_BIP},
-     {0, 72, 0, 0}},                         /* (the plate's defaults, its second knob its motion) */
+    {"reverb", EFG_SPACE, 0, KN(SIZE, DECAY, TONE), XS(TYPE, DAMP, NONE, NONE), {64, 64, 56}, {EK_NN, EK_NN, EK_BIP},
+     {RV_LUSH_S, 48, 0, 0}},                 /* (lush S at its defaults: a reverb picked, 2026-11-27; the plate's
+                                              * until then, 100 40 44, damp 72) */
 };
 #undef KN
 #undef XS
@@ -1555,7 +1556,10 @@ static void do_lush(efx_reverb_t *f, const float *pc, const float *x, float *ol,
             int32_t wz = 0;
             float s = 0.5f * (u->hold + u->lp), a, c, mo, l0, r0;
             if (mv) {                         /* (gliding: a tick's step, the lengths between samples) */
-                sc += fm_clampf(sct - sc, -LU_DS, LU_DS);
+                const float ds = off == LU_OFF_S ? LU_DS * 2.0f * sc : LU_DS;   /* (lush S: its step its size's
+                                                  * share, so its short lines bend no faster than lush's shortest,
+                                                  * x0.5 at 22.05 kHz, 0.37: a full turn ~0.35 s) */
+                sc += fm_clampf(sct - sc, -ds, ds);
                 u->pre += fm_clampf(pc[4] - u->pre, -0.25f, 0.25f);
                 for (l = LU_IN1; l < NLU; l++)
                     lf[l] = LU_LEN[l] * sc;
@@ -1799,6 +1803,10 @@ static __attribute__((noinline)) void big_run(int ef, efx_ins_t *st, int16_t *me
             g->u.d.r = ln + dlen;
         } else {
             rv_reset(&g->u.r, g->pt[0], mode);
+            if (rv_lush(mode))                   /* (a slot's memory comes cleared, and a new type new memory: lush
+                                                  * plays at once, not after emptying its line; that skipped the first
+                                                  * ~12 ms of the note that woke the slot) */
+                g->u.r.lu.clear = 0;
             g->u.r.line = ln;
             g->u.r.n = (uint32_t)efx_rv_ring(mode, efx_need(EF_REVERB, mode, 0), 0);
         }
