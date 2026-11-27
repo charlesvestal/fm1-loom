@@ -56,6 +56,40 @@ def preset_from_lines(name, lines, track=2):
     return struct.unpack("<I", b[:4])[0], b[4:]
 
 
+CHORD = ("C3", "E3", "G3", "C4", "E4", "G4")         # (two octaves, as a chord is played: the user's clipping)
+LEVEL_DB = -28.0                                     # a chord's peak (the factory pads': glass -30, octave -29)
+
+
+def chord_peak(lines, track=2):
+    """a sound's peak (dBFS, the simulator's output) on CHORD at full velocity"""
+    import math
+    import wave
+    with tempfile.TemporaryDirectory() as d:
+        sc = ["wait 2500", *lines, "wait 300", "wav take.wav"] + [f"play {track} {n} on 127" for n in CHORD]
+        sc += ["wait 1200"] + [f"play {track} {n} off" for n in CHORD] + ["wait 500", "wavstop"]
+        (Path(d) / "s.xy").write_text("\n".join(sc) + "\n")
+        subprocess.run([str(host()), str(Path(d) / "s.xy"), d], capture_output=True, env={**os.environ, "LOOM_LOAD": "0"})
+        w = wave.open(str(Path(d) / "take.wav"))
+        n, ch, sw = w.getnframes(), w.getnchannels(), w.getsampwidth()
+        v = struct.unpack(f"<{n * ch}{'h' if sw == 2 else 'i'}", w.readframes(n))
+    return 20.0 * math.log10(max(abs(x) for x in v) / (32767 if sw == 2 else 2 ** 31 - 1) + 1e-9)
+
+
+def level_fit(lines, track=2, target=LEVEL_DB):
+    """the sound's lines with its volume set so a two-octave chord peaks at target: measured 12 dB down (clear of the
+    output's ceiling), the volume a square law (synth.c: gain = volume^2)"""
+    vol = 100
+    for ln in lines:
+        w = ln.split()
+        if len(w) == 4 and w[0] == "knob" and w[2] == "volume":
+            vol = int(w[3])
+    low = max(1, round(vol / 2))                     # (-12 dB: 20 log10 (1/2)^2)
+    pk = chord_peak([ln for ln in lines if not ln.endswith(f" volume {vol}")] + [f"knob {track} volume {low}"], track)
+    pk += 40.0 * __import__("math").log10(vol / low)
+    new = max(1, min(127, round(vol * 10.0 ** ((target - pk) / 40.0))))
+    return [ln for ln in lines if not ln.endswith(f" volume {vol}")] + [f"knob {track} volume {new}"], pk, new
+
+
 def frame(slot, fmt, data):
     """one USER_PUT message: a preset into slot (0..15)"""
     return bytes([0xF0, *HDR, USER_PUT, slot & 127, fmt & 127, fmt >> 7 & 127, *pack7(data), 0xF7])

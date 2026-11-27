@@ -246,9 +246,11 @@ def main():
             if k not in bank:
                 sys.exit(f"juno_import: {label(k)} is not in {a[1]}")
             ls, _ = lines(bank[k])
+            ls, pk, vol = loom_presets.level_fit(ls)   # (as loud as the factory pads on a chord: the 106's
+                                                          # levels, all summed, clipped LOOM-8's output)
             fmt, data = loom_presets.preset_from_lines(nm.get(k) or f"J106 {label(k)}", ls)
             out += loom_presets.frame(slot - 1 + i, fmt, data)
-            print(f"U{slot + i} {loom_presets.name_of(data):12s} {label(k)}")
+            print(f"U{slot + i} {loom_presets.name_of(data):12s} {label(k)}  chord {pk:+.1f} dB -> volume {vol}")
         Path(a[2]).write_bytes(bytes(out))
         print(f"{a[2]}: {len(progs)} presets; send: tools/loom_presets.py send {a[2]}")
         return
