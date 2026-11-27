@@ -1696,7 +1696,8 @@ Turn **SELECT** for more pages:
 On Setup, the knobs set the lights, the MIDI clock, sending MIDI notes and the theme. The clock is internal, receive
 or send (see MIDI, below). Sending notes is on to start with. The theme is b/w to start with, or tape deck or
 blueprint. The page also shows where the tempo comes from (LOOM-8, or a MIDI clock coming in), the USB audio level,
-the autosave, Bluetooth audio and the Bluetooth MIDI device (see Bluetooth, below). The **SEL** list on Setup has the FM-1's own settings, in three groups:
+the autosave, Bluetooth audio, the Bluetooth MIDI device (see Bluetooth, below) and LOOM-8's version, which is also
+the first line under the projects in the **SEL** list. The **SEL** list on Setup has the FM-1's own settings, in three groups:
 
 - Bluetooth: BT MIDI, MIDI DEVICE, BT AUDIO and AUDIO DEVICE.
 - USB and MIDI: the USB audio level, CLOCK, NOTES, CC IN, CC OUT and SCENES OUT.

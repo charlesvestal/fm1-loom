@@ -3711,6 +3711,8 @@ static void list_mix(int g)
 static void list_setup(int g)
 {
     static char bmid_t[24], baud_t[24];
+    list_add("VERSION " APP_VERSION, 0, LK_NOTE, 0);   /* (first, seen on opening: large type has no room for it on
+                                                      * the page) */
     list_head("Bluetooth");
     list_add(ACTION_NAME[A_BT_MIDI], bt.midi ? "on" : "off", LK_PICK, A_BT_MIDI);   /* (two pairs: on / off, then
                                                                                   * where devices are chosen) */
@@ -7278,9 +7280,10 @@ static void draw_setup(void)
     setup_row(30, "sends notes", proj.send_notes ? "yes" : "no");
     setup_row(44, "USB audio", USBA_NAME[proj.usb_full < 3u ? proj.usb_full : 0u]);
     setup_row(58, "autosave", proj.rsv[2] & AUTOSAVE_OFF ? "off: press SAVE" : "on");
-    setup_row(72, "theme", THEME_OF_PROJ()->name);
-    setup_row(86, "BT audio", ta);
-    setup_row(100, "BT MIDI", td);
+    setup_row(72, "BT audio", ta);
+    setup_row(86, "BT MIDI", td);
+    setup_row(100, "version", APP_VERSION);   /* (2026-11-27: in the theme's place, the THEME knob under it says it; the
+                                                * version was the Debug page's alone, a release without it) */
     main_blit();
 }
 static uint32_t status_peak;                          /* the highest peak shown since the screen reader said it (ui.c) */
