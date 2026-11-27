@@ -190,7 +190,18 @@ void app_splash(void)
 /* backup and restore over USB (fm1-base's backup.c): the slots and the presets as saved (LOOM-8 saves when asked:
  * what is not saved stays so); no saving while a backup streams; a restore: everything from the flash again */
 int app_backup_playing(void) { return seq.playing != 0; }
+#if FM1B_MIRROR
+/* the demo build (./build.sh --demo, the live mirror): a backup takes the working project too, so the live page's copy
+ * of LOOM-8 (web/emu/live.html reads the project as a backup does) starts from what is on the screen. fm1-base calls this
+ * only while stopped; a recording is never written half done */
+void app_backup_flush(void)
+{
+    if (ui.dirty && proj_slot < NPROJ && !seq.rec && !seq.rec_wait && project_save(proj_slot) == 0)
+        ui.dirty = 0;
+}
+#else
 void app_backup_flush(void) {}
+#endif
 void app_backup_hold(int on) { store_held = (uint8_t)(on != 0); }
 void app_backup_restored(void)
 {
@@ -201,6 +212,174 @@ void app_backup_restored(void)
     presets_load();
     after_load();
     ui.dirty = 0;
+}
+
+/* the live mirror (fm1-base device/mirror.c's events mode, web/emu/live.html; the demo build only on the FM-1): the
+ * page reads the project as a backup does, then this state, then the FM-1's inputs, and its own copy of LOOM-8 plays
+ * along and draws the screen. The state is what the screen shows beyond the project (the page, the track, the list,
+ * the scene and mutes) and a hash of the patterns, so a copy that drifted (a key landing on another step) is seen:
+ * the page reads the project again. Times, questions and the step under the playhead are not in it: the copy plays
+ * from its own PLAY (connect while stopped). */
+#define MS_MAGIC 0x4C4D5331u                                /* "1SML" */
+typedef struct {
+    uint32_t magic, proj_hash;
+    uint16_t mute, solo, solo_lat, chord_held, preset_i;
+    uint8_t page, bar, dsound, last_inst, scene_pg, mod_pat, mod_lane, glo_pg, lockpg, trickpg, cursor, rec_armed;
+    uint8_t chordmode, chord_bar, chord_pat, chord_pool, rem_fx, nrem, rem[SN];
+    uint8_t pick_engine, pick_slot, pick_weave, pick_save, pick_kit, pick_kslot, pick_clear, pick_paste, name_slot;
+    int8_t oct, pick_shift, pick_rot;
+    uint8_t trk_sel, dirty, playing, scene, cue, song_on, list_open, list_sel, list_top, slot;
+    uint8_t ppat[NSEQT];
+} mirror_state_t;
+static uint32_t hash_words(uint32_t h, const void *p, uint32_t n)   /* FNV-1a a word at a time (n: a multiple of 4) */
+{
+    const uint32_t *w = (const uint32_t *)p;
+    for (n /= 4u; n--; w++)
+        h = (h ^ *w) * 16777619u;
+    return h;
+}
+/* the patterns, what can drift (a key landing on another step, a recording): the song's slots in use only (a load sets
+ * the rest's repeats to 1). Not the tracks' settings: they change only by the inputs the copy takes too, and a save
+ * and load is not exact for the values a sound does not use (an LFO that is off: its speed) */
+static uint32_t pats_hash(void)
+{
+    const uint8_t *p = (const uint8_t *)&pats;
+    const uint32_t song = (uint32_t)offsetof(patterns_t, song), hit = (uint32_t)offsetof(patterns_t, hit);
+    uint32_t h = hash_words(2166136261u, p, song), used = pats.song.len < NSONG ? pats.song.len : NSONG;
+    h = hash_words(h, &pats.song, (uint32_t)offsetof(song_t, slot));
+    for (uint32_t k = 0; k < used; k++)
+        h = (h ^ ((uint32_t)pats.song.slot[k].scene << 8 | pats.song.slot[k].rep)) * 16777619u;
+    return hash_words(h, p + hit, (uint32_t)sizeof pats - hit);
+}
+_Static_assert(offsetof(patterns_t, song) % 4u == 0 && offsetof(patterns_t, hit) % 4u == 0 && sizeof pats % 4u == 0 &&
+               offsetof(song_t, slot) % 4u == 0, "the patterns hashed by words");
+uint32_t app_state_get(uint8_t *buf, uint32_t max)
+{
+    mirror_state_t *m = (mirror_state_t *)(void *)buf;      /* (buf: 4-byte aligned) */
+    if (max < sizeof *m)
+        return 0;
+    memset(m, 0, sizeof *m);
+    m->magic = MS_MAGIC;
+    m->proj_hash = pats_hash();
+    m->page = ui.page;
+    m->bar = ui.bar;
+    m->dsound = ui.dsound;
+    m->oct = ui.oct;
+    m->last_inst = ui.last_inst;
+    m->scene_pg = ui.scene_pg;
+    m->mod_pat = ui.mod_pat;
+    m->mod_lane = ui.mod_lane;
+    m->glo_pg = ui.glo_pg;
+    m->lockpg = ui.lockpg;
+    m->trickpg = ui.trickpg;
+    m->cursor = ui.cursor;
+    m->rec_armed = ui.rec_armed;
+    m->chordmode = ui.chordmode;
+    m->chord_held = ui.chord_held;
+    m->chord_bar = ui.chord_bar;
+    m->chord_pat = ui.chord_pat;
+    m->chord_pool = ui.chord_pool;
+    m->rem_fx = ui.rem_fx;
+    m->nrem = ui.nrem;
+    memcpy(m->rem, ui.rem, sizeof m->rem);
+    m->solo = ui.solo;
+    m->solo_lat = ui.solo_lat;
+    m->preset_i = ui.preset_i;
+    m->pick_engine = ui.pick_engine;
+    m->pick_slot = ui.pick_slot;
+    m->pick_weave = ui.pick_weave;
+    m->pick_save = ui.pick_save;
+    m->pick_kit = ui.pick_kit;
+    m->pick_kslot = ui.pick_kslot;
+    m->pick_clear = ui.pick_clear;
+    m->pick_paste = ui.pick_paste;
+    m->pick_shift = ui.pick_shift;
+    m->pick_rot = ui.pick_rot;
+    m->name_slot = ui.name_slot;
+    m->slot = proj_slot;
+    m->trk_sel = proj.trk_sel;
+    m->dirty = ui.dirty;
+    m->playing = seq.playing != 0;
+    m->scene = seq.scene;
+    m->cue = seq.cue;
+    m->song_on = seq.song_on;
+    m->mute = seq.mute;
+    memcpy(m->ppat, (const void *)seq.ppat, sizeof m->ppat);
+    m->list_open = lst.open && !lst.bt;                      /* (a Bluetooth list: not the copy's to show) */
+    m->list_sel = m->list_open ? lst.sel : 0;
+    m->list_top = m->list_open ? lst.top : 0;
+    return sizeof *m;
+}
+void app_state_set(const uint8_t *buf, uint32_t n)
+{
+    const mirror_state_t *m = (const mirror_state_t *)(const void *)buf;
+    if (n != sizeof *m || m->magic != MS_MAGIC)
+        return;
+    if (m->slot != proj_slot && m->slot < NPROJ) {          /* the project the FM-1 has open (the page read them all) */
+        if (seq.playing)
+            engine_transport(0);
+        if (project_load(m->slot) == 0) {
+            proj_slot = m->slot;
+            after_load();
+        }
+    }
+    proj.trk_sel = m->trk_sel;
+    ui.page = m->page;
+    ui.bar = m->bar;
+    ui.dsound = m->dsound;
+    ui.oct = m->oct;
+    ui.last_inst = m->last_inst;
+    ui.scene_pg = m->scene_pg;
+    ui.mod_pat = m->mod_pat;
+    ui.mod_lane = m->mod_lane;
+    ui.glo_pg = m->glo_pg;
+    ui.lockpg = m->lockpg;
+    ui.trickpg = m->trickpg;
+    ui.cursor = m->cursor;
+    ui.rec_armed = m->rec_armed;
+    ui.chordmode = m->chordmode;
+    ui.chord_held = m->chord_held;
+    ui.chord_bar = m->chord_bar;
+    ui.chord_pat = m->chord_pat;
+    ui.chord_pool = m->chord_pool;
+    ui.rem_fx = m->rem_fx;
+    ui.nrem = m->nrem;
+    memcpy(ui.rem, m->rem, sizeof ui.rem);
+    ui.solo = m->solo;
+    ui.solo_lat = m->solo_lat;
+    ui.preset_i = m->preset_i;
+    ui.pick_engine = m->pick_engine;
+    ui.pick_slot = m->pick_slot;
+    ui.pick_weave = m->pick_weave;
+    ui.pick_save = m->pick_save;
+    ui.pick_kit = m->pick_kit;
+    ui.pick_kslot = m->pick_kslot;
+    ui.pick_clear = m->pick_clear;
+    ui.pick_paste = m->pick_paste;
+    ui.pick_shift = m->pick_shift;
+    ui.pick_rot = m->pick_rot;
+    ui.name_slot = m->name_slot;
+    ui.dirty = m->dirty;
+    ui.ask = 0;                                             /* (a question's answers are code: not carried) */
+    ui.card = 0;
+    if (!m->playing && seq.playing)
+        engine_transport(0);
+    else if (m->playing && !seq.playing)
+        engine_transport(3);                                /* (from the top: the FM-1 was playing at connect) */
+    seq.scene = m->scene;
+    seq.cue = m->cue;
+    seq.song_on = m->song_on;
+    seq.mute = m->mute;
+    memcpy((void *)seq.ppat, m->ppat, sizeof m->ppat);
+    lst.open = 0;
+    lst.bt = 0;
+    if (m->list_open) {                                     /* the rows are the page's: built here, as SEL builds them */
+        lst.open = 1;
+        list_build();
+        lst.sel = m->list_sel < lst.n ? m->list_sel : 0;
+        lst.top = m->list_top < lst.n ? m->list_top : 0;
+    }
+    memset(ui.sig, 0, sizeof ui.sig);                       /* (the screen drawn again, whole) */
 }
 
 #ifdef PLAT_HOST

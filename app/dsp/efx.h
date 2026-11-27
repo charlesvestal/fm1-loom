@@ -44,8 +44,13 @@ float efx_lfo_hz(int v, float bpm);          /* an EK_SYNC knob (the LFO's rate)
  * engine's, each block: efx_send_used), then the tracks in order, slot 1 then 2 (synth.c); a project loaded starts the
  * pool over in that order. 78 blocks (61 until 2026-11-25, the SRAM won back since): the
  * default sends (FX I's delay 24, FX II's lush 26) leave 28, a track's delay (24) beside them; FX I's delay and FX II's
- * largest reverb (32) leave 22 */
+ * largest reverb (32) leave 22. The demo build (FM1B_MIRROR: the live mirror, ./build.sh --demo) one fewer, for the
+ * mirror's RAM: a slot that finds none passes dry, as always */
+#if FM1B_MIRROR
+#define EFX_NB 77
+#else
 #define EFX_NB 78
+#endif
 #define EFX_INS_N 1024                           /* int16 a block (2 KB) */
 extern int16_t efx_pool[EFX_NB][EFX_INS_N];
 /* a set of the pool's blocks, a bit each, in 32-bit words (block b: w[b / 32] bit b % 32) */

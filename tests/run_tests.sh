@@ -66,6 +66,7 @@ else
 fi
 run host-build sh build.sh --host
 run lookahead sh tests/host/lookahead_test.sh    # (needs the simulator just built)
+run live-mirror env PYTHON="$PY" sh tests/host/live_test.sh   # (the live mirror: the page's copy takes the FM-1's project and state)
 # a bank image larger than the bank's windows is refused by the simulator's loader (as the tool and the FM-1 refuse it)
 run bank-too-big sh -c "mkdir -p $OUT/big && head -c 221185 /dev/zero > $OUT/big.bin && \
     printf 'samples $OUT/big.bin\n' > $OUT/big.xy && ! $B/host/loom_host $OUT/big.xy $OUT/big > $OUT/big.out 2>&1 && \

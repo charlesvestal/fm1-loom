@@ -87,6 +87,14 @@ void app_backup_flush(void);
 void app_backup_hold(int on);
 void app_backup_restored(void);
 
+/* the live mirror (fm1-base device/mirror.c's events mode; web/emu/live.html runs LOOM-8's browser build fed by the
+ * FM-1's inputs): app.c app_state_get / app_state_set. On the FM-1 only in the demo build (./build.sh --demo: fm1.toml
+ * keeps mirror = false for the RAM); the browser build always has it. The project comes first, read as a backup reads
+ * it (APP_MIRROR_PROJECT); the state is small (MR_STATE_MAX) */
+#define APP_MIRROR_STATE
+#define APP_MIRROR_PROJECT
+#define MR_STATE_MAX 256u
+
 /* the contract: the platform calls these (app.c) */
 void app_init(void);                    /* boot: the user bank, the project, the presets, the engine, the second core */
 void app_render(int32_t *lr, uint32_t n, uint32_t gain_q12);   /* audio interrupt: n stereo frames, 24-bit */
@@ -100,7 +108,8 @@ void app_say(const char *a, const char *b);
 void app_splash(void);
 #define APP_REDRAW                      /* the screen mirror lost a part (or a viewer came): every band again */
 #define MRQ 2048u                       /* the mirror's frame ring (fm1-base's 4096: RAM), a rect frame 1.1 KB at most */
-#define MR_SEGW 80u                     /* what the viewer has, by 80-pixel segments of each row (30: 4.8 KB more pool) */
+#define MR_SEGW 240u                    /* what the viewer has, a whole row a segment (80: 1.9 KB more pool, 30: 6.7 KB):
+                                         * the live mirror (events) sends no pixels; the pixel mirror sends whole rows */
 void app_redraw(void);
 #define APP_CPU_396                     /* Setup's CPU: 396 MHz from the next start (project.c, the slot opened at power-on) */
 int app_cpu_396(void);

@@ -2022,6 +2022,46 @@ int app_host_cmd(const char *cmd, const char *a, const char *b, const char *c, c
         }
         fclose(f);
     }
+    else if (!strcmp(cmd, "statesave") || !strcmp(cmd, "stateload")) {   /* statesave FILE / stateload FILE: the live
+                                                     * mirror's state (app.c app_state_get) to a file, and taken from
+                                                     * one as live.html's copy takes it (tests/scenarios/live*.xy) */
+        static uint32_t sb[MR_STATE_MAX / 4u];
+        int save = cmd[5] == 's';
+        uint32_t n = 0;
+        FILE *f = fopen(a, save ? "wb" : "rb");
+        if (!f)
+            host_die(save ? "statesave: cannot write" : "stateload: cannot read", a);
+        if (save) {
+            n = app_state_get((uint8_t *)sb, sizeof sb);
+            if (!n)
+                host_die("statesave: the state is larger than MR_STATE_MAX", a);
+            fwrite(sb, 1, n, f);
+        } else {
+            n = (uint32_t)fread(sb, 1, sizeof sb, f);
+            app_state_set((const uint8_t *)sb, n);
+        }
+        fclose(f);
+        run_ms(1);
+    }
+    else if (!strcmp(cmd, "projdump")) {           /* projdump FILE: what the state's project hash covers (pats, proj,
+                                                     * proj_par), raw: where two copies differ */
+        FILE *f = fopen(a, "wb");
+        if (!f)
+            host_die("projdump: cannot write", a);
+        fwrite(&pats, 1, sizeof pats, f);
+        fwrite(&proj, 1, sizeof proj, f);
+        fwrite(proj_par, 1, sizeof proj_par, f);
+        fclose(f);
+        printf("projdump: pats %u B, proj %u B, proj_par %u B\n", (unsigned)sizeof pats, (unsigned)sizeof proj,
+               (unsigned)sizeof proj_par);
+    }
+    else if (!strcmp(cmd, "statesig")) {           /* statesig: the state's signature, as the FM-1 sends it (mirror.c) */
+        static uint32_t sb[MR_STATE_MAX / 4u];
+        uint32_t n = app_state_get((uint8_t *)sb, sizeof sb), h = 2166136261u;
+        for (uint32_t i = 0; i < n; i++)
+            h = (h ^ ((const uint8_t *)sb)[i]) * 16777619u;
+        printf("statesig %08x (%u B)\n", h, n);
+    }
     else if (!strcmp(cmd, "projsave")) {           /* projsave SLOT [NAME]: saved into slot 1..3 (as SAVE there) */
         int slot = atoi(a) - 1;
         if (slot < 0 || slot >= NPROJ) {

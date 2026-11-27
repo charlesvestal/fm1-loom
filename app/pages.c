@@ -47,7 +47,12 @@ static void theme_step(int d)
     proj.rsv[1] = (uint8_t)(THEME_SET | (proj.rsv[1] & THEME_SET ? proj.rsv[1] & LARGE_TYPE : 0u) |
                             (uint32_t)(theme_ix() + (int)NTHEMES + d) % NTHEMES);
 }
+#if FM1B_MIRROR                                  /* the demo build (the live mirror): no large type, its ~10 KB of code
+                                                      * for the mirror's; the setting is kept, not shown */
+static int large_type(void) { return 0; }
+#else
 static int large_type(void) { return (proj.rsv[1] & (THEME_SET | LARGE_TYPE)) == (THEME_SET | LARGE_TYPE); }
+#endif
 static void large_type_set(int on)
 {
     proj.rsv[1] = (uint8_t)(THEME_SET | (on ? LARGE_TYPE : 0u) | (uint32_t)theme_ix());
@@ -630,7 +635,11 @@ static const bands_t *band = &BANDS[0];
 #define KNB_H (band->knb_h)
 #define ENC_Y (band->enc_y)
 #define FOOT_Y (band->foot_y)
+#if FM1B_MIRROR
+#define LARGE 0                                      /* (the demo build: none, large_type) */
+#else
 #define LARGE (band != &BANDS[0])                    /* large type on (its faces there: gfx_loom.c lt_on) */
+#endif
 #define PIC_H (MAIN_H - 32)                          /* an engine's picture under its name (88 today) */
 #define LY(a, b) (LARGE ? (b) : (a))                 /* a coordinate today, in large type */
 #define MY(y) (LARGE ? (y) * MAIN_H / 120 : (y))     /* a y in the main band, scaled to large type's shorter band */

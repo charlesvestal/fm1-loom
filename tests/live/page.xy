@@ -1,0 +1,12 @@
+# The live mirror's round trip, the page's copy (tests/host/live_test.sh): a fresh LOOM-8 takes the FM-1's backup (as
+# live.html reads the project), then its state; its signature and its screen must be the FM-1's.
+wait 3000
+master 4096
+restore $OUT/fm1/live.bak
+wait 500
+expect restore_rc 0
+stateload $OUT/live.st
+wait 300
+statesig
+wait 4000
+shot page.png
