@@ -317,7 +317,7 @@ void fx_pick_slot(int pick, const uint8_t e[4], int width, int wobble, int smear
 /* ================================================================ master === */
 /* the master's knob names, short enough for the knob strip: percussion, melodic, compressor
  * and pump are perc, mel, comp, pump; then the out page's list */
-const char *const MS_NAME[NMS] = {"low", "mid", "high", "clip", "effect", "knob 1", "knob 2", "mix",
+const char *const MS_NAME[NMS] = {"low", "mid", "high", "push", "effect", "knob 1", "knob 2", "mix",
                                   "drums", "melodic", "comp", "pump", "pump by", "release", "accent", "level",
                                   "knob 3", "extra 1", "extra 2", "extra 3", "extra 4", "drums", "melodic", "mix",
                                   "res"};

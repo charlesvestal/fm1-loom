@@ -1646,10 +1646,13 @@ set the sends for each key, on the Sends page of **FX**.
 Turn **SELECT** for more pages:
 
 - FX I and FX II, the two send effects (see [FX I and FX II](#fx-i-and-fx-ii)).
-- Master EQ has low, mid and high (64 is flat) and **clip**: 0 is off; turning it up drives the mix into a soft
-  clipper before the limiter, so it gets louder and denser, the kick's and snare's peaks rounded off. Its column at
-  the right of the page shows the drive set, and a grey bar hanging from the top shows how hard the peaks are being
-  clipped right now: a bar that keeps reaching the bottom means the mix is clipping hard, so turn clip down.
+- Master EQ has low, mid and high (64 is flat) and **push**: 0 is off; turning it up pushes the whole mix, up to
+  +8 dB, into a soft clipper just before the limiter. Up to about 6 dB under the ceiling nothing changes; above that
+  the peaks are rounded off smoothly, so the mix gets louder and denser, the kick's and snare's tips shaved and a
+  little grit added. Its column at the right of the page shows how hard you push (from the bottom), and a grey bar
+  hanging from the top shows how deep into the clipper the loudest peaks go right now: no bar, nothing is touched;
+  a short bar, the peaks are just being rounded; a bar that keeps reaching the bottom means the peaks are flattened
+  against the ceiling (several dB taken off them) and you hear it as distortion, so push less.
 - Master FX has one effect on the whole mix (see [Effects](#effects)).
 - Master filter has DJ filters on the drums, on the synths and on the whole mix (below).
 - Master out has the drums' level, the melodic tracks' level, the compressor and the pump. The **SEL** list on
@@ -1697,7 +1700,7 @@ inserts and FX I and FX II use. See [Master FX](#master-fx).
 **Master filter** has three DJ filters, one knob each. **KNOB 1** filters the drums: every kit track, and what they
 send to FX I and FX II, so their reverb and echoes follow the filter (what is already ringing in FX I and FX II rings
 out). **KNOB 2** filters the melodic tracks, the synths, and what they send, before the drums and the FX returns join
-them. **KNOB 3** filters the whole mix, returns and all, after the compressor and the pump and before CLIP and the
+them. **KNOB 3** filters the whole mix, returns and all, after the compressor and the pump and before PUSH and the
 limiter. Turn a knob left of the middle for a low-pass that closes from 20 kHz down to 60 Hz, or right of it for a
 high-pass that opens from 20 Hz up to 8 kHz. In the middle (62 to 66) the filter is off and the sound is exactly as
 without it, and a new project starts there. **KNOB 4** sets the resonance of all three, up to a strong peak at the
@@ -1856,7 +1859,7 @@ the selected instrument track.
 | CC | FX I / FX II | Master |
 | --- | --- | --- |
 | 7 | return level | level |
-| 16-18 / 19 | the effect's knobs 1-3 / the return | EQ low / mid / high / clip |
+| 16-18 / 19 | the effect's knobs 1-3 / the return | EQ low / mid / high / push |
 | 20-23 | - | Master FX: the effect / knob 1 / knob 2 / mix |
 | 24-27 | - | drums level / melodic level / comp / pump |
 | 28 | - | pump release |
