@@ -102,6 +102,9 @@ void app_panic(void);                   /* silence now (before an update rewrite
 void app_ui_init(void);
 void app_frame(void);
 void app_input_only(void);
+#define APP_TICK                        /* 1 kHz, the timer interrupt: the keys read and their notes played on time (ui.c
+                                         * app_tick), whatever the main loop is drawing or waiting for */
+void app_tick(void);
 void app_say(const char *a, const char *b);
 #define APP_BTDEV                       /* Bluetooth MIDI devices (fm1-base lib/btdev.h): GLO's BT DEVICE list (bt.c) */
 #define APP_SPLASH                      /* the name over the eight tracks' inks woven as threads */

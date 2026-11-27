@@ -249,14 +249,17 @@ enum { C_PARAM, C_ALL, C_KEY, C_KEYS_OFF, C_PUNCH, C_BRAIN_KEY, C_MASTER, C_PANI
 static uint32_t cq[CQ];
 static volatile uint32_t cq_w, cq_r;
 
-static void cq_put(uint32_t type, uint32_t a, uint32_t b, uint32_t c)
+static __attribute__((noinline)) void cq_put(uint32_t type, uint32_t a, uint32_t b, uint32_t c)
 {
+    uint32_t f = plat_lock();         /* (two writers: the main loop and the keys' tick, ui.c app_tick, which may
+                                       * come in between: one at a time) */
     uint32_t w = cq_w;
-    if (w - cq_r >= CQ)
-        return;                        /* full: drop (a knob flood; the project still has the value) */
-    cq[w % CQ] = (type << 28) | ((a & 0xFFu) << 20) | ((b & 0xFFu) << 12) | (c & 0xFFFu);
-    __asm__ volatile("" ::: "memory");
-    cq_w = w + 1;
+    if (w - cq_r < CQ) {              /* (full: dropped, a knob flood; the project still has the value) */
+        cq[w % CQ] = (type << 28) | ((a & 0xFFu) << 20) | ((b & 0xFFu) << 12) | (c & 0xFFFu);
+        __asm__ volatile("" ::: "memory");
+        cq_w = w + 1;
+    }
+    plat_unlock(f);
 }
 
 /* the knob's value into the contiguous array the synth and the sequencer read (one byte: safe beside

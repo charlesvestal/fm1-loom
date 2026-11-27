@@ -1445,6 +1445,7 @@ static int page_btn_held(int b)
 {
     return (ui.btn >> b & 1u) && PAGE_BTN[page_group(ui.page)].btn == b;
 }
+static int tk_take(int k, int trk, int note);   /* (below: the keys on time) */
 static void keyboard_down(int k)
 {
     int trk = sel_trk(), b = ordinal(BLACK_K, 11, k), srec = ui.rec_armed && !playing();
@@ -1483,7 +1484,8 @@ static void keyboard_down(int k)
         int note = is_drum(trk) ? key_sound(k) : key_note(k);
         ui.kmode[k] = KM_PLAY;
         ui.knote[k] = (uint8_t)note;
-        engine_key(trk, note, 1, 127);
+        if (!tk_take(k, trk, note))              /* (the tick played it at its press: app_tick) */
+            engine_key(trk, note, 1, 127);
         chord_add(note);
         if (is_drum(trk)) {                      /* a drum key: its sound is the one shown (Steps with SEQ held; a
                                                   * black key on the sound pages picks the key the knobs edit) */
@@ -1550,6 +1552,66 @@ static void act_clear_scene(void);
 static void act_save_slot(int slot);
 static void weave_set(int t, int from, int pat, int rule);   /* (below: the weave) */
 static void pattern_octave(int t, int d);          /* (below) */
+/* ---- the keys on time: the 1 kHz tick (app_tick, the timer interrupt, nested in the render) reads them and plays a
+ * key's note the moment it goes down, so a late render (the main loop waiting for it: a busy scene) never delays the
+ * keys' sound or where live recording puts them (seq_key, in the render, takes the note as it drains it). The main loop
+ * says a frame ahead what each key would play (tk_route: key_plays, key_down's order and conditions); it reads the keys
+ * as the tick saw them (tk_keys), so it finds each press already played (tk_on) and does the rest (the chord, the
+ * display, the reader). A press it routes elsewhere after all has its note taken back (tk_settle: tk_miss, which the
+ * host's scenarios keep at 0). Step record while stopped stays the main loop's (a tap must never be missed there). */
+#define TK_PACK(t, n) ((uint16_t)(((unsigned)(t) << 8 | (unsigned)(n)) + 1u))
+static volatile uint16_t tk_route[NKEYS];   /* (main loop -> tick) what each key's press plays now, packed; 0 none */
+static volatile uint16_t tk_on[NKEYS];      /* (tick -> main loop) what the tick played at the key's last press; 0 none */
+static volatile uint32_t tk_keys;           /* (tick -> main loop) the keys down, as the tick last read them */
+static uint32_t tk_mine;                    /* (main loop) the keys held whose note the tick plays (KM_PLAY's) */
+static uint32_t tk_miss, tk_fast;           /* (host) presses the tick played wrongly / played at once */
+static int key_plays(int k, int *tr, int *nt);
+void app_tick(void)
+{
+    static uint32_t was;
+    uint32_t now = plat_keys(), ch = now ^ was;
+    was = now;
+    for (int k = 0; ch; k++, ch >>= 1) {
+        uint16_t r;
+        if (!(ch & 1u))
+            continue;
+        if (now >> k & 1u) {                     /* down: its note now, if it plays one */
+            r = tk_route[k];
+            tk_on[k] = r;
+            if (r)
+                engine_key((r - 1u) >> 8, (r - 1u) & 0xFFu, 1, 127);
+        } else if ((r = tk_on[k]) != 0)          /* up: what it played, off */
+            engine_key((r - 1u) >> 8, (r - 1u) & 0xFFu, 0, 0);
+    }
+    tk_keys = now;                               /* (after: the main loop never sees a press the tick has not) */
+}
+/* keyboard_down's own note: the tick's if it played exactly this one (the main loop then sends nothing) */
+static int tk_take(int k, int trk, int note)
+{
+    if (tk_on[k] != TK_PACK(trk, note))
+        return 0;
+    tk_mine |= 1u << k;
+    tk_fast++;
+    return 1;
+}
+/* after key_down: a note the tick played that the press did not turn out to play, taken back */
+static void tk_settle(int k)
+{
+    uint16_t r = tk_on[k];
+    if (!r || (tk_mine >> k & 1u))
+        return;
+    tk_on[k] = 0;                                /* (its release then sends nothing) */
+    engine_key((r - 1u) >> 8, (r - 1u) & 0xFFu, 0, 0);
+    tk_miss++;
+}
+/* every key's prediction, for the tick (the main loop, after its input) */
+static void tk_predict(void)
+{
+    for (int k = 0; k < NKEYS; k++) {
+        int t, n;
+        tk_route[k] = key_plays(k, &t, &n) ? TK_PACK(t, n) : 0;
+    }
+}
 static void key_down(int k)
 {
     int trk = sel_trk(), w = ordinal(WHITE_K, 16, k), b = ordinal(BLACK_K, 11, k), p = ui.page;
@@ -1855,6 +1917,57 @@ static void key_down(int k)
     }
     keyboard_down(k);
 }
+/* what key_down(k) would play now: 1, the track and the note, when the press goes to keyboard_down's own note (KM_PLAY).
+ * key_down's order and conditions, nothing else (no side effects): the tick plays it at once (app_tick). Keep in step
+ * with key_down and keyboard_down: the host counts a press predicted wrongly (tk_miss) and the scenarios expect none */
+static int key_plays(int k, int *tr, int *nt)
+{
+    int trk = sel_trk(), w = ordinal(WHITE_K, 16, k), b = ordinal(BLACK_K, 11, k), p = ui.page;
+    const int recording = (ui.btn >> B_SEQ & 1u) || ui.rec_armed || seq.rec || seq.rec_wait;
+    if (ui.ask || (ui.btn >> B_SAVE & 1u))
+        return 0;
+    if (!lst.open) {
+        if (home_held())
+            return 0;
+        if (p == P_GLFO && ((w >= 0 && w < NDRUM + 1) || (b >= 0 && b < NTRK)))
+            return 0;
+        if (p == P_ARRANGE || p == P_SONG || p == P_MOD || p == P_WEAVE || p == P_THROWS)
+            return 0;
+        if (p == P_BAR && b >= 0 && b < NBAR && is_seqt(trk) && (ui.btn >> B_SEQ & 1u) && !ui.held && !ui.rec_armed &&
+            !seq.rec && !seq.rec_wait)
+            return 0;
+        if (p == P_BAR && b >= 0 && is_seqt(trk) && !is_drum(trk) && !(ui.btn >> B_SEQ & 1u) && !ui.rec_armed &&
+            !seq.rec && !seq.rec_wait)
+            return 0;
+        if (p == P_STEPS && trk == AUX_WEAVE)
+            return 0;
+        if (steps_page(p)) {
+            if (!is_seqt(trk) || (p == P_STEPS && ui.chordmode && !is_drum(trk)) || !recording)
+                return 0;
+        } else if (p == P_MIX) {
+            if (b >= 0 || (w >= 0 && mix_kit_hold() >= 0))
+                return 0;
+        } else if (p < P_MASTER) {
+            if (trk == AUX_BRAIN && (p == P_PLAY || p == P_SUB))
+                return 0;
+            if (w >= 0 && kit_edit_steps())
+                return 0;
+        }
+    }
+    /* keyboard_down */
+    if (trk == AUX_BRAIN || trk == AUX_WEAVE || trk == AUX_PUNCH)
+        return 0;
+    if (ui.rec_armed && !playing())             /* (step record: the main loop's) */
+        return 0;
+    if (is_aux(trk))
+        trk = inst_trk();
+    if (b >= 0 && is_drum(trk) && playing() && !seq.rec && !seq.rec_wait && !steps_page(ui.page) &&
+        !page_btn_held(PAGE_BTN[page_group(ui.page)].btn))
+        return 0;
+    *tr = trk;
+    *nt = is_drum(trk) ? key_sound(k) : key_note(k);
+    return 1;
+}
 #define STEP_TAP_MS 700u                         /* a step's key let go sooner: a tap (toggles the step) */
 static void key_up(int k)
 {
@@ -1876,7 +1989,10 @@ static void key_up(int k)
         break;
     }
     case KM_PLAY:
-        engine_key(is_aux(trk) ? inst_trk() : trk, ui.knote[k], 0, 0);
+        if (tk_mine >> k & 1u)                   /* (the tick sent its off at the release: app_tick) */
+            tk_mine &= ~(1u << k);
+        else
+            engine_key(is_aux(trk) ? inst_trk() : trk, ui.knote[k], 0, 0);
         chord_del(ui.knote[k]);
         if (ui.rec_armed && !playing())
             step_rec_key_up();
@@ -4587,7 +4703,7 @@ static void save_key(int k)
 }
 static void input(void)
 {
-    uint32_t btn = plat_buttons(), keys = plat_keys(), ch, i;
+    uint32_t btn = plat_buttons(), keys = tk_keys, ch, i;   /* (the keys as the tick saw them: app_tick) */
     int32_t e, ev[NE];
     ch = btn ^ ui.btn;
     ui.btn = btn;
@@ -4686,6 +4802,7 @@ static void input(void)
                 ui.card = 0;
                 ui.btn_used |= btn;
                 key_down((int)i);
+                tk_settle((int)i);
             } else {
                 if (ui.kmode[i] == KM_SAVE) {
                     ui.kmode[i] = KM_NONE;
@@ -5598,6 +5715,7 @@ static void autosave(void)
 void ui_frame(void)
 {
     input();
+    tk_predict();
     bt_poll();
     if (ui.chordmode && (ui.page != P_STEPS || !is_seqt(sel_trk()) || is_drum(sel_trk()) ||
                          (pl_type(sel_trk()) == PL_RAND) != ui.chord_pool)) {
@@ -5652,7 +5770,11 @@ void ui_frame(void)
     ui.frame++;
 }
 
-void ui_input_only(void) { input(); }
+void ui_input_only(void)
+{
+    input();
+    tk_predict();                                /* (what each key plays next: the tick's) */
+}
 void ui_redraw(void)                             /* every band drawn again at the next frame (their signatures forgotten) */
 {
     for (uint32_t i = 0; i < sizeof ui.sig / sizeof ui.sig[0]; i++)
