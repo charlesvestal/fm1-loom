@@ -696,6 +696,18 @@ layer.
 glass and chirp. **scan** moves through the table's frames, and **bend** bends the shape of the wave. **ripple**
 wobbles the wave with a second oscillator, slowly at first and then as fast as the note itself.
 
+**Your own wavetables.** Add wavetables on the samples page ("Add wavetables"), and **table** goes on past the nine:
+U1, U2 and so on, by name ("U1 resonant"). Each is a WAV file:
+
+- a **wavetable**: frames of 2048 samples back to back, as Serum and Vital save them (a `clm` chunk in the file may
+  give another frame size), or
+- a **single cycle**: the whole file one wave.
+
+LOOM-8 keeps 16 frames, spread across the table, each 128 samples (1 KB a frame, 2 KB a table), and smooths each
+frame to the harmonics a 128-sample wave can hold. Wavetables live in the sample bank beside your samples: each takes
+one of the 32 places your samples use, and room in the bank. From a computer: `tools/loom_samples.py load ...
+wt:FILE.wav` (`wt:FILE.wav#8` keeps 8 frames).
+
 **Bellows** is the organ, with six drawbars. Its four knobs go from 1 to 8. **stops** picks the registration:
 transistor, combo, jazz, gospel, rock, theater, pipe or church. **pedal** adds the low 16' bar, and 1 leaves it out.
 **rotor** sets how deeply the rotating speaker swirls, with none at 1, and **rate** sets how fast it turns.

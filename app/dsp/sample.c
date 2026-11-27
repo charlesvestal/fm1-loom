@@ -30,6 +30,8 @@ static smp_t user[SMP_NENT];              /* the bank's entries, in its order */
 static volatile uint8_t user_n;           /* how many */
 static uint8_t vis[SMP_NUSER];            /* user slot j -> its entry (the factory set's entries are no slots) */
 static volatile uint8_t vis_n;
+static uint8_t wtv[SMP_NWT];              /* user wavetable k -> its entry (SMP_E_WT) */
+static volatile uint8_t wt_n;
 static uint32_t user_bytes;
 static uint32_t user_blk = SMP_BLK;       /* the bank's checkpoints: every SMP_BLK, or SMP_BLK_V2 (a version 2 bank) */
 static const uint8_t *user_reg[SMP_NREG];
@@ -90,6 +92,19 @@ const uint16_t smp_nslots = SMP_NFACT + SMP_NUSER;
 int smp_factory(void) { return SMP_NFACT; }
 int smp_user_count(void) { return user_n; }
 int smp_user_slots(void) { return vis_n; }
+int smp_wt_count(void) { return wt_n; }
+const int8_t *smp_wt(int k, int *frames, const char **name)
+{
+    const smp_t *s;
+    if (k < 0 || k >= (int)wt_n)
+        return 0;
+    s = &user[wtv[k]];
+    if (frames)
+        *frames = (int)(s->n / SMP_WT_N);
+    if (name)
+        *name = s->name;
+    return (const int8_t *)s->adp;
+}
 const smp_t *smp_entry(int i) { return i >= 0 && i < (int)user_n ? &user[i] : 0; }
 uint32_t smp_user_bytes(void) { return user_n ? user_bytes : 0u; }
 
@@ -323,6 +338,7 @@ int smp_user_scan(void)
     const uint8_t *h;
     uint32_t cnt, len, i, room, crc, end, blk;
     vis_n = 0;
+    wt_n = 0;
     user_n = 0;
     if (!fact_ready)
         fact_init();
@@ -346,6 +362,16 @@ int smp_user_scan(void)
         uint32_t adp = rd32(e + 12), ck = rd32(e + 16), n = rd32(e + 20), ls = rd32(e + 24), le = rd32(e + 28), k;
         uint32_t nb = (n + 1u) / 2u, nck = ((n + blk - 1u) / blk) * 4u;
         uint32_t rate = (uint32_t)e[36] | (uint32_t)e[37] << 8;
+        if (e[33] & SMP_E_WT) {                  /* a wavetable: raw frames in one window */
+            if (n % SMP_WT_N || n < 2u * SMP_WT_N || n > SMP_WT_FMAX * SMP_WT_N || adp < SMP_BANK_HDR || adp > end ||
+                n > end - adp || !(s->adp = vptr(adp, &room)) || room < n)
+                return 0;
+            s->ck = 0, s->adp2 = 0, s->split = s->n = n, s->ls = s->le = 0, s->rate = 0, s->root = 60, s->bars = 0;
+            for (k = 0; k < SMP_NAME - 1 && e[k] >= 32u && e[k] < 127u; k++)
+                s->name[k] = (char)e[k];
+            s->name[k] = 0;
+            continue;
+        }
         if (!n || n > 2u * len || adp < SMP_BANK_HDR || adp > end || nb > end - adp || (ck & 3u) ||
             ck < SMP_BANK_HDR || ck > end || nck > end - ck || le > n || ls > le || e[32] > 127u ||
             rate < SMP_RATE_MIN || rate > SMP_RATE_MAX)
@@ -380,9 +406,13 @@ int smp_user_scan(void)
         }
     }
     {
-        uint32_t nv = 0;
-        for (i = 0; i < cnt; i++)             /* the user slots: the entries that are not the factory set's */
-            if (!(h[SMP_ENT0 + i * SMP_ENT + 33u] & SMP_E_FACTORY)) {
+        uint32_t nv = 0, nw = 0;
+        for (i = 0; i < cnt; i++)             /* the user slots: the entries that are not the factory set's (nor
+                                               * wavetables: jacquard's, wtv) */
+            if (h[SMP_ENT0 + i * SMP_ENT + 33u] & SMP_E_WT) {
+                if (nw < SMP_NWT)
+                    wtv[nw++] = (uint8_t)i;
+            } else if (!(h[SMP_ENT0 + i * SMP_ENT + 33u] & SMP_E_FACTORY)) {
                 if (nv >= SMP_NUSER)
                     return 0;
                 vis[nv++] = (uint8_t)i;
@@ -394,7 +424,8 @@ int smp_user_scan(void)
                 for (int pass = 0; pass < 2 && m < 0; pass++)
                     for (uint32_t u = 0; u < cnt && m < 0; u++) {
                         int k = 0;
-                        if (!pass && !(h[SMP_ENT0 + u * SMP_ENT + 33u] & SMP_E_FACTORY))
+                        if ((!pass && !(h[SMP_ENT0 + u * SMP_ENT + 33u] & SMP_E_FACTORY)) ||
+                            (h[SMP_ENT0 + u * SMP_ENT + 33u] & SMP_E_WT))
                             continue;
                         while (k < SMP_NAME && user[u].name[k] == fact[i].name[k] && fact[i].name[k])
                             k++;
@@ -404,6 +435,7 @@ int smp_user_scan(void)
             moved[i] = m;
         }
         vis_n = (uint8_t)nv;
+        wt_n = (uint8_t)nw;
     }
     user_bytes = len;
     user_n = (uint8_t)cnt;

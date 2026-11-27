@@ -61,6 +61,12 @@
 #define SMP_E_FACTORY 0x01u               /* an entry's flags (byte 33): one of the factory set, installed in the bank
                                            * (the installer, the samples page): its factory row plays it, and it is
                                            * no user slot */
+#define SMP_E_WT 0x02u                    /* an entry's flags: a wavetable (2026-11-27), not a sample: its data raw int8
+                                           * frames of SMP_WT_N, 2..SMP_WT_FMAX of them (n: their bytes), no checkpoints;
+                                           * jacquard's user tables (smp_wt), no user slot */
+#define SMP_NWT 16                        /* the user wavetables jacquard lists (the bank's first SMP_NWT) */
+#define SMP_WT_N 128                      /* a frame's samples (jacquard's own: wavetables.h WT_N) */
+#define SMP_WT_FMAX 32
 #define SMP_BREAK 12                      /* the factory break (tools/gen_samples.py): the slice engine's default */
 #define SMP_NBREAK 4                      /* the breaks (the pack's: rows SMP_BREAK ..) */
 #define SMP_TEXTURE 16                    /* tulle's texture (the bowl), after the breaks: the factory set's */
@@ -93,6 +99,8 @@ extern const uint16_t smp_nslots;
 static inline int smp_slots(void) { return smp_nslots; }   /* factory + user slots: a knob's range (inline: the
                                                             * note-start code in RAM reads it: size_fns.py) */
 int smp_factory(void);                    /* the factory samples */
+int smp_wt_count(void);                  /* the bank's wavetables (0 while it is written) */
+const int8_t *smp_wt(int k, int *frames, const char **name);   /* wavetable k's frames (SMP_WT_N each), 0: none */
 const smp_t *smp_get(int i);              /* 0: nothing there (an empty user slot, the bank being written) */
 extern const smp_t *(*volatile smp_get_far)(int i);   /* the same through a pointer: for the note-start code in
                                                          * RAM, which cannot call the flash directly (size_fns.py) */

@@ -87,6 +87,14 @@
     <span class="small">or drop files here. Drop one on a sample to replace it.</span>
   </div>
   <div class="bar">
+    <button class="quiet" id="addwt">Add wavetables</button>
+    <input id="wtfiles" type="file" accept=".wav" multiple hidden>
+    <span class="small">for jacquard: WAV files, each a <b>wavetable</b> (frames of 2048 samples back to back, as Serum
+      and Vital save them; a <code>clm</code> chunk may give another size) or a <b>single cycle</b>. 16 frames are kept,
+      spread across the table, each 128 samples (1 KB a frame: 2 KB a table). On the FM-1 they are jacquard's tables
+      U1, U2… after its own nine, and each takes one of the 32 places your samples use.</span>
+  </div>
+  <div class="bar">
     <button class="quiet" id="factory">Add LOOM-8's sounds</button>
     <span class="small" id="factorynote">the kits' drums, the instruments, the sweep and the vinyl (86 KB).</span>
   </div>
@@ -173,6 +181,11 @@ function changed() {
 }
 function rateOf(it) { return it.adpcm || it.s ? it.rate : it.rate || (plan && plan.chose) || rateChoice() || 22050; }
 function lengthOf(it) { return it.adpcm ? it.n : it.s ? it.s.length : lengthAt(it.x.length, it.sr, rateOf(it)); }
+// where an item is: "user 3" (a sample: the sample knob counts them) or "table U2" (a wavetable: jacquard's)
+function placeOf(i) {
+  const wt = isWt(items[i]), k = items.slice(0, i + 1).filter((x) => isWt(x) === wt).length;
+  return wt ? `table U${k}` : `user ${k}`;
+}
 
 // ---- the list ----------------------------------------------------------------------
 function noteOptions(sel) {
@@ -195,12 +208,13 @@ function render(focus = null) {
   else if (!items.length)
     list.innerHTML = '<div class="empty">No samples of your own yet. Add some below.</div>';
   items.forEach((it, i) => {
+    if (isWt(it)) { list.appendChild(wtRow(it, i)); return; }
     const r = document.createElement("div"), n = lengthOf(it), rate = rateOf(it), id = `s${i}`;
     r.className = it.isNew || it.s ? "smp new" : "smp";
     r.setAttribute("role", "group");
-    r.setAttribute("aria-label", `user ${i + 1}, ${it.name}`);
+    r.setAttribute("aria-label", `${placeOf(i)}, ${it.name}`);
     const bpm = it.bars ? ` · ${(it.bars * 240 * rate / n).toFixed(1)} BPM at its own speed` : "";
-    r.innerHTML = `<div class="num">user ${i + 1}</div>
+    r.innerHTML = `<div class="num">${placeOf(i)}</div>
       <div class="top">
         <input type="text" id="${id}n" maxlength="11" value="" aria-label="user ${i + 1}: name" spellcheck="false">
         <span class="facts">${(n / rate).toFixed(2)} s · ${(rate / 1000).toFixed(rate % 1000 ? 1 : 0)} kHz${it.isNew ? " · new" : it.s ? " · made smaller" : ""}${bpm}</span>
@@ -242,13 +256,16 @@ function render(focus = null) {
   $("room").className = ok ? "" : "bad";
   $("room").textContent = !readOk ? "" : !ok ? `Too much for the FM-1: ${plan.err.replace(/^too long: /, "")}. Remove a sample, shorten one, ` +
       (fset.length ? "pick a lower quality, or leave out LOOM-8's sounds (86 KB) below." : "or pick a lower quality.")
-    : `${items.length} sample${items.length === 1 ? "" : "s"}, ${KB(plan.used)} of ${KB(BANK_MAX_DATA)}` +
+    : `${items.filter((x) => !isWt(x)).length} sample${items.filter((x) => !isWt(x)).length === 1 ? "" : "s"}` +
+      (items.some(isWt) ? `, ${items.filter(isWt).length} wavetable${items.filter(isWt).length === 1 ? "" : "s"}` : "") +
+      `, ${KB(plan.used)} of ${KB(BANK_MAX_DATA)}` +
       (plan.chose && items.some((it) => !it.adpcm && !it.rate) ? `; new samples at ${(plan.chose / 1000).toFixed(plan.chose % 1000 ? 1 : 0)} kHz.` : ".");
   const ch = readOk && changed();
   $("send").disabled = busy || !ch;
   $("discard").hidden = !ch && !(readOk && plan && plan.err);
   $("discard").disabled = busy;
   $("add").disabled = busy || !readOk || items.length >= BANK_N;
+  $("addwt").disabled = busy || !readOk || items.length >= BANK_N;
   const fmiss = factory ? factoryMissing(fset, factory).length : (fset.length < NFENT ? NFENT - fset.length : 0);
   // one button: Add while any of LOOM-8's sounds is missing, else Leave out (their room for your own samples)
   $("factory").textContent = readOk && !fmiss ? "Leave out LOOM-8's sounds" : "Add LOOM-8's sounds";
@@ -271,6 +288,52 @@ function render(focus = null) {
   }
 }
 
+// a wavetable's row: its place (jacquard's U1..), name, frames, its frames drawn side by side; move, remove
+function wtRow(it, i) {
+  const r = document.createElement("div"), id = `s${i}`, nf = it.adpcm.length / WT_N;
+  r.className = it.isNew ? "smp new" : "smp";
+  r.setAttribute("role", "group");
+  r.setAttribute("aria-label", `${placeOf(i)}, ${it.name}, a wavetable`);
+  r.innerHTML = `<div class="num">${placeOf(i)}</div>
+    <div class="top">
+      <input type="text" id="${id}n" maxlength="11" value="" aria-label="${placeOf(i)}: name" spellcheck="false">
+      <span class="facts">wavetable · ${nf} frames · ${KB(it.adpcm.length)}${it.isNew ? " · new" : ""}</span>
+      <span class="acts">
+        <button class="link up" aria-label="Move ${placeOf(i)} up"${i ? "" : " disabled"}>↑</button>
+        <button class="link dn" aria-label="Move ${placeOf(i)} down"${i < items.length - 1 ? "" : " disabled"}>↓</button>
+        <button class="link del" aria-label="Remove ${placeOf(i)}">Remove</button>
+      </span>
+    </div>
+    <canvas width="900" height="72" aria-hidden="true"></canvas>`;
+  const nm = r.querySelector("input");
+  nm.value = it.name;
+  nm.onchange = () => { it.name = cleanName(nm.value); render({ sel: `#${id}n` }); };
+  r.querySelector(".up").onclick = () => { [items[i - 1], items[i]] = [items[i], items[i - 1]]; render({ row: i - 1, sel: ".up" }); };
+  r.querySelector(".dn").onclick = () => { [items[i + 1], items[i]] = [items[i], items[i + 1]]; render({ row: i + 1, sel: ".dn" }); };
+  r.querySelector(".del").onclick = () => { items.splice(i, 1); render({ row: i, sel: ".del" }); say(`${it.name} removed.`); };
+  for (const b of r.querySelectorAll("button, input")) if (busy) b.disabled = true;
+  const pic = new Int16Array(it.adpcm.length);
+  for (let k = 0; k < pic.length; k++) pic[k] = ((it.adpcm[k] << 24) >> 24) * 256;
+  setTimeout(() => wave(r.querySelector("canvas"), pic, it.isNew ? "--accent" : "--wave"));
+  return r;
+}
+async function addWavetables(list) {
+  if (busy || !readOk || !list.length) return;
+  const room = BANK_N - items.length, bad = [];
+  let got = 0;
+  say("Reading the wavetables…");
+  for (const f of list.slice(0, room)) {
+    try {
+      const raw = wavetableOf(new Uint8Array(await f.arrayBuffer()), 16);
+      items.push({ name: cleanName(f.name.replace(/\.[^.]*$/, "").replace(/^\d+[_ ]/, "")), n: raw.length, root: 60,
+                   loop: null, bars: 0, rate: 22050, flags: E_WT, ckb: new Uint8Array(0), adpcm: raw, isNew: true, file: f.name });
+      got++;
+    } catch (e) { bad.push(`${f.name} (${e.message})`); }
+  }
+  render();
+  say(`${got} wavetable${got === 1 ? "" : "s"} added: send them to the FM-1.` + (bad.length ? ` Not read: ${bad.join(", ")}.` : "") +
+      (list.length > room ? ` No room for ${list.length - room} more: the bank holds ${BANK_N}.` : ""));
+}
 function picOf(it) {
   if (it.pic) return it.pic;
   if (it.adpcm) return (it.pic = imaDecode(it.adpcm, it.n));
@@ -456,6 +519,8 @@ $("send").onclick = () => run(async () => {
 $("breaks").onclick = addBreaks;
 $("factory").onclick = factoryButton;
 $("add").onclick = () => { replaceAt = -1; $("files").multiple = true; $("files").click(); };
+$("addwt").onclick = () => $("wtfiles").click();
+$("wtfiles").onchange = (ev) => { addWavetables([...ev.target.files]); ev.target.value = ""; };
 $("files").onchange = (ev) => { addFiles([...ev.target.files], replaceAt); ev.target.value = ""; replaceAt = -1; };
 $("rate").onchange = () => render();
 document.body.ondragover = (ev) => { if (readOk) { ev.preventDefault(); $("list").classList.add("over"); } };

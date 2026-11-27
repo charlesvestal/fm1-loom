@@ -263,5 +263,18 @@ print(json.dumps([[c, a] for c, a, _, _ in ls.frames(img)]))`));
     "a port another app holds");
   await msg([["Digital Piano", "Digital Piano"]], {}, /^No FM-1 running LOOM-8 found/, "nothing");
 }
+{ // 5. a wavetable (E_WT: raw int8 frames) in a bank sampleio.py makes: read back (keptOf) and built again, byte for byte
+  const out = join(dir, "wt.bin");
+  py(`import sampleio as s, math
+wt = bytes(((round(127 * (math.sin(2 * math.pi * i / 128) if f < 4 else (1 if i < 64 else -1))) & 255) for f in range(8) for i in range(128)))
+img = s.user_bank([("tone", [int(3000 * math.sin(i / 9)) for i in range(4000)], 60, None), ("table", wt, 60, None, 0, s.RATE, s.E_WT)])
+open(${JSON.stringify(out)}, "wb").write(img)`);
+  const img = new Uint8Array(readFileSync(out));
+  const kept = L.keptOf(img);
+  const again = L.userBank(kept);
+  check("a wavetable in a bank: read back as its frames, built again the same, byte for byte",
+        kept.length === 2 && L.isWt(kept[1]) && kept[1].adpcm.length === 1024 && again.length === img.length &&
+        again.every((b, i) => b === img[i]));
+}
 console.log(bad ? "SAMPLES WEB FAILED" : "samples web: as loom_samples.py");
 process.exit(bad ? 1 : 0);

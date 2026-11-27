@@ -22,7 +22,10 @@
         slice engine's breaks, in the firmware until 0.7, which finds them in the bank by name), e.g.
         loom_samples.py load breaks my_kick.wav, or "factory": the factory set (the kits' drums, the instruments,
         the sweep and the vinyl: in the firmware until 0.8, now in the bank, as the installer puts them there), or
-        "bank:FILE.bin": the samples of a bank image (a backup, a build) as it stores them
+        "bank:FILE.bin": the samples of a bank image (a backup, a build) as it stores them, or
+        "wt:[NAME=]file.wav[#FRAMES]": a wavetable for jacquard (its user tables after the nine built-in ones: a
+        Serum or Vital wavetable, or a single cycle; FRAMES picked evenly across it, 16 by default, up to 32; each
+        frame band-limited to 128 samples); it takes one of the 32 user entries
 
 load, build and syx add the factory set after the samples given (if no SPEC says where: "factory"), so a load
 never leaves the kits silent; --no-factory leaves it out; --make-room puts samples kept as stored (bank:FILE) at a
@@ -52,6 +55,7 @@ Protocol (app/samples.c): F0 7D 46 4C cmd ... F7; BEGIN 11, WRITE 12, HDR 16, EN
 CRC before it commits), ERASE 14, INFO 15. Needs mido and a backend (pip install mido python-rtmidi) for the
 device commands.
 """
+import re
 import struct
 import sys
 import time
@@ -153,6 +157,10 @@ def expand(specs, factory=True):
     for s in specs:
         if s == "factory":
             out += [Factory(f) for f in gen_samples.factory_set()]
+        elif s.startswith("wt:"):                   # a wavetable (jacquard's user tables): wt:[NAME=]file.wav[#FRAMES]
+            spec, nf = (s[3:].rsplit("#", 1) + ["16"])[:2] if "#" in s[3:] else (s[3:], "16")
+            name, spec = spec.split("=", 1) if "=" in spec else (re.sub(r"^\d+[_ ]", "", Path(spec).stem), spec)
+            out.append(Factory((name, sio.wavetable_of(spec, int(nf)), 60, None, 0, sio.RATE, sio.E_WT)))
         elif s.startswith("bank:"):
             img = checked(Path(s[5:]).read_bytes(), s[5:])
             out += [Factory(t) for t in sio.stored_of(img)
@@ -247,6 +255,10 @@ def build(specs, rate=None, quiet=False, factory=True, room=False):
 
 def report(parsed, chose, img, auto):
     for k, p in enumerate(parsed):
+        if is_factory(p) and len(p) > 6 and p[6] & sio.E_WT:   # (a wavetable: its frames)
+            print(f"  table {sio.clean_name(p[0]):11}  {len(p[1].adp if isinstance(p[1], sio.Stored) else p[1]) // sio.WT_N} "
+                  f"frames (jacquard)")
+            continue
         if is_factory(p):                     # kept as stored: its own rate and length
             r, n, hz = p[5], len(p[1]), f"{p[5]} Hz (kept)"
         else:
@@ -571,10 +583,12 @@ def main():
     n, size, used, smp = info(link)
     hdr = read_bank(link, 0, sio.ENT0 + n * sio.ENT) if n else b""   # (each entry's flags: the factory set's)
     fset = [k for k in range(n) if hdr[sio.ENT0 + k * sio.ENT + 33] & sio.E_FACTORY]
-    own = [s for k, s in enumerate(smp) if k not in fset]
-    print(f"user bank: {len(own)} samples" + (f" and LOOM-8's sounds ({len(fset)})" if fset else "") +
-          f", {used} of {size} KB" +
+    wts = [k for k in range(n) if hdr[sio.ENT0 + k * sio.ENT + 33] & sio.E_WT]
+    own = [s for k, s in enumerate(smp) if k not in fset and k not in wts]
+    print(f"user bank: {len(own)} samples" + (f", {len(wts)} wavetables" if wts else "") +
+          (f" and LOOM-8's sounds ({len(fset)})" if fset else "") + f", {used} of {size} KB" +
           "".join(f"\n  user {k + 1:2}: {nm:11}  {rt} Hz  {ns / max(1, rt):.2f} s" for k, (nm, rt, ns) in enumerate(own)) +
+          "".join(f"\n  table U{k + 1}: {smp[i][0]:11}  {smp[i][2] // sio.WT_N} frames (jacquard)" for k, i in enumerate(wts)) +
           (f"\n  LOOM-8's: {', '.join(smp[k][0] for k in fset)}" if fset else ""))
 
 

@@ -46,6 +46,8 @@ BANK_N = 32                     # user slots (dsp/sample.h SMP_NUSER)
 NFENT = 13                      # the factory set's entries (SMP_NFENT: 13 since 0.19)
 NENT = BANK_N + NFENT           # the header's entries (SMP_NENT)
 E_FACTORY = 0x01                # an entry's flags: the factory set's (SMP_E_FACTORY)
+E_WT = 0x02                     # a wavetable (SMP_E_WT, 2026-11-27): raw int8 frames of WT_N, no checkpoints; jacquard's
+WT_N, WT_FMAX = 128, 32         # user tables (dsp/sample.h); it takes one of the 32 user entries
 BANK_VER = 3                    # 3: a checkpoint every 128 samples; 2 (every 64) still read, and converted
 BANK_VERS = (2, 3)
 ENT0, ENT = 64, 40
@@ -346,6 +348,10 @@ def stored_of(img):
     for k in range(img[6]):
         o = ENT0 + k * ENT
         nm, a, c, n, ls, le, root, flags, bars, _, rate, _ = struct.unpack_from("<12sIIIIIBBBBHH", img, o)
+        if flags & E_WT:                                 # (a wavetable: its raw frames)
+            out.append((nm.split(b"\0")[0].decode(errors="replace"), Stored(n, b"", img[a:a + n]), 60, None, 0, RATE,
+                        flags))
+            continue
         ckb = img[c:c + (n + blk - 1) // blk * 4]
         if blk != BLK:                    # a version 2 bank's: every other checkpoint (the same states, none lost)
             step = BLK // blk
@@ -373,6 +379,13 @@ def user_bank(samples):
             raise ValueError(f"{name}: {rate} Hz ({RATE_MIN}..{RATE_MAX})")
         if not s:
             raise ValueError(f"{name}: no audio")
+        if flags & E_WT:                                 # a wavetable: its frames as they are (raw int8)
+            raw = s.adp if isinstance(s, Stored) else bytes(s)
+            if len(raw) % WT_N or not 2 <= len(raw) // WT_N <= WT_FMAX:
+                raise ValueError(f"{name}: a wavetable of 2..{WT_FMAX} frames of {WT_N}")
+            blobs.append((b"", raw))
+            meta.append((clean_name(name), len(raw), 0, 0, 60, flags, 0, RATE))
+            continue
         if isinstance(s, Stored):
             blobs.append((s.ckb, s.adp))
         else:
@@ -415,6 +428,43 @@ def user_bank(samples):
                       BANK_SIZE)
     hdr = hdr.ljust(ENT0, b"\0") + ents
     return hdr.ljust(BANK_HDR, b"\0") + data
+
+
+def wavetable_of(path, frames=16):
+    """a WAV as a wavetable for jacquard (E_WT): its frames (a 'clm ' chunk's size, "<!>2048" as Serum and Vital write
+    it; else 2048 when the length is a multiple, else the whole file one cycle), as many as frames picked evenly
+    across them (all, when fewer), each band-limited to WT_N samples (harmonics 1..WT_N / 2 - 1: no DC, as LOOM-8's own
+    tables), the table's peak at full scale -> raw int8 bytes (frames x WT_N; a single cycle twice)"""
+    import numpy as np
+    from pathlib import Path
+    data = Path(path).read_bytes()
+    size = None
+    i = data.find(b"clm ")
+    if i >= 0:
+        m = re.search(rb"<!>(\d+)", data[i + 8:i + 8 + 64])
+        size = int(m.group(1)) if m else None
+    _, x, _ = read_any_wav(Path(path))
+    x = np.asarray(x, dtype=np.float64)
+    if not size:
+        size = 2048 if len(x) >= 2048 and len(x) % 2048 == 0 else len(x)
+    m = len(x) // size
+    if m < 1:
+        raise ValueError(f"{path}: shorter than a frame of {size}")
+    pick = list(range(m)) if m <= frames else [round(k * (m - 1) / (frames - 1)) for k in range(frames)]
+    out = []
+    for j in pick:
+        spec = np.fft.rfft(x[j * size:(j + 1) * size])[:WT_N // 2 + 1]
+        spec = np.concatenate([spec, np.zeros(max(0, WT_N // 2 + 1 - len(spec)))])
+        spec[0] = 0.0
+        spec[WT_N // 2:] = 0.0
+        out.append(np.fft.irfft(spec, WT_N) * (WT_N / size))
+    if len(out) == 1:
+        out = out * 2
+    t = np.array(out)
+    peak = np.abs(t).max()
+    if peak <= 0:
+        raise ValueError(f"{path}: silent")
+    return bytes((np.round(t / peak * 127.0).astype(np.int8)).tobytes())
 
 
 def bank_used(img):

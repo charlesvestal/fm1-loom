@@ -107,8 +107,10 @@ static const char *const ARPSTE_N[3] = {"mono", "narrow", "wide"};
 static const char *const MPAT_N[4] = {"up", "down", "updown", "random"};
 static const char *const BRAIN_N[NBM] = {"no", "diatonic", "transp", "harmony", "ch. deg"};
 static const char *const BEND_N[9] = {"off", "1", "2", "3", "4", "5", "6", "7", "octave"};
-static const char *const WTNAME_N[WT_NTABLE] = {"shapes", "nasal", "grit", "vocal", "spiral", "fold", "octaves",
-                                                "glass", "chirp"};
+static const char *const WTNAME_N[WT_NTABLE + SMP_NWT] = {"shapes", "nasal", "grit", "vocal", "spiral", "fold", "octaves",
+                                                "glass", "chirp",
+    "U1", "U2", "U3", "U4", "U5", "U6", "U7", "U8", "U9", "U10", "U11", "U12", "U13", "U14", "U15", "U16"};   /* (the
+                                                  * user wavetables: the sample bank's, smp_wt) */
 static const char *const SYNC_N[LS_SYNC_N] = {"2/1", "1", "1/2", "1/4", "1/8", "1/16", "1/32", "1/64"};
 static const char *const ENVP_N[4] = {"attack", "decay", "sustain", "release"};
 static const char *const FLTP_N[4] = {"cutoff", "reso", "env", "keytrack"};
@@ -456,15 +458,34 @@ SY_INLINE float saw_pulse(float p, float dt, float idt, sawp_t k)
     q = q >= 1.0f ? q - 1.0f : q;
     return 2.0f * p - k.m2 * q + k.c - blep(p, dt, idt) + k.mix * blep(q, dt, idt);
 }
-/* wavetable: a frame crossfade (scan) through one of nine tables, bend bends the phase (symmetry), ripple
- * phase-modulates it by a second oscillator that climbs from a slow wobble to the note's own rate */
+/* wavetable: a frame crossfade (scan) through one of nine tables (or a user wavetable of the sample bank's, past
+ * them: 2..32 frames, sample.h SMP_E_WT), bend bends the phase (symmetry), ripple phase-modulates it by a second
+ * oscillator that climbs from a slow wobble to the note's own rate */
+const int8_t *(*volatile smp_wt_far)(int k, int *frames, const char **name) = smp_wt;   /* (the render's code in RAM
+                                                  * reaches the flash through a pointer: size_fns.py) */
+static const int8_t *wt_tab(int t, int *nf)      /* table t's frames (WT_N each), *nf how many: past the user ones
+                                                  * there (none, the bank being written): the last built-in, as any
+                                                  * value past the tables was before them */
+{
+    if (t >= WT_NTABLE) {
+        const int8_t *u = smp_wt_far(t - WT_NTABLE, nf, 0);
+        if (u)
+            return u;
+        t = WT_NTABLE - 1;
+    }
+    *nf = WT_NFRAME;
+    return &WT[t < 0 ? 0 : t][0][0];
+}
 static void wt_prep(voice_t *v)
 {
     cfg_t *c = &v->c;
-    float pos = c->e[1] * (float)(WT_NFRAME - 1), fr = fm_floorf(pos), dr = c->e[3];
+    int nf;
+    float pos, fr, dr = c->e[3];
+    c->ex[1] = fm_clampf(fm_floorf(c->ek[0] + 0.5f), 0.0f, (float)(WT_NTABLE + SMP_NWT - 1));
+    (void)wt_tab((int)c->ex[1], &nf);
+    pos = c->e[1] * (float)(nf - 1), fr = fm_floorf(pos);
     c->ex[0] = fm_minf(c->freq * INV_SR, 0.45f);
-    c->ex[1] = fm_clampf(fm_floorf(c->ek[0] + 0.5f), 0.0f, (float)(WT_NTABLE - 1));
-    c->ex[2] = fm_minf(fr, (float)(WT_NFRAME - 2));
+    c->ex[2] = fm_minf(fr, (float)(nf - 2));
     c->ex[3] = pos - c->ex[2];
     c->ex[4] = 0.5f + c->e[2] * 0.45f;           /* the warp point: 0.5 = straight */
     c->ex[5] = dr > 0.001f ? c->freq * fm_exp2f(-7.0f + 8.0f * dr) * INV_SR : 0.0f;   /* 1/128 .. 2x the note */
@@ -474,7 +495,10 @@ static void wt_prep(voice_t *v)
 static __attribute__((noinline)) void wt_run(voice_t *v, float *xl, float *xr, int m)
 {
     const cfg_t *c = &v->c;
-    const int8_t *ta = WT[(int)c->ex[1]][(int)c->ex[2]], *tb = ta + WT_N;
+    int nf, fr = (int)c->ex[2];
+    const int8_t *base = wt_tab((int)c->ex[1], &nf);
+    const int8_t *ta = base + (fr < nf - 1 ? fr : nf - 2) * WT_N, *tb = ta + WT_N;   /* (a table changed since its prep:
+                                                  * within its frames) */
     float p = v->o[0], mp = v->o[1], d = c->ex[0], md = c->ex[5], fb = c->ex[3], w = c->ex[4];
     float ka = 0.5f / w, kb = 0.5f / (1.0f - w), depth = c->ex[6];
     int i;
@@ -503,8 +527,10 @@ static __attribute__((noinline)) void wt_run(voice_t *v, float *xl, float *xr, i
 _Static_assert(WT_FRAMES == WT_NFRAME, "synth.h's WT_FRAMES");
 float wt_value(int t, float scan, float ph)
 {
-    float pos = fm_clampf(scan, 0.0f, 1.0f) * (float)(WT_NFRAME - 1), fr = fm_minf(fm_floorf(pos), (float)(WT_NFRAME - 2));
-    const int8_t *ta = WT[t < 0 ? 0 : t >= WT_NTABLE ? WT_NTABLE - 1 : t][(int)fr], *tb = ta + WT_N;
+    int nf;
+    const int8_t *base = wt_tab(t, &nf);
+    float pos = fm_clampf(scan, 0.0f, 1.0f) * (float)(nf - 1), fr = fm_minf(fm_floorf(pos), (float)(nf - 2));
+    const int8_t *ta = base + (int)fr * WT_N, *tb = ta + WT_N;
     float s = (ph - fm_floorf(ph)) * (float)WT_N, fa, a, b;
     int k = (int)s;
     fa = s - (float)k;
@@ -5011,7 +5037,7 @@ static void eknob_init(void)
             i->kind = PK_NN;
             i->names = 0;
             if (e == EG_JACQUARD && k == 0) {
-                i->hi = WT_NTABLE - 1;
+                i->hi = WT_NTABLE - 1;           /* (and the user wavetables there: tp_info_par) */
                 i->kind = PK_NAMES;
                 i->names = WTNAME_N;
             }
@@ -5174,6 +5200,8 @@ const tp_info_t *tp_info_par(int p, const uint8_t *par)
     int engine = par[TP_ENGINE], player = par[TP_PLAYER], lt = par[TP_LTYPE];
     if (!eknob_ready)
         eknob_init();
+    if (p == TP_E1 && engine == EG_JACQUARD)    /* (the table: the built-ins and the bank's wavetables) */
+        eknob[EG_JACQUARD][0].hi = (int16_t)(WT_NTABLE - 1 + smp_wt_count());
     if (p >= TP_P1 && p <= TP_AP4) {
         if (player == PL_ARP)
             return &FIXED[p];
@@ -5478,6 +5506,14 @@ void tp_text_par(int p, int v, const uint8_t *par, char *num, char *unit)
         char *e = put_i(put_s(num, "1/"), FX_DL_NOTE[d]);
         if (FX_DL_MARK[d])
             *e++ = FX_DL_MARK[d], *e = 0;
+        unit[0] = 0;
+        return;
+    }
+    if (p == TP_E1 && par[TP_ENGINE] == EG_JACQUARD && v >= WT_NTABLE) {   /* a user wavetable: "U3 Resonant" */
+        const char *nm = 0;
+        char *e = put_i(put_s(num, "U"), v - WT_NTABLE + 1);
+        if (smp_wt(v - WT_NTABLE, 0, &nm) && nm && nm[0])
+            put_s(put_s(e, " "), nm);
         unit[0] = 0;
         return;
     }

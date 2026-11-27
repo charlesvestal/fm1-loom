@@ -19,6 +19,10 @@ export const BANK_HDR = 2048, BANK_MAX_DATA = BANK_SIZE - BANK_HDR, BANK_N = 32,
 // since 0.8 the factory set (the kits' drums, the instruments, the sweep, the vinyl) lives in the bank too: 12 entries
 // marked E_FACTORY (an entry's flags, byte 33), which its factory rows play and which are no user slots (sample.h)
 export const NFENT = 13, NENT = BANK_N + NFENT, E_FACTORY = 0x01;
+// a wavetable (E_WT, sample.h SMP_E_WT): raw int8 frames of WT_N, no checkpoints; jacquard's user tables, one of the
+// 32 user entries (sampleio.py wavetable_of makes them; a bank read back keeps them as they are)
+export const E_WT = 0x02, WT_N = 128, WT_RATE = 22050;   // (its rate field: sampleio.py RATE, unread)
+export const isWt = (smp) => !!((smp.flags || 0) & E_WT);
 export const ENT0 = 64, ENT = 40, BANK_MAGIC = 0x504D534C, NAME_LEN = 12, BARS_MAX = 16;
 export const LOOP_ROOT = 53;                  // a loop's slice 1: F3, the lowest key
 export const HDR_USED = ENT0 + NENT * ENT;    // the header's bytes the FM-1 keeps (1824)
@@ -47,6 +51,45 @@ function imaNext(pred, idx, code) {
   for (const [bit, shift] of IMA_BITS) if (code & bit) d += step >> shift;
   pred = Math.max(-32768, Math.min(32767, code & 8 ? pred - d : pred + d));
   return [pred, Math.max(0, Math.min(88, idx + IMA_IDX[code & 7]))];
+}
+
+// ---- a WAV as a wavetable for jacquard (sampleio.wavetable_of, the same bytes): its frames (a 'clm ' chunk's size,
+// "<!>2048" as Serum and Vital write it; else 2048 when the length is a multiple; else the whole file one cycle), as
+// many as frames picked evenly across them (all, when fewer), each band-limited to WT_N samples (harmonics 1..63), the
+// table's peak at full scale -> Uint8Array of int8 (frames x WT_N; a single cycle twice)
+const roundEven = (x) => (Math.abs(x % 1) === 0.5 ? 2 * Math.round(x / 2) : Math.round(x));   // (Python's round)
+export function wavetableOf(buf, frames = 16) {
+  const b = new Uint8Array(buf.buffer || buf, buf.byteOffset || 0, buf.byteLength);
+  let size = 0;
+  for (let i = 12; i + 8 <= b.length; ) {         // (the chunks: 'clm ' says the frame size)
+    const id = String.fromCharCode(b[i], b[i + 1], b[i + 2], b[i + 3]), n = b[i + 4] | b[i + 5] << 8 | b[i + 6] << 16 | b[i + 7] << 24;
+    if (id === "clm ") {
+      const m = /<!>(\d+)/.exec(String.fromCharCode(...b.subarray(i + 8, i + 8 + Math.min(n, 64))));
+      if (m) size = +m[1];
+      break;
+    }
+    i += 8 + n + (n & 1);
+  }
+  const x = readWav(buf).x;
+  if (!size) size = x.length >= 2048 && x.length % 2048 === 0 ? 2048 : x.length;
+  const m = Math.floor(x.length / size);
+  if (m < 1) throw new Error(`shorter than a frame of ${size}`);
+  const pick = m <= frames ? [...Array(m).keys()] : [...Array(frames).keys()].map((k) => roundEven(k * (m - 1) / (frames - 1)));
+  const out = pick.map((j) => {
+    const f = x.slice(j * size, (j + 1) * size), y = new Float64Array(WT_N);
+    for (let k = 1; k < WT_N / 2; k++) {
+      let re = 0, im = 0;
+      for (let t = 0; t < size; t++) { const a = 2 * Math.PI * k * t / size; re += f[t] * Math.cos(a); im -= f[t] * Math.sin(a); }
+      for (let n = 0; n < WT_N; n++) { const a = 2 * Math.PI * k * n / WT_N; y[n] += 2 / size * (re * Math.cos(a) - im * Math.sin(a)); }
+    }
+    return y;
+  });
+  if (out.length === 1) out.push(out[0]);
+  const peak = Math.max(...out.map((y) => Math.max(...y.map(Math.abs))));
+  if (!(peak > 0)) throw new Error("silent");
+  const r = new Int8Array(out.length * WT_N);
+  out.forEach((y, f) => y.forEach((v, n) => { r[f * WT_N + n] = roundEven(v / peak * 127); }));
+  return new Uint8Array(r.buffer);
 }
 
 // ---- WAV in (sampleio.read_any_wav): -> {rate, x: mono floats, loop: [start, end] or null}
@@ -276,6 +319,7 @@ export function crc32(b) {                        // zlib.crc32
 // a sample for the bank: {name, n, root, loop: [ls, le] or null, bars, rate} and either s (Int16Array: encoded here)
 // or ckb + adpcm (as stored: a sample read back, kept as it is)
 function blobOf(smp) {
+  if (isWt(smp)) return [new Uint8Array(0), smp.adpcm];   // (a wavetable: its frames as they are)
   if (smp.adpcm) return [smp.ckb, smp.adpcm];
   const { adpcm, ck } = imaEncode(smp.s);
   const ckb = new Uint8Array(ck.length * 4), dv = new DataView(ckb.buffer);
@@ -291,6 +335,12 @@ export function userBank(samples) {
     throw new Error(`1..${BANK_N} samples in the bank (and the factory set's ${NFENT})`);
   const blobs = [], meta = [];
   for (const smp of samples) {
+    if (isWt(smp)) {                              // (a wavetable: kept as it is, its frames' bytes)
+      blobs.push(blobOf(smp));
+      meta.push({ nm: cleanName(smp.name), n: smp.adpcm.length, ls: 0, le: 0, root: 60, flags: smp.flags, bars: 0,
+        rate: WT_RATE });
+      continue;
+    }
     const n = smp.adpcm ? smp.n : smp.s.length;
     if (!(smp.bars >= 0 && smp.bars <= BARS_MAX)) throw new Error(`${smp.name}: ${smp.bars} bars (0..${BARS_MAX})`);
     if (!(smp.rate >= 4000 && smp.rate <= 48000)) throw new Error(`${smp.name}: ${smp.rate} Hz (4000..48000)`);
@@ -407,10 +457,10 @@ export function build(items, rate = null, cache = new Map()) {
   if (items.length < 1 || own > BANK_N) throw new Error(`1..${BANK_N} samples in the bank`);
   const tries = rate ? [rate] : AUTO;
   for (const r of tries) {
-    const est = items.reduce((a, it) => a + sampleBytes(it.adpcm ? it.n : it.s ? it.s.length : lengthAt(it.x.length, it.sr, it.rate || r)), 0);
+    const est = items.reduce((a, it) => a + (isWt(it) ? it.adpcm.length : sampleBytes(it.adpcm ? it.n : it.s ? it.s.length : lengthAt(it.x.length, it.sr, it.rate || r))), 0);
     if (est > BANK_MAX_DATA) continue;
     const smps = items.map((it) => {
-      if (it.adpcm || it.s) return it;            // (kept as stored; or already at its rate: makeRoom's)
+      if (it.adpcm || it.s) return it;            // (kept as stored, a wavetable too; or already at its rate)
       const rr = it.rate || r, key = rr;
       let c = cache.get(it);
       if (!c) cache.set(it, c = new Map());
@@ -421,7 +471,7 @@ export function build(items, rate = null, cache = new Map()) {
     try { return { img: userBank(smps), chose: r }; } catch (e) { if (!(e instanceof TooLong)) throw e; }
   }
   const last = tries[tries.length - 1];
-  const need = items.reduce((a, it) => a + sampleBytes(it.adpcm ? it.n : it.s ? it.s.length : lengthAt(it.x.length, it.sr, it.rate || last)), 0);
+  const need = items.reduce((a, it) => a + (isWt(it) ? it.adpcm.length : sampleBytes(it.adpcm ? it.n : it.s ? it.s.length : lengthAt(it.x.length, it.sr, it.rate || last))), 0);
   throw new TooLong(`too long: ${(need / 1024).toFixed(1)} KB at ${last} Hz, the bank holds ${(BANK_MAX_DATA / 1024).toFixed(1)} KB`);
 }
 
@@ -437,6 +487,9 @@ export function keptOf(img) {
       for (let i = 0; i < out.length / 4; i++) out.set(ckb.subarray(i * step * 4, i * step * 4 + 4), i * 4);
       ckb = out;
     }
+    if (e.flags & E_WT)                           // (a wavetable: its raw frames)
+      return { name: e.name, n: e.n, root: 60, loop: null, bars: 0, rate: WT_RATE, flags: e.flags, ckb: new Uint8Array(0),
+        adpcm: img.slice(e.adpOff, e.adpOff + e.n) };
     return { name: e.name, n: e.n, root: e.root, loop: e.le > e.ls ? [e.ls, e.le] : null, bars: e.bars, rate: e.rate,
       flags: e.flags, ckb, adpcm: img.slice(e.adpOff, e.adpOff + ((e.n + 1) >> 1)) };
   });

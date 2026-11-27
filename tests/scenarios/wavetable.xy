@@ -1,0 +1,24 @@
+# user wavetables (sample.h SMP_E_WT: the bank's raw frames; tests/fixtures/wtbank.bin, made by sampleio.py: a tone,
+# "saw sine" of 16 frames and "pulse" of 8): jacquard's table knob past its nine reaches U1 and U2 and no further; the
+# tone is user sample 1, the tables no sample slots
+wait 300
+samples tests/fixtures/wtbank.bin
+wait 300
+knob 2 engine jacquard
+expect par2.engine 2
+knob 2 e1 9
+expect par2.e1 9
+knob 2 e1 10
+expect par2.e1 10
+spin ALGO 1
+expect trk 2
+tap EDIT
+expect page Engine
+turn K1 5
+expect par2.e1 10
+turn K1 -1
+expect par2.e1 9
+play 2 C4 on 110
+wait 200
+play 2 C4 off
+wait 100
