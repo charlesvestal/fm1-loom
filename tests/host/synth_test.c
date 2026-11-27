@@ -2185,7 +2185,8 @@ static void insert_tests(void)
     }
     {   /* a delay in a slot: its memory from the pool, its echo on the beat after the note has ended (the bus rings on:
          * slot_awake); a reverb in a slot rings on too. The pool: beside the default sends (FX I's delay, FX II's lush:
-         * 50 of its blocks), six rumbles, no delay; the sends gone, all; the sends' mask over them: they keep theirs */
+         * 50 of its blocks), six rumbles and a delay (at its time's size); the sends gone, all; the sends' mask over
+         * them: they keep theirs */
         float late = 0.0f;
         int ended = 0, room = 0;
         for (int q = 0; q < 2; q++) {
@@ -2364,8 +2365,9 @@ static void insert_tests(void)
                 got += slot_room(S, t, 1);
             again = got == 6 && slot_room(S, 6, 0);
             printf("    the pool: %d (rumbles, a delay: beside the sends, then alone)\n", room);
-            check("the slots' memory beside the sends: six rumbles, no delay (12 + 24 of 28 blocks); alone all; none "
-                  "taken from them; given back and taken again", room == 6061 && kept && again && finite);
+            check("the slots' memory beside the sends: six rumbles and a delay (its time's 12 blocks: 2026-11-27 a delay "
+                  "takes what its time needs, not 24); alone all; none taken from them; given back and taken again",
+                  room == 6161 && kept && again && finite);
             {
                 efx_mask_t m = {{0}};
                 int ok;

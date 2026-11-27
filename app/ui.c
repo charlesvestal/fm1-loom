@@ -2582,6 +2582,22 @@ static void slot_effect(int pg, int ef, int d)
 }
 /* a slot page's value j turned by e: in its range; a list's (juno's mode, the reverb's type), a synced rate's and the
  * delay's time (a division of the tempo, 13 d + 6: fx.h) a step a click; the reverb's type at its defaults */
+/* a delay's time turned up past what it can play: said (the user's wording: capped, and what to do). Memory: no run
+ * for its time even with its own blocks counted free (engine_fits: else it grows at the next block); the tempo: too
+ * slow for the longest line */
+static void dl_cap_say(int trk, int q, int time, int fine)
+{
+    const int send = trk < 0 ? 2 : trk >= NTRK ? 1 : 0;
+    const float bpm = seq_tempo(&seq);
+    const int need = efx_delay_blocks(time, fine, bpm, 0, send);
+    const int32_t len = engine_fits(trk, q, need) ? 0 : engine_delay_len(trk, q);
+    const int h = fx_delay_halves(time, fine, bpm, len), ht = fx_delay_halves(time, fine, bpm, 0);
+    char t[24];
+    if (!h)
+        return;
+    dl_name(s_cat(t, "CAPPED AT "), fx_delay_div(time), h);
+    say_no(t, h > ht ? "FREE AN FX" : "SLOW TEMPO");
+}
 static void slot_turn(int pg, int j, int32_t e)
 {
     uint8_t mp[NTP];
@@ -2616,6 +2632,8 @@ static void slot_turn(int pg, int j, int32_t e)
     if (n == v)
         return;
     slot_put(pg, j, n);
+    if (j == SL_K1 && ef == EF_DELAY && n > v)
+        dl_cap_say(trk, q, n, par[TP_SLOT[q][SL_X1]]);
     if (j == SL_X1 && ef == EF_REVERB)
         rv_defaults(pg, n);
     else if (seq.rec && playing() && trk == sel_trk() && !is_aux(trk))   /* (recorded as it turns) */

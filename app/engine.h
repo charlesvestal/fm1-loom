@@ -71,6 +71,7 @@ void engine_brain_key(int note, int on);
 void engine_master(int p, int val);
 int engine_fx_room(int slot);                            /* the send's memory holds its effect (fx.h fx_room) */
 int engine_master_room(void);                            /* the master's slot's memory holds its effect (fx.h) */
+int32_t engine_delay_len(int trk, int q);              /* a delay's line a side in that slot (0 none) */
 int engine_fits(int trk, int q, int need);               /* need blocks would find room in track trk's slot q (an FX
                                                           * track: its send; -1 the master) as the pool is now, its
                                                           * own counted free */

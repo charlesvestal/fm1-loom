@@ -2032,10 +2032,11 @@ static void slot_knobs(knob_t *k, int pg)
         k[3].name = "return";
     if (par[sl[SL_EF]] == EF_DELAY) {
         char t[24];
-        int v = par[sl[SL_K1]], d = fx_delay_div(v), h = fx_delay_halves(v, par[sl[SL_X1]], seq_tempo(&seq));
-        char *e = dl_name(t, d, 0);
-        if (h)                                       /* the line too short: what it plays */
-            dl_name(s_cat(e, " as "), d, h);
+        int v = par[sl[SL_K1]], d = fx_delay_div(v);
+        int h = fx_delay_halves(v, par[sl[SL_X1]], seq_tempo(&seq), engine_delay_len(trk, q));
+        char *e = dl_name(t, d, h);                  /* (what it plays: the line too short, its time halved, "max") */
+        if (h)
+            s_cat(e, " max");
         kv(&k[0], k[0].name, t, d, 0);              /* (a list's knob, as the arp's speed) */
         if (par[sl[SL_K2]] >= 127)                   /* repeats at the top: held (fx_delay_fb 1) */
             kv(&k[1], k[1].name, "hold", 127, 127);
@@ -3646,7 +3647,10 @@ static void list_slot_row(const uint8_t *par, int pr, char *nm, char *vt, int ac
 static int slot_fits(int pg, int ef, int md)
 {
     int st, q = slot_page(pg, &st);
-    return engine_fits(st, q, efx_need(ef, md, st < 0 ? 2 : is_fx(st)));
+    const int send = st < 0 ? 2 : is_fx(st);
+    if (ef == EF_DELAY)                          /* (a delay: what its default time needs at the tempo now) */
+        return engine_fits(st, q, efx_delay_blocks(EFX[EF_DELAY].def[0], EFX[EF_DELAY].xdef[0], seq_tempo(&seq), 0, send));
+    return engine_fits(st, q, efx_need(ef, md, send));
 }
 /* a slot page's list: the catalog in its groups (the one in use marked; "no memory", dimmed and refused, beside what
  * would find none where the slot is: slot_fits), the effect's extras, a send's filter and FX I's feed into FX II */

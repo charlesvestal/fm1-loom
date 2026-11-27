@@ -159,7 +159,14 @@ static void render(int pl, const setting_t *a, const setting_t *b, float (*o)[LE
             synth_prepare(S, N);
             synth_kit_slots(S, 0, L, R, 0, N);
         } else if (pl == WH_SEND) {
-            fx_memory(FX, efx_pool[0], fx_need(FX));
+            {   /* (as the engine's pool_sends: a delay asking more than it holds fades a block first, fx_regrow) */
+                static int held;
+                int need = fx_need(FX);
+                if (held && need > held && fx_regrow(FX))
+                    need = held;
+                fx_memory(FX, efx_pool[0], need);
+                held = need;
+            }
             for (int i = 0; i < N; i++)
                 in[i] = 0.5f * (sig[0][at + i] + sig[1][at + i]);
             if (fx_lags(FX))                   /* (the engine's: a block late, the lag taken back) */
@@ -170,7 +177,14 @@ static void render(int pl, const setting_t *a, const setting_t *b, float (*o)[LE
             static float z[N];
             memcpy(S1, sig[0] + at, sizeof S1);
             memcpy(S2, sig[1] + at, sizeof S2);
-            master_memory(MS, efx_pool[0], master_need(MS));
+            {   /* (as the engine's: master_regrow) */
+                static int held;
+                int need = master_need(MS);
+                if (held && need > held && master_effect(MS) == EF_DELAY && master_regrow(MS))
+                    need = held;
+                master_memory(MS, efx_pool[0], need);
+                held = need;
+            }
             master_process(MS, z, z, S1, S2, L, R, N);
         }
         memcpy(o[0] + at, L, sizeof L);

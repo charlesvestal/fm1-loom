@@ -3,6 +3,8 @@
 # them ("no memory") and SEL refuses them; an effect set otherwise (a preset, a lock, MIDI, a project) without memory
 # passes dry and its page says "not playing: memory full". A project loaded gives memory in a fixed order: FX I, FX II,
 # Master FX, then the tracks, slot 1 then 2
+# (2026-11-27: at 60 BPM a default delay needs its longest line, 24 blocks: efx_delay_blocks)
+bpm 60
 wait 300
 # FX II's chaos echo (32 blocks) beside FX I's delay (24): 22 left, no room for a track's delay (24)
 param 12 s1x1 8
@@ -68,8 +70,13 @@ expect listopen 0
 expect par2.ctype 16
 wait 100
 expect room2.1 1
-# a preset with a delay (dub chord: Insert 2) onto track 3 where none is free (22 blocks left): it passes dry, its page
-# says so, and the screen reader with it
+# a preset with a delay (dub chord: Insert 2, its 1/8D halved at 60 BPM: 18 blocks) onto track 3 where none is free
+# (a plate on track 1, 12: 10 blocks left; first in the tracks' order, so a project loaded gives it its blocks first
+# too): it passes dry, its page says so, and the screen reader with it
+param 1 ctype 18
+param 1 cmix 100
+wait 100
+expect room1.1 1
 preset 3 dub_chord
 wait 100
 expect par3.itype 16
@@ -116,3 +123,4 @@ expect fxroom1 1
 expect fxroom2 1
 expect room2.1 0
 expect room3.2 0
+expect room1.1 1

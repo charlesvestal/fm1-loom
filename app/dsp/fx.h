@@ -36,9 +36,10 @@ int fx_memory(fxslot_t *f, int16_t *mem, int nb);    /* its memory (0: none), ea
                                                      * slice a block (efx.h EFX_CLR), its effect fresh; the blocks
                                                      * still to clear (the send silent till 0) */
 int fx_room(const fxslot_t *f);              /* its memory holds its effect (as set) */
+int fx_regrow(fxslot_t *f);                        /* a delay growing: 1 a block fading (memory kept), 0 let go */
 int fx_effect(const fxslot_t *f, int *mode); /* its effect (EF_*) and the reverb's mode, as set */
 void fx_tempo(fxslot_t *f, float bpm);
-int fx_delay_halves(int time, int fine, float bpm);          /* the times the line halves it (0: as set; the delay's
+int fx_delay_halves(int time, int fine, float bpm, int32_t len);          /* the times the line halves it (0: as set; the delay's
                                                              * divisions FX_DL_N, its REPEATS' feedback: efx.h) */
 void fx_filter(fxslot_t *f, int hp, int lp);                /* the slot's filter page: high-pass, low-pass 0..127 */
 /* process n frames of the send (mono in) into out L/R (added) */
@@ -130,6 +131,8 @@ void master_set(master_t *m, int p, int v);                 /* 0..127 (EQ 64 = f
 int master_max(int p);                                      /* a value's top: 127, NEF - 1, NPB - 1 or 1 */
 void master_tempo(master_t *m, float bpm);
 int master_need(const master_t *m);                         /* the blocks of the pool its effect (as set) needs */
+int master_regrow(master_t *m);                    /* a delay growing: 1 a block fading (memory kept), 0 let go */
+int master_effect(const master_t *m);              /* its slot's effect (EF_*) */
 int master_memory(master_t *m, int16_t *mem, int nb);       /* its memory (0: none), each block: as a send's
                                                              * (fx_memory: cleared a slice a block); the blocks still
                                                              * to clear */

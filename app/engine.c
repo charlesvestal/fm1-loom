@@ -1271,9 +1271,16 @@ static void pool_sends(void)
     if (mpl_at >= 0)
         efx_mark(&m, mpl_at, mpl_nb);
     for (k = 0; k < 2; k++) {
+        int md;
         need[k] = fx_need(FXS(k));
-        if (snd_at[k] >= 0 && snd_nb[k] != need[k])
-            snd_at[k] = -1;
+        if (snd_at[k] >= 0 && snd_nb[k] != need[k]) {
+            if (fx_effect(FXS(k), &md) == EF_DELAY && need[k] > snd_nb[k] &&
+                (send_fit(k, need[k], snd_nb[!k], &m) == -1 || fx_regrow(FXS(k))))
+                need[k] = snd_nb[k];               /* (a delay's longer time: no run for it, it keeps its own and halves
+                                                    * its time, efx_delay_secs; a run, a block fading first) */
+            else
+                snd_at[k] = -1;
+        }
     }
     for (k = 0; k < 2; k++)
         if (need[k] && snd_at[k] < 0) {
@@ -1292,9 +1299,13 @@ static void pool_sends(void)
         }
     }
     {
-        const int mn = master_need(MST);
-        if (mpl_at >= 0 && mpl_nb != mn)
-            mpl_at = -1;
+        int mn = master_need(MST);
+        if (mpl_at >= 0 && mpl_nb != mn) {
+            if (master_effect(MST) == EF_DELAY && mn > mpl_nb && (efx_fit(&t, mn) < 0 || master_regrow(MST)))
+                mn = mpl_nb;                       /* (as a send's delay: it keeps its own, or fades a block first) */
+            else
+                mpl_at = -1;
+        }
         if (mn && mpl_at < 0)
             mpl_at = (int8_t)efx_fit(&t, mn);
         mpl_nb = (uint8_t)(mpl_at >= 0 ? mn : 0);
@@ -2049,6 +2060,18 @@ int engine_master_room(void) { return master_room(MST); }
 /* the pages: need blocks would find room in a slot (its own memory counted free) as the allocator would place them
  * now: the others where they are, those waiting ahead of it (FX I, FX II, Master FX, the tracks' slots in order) each
  * in its first free run first. (A send: beside the other, or the two at the start: send_fit) */
+/* a delay's line a side (22.05 kHz samples) in slot q of track trk (FX I, FX II: theirs; -1: the master's): what its
+ * memory gives, 0 none (the pages: what its time plays, efx_delay_secs) */
+int32_t engine_delay_len(int trk, int q)
+{
+    if (trk < 0)
+        return mpl_at >= 0 ? efx_delay_len(mpl_nb, 2) : 0;
+    if (trk >= NTRK) {
+        const int k = trk - AUX_FX1;
+        return k >= 0 && k < 2 && snd_at[k] >= 0 ? efx_delay_len(snd_nb[k], 1) : 0;
+    }
+    return efx_delay_len(synth_slot_nb(SY, trk, q), 0);
+}
 int engine_fits(int trk, int q, int need)
 {
     efx_mask_t m = {{0}};

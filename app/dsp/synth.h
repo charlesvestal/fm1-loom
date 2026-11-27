@@ -411,6 +411,7 @@ float *synth_kit_scratch(int k);
 void synth_kit_slots(synth_t *s, int trk, float *l, float *r, const float *kick, uint32_t n);
 int synth_slots_ring(synth_t *s, int trk, int sounding, uint32_t n);   /* a kit's: 1 while it sounds or a slot rings on
                                                   * after it (rumble), counted in calls of n frames */
+int synth_slot_nb(const synth_t *s, int trk, int q);
 int synth_slot_wait(const synth_t *s, int i);   /* the blocks slot i (track * 2 + slot) waits for (0: it has them, or
                                                  * needs none) */
 void synth_slots_mark(const synth_t *s, efx_mask_t *m, int skip);   /* the blocks the tracks' slots hold into m, but

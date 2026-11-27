@@ -374,9 +374,10 @@ int main(void)
             {"rate", "depth", "feedback", "width"}, {"time", "fine", "repeats", "tone"},
             {"rate", "bits", "smooth", "width"},    {"freq", "depth", "rate", "feedback"},
             {"size", "motion", "tone", "damp"}};
-        static const char *const picks[NFXPICK] = {"chorus", "delay", "lofi", "phaser", "plate", "room", "studio S",
-                                                   "studio M", "studio L", "hall", "half echo", "space echo",
-                                                   "chaos echo", "one echo", "lush", "shimmer"};
+        static const char *const picks[NFXPICK] = {"chorus", "delay", "lofi", "phaser", "plate", "PSX room",
+                                                   "PSX studio S", "PSX studio M", "PSX studio L", "PSX hall",
+                                                   "PSX half echo", "PSX space echo", "PSX chaos echo", "PSX one echo",
+                                                   "lush", "shimmer"};   /* (PSX: the console's, named so 2026-11-27) */
         int ok = 1, k;
         check("five send effects (no distortion), the reverb with twelve modes", NFXT == 5 && NRV == 12 && NFXPICK == 16 &&
                                                                               !strcmp(FXT_NAME[FXT_REVERB], "reverb"));
@@ -405,9 +406,10 @@ int main(void)
         for (t = 0; t < NFXPICK; t++) {
             uint8_t o[9];
             fx_pick_slot(t, FXT_DEFAULT[fx_pick_type(t)], 127, 0, 0, o);
-            ok &= efx_need(o[0], o[5], 1) == want[t];
-            if (efx_need(o[0], o[5], 1) != want[t])
-                printf("  %s: %d blocks\n", fx_pick_name(t), efx_need(o[0], o[5], 1));
+            const int md = o[0] == EF_DELAY ? 0 : o[5];   /* (a delay's mode: the blocks it asks for; 0: its longest) */
+            ok &= efx_need(o[0], md, 1) == want[t];
+            if (efx_need(o[0], md, 1) != want[t])
+                printf("  %s: %d blocks\n", fx_pick_name(t), efx_need(o[0], md, 1));
         }
         check("the pool: delay 24 blocks, plate 12, room 5 .. chaos echo 32, lush 26, shimmer 28, chorus 2", ok);
         fxo_init(fx);
@@ -459,10 +461,10 @@ int main(void)
                         pl > 0.3f && pr > 0.1f);
         }
         {   /* the times too long for the line (0.5 s) halved: 1/4 from 120 BPM down, 1/8D from 90 down, fine counted */
-            int ok = fx_delay_halves(121, 64, 120.0f) == 0 && fx_delay_halves(121, 64, 119.0f) == 1 &&
-                     fx_delay_halves(121, 64, 59.0f) == 2 && fx_delay_halves(108, 64, 90.0f) == 0 &&
-                     fx_delay_halves(108, 64, 89.0f) == 1 && fx_delay_halves(108, 127, 110.0f) == 1 &&
-                     fx_delay_halves(6, 0, 30.0f) == 0;
+            int ok = fx_delay_halves(121, 64, 120.0f, 0) == 0 && fx_delay_halves(121, 64, 119.0f, 0) == 1 &&
+                     fx_delay_halves(121, 64, 59.0f, 0) == 2 && fx_delay_halves(108, 64, 90.0f, 0) == 0 &&
+                     fx_delay_halves(108, 64, 89.0f, 0) == 1 && fx_delay_halves(108, 127, 110.0f, 0) == 1 &&
+                     fx_delay_halves(6, 0, 30.0f, 0) == 0;
             for (i = 0; i < 128; i++)                        /* every knob a time, in order */
                 ok &= fx_delay_div(i) >= 0 && fx_delay_div(i) < FX_DL_N && (!i || fx_delay_div(i) >= fx_delay_div(i - 1));
             check("delay: 1/4 halved below 120 BPM, 1/8D below 90; the knob's ten times in order", ok);
@@ -1355,7 +1357,7 @@ int main(void)
         check(name, oct[1] > oct[0] * 4.0 && pk[1] < 2.0f && end < pk[1]);
     }
     printf("-- the master's slot (Master FX: the one effects list, its memory the pool's)\n");
-    {   /* an impulse on the melodic group through the master's delay (24 blocks of the pool, cleared a slice a call:
+    {   /* an impulse on the melodic group through the master's delay (what its time needs of the pool, cleared a slice a call:
          * fx.h master_memory), and the same with no memory (dry, sample for sample as off); tape's wow a block there,
          * none on a track; mix 0 while it sounds: the delay a block more (fading to dry, its memory kept), then off, no
          * memory asked */
@@ -1391,7 +1393,11 @@ int main(void)
         }
         snprintf(name, sizeof name, "delay on the master: %d blocks, cleared in %d calls; an echo %.2g, none without memory",
                  master_need(ms), calls, (double)late[1]);
-        check(name, master_need(ms) == efx_need(EF_DELAY, 0, 0) && calls == (master_need(ms) + EFX_CLR - 1) / EFX_CLR &&
+        /* (a delay takes what its time needs at the tempo, 2026-11-27: its default time at 120 BPM) */
+        const int dneed = efx_delay_blocks(EFX[EF_DELAY].def[0], 0, 120.0f, 0, 2);   /* (its extras left at 0 here:
+                                                  * fine -25 %) */
+        check(name, master_need(ms) == dneed && dneed < efx_need(EF_DELAY, 0, 0) &&
+                    calls == (master_need(ms) + EFX_CLR - 1) / EFX_CLR &&
                     late[1] > 1e-4f && late[0] == 0.0f && dry_same && master_room(ms));
         master_set(ms, MS_CMIX, 0);             /* (while it sounds: the delay a block more, fading to dry, then off) */
         for (b = 0; b < 2; b++) {
@@ -1399,7 +1405,7 @@ int main(void)
                 pl[i] = pr[i] = ml[i] = mr[i] = 0.0f;
             if (!b)
                 check("  at mix 0: the delay a block more (its fade), its memory kept",
-                      master_need(ms) == efx_need(EF_DELAY, 0, 0));
+                      master_need(ms) == dneed);
             master_memory(ms, efx_pool[0], master_need(ms));
             master_process(ms, pl, pr, ml, mr, ol2, or2, BLK);
         }

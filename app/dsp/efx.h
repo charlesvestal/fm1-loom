@@ -19,6 +19,10 @@ extern const char *const EFG_NAME[NEFG];
  * a list (efx_list_name), the delay's time (a division of the tempo), a ratio (ring's) */
 enum { EK_NN, EK_PCT, EK_BIP, EK_SYNC, EK_LIST, EK_DIV, EK_RATIO };
 #define EFX_BLOCK 2048                       /* the memory's unit, bytes */
+#define EFX_GROW 4                             /* a delay growing (its time longer): its wet to dry over 4 blocks first */
+#define EFX_GROWN 0x80u                        /* a delay's mmd: growing; its dry held at its mix's level (the fade lowers
+                                                * the wet alone, its memory's clear passes the dry so, it starts again at
+                                                * its mix: no swell), till it runs again (efx_slot_run) */
 typedef struct {
     const char *name;
     uint8_t group;                           /* EFG_* */
@@ -73,6 +77,12 @@ int efx_clear_step(int16_t *mem, int nb, uint8_t *left, int max);
 int efx_need(int ef, int mode, int send);        /* the blocks effect ef (the reverb in mode) needs on a track (send 0),
                                                   * a send (1) or the master (2: as a track's, and tape's wow) */
 int32_t efx_rv_ring(int mode, int nb, int send); /* the reverb's line in nb blocks: its length, int16 */
+/* a delay's memory follows its time (the user's: a busy project's two delays held what lush needed): its "mode" is the
+ * blocks it asks for (efx_need gives them back as they are), what its time needs at the tempo now and never fewer than
+ * it holds (turned down, it keeps them: the warp as before; up past them, more when the pool has a run, else it keeps
+ * its own and halves its time, efx_delay_secs). efx_delay_len: a line's length in nb blocks */
+int efx_delay_blocks(int time, int fine, float bpm, int held, int send);
+int32_t efx_delay_len(int nb, int send);
 const char *efx_list_name(int ef, int k, int v);   /* an EK_LIST knob's value's name (juno's modes) */
 
 /* ---- the dirt and the color: drive, fold, crush, ring, tilt, tape, sampler (the character's) ----
@@ -133,7 +143,7 @@ extern const char *const RV_NAME[NRV];         /* "plate", "room", "studio S", .
 static inline int fx_delay_div(int time) { return (time < 0 ? 0 : time > 127 ? 127 : time) * FX_DL_N >> 7; }
 extern const uint8_t FX_DL_NOTE[FX_DL_N];
 extern const char FX_DL_MARK[FX_DL_N];
-float efx_delay_secs(int time, int fine, float bpm, int *halves);   /* the delay's time at a tempo, and the times the line
+float efx_delay_secs(int time, int fine, float bpm, int32_t len, int *halves);   /* the delay's time at a tempo, and the times the line
                                                                      * halves it to fit (0: as set) */
 float fx_delay_fb(int v);                    /* the delay's REPEATS 0..127: its feedback (127: 1, held) */
 void efx_delay_width(float *wa, float *wb, int w);   /* PING WIDTH 0..127: a side's echo into its own side, the other
@@ -144,7 +154,9 @@ typedef struct { int32_t w; float ph, s1, s2, hl, hr, fz, rg, sd, fb; } efx_chor
 typedef struct { int32_t w; float ph, hold, in1, out1, wph, late; } efx_lofi_t;   /* (late: the width's, ramping) */
 typedef struct { float xl, yl[4], xr, yr[4], ph, zl, zr, al, ar, fb; } efx_phaser_t;   /* (fb: the feedback, ramping) */
 typedef struct {
-    int16_t *l, *r;                           /* its lines (FX_DLY_LEN a side) */
+    int16_t *l, *r;                           /* its lines (len a side) */
+    int32_t len;                              /* a line's length: what its memory gives (efx_delay_len), FX_DLY_LEN at
+                                               * most */
     int32_t w, quiet, ph;                     /* (the line at half rate: ph, the pair's second frame) */
     float cur, lpl, lpr, al, ar;              /* (the pair being summed into the slot at w) */
     float wa, wb, ta, tb;                     /* PING WIDTH: a side's echo into its own side, into the other, gliding
@@ -242,7 +254,7 @@ typedef union {
     efx_phaser_t phaser;
     efx_lofi_t lofi;
 } efx_ins_t;
-void efx_insert(int ef, efx_ins_t *st, float *ph, int16_t *mem, const float *kn, const uint8_t *xt, int mix, float rate,
+void efx_insert(int ef, efx_ins_t *st, float *ph, int16_t *mem, int nb, const float *kn, const uint8_t *xt, int mix, float rate,
                 float bpm, const float *in, float *bl, float *br, uint32_t n);
 /* the dirt and the color (efx_char_stage: drive, fold, crush, ring, tilt, tape, sampler), against the rest (efx_insert) */
 static inline int efx_is_char(int ef) { return ef == EF_DRIVE || (ef >= EF_FOLD && ef <= EF_SAMPLER); }

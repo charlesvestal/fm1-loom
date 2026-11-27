@@ -32,6 +32,7 @@ struct fxslot {
     efx_slot_t s;                             /* the others' (as a kit's slot) */
     int16_t *mem;                             /* its memory (the pool's) and its blocks */
     uint8_t mnb, fresh;                       /* (fresh: its memory just given: the effect starts at rest) */
+    uint8_t grow;                             /* a delay growing (fx_regrow): its fade's block under way */
     uint8_t clr;                              /* its blocks still to clear (fx_memory, a slice a block: silent till then) */
     uint8_t type, type_t, mode, mode_t;       /* the effect (EF_*) and the reverb's mode: running, and as set */
     uint8_t live, fo;                         /* live: it has run; fo: the running one has faded out (fx_fading) */
@@ -54,9 +55,11 @@ static inline int send_own(int ef)            /* one of the sends' own (efx_send
 static void fx_point(fxslot_t *f)               /* the running effect's lines in its memory */
 {
     int16_t *m = f->mem;
-    f->e.cho = f->type == EF_DELAY ? (m ? m + 2 * FX_DLY_LEN : 0) : m;
+    const int32_t len = efx_delay_len(f->mnb, 1);   /* (a delay: its lines' length, its memory's) */
+    f->e.delay.len = len;
+    f->e.cho = f->type == EF_DELAY ? (m ? m + 2 * len : 0) : m;
     f->e.delay.l = m;
-    f->e.delay.r = m ? m + FX_DLY_LEN : 0;
+    f->e.delay.r = m ? m + len : 0;
     f->e.reverb.line = m;
     f->e.reverb.n = (uint32_t)efx_rv_ring(f->mode, f->mnb, 1);
 }
@@ -69,16 +72,20 @@ static void fx_states(fxslot_t *f, int wipe)    /* a fresh effect: its states at
     if (wipe && f->mem)
         f->clr = f->mnb;
     fx_point(f);
+    if (f->type == EF_DELAY) {                  /* (its time at its line's length: halved if it is too short) */
+        int h;
+        f->e.pt[0] = efx_delay_secs(f->knob[0], f->knob[1], f->bpm, f->e.delay.len, &h) * SR;
+    }
     efx_send_reset(&f->e, f->mode);
     for (i = 0; i < sizeof f->s; i++)
         z[i] = 0;
     f->s.cef = 0xFFu;
 }
 
-int fx_delay_halves(int time, int fine, float bpm)
+int fx_delay_halves(int time, int fine, float bpm, int32_t len)
 {
     int h;
-    efx_delay_secs(time, fine, bpm, &h);
+    efx_delay_secs(time, fine, bpm, len, &h);
     return h;
 }
 
@@ -86,7 +93,8 @@ int fx_delay_halves(int time, int fine, float bpm)
 static void fx_derive(fxslot_t *f)
 {
     if (send_own(f->type_t))
-        efx_send_nums(&f->e, f->type_t, f->mode_t, f->knob, f->bpm, f->x[2], f->x[3]);
+        efx_send_nums(&f->e, f->type_t, f->type_t == EF_DELAY ? (int)f->e.delay.len : f->mode_t, f->knob, f->bpm, f->x[2],
+                      f->x[3]);                 /* (a delay: its line's length, for its time) */
 }
 
 void fx_init(fxslot_t *f)
@@ -113,18 +121,46 @@ void fx_clear(fxslot_t *f)
 
 /* another effect (or reverb mode) set while one plays: the old one runs a block more, its return fading out, and
  * keeps its memory till then (fx_need, fx_lags: the running one's); then the new one from rest, its return fading in */
+/* effect ef (the reverb in mode) has what it needs in the send's memory: a delay, any (it plays what its line holds,
+ * its time halved if it is too short: efx_delay_secs) */
+static int fx_has(const fxslot_t *f, int ef, int mode)
+{
+    return ef == EF_DELAY ? f->mem != 0 && f->mnb > 0 : efx_need(ef, mode, 1) <= (f->mem ? f->mnb : 0);
+}
 static int fx_fading(const fxslot_t *f)
 {
     return f->live && f->type != EF_OFF && (f->type_t != f->type || f->mode_t != f->mode) && !f->fo && !f->clr &&
-           efx_need(f->type, f->mode, 1) <= (f->mem ? f->mnb : 0);
+           fx_has(f, f->type, f->mode);
 }
-int fx_need(const fxslot_t *f) { return fx_fading(f) ? efx_need(f->type, f->mode, 1) : efx_need(f->type_t, f->mode_t, 1); }
+/* the blocks a delay asks for: what its time needs at the tempo, never fewer than it holds (efx_delay_blocks) */
+static int fx_delay_ask(const fxslot_t *f)
+{
+    return efx_delay_blocks(f->knob[0], f->knob[1], f->bpm, f->type == EF_DELAY && f->mem ? f->mnb : 0, 1);
+}
+int fx_need(const fxslot_t *f)
+{
+    const int ef = fx_fading(f) ? f->type : f->type_t, md = fx_fading(f) ? f->mode : f->mode_t;
+    return ef == EF_DELAY ? fx_delay_ask(f) : efx_need(ef, md, 1);
+}
 int fx_effect(const fxslot_t *f, int *mode)
 {
     *mode = f->mode_t;
     return f->type_t;
 }
-int fx_room(const fxslot_t *f) { return efx_need(f->type_t, f->mode_t, 1) <= (f->mem ? f->mnb : 0); }
+int fx_room(const fxslot_t *f) { return fx_has(f, f->type_t, f->mode_t); }
+/* a delay given a longer time and a run for it (the engine's pool_sends): first a block fading it out (its mode
+ * flipped: fx_fading's way, its memory kept: 1), then its memory let go for the run (0) */
+int fx_regrow(fxslot_t *f)
+{
+    if (!f->grow) {
+        f->grow = 1;
+        if (f->type == EF_DELAY && f->type_t == EF_DELAY && f->mode_t == f->mode)
+            f->mode_t ^= 1u;                  /* (a delay's mode is nothing else: efx_need, fx_has, its time all pass it by) */
+        return 1;
+    }
+    f->grow = 0;
+    return 0;
+}
 
 int fx_memory(fxslot_t *f, int16_t *mem, int nb)
 {
@@ -168,7 +204,7 @@ void fx_tempo(fxslot_t *f, float bpm)
         f->bpm = bpm;
         if (f->type_t == EF_DELAY) {
             int h;
-            f->e.pt[0] = efx_delay_secs(f->knob[0], f->knob[1], f->bpm, &h) * SR;
+            f->e.pt[0] = efx_delay_secs(f->knob[0], f->knob[1], f->bpm, f->e.delay.len, &h) * SR;
         }
     }
 }
@@ -225,7 +261,7 @@ void fx_process_lag(fxslot_t *f, const float *in, float *out_l, float *out_r, ui
     }
     for (o = 0; !f->live && o < n; o++)        /* (live once sound comes in) */
         f->live = in[o] != 0.0f;
-    if (f->type == EF_OFF || efx_need(f->type, f->mode, 1) > (f->mem ? f->mnb : 0) || f->clr)
+    if (f->type == EF_OFF || !fx_has(f, f->type, f->mode) || f->clr)
         return;                                /* (no memory, or its memory not yet clear: silent) */
     for (o = 0; o < n; o += SUB) {
         float x[2 * SUB];
@@ -292,7 +328,7 @@ void fx_process_lag(fxslot_t *f, const float *in, float *out_l, float *out_r, ui
 
 int fx_awake(const fxslot_t *f)
 {
-    if (f->type == EF_OFF || efx_need(f->type, f->mode, 1) > (f->mem ? f->mnb : 0))
+    if (f->type == EF_OFF || !fx_has(f, f->type, f->mode))
         return 0;
     return send_own(f->type) ? efx_send_awake(&f->e, f->type) : 1;
 }
@@ -364,7 +400,7 @@ struct master {
      * and sl.mmd the effect it was given for); its memory (the pool's: the engine's) and what the interrupt runs on */
     efx_slot_t sl;
     int16_t *mem, *mrun;                      /* (mrun: mem while it holds the effect, else 0) */
-    uint8_t mnb;
+    uint8_t mnb, grow;                        /* (grow: its delay growing, a block fading: master_regrow) */
     uint8_t sw;                               /* the effect set (slot_set): the slot takes it at a block (master_memory),
                                                * the old one fading out a block first while the sound plays */
     uint8_t mfm[NMF];                         /* the filters' modes running (MFM_*): the drums', the melodic, the mix's */
@@ -486,11 +522,28 @@ static void slot_set(master_t *m)
         sl->ef = m->sw;
         sl->xt[0] = m->pot[MS_CX1];
     }
-    if (sl->ef != sl->mef || slot_mode(sl) != sl->mmd)
+    if (sl->ef != sl->mef || slot_mode(sl) != (sl->mmd & ~EFX_GROWN))
         m->mrun = 0;
 }
-int master_need(const master_t *m) { return m->sl.ef != EF_OFF ? efx_need(m->sl.ef, slot_mode(&m->sl), 2) : 0; }
-int master_room(const master_t *m) { return master_need(m) <= (m->mem ? m->mnb : 0); }
+int master_effect(const master_t *m) { return m->sl.ef; }
+int master_regrow(master_t *m)                    /* (EFX_GROW blocks fading out, then its memory let go) */
+{
+    if (m->grow == 1)
+        return m->grow = 0;
+    m->grow = (uint8_t)(m->grow ? m->grow - 1 : EFX_GROW);
+    return 1;
+}
+int master_need(const master_t *m)               /* (a delay: what its time needs, never fewer than it holds) */
+{
+    const efx_slot_t *sl = &m->sl;
+    if (sl->ef == EF_DELAY)
+        return efx_delay_blocks((int)sl->k[0], sl->xt[0], m->bpm, m->mem && sl->mef == EF_DELAY ? m->mnb : 0, 2);
+    return sl->ef != EF_OFF ? efx_need(sl->ef, slot_mode(sl), 2) : 0;
+}
+int master_room(const master_t *m)               /* (a delay plays in any memory: its time halved if it is short) */
+{
+    return m->sl.ef == EF_DELAY ? m->mem != 0 && m->mnb > 0 : master_need(m) <= (m->mem ? m->mnb : 0);
+}
 int master_memory(master_t *m, int16_t *mem, int nb)
 {
     efx_slot_t *sl = &m->sl;
@@ -499,16 +552,21 @@ int master_memory(master_t *m, int16_t *mem, int nb)
         sl->ef = (uint8_t)ef;
         sl->xt[0] = (uint8_t)x0;
     }
+    if (m->grow && !(sl->ef == EF_DELAY && master_need(m) > nb))
+        m->grow = 0;                             /* (turned back while it faded: it stays) */
+    if (m->grow && sl->live)                     /* (its delay growing: it fades out, grow blocks left, its dry held) */
+        sl->fo = m->grow, sl->mmd |= EFX_GROWN;
     if (!mem)
         nb = 0;
-    if (mem != m->mem || nb != m->mnb || sl->ef != sl->mef || slot_mode(sl) != sl->mmd) {   /* (new memory, or the
+    if (mem != m->mem || nb != m->mnb || sl->ef != sl->mef || slot_mode(sl) != (sl->mmd & ~EFX_GROWN)) {   /* (new memory, or the
                                                   * effect it held changed: cleared, the effect from rest) */
         m->mem = mem;
         m->mnb = (uint8_t)nb;
+        sl->nb = (uint8_t)nb;                    /* (a delay's lines: their length from it, big_run) */
         sl->clr = (uint8_t)nb;
         sl->zef = EF_OFF;
+        sl->mmd = (uint8_t)(slot_mode(sl) | (sl->ef == EF_DELAY && sl->mef == EF_DELAY ? sl->mmd & EFX_GROWN : 0));
         sl->mef = sl->ef;
-        sl->mmd = (uint8_t)slot_mode(sl);
     }
     efx_clear_step(m->mem, m->mnb, &sl->clr, EFX_CLR);
     m->mrun = master_room(m) ? m->mem : 0;

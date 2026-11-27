@@ -656,13 +656,35 @@ int efx_need(int ef, int mode, int send)
     case EF_TAPE: return send ? 1 : 0;        /* (its wow's line, a send's or the master's: a track's bends its voices,
                                                * a kit's has none) */
     case EF_RUMBLE: return 2;
-    case EF_DELAY: n = 2 * FX_DLY_LEN + EFX_SMEAR_N; break;
+    case EF_DELAY:
+        if (mode > 0)                         /* (its mode: the blocks it asks for, efx_delay_blocks) */
+            return mode;
+        n = 2 * FX_DLY_LEN + EFX_SMEAR_N;
+        break;
     case EF_REVERB: n = rv_need16(mode); break;
     default: return 0;
     }
     if (send != 1)                            /* (a track's, the master's: its states first) */
         n += ef == EF_DELAY ? EFX_BIG_DN : EFX_BIG_N;
     return (int)((n + EFX_INS_N - 1) / EFX_INS_N);
+}
+/* a delay's line a side in nb blocks (its smear's lines after the two, its states before them on a track's) */
+int32_t efx_delay_len(int nb, int send)
+{
+    int32_t n = ((int32_t)nb * EFX_INS_N - EFX_SMEAR_N - (send != 1 ? EFX_BIG_DN : 0)) / 2;
+    return n > FX_DLY_LEN ? FX_DLY_LEN : n < 0 ? 0 : n;
+}
+/* the blocks a delay asks for: what its time needs (the line at half rate, the second core's 128 and wobble's 4 ms
+ * beside it), never fewer than it holds */
+int efx_delay_blocks(int time, int fine, float bpm, int held, int send)
+{
+    int h;
+    float t = efx_delay_secs(time, fine, bpm, FX_DLY_LEN, &h);
+    int32_t len = (int32_t)(t * (SR * 0.5f)) + 128 + 90 + 2, n;
+    if (len > FX_DLY_LEN)
+        len = FX_DLY_LEN;
+    n = (2 * len + EFX_SMEAR_N + (send != 1 ? EFX_BIG_DN : 0) + EFX_INS_N - 1) / EFX_INS_N;
+    return n > held ? n : held;
 }
 int32_t efx_rv_ring(int mode, int nb, int send)
 {
@@ -687,7 +709,7 @@ static inline float ramp_to(float v, float t, int m)
 
 static void dl_reset(efx_delay_t *d, float t)  /* a delay's states at rest (t: its time now, samples) */
 {
-    d->w = 0; d->quiet = 2 * FX_DLY_LEN; d->lpl = d->lpr = 0.0f;
+    d->w = 0; d->quiet = 2 * d->len; d->lpl = d->lpr = 0.0f;
     d->ph = 0; d->al = d->ar = 0.0f;
     d->wph = d->wdl = d->wdr = d->wsl = d->wsr = d->hl = d->hr = 0.0f;
     d->sap[0] = d->sap[1] = d->sap[2] = d->sap[3] = d->sap[4] = 0;
@@ -735,10 +757,11 @@ void efx_send_reset(efx_send_t *e, int mode)
 }
 
 /* the delay's time in seconds at a tempo, and the times the line halved it (h) */
-__attribute__((noinline)) float efx_delay_secs(int time, int fine, float bpm, int *h)
+__attribute__((noinline)) float efx_delay_secs(int time, int fine, float bpm, int32_t len, int *h)
 {
     float t = DL_DIV[fx_delay_div(time)] * 15.0f / (bpm > 20.0f ? bpm : 120.0f);   /* sixteenths: 60 / (bpm * 4) */
-    float max_s = (float)(FX_DLY_LEN - 128) * 2.0f / SR;            /* (the line at half rate) */
+    float max_s = (float)((len > 0 && len < FX_DLY_LEN ? len : FX_DLY_LEN) - 128) * 2.0f / SR;   /* (the line at half
+                                                                      * rate) */
     t *= 1.0f + ((float)fine - 64.0f) * (0.25f / 64.0f);              /* fine: +-25 % */
     for (*h = 0; t > max_s; ++*h)                                     /* too long for the line: half, */
         t *= 0.5f;                                                    /* still on the beat */
@@ -783,7 +806,8 @@ void efx_nums(float *pt, float *shm, int ef, int mode, const uint8_t *k, float b
         break;
     case EF_DELAY: {
         int h;
-        pt[0] = efx_delay_secs(k[0], k[1], bpm, &h) * SR;             /* time and fine */
+        pt[0] = efx_delay_secs(k[0], k[1], bpm, mode, &h) * SR;       /* time and fine (mode: its line's length; 0
+                                                                       * the longest) */
         pt[2] = fx_delay_fb(k[2]);                                    /* repeats: the feedback (127: held) */
         {
             float wo = k127(wobble);
@@ -925,12 +949,12 @@ __attribute__((noinline)) void efx_chorus(efx_chorus_t *c, int16_t *cho, int32_t
     c->w = w;
 }
 
-static inline float tap16(const int16_t *b, float rp)
+static inline float tap16(const int16_t *b, float rp, int32_t len)
 {
     int32_t i0 = (int32_t)rp, i1;
     float fr = rp - (float)i0, a, c;
-    if (i0 >= FX_DLY_LEN) i0 -= FX_DLY_LEN;
-    i1 = i0 + 1 >= FX_DLY_LEN ? 0 : i0 + 1;
+    if (i0 >= len) i0 -= len;
+    i1 = i0 + 1 >= len ? 0 : i0 + 1;
     a = s16f(b[i0]);
     c = s16f(b[i1]);
     return a + (c - a) * fr;
@@ -963,6 +987,7 @@ static inline float sap_run(efx_delay_t *f, int16_t *cho, int k, float x, float 
 static void do_delay(efx_delay_t *f, int16_t *cho, const float *pt, const float *pc, const float *x, float *ol,
                      float *orr, int m, int any, int lag)
 {
+    const int32_t L = f->len;                 /* (its line's length: its memory's) */
     const float smear = pt[5] > 0.0f ? pc[5] : 0.0f, wob = pc[4];
     const float target = pt[0] - (smear > 0.0f ? SAP_COMP : 0.0f), fb = pc[2], tc = pc[3];
     const float ea = ramp_to(f->wa, f->ta, m), eb = ramp_to(f->wb, f->tb, m);   /* (PING WIDTH gliding) */
@@ -974,10 +999,10 @@ static void do_delay(efx_delay_t *f, int16_t *cho, const float *pt, const float 
     float wsl = f->wsl, wsr = f->wsr, wtl = 0.0f, wtr = 0.0f;
     int32_t w = f->w, quiet = f->quiet, ph = f->ph;
     int i;
-    if (!any && quiet >= 2 * FX_DLY_LEN) {    /* silent in, an empty line: time moves on, nothing to read */
+    if (!any && quiet >= 2 * L) {    /* silent in, an empty line: time moves on, nothing to read */
         w += (ph + m) >> 1;
         f->ph = (ph + m) & 1;
-        f->w = w % FX_DLY_LEN;
+        f->w = w % L;
         f->al = f->ar = 0.0f;
         f->cur += fm_clampf((target - dcur) * (1.0f - fm_expf(-0.0008f * (float)m)), -DL_WARP * (float)m,
                             DL_WARP * (float)m);
@@ -1014,20 +1039,20 @@ static void do_delay(efx_delay_t *f, int16_t *cho, const float *pt, const float 
         dcur += fm_clampf((target - dcur) * 0.0008f, -DL_WARP, DL_WARP);
         rp = (float)w + 0.5f * (float)ph - 0.5f * dcur;
         if (rp < 0.0f)
-            rp += (float)FX_DLY_LEN;
+            rp += (float)L;
         rq = rp;
         if (wtl != 0.0f || wsl != 0.0f || wsr != 0.0f) {   /* (wobble: each side's read moved, gliding) */
             wsl += 0.002f * (wtl - wsl);
             wsr += 0.002f * (wtr - wsr);
             rq = rp - 0.5f * wsr;
             rp -= 0.5f * wsl;
-            if (rp < 0.0f) rp += (float)FX_DLY_LEN;
-            if (rq < 0.0f) rq += (float)FX_DLY_LEN;
-            if (rp >= (float)FX_DLY_LEN) rp -= (float)FX_DLY_LEN;
-            if (rq >= (float)FX_DLY_LEN) rq -= (float)FX_DLY_LEN;
+            if (rp < 0.0f) rp += (float)L;
+            if (rq < 0.0f) rq += (float)L;
+            if (rp >= (float)L) rp -= (float)L;
+            if (rq >= (float)L) rq -= (float)L;
         }
-        tl = tap16(f->l, rp);
-        tr = tap16(f->r, rq);
+        tl = tap16(f->l, rp, L);
+        tr = tap16(f->r, rq, L);
         lpl += tc * (tl - lpl);               /* tone: the repeats darken */
         lpr += tc * (tr - lpr);
         hl += hk * (lpl - hl);                /* the loop's high-pass */
@@ -1048,7 +1073,7 @@ static void do_delay(efx_delay_t *f, int16_t *cho, const float *pt, const float 
             int32_t p = w - ((lag + 1) >> 1);
             float v;
             if (p < 0)
-                p += FX_DLY_LEN;
+                p += L;
             v = s16f(f->l[p]) + 0.5f * xi;
             if (v > 1.0f || v < -1.0f) v = fm_tanhf(v);
             f->l[p] = f16(v);
@@ -1059,7 +1084,7 @@ static void do_delay(efx_delay_t *f, int16_t *cho, const float *pt, const float 
             f->r[w] = kb;
             quiet = (ka == 0 && kb == 0 && x[i] == 0.0f) ? quiet + 2 : 0;
             al = ar = 0.0f;
-            if (++w >= FX_DLY_LEN)
+            if (++w >= L)
                 w = 0;
         }
         ph ^= 1;
@@ -1652,7 +1677,7 @@ int efx_send_awake(const efx_send_t *e, int ef)
 {
     const efx_reverb_t *r = &e->reverb;
     switch (ef) {
-    case EF_DELAY: return e->delay.quiet < 2 * FX_DLY_LEN;
+    case EF_DELAY: return e->delay.quiet < 2 * e->delay.len;
     case EF_REVERB:
         return r->mode == RV_PLATE ? r->quiet < FX_RV_LEN
              : rv_lush(r->mode) ? r->lu.clear > 0 || r->lu.quiet < FX_RV_LEN * 2
@@ -1733,25 +1758,35 @@ static void ins_nums(float *p, int ef, const float *kn, const uint8_t *xt)   /* 
 #define RVI_WET 1.12f                            /* its reverb's (+1 dB) */
 #define CHO_WET 1.19f                            /* its chorus's (+1.5 dB) */
 #define BIG_GLIDE 0.07f                          /* (fx.c's GLIDE: a block's share, ~10 ms) */
-static __attribute__((noinline)) void big_run(int ef, efx_ins_t *st, int16_t *mem, const float *kn, const uint8_t *xt,
-                                              int mix, float bpm, float *bl, float *br, uint32_t n)
+static __attribute__((noinline)) void big_run(int ef, efx_ins_t *st, int16_t *mem, int nb, const float *kn,
+                                              const uint8_t *xt, int mix, float bpm, float *bl, float *br, uint32_t n)
 {
     efx_big_t *g = (efx_big_t *)(void *)mem;
     int16_t *ln = mem + (ef == EF_DELAY ? EFX_BIG_DN : EFX_BIG_N);
-    const int dl = ef == EF_DELAY, mode = dl || xt[0] >= NRV ? RV_PLATE : xt[0];
+    const int dl = ef == EF_DELAY, hold = nb < 0 && st->z[0] != 0.0f;   /* (nb < 0: dipping to dry, slot_moving: its
+                                                  * times and tones held where they were, -nb its blocks) */
+    if (nb < 0)
+        nb = -nb;
+    const int32_t dlen = dl ? (nb > 0 ? efx_delay_len(nb, 0) : FX_DLY_LEN) : 0;   /* (a delay: its lines' length, its
+                                                  * memory's; none said: the longest) */
+    const int mode = dl ? (int)dlen : xt[0] >= NRV ? RV_PLATE : xt[0];
     const uint8_t k[4] = {(uint8_t)kn[0], dl ? xt[0] : (uint8_t)kn[1], (uint8_t)kn[dl ? 1 : 2], dl ? (uint8_t)kn[2] : xt[1]};
     const float mx = (float)mix * (1.0f / 127.0f), mu = mix_up(mx), wu = dl ? DL_WET : RVI_WET;
     float shm = 0.0f;
-    efx_nums(g->pt, &shm, ef, mode, k, bpm, dl ? xt[2] : 0, dl ? xt[3] : 0);
-    if (dl)
-        efx_delay_width(&g->u.d.ta, &g->u.d.tb, xt[1]);
+    if (!hold) {
+        efx_nums(g->pt, &shm, ef, mode, k, bpm, dl ? xt[2] : 0, dl ? xt[3] : 0);
+        if (dl)
+            efx_delay_width(&g->u.d.ta, &g->u.d.tb, xt[1]);
+    } else if (!dl)
+        shm = g->u.r.shm;
     if (st->z[0] == 0.0f) {                      /* fresh: at rest */
         for (int i = 0; i < 6; i++)
             g->pc[i] = g->pt[i];
         if (dl) {
+            g->u.d.len = dlen;
             dl_reset(&g->u.d, g->pt[0]);
             g->u.d.l = ln;
-            g->u.d.r = ln + FX_DLY_LEN;
+            g->u.d.r = ln + dlen;
         } else {
             rv_reset(&g->u.r, g->pt[0], mode);
             g->u.r.line = ln;
@@ -1772,7 +1807,7 @@ static __attribute__((noinline)) void big_run(int ef, efx_ins_t *st, int16_t *me
             ol[i] = orr[i] = 0.0f;
         }
         if (dl)
-            do_delay(&g->u.d, ln + 2 * FX_DLY_LEN, g->pt, g->pc, x, ol, orr, m, any, 0);
+            do_delay(&g->u.d, ln + 2 * dlen, g->pt, g->pc, x, ol, orr, m, any, 0);
         else if (mode == RV_PLATE)
             do_reverb(&g->u.r, g->pc, x, ol, orr, m, any, 0);
         else if (rv_lush(mode))
@@ -1792,12 +1827,12 @@ int efx_big_awake(const int16_t *mem, int ef)
     if (!mem || (ef != EF_DELAY && ef != EF_REVERB))
         return 0;
     if (ef == EF_DELAY)
-        return g->u.d.quiet < 2 * FX_DLY_LEN;
+        return g->u.d.quiet < 2 * g->u.d.len;
     return r->mode == RV_PLATE ? r->quiet < FX_RV_LEN
          : rv_lush(r->mode) ? r->lu.clear > 0 || r->lu.quiet < FX_RV_LEN * 2
          : r->spu.clear > 0 || r->spu.quiet < FX_RV_LEN * 2;
 }
-static __attribute__((noinline)) void ins_one(int ef, efx_ins_t *st, float *php, int16_t *mem, const float *kn,
+static __attribute__((noinline)) void ins_one(int ef, efx_ins_t *st, float *php, int16_t *mem, int nb, const float *kn,
                                               const uint8_t *xt, int mix, float rate, float bpm, const float *in,
                                               float *bl, float *br, uint32_t n)
 {
@@ -2125,7 +2160,7 @@ static __attribute__((noinline)) void ins_one(int ef, efx_ins_t *st, float *php,
     }
     case EF_DELAY: case EF_REVERB:
         if (mem)
-            big_run(ef, st, mem, kn, xt, mix, bpm, bl, br, n);
+            big_run(ef, st, mem, nb, kn, xt, mix, bpm, bl, br, n);
         break;
     default:
         break;
@@ -2134,13 +2169,13 @@ static __attribute__((noinline)) void ins_one(int ef, efx_ins_t *st, float *php,
 }
 /* the wet-only ones (tremolo, phaser, univibe, rat, autowah) mixed with the dry, 32 frames at a time; the others mix
  * in their own loops (chorus, juno, lofi, delay, reverb; rumble's mix its level, the dry whole) */
-void efx_insert(int ef, efx_ins_t *st, float *ph, int16_t *mem, const float *kn, const uint8_t *xt, int mix, float rate,
+void efx_insert(int ef, efx_ins_t *st, float *ph, int16_t *mem, int nb, const float *kn, const uint8_t *xt, int mix, float rate,
                 float bpm, const float *in, float *bl, float *br, uint32_t n)
 {
     float dl[32], dr[32];
     if (mix >= 127 || ef == EF_CHORUS || ef == EF_JUNO || ef == EF_LOFI || ef == EF_RUMBLE || ef == EF_DELAY ||
         ef == EF_REVERB) {
-        ins_one(ef, st, ph, mem, kn, xt, mix, rate, bpm, in, bl, br, n);
+        ins_one(ef, st, ph, mem, nb, kn, xt, mix, rate, bpm, in, bl, br, n);
         return;
     }
     for (uint32_t j = 0; j < n; j += 32) {
@@ -2148,7 +2183,7 @@ void efx_insert(int ef, efx_ins_t *st, float *ph, int16_t *mem, const float *kn,
         uint32_t m = n - j < 32u ? n - j : 32u, i;
         for (i = 0; i < m; i++)
             dl[i] = bl[j + i], dr[i] = br[j + i];
-        ins_one(ef, st, ph, mem, kn, xt, 127, rate, bpm, in ? in + j : 0, bl + j, br + j, m);
+        ins_one(ef, st, ph, mem, nb, kn, xt, 127, rate, bpm, in ? in + j : 0, bl + j, br + j, m);
         for (i = 0; i < m; i++) {
             bl[j + i] = dl[i] + mx * (bl[j + i] - dl[i]);
             br[j + i] = dr[i] + mx * (br[j + i] - dr[i]);
@@ -2290,10 +2325,12 @@ static __attribute__((noinline)) void slot_moving(efx_slot_t *sl, float bpm, con
         const uint32_t m = n - j < 32u ? n - j : 32u;
         const float f = (float)m / ((float)m + EFX_GLIDE_N), m0 = sl->gm;
         float dl[32], dr[32], m1, w, dw;
-        for (int c = 0; c < 3; c++)
+        for (int c = 0; !dip && c < 3; c++)     /* (a dip: to dry at its old values, the knobs held; a delay growing
+                                                  * would glide its time toward a halved one) */
             if (EFX[ef].kind[c] != EK_LIST)
                 sl->g[c] = glide_to(sl->g[c], sl->k[c], f);
-        m1 = dip ? m0 * (float)(n - j - m) / (float)(n - j) : glide_to(m0, (float)sl->mix, f);
+        m1 = dip ? m0 * (float)((dip - 1) * (int)n + (int)(n - j - m)) / (float)((dip - 1) * (int)n + (int)(n - j))
+                 : glide_to(m0, (float)sl->mix, f);   /* (a dip: to dry over fo blocks, this one's share) */
         for (uint32_t i = 0; i < m; i++)
             dl[i] = bl[j + i], dr[i] = br[j + i];
         if (sl->rise) {                          /* (a new effect, live: its input from silence too, so its lines start
@@ -2306,11 +2343,20 @@ static __attribute__((noinline)) void slot_moving(efx_slot_t *sl, float bpm, con
             }
             sl->rise--;
         }
-        efx_insert(ef, &sl->u.in, &sl->ph, mem, sl->g, sl->xt, 127, efx_lfo_hz((int)sl->g[0], bpm), bpm, in ? in + j : 0,
+        efx_insert(ef, &sl->u.in, &sl->ph, mem, dip ? -(int)sl->nb : sl->nb, sl->g, sl->xt, 127, efx_lfo_hz((int)sl->g[0], bpm),
+                   bpm, in ? in + j : 0,
                    bl + j, br + j, m);
         w = m0 * (1.0f / 127.0f);
         dw = (m1 - m0) * (1.0f / 127.0f) / (float)m;
-        if (up) {                                /* (made up as at rest: mix_up, ramped across the piece) */
+        if (dip && ef == EF_DELAY && (sl->mmd & EFX_GROWN)) {   /* (growing: the wet alone fades, the dry at its
+                                                  * mix's level) */
+            const float mx = (float)sl->mix * (1.0f / 127.0f), u = mix_up(mx), d = u * (1.0f - mx);
+            for (uint32_t i = 0; i < m; i++) {
+                w += dw;
+                bl[j + i] = d * dl[i] + u * w * bl[j + i];
+                br[j + i] = d * dr[i] + u * w * br[j + i];
+            }
+        } else if (up) {                         /* (made up as at rest: mix_up, ramped across the piece) */
             float u = mix_up(w), du = (mix_up(m1 * (1.0f / 127.0f)) - u) / (float)m;
             for (uint32_t i = 0; i < m; i++) {
                 w += dw;
@@ -2329,7 +2375,7 @@ static __attribute__((noinline)) void slot_moving(efx_slot_t *sl, float bpm, con
 }
 void efx_slot_run(efx_slot_t *sl, int both, float bpm, const float *in, int16_t *mem, float *bl, float *br, uint32_t n)
 {
-    const int ef = sl->ef;
+    const int ef = sl->ef, grown = ef == EF_DELAY && (sl->mmd & EFX_GROWN);
     uint32_t j;
     if (ef != sl->zef) {                         /* another effect: its states start clean (live: from dry) */
         uint8_t *b = (uint8_t *)&sl->u;
@@ -2340,13 +2386,21 @@ void efx_slot_run(efx_slot_t *sl, int both, float bpm, const float *in, int16_t 
         sl->zef = (uint8_t)ef;
         for (j = 0; j < 3; j++)
             sl->g[j] = sl->k[j];
-        sl->gm = sl->live ? 0.0f : (float)sl->mix;
+        sl->gm = sl->live && !grown ? 0.0f : (float)sl->mix;   /* (a delay grown: at its mix, its line empty) */
         sl->rise = sl->live && !efx_is_char(ef) ? EFX_RISE : 0;
     }
     for (j = 0; !sl->live && j < n; j++)         /* (live once sound comes through it) */
         sl->live = bl[j] != 0.0f || br[j] != 0.0f;
-    if (ef == EF_OFF || sl->clr)                 /* (its memory not yet clear: dry) */
+    if (ef == EF_OFF || sl->clr) {               /* (its memory not yet clear: dry; a delay grown, at its mix's level) */
+        if (grown) {
+            const float mx = (float)sl->mix * (1.0f / 127.0f), d = mix_up(mx) * (1.0f - mx);
+            for (j = 0; j < n; j++)
+                bl[j] *= d, br[j] *= d;
+        }
         return;
+    }
+    if (grown && !sl->fo)                        /* (running again: done) */
+        sl->mmd &= ~EFX_GROWN;
     if (sl->fo || sl->gm != (float)sl->mix || sl->g[0] != sl->k[0] || sl->g[1] != sl->k[1] || sl->g[2] != sl->k[2]) {
         slot_moving(sl, bpm, in, mem, bl, br, n);   /* (a knob or the mix moving) */
         return;
@@ -2384,5 +2438,5 @@ void efx_slot_run(efx_slot_t *sl, int both, float bpm, const float *in, int16_t 
             efx_char_stage(x, z, ef, 1, bl, br, (int)n);
         return;
     }
-    efx_insert(ef, &sl->u.in, &sl->ph, mem, sl->k, sl->xt, sl->mix, efx_lfo_hz((int)sl->k[0], bpm), bpm, in, bl, br, n);
+    efx_insert(ef, &sl->u.in, &sl->ph, mem, sl->nb, sl->k, sl->xt, sl->mix, efx_lfo_hz((int)sl->k[0], bpm), bpm, in, bl, br, n);
 }

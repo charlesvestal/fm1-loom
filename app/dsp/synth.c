@@ -4274,9 +4274,23 @@ static float bus_sp[2][NSPLIT][2][BUS_N] __attribute__((section(".pool")));
  * 0: the slot off); never taken by another (a send, the master: they find theirs beside it). A project loaded: all given
  * back at once (efx_send_wait 2), then the tracks in order */
 static inline int slot_mode(const efx_slot_t *sl) { return sl->ef == EF_REVERB && sl->xt[0] < NRV ? sl->xt[0] : 0; }
-static inline int slot_need(const efx_slot_t *sl)
+static inline int slot_need(const synth_t *s, const efx_slot_t *sl)   /* (a delay: what its time needs at the tempo,
+                                                  * never fewer than it holds: efx_delay_blocks) */
 {
+    if (sl->ef == EF_DELAY)
+        return efx_delay_blocks((int)sl->k[0], sl->xt[0], s->bpm, sl->at >= 0 && sl->mef == EF_DELAY ? sl->nb : 0, 0);
     return sl->ef > EF_OFF && sl->ef < NEF ? efx_need(sl->ef, slot_mode(sl), 0) : 0;
+}
+/* a delay (track i's slot q) whose time needs more than it holds finds a run that long, its own blocks counted free;
+ * else it keeps its own and halves its time (efx_delay_secs) */
+static int slot_grows(const synth_t *s, int i, int q, int need)
+{
+    efx_mask_t m = efx_send_used;
+    for (int t = 0; t < NTRK; t++)
+        for (int r = 0; r < 2; r++)
+            if ((t != i || r != q) && s->t[t].sl[r].at >= 0)
+                efx_mark(&m, s->t[t].sl[r].at, s->t[t].sl[r].nb);
+    return efx_fit(&m, need) >= 0;
 }
 static void ins_alloc(synth_t *s)
 {
@@ -4285,9 +4299,24 @@ static void ins_alloc(synth_t *s)
     for (i = 0; i < NTRK; i++)                   /* (given back: a slot that no longer needs its memory) */
         for (q = 0; q < 2; q++) {
             efx_slot_t *sl = &s->t[i].sl[q];
-            if (sl->at >= 0 && (efx_send_wait > 1 || sl->mef != sl->ef || sl->mmd != slot_mode(sl)))   /* (another
-                                                  * effect: its memory fresh, cleared; the pool starting over) */
-                sl->at = -1, sl->nb = sl->clr = 0, freed = 1;
+            int grown = 0;
+            if (sl->at >= 0 && sl->ef == EF_DELAY && sl->mef == EF_DELAY) {   /* a delay whose time needs more: a run for
+                                                  * it, a block fading out first (fo; mmd marks it), then its memory
+                                                  * let go for the run; no run: it keeps its own (its time halved) */
+                const int need = slot_need(s, sl);
+                const int c = sl->mmd & ~EFX_GROWN;   /* (mmd: the blocks of the fade left; fo the dip's) */
+                if (need > sl->nb && slot_grows(s, i, q, need)) {
+                    if (c == 1 || !sl->live)
+                        grown = 1;
+                    else
+                        sl->fo = (uint8_t)(c ? c - 1 : EFX_GROW), sl->mmd = (uint8_t)(EFX_GROWN | sl->fo);
+                } else
+                    sl->mmd &= EFX_GROWN;
+            }
+            if (sl->at >= 0 && (efx_send_wait > 1 || sl->mef != sl->ef || grown ||
+                                (sl->ef != EF_DELAY && sl->mmd != slot_mode(sl))))
+                sl->at = -1, sl->nb = sl->clr = 0, freed = 1;   /* (another effect, or a delay grown: its memory fresh,
+                                                  * cleared; the pool starting over) */
             if (sl->at >= 0)
                 efx_mark(&used, sl->at, sl->nb);
         }
@@ -4296,15 +4325,15 @@ static void ins_alloc(synth_t *s)
     for (i = 0; i < NTRK; i++)
         for (q = 0; q < 2; q++) {
             efx_slot_t *sl = &s->t[i].sl[q];
-            int need = slot_need(sl);
+            int need = slot_need(s, sl);
             if (!need || sl->at >= 0)
                 continue;
             if ((k = efx_fit(&used, need)) >= 0) {   /* (the first run free) */
                 efx_mark(&used, k, need);
                 sl->at = (int8_t)k;
                 sl->nb = (uint8_t)need;
+                sl->mmd = (uint8_t)(slot_mode(sl) | (sl->ef == EF_DELAY && sl->mef == EF_DELAY ? sl->mmd & EFX_GROWN : 0));
                 sl->mef = sl->ef;
-                sl->mmd = (uint8_t)slot_mode(sl);
                 sl->zef = EF_OFF;                /* (its states cleared: slot_run) */
                 sl->clr = (uint8_t)need;         /* (its memory: slots_clear) */
             }
@@ -4356,9 +4385,14 @@ static void ins_tail_set(const synth_t *s, trk_t *t, uint32_t n)
             sec = fm_maxf(sec, efx_rumble_secs(t->sl[q].k[0]));
     t->ins_tail = (uint16_t)(sec * SY_SR / (float)(n ? n : 256u) + 1.0f);
 }
+int synth_slot_nb(const synth_t *s, int trk, int q)   /* the blocks track trk's slot q holds (0 none) */
+{
+    const efx_slot_t *sl = &s->t[trk % NTRK].sl[q & 1];
+    return sl->at >= 0 ? sl->nb : 0;
+}
 int synth_slot_wait(const synth_t *s, int i)
 {
-    return i >= 0 && i < 2 * NTRK && s->t[i >> 1].sl[i & 1].at < 0 ? slot_need(&s->t[i >> 1].sl[i & 1]) : 0;
+    return i >= 0 && i < 2 * NTRK && s->t[i >> 1].sl[i & 1].at < 0 ? slot_need(s, &s->t[i >> 1].sl[i & 1]) : 0;
 }
 /* this block's buses (synth_prepare): each track's slots (their effects, knobs, mixes), gains and wow; which voices
  * join which bus; the busiest split */
