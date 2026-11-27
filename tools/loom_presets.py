@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: MPL-2.0
 # Copyright (C) 2026 Charles Vestal
-"""LOOM-8 preset packs: user presets in a .syx file, sent into U1..U16 over USB-MIDI.
+"""LOOM-8 preset packs: user presets in a .syx file, sent into U1..U64 over USB-MIDI.
 
   tools/loom_presets.py make PACK.syx SOUND.xy [SOUND.xy ...] [--slot N]
         each SOUND.xy (the host simulator's lines for track 2: knob ..., a sound built from LOOM-8's defaults) saved
@@ -128,12 +128,12 @@ def main():
         i = a.index("--slot")
         slot = int(a[i + 1])
         del a[i:i + 2]
-    if len(a) < 2 or a[0] not in ("make", "list", "send") or not 1 <= slot <= 16:
+    if len(a) < 2 or a[0] not in ("make", "list", "send") or not 1 <= slot <= 64:
         sys.exit(__doc__)
     if a[0] == "make":
         sounds = a[2:]
-        if not sounds or slot - 1 + len(sounds) > 16:
-            sys.exit("loom_presets: 1 to 16 sounds, in U1..U16")
+        if not sounds or slot - 1 + len(sounds) > 64:
+            sys.exit("loom_presets: 1 to 64 sounds, in U1..U64")
         out = bytearray()
         for k, f in enumerate(sounds):
             text = Path(f).read_text().splitlines()
@@ -155,8 +155,8 @@ def main():
     first = fr[0][0] if "--slot" not in sys.argv else slot - 1
     for k, (s, fmt, p) in enumerate(fr):
         to = first + k if "--slot" in sys.argv else s
-        if to > 15:
-            print(f"{name_of(unpack7(p))}: no slot past U16")
+        if to > 63:
+            print(f"{name_of(unpack7(p))}: no slot past U64")
             bad += 1
             continue
         r = link.req(USER_PUT, [to, fmt & 127, fmt >> 7 & 127, *p], 5.0)

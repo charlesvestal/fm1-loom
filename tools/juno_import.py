@@ -6,7 +6,7 @@ SW2, F7; 24 bytes each, as Juno librarians save them) turned into knit sounds.
   tools/juno_import.py list BANK.syx [--names FILE]        each patch and the knit sound it becomes
   tools/juno_import.py script BANK.syx PATCH [--track T]    the host simulator's lines for one (PATCH: A11..B88 or 1..128)
   tools/juno_import.py pack BANK.syx PACK.syx --patches A11,A12,... [--slot N] [--names FILE]
-                                                            up to 16 patches as a LOOM-8 preset pack (U(N) onward,
+                                                            up to 64 patches as a LOOM-8 preset pack (U(N) onward,
                                                             default U1), named as --names gives or J106 A11; send it
                                                             with tools/loom_presets.py send PACK.syx
   tools/juno_import.py render BANK.syx OUT [--patches A11,B88 ...] [--names FILE]
@@ -239,8 +239,8 @@ def main():
         import loom_presets
         progs = [program_of(s) for s in opt.get("--patches", "").split(",") if s]
         slot = int(opt.get("--slot", 1))
-        if len(a) < 3 or not progs or slot < 1 or slot - 1 + len(progs) > 16:
-            sys.exit("juno_import: pack BANK.syx PACK.syx --patches A11,... (1 to 16, in U1..U16)")
+        if len(a) < 3 or not progs or slot < 1 or slot - 1 + len(progs) > 64:
+            sys.exit("juno_import: pack BANK.syx PACK.syx --patches A11,... (1 to 64, in U1..U64)")
         out = bytearray()
         for i, k in enumerate(progs):
             if k not in bank:

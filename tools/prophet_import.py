@@ -11,7 +11,7 @@ program, 133 bytes packed 7 to 8, F7; 159 bytes each, as Sequential's factory fi
                                                             each played in the host simulator (a chord, then a line),
                                                             OUT/<label>.wav, for listening
   tools/prophet_import.py pack BANK.syx PACK.syx --programs 111,112,... [--slot N]
-                                                            up to 16 as a LOOM-8 preset pack (tools/loom_presets.py
+                                                            up to 64 as a LOOM-8 preset pack (tools/loom_presets.py
                                                             send PACK.syx), each at the factory sounds' level
 
 Bring your own bank: Sequential's programs are never committed or published here (keep them in ~/private-stash).
@@ -279,8 +279,8 @@ def main():
     progs = [program_of(s) for s in opt["--programs"].split(",")] if "--programs" in opt else sorted(bank)
     if a[0] == "pack":
         slot = int(opt.get("--slot", 1))
-        if len(a) < 3 or not progs or slot < 1 or slot - 1 + len(progs) > 16:
-            sys.exit("prophet_import: pack BANK.syx PACK.syx --programs 111,... (1 to 16, in U1..U16)")
+        if len(a) < 3 or not progs or slot < 1 or slot - 1 + len(progs) > 64:
+            sys.exit("prophet_import: pack BANK.syx PACK.syx --programs 111,... (1 to 64, in U1..U64)")
         out = bytearray()
         for i, k in enumerate(progs):
             ls, _ = lines(bank[k])
