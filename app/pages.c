@@ -2650,7 +2650,10 @@ static void draw_tag(void)
             else if (seq.cue_end)
                 s_cat(e, " at end");
         }
-        text_fit(8, cap_y(0, TAG_H, &FONT_S), &FONT_S, q, r - 104, cue != 0xFF && cue != sc ? K_TEXT : K_DIM);
+        {   /* (no room for all of it, on another track's narrower tag or in a wider face: without "scene ") */
+            const char *qs = text_w(&FONT_S, q) > r - 104 ? q + 6 : q;
+            text_fit(8, cap_y(0, TAG_H, &FONT_S), &FONT_S, qs, r - 104, cue != 0xFF && cue != sc ? K_TEXT : K_DIM);
+        }
         cv_blit(0, TAG_Y);
         return;
     }
@@ -6534,12 +6537,16 @@ static void draw_slot(int pg)
     h = hash_s(h, t);
     if (!begin_main(h))
         return;
-    if (t[0])                                        /* (no memory: not playing) */
+    const int nomem = t[0] != 0;
+    if (nomem && !LARGE)                             /* (no memory: not playing) */
         wrap(12, 74, 80, &FONT_XS, t, K_TEXT);
     s_cat(t, EFX[ef].name);
     t[0] = (char)(t[0] - 32);                        /* (its name a title: "Reverb") */
     cv_text(12, 4, &FONT_L, t, K_TEXT);
-    if (ef != EF_REVERB)
+    if (nomem && LARGE)                              /* (large type: no room at the foot; the note in the line that
+                                                      * says what the effect does) */
+        cv_text(12, 40, &FONT_XS, "not playing: memory full", K_TEXT);
+    else if (ef != EF_REVERB)
         cv_text(12, 40, &FONT_XS, ABOUT[ef], K_DIM);
     else {                                           /* "Reverb · hall": its type under its name */
         cv_round(12, 36 + FONT_B.h / 2, 4, 4, 2, K_DIM);

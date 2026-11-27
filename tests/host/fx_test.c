@@ -343,7 +343,7 @@ int main(void)
 {
     static float in[BLK], ol[BLK], orr[BLK];
     int i, b, t;
-    char name[96];
+    char name[160];
     run_t r;
 
     printf("-- every effect at its defaults on an impulse and a noise burst (peak, RMS of the 3 s, the second\n"
@@ -1315,6 +1315,7 @@ int main(void)
          * energy at 440 Hz (the octave) over its 220 Hz grows with shimmer; finite, bounded, it ends */
         static float l[4 * SR], rr[4 * SR];
         static const int modes[2] = {RV_LUSH, RV_SHIMMER};
+        (void)rr;
         double oct[2];
         float pk[2] = {0.0f, 0.0f}, end = 0.0f;
         for (int q = 0; q < 2; q++) {

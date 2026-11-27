@@ -522,7 +522,7 @@ static void slot_set(master_t *m)
         sl->ef = m->sw;
         sl->xt[0] = m->pot[MS_CX1];
     }
-    if (sl->ef != sl->mef || slot_mode(sl) != (sl->mmd & ~EFX_GROWN))
+    if (sl->ef != sl->mef || slot_mode(sl) != (int)(sl->mmd & ~EFX_GROWN))
         m->mrun = 0;
 }
 int master_effect(const master_t *m) { return m->sl.ef; }
@@ -558,7 +558,7 @@ int master_memory(master_t *m, int16_t *mem, int nb)
         sl->fo = m->grow, sl->mmd |= EFX_GROWN;
     if (!mem)
         nb = 0;
-    if (mem != m->mem || nb != m->mnb || sl->ef != sl->mef || slot_mode(sl) != (sl->mmd & ~EFX_GROWN)) {   /* (new memory, or the
+    if (mem != m->mem || nb != m->mnb || sl->ef != sl->mef || slot_mode(sl) != (int)(sl->mmd & ~EFX_GROWN)) {   /* (new memory, or the
                                                   * effect it held changed: cleared, the effect from rest) */
         m->mem = mem;
         m->mnb = (uint8_t)nb;

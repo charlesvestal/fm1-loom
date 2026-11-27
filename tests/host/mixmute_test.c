@@ -203,8 +203,8 @@ static void synth_case(int slot)
              db(rms(out[0][O_S2], a, b) / s2_on));
     check(t, rms(out[0][O_L], a, b) + rms(out[0][O_R], a, b) < dry_on * 1e-5 && rms(out[0][O_S1], a, b) < s1_on * 1e-5 &&
              rms(out[0][O_S2], a, b) < s2_on * 1e-5);
-    snprintf(t, sizeof t, "synth %s: muting, no click (dry %+.1f dB, sends %+.1f dB)", where, click_db(O_L),
-             click_db(O_S1));
+    snprintf(t, sizeof t, "synth %s: muting, no click (dry %+.1f dB, sends %+.1f dB)", where, (double)click_db(O_L),
+             (double)click_db(O_S1));
     check(t, click_db(O_L) <= SLEW_DB && click_db(O_S1) <= SLEW_DB);
     /* wet only */
     render_synth(slot, 0, 2, out[0]);
@@ -214,8 +214,8 @@ static void synth_case(int slot)
              db(rms(out[0][O_S2], a, b) / s2_on));
     check(t, rms(out[0][O_L], a, b) + rms(out[0][O_R], a, b) < dry_on * 1e-5 &&
              fabs(db(rms(out[0][O_S1], a, b) / s1_on)) < 0.5 && fabs(db(rms(out[0][O_S2], a, b) / s2_on)) < 0.5);
-    snprintf(t, sizeof t, "synth %s: to wet only, no click (dry %+.1f dB, sends %+.1f dB)", where, click_db(O_L),
-             click_db(O_S1));
+    snprintf(t, sizeof t, "synth %s: to wet only, no click (dry %+.1f dB, sends %+.1f dB)", where, (double)click_db(O_L),
+             (double)click_db(O_S1));
     check(t, click_db(O_L) <= SLEW_DB && click_db(O_S1) <= SLEW_DB);
     /* wet only, then on again */
     render_synth(slot, 2, 0, out[0]);
@@ -225,14 +225,14 @@ static void synth_case(int slot)
     check(t, fabs(db((rms(out[0][O_L], a, b) + rms(out[0][O_R], a, b)) / dry_on)) < 0.5);
     memcpy(out[1], out[2], sizeof out[1]);      /* (the references: wet only throughout, on throughout) */
     render_synth(slot, 2, 2, out[2]);
-    snprintf(t, sizeof t, "synth %s: wet only to on, no click (dry %+.1f dB)", where, click_db(O_L));
+    snprintf(t, sizeof t, "synth %s: wet only to on, no click (dry %+.1f dB)", where, (double)click_db(O_L));
     check(t, click_db(O_L) <= SLEW_DB);
     /* muted, then on again */
     render_synth(slot, 1, 0, out[0]);
     render_synth(slot, 0, 0, out[1]);
     render_synth(slot, 1, 1, out[2]);
-    snprintf(t, sizeof t, "synth %s: muted to on, no click (dry %+.1f dB, sends %+.1f dB)", where, click_db(O_L),
-             click_db(O_S1));
+    snprintf(t, sizeof t, "synth %s: muted to on, no click (dry %+.1f dB, sends %+.1f dB)", where, (double)click_db(O_L),
+             (double)click_db(O_S1));
     check(t, click_db(O_L) <= SLEW_DB && click_db(O_S1) <= SLEW_DB);
 }
 
@@ -250,7 +250,7 @@ static void kit_case(void)
             d = fmax(d, fabs((double)out[0][c][i] - (double)out[2][c][i]));
     snprintf(t, sizeof t, "kit: key 1 muted at the mixer, the rest is key 2's alone (off by %.1g, its level %.2g)", d, on);
     check(t, on > 1e-3 && d < 1e-6);
-    snprintf(t, sizeof t, "kit: key 1 muted, no click (dry %+.1f dB, sends %+.1f dB)", click_db(O_L), click_db(O_S1));
+    snprintf(t, sizeof t, "kit: key 1 muted, no click (dry %+.1f dB, sends %+.1f dB)", (double)click_db(O_L), (double)click_db(O_S1));
     check(t, click_db(O_L) <= SLEW_DB && click_db(O_S1) <= SLEW_DB);
     {                                            /* a key hit while muted: silent from its start */
         drumline_init(DL, par[0]);

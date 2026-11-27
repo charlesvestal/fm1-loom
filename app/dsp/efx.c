@@ -1526,7 +1526,7 @@ static void do_lush(efx_reverb_t *f, const float *pc, const float *x, float *ol,
     const float sct = pc[0] * (22050.0f / 29761.0f), dec = pc[1], damp = pc[3], tlk = pc[2], thk = pc[5];
     const float lpk = 0.55f, exc = 12.0f * pc[0];          /* (lpk: the send's low-pass, ~5.6 kHz before decimation) */
     const float shm = f->shm;                              /* (shimmer's feedback; 0: lush) */
-    float tl = u->tl, th = u->th, tr = u->tr, thr = u->thr, sc = u->scale, lf[NLU];
+    float tl = u->tl, th = u->th, tr = u->tr, thr = u->thr, sc = u->scale, lf[NLU] = {0};
     int i, l, mv;
     if (u->clear > 0) {                       /* a new mode: the line emptied first, silent meanwhile */
         rv_clear(w, n, &u->clear);
