@@ -1333,6 +1333,45 @@ static int song_cmd(const char *cmd)
     } else if (!strcmp(cmd, "large")) {             /* large 0|1: large type (Setup > SEL > LARGE TYPE) off or on */
         large_type_set(n > 1 && atoi(w[1]) != 0);
         run_ms(40);
+    } else if (!strcmp(cmd, "trkname")) {           /* trkname T NAME: track T's name (_ a space; a user preset takes it) */
+        t = atoi(w[1]) - 1;
+        if (t < 0 || t >= NALLTRK || n < 3)
+            host_die("trkname T NAME", "");
+        memset(proj.trk[t].name, 0, NAME_LEN);
+        for (k = 0; w[2][k] && k < NAME_LEN - 1; k++)
+            proj.trk[t].name[k] = w[2][k] == '_' ? ' ' : w[2][k];
+        run_ms(1);
+    } else if (!strcmp(cmd, "userdump")) {          /* userdump SLOT FILE: user preset SLOT (1..16) as saved: the presets
+                                                     * format (4 bytes, little-endian), then its bytes (tools/loom_presets.py) */
+        FILE *f;
+        k = atoi(w[1]) - 1;
+        if (k < 0 || k >= NUSER_PRESETS || n < 3 || !user_presets[k].name[0])
+            host_die("userdump SLOT FILE: no user preset", w[1]);
+        if (!(f = fopen(w[2], "wb")))
+            host_die("cannot write", w[2]);
+        {
+            const uint32_t fmt = PRESETS_FORMAT;
+            fwrite(&fmt, 4, 1, f);
+            fwrite(&user_presets[k], sizeof user_presets[k], 1, f);
+        }
+        fclose(f);
+    } else if (!strcmp(cmd, "sysexfile")) {         /* sysexfile FILE: each F0 .. F7 frame of a .syx as from USB (smp_frame);
+                                                     * "sysex: CMD rc R" for each answer (a preset pack's USER_PUT) */
+        static uint8_t buf[65536];
+        FILE *f;
+        size_t nb, i0 = 0, i;
+        if (!(f = fopen(w[1], "rb")))
+            host_die("no file", w[1]);
+        nb = fread(buf, 1, sizeof buf, f);
+        fclose(f);
+        for (i = 0; i < nb; i++)
+            if (buf[i] == 0xF0)
+                i0 = i;
+            else if (buf[i] == 0xF7 && i > i0) {
+                if (smp_frame(buf + i0 + 1, (uint32_t)(i - i0 - 1)))
+                    printf("sysex: %u rc %u\n", (unsigned)rp.b[4], (unsigned)rp.b[6]);
+                run_ms(1);
+            }
     } else if (!strcmp(cmd, "usersave")) {          /* usersave T SLOT: track T's sound as user preset SLOT (1..16) */
         t = atoi(w[1]) - 1;
         k = n > 2 ? atoi(w[2]) - 1 : -1;

@@ -274,6 +274,9 @@ extern uint8_t proj_par[NALLTRK][NTP];  /* the tracks' par[] as one contiguous a
                                          * keep it in step with proj.trk[].par (the UI writes those) */
 extern patterns_t pats;                 /* its patterns, lanes, scenes, song (pool) */
 extern user_preset_t user_presets[NUSER_PRESETS];
+uint32_t preset_len(uint32_t fmt);       /* a user preset's bytes in presets format fmt */
+int user_preset_from(user_preset_t *u, const uint8_t *src, uint32_t fmt);   /* as saved in fmt: one now (0), or -1 */
+int user_preset_put(int k, const uint8_t *src, uint32_t fmt, uint32_t len);   /* USER_PUT: into slot k, saved: 0 or rc */
 /* the user kits (a kit track's SELECT list: SAVE KIT, KIT): a kit is its name, the track's sound (par[0..NTP_SOUND):
  * the kit's envelope, bus filter, sends, LFO, slot 1, volume), its keys (par[TP_DRUM0..TP_O2FINE)) and slot 2 with
  * slot 1's third knob (KIT_SLOT: presets format 17; the slots' extras not kept, the presets object is full: their

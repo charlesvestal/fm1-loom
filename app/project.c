@@ -1360,6 +1360,96 @@ static void kit_old(uint8_t *img)                /* a kit from before 17 (KIT_LE
     k[5] = 127;
 }
 
+/* a user preset's bytes in presets format fmt (6 .. PRESETS_FORMAT) */
+uint32_t preset_len(uint32_t fmt)
+{
+    return fmt >= 17u ? (uint32_t)sizeof(user_preset_t) : fmt >= 16u ? PRESET_V16 : fmt >= 15u ? PRESET_V15
+         : fmt >= 14u ? PRESET_V14 : fmt >= 13u ? PRESET_V13 : fmt >= 12u ? PRESET_V12 : fmt >= 9u ? PRESET_V11
+         : PRESET_OLD;
+}
+/* one user preset as saved in presets format fmt (src: preset_len(fmt) bytes) made one now: the values it lacks at
+ * their defaults (before 13 without the Mod page, before 12 without osc 2's wave, before 9 its fine too), each
+ * format's change since (the migrations), the values out of range reset. 0, or -1 (no sound: its engine; its name
+ * cleared). The flash's presets (presets_load) and a preset sent over USB (USER_PUT, samples.c: preset packs) */
+int user_preset_from(user_preset_t *u, const uint8_t *src, uint32_t fmt)
+{
+    const uint32_t len = preset_len(fmt);
+    uint32_t i;
+    int bad;
+    u->o2fine = 64;
+    u->o2wave = O2W_SAME;
+    u->o2shape = 0;
+    u->ksync = u->ksweep = u->kcross = u->ksub = 0;
+    u->rops = RO_OFF;
+    u->rratio = 1;
+    u->rdepth = u->rfb = 0;
+    u->kanalog = 0;
+    u->itype = u->i1 = u->i2 = u->i3 = 0;
+    u->hpf = 0;
+    for (i = 0; i < len; i++)
+        ((uint8_t *)u)[i] = src[i];
+    if (fmt < 17u) {                             /* (the character and the insert as the slots: old_slots) */
+        uint8_t o[SL_N], kn[3] = {u->i1, u->i2, u->i3};
+        u->par[TP_CTYPE] = u->par[TP_CTYPE] < 8u ? OLD_CT[u->par[TP_CTYPE]] : EF_OFF;
+        old_insert(u->itype, kn, 120.0f, o);
+        u->itype = o[SL_EF], u->i1 = o[SL_K1], u->i2 = o[SL_K2], u->i3 = o[SL_K3];
+        u->s1k3 = 0, u->s2mix = o[SL_MIX];
+        for (i = 0; i < 4; i++)
+            u->s1x[i] = 0, u->s2x[i] = o[SL_X1 + i];
+    }
+    bad = u->s1k3 > 127u || u->s2mix > 127u;
+    if (u->o2fine < 14u || u->o2fine > 114u)
+        u->o2fine = 64;
+    if (u->o2wave >= NO2W || u->o2shape > 127u)
+        u->o2wave = O2W_SAME, u->o2shape = 0;
+    if (u->ksync > 1u || u->ksweep > KSWEEP_MAX || u->kcross > 127u || u->ksub >= NKS)
+        u->ksync = u->ksweep = u->kcross = u->ksub = 0;
+    if (u->rops >= NRO || u->rratio >= RO_NRATIO || u->rdepth > 127u || u->rfb > 127u)
+        u->rops = RO_OFF, u->rratio = 1, u->rdepth = u->rfb = 0;
+    if (u->kanalog > 127u)
+        u->kanalog = 0;
+    if (u->itype >= NEF || u->i1 > 127u || u->i2 > 127u || u->i3 > 127u)
+        u->itype = u->i1 = u->i2 = u->i3 = 0;
+    if (u->hpf > 127u)
+        u->hpf = 0;
+    for (i = 0; i < 4; i++)
+        bad |= u->s1x[i] > 127u || u->s2x[i] > 127u;
+    if (bad) {
+        u->s1k3 = 0, u->s2mix = 127;
+        for (i = 0; i < 4; i++)
+            u->s1x[i] = u->s2x[i] = 0;
+    }
+    if (fmt < 18u) {                             /* (before 18 no 1/4D: dl_old) */
+        if (u->par[TP_CTYPE] == EF_DELAY)
+            u->par[TP_CAMT] = dl_old(u->par[TP_CAMT]);
+        if (u->itype == EF_DELAY)
+            u->i1 = dl_old(u->i1);
+    }
+    if (fmt < 7u && (u->par[TP_FTYPE] == 4u || u->par[TP_FTYPE] == 5u))   /* (before 7, off (FT_DYNAMIC) sat at 4
+                                                  * and bp12 at 5: swap) */
+        u->par[TP_FTYPE] = (uint8_t)(9u - u->par[TP_FTYPE]);
+    u->name[NAME_LEN - 1] = 0;
+    if (u->engine >= NENGINE) {
+        u->name[0] = 0;
+        return -1;
+    }
+    return 0;
+}
+/* a user preset sent over USB (samples.c USER_PUT: tools/loom_presets.py, preset packs) into slot k (0..15), saved at
+ * once: 0, 1 slot or size, 5 no sound (its engine), 9 a format this build does not know (newer), 3 the save failed */
+int user_preset_put(int k, const uint8_t *src, uint32_t fmt, uint32_t len)
+{
+    user_preset_t u;
+    if (fmt > PRESETS_FORMAT || fmt < 6u)
+        return 9;
+    if (k < 0 || k >= NUSER_PRESETS || len != preset_len(fmt))
+        return 1;
+    if (user_preset_from(&u, src, fmt) || !u.name[0])
+        return 5;
+    user_presets[k] = u;
+    return presets_save() ? 3 : 0;
+}
+
 int presets_load(void)
 {
     int n = plat_store_load(OBJ_PRESETS, io_buf, sizeof io_buf), k;
@@ -1371,80 +1461,8 @@ int presets_load(void)
     kat = kits_at(fmt, n, &cnt, &klen);
     if (!kat && !((fmt == 6u || fmt == 7u) && n == (int)PRESETS_V7))
         return -1;
-    {
-        uint32_t len = fmt >= 17u ? (uint32_t)sizeof(user_preset_t) : fmt >= 16u ? PRESET_V16 : fmt >= 15u ? PRESET_V15
-                     : fmt >= 14u ? PRESET_V14 : fmt >= 13u ? PRESET_V13 : fmt >= 12u ? PRESET_V12 : fmt >= 9u ? PRESET_V11
-                     : PRESET_OLD;
-        for (k = 0; k < NUSER_PRESETS; k++) {    /* (before 13 without the Mod page, before 12 without osc 2's wave,
-                                                  * before 9 its fine too) */
-            user_preset_t *u = &user_presets[k];
-            u->o2fine = 64;
-            u->o2wave = O2W_SAME;
-            u->o2shape = 0;
-            u->ksync = u->ksweep = u->kcross = u->ksub = 0;
-            u->rops = RO_OFF;
-            u->rratio = 1;
-            u->rdepth = u->rfb = 0;
-            u->kanalog = 0;
-            u->itype = u->i1 = u->i2 = u->i3 = 0;
-            u->hpf = 0;
-            for (i = 0; i < len; i++)
-                ((uint8_t *)u)[i] = io_buf[4u + (uint32_t)k * len + i];
-            if (fmt < 17u) {                     /* (the character and the insert as the slots: old_slots) */
-                uint8_t o[SL_N], kn[3] = {u->i1, u->i2, u->i3};
-                u->par[TP_CTYPE] = u->par[TP_CTYPE] < 8u ? OLD_CT[u->par[TP_CTYPE]] : EF_OFF;
-                old_insert(u->itype, kn, 120.0f, o);
-                u->itype = o[SL_EF], u->i1 = o[SL_K1], u->i2 = o[SL_K2], u->i3 = o[SL_K3];
-                u->s1k3 = 0, u->s2mix = o[SL_MIX];
-                for (i = 0; i < 4; i++)
-                    u->s1x[i] = 0, u->s2x[i] = o[SL_X1 + i];
-            }
-        }
-    }
-    for (k = 0; k < NUSER_PRESETS; k++) {
-        user_preset_t *u = &user_presets[k];
-        int bad = u->s1k3 > 127u || u->s2mix > 127u;
-        if (u->o2fine < 14u || u->o2fine > 114u)
-            u->o2fine = 64;
-        if (u->o2wave >= NO2W || u->o2shape > 127u)
-            u->o2wave = O2W_SAME, u->o2shape = 0;
-        if (u->ksync > 1u || u->ksweep > KSWEEP_MAX || u->kcross > 127u || u->ksub >= NKS)
-            u->ksync = u->ksweep = u->kcross = u->ksub = 0;
-        if (u->rops >= NRO || u->rratio >= RO_NRATIO || u->rdepth > 127u || u->rfb > 127u)
-            u->rops = RO_OFF, u->rratio = 1, u->rdepth = u->rfb = 0;
-        if (u->kanalog > 127u)
-            u->kanalog = 0;
-        if (u->itype >= NEF || u->i1 > 127u || u->i2 > 127u || u->i3 > 127u)
-            u->itype = u->i1 = u->i2 = u->i3 = 0;
-        if (u->hpf > 127u)
-            u->hpf = 0;
-        for (i = 0; i < 4; i++)
-            bad |= u->s1x[i] > 127u || u->s2x[i] > 127u;
-        if (bad) {
-            u->s1k3 = 0, u->s2mix = 127;
-            for (i = 0; i < 4; i++)
-                u->s1x[i] = u->s2x[i] = 0;
-        }
-    }
-    if (fmt < 18u)                               /* (before 18 no 1/4D: dl_old) */
-        for (k = 0; k < NUSER_PRESETS; k++) {
-            user_preset_t *u = &user_presets[k];
-            if (u->par[TP_CTYPE] == EF_DELAY)
-                u->par[TP_CAMT] = dl_old(u->par[TP_CAMT]);
-            if (u->itype == EF_DELAY)
-                u->i1 = dl_old(u->i1);
-        }
-    if (fmt < 7u)                                /* (before 7, off (FT_DYNAMIC) sat at 4 and bp12 at 5: swap) */
-        for (k = 0; k < NUSER_PRESETS; k++) {
-            uint8_t ft = user_presets[k].par[TP_FTYPE];
-            if (ft == 4u || ft == 5u)
-                user_presets[k].par[TP_FTYPE] = (uint8_t)(9u - ft);
-        }
-    for (k = 0; k < NUSER_PRESETS; k++) {
-        user_presets[k].name[NAME_LEN - 1] = 0;
-        if (user_presets[k].engine >= NENGINE)
-            user_presets[k].name[0] = 0;
-    }
+    for (k = 0; k < NUSER_PRESETS; k++)
+        user_preset_from(&user_presets[k], io_buf + 4u + (uint32_t)k * preset_len(fmt), fmt);
     for (k = 0; k < (int)cnt; k++) {
         const uint8_t *img = io_buf + kat + (uint32_t)k * klen;
         for (i = 0; i < NAME_LEN; i++)

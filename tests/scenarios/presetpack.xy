@@ -1,0 +1,18 @@
+# a preset pack (tools/loom_presets.py: USER_PUT messages, app/samples.c) sent in: each preset into its slot, saved at
+# once. tests/fixtures/presetpack.syx: U3 a pad (presets format 18: cutoff 40, a delay at 124, 1/4D); U4 a format 17
+# preset, from before 1/4D, its delay at 127 (1/4 then): made one now, 121; U5 in format 99, newer than this LOOM-8:
+# refused (rc 9), U5 stays empty
+wait 300
+sysexfile tests/fixtures/presetpack.syx
+preset 4 U3
+expect par4.cut 40
+expect par4.itype 16
+expect par4.i1 124
+preset 5 U4
+expect par5.itype 16
+expect par5.i1 121
+# kept through a restart (saved to the flash)
+reboot
+wait 400
+preset 6 U3
+expect par6.cut 40

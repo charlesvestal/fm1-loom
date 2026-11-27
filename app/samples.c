@@ -40,6 +40,12 @@
  *   SOUND      28 trk pre_lo pre_hi  -> trk, NPRESETS (2 bytes, 7 bits), the preset's engine, its name: factory preset
  *                                       pre (14 bits) put on track trk (0-based), which is selected (USB MIDI in
  *                                       plays it); pre past the table: only the count. tools/preset_prof.py
+ *   USER_PUT   29 slot fmt2 data     -> slot, rc     a user preset (U1..U16: slot 0..15) as LOOM-8 saves one, in
+ *                                       presets format fmt (2 bytes, 7 bits, low first; any this build loads, an
+ *                                       older one made one now as the flash's: project.c user_preset_from), its
+ *                                       bytes packed (preset_len(fmt) of them), saved at once. A preset pack is a
+ *                                       .syx of these (tools/loom_presets.py). rc 1 slot or size, 5 no sound, 9 a
+ *                                       newer format, 3 the save failed
  * rc: 0 ok, 1 size / offset, 2 erase, 3 write, 4 not begun (the bank is live), 5 header, 6 CRC, 7 no samples,
  * 8 an update record's mark ("AT" at 0xF06 of a sector in PLAT_XDATA1: the loader would erase it).
  * Every frame is answered (the tool waits for each). The erases and writes run with the interrupts off a
@@ -50,7 +56,8 @@
 #define SB_HDR1 0x46
 #define SB_HDR2 0x4C
 #include "dsp/bench.h"
-enum { SB_INFO = 1, SB_BEGIN = 11, SB_WRITE, SB_END, SB_ERASE, SB_SINFO, SB_HDR, SB_READ, SB_PING = 25, SB_PROF, SB_BENCH, SB_SOUND };
+enum { SB_INFO = 1, SB_BEGIN = 11, SB_WRITE, SB_END, SB_ERASE, SB_SINFO, SB_HDR, SB_READ, SB_PING = 25, SB_PROF, SB_BENCH, SB_SOUND,
+       SB_UPUT };
 #define SB_PART 320u                                 /* SMP_HDR: a header part, bytes */
 #define SB_NPART ((SMP_HDR_USED + SB_PART - 1u) / SB_PART)
 #define SB_INFO_K 12u                                /* SMP_INFO: samples a reply (12 x 18 bytes at most) */
@@ -296,6 +303,20 @@ static int smp_frame(const uint8_t *p, uint32_t n)
         proj.trk_sel = (uint8_t)t;
         rp_byte(PRESETS[k].engine);
         rp_text(PRESETS[k].name, SMP_NAME);
+        break;
+    }
+    case SB_UPUT: {
+        uint8_t b[128];
+        const uint32_t k = na ? a[0] : 127u, fmt = na > 2u ? rp_arg(a + 1, 2) : 0u;
+        const uint32_t nb = na > 3u ? rp_unpack(a + 3, na - 3u, b, sizeof b) : 0u;
+        rc = (uint32_t)user_preset_put((int)k, b, fmt, nb);
+        rp_byte(k);
+        rp_byte(rc);
+        if (!rc) {                               /* (said: where it went, its name) */
+            char t[12] = "U";
+            s_cat(num_s(k + 1u, t + 1), " SAVED");
+            ui_say(t, user_presets[k].name);
+        }
         break;
     }
 #if XY_BENCH

@@ -5,6 +5,10 @@ SW2, F7; 24 bytes each, as Juno librarians save them) turned into knit sounds.
 
   tools/juno_import.py list BANK.syx [--names FILE]        each patch and the knit sound it becomes
   tools/juno_import.py script BANK.syx PATCH [--track T]    the host simulator's lines for one (PATCH: A11..B88 or 1..128)
+  tools/juno_import.py pack BANK.syx PACK.syx --patches A11,A12,... [--slot N] [--names FILE]
+                                                            up to 16 patches as a LOOM-8 preset pack (U(N) onward,
+                                                            default U1), named as --names gives or J106 A11; send it
+                                                            with tools/loom_presets.py send PACK.syx
   tools/juno_import.py render BANK.syx OUT [--patches A11,B88 ...] [--names FILE]
                                                             each patch played in the host simulator (a chord, then a
                                                             line), OUT/<label>.wav and .m4a, for listening
@@ -206,10 +210,10 @@ def lines(p, track=2):
 
 def main():
     a = sys.argv[1:]
-    if len(a) < 2 or a[0] not in ("list", "script", "render"):
+    if len(a) < 2 or a[0] not in ("list", "script", "render", "pack"):
         sys.exit(__doc__)
     opt = {}
-    for flag in ("--names", "--track", "--patches"):
+    for flag in ("--names", "--track", "--patches", "--slot"):
         if flag in a:
             i = a.index(flag)
             opt[flag] = a[i + 1]
@@ -230,6 +234,23 @@ def main():
         for n in notes:
             print(f"# {n}")
         print("\n".join(ls))
+        return
+    if a[0] == "pack":
+        import loom_presets
+        progs = [program_of(s) for s in opt.get("--patches", "").split(",") if s]
+        slot = int(opt.get("--slot", 1))
+        if len(a) < 3 or not progs or slot < 1 or slot - 1 + len(progs) > 16:
+            sys.exit("juno_import: pack BANK.syx PACK.syx --patches A11,... (1 to 16, in U1..U16)")
+        out = bytearray()
+        for i, k in enumerate(progs):
+            if k not in bank:
+                sys.exit(f"juno_import: {label(k)} is not in {a[1]}")
+            ls, _ = lines(bank[k])
+            fmt, data = loom_presets.preset_from_lines(nm.get(k) or f"J106 {label(k)}", ls)
+            out += loom_presets.frame(slot - 1 + i, fmt, data)
+            print(f"U{slot + i} {loom_presets.name_of(data):12s} {label(k)}")
+        Path(a[2]).write_bytes(bytes(out))
+        print(f"{a[2]}: {len(progs)} presets; send: tools/loom_presets.py send {a[2]}")
         return
     out = Path(a[2]).resolve()
     out.mkdir(parents=True, exist_ok=True)
