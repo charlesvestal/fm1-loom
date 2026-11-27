@@ -60,6 +60,17 @@ jobs:
         sudo apt-get install -y -qq libfribidi0
         python3 -c "from PIL import features; assert features.check('raqm'), 'Pillow without raqm'"
         test "$(git -C "$AC79_SDK" rev-parse HEAD)" = d179b4484759423312073f5fbb232501aa491047
+        # the open pi32v2 LLVM (app/fm1.toml toolchain = "open": the builder brings JieLi's only), a fixed release,
+        # its archive checked against the sum its release publishes
+        TC_VER=23.1.6-2
+        TC_TAR=pi32v2-llvm-$TC_VER-linux-x64.tar.xz
+        curl -fsSL --retry 3 -o "$RUNNER_TEMP/$TC_TAR" \
+          "https://github.com/jvitkauskas/pi32v2-llvm/releases/download/pi32v2-$TC_VER/$TC_TAR"
+        echo "b9aa6878a3e9863d54f7dea96ec5dd2e4f438b02a1503f7b042fa601bb5e4c22  $RUNNER_TEMP/$TC_TAR" | sha256sum -c -
+        mkdir -p "$HOME/.pi32v2-llvm"
+        tar -xJf "$RUNNER_TEMP/$TC_TAR" -C "$HOME/.pi32v2-llvm"
+        ln -sfn "pi32v2-llvm-$TC_VER-linux-x64" "$HOME/.pi32v2-llvm/current"
+        "$HOME/.pi32v2-llvm/current/bin/clang" --version | head -1
         # Emscripten for the .rfm1 (host apps: RemoteFM1), a fixed version from emsdk at a fixed commit
         git clone -q https://github.com/emscripten-core/emsdk.git "$RUNNER_TEMP/emsdk"
         git -C "$RUNNER_TEMP/emsdk" checkout -q a2b92777574c2feda07994cd4f1079a3dfc151f8   # emsdk 6.0.10
