@@ -1,0 +1,1564 @@
+<!doctype html>
+<!-- SPDX-License-Identifier: MPL-2.0
+     LOOM-8's presets page: a preset pack (a .syx of USER_PUT messages, tools/loom_presets.py; any number of presets) as a
+     library beside the FM-1's user presets, U1 .. U64 (Chrome or Edge, Web MIDI). Connect reads the slots' names
+     (USER_NAMES, 30). Presets are dragged from the library onto a slot (a selection of several fills the slots from
+     there on), or selected and placed with a click or Enter on a slot; each slot placed shows what it replaces, until
+     Send writes them (USER_PUT, 29: LOOM-8 saves each and says it). fm1-base's web/fm1ports.js,
+     app/web/samples/loom_samples.js (its Link and seekLink) and presets.js are inlined at LIB by tools/make_pages.py. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Presets · LOOM-8</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;600&family=Barlow+Semi+Condensed:wght@600;700&display=swap">
+<style>
+  :root { --ground: #f4f3f1; --ink: #1c1c20; --muted: #5f5f67; --rule: #dcdbd8; --card: #fff;
+          --accent: #b0285f; --on-accent: #fff; --bad: #b3261e; --good: #1f6f43; color-scheme: light; }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) { --ground: #000; --ink: #ebebee; --muted: #a2a2aa; --rule: #2e2e34; --card: #141418;
+      --accent: #ff5caa; --on-accent: #1a0010; --bad: #ff8a80; --good: #7fd8a4; color-scheme: dark; }
+  }
+  :root[data-theme="dark"] { --ground: #000; --ink: #ebebee; --muted: #a2a2aa; --rule: #2e2e34; --card: #141418;
+    --accent: #ff5caa; --on-accent: #1a0010; --bad: #ff8a80; --good: #7fd8a4; color-scheme: dark; }
+  body { margin: 0; background: var(--ground); color: var(--ink); padding-inline: 16px; padding-block: 48px 64px;
+         font: 400 16px/1.6 "Barlow", "Helvetica Neue", Arial, sans-serif; }
+  main { max-width: 46rem; margin: 0 auto; }
+  h1 { font: 700 2.4rem/1 "Barlow Semi Condensed", "Barlow", sans-serif; margin: 0 0 1rem; }
+  h2 { font: 700 1.3rem/1.2 "Barlow Semi Condensed", "Barlow", sans-serif; margin: 2rem 0 .6rem; }
+  p { margin: 0 0 1rem; }
+  a { color: var(--accent); }
+  code { font-size: .92em; }
+  .small { color: var(--muted); font-size: .9rem; }
+  .home { display: inline-block; font: 700 1rem "Barlow Semi Condensed", sans-serif; letter-spacing: .03em; color: var(--muted);
+          text-decoration: none; margin: 0 0 .8rem; }
+  .home:hover, .home:focus-visible { color: var(--accent); }
+  button, .file { font: 600 15px "Barlow", sans-serif; background: var(--accent); color: var(--on-accent); border: 0;
+                  border-radius: 999px; padding: 7px 18px; cursor: pointer; display: inline-block; }
+  button.quiet, .file { background: none; color: var(--ink); border: 1px solid var(--rule); }
+  button:disabled { opacity: .35; cursor: default; }
+  button:focus-visible, .file:focus-within, select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin: 0 0 1rem; }
+  select { font: 400 15px "Barlow", sans-serif; background: var(--card); color: var(--ink); border: 1px solid var(--rule);
+           border-radius: 8px; padding: 5px 8px; }
+  #status { min-height: 1.6em; margin: 0 0 1rem; }
+  #status.bad { color: var(--bad); }
+  .panes { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; align-items: start; }
+  @media (max-width: 720px) { .panes { grid-template-columns: 1fr; } }
+  .pane { background: var(--card); border: 1px solid var(--rule); border-radius: 10px; padding: 10px; }
+  .pane h2 { margin: 2px 4px 8px; }
+  .filter { width: 100%; box-sizing: border-box; font: 400 15px "Barlow", sans-serif; background: var(--ground);
+            color: var(--ink); border: 1px solid var(--rule); border-radius: 8px; padding: 6px 10px; margin: 0 0 8px; }
+  .list { max-height: 34rem; overflow-y: auto; display: flex; flex-direction: column; gap: 2px; }
+  .item, .slot { display: flex; gap: 10px; align-items: baseline; width: 100%; text-align: left; font: 400 15px "Barlow", sans-serif;
+                 color: var(--ink); background: none; border: 1px solid transparent; border-radius: 7px; padding: 4px 8px; }
+  .item { cursor: grab; }
+  .item[aria-pressed="true"] { background: var(--accent); color: var(--on-accent); }
+  .item .n, .slot .n { color: var(--muted); font-variant-numeric: tabular-nums; min-width: 2.6rem; font-size: 13px; font-weight: 600; }
+  .item[aria-pressed="true"] .n { color: inherit; }
+  .slot { cursor: pointer; }
+  .slot:hover, .slot.over { border-color: var(--accent); }
+  .slot .now { flex: 1; }
+  .slot .empty { color: var(--muted); }
+  .slot.new { background: color-mix(in srgb, var(--accent) 14%, transparent); }
+  .slot .was { color: var(--bad); font-size: 13px; }
+  .slot .done { color: var(--good); font-size: 13px; }
+  .slot .undo { margin-left: auto; padding: 0 6px; background: none; color: var(--muted); border: 0; font: 600 15px "Barlow", sans-serif; }
+  .item:focus-visible, .slot:focus-visible, .filter:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .grp { font: 700 13px "Barlow Semi Condensed", sans-serif; letter-spacing: .04em; color: var(--muted); margin: 10px 8px 2px;
+         text-transform: uppercase; }
+  .grp:first-child { margin-top: 0; }
+</style>
+</head>
+<body>
+<main>
+  <a class="home" href="../">LOOM-8</a>
+  <h1>Presets</h1>
+  <p>LOOM-8 holds 64 user presets (U1 to U64, after its own sounds on PRESETS) and 8 user kits (K1 to K8). Open a
+    <b>preset pack</b> (<code>.syx</code>), a LOOM-8 <b>backup</b> (<code>.loom8</code>), or a <b>Roland Juno-106</b> or
+    <b>Sequential Prophet-5</b> bank you own (<code>.syx</code>: its patches become knit sounds, here in the page) as a
+    library, put the presets and kits you want into the FM-1's slots, and send them. Or save what the FM-1 holds as a
+    pack to share. The FM-1 connects by USB; use Chrome or Edge.</p>
+  <div class="row">
+    <button id="connect">Connect</button>
+    <label class="file">Open a pack, a backup, or a Juno-106 or Prophet-5 bank<input id="file" type="file" accept=".syx,.loom8" hidden></label>
+    <button id="export" class="quiet" disabled>Save the FM-1's presets</button>
+  </div>
+  <p id="status" role="status" aria-live="polite"></p>
+
+  <div class="row">
+    <button id="send" disabled>Send to the FM-1</button>
+    <button id="clear" class="quiet" disabled>Clear what's placed</button>
+  </div>
+  <p class="small">Drag from the library onto a slot, or select (shift-click for a run) and click a slot: several fill
+    the slots from there on. Presets go to U slots, kits to K slots.</p>
+  <div class="panes">
+    <section class="pane" aria-labelledby="libh">
+      <h2 id="libh">Library</h2>
+      <input id="filter" class="filter" type="search" placeholder="Filter by name" aria-label="Filter the library by name">
+      <div id="lib" class="list" role="list"><p class="small">Open a pack or a backup to see what's in it.</p></div>
+    </section>
+    <section class="pane" aria-labelledby="slotsh">
+      <h2 id="slotsh">On the FM-1</h2>
+      <div id="slots" class="list" role="list"><p class="small">Connect to see the FM-1's user presets and kits.</p></div>
+    </section>
+  </div>
+
+  <h2>Where packs come from</h2>
+  <p class="small">A pack holds LOOM-8's own presets and kits, any engine: saved from an FM-1 here, from a backup, or
+    made on a computer with <a href="https://github.com/charlesvestal/fm1-loom">LOOM-8's source</a>
+    (<code>tools/loom_presets.py</code>). A Juno-106 or Prophet-5 bank is turned into knit sounds here as the source's
+    <code>tools/juno_import.py</code> and <code>tools/prophet_import.py</code> do (the same sounds), each set to the
+    level of LOOM-8's own pads; what knit can't do is listed beside it. A pack made by one version of LOOM-8 loads in
+    later ones. Sending replaces the slots it goes to; the others stay as they are.</p>
+</main>
+<script type="module">
+// SPDX-License-Identifier: MPL-2.0
+// Copyright (C) 2026 Charles Vestal
+// Copyright (C) 2026 Chris Farrell (the FM-1's usual port names, and other ports asked only once allowed: from
+//   fm-static, github.com/seajaysec/fm-static, by his permission under MPL-2.0: seajaysec/fm-static#1)
+//
+// Finding FM-1s on Web MIDI, one copy for every page: fm1-base's installer (through fm1ota.js) and backup page, and
+// the FM-1 Screen Reader's page (fm1-reader web/reader.js). fm1-reader keeps a copy of this file, made and checked by
+// its tools/sync_announce.sh: change it here.
+//
+// A port is asked who it is in one of two ways:
+//  - The screen reader's HELLO (fm1-reader PROTOCOL.md): F0 7D 53 52 01 01 F7. 7D is the ID for non-commercial use,
+//    which other gear ignores, so a HELLO goes to every port, ASK_TRIES times while the port stays plugged in. Every
+//    firmware on fm1-base answers it (device/announce.c) with its name and the link to its words file, whatever its
+//    port is called. M-VAVE's firmware and the update loader don't.
+//  - The update protocol's identity query (fm1ota.js handshake): M-VAVE's own SysEx, which the stock firmware and the
+//    loader answer too. It goes only to an askable port: one with a usual name (PORT_NAMES), one the user picked, or
+//    one that answered a HELLO.
+// A HELLO answer is told from the HELLO itself by the name in it: a loopback (macOS's IAC bus, a DAW's MIDI through)
+// sends the HELLO back as it went out, with no name.
+
+// port names asked without being picked (any case, part of the name). "FM1": the Open firmware's "FM1 Community"
+// The FM-1 firmwares of the family name their own port after themselves (an FM-1 running one shows as that name alone):
+// "optimist", "sloop", "melodee", "loom-8" / "loom8", as tools/fm1ports.py asks them too.
+const PORT_NAMES = ["fm-1", "fm1", "felucca", "ota", "composite", "sinco", "usb-midi", "optimist", "sloop", "melodee", "loom-8", "loom8"];
+function usualName(name, names = PORT_NAMES) {
+  const n = (name || "").toLowerCase();
+  return names.some((p) => n.includes(p));
+}
+
+// never a Bluetooth MIDI port: an FM-1 paired over Bluetooth shows one beside its USB port, an install or a backup over
+// it is not offered, and it answers nothing asked of it. bluetooth = true: a list the user picks from by hand (the mirror
+// page's two drop-downs) keeps them, after the others
+const IS_BLUETOOTH = (name) => /bluetooth/i.test(name || "");
+const livePorts = (map, bluetooth = false) => {
+  const live = [...map.values()].filter((p) => p.state !== "disconnected" && (bluetooth || !IS_BLUETOOTH(p.name)));
+  return bluetooth ? [...live.filter((p) => !IS_BLUETOOTH(p.name)), ...live.filter((p) => IS_BLUETOOTH(p.name))] : live;
+};
+
+// an input's output: the one with its name; else the only one with its name but for a number at the end (Windows
+// numbers each port); else the only output there is. null: none. A Bluetooth input (picked by hand) looks among the
+// Bluetooth outputs too
+function outputFor(access, input) {
+  const outs = livePorts(access.outputs, IS_BLUETOOTH(input.name));
+  const bare = (s) => (s || "").replace(/\s+\d+$/, "");
+  const same = outs.filter((o) => bare(o.name) === bare(input.name));
+  return outs.find((o) => o.name === input.name) || (same.length === 1 ? same[0] : null) ||
+    (outs.length === 1 ? outs[0] : null);
+}
+
+// every plugged-in input that has an output: [{ name, input, output }]
+function pairs(access) {
+  return livePorts(access.inputs).map((input) => ({ name: input.name || "", input, output: outputFor(access, input) }))
+    .filter((p) => p.output);
+}
+
+// ---------------------------------------------------------------- the screen reader's HELLO (fm1-reader PROTOCOL.md)
+const SR = [0x7D, 0x53, 0x52];
+const SR_HELLO = 1, SR_BYE = 2, SR_WHERE = 3, SR_SAY = 16, SR_VER = 1;
+const ASK_TRIES = 3;
+const srFrame = (cmd, ...args) => [0xF0, ...SR, cmd, ...args, 0xF7];
+const isSr = (d) => !!d && d[0] === 0xF0 && d[1] === SR[0] && d[2] === SR[1] && d[3] === SR[2];
+
+// a HELLO answer -> { name, words } (words: the https link to its words file, or ""), or null when it is none: a
+// HELLO sent back by a loopback has no name
+function srHello(d) {
+  if (!isSr(d) || d[4] !== SR_HELLO || d[d.length - 1] !== 0xF7) return null;
+  const [name = "", words = ""] = String.fromCharCode(...Array.from(d.slice(6, d.length - 1)).filter((b) => b < 128))
+    .split("\0");
+  if (!name) return null;
+  return { name, words: /^https:\/\/[^\s"']+\.json$/.test(words) ? words : "" };
+}
+
+// which outputs a HELLO goes to now: every output ASK_TRIES times after it appears, then only the ones that answered
+// (a reader keeps those listening). Other gear on the computer gets three short SysEx it ignores, not one every two
+// seconds. forget(id) when a port is unplugged or lost: it is asked again
+class Asking {
+  constructor(tries = ASK_TRIES) { this.tries = tries; this.n = new Map(); }
+  due(output, answered = false) {
+    const k = this.n.get(output.id) || 0;
+    if (!answered && k >= this.tries) return false;
+    this.n.set(output.id, k + 1);
+    return true;
+  }
+  forget(id) { this.n.delete(id); }
+  clear() { this.n.clear(); }
+}
+
+// one search: the port pairs that answer a HELLO -> [{ name, firmware, words, input, output }] (firmware: the name
+// and version it gives, e.g. "X0X 1.1"). Asks up to `tries` times, `ms` apart, stopping when every port has answered;
+// skip(name): ports not to ask. No BYE after it: a device stops by itself 5 s after the last HELLO, and a BYE would
+// also stop a reader page that is listening to it
+async function askAll(access, { ms = 500, tries = ASK_TRIES, skip = () => false } = {}) {
+  const ps = pairs(access).filter((p) => !skip(p.name));
+  const got = new Map();
+  const ears = ps.map((p) => [p, (e) => {
+    const h = srHello(e.data);
+    if (h && !got.has(p.input)) got.set(p.input, { name: p.name, firmware: h.name, words: h.words, input: p.input, output: p.output });
+  }]);
+  for (const [p, f] of ears) {
+    try { await p.input.open(); } catch (_) { /* taken: it answers nothing */ }
+    p.input.addEventListener("midimessage", f);
+  }
+  try {
+    for (let t = 0; t < tries && got.size < ps.length; t++) {
+      const sent = new Set();
+      for (const p of ps) {
+        if (got.has(p.input) || sent.has(p.output)) continue;
+        sent.add(p.output);
+        try { p.output.send(srFrame(SR_HELLO, SR_VER)); } catch (_) { /* unplugged */ }
+      }
+      await new Promise((r) => setTimeout(r, ms));
+    }
+  } finally {
+    for (const [p, f] of ears) p.input.removeEventListener("midimessage", f);
+  }
+  return [...got.values()];
+}
+
+// SPDX-License-Identifier: MPL-2.0
+// LOOM-8's user sample bank in the browser: tools/loom_samples.py and tools/sampleio.py (its numpy path) as plain
+// functions, so the samples page (app/web/samples/index.html) builds the bank the command line builds: the same
+// layout and header byte for byte, the same sound within a rounding (numpy sums a convolution in its own order).
+// tests/host/samples_web.mjs checks it against loom_samples.py. Copyright (C) 2026 Charles Vestal.
+//
+// Keep the order of operations of sampleio.py when touching these.
+
+// finding FM-1s on Web MIDI (seekLink): fm1-base's, which the pages inline before this file
+
+const RATES = [11025, 16000, 22050, 32000];
+const AUTO = [22050, 16000, 11025];
+const BLK = 128, BLK_V2 = 64;          // a checkpoint every BLK samples: version 3 banks (0.8); 64 in version 2
+const REGIONS = [[0xC1000, 0x1B000], [0xE5000, 0x17000]];   // (until 0.19 also [0x93000, 0x4000]: the app's since)
+const XDATA = [1], REC_MARK = 0xF06;
+const BANK_SIZE = REGIONS.reduce((a, r) => a + r[1], 0);
+const BANK_HDR = 2048, BANK_MAX_DATA = BANK_SIZE - BANK_HDR, BANK_N = 32, BANK_VER = 3;
+// since 0.8 the factory set (the kits' drums, the instruments, the sweep, the vinyl) lives in the bank too: 12 entries
+// marked E_FACTORY (an entry's flags, byte 33), which its factory rows play and which are no user slots (sample.h)
+const NFENT = 13, NENT = BANK_N + NFENT, E_FACTORY = 0x01;
+// a wavetable (E_WT, sample.h SMP_E_WT): raw int8 frames of WT_N, no checkpoints; jacquard's user tables, one of the
+// 32 user entries (sampleio.py wavetable_of makes them; a bank read back keeps them as they are)
+const E_WT = 0x02, WT_N = 128, WT_RATE = 22050;   // (its rate field: sampleio.py RATE, unread)
+const isWt = (smp) => !!((smp.flags || 0) & E_WT);
+const ENT0 = 64, ENT = 40, BANK_MAGIC = 0x504D534C, NAME_LEN = 12, BARS_MAX = 16;
+const LOOP_ROOT = 53;                  // a loop's slice 1: F3, the lowest key
+const HDR_USED = ENT0 + NENT * ENT;    // the header's bytes the FM-1 keeps (1824)
+const PART = 320, NPART = Math.ceil(HDR_USED / PART);
+const READ_MAX = 224;                  // samples.c SB_READ_MAX
+
+// IMA ADPCM's step sizes and index changes: the standard's tables (IMA Digital Audio Focus and Technical Working
+// Groups, "Recommended Practices for Enhancing Digital Audio Compatibility in Multimedia Systems", 1992)
+const IMA_STEP = [
+  7, 8, 9, 10, 11, 12, 13, 14, 16, 17,
+  19, 21, 23, 25, 28, 31, 34, 37, 41, 45,
+  50, 55, 60, 66, 73, 80, 88, 97, 107, 118,
+  130, 143, 157, 173, 190, 209, 230, 253, 279, 307,
+  337, 371, 408, 449, 494, 544, 598, 658, 724, 796,
+  876, 963, 1060, 1166, 1282, 1411, 1552, 1707, 1878, 2066,
+  2272, 2499, 2749, 3024, 3327, 3660, 4026, 4428, 4871, 5358,
+  5894, 6484, 7132, 7845, 8630, 9493, 10442, 11487, 12635, 13899,
+  15289, 16818, 18500, 20350, 22385, 24623, 27086, 29794, 32767];
+const IMA_IDX = [...Array(4).fill(-1), 2, 4, 6, 8];   // by a code's magnitude bits (0..7)
+const IMA_BITS = [[4, 0], [2, 1], [1, 2]];            // a code's magnitude bits and the shift of the step each stands for
+
+// the decoder's state after one code: [pred, idx] (sampleio._ima_next)
+function imaNext(pred, idx, code) {
+  const step = IMA_STEP[idx];
+  let d = step >> 3;
+  for (const [bit, shift] of IMA_BITS) if (code & bit) d += step >> shift;
+  pred = Math.max(-32768, Math.min(32767, code & 8 ? pred - d : pred + d));
+  return [pred, Math.max(0, Math.min(88, idx + IMA_IDX[code & 7]))];
+}
+
+// ---- a WAV as a wavetable for jacquard (sampleio.wavetable_of, the same bytes): its frames (a 'clm ' chunk's size,
+// "<!>2048" as Serum and Vital write it; else 2048 when the length is a multiple; else the whole file one cycle), as
+// many as frames picked evenly across them (all, when fewer), each band-limited to WT_N samples (harmonics 1..63), the
+// table's peak at full scale -> Uint8Array of int8 (frames x WT_N; a single cycle twice)
+const roundEven = (x) => (Math.abs(x % 1) === 0.5 ? 2 * Math.round(x / 2) : Math.round(x));   // (Python's round)
+function wavetableOf(buf, frames = 16) {
+  const b = new Uint8Array(buf.buffer || buf, buf.byteOffset || 0, buf.byteLength);
+  let size = 0;
+  for (let i = 12; i + 8 <= b.length; ) {         // (the chunks: 'clm ' says the frame size)
+    const id = String.fromCharCode(b[i], b[i + 1], b[i + 2], b[i + 3]), n = b[i + 4] | b[i + 5] << 8 | b[i + 6] << 16 | b[i + 7] << 24;
+    if (id === "clm ") {
+      const m = /<!>(\d+)/.exec(String.fromCharCode(...b.subarray(i + 8, i + 8 + Math.min(n, 64))));
+      if (m) size = +m[1];
+      break;
+    }
+    i += 8 + n + (n & 1);
+  }
+  const x = readWav(buf).x;
+  if (!size) size = x.length >= 2048 && x.length % 2048 === 0 ? 2048 : x.length;
+  const m = Math.floor(x.length / size);
+  if (m < 1) throw new Error(`shorter than a frame of ${size}`);
+  const pick = m <= frames ? [...Array(m).keys()] : [...Array(frames).keys()].map((k) => roundEven(k * (m - 1) / (frames - 1)));
+  const out = pick.map((j) => {
+    const f = x.slice(j * size, (j + 1) * size), y = new Float64Array(WT_N);
+    for (let k = 1; k < WT_N / 2; k++) {
+      let re = 0, im = 0;
+      for (let t = 0; t < size; t++) { const a = 2 * Math.PI * k * t / size; re += f[t] * Math.cos(a); im -= f[t] * Math.sin(a); }
+      for (let n = 0; n < WT_N; n++) { const a = 2 * Math.PI * k * n / WT_N; y[n] += 2 / size * (re * Math.cos(a) - im * Math.sin(a)); }
+    }
+    return y;
+  });
+  if (out.length === 1) out.push(out[0]);
+  const peak = Math.max(...out.map((y) => Math.max(...y.map(Math.abs))));
+  if (!(peak > 0)) throw new Error("silent");
+  const r = new Int8Array(out.length * WT_N);
+  out.forEach((y, f) => y.forEach((v, n) => { r[f * WT_N + n] = roundEven(v / peak * 127); }));
+  return new Uint8Array(r.buffer);
+}
+
+// ---- WAV in (sampleio.read_any_wav): -> {rate, x: mono floats, loop: [start, end] or null}
+function readWav(buf) {
+  const d = new DataView(buf.buffer || buf, buf.byteOffset || 0, buf.byteLength);
+  const tag4 = (o) => String.fromCharCode(d.getUint8(o), d.getUint8(o + 1), d.getUint8(o + 2), d.getUint8(o + 3));
+  if (d.byteLength < 12 || tag4(0) !== "RIFF" || tag4(8) !== "WAVE") throw new Error("not a WAV file");
+  const ch = {};
+  for (let i = 12; i + 8 <= d.byteLength;) {
+    const id = tag4(i), n = d.getUint32(i + 4, true);
+    if (!(id in ch)) ch[id] = [i + 8, n];
+    i += 8 + n + (n & 1);
+  }
+  if (!ch["fmt "]) throw new Error("WAV without a fmt chunk");
+  const fo = ch["fmt "][0];
+  let tag = d.getUint16(fo, true);
+  const nch = d.getUint16(fo + 2, true), sr = d.getUint32(fo + 4, true), bits = d.getUint16(fo + 14, true);
+  if (tag === 0xFFFE) tag = d.getUint16(fo + 24, true);
+  const bps = bits >> 3;
+  if ((tag !== 1 && tag !== 3) || !bps || !nch) throw new Error(`unsupported WAV (tag ${tag}, ${bits} bit)`);
+  const [o, n] = ch.data || [0, 0];
+  const frame = bps * nch, nfr = Math.floor(Math.min(n, d.byteLength - o) / frame);
+  const val = (p) => {
+    if (tag === 3) return bps === 4 ? d.getFloat32(p, true) : d.getFloat64(p, true);
+    if (bps === 2) return d.getInt16(p, true) / 32768;
+    if (bps === 3) return ((d.getUint8(p) << 8 | d.getUint8(p + 1) << 16 | d.getUint8(p + 2) << 24) >> 0) / 2147483648;
+    if (bps === 4) return d.getInt32(p, true) / 2147483648;
+    return (d.getUint8(p) - 128) / 128;
+  };
+  const x = new Float64Array(nfr);
+  for (let f = 0; f < nfr; f++) {
+    const p = o + f * frame;
+    let acc = 0;                                  // sum(v[f:f + nch]) / nch, from 0, left to right
+    for (let c = 0; c < nch; c++) acc += val(p + c * bps);
+    x[f] = nch > 1 ? acc / nch : acc;
+  }
+  let loop = null;
+  if (ch.smpl) {
+    const so = ch.smpl[0];
+    if (so + 52 <= d.byteLength && d.getUint32(so + 28, true)) loop = [d.getUint32(so + 44, true), d.getUint32(so + 48, true)];
+  }
+  return { rate: sr, x, loop };
+}
+
+// numpy.convolve(a, h, mode="same"): length max(N, M), from (min(N, M) - 1) // 2 of the full convolution
+function convolveSame(a, h) {
+  const N = a.length, M = h.length, L = Math.max(N, M), off = (Math.min(N, M) - 1) >> 1;
+  const out = new Float64Array(L);
+  for (let i = 0; i < L; i++) {
+    const k = i + off;                            // full[k] = sum_j a[k - j] h[j]
+    let acc = 0, j0 = Math.max(0, k - N + 1), j1 = Math.min(M - 1, k);
+    for (let j = j0; j <= j1; j++) acc += a[k - j] * h[j];
+    out[i] = acc;
+  }
+  return out;
+}
+
+function sinc(x) { if (x === 0) return 1.0; const y = Math.PI * x; return Math.sin(y) / y; }
+function blackman(M) {                            // numpy.blackman
+  const w = new Float64Array(M);
+  if (M === 1) { w[0] = 1; return w; }
+  for (let i = 0; i < M; i++) {
+    const n = 1 - M + 2 * i;
+    w[i] = 0.42 + 0.5 * Math.cos(Math.PI * n / (M - 1)) + 0.08 * Math.cos(2.0 * Math.PI * n / (M - 1));
+  }
+  return w;
+}
+
+// sampleio.resample (numpy): down, a windowed-sinc low-pass at 90 % of the new half rate; then linear interpolation
+function resample(x, sr, to) {
+  if (sr === to) return Float64Array.from(x);
+  let a = Float64Array.from(x);
+  if (a.length <= 1) return new Float64Array(0);
+  if (to < sr) {
+    const fc = 0.45 * to / sr, half = Math.ceil(8.0 / fc), M = 2 * half + 1, w = blackman(M), h = new Float64Array(M);
+    let sum = 0;
+    for (let i = 0; i < M; i++) { const t = i - half; h[i] = 2.0 * fc * sinc(2.0 * fc * t) * w[i]; }
+    for (let i = 0; i < M; i++) sum += h[i];
+    for (let i = 0; i < M; i++) h[i] /= sum;
+    a = convolveSame(a, h);
+  }
+  const n = Math.ceil((a.length - 1) * to / sr), step = sr / to, out = new Float64Array(n), last = a.length - 1;
+  for (let i = 0; i < n; i++) {                   // numpy.interp on 0, 1, 2 ...
+    const p = i * step, j = Math.floor(p);
+    out[i] = j >= last ? a[last] : (a[j + 1] - a[j]) * (p - j) + a[j];
+  }
+  return out;
+}
+
+// the pre-emphasis the playback's linear interpolation takes back off (sampleio.EMPHASIS)
+const EMPHASIS = [0.0517, -0.21, 1.3362, -0.21, 0.0517].map((v) => v / 1.0196);
+function emphasis(x) { return convolveSame(Float64Array.from(x), EMPHASIS); }
+
+function roundHalfEven(v) {                       // Python's round()
+  const f = Math.floor(v), d = v - f;
+  if (d > 0.5) return f + 1;
+  if (d < 0.5) return f;
+  return f % 2 === 0 ? f : f + 1;
+}
+
+// sampleio.to_int16: the peak normalised to 30000
+function toInt16(x, peakTo = 30000) {
+  let pk = 1e-9;
+  for (const v of x) { const a = Math.abs(v); if (a > pk) pk = a; }
+  const out = new Int16Array(x.length);
+  for (let i = 0; i < x.length; i++) out[i] = Math.max(-32768, Math.min(32767, roundHalfEven(x[i] / pk * peakTo)));
+  return out;
+}
+
+// sampleio.note_from_name: "C4" / "F#3" / "Bb2" in a name, C4 = 60
+function noteFromName(name, def = 60) {
+  const m = /(?<![A-Za-z])([A-G])([#b]?)(-?\d)(?!\d)/.exec(name);
+  if (!m) return def;
+  const pc = "C D EF G A B".indexOf(m[1]) + ({ "#": 1, b: -1, "": 0 })[m[2]];
+  return Math.max(0, Math.min(127, (parseInt(m[3], 10) + 1) * 12 + pc));
+}
+
+// sampleio.clean_name: lower case, printable, at most 11 characters
+function cleanName(name) {
+  const s = name.toLowerCase().replace(/_/g, " ").replace(/[^a-z0-9 _.-]/g, "").trim();
+  return (s || "sample").slice(0, NAME_LEN - 1);
+}
+
+const NOTE = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
+function noteName(n) { return NOTE[n % 12] + (Math.floor(n / 12) - 1); }
+
+// sampleio.ima_encode: -> {adpcm, ck: Uint32Array of the decoder's state before every BLK-th sample}
+function imaEncode(s) {
+  let pred = 0, idx = 0;
+  const adpcm = new Uint8Array(((s.length + 1) >> 1)), ck = new Uint32Array(Math.ceil(s.length / BLK));
+  s.forEach((x, n) => {
+    if (n % BLK === 0) ck[n / BLK] = ((pred & 0xFFFF) | idx << 16) >>> 0;
+    const step = IMA_STEP[idx];
+    let left = Math.abs(x - pred), code = x < pred ? 8 : 0;
+    for (const [bit, shift] of IMA_BITS)               // the magnitude, a bit at a time from the largest share
+      if (left >= step >> shift) { code |= bit; left -= step >> shift; }
+    adpcm[n >> 1] |= code << 4 * (n & 1);
+    [pred, idx] = imaNext(pred, idx, code);
+  });
+  return { adpcm, ck };
+}
+
+// the firmware's decoder (dsp/sample.c): for the pictures of samples read back
+function imaDecode(b, n) {
+  const out = new Int16Array(n);
+  let st = [0, 0];
+  for (let i = 0; i < n; i++) {
+    st = imaNext(st[0], st[1], b[i >> 1] >> 4 * (i & 1) & 15);
+    out[i] = st[0];
+  }
+  return out;
+}
+
+function sampleBytes(n) { return Math.ceil(n / BLK) * 4 + Math.floor((Math.floor((n + 1) / 2) + 3) / 4) * 4; }
+function bytesPerSecond(rate) { return rate * (0.5 + 4.0 / BLK); }
+
+// a file's samples at a rate, ready for the bank (loom_samples.at_rate): {s: Int16Array, loop}
+function atRate(x, sr, loop, rate) {
+  const s = toInt16(emphasis(resample(x, sr, rate)));
+  const lp = loop ? [Math.trunc(loop[0] * rate / sr), Math.trunc((loop[1] + 1) * rate / sr)] : null;
+  return { s, loop: lp };
+}
+function lengthAt(nx, sr, rate) { return Math.trunc(nx * rate / sr); }
+
+// ---- the bank's layout (sampleio.user_bank)
+function regionStarts() { const out = []; let v = 0; for (const [, n] of REGIONS) { out.push(v); v += n; } return out; }
+const STARTS = regionStarts();
+function regionOf(v) {
+  for (let r = 0; r < REGIONS.length; r++) if (STARTS[r] <= v && v < STARTS[r] + REGIONS[r][1]) return r;
+  return REGIONS.length;
+}
+
+class TooLong extends Error {}
+
+function place(blobs, pad) {
+  const starts = [...STARTS, BANK_SIZE], out = [];
+  let v = BANK_HDR;
+  for (let k = 0; k < blobs.length; k++) {
+    const [ckb, adpb] = blobs[k];
+    v = (v + pad[k] + 3) & ~3;
+    let a;
+    for (;;) {
+      const r = regionOf(v);
+      if (r >= REGIONS.length) throw new TooLong("too long");
+      if (v + ckb.length > starts[r + 1]) { v = starts[r + 1]; continue; }
+      a = v + ckb.length;
+      const ra = a < BANK_SIZE ? regionOf(a) : REGIONS.length;
+      if (ra >= REGIONS.length || a + adpb.length > starts[Math.min(ra + 2, REGIONS.length)]) {
+        if (ra + 1 >= REGIONS.length) throw new TooLong("too long");
+        v = starts[ra + 1];
+        continue;
+      }
+      break;
+    }
+    out.push([v, a]);
+    v = a + adpb.length;
+  }
+  if (v > BANK_SIZE) throw new TooLong("too long");
+  return { where: out, end: v };
+}
+
+function marks(img, end) {
+  const out = [];
+  for (const r of XDATA)
+    for (let sec = 0; sec < REGIONS[r][1]; sec += 0x1000) {
+      const v = STARTS[r] + sec + REC_MARK;
+      if (v + 2 <= end && img[v] === 0x41 && img[v + 1] === 0x54) out.push(v);
+    }
+  return out;
+}
+
+let CRC_T = null;
+function crc32(b) {                        // zlib.crc32
+  if (!CRC_T) {
+    CRC_T = new Uint32Array(256);
+    for (let n = 0; n < 256; n++) {
+      let c = n;
+      for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1;
+      CRC_T[n] = c >>> 0;
+    }
+  }
+  let c = 0xFFFFFFFF;
+  for (let i = 0; i < b.length; i++) c = CRC_T[(c ^ b[i]) & 0xFF] ^ (c >>> 8);
+  return (c ^ 0xFFFFFFFF) >>> 0;
+}
+
+// a sample for the bank: {name, n, root, loop: [ls, le] or null, bars, rate} and either s (Int16Array: encoded here)
+// or ckb + adpcm (as stored: a sample read back, kept as it is)
+function blobOf(smp) {
+  if (isWt(smp)) return [new Uint8Array(0), smp.adpcm];   // (a wavetable: its frames as they are)
+  if (smp.adpcm) return [smp.ckb, smp.adpcm];
+  const { adpcm, ck } = imaEncode(smp.s);
+  const ckb = new Uint8Array(ck.length * 4), dv = new DataView(ckb.buffer);
+  ck.forEach((c, i) => dv.setUint32(i * 4, c, true));
+  return [ckb, adpcm];
+}
+
+// sampleio.user_bank: -> the bank's image (header + data, without the padding to BANK_SIZE); throws "too long ..."
+const isFactory = (smp) => !!((smp.flags || 0) & E_FACTORY);
+function userBank(samples) {
+  const own = samples.filter((smp) => !isFactory(smp)).length;
+  if (samples.length < 1 || own > BANK_N || samples.length - own > NFENT)
+    throw new Error(`1..${BANK_N} samples in the bank (and the factory set's ${NFENT})`);
+  const blobs = [], meta = [];
+  for (const smp of samples) {
+    if (isWt(smp)) {                              // (a wavetable: kept as it is, its frames' bytes)
+      blobs.push(blobOf(smp));
+      meta.push({ nm: cleanName(smp.name), n: smp.adpcm.length, ls: 0, le: 0, root: 60, flags: smp.flags, bars: 0,
+        rate: WT_RATE });
+      continue;
+    }
+    const n = smp.adpcm ? smp.n : smp.s.length;
+    if (!(smp.bars >= 0 && smp.bars <= BARS_MAX)) throw new Error(`${smp.name}: ${smp.bars} bars (0..${BARS_MAX})`);
+    if (!(smp.rate >= 4000 && smp.rate <= 48000)) throw new Error(`${smp.name}: ${smp.rate} Hz (4000..48000)`);
+    if (!n) throw new Error(`${smp.name}: no audio`);
+    blobs.push(blobOf(smp));
+    let [ls, le] = smp.loop || [0, 0];
+    le = Math.min(le, n);
+    if (le <= ls) ls = le = 0;
+    meta.push({ nm: cleanName(smp.name), n, ls, le, root: Math.max(0, Math.min(127, smp.root)), flags: smp.flags || 0,
+      bars: smp.bars, rate: smp.rate });
+  }
+  const pad = new Array(blobs.length).fill(0);
+  let where, end, img = null;
+  for (let t = 0; ; t++) {
+    if (t >= 4096) throw new Error("could not keep the update record's mark out of the bank");
+    try { ({ where, end } = place(blobs, pad)); } catch (e) {
+      if (e instanceof TooLong) {
+        const used = blobs.reduce((a, [c, d]) => a + c.length + d.length, 0);
+        throw new TooLong(`too long: ${used} B, the bank holds ${BANK_MAX_DATA} B`);
+      }
+      throw e;
+    }
+    img = new Uint8Array(end).fill(0xFF);
+    blobs.forEach(([ckb, adpb], k) => { img.set(ckb, where[k][0]); img.set(adpb, where[k][1]); });
+    const mk = marks(img, end);
+    if (!mk.length) break;
+    const k = where.findIndex(([c, a], i) => c <= mk[0] && mk[0] < a + blobs[i][1].length);
+    if (k < 0) throw new Error("an update record's mark outside the samples");
+    pad[k] += 4;
+  }
+  const data = img.subarray(BANK_HDR);
+  const hdr = new Uint8Array(BANK_HDR), v = new DataView(hdr.buffer);
+  v.setUint32(0, BANK_MAGIC, true);
+  v.setUint16(4, BANK_VER, true);
+  hdr[6] = meta.length;
+  hdr[7] = 0;
+  v.setUint32(8, data.length, true);
+  v.setUint32(12, crc32(data), true);
+  v.setUint32(16, BANK_SIZE, true);
+  meta.forEach((m, k) => {
+    const o = ENT0 + k * ENT;
+    for (let i = 0; i < m.nm.length; i++) hdr[o + i] = m.nm.charCodeAt(i);
+    v.setUint32(o + 12, where[k][1], true);         // the ADPCM, then the checkpoints
+    v.setUint32(o + 16, where[k][0], true);
+    v.setUint32(o + 20, m.n, true);
+    v.setUint32(o + 24, m.ls, true);
+    v.setUint32(o + 28, m.le, true);
+    hdr[o + 32] = m.root;
+    hdr[o + 33] = m.flags;
+    hdr[o + 34] = m.bars;
+    v.setUint16(o + 36, m.rate, true);
+  });
+  const out = new Uint8Array(BANK_HDR + data.length);
+  out.set(hdr);
+  out.set(data, BANK_HDR);
+  return out;
+}
+
+// a bank's header -> its samples' entries (null: not a bank)
+function parseHeader(hdr) {
+  const v = new DataView(hdr.buffer, hdr.byteOffset, hdr.byteLength);
+  const ver = hdr.length >= ENT0 ? v.getUint16(4, true) : 0;
+  if (hdr.length < ENT0 || v.getUint32(0, true) !== BANK_MAGIC || (ver !== 2 && ver !== 3)) return null;
+  const count = hdr[6], out = [];
+  if (count > NENT || hdr.length < ENT0 + count * ENT) return null;
+  for (let k = 0; k < count; k++) {
+    const o = ENT0 + k * ENT;
+    let name = "";
+    for (let i = 0; i < NAME_LEN && hdr[o + i]; i++) name += String.fromCharCode(hdr[o + i]);
+    out.push({ name, adpOff: v.getUint32(o + 12, true), ckOff: v.getUint32(o + 16, true), n: v.getUint32(o + 20, true),
+      ls: v.getUint32(o + 24, true), le: v.getUint32(o + 28, true), root: hdr[o + 32], flags: hdr[o + 33],
+      bars: hdr[o + 34], rate: v.getUint16(o + 36, true) });
+  }
+  return { count, ver, dataLen: v.getUint32(8, true), crc: v.getUint32(12, true), entries: out };
+}
+
+// loom_samples.pack7: groups of up to 7 bytes, each preceded by their top bits; and back
+function pack7(b) {
+  const out = [];
+  for (let i = 0; i < b.length; i += 7) {
+    let m = 0;
+    const g = b.subarray ? b.subarray(i, i + 7) : b.slice(i, i + 7);
+    g.forEach((x, j) => { m |= ((x >> 7) & 1) << j; });
+    out.push(m);
+    for (const x of g) out.push(x & 0x7F);
+  }
+  return out;
+}
+function unpack7(a) {
+  const out = [];
+  for (let i = 0; i < a.length;) {
+    const m = a[i++];
+    for (let j = 0; j < 7 && i < a.length; j++) out.push(a[i++] | ((m >> j) & 1) << 7);
+  }
+  return new Uint8Array(out);
+}
+
+// loom_samples.frames: the upload's frames, [command, args, timeout ms, what]
+function* frames(image) {
+  yield [11, [0], 10000, "begin"];
+  for (let off = BANK_HDR; off < image.length; off += 256)
+    yield [12, [0, off & 0x7F, (off >> 7) & 0x7F, (off >> 14) & 0x7F, ...pack7(image.subarray(off, off + 256))], 5000, off];
+  for (let part = 0; part < NPART; part++)
+    yield [16, [0, part, ...pack7(image.subarray(0, BANK_HDR).subarray(part * PART, (part + 1) * PART))], 3000, `header part ${part}`];
+  yield [13, [0], 20000, "end"];
+}
+
+// loom_samples.build: the bank from items in order, each either kept ({name, n, root, loop, bars, rate, ckb, adpcm}:
+// read back) or new ({name, x, sr, loop (the file's), root, bars, rate: its own or null}); rate: for the new ones that
+// did not choose (null: auto, the highest of AUTO at which all fits). -> {img, chose}; throws TooLong.
+// cache (a Map) keeps each new item's samples at a rate between calls.
+function build(items, rate = null, cache = new Map()) {
+  const own = items.filter((it) => !isFactory(it)).length;
+  if (items.length < 1 || own > BANK_N) throw new Error(`1..${BANK_N} samples in the bank`);
+  const tries = rate ? [rate] : AUTO;
+  for (const r of tries) {
+    const est = items.reduce((a, it) => a + (isWt(it) ? it.adpcm.length : sampleBytes(it.adpcm ? it.n : it.s ? it.s.length : lengthAt(it.x.length, it.sr, it.rate || r))), 0);
+    if (est > BANK_MAX_DATA) continue;
+    const smps = items.map((it) => {
+      if (it.adpcm || it.s) return it;            // (kept as stored, a wavetable too; or already at its rate)
+      const rr = it.rate || r, key = rr;
+      let c = cache.get(it);
+      if (!c) cache.set(it, c = new Map());
+      if (!c.has(key)) c.set(key, atRate(it.x, it.sr, it.loop, rr));
+      const { s, loop } = c.get(key);
+      return { name: it.name, s, root: it.root, loop, bars: it.bars, rate: rr };
+    });
+    try { return { img: userBank(smps), chose: r }; } catch (e) { if (!(e instanceof TooLong)) throw e; }
+  }
+  const last = tries[tries.length - 1];
+  const need = items.reduce((a, it) => a + (isWt(it) ? it.adpcm.length : sampleBytes(it.adpcm ? it.n : it.s ? it.s.length : lengthAt(it.x.length, it.sr, it.rate || last))), 0);
+  throw new TooLong(`too long: ${(need / 1024).toFixed(1)} KB at ${last} Hz, the bank holds ${(BANK_MAX_DATA / 1024).toFixed(1)} KB`);
+}
+
+// the samples of a bank image as kept items (a bank read back: each sample's checkpoints and ADPCM as stored)
+function keptOf(img) {
+  const h = parseHeader(img.subarray(0, Math.min(BANK_HDR, img.length)));
+  if (!h) return [];
+  const blk = h.ver === 2 ? BLK_V2 : BLK;
+  return h.entries.map((e) => {
+    let ckb = img.slice(e.ckOff, e.ckOff + Math.ceil(e.n / blk) * 4);
+    if (blk !== BLK) {                        // a version 2 bank's: every other checkpoint (the same states, none lost)
+      const step = BLK / blk, out = new Uint8Array(Math.ceil(e.n / BLK) * 4);
+      for (let i = 0; i < out.length / 4; i++) out.set(ckb.subarray(i * step * 4, i * step * 4 + 4), i * 4);
+      ckb = out;
+    }
+    if (e.flags & E_WT)                           // (a wavetable: its raw frames)
+      return { name: e.name, n: e.n, root: 60, loop: null, bars: 0, rate: WT_RATE, flags: e.flags, ckb: new Uint8Array(0),
+        adpcm: img.slice(e.adpOff, e.adpOff + e.n) };
+    return { name: e.name, n: e.n, root: e.root, loop: e.le > e.ls ? [e.ls, e.le] : null, bars: e.bars, rate: e.rate,
+      flags: e.flags, ckb, adpcm: img.slice(e.adpOff, e.adpOff + ((e.n + 1) >> 1)) };
+  });
+}
+
+// a LOOM-8 backup file (.loom8: fm1-base's backup, its CRC, then its sections: a 4-letter tag, u32 length, the bytes,
+// u32 CRC-32) -> its sample bank's image (section LSMP), null when it holds none; throws on another file or a damaged
+// one. The samples page adds the user's samples in it (a backup whose bank no longer fits: the user picks)
+function backupBank(buf) {
+  const u16 = (o) => buf[o] | buf[o + 1] << 8, u32 = (o) => (buf[o] | buf[o + 1] << 8 | buf[o + 2] << 16 | buf[o + 3] << 24) >>> 0;
+  if (buf.length < 20 || String.fromCharCode(buf[0], buf[1], buf[2], buf[3]) !== "LM8B") throw new Error("isn't a LOOM-8 backup");
+  let pos = 16;
+  for (let k = u16(6); k > 0; k--) {
+    if (pos + 8 > buf.length) throw new Error("is cut short");
+    pos += 8 + u16(pos + 2);
+  }
+  pos += 4;                                       // (the backup's own CRC: the backup page checks it)
+  while (pos + 12 <= buf.length) {
+    const tag = String.fromCharCode(buf[pos], buf[pos + 1], buf[pos + 2], buf[pos + 3]), n = u32(pos + 4);
+    if (pos + 12 + n > buf.length) throw new Error("is cut short");
+    const data = buf.subarray(pos + 8, pos + 8 + n);
+    if (crc32(data) !== u32(pos + 8 + n)) throw new Error("is damaged");
+    if (tag === "LSMP") return data;
+    pos += 12 + n;
+  }
+  return null;
+}
+
+// the factory set (tools/gen_samples.py --factory-bank: factory.bin beside the page) as kept items, ready to add to a
+// bank after its samples: the same bytes the firmware built in until 0.8
+function factoryOf(img) { return keptOf(img).filter(isFactory); }
+// the factory set's items missing from a bank's items (by name, among the factory set's entries)
+function factoryMissing(items, factory) {
+  return factory.filter((f) => !items.some((it) => isFactory(it) && it.name === f.name));
+}
+
+// ---- the FM-1 over USB-MIDI (app/samples.c: F0 7D 46 4C cmd ... F7): shared by the samples page and the installer
+const HDR = [0x7D, 0x46, 0x4C];
+const RC = { 1: "a size or offset", 2: "erasing", 3: "writing", 4: "the bank not begun", 5: "the header",
+  6: "the data's check", 7: "no samples", 8: "a reserved mark" };
+class Link {
+  constructor(input, output) {
+    this.input = input; this.output = output; this.wait = null;
+    input.onmidimessage = (ev) => {
+      const d = ev.data;
+      if (d[0] !== 0xF0 || d[1] !== HDR[0] || d[2] !== HDR[1] || d[3] !== HDR[2] || !this.wait || d[4] !== this.wait.cmd) return;
+      const w = this.wait;
+      this.wait = null;
+      clearTimeout(w.timer);
+      w.resolve([...d.slice(5, d.length - 1)]);
+    };
+  }
+  req(cmd, args, ms = 3000) {
+    return new Promise((resolve, reject) => {
+      this.wait = { cmd, resolve, timer: setTimeout(() => { this.wait = null; reject(new Error("The FM-1 stopped answering.")); }, ms) };
+      this.output.send([0xF0, ...HDR, cmd, ...args, 0xF7]);
+    });
+  }
+  async retry(cmd, args, ms, tries = 3) {
+    for (let k = 1; ; k++) { try { return await this.req(cmd, args, ms); } catch (e) { if (k >= tries) throw e; } }
+  }
+  close() { this.input.onmidimessage = null; }
+}
+// ---- finding LOOM-8 as the installer and the backup page find FM-1s (fm1-base's web/fm1ports.js): every port is
+// asked the screen reader's HELLO, whatever it is called (Windows keeps an earlier firmware's name, or numbers it), and
+// LOOM-8 is the one that answers with its name ("LOOM-8 0.14"); only it is sent LOOM-8's own SysEx. Never a Bluetooth
+// MIDI port: the samples go over USB.
+const BLUETOOTH_RE = /bluetooth/i;
+const IS_LOOM = (fw) => /^LOOM-8(\s|$)/.test(fw || "");
+// midi as fm1ports.js pairs its ports, but an output Windows names apart from its input ("LOOM-8 FM-1" in,
+// "MIDIOUT2 (LOOM-8 FM-1)" out) shown under its input's name
+function paired(midi) {
+  const ins = livePorts(midi.inputs), outs = livePorts(midi.outputs);
+  const apart = /^MIDI(?:IN|OUT)\d*\s*\(/i;
+  const bare = (s) => (s || "").replace(/\s+\d+$/, "").replace(/^MIDI(?:IN|OUT)\d*\s*\((.*)\)$/i, "$1");
+  const outputs = new Map();
+  for (const [k, o] of midi.outputs) {
+    const mates = ins.filter((i) => bare(i.name) === bare(o.name));
+    const named = mates.length === 1 && mates[0].name !== o.name && (apart.test(o.name || "") || apart.test(mates[0].name || "")) &&
+      !outs.some((x) => x.name === mates[0].name);
+    outputs.set(k, named ? { id: o.id, name: mates[0].name, state: o.state, open: () => o.open(), send: (d) => o.send(d) } : o);
+  }
+  return { inputs: midi.inputs, outputs };
+}
+// the FM-1 running LOOM-8 among midi's ports -> { link, loom, others, fm1 }: link a Link to it (it answered SB_PING
+// within wait ms), or null; then loom: a LOOM-8 that answered HELLO but not PING, others: the other firmwares that
+// answered ("X0X 1.2"), fm1: a port with an FM-1's usual name that answered nothing (update mode, M-VAVE's firmware,
+// or held by another app)
+async function seekLink(midi, wait = 1000) {
+  const view = paired(midi);
+  const got = await askAll(view, { ms: Math.min(500, wait), skip: (n) => BLUETOOTH_RE.test(n) });
+  const res = { link: null, loom: null, others: got.filter((g) => !IS_LOOM(g.firmware)).map((g) => g.firmware), fm1: false };
+  for (const g of got.filter((g) => IS_LOOM(g.firmware))) {
+    try { await g.input.open(); await g.output.open(); } catch (_) { continue; }   // another app holds it: the next
+    const l = new Link(g.input, g.output);
+    try { await l.retry(25, [], wait); res.link = l; return res; } catch (_) { l.close(); res.loom = res.loom || g.firmware; }
+  }
+  res.fm1 = pairs(view).some((p) => usualName(p.name) && !BLUETOOTH_RE.test(p.name) && !got.some((g) => g.input === p.input));
+  return res;
+}
+// the FM-1 running LOOM-8 among midi's ports (it answers SB_PING); null: none
+async function findLink(midi, wait = 1000) { return (await seekLink(midi, wait)).link; }
+// what to tell the user when seekLink found no LOOM-8 to talk to; page: the page asking (the export page reads too)
+function notFound(res, page = "the samples page") {
+  if (res.loom) return `${res.loom} didn't answer ${page}. Update LOOM-8 on the install page, then connect again.`;
+  if (res.others.length) return `The FM-1 is running ${res.others[0]}, not LOOM-8. Install LOOM-8 on the install page, then connect again.`;
+  if (res.fm1) return "An FM-1 is connected, but LOOM-8 didn't answer. Close other apps that use its MIDI port. If the FM-1 " +
+    "is in update mode, turn it off and on again. If it runs M-VAVE's firmware, install LOOM-8 on the install page.";
+  return "No FM-1 running LOOM-8 found. Connect it by USB, and close other apps that use its MIDI port.";
+}
+// SMP_READ, 224 bytes a request
+async function readBytes(link, off, n, onPart) {
+  const out = new Uint8Array(n);
+  for (let at = 0; at < n;) {
+    const want = Math.min(READ_MAX, n - at), adr = off + at;
+    const r = await link.retry(17, [0, adr & 0x7F, (adr >> 7) & 0x7F, (adr >> 14) & 0x7F, want & 0x7F, want >> 7], 3000);
+    if (r[4]) throw new Error(r[4] === 4 ? "The FM-1 is in the middle of writing its samples." : "The FM-1 couldn't read its samples.");
+    const b = unpack7(r.slice(5));
+    if (b.length < want) throw new Error("short read");
+    out.set(b.subarray(0, want), at);
+    at += want;
+    if (onPart) onPart(at / n);
+  }
+  return out;
+}
+// the bank's image as the FM-1 holds it (header + data), or null when it holds none; throws on an old LOOM-8
+async function readBank(link, onPart) {
+  const info = await link.req(15, [0]);
+  if (info[0] !== 2) throw new Error("This LOOM-8 is too old for this page. Update it from the install page, then connect again.");
+  if (!info[5]) return null;
+  let hdr;
+  try { hdr = await readBytes(link, 0, HDR_USED); } catch (e) {
+    if (/stopped answering/.test(e.message))
+      throw new Error("This LOOM-8 can't send its samples back to the page. Update it from the install page (0.5-beta or later), then connect again.");
+    throw e;
+  }
+  const h = parseHeader(hdr);
+  if (!h || !h.count) return null;
+  const data = await readBytes(link, BANK_HDR, h.dataLen, onPart);
+  const img = new Uint8Array(BANK_HDR + h.dataLen);
+  img.set(hdr);
+  img.set(data, BANK_HDR);
+  return img;
+}
+// the bank sent (img null: erased); onPart(done fraction)
+async function sendBank(link, img, onPart) {
+  if (!img) {
+    const r = await link.req(14, [0], 60000);
+    if (r[1]) throw new Error(`The FM-1 couldn't erase its samples (${RC[r[1]] || r[1]}).`);
+    return;
+  }
+  const total = img.length - BANK_HDR;
+  for (const [cmd, args, ms, what] of frames(img)) {
+    let r;
+    for (let k = 1; ; k++) {                         // a write again when its answer is lost (the same bytes)
+      try { r = await link.req(cmd, args, ms); break; } catch (e) { if (cmd !== 12 || k >= 4) throw e; }
+    }
+    const rc = r.length ? r[r.length - 1] : 99;
+    if (rc) throw new Error(`The FM-1 didn't take the samples (${RC[rc] || rc}${cmd === 12 ? ` at ${what}` : ""}).`);
+    if (cmd === 12 && onPart) onPart((Math.min(what + 256, img.length) - BANK_HDR) / total);
+  }
+}
+
+// ---- room for the factory set (0.8): a bank's items and the factory set's missing ones, in that order; if they do
+// not fit, the user's samples above a rate put at it (decoded, resampled, encoded again: one generation of ADPCM
+// more; their level kept), the highest of AUTO that makes it fit. -> {items, cap (0: nothing changed), changed: the
+// names resampled, need: bytes} or null when even 11025 Hz is not enough (then some must go, or some of the factory set)
+const itemBytes = (it) => sampleBytes(it.adpcm ? it.n : it.s ? it.s.length : 0);
+function atRateKept(it, rate) {               // a kept item at a lower rate: a new item, encoded at build
+  const x = Float64Array.from(imaDecode(it.adpcm, it.n));
+  const y = resample(x, it.rate, rate), s = new Int16Array(y.length);
+  for (let i = 0; i < y.length; i++) s[i] = Math.max(-32768, Math.min(32767, Math.round(y[i])));
+  const loop = it.loop ? [Math.trunc(it.loop[0] * rate / it.rate), Math.min(s.length, Math.trunc(it.loop[1] * rate / it.rate))] : null;
+  return { name: it.name, s, root: it.root, loop, bars: it.bars, rate, flags: it.flags || 0 };
+}
+function makeRoom(items, factory) {
+  const missing = factoryMissing(items, factory), all = [...items, ...missing];
+  const need = all.reduce((a, it) => a + itemBytes(it), 0);
+  const fits = (list) => { try { userBank(list); return true; } catch (e) { if (e instanceof TooLong) return false; throw e; } };
+  if (fits(all)) return { items: all, cap: 0, changed: [], need };   // (the layout's own answer: its seams counted)
+  for (const cap of AUTO) {
+    const changed = [];
+    const next = all.map((it) => {
+      if (isFactory(it) || !it.adpcm || it.rate <= cap) return it;
+      changed.push(it.name);
+      return atRateKept(it, cap);
+    });
+    if (changed.length && fits(next)) return { items: next, cap, changed, need };
+  }
+  return null;
+}
+
+// SPDX-License-Identifier: MPL-2.0
+// Copyright (C) 2026 Charles Vestal
+// LOOM-8's preset packs in the browser: a pack is a run of USER_PUT messages (app/samples.c: F0 7D 46 4C 1D slot fmt
+// fmt data F7, a user preset as LOOM-8 saves it, 8 bytes packed from 7), as tools/loom_presets.py makes them. The
+// presets page reads a pack, the FM-1's preset names (USER_NAMES, 30) and sends the presets (USER_PUT, 29) through the
+// samples page's Link (loom_samples.js). LOOM-8 takes any presets format it can load and makes it its own; a newer one
+// it refuses (rc 9).
+const USER_PUT = 0x1D, USER_NAMES = 0x1E, KIT_PUT = 0x1F, USER_GET = 0x20, KIT_GET = 0x21, KIT_NAMES = 0x22;
+const NUSER = 64, NKITS = 8, PNAME_LEN = 11, KIT_LEN = 321, KIT_LEN16 = 315;
+const PUT_RC = { 1: "no such slot, or the wrong size", 3: "the FM-1 could not save it",
+  5: "not a sound or kit LOOM-8 knows", 9: "made for a newer LOOM-8: update it first" };
+function packUnpack(a) {
+  const out = [];
+  for (let g = 0; g < a.length; g += 8)
+    for (let k = 1; k < 8 && g + k < a.length; k++) out.push(a[g + k] | ((a[g] >> (k - 1)) & 1) << 7);
+  return out;
+}
+function packBytes(b) {                    // loom_presets.py pack7: a byte of eighth bits, then up to seven
+  const out = [];
+  for (let g = 0; g < b.length; g += 7) {
+    const run = b.slice(g, g + 7);
+    out.push(run.reduce((h, x, k) => h | (x >> 7) << k, 0), ...run.map((x) => x & 127));
+  }
+  return out;
+}
+function nameOf(raw) {
+  let name = "";
+  for (let k = 0; k < PNAME_LEN && raw[k]; k++) name += String.fromCharCode(raw[k]);
+  return name.trim();
+}
+// a user preset (USER_PUT) or a kit (KIT_PUT) as a pack's message
+function frame(kind, slot, fmt, raw) {
+  return [0xF0, 0x7D, 0x46, 0x4C, kind, slot & 127, fmt & 127, (fmt >> 7) & 127, ...packBytes(raw), 0xF7];
+}
+// a pack's bytes -> [{kind (USER_PUT, KIT_PUT), slot (0-based, as made), fmt, data (packed, as sent), name}]
+function parsePack(bytes) {
+  const out = [];
+  for (let i = 0; i < bytes.length; i++) {
+    if (bytes[i] !== 0xF0) continue;
+    const j = bytes.indexOf(0xF7, i);
+    if (j < 0) break;
+    const m = bytes.subarray(i + 1, j);
+    if (m.length > 7 && m[0] === 0x7D && m[1] === 0x46 && m[2] === 0x4C && (m[3] === USER_PUT || m[3] === KIT_PUT)) {
+      const data = [...m.subarray(7)];
+      out.push({ kind: m[3], slot: m[4], fmt: m[5] | m[6] << 7, data, name: nameOf(packUnpack(data)) || "(no name)" });
+    }
+    i = j;
+  }
+  return out;
+}
+// a user preset's bytes in presets format fmt (app/project.c preset_len)
+function presetLen(f) {
+  return f >= 20 ? 93 : f >= 17 ? 79 : f >= 16 ? 69 : f >= 15 ? 64 : f >= 14 ? 63 : f >= 13 ? 59 : f >= 12 ? 55 : f >= 9 ? 53 : 52;
+}
+const u32 = (b, i) => (b[i] | b[i + 1] << 8 | b[i + 2] << 16 | b[i + 3] << 24) >>> 0;
+const u16 = (b, i) => b[i] | b[i + 1] << 8;
+// a LOOM-8 backup (.loom8, any version) -> its user presets and kits as a pack's items (as parsePack's), each in the
+// format it was saved in (LOOM-8 makes an older one its own when it takes it): loom_presets.py backup_items
+function parseBackup(b) {
+  if (b[0] !== 0x4C || b[1] !== 0x4D || b[2] !== 0x38 || b[3] !== 0x42) return null;
+  const objs = new Map(), n = u16(b, 6);
+  for (let i = 0, pos = 16; i < n && pos + 8 <= b.length; i++) {
+    const id = u16(b, pos), len = u16(b, pos + 2);
+    objs.set(id, b.subarray(pos + 8, pos + 8 + len));
+    pos += 8 + len;
+  }
+  const out = [], add = (kind, fmt, raw) => {
+    if (raw.length && raw[0]) out.push({ kind, slot: out.filter((x) => x.kind === kind).length & 127, fmt,
+                                        data: packBytes([...raw]), name: nameOf(raw) || "(no name)" });
+  };
+  const pr = objs.get(1) || new Uint8Array(0), pf = pr.length >= 4 ? u32(pr, 0) : 0;
+  if (pf >= 6 && pf <= 18)                       // (the 16 presets before 19)
+    for (let k = 0, pl = presetLen(pf); k < 16 && 4 + (k + 1) * pl <= pr.length; k++) add(USER_PUT, pf, pr.subarray(4 + k * pl, 4 + (k + 1) * pl));
+  for (const id of [23, 24]) {                    // (OBJ_UP0, OBJ_UP1)
+    const u = objs.get(id);
+    if (!u || u.length < 4) continue;
+    const f = u32(u, 0), pl = presetLen(f);
+    for (let k = 0; k < 32 && 4 + (k + 1) * pl <= u.length; k++) add(USER_PUT, f, u.subarray(4 + k * pl, 4 + (k + 1) * pl));
+  }
+  const [kat, kl] = pf >= 19 ? [4, KIT_LEN] : pf >= 17 ? [4 + 16 * 79, KIT_LEN] : pf >= 11 ? [4 + 16 * presetLen(pf), KIT_LEN16] : [0, 0];
+  for (let k = 0; kat && k < NKITS && kat + (k + 1) * kl <= pr.length; k++) add(KIT_PUT, pf, pr.subarray(kat + k * kl, kat + (k + 1) * kl));
+  return out;
+}
+// the user kits' names on the FM-1 (8: "" an empty one)
+async function readKitNames(link) {
+  const r = await link.retry(KIT_NAMES, [], 2000), names = [];
+  for (let i = 0, p = 1; i < r[0]; i++) {
+    let s = "";
+    while (p < r.length && r[p]) s += String.fromCharCode(r[p++]);
+    p++;
+    names.push(s);
+  }
+  return names;
+}
+// the FM-1's user presets and kits as a pack's bytes (USER_GET, KIT_GET); onStep(done, of) as it reads
+async function exportPack(link, onStep) {
+  const out = [];
+  let done = 0;
+  for (const [kind, get, n] of [[USER_PUT, USER_GET, NUSER], [KIT_PUT, KIT_GET, NKITS]])
+    for (let s = 0; s < n; s++) {
+      const r = await link.retry(get, [s], 3000);
+      if (r.length > 4 && r[1] === 0) out.push(...frame(kind, s, r[2] | r[3] << 7, packUnpack(r.slice(4))));
+      if (onStep) onStep(++done, NUSER + NKITS);
+    }
+  return new Uint8Array(out);
+}
+// the user presets' names on the FM-1 (64: "" an empty slot)
+async function readNames(link) {
+  const names = [];
+  for (let from = 0; from < NUSER;) {
+    const r = await link.retry(USER_NAMES, [from], 2000);
+    const k = r[1];
+    let p = 3;
+    for (let i = 0; i < k; i++) {
+      let s = "";
+      while (p < r.length && r[p]) s += String.fromCharCode(r[p++]);
+      p++;
+      names.push(s);
+    }
+    if (!k) break;
+    from += k;
+  }
+  return names;
+}
+// where a pack's presets go: from first (0-based) on, in order; the slots past U64 none
+function placeFrom(pack, first) {
+  return pack.map((p, i) => (first + i < NUSER ? first + i : -1));
+}
+// the first slot with room for n presets in a row among the empty ones; -1: none
+function firstRoom(names, n) {
+  for (let s = 0; s + n <= NUSER; s++) if (names.slice(s, s + n).every((x) => !x)) return s;
+  return -1;
+}
+// one preset (or a kit: p.kind KIT_PUT) into slot s: 0, or LOOM-8's rc
+async function putPreset(link, s, p) {
+  const r = await link.req(p.kind || USER_PUT, [s, p.fmt & 127, (p.fmt >> 7) & 127, ...p.data], 5000);
+  return r.length > 1 ? r[1] : 99;
+}
+
+// SPDX-License-Identifier: MPL-2.0
+// Copyright (C) 2026 Charles Vestal
+// Juno-106 and Prophet-5 (Rev 4) patches as LOOM-8 knit presets, in the browser: tools/juno_import.py's and
+// tools/prophet_import.py's convert(), line for line (Python's rounding too: the same values; tests/host/convert_web.mjs
+// checks every patch of a bank against them), and a preset's bytes made from their parameters as LOOM-8 makes one
+// (the tables, T: the simulator's webtables, tools/make_pages.py: knit's defaults, the layout, the names). The curves and
+// what each control becomes are the tools' (and their sources: Saadet's, Kerem Kilic, MPL-2.0).
+
+// ---- Python's arithmetic
+const pyRound = (x) => (Math.abs(x % 1) === 0.5 ? 2 * Math.round(x / 2) : Math.round(x));
+const clamp = (v, lo = 0, hi = 127) => Math.max(lo, Math.min(hi, pyRound(v)));
+const log2 = Math.log2;
+const OCT_NAME = ["-2", "-1", "0", "+1", "+2"];
+
+// ---- knit's side (juno_import.py)
+const J_F0 = 5.528709, J_OCT = 1143.0;
+const jCutHz = (v) => J_F0 * 2.0 ** (v * 128.0 / J_OCT);
+const knitCut = (hz) => clamp(log2(Math.max(hz, 1e-3) / 50.0) * 127.0 / 8.64385619);
+const jTime = (v, most) => { const x = v / 127.0; return 0.0015 + most * x * x; };
+const knitTime = (secs) => clamp(log2(Math.max(secs, 0.001) / 0.001) * 127.0 / 13.2877124, 0, 146);
+
+// ---- Juno-106: F0 41 30 0n pp, 16 sliders, SW1, SW2, F7
+const [LFO_RATE, LFO_DELAY, DCO_LFO, DCO_PWM, NOISE, VCF_FREQ, VCF_RES, VCF_ENV, VCF_LFO, VCF_KYBD, VCA_LEVEL, ENV_A,
+  ENV_D, ENV_S, ENV_R, SUB, SW1, SW2] = [...Array(18).keys()];
+const junoLabel = (k) => `${k & 64 ? "B" : "A"}${1 + (k >> 3 & 7)}${1 + (k & 7)}`;
+// a bank's bytes -> Map(program -> 18 bytes); empty when it holds none
+function readJuno(b) {
+  const out = new Map();
+  for (let i = 0; i + 24 <= b.length; i++) {
+    if (b[i] !== 0xF0 || b[i + 1] !== 0x41 || b[i + 2] !== 0x30) continue;
+    const m = b.subarray(i, i + 24);
+    if (m[23] === 0xF7 && (m[3] & 0xF0) === 0 && [...m.subarray(4, 23)].every((x) => x < 128)) {
+      out.set(m[4], m.slice(5, 23));
+      i += 23;
+    }
+  }
+  return out;
+}
+function convertJuno(p) {
+  const sw1 = p[SW1], sw2 = p[SW2];
+  const rng = sw1 & 1 ? 0 : sw1 & 2 ? 1 : sw1 & 4 ? 2 : 1;
+  const pulse = !!(sw1 & 8), saw = !!(sw1 & 16);
+  const chorus = sw1 & 32 ? 0 : sw1 & 64 ? 1 : 2;
+  const pwmManual = !!(sw2 & 1), envInv = !!(sw2 & 2), gate = !!(sw2 & 4);
+  const hpf = 3 - ((sw2 >> 3) & 3);
+  const notes = [], out = [["engine", "knit"]];
+  const pwm = p[DCO_PWM];
+  if (pulse) out.push(["e1", clamp(pwmManual ? 64 + pwm * 0.5 : 64 + pwm * 0.25)]);
+  else out.push(["e1", 0]);
+  out.push(["e2", 0], ["e3", 1], ["e4", 0], ["x1", 64], ["fine", 64], ["kanalog", 0]);
+  if (pulse && saw) out.push(["o2wave", "saw"], ["x2", 127]);
+  else out.push(["o2wave", "same"], ["x2", 0]);
+  if (!pulse && !saw) notes.push("no saw or pulse: knit's osc 1 cannot be turned off, its saw plays beside the sub and noise");
+  out.push(["x3", p[SUB]], ["ksub", 1], ["x4", clamp(p[NOISE] * 0.8)]);
+  const amp = gate ? [0, 0, 127, 0] : [knitTime(jTime(p[ENV_A], 3.0)), knitTime(jTime(p[ENV_D], 12.0) * 1.5), p[ENV_S],
+    knitTime(jTime(p[ENV_R], 12.0) * 1.5)];
+  out.push(["a", amp[0]], ["d", amp[1]], ["s", amp[2]], ["r", amp[3]]);
+  out.push(["fa", knitTime(jTime(p[ENV_A], 3.0))], ["fd", knitTime(jTime(p[ENV_D], 12.0) * 1.5)], ["fs", p[ENV_S]],
+    ["fr", knitTime(jTime(p[ENV_R], 12.0) * 1.5)]);
+  const envOct = p[VCF_ENV] * 16383.0 / 128.0 / J_OCT * (envInv ? -1 : 1);
+  if (Math.abs(envOct) > 6.0) notes.push(`filter env ${envOct >= 0 ? "+" : ""}${envOct.toFixed(1)} oct: knit's reaches 6`);
+  const res = p[VCF_RES] / 127.0;
+  out.push(["ftype", "ladder"], ["cut", knitCut(jCutHz(p[VCF_FREQ]))], ["res", clamp(127 * Math.min(1.0, 1.05 * res ** 1.5))],
+    ["fenv", clamp(64 + envOct * 64.0 / 6.0)], ["ktrk", p[VCF_KYBD]]);
+  const vibSemis = (p[DCO_LFO] / 127.0) ** 2 * 6.0;
+  const vcfOct = p[VCF_LFO] * 8191.0 / 256.0 / J_OCT;
+  const pwmLfo = pulse && !pwmManual && pwm > 0;
+  const cand = [[vibSemis / 6.0, "vib"], [vcfOct / 3.6, "vcf"], [pwmLfo ? pwm / 127.0 : 0.0, "pwm"]];
+  cand.sort((a, b) => (b[0] - a[0]) || (b[1] < a[1] ? -1 : b[1] > a[1] ? 1 : 0));   // (Python's reverse sort)
+  const rate = clamp(8 + p[LFO_RATE] * 119.0 / 127.0, 8, 127);
+  const delay = (p[LFO_DELAY] / 127.0) ** 2 * 3.0;
+  const used = cand.filter((c) => c[0] > 0.02);
+  if (used.length > 1) notes.push("LFO on " + used.slice(1).map((c) => c[1]).join(" and ") + " too: not made (knit's LFO has one target)");
+  const kind = used.length ? used[0][1] : null;
+  if (kind === "vib" && vibSemis <= 1.0) {
+    out.push(["ltype", "wobble"], ["lspeed", rate], ["lamt", clamp(64 + vibSemis * 100.0 * 63.0 / 100.0)], ["ldest", 64],
+      ["lx", delay > 0.01 ? clamp(64 - delay * 64.0 / 3.0) : 64]);
+  } else if (kind) {
+    const [dest, param, amt] = { vib: ["voice free", 1, 64 + vibSemis * 63.0 / 12.0],
+      vcf: ["filter free", 0, 64 + (vcfOct * 127.0 / 8.64385619) * 63.0 / 127.0],
+      pwm: ["synth free", 0, 64 + (pwm * 0.25) * 63.0 / 127.0] }[kind];
+    out.push(["ltype", "wave"], ["lspeed", rate], ["lamt", clamp(amt)], ["ldest", dest], ["lx", param], ["lx2", "sine"]);
+    if (delay > 0.05) notes.push(`LFO delay ${delay.toFixed(1)} s: not made (a wave LFO has no fade-in)`);
+  } else out.push(["ltype", "off"]);
+  out.push(["hpf", { 0: 0, 1: 0, 2: 69, 3: 99 }[hpf]], ["oct", OCT_NAME[1 + rng]], ["vmode", "poly"],
+    ["volume", clamp(90 * 2.0 ** ((p[VCA_LEVEL] - 64) / 127.0))]);
+  if (hpf === 0) notes.push("HPF 0's bass lift: not made");
+  if (chorus) out.push(["itype", "juno"], ["i1", chorus - 1], ["i2", 70], ["s2mix", 80]);
+  else out.push(["itype", "off"]);
+  return { out, notes };
+}
+
+// ---- Prophet-5 (Rev 4): F0 01 32 02 group program, 133 bytes packed, F7 (prophet_import.py)
+const P = {};
+["FREQ_A", "FREQ_B", "FINE_B", "SAW_A", "PULSE_A", "SAW_B", "TRI_B", "PULSE_B", "PW_A", "PW_B", "SYNC", "LOW_B", "KEY_B",
+  "GLIDE", "LEVEL_A", "LEVEL_B", "NOISE", "CUTOFF", "RES", "KEY_FILTER", "FILTER_REV", "LFO_RATE", "LFO_INITIAL",
+  "LFO_SAW", "LFO_TRI", "LFO_PULSE", "WHEEL_MIX", "WHEEL_FREQ_A", "WHEEL_FREQ_B", "WHEEL_PW_A", "WHEEL_PW_B",
+  "WHEEL_FILTER", "POLY_ENV", "POLY_B", "POLY_FREQ", "POLY_PW", "POLY_FILTER", "VINTAGE", "PRESS_FILTER", "PRESS_LFO",
+  "ENV_FILTER", "VEL_FILTER", "VEL_AMP", "ATT_F", "ATT_A", "DEC_F", "DEC_A", "SUS_F", "SUS_A", "REL_F", "REL_A",
+  "RELEASE_ON", "UNISON", "UNI_COUNT", "UNI_DETUNE"].forEach((n, i) => { P[n] = i; });
+const P_NAME = 65, P_NAME_LEN = 20, P_BEND = 86;
+const prophetLabel = (k) => `${1 + Math.floor(k / 40)}${1 + Math.floor(k / 8) % 5}${1 + (k % 8)}`;
+function prophetName(p) {
+  let s = "";
+  for (let i = 0; i < P_NAME_LEN; i++) s += String.fromCharCode(p[P_NAME + i]);
+  return s.trim();
+}
+// a bank's bytes -> Map(program -> 133 bytes)
+function readProphet(b) {
+  const out = new Map();
+  for (let i = 0; i + 159 <= b.length; i++) {
+    if (b[i] !== 0xF0 || b[i + 1] !== 0x01 || b[i + 2] !== 0x32 || b[i + 3] !== 0x02) continue;
+    const f = b.subarray(i, i + 159);
+    if (f[158] !== 0xF7 || f[4] > 4 || f[5] >= 40 || ![...f.subarray(1, 158)].every((x) => x < 128)) continue;
+    const pk = f.subarray(6, 158), raw = [];
+    for (let g = 0; g < 152; g += 8) for (let j = 0; j < 7; j++) raw.push(pk[g + j + 1] | ((pk[g] >> j) & 1) << 7);
+    out.set(f[4] * 40 + f[5], Uint8Array.from(raw));
+    i += 158;
+  }
+  return out;
+}
+const semis = (v) => Math.max(-12, Math.min(36, (v >> 1) - 12));
+const pulseWave = (pw) => clamp(64 + Math.abs(pw - 64) * 63.0 / 64.0);
+const oscWave = (saw, pulse, pw) => (saw && pulse ? 32 : pulse ? pulseWave(pw) : 0);
+const pTime = (v) => 6.9 * 10.0 ** (4.0 * v / 127.0) / 1000.0;
+const pAttack = (v) => 10.0 ** (4.0 * v / 127.0) / 1000.0;
+const lfoHz = (v) => Math.min(500.0, Math.max(0.022, Math.exp(-3.10 + 0.0539 * v)));
+const knitRate = (hz) => clamp(8 + 119.0 * log2(Math.max(hz, 0.1) / 0.1) / log2(300.0), 8, 127);
+const divmod = (a, b) => { const q = Math.floor(a / b); return [q, a - q * b]; };
+function convertProphet(p) {
+  const notes = [], out = [["engine", "knit"]];
+  const aSounds = (p[P.SAW_A] || p[P.PULSE_A]) && p[P.LEVEL_A] > 0;
+  const bSounds = (p[P.SAW_B] || p[P.TRI_B] || p[P.PULSE_B]) && p[P.LEVEL_B] > 0;
+  const sweepA = p[P.POLY_FREQ] && p[P.POLY_ENV] > 0;
+  const fmA = p[P.POLY_FREQ] && p[P.POLY_B] > 0;
+  let aIs2 = !!(p[P.SYNC] || sweepA);
+  if (!aIs2 && !aSounds && bSounds && !fmA) aIs2 = true;
+  if (p[P.LOW_B] || !p[P.KEY_B])
+    notes.push("osc B " + (p[P.LOW_B] ? "in its low (LFO) range" : "off the keyboard") + ": played as a keyed oscillator");
+  const [o1, o2] = aIs2 ? ["B", "A"] : ["A", "B"];
+  const lev = { A: aSounds ? p[P.LEVEL_A] : 0, B: bSounds ? p[P.LEVEL_B] : 0 };
+  const st = { A: semis(p[P.FREQ_A]), B: semis(p[P.FREQ_B]) };
+  if (o1 === "A") out.push(["e1", oscWave(p[P.SAW_A], p[P.PULSE_A], p[P.PW_A])]);
+  else {
+    if (p[P.TRI_B] && !(p[P.SAW_B] || p[P.PULSE_B])) notes.push("osc B a triangle as osc 1: knit's osc 1 plays a saw");
+    out.push(["e1", oscWave(p[P.SAW_B], p[P.PULSE_B], p[P.PW_B])]);
+  }
+  if (p[P.UNISON]) {
+    const n = p[P.UNI_COUNT] > 0 && p[P.UNI_COUNT] <= 7 ? p[P.UNI_COUNT] : p[P.UNI_COUNT] === 0 ? 5 : 7;
+    out.push(["e2", clamp(p[P.UNI_DETUNE] * 20)], ["e3", n], ["e4", 64], ["vmode", "mono"]);
+  } else out.push(["e2", 0], ["e3", 1], ["e4", 0], ["vmode", "poly"]);
+  const cents = (st[o2] - st[o1]) * 100.0 + p[P.FINE_B] * 0.75 * (o2 === "B" ? 1 : -1);
+  const iv = pyRound(cents / 100.0);
+  if (Math.abs(iv) > 24) notes.push(`osc ${o2} ${iv >= 0 ? "+" : ""}${iv} semitones from osc ${o1}: knit's osc 2 reaches 24`);
+  out.push(["x1", clamp(64 + iv, 40, 88)], ["fine", clamp(64 + cents - 100.0 * iv, 14, 114)]);
+  if (o2 === "A")
+    out.push(...(p[P.SAW_A] && !p[P.PULSE_A] ? [["o2wave", "saw"]]
+      : p[P.PULSE_A] && !p[P.SAW_A] ? [["o2wave", "pulse"], ["o2shape", pulseWave(p[P.PW_A])]] : [["o2wave", "saw"]]));
+  else
+    out.push(...(p[P.TRI_B] && !(p[P.SAW_B] || p[P.PULSE_B]) ? [["o2wave", "triangle"]]
+      : p[P.PULSE_B] && !p[P.SAW_B] ? [["o2wave", "pulse"], ["o2shape", pulseWave(p[P.PW_B])]] : [["o2wave", "saw"]]));
+  const top = Math.max(lev[o1], lev[o2], 1);
+  out.push(["k1cut", clamp(127 * (1.0 - lev[o1] / top))], ["x2", clamp(127 * lev[o2] / top)], ["x3", 0],
+    ["x4", clamp(p[P.NOISE] * 0.8 * 127 / top)], ["kanalog", p[P.VINTAGE]]);
+  const [octs, rem] = divmod(st[o1], 12);
+  if (rem) notes.push(`osc ${o1} ${rem} semitones above an octave: knit plays it on the octave`);
+  out.push(["oct", OCT_NAME[clamp(2 + octs, 0, 4)]]);
+  let sweep = sweepA ? pyRound(p[P.POLY_ENV] * 2.65 * 12 / 127) : 0;
+  const cross = fmA && !aIs2 ? pyRound(127 * Math.sqrt(Math.min(1.0, p[P.POLY_B] / 127 * 1.1 / 6.0))) : 0;
+  if (fmA && aIs2) notes.push("Poly-Mod osc B on A's frequency beside sync or the sweep: not made (knit's cross runs osc 2 into osc 1)");
+  let swto = 0;
+  if (p[P.POLY_PW] && p[P.POLY_ENV] && o1 === "A" && p[P.PULSE_A] && !sweep) { swto = 1; sweep = pyRound(p[P.POLY_ENV] * 48 / 127); }
+  else if (p[P.POLY_PW] && (p[P.POLY_ENV] || p[P.POLY_B]))
+    notes.push("Poly-Mod on A's pulse width: not made" + (!p[P.POLY_ENV] ? " (by osc B)" : ""));
+  if (p[P.POLY_FILTER] && p[P.POLY_B]) notes.push("Poly-Mod osc B on the filter: not made");
+  out.push(["ksync", p[P.SYNC] ? 1 : 0], ["ksweep", Math.min(sweep, 48)], ["kcross", cross], ["ksub", "sine"], ["kswto", swto]);
+  const relA = p[P.RELEASE_ON] ? p[P.REL_A] : 0, relF = p[P.RELEASE_ON] ? p[P.REL_F] : 0;
+  out.push(["a", knitTime(pAttack(p[P.ATT_A]))], ["d", knitTime(pTime(p[P.DEC_A]))], ["s", p[P.SUS_A]],
+    ["r", knitTime(pTime(relA))], ["fa", knitTime(pAttack(p[P.ATT_F]))], ["fd", knitTime(pTime(p[P.DEC_F]))],
+    ["fs", p[P.SUS_F]], ["fr", knitTime(pTime(relF))]);
+  const kf = { 0: 0.0, 1: 0.5, 2: 1.0 }[p[P.KEY_FILTER]] ?? 1.0;
+  const hz = 870.0 * 2.0 ** ((p[P.CUTOFF] - 67) / 15.2) * 2.0 ** (2.0 * kf);
+  const envOct = p[P.ENV_FILTER] * 0.046 + (p[P.POLY_FILTER] ? p[P.POLY_ENV] / 127.0 * 8.0 : 0.0);
+  if (envOct > 6.0) notes.push(`filter env +${envOct.toFixed(1)} oct: knit's reaches 6`);
+  out.push(["ftype", "ladder"], ["cut", knitCut(hz)], ["res", clamp(127 * Math.min(1.0, 1.05 * (p[P.RES] / 127) ** 1.5))],
+    ["fenv", clamp(64 + envOct * 64.0 / 6.0)], ["ktrk", clamp(127 * kf)]);
+  if (!p[P.FILTER_REV]) notes.push("the Rev 1/2 (SSI) filter: played as the Rev 3 (Curtis)");
+  const depth = p[P.LFO_INITIAL];
+  const lc = p[P.WHEEL_FREQ_A] || p[P.WHEEL_FREQ_B] ? 0.052 * depth ** 1.74 : 0.0;
+  const fOct = p[P.WHEEL_FILTER] ? depth / 127.0 * 4.0 : 0.0;
+  const pw = p[P.WHEEL_PW_A] || p[P.WHEEL_PW_B] ? depth / 127.0 : 0.0;
+  const cand = [[lc / 1200.0, "vib"], [fOct / 4.0, "vcf"], [pw, "pwm"]];
+  cand.sort((a, b) => (b[0] - a[0]) || (b[1] < a[1] ? -1 : b[1] > a[1] ? 1 : 0));
+  const used = cand.filter((c) => c[0] > 0.01);
+  if (used.length > 1) notes.push("LFO on " + used.slice(1).map((c) => c[1]).join(" and ") + " too: not made (knit's LFO has one target)");
+  const rate = knitRate(lfoHz(p[P.LFO_RATE]));
+  if (lfoHz(p[P.LFO_RATE]) > 30.0 && used.length) notes.push(`LFO ${lfoHz(p[P.LFO_RATE]).toFixed(0)} Hz: knit's reaches 30`);
+  const shape = p[P.WHEEL_MIX] >= 64 ? "random" : p[P.LFO_SAW] && !p[P.LFO_TRI] ? "saw"
+    : p[P.LFO_PULSE] && !p[P.LFO_TRI] ? "square" : "sine";
+  const kind = used.length ? used[0][1] : null;
+  if (kind === "vib" && lc <= 100.0 && shape === "sine")
+    out.push(["ltype", "wobble"], ["lspeed", rate], ["lamt", clamp(64 + lc * 63.0 / 100.0)], ["ldest", 64], ["lx", 64]);
+  else if (kind) {
+    const [dest, param, amt] = { vib: ["voice free", 1, 64 + lc / 100.0 * 63.0 / 12.0],
+      vcf: ["filter free", 0, 64 + (fOct * 127.0 / 8.64385619) * 63.0 / 127.0], pwm: ["synth free", 0, 64 + pw * 32.0] }[kind];
+    out.push(["ltype", "wave"], ["lspeed", rate], ["lamt", clamp(amt)], ["ldest", dest], ["lx", param], ["lx2", shape]);
+  } else out.push(["ltype", "off"]);
+  if (p[P.PRESS_FILTER] || p[P.PRESS_LFO]) notes.push("aftertouch routes: not made");
+  const bend = p[P_BEND];
+  out.push(["porta", p[P.GLIDE]], ["bend", bend === 0 ? "off" : bend <= 7 ? String(bend) : "octave"], ["hpf", 0],
+    ["volume", 100], ["itype", "off"], ["ctype", "off"]);
+  return { out, notes };
+}
+
+// ---- a preset's bytes (LOOM-8's user_preset_t) from a converter's parameters, on knit's defaults as LOOM-8 sets them
+// (an engine change: sound_default), each value as the simulator's knob takes it (a list's name, or a number; osc 2's
+// wave sets its shape where the wave sits, ui.c set_tp)
+function valueOf(T, name, v) {
+  const list = T.lists[name];
+  if (list && typeof v === "string") {
+    const k = list.findIndex((n) => n && n.toLowerCase() === v.toLowerCase());
+    if (k >= 0) return k;
+  }
+  if (typeof v === "number") return v;
+  if (/^-?\d+$/.test(v)) return +v;
+  throw new Error(`no value ${v} for ${name}`);
+}
+function buildPreset(T, name, out) {
+  const par = T.defaults.slice();
+  for (const [n, v] of out) {
+    const p = T.params[n];
+    if (p === undefined) throw new Error(`no parameter ${n}`);
+    const x = valueOf(T, n, v);
+    if (n === "engine") continue;                  // (knit's defaults are the start)
+    par[p] = x & 255;
+    if (n === "o2wave" && x >= 1 && x <= 3) par[T.params.o2shape] = [0, 64, 127][x - 1];   // (saw, square, pulse)
+  }
+  const raw = new Uint8Array(T.preset_len);
+  for (let i = 0; i < T.name_len - 1 && i < name.length; i++) raw[i] = name.charCodeAt(i) & 127;
+  raw[T.name_len] = T.knit;
+  for (let i = 0; i < T.ntp_sound; i++) raw[T.name_len + 1 + i] = par[i];
+  T.ps_x.forEach((p, k) => { raw[T.name_len + 1 + T.ntp_sound + k] = par[p]; });
+  return raw;
+}
+// a preset's volume (its byte) and how the level fit sets it (loom_presets.py level_fit: a two-octave chord's peak at
+// -28 dBFS, measured 12 dB down, the volume a square law): the page measures with the emulator (web.c loom_x_chord_peak)
+const LEVEL_DB = -28.0;
+const volIndex = (T) => T.name_len + 1 + T.params.volume;
+function fitVolume(vol, low, peakDb) {
+  const pk = peakDb + 40.0 * Math.log10(vol / low);
+  return { pk, vol: Math.max(1, Math.min(127, pyRound(vol * 10.0 ** ((LEVEL_DB - pk) / 40.0)))) };
+}
+
+// ---- the level fit in the emulator (app.wasm: the site's ../emu/app.wasm)
+// boot it as the export page does (render.js): its clock ours, the master at the simulator's 2048 (the tools' level)
+async function bootEmu(wasm) {
+  let mem;
+  const wasi = new Proxy({ clock_time_get: (id, p, out) => { new DataView(mem.buffer).setBigUint64(out, 0n, true); return 0; },
+    fd_write: (fd, iov, n, out) => { new DataView(mem.buffer).setUint32(out, 0, true); return 0; } },
+    { get: (t, k) => (k in t ? t[k] : () => 0) });
+  const { instance } = await WebAssembly.instantiate(wasm, { wasi_snapshot_preview1: wasi, env: new Proxy({}, { get: () => () => 0 }) });
+  const ex = instance.exports;
+  mem = ex.memory;
+  if (ex._initialize) ex._initialize();
+  ex.web_master(2048);
+  ex.web_boot();
+  if (!ex.loom_x_chord_peak) throw new Error("This site's emulator is older than its presets page.");
+  return { ex, mem };
+}
+// a preset's raw bytes with its volume set so a two-octave chord peaks at LEVEL_DB (loom_presets.py level_fit): the
+// chord measured at half the volume (12 dB down: clear of the output's ceiling) -> { raw, pk, vol }
+function levelFit(emu, T, raw) {
+  const vi = volIndex(T), vol = raw[vi] || 100, low = Math.max(1, pyRound(vol / 2));
+  const probe = raw.slice();
+  probe[vi] = low;
+  new Uint8Array(emu.mem.buffer, emu.ex.loom_x_pbuf(), probe.length).set(probe);
+  const peak = emu.ex.loom_x_chord_peak(T.fmt);
+  if (peak < 0) throw new Error("the emulator refused the preset");
+  const f = fitVolume(vol, low, 20.0 * Math.log10(peak / 1e6 + 1e-9));
+  const out = raw.slice();
+  out[vi] = f.vol;
+  return { raw: out, pk: f.pk, vol: f.vol };
+}
+
+const T = {"fmt": 19, "name_len": 12, "ntp_sound": 39, "knit": 0, "preset_len": 79,
+ "ps_x": [316, 318, 319, 320, 321, 322, 323, 324, 325, 326, 327, 328, 329, 330, 331, 332, 333, 334, 335, 336, 337, 338, 339, 340, 341, 342, 343],
+ "defaults": [0, 0, 20, 1, 0, 0, 0, 2, 100, 0, 60, 100, 40, 0, 60, 0, 40, 110, 20, 64, 64, 0, 0, 0, 0, 3, 64, 2, 0, 1, 0, 64, 64, 127, 64, 0, 0, 0, 2, 0, 7, 0, 1, 0, 1, 0, 0, 0, 100, 64, 1, 1, 0, 82, 42, 64, 64, 0, 64, 76, 0, 0, 0, 127, 0, 127, 0, 64, 0, 0, 0, 0, 1, 79, 40, 84, 64, 0, 64, 76, 0, 0, 0, 127, 0, 127, 0, 64, 0, 0, 0, 0, 2, 93, 23, 64, 88, 0, 74, 76, 3, 0, 0, 127, 0, 127, 0, 64, 0, 0, 0, 0, 2, 93, 88, 64, 88, 0, 74, 76, 3, 0, 0, 127, 0, 127, 0, 64, 0, 0, 0, 0, 3, 100, 64, 64, 38, 0, 54, 76, 0, 0, 0, 127, 0, 127, 0, 64, 0, 0, 0, 24, 8, 70, 46, 38, 64, 0, 44, 76, 0, 0, 0, 127, 0, 127, 0, 64, 0, 0, 0, 0, 8, 100, 46, 38, 64, 0, 84, 76, 0, 0, 0, 127, 0, 127, 0, 64, 0, 0, 0, 0, 7, 109, 46, 64, 0, 0, 54, 76, 0, 0, 0, 127, 0, 127, 0, 64, 0, 0, 0, 0, 4, 31, 64, 64, 101, 0, 80, 76, 0, 0, 0, 127, 0, 127, 0, 64, 0, 0, 0, 0, 6, 36, 70, 70, 100, 0, 50, 76, 0, 0, 0, 127, 0, 127, 0, 64, 0, 0, 0, 0, 9, 103, 100, 46, 15, 0, 64, 76, 0, 0, 0, 127, 0, 127, 0, 64, 0, 0, 0, 12, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 64, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 127, 0, 0, 0, 0],
+ "params": {"engine": 0, "e1": 1, "e2": 2, "e3": 3, "e4": 4, "x1": 34, "fine": 316, "kanalog": 328, "o2wave": 318, "o2shape": 319, "x2": 35, "x3": 36, "ksub": 323, "x4": 37, "a": 9, "d": 10, "s": 11, "r": 12, "fa": 13, "fd": 14, "fs": 15, "fr": 16, "ftype": 21, "cut": 17, "res": 18, "fenv": 19, "ktrk": 20, "ltype": 24, "lspeed": 25, "lamt": 26, "ldest": 27, "lx": 28, "lx2": 29, "hpf": 333, "oct": 38, "vmode": 5, "volume": 8, "itype": 329, "ctype": 30, "i1": 330, "i2": 331, "s2mix": 339, "ksync": 320, "ksweep": 321, "kcross": 322, "kswto": 327, "k1cut": 326, "porta": 6, "bend": 7},
+ "lists": {"engine": ["knit", "rayon", "jacquard", "bellows", "cane", "voile", "sample", "slice", "kit", "midi", "acid", "tulle", "lace", "tartan"], "o2wave": ["same", "saw", "square", "pulse", "triangle", "sine"], "ksub": ["sine", "square", "low square", "low pulse"], "ftype": ["lp24", "ladder", "lp12", "hp12", "bp12", "off"], "ltype": ["off", "wave", "wobble", "drift", "pump"], "ldest": ["synth", "envelope", "filter", "voice", "synth free", "env free", "filter free", "voice free"], "lx": ["cutoff", "reso", "env", "keytrack"], "lx2": ["square", "sine", "ramp", "saw", "random"], "oct": ["-2", "-1", "0", "+1", "+2"], "vmode": ["poly", "mono", "legato", "retrig"], "itype": ["off", "drive", "rat", "fold", "crush", "ring", "tilt", "tape", "sampler", "lofi", "tremolo", "phaser", "univibe", "chorus", "juno", "autowah", "delay", "rumble", "reverb"], "ctype": ["off", "drive", "rat", "fold", "crush", "ring", "tilt", "tape", "sampler", "lofi", "tremolo", "phaser", "univibe", "chorus", "juno", "autowah", "delay", "rumble", "reverb"], "bend": ["off", "1", "2", "3", "4", "5", "6", "7", "octave"]}};
+const $ = (id) => document.getElementById(id);
+let emu = null;                                // (the emulator, for the level fit: booted the first time a bank opens)
+let link = null, names = null, knames = null, lib = [], libName = "", busy = false;
+let sel = [], anchor = -1;                     // the library's selection (indices), shift's anchor
+const placed = new Map(), done = new Map();    // "U3" / "K1" -> library index; -> rc of the last send
+const key = (kind, s) => `${kind === KIT_PUT ? "K" : "U"}${s + 1}`;
+function say(t, bad = false) { $("status").textContent = t; $("status").className = bad ? "bad" : ""; }
+
+function shown() {
+  const f = $("filter").value.trim().toLowerCase();
+  return lib.map((_, i) => i).filter((i) => !f || lib[i].name.toLowerCase().includes(f));
+}
+function pick(i, ev) {
+  const vis = shown().filter((j) => lib[j].kind === lib[i].kind);
+  if (ev.shiftKey && anchor >= 0 && lib[anchor].kind === lib[i].kind) {
+    const a = vis.indexOf(anchor), b = vis.indexOf(i);
+    if (a >= 0 && b >= 0) sel = vis.slice(Math.min(a, b), Math.max(a, b) + 1);
+  } else if (ev.metaKey || ev.ctrlKey) {
+    sel = (sel.includes(i) ? sel.filter((x) => x !== i) : [...sel, i]).filter((j) => lib[j].kind === lib[i].kind);
+    sel.sort((x, y) => x - y);
+    anchor = i;
+  } else {
+    sel = sel.length === 1 && sel[0] === i ? [] : [i];
+    anchor = i;
+  }
+  render();
+}
+// library items of one kind into that kind's slots from s on (presets past U64, kits past K8: none)
+function placeItems(kind, s, list) {
+  list = list.filter((i) => lib[i] && lib[i].kind === kind);
+  if (!list.length) { say(kind === KIT_PUT ? "Only kits go into K slots." : "Only presets go into U slots.", true); return; }
+  const n = kind === KIT_PUT ? NKITS : NUSER;
+  let k = 0;
+  for (const i of list) {
+    if (s + k >= n) break;
+    placed.set(key(kind, s + k), i);
+    done.delete(key(kind, s + k));
+    k++;
+  }
+  say(`${k} placed from ${key(kind, s)}${k < list.length ? `; ${list.length - k} had no room` : ""}. Send when ready.`);
+  sel = [];
+  render();
+}
+function libItem(i) {
+  const b = document.createElement("button");
+  b.className = "item";
+  b.setAttribute("role", "listitem");
+  b.setAttribute("aria-pressed", sel.includes(i) ? "true" : "false");
+  b.draggable = true;
+  b.innerHTML = `<span class="n"></span><span></span>`;
+  b.firstChild.textContent = lib[i].kind === KIT_PUT ? "kit" : String(lib.slice(0, i + 1).filter((x) => x.kind === USER_PUT).length);
+  b.lastChild.textContent = lib[i].name;
+  if (lib[i].notes && lib[i].notes.length) b.title = "Not made on knit: " + lib[i].notes.join("; ");
+  b.onclick = (ev) => pick(i, ev);
+  b.ondragstart = (ev) => {
+    if (!sel.includes(i)) { sel = [i]; anchor = i; }
+    ev.dataTransfer.setData("text/plain", sel.join(","));
+    ev.dataTransfer.effectAllowed = "copy";
+  };
+  return b;
+}
+function slotRow(kind, s, now) {
+  const b = document.createElement("button"), k = key(kind, s), p = placed.get(k), rc = done.get(k);
+  b.className = "slot" + (p !== undefined ? " new" : "");
+  b.setAttribute("role", "listitem");
+  b.innerHTML = `<span class="n">${k}</span><span class="now"></span>`;
+  const el = b.querySelector(".now");
+  if (p !== undefined) {
+    el.textContent = lib[p].name;
+    if (now) { const w = document.createElement("span"); w.className = "was"; w.textContent = ` replaces ${now}`; el.append(w); }
+    const u = document.createElement("span");
+    u.className = "undo"; u.textContent = "×"; u.title = `Take ${lib[p].name} off ${k}`;
+    u.onclick = (ev) => { ev.stopPropagation(); placed.delete(k); render(); };
+    b.append(u);
+    b.setAttribute("aria-label", `${k}: ${lib[p].name}, to send${now ? `, replacing ${now}` : ""}`);
+  } else {
+    el.textContent = now || "empty";
+    if (!now) el.className = "now empty";
+    if (rc !== undefined) {
+      const d = document.createElement("span");
+      d.className = rc ? "was" : "done"; d.textContent = rc ? ` ${PUT_RC[rc] || `not saved (${rc})`}` : " saved";
+      el.append(d);
+    }
+  }
+  b.onclick = () => { if (sel.length) placeItems(kind, s, sel); };
+  b.ondragover = (ev) => { ev.preventDefault(); b.classList.add("over"); };
+  b.ondragleave = () => b.classList.remove("over");
+  b.ondrop = (ev) => {
+    ev.preventDefault(); b.classList.remove("over");
+    placeItems(kind, s, (ev.dataTransfer.getData("text/plain") || "").split(",").filter(Boolean).map(Number));
+  };
+  return b;
+}
+function grp(t) { const h = document.createElement("p"); h.className = "grp"; h.textContent = t; return h; }
+function render() {
+  $("connect").disabled = busy;
+  $("export").disabled = busy || !link;
+  $("send").disabled = busy || !link || !placed.size;
+  $("clear").disabled = busy || !placed.size;
+  if (lib.length) {
+    const vis = shown(), pre = vis.filter((i) => lib[i].kind === USER_PUT), kits = vis.filter((i) => lib[i].kind === KIT_PUT);
+    const np = lib.filter((x) => x.kind === USER_PUT).length, nk = lib.length - np;
+    $("libh").textContent = `${libName}: ${np} preset${np === 1 ? "" : "s"}${nk ? `, ${nk} kit${nk === 1 ? "" : "s"}` : ""}`;
+    $("lib").replaceChildren(...(pre.length ? [grp("Presets"), ...pre.map(libItem)] : []),
+                             ...(kits.length ? [grp("Kits"), ...kits.map(libItem)] : []));
+  }
+  if (names)
+    $("slots").replaceChildren(grp("User presets"), ...names.map((n, s) => slotRow(USER_PUT, s, n)),
+                               grp("User kits"), ...(knames || []).map((n, s) => slotRow(KIT_PUT, s, n)));
+}
+async function run(fn) {
+  busy = true; render();
+  try { await fn(); } catch (e) { say(e.message || String(e), true); }
+  busy = false; render();
+}
+async function readSlots() {
+  names = await readNames(link);
+  knames = await readKitNames(link);
+}
+
+$("connect").onclick = () => run(async () => {
+  say("Connecting…");
+  if (!navigator.requestMIDIAccess) throw new Error("This browser can't talk to MIDI devices. Use Chrome or Edge.");
+  let midi;
+  try { midi = await navigator.requestMIDIAccess({ sysex: true }); }
+  catch (_) { throw new Error("MIDI with SysEx was not allowed. Allow MIDI in the site settings (the address bar), then try again."); }
+  if (link) link.close();
+  const res = await seekLink(midi);
+  if (!res.link) throw new Error(notFound(res, "the presets page"));
+  link = res.link;
+  say("Reading the presets…");
+  try { await readSlots(); }
+  catch (_) { throw new Error("This LOOM-8 doesn't know preset packs yet. Update it on the install page, then connect again."); }
+  done.clear();
+  $("connect").textContent = "Read again";
+  say(`Connected: ${names.filter(Boolean).length} of ${NUSER} user presets and ${knames.filter(Boolean).length} of ` +
+      `${NKITS} kits in use.` + (lib.length ? " Drag from the library onto a slot." : ""));
+});
+
+$("file").onchange = async (ev) => {
+  const f = ev.target.files[0];
+  ev.target.value = "";
+  if (!f) return;
+  const b = new Uint8Array(await f.arrayBuffer());
+  let items = parseBackup(b) || parsePack(b);
+  if (!items.length) {
+    const juno = readJuno(b), prophet = juno.size ? new Map() : readProphet(b);
+    if (juno.size || prophet.size) {
+      busy = true; render();
+      try { items = await convertBank(juno, prophet); }
+      catch (e) { say(e.message || String(e), true); busy = false; render(); return; }
+      busy = false;
+    } else if (b[0] === 0xF0 && b[1] === 0x01 && b[2] === 0x31) {
+      say(`${f.name} is a Prophet-5 bank in the older (1.4) layout: save it from the Prophet as a Rev 4 bank.`, true);
+      return;
+    } else {
+      say(`${f.name} holds no LOOM-8 presets or kits, and no Juno-106 or Prophet-5 patches.`, true);
+      return;
+    }
+  }
+  lib = items; libName = f.name; sel = []; anchor = -1; placed.clear();
+  say(link ? "Drag from the library onto a slot, or select and click a slot." : "Connect to the FM-1 to place them.");
+  render();
+};
+// a Juno-106 or Prophet-5 bank's patches as knit presets (convert.js: the tools' converters), each set to the level
+// of LOOM-8's pads in the emulator (the site's ../emu/app.wasm)
+async function convertBank(juno, prophet) {
+  if (!emu) {
+    say("Loading LOOM-8's emulator, to set each sound's level…");
+    const r = await fetch("../emu/app.wasm");
+    if (!r.ok) throw new Error("Couldn't load LOOM-8's emulator (../emu/app.wasm). Check the connection and try again.");
+    emu = await bootEmu(await r.arrayBuffer());
+  }
+  const src = juno.size ? [...juno].map(([k, p]) => [`J106 ${junoLabel(k)}`, convertJuno(p)])
+                        : [...prophet].map(([k, p]) => [prophetName(p) || `P5 ${prophetLabel(k)}`, convertProphet(p)]);
+  const out = [];
+  for (let i = 0; i < src.length; i++) {
+    const [name, c] = src[i];
+    if (i % 8 === 0) { say(`Turning ${src.length} ${juno.size ? "Juno-106 patches" : "Prophet-5 programs"} into knit sounds (${i} of ${src.length})…`); await new Promise((r) => setTimeout(r)); }
+    const fit = levelFit(emu, T, buildPreset(T, name.slice(0, PNAME_LEN), c.out));
+    out.push({ kind: USER_PUT, slot: i & 127, fmt: T.fmt, data: packBytes([...fit.raw]), name,   // (its name in full
+               notes: c.notes });                                                                 // here; 11 on the FM-1)
+  }
+  return out;
+}
+$("filter").oninput = () => render();
+$("clear").onclick = () => { placed.clear(); render(); };
+
+$("export").onclick = () => run(async () => {
+  const pk = await exportPack(link, (d, n) => say(`Reading the FM-1's presets and kits (${d} of ${n})…`));
+  const items = parsePack(pk);
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([pk], { type: "application/octet-stream" }));
+  a.download = "loom-8-presets.syx";
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+  say(`Saved ${items.filter((x) => x.kind === USER_PUT).length} presets and ${items.filter((x) => x.kind === KIT_PUT).length} kits as loom-8-presets.syx.`);
+});
+
+$("send").onclick = () => run(async () => {
+  const todo = [...placed].sort((a, b) => (a[0] < b[0] ? -1 : 1));
+  let ok = 0, k = 0;
+  done.clear();
+  for (const [slot, i] of todo) {
+    say(`Sending ${lib[i].name} to ${slot} (${++k} of ${todo.length})…`);
+    const rc = await putPreset(link, +slot.slice(1) - 1, lib[i]);
+    done.set(slot, rc);
+    ok += rc === 0;
+    if (!rc) placed.delete(slot);
+  }
+  await readSlots();
+  const bad = todo.length - ok;
+  say(bad ? `${ok} saved; ${bad} not: see the slots.` : `Done: ${ok} saved on the FM-1.`, bad > 0);
+});
+render();
+</script>
+</body>
+</html>

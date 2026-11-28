@@ -1,0 +1,804 @@
+// SPDX-License-Identifier: MPL-2.0
+// written by tools/make_pages.py: app/web/samples/loom_samples.js and app/web/backup/extras.js, as the backup page has them
+export default () => {
+// SPDX-License-Identifier: MPL-2.0
+// LOOM-8's user sample bank in the browser: tools/loom_samples.py and tools/sampleio.py (its numpy path) as plain
+// functions, so the samples page (app/web/samples/index.html) builds the bank the command line builds: the same
+// layout and header byte for byte, the same sound within a rounding (numpy sums a convolution in its own order).
+// tests/host/samples_web.mjs checks it against loom_samples.py. Copyright (C) 2026 Charles Vestal.
+//
+// Keep the order of operations of sampleio.py when touching these.
+
+// finding FM-1s on Web MIDI (seekLink): fm1-base's, which the pages inline before this file
+
+const RATES = [11025, 16000, 22050, 32000];
+const AUTO = [22050, 16000, 11025];
+const BLK = 128, BLK_V2 = 64;          // a checkpoint every BLK samples: version 3 banks (0.8); 64 in version 2
+const REGIONS = [[0xC1000, 0x1B000], [0xE5000, 0x17000]];   // (until 0.19 also [0x93000, 0x4000]: the app's since)
+const XDATA = [1], REC_MARK = 0xF06;
+const BANK_SIZE = REGIONS.reduce((a, r) => a + r[1], 0);
+const BANK_HDR = 2048, BANK_MAX_DATA = BANK_SIZE - BANK_HDR, BANK_N = 32, BANK_VER = 3;
+// since 0.8 the factory set (the kits' drums, the instruments, the sweep, the vinyl) lives in the bank too: 12 entries
+// marked E_FACTORY (an entry's flags, byte 33), which its factory rows play and which are no user slots (sample.h)
+const NFENT = 13, NENT = BANK_N + NFENT, E_FACTORY = 0x01;
+// a wavetable (E_WT, sample.h SMP_E_WT): raw int8 frames of WT_N, no checkpoints; jacquard's user tables, one of the
+// 32 user entries (sampleio.py wavetable_of makes them; a bank read back keeps them as they are)
+const E_WT = 0x02, WT_N = 128, WT_RATE = 22050;   // (its rate field: sampleio.py RATE, unread)
+const isWt = (smp) => !!((smp.flags || 0) & E_WT);
+const ENT0 = 64, ENT = 40, BANK_MAGIC = 0x504D534C, NAME_LEN = 12, BARS_MAX = 16;
+const LOOP_ROOT = 53;                  // a loop's slice 1: F3, the lowest key
+const HDR_USED = ENT0 + NENT * ENT;    // the header's bytes the FM-1 keeps (1824)
+const PART = 320, NPART = Math.ceil(HDR_USED / PART);
+const READ_MAX = 224;                  // samples.c SB_READ_MAX
+
+// IMA ADPCM's step sizes and index changes: the standard's tables (IMA Digital Audio Focus and Technical Working
+// Groups, "Recommended Practices for Enhancing Digital Audio Compatibility in Multimedia Systems", 1992)
+const IMA_STEP = [
+  7, 8, 9, 10, 11, 12, 13, 14, 16, 17,
+  19, 21, 23, 25, 28, 31, 34, 37, 41, 45,
+  50, 55, 60, 66, 73, 80, 88, 97, 107, 118,
+  130, 143, 157, 173, 190, 209, 230, 253, 279, 307,
+  337, 371, 408, 449, 494, 544, 598, 658, 724, 796,
+  876, 963, 1060, 1166, 1282, 1411, 1552, 1707, 1878, 2066,
+  2272, 2499, 2749, 3024, 3327, 3660, 4026, 4428, 4871, 5358,
+  5894, 6484, 7132, 7845, 8630, 9493, 10442, 11487, 12635, 13899,
+  15289, 16818, 18500, 20350, 22385, 24623, 27086, 29794, 32767];
+const IMA_IDX = [...Array(4).fill(-1), 2, 4, 6, 8];   // by a code's magnitude bits (0..7)
+const IMA_BITS = [[4, 0], [2, 1], [1, 2]];            // a code's magnitude bits and the shift of the step each stands for
+
+// the decoder's state after one code: [pred, idx] (sampleio._ima_next)
+function imaNext(pred, idx, code) {
+  const step = IMA_STEP[idx];
+  let d = step >> 3;
+  for (const [bit, shift] of IMA_BITS) if (code & bit) d += step >> shift;
+  pred = Math.max(-32768, Math.min(32767, code & 8 ? pred - d : pred + d));
+  return [pred, Math.max(0, Math.min(88, idx + IMA_IDX[code & 7]))];
+}
+
+// ---- a WAV as a wavetable for jacquard (sampleio.wavetable_of, the same bytes): its frames (a 'clm ' chunk's size,
+// "<!>2048" as Serum and Vital write it; else 2048 when the length is a multiple; else the whole file one cycle), as
+// many as frames picked evenly across them (all, when fewer), each band-limited to WT_N samples (harmonics 1..63), the
+// table's peak at full scale -> Uint8Array of int8 (frames x WT_N; a single cycle twice)
+const roundEven = (x) => (Math.abs(x % 1) === 0.5 ? 2 * Math.round(x / 2) : Math.round(x));   // (Python's round)
+function wavetableOf(buf, frames = 16) {
+  const b = new Uint8Array(buf.buffer || buf, buf.byteOffset || 0, buf.byteLength);
+  let size = 0;
+  for (let i = 12; i + 8 <= b.length; ) {         // (the chunks: 'clm ' says the frame size)
+    const id = String.fromCharCode(b[i], b[i + 1], b[i + 2], b[i + 3]), n = b[i + 4] | b[i + 5] << 8 | b[i + 6] << 16 | b[i + 7] << 24;
+    if (id === "clm ") {
+      const m = /<!>(\d+)/.exec(String.fromCharCode(...b.subarray(i + 8, i + 8 + Math.min(n, 64))));
+      if (m) size = +m[1];
+      break;
+    }
+    i += 8 + n + (n & 1);
+  }
+  const x = readWav(buf).x;
+  if (!size) size = x.length >= 2048 && x.length % 2048 === 0 ? 2048 : x.length;
+  const m = Math.floor(x.length / size);
+  if (m < 1) throw new Error(`shorter than a frame of ${size}`);
+  const pick = m <= frames ? [...Array(m).keys()] : [...Array(frames).keys()].map((k) => roundEven(k * (m - 1) / (frames - 1)));
+  const out = pick.map((j) => {
+    const f = x.slice(j * size, (j + 1) * size), y = new Float64Array(WT_N);
+    for (let k = 1; k < WT_N / 2; k++) {
+      let re = 0, im = 0;
+      for (let t = 0; t < size; t++) { const a = 2 * Math.PI * k * t / size; re += f[t] * Math.cos(a); im -= f[t] * Math.sin(a); }
+      for (let n = 0; n < WT_N; n++) { const a = 2 * Math.PI * k * n / WT_N; y[n] += 2 / size * (re * Math.cos(a) - im * Math.sin(a)); }
+    }
+    return y;
+  });
+  if (out.length === 1) out.push(out[0]);
+  const peak = Math.max(...out.map((y) => Math.max(...y.map(Math.abs))));
+  if (!(peak > 0)) throw new Error("silent");
+  const r = new Int8Array(out.length * WT_N);
+  out.forEach((y, f) => y.forEach((v, n) => { r[f * WT_N + n] = roundEven(v / peak * 127); }));
+  return new Uint8Array(r.buffer);
+}
+
+// ---- WAV in (sampleio.read_any_wav): -> {rate, x: mono floats, loop: [start, end] or null}
+function readWav(buf) {
+  const d = new DataView(buf.buffer || buf, buf.byteOffset || 0, buf.byteLength);
+  const tag4 = (o) => String.fromCharCode(d.getUint8(o), d.getUint8(o + 1), d.getUint8(o + 2), d.getUint8(o + 3));
+  if (d.byteLength < 12 || tag4(0) !== "RIFF" || tag4(8) !== "WAVE") throw new Error("not a WAV file");
+  const ch = {};
+  for (let i = 12; i + 8 <= d.byteLength;) {
+    const id = tag4(i), n = d.getUint32(i + 4, true);
+    if (!(id in ch)) ch[id] = [i + 8, n];
+    i += 8 + n + (n & 1);
+  }
+  if (!ch["fmt "]) throw new Error("WAV without a fmt chunk");
+  const fo = ch["fmt "][0];
+  let tag = d.getUint16(fo, true);
+  const nch = d.getUint16(fo + 2, true), sr = d.getUint32(fo + 4, true), bits = d.getUint16(fo + 14, true);
+  if (tag === 0xFFFE) tag = d.getUint16(fo + 24, true);
+  const bps = bits >> 3;
+  if ((tag !== 1 && tag !== 3) || !bps || !nch) throw new Error(`unsupported WAV (tag ${tag}, ${bits} bit)`);
+  const [o, n] = ch.data || [0, 0];
+  const frame = bps * nch, nfr = Math.floor(Math.min(n, d.byteLength - o) / frame);
+  const val = (p) => {
+    if (tag === 3) return bps === 4 ? d.getFloat32(p, true) : d.getFloat64(p, true);
+    if (bps === 2) return d.getInt16(p, true) / 32768;
+    if (bps === 3) return ((d.getUint8(p) << 8 | d.getUint8(p + 1) << 16 | d.getUint8(p + 2) << 24) >> 0) / 2147483648;
+    if (bps === 4) return d.getInt32(p, true) / 2147483648;
+    return (d.getUint8(p) - 128) / 128;
+  };
+  const x = new Float64Array(nfr);
+  for (let f = 0; f < nfr; f++) {
+    const p = o + f * frame;
+    let acc = 0;                                  // sum(v[f:f + nch]) / nch, from 0, left to right
+    for (let c = 0; c < nch; c++) acc += val(p + c * bps);
+    x[f] = nch > 1 ? acc / nch : acc;
+  }
+  let loop = null;
+  if (ch.smpl) {
+    const so = ch.smpl[0];
+    if (so + 52 <= d.byteLength && d.getUint32(so + 28, true)) loop = [d.getUint32(so + 44, true), d.getUint32(so + 48, true)];
+  }
+  return { rate: sr, x, loop };
+}
+
+// numpy.convolve(a, h, mode="same"): length max(N, M), from (min(N, M) - 1) // 2 of the full convolution
+function convolveSame(a, h) {
+  const N = a.length, M = h.length, L = Math.max(N, M), off = (Math.min(N, M) - 1) >> 1;
+  const out = new Float64Array(L);
+  for (let i = 0; i < L; i++) {
+    const k = i + off;                            // full[k] = sum_j a[k - j] h[j]
+    let acc = 0, j0 = Math.max(0, k - N + 1), j1 = Math.min(M - 1, k);
+    for (let j = j0; j <= j1; j++) acc += a[k - j] * h[j];
+    out[i] = acc;
+  }
+  return out;
+}
+
+function sinc(x) { if (x === 0) return 1.0; const y = Math.PI * x; return Math.sin(y) / y; }
+function blackman(M) {                            // numpy.blackman
+  const w = new Float64Array(M);
+  if (M === 1) { w[0] = 1; return w; }
+  for (let i = 0; i < M; i++) {
+    const n = 1 - M + 2 * i;
+    w[i] = 0.42 + 0.5 * Math.cos(Math.PI * n / (M - 1)) + 0.08 * Math.cos(2.0 * Math.PI * n / (M - 1));
+  }
+  return w;
+}
+
+// sampleio.resample (numpy): down, a windowed-sinc low-pass at 90 % of the new half rate; then linear interpolation
+function resample(x, sr, to) {
+  if (sr === to) return Float64Array.from(x);
+  let a = Float64Array.from(x);
+  if (a.length <= 1) return new Float64Array(0);
+  if (to < sr) {
+    const fc = 0.45 * to / sr, half = Math.ceil(8.0 / fc), M = 2 * half + 1, w = blackman(M), h = new Float64Array(M);
+    let sum = 0;
+    for (let i = 0; i < M; i++) { const t = i - half; h[i] = 2.0 * fc * sinc(2.0 * fc * t) * w[i]; }
+    for (let i = 0; i < M; i++) sum += h[i];
+    for (let i = 0; i < M; i++) h[i] /= sum;
+    a = convolveSame(a, h);
+  }
+  const n = Math.ceil((a.length - 1) * to / sr), step = sr / to, out = new Float64Array(n), last = a.length - 1;
+  for (let i = 0; i < n; i++) {                   // numpy.interp on 0, 1, 2 ...
+    const p = i * step, j = Math.floor(p);
+    out[i] = j >= last ? a[last] : (a[j + 1] - a[j]) * (p - j) + a[j];
+  }
+  return out;
+}
+
+// the pre-emphasis the playback's linear interpolation takes back off (sampleio.EMPHASIS)
+const EMPHASIS = [0.0517, -0.21, 1.3362, -0.21, 0.0517].map((v) => v / 1.0196);
+function emphasis(x) { return convolveSame(Float64Array.from(x), EMPHASIS); }
+
+function roundHalfEven(v) {                       // Python's round()
+  const f = Math.floor(v), d = v - f;
+  if (d > 0.5) return f + 1;
+  if (d < 0.5) return f;
+  return f % 2 === 0 ? f : f + 1;
+}
+
+// sampleio.to_int16: the peak normalised to 30000
+function toInt16(x, peakTo = 30000) {
+  let pk = 1e-9;
+  for (const v of x) { const a = Math.abs(v); if (a > pk) pk = a; }
+  const out = new Int16Array(x.length);
+  for (let i = 0; i < x.length; i++) out[i] = Math.max(-32768, Math.min(32767, roundHalfEven(x[i] / pk * peakTo)));
+  return out;
+}
+
+// sampleio.note_from_name: "C4" / "F#3" / "Bb2" in a name, C4 = 60
+function noteFromName(name, def = 60) {
+  const m = /(?<![A-Za-z])([A-G])([#b]?)(-?\d)(?!\d)/.exec(name);
+  if (!m) return def;
+  const pc = "C D EF G A B".indexOf(m[1]) + ({ "#": 1, b: -1, "": 0 })[m[2]];
+  return Math.max(0, Math.min(127, (parseInt(m[3], 10) + 1) * 12 + pc));
+}
+
+// sampleio.clean_name: lower case, printable, at most 11 characters
+function cleanName(name) {
+  const s = name.toLowerCase().replace(/_/g, " ").replace(/[^a-z0-9 _.-]/g, "").trim();
+  return (s || "sample").slice(0, NAME_LEN - 1);
+}
+
+const NOTE = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
+function noteName(n) { return NOTE[n % 12] + (Math.floor(n / 12) - 1); }
+
+// sampleio.ima_encode: -> {adpcm, ck: Uint32Array of the decoder's state before every BLK-th sample}
+function imaEncode(s) {
+  let pred = 0, idx = 0;
+  const adpcm = new Uint8Array(((s.length + 1) >> 1)), ck = new Uint32Array(Math.ceil(s.length / BLK));
+  s.forEach((x, n) => {
+    if (n % BLK === 0) ck[n / BLK] = ((pred & 0xFFFF) | idx << 16) >>> 0;
+    const step = IMA_STEP[idx];
+    let left = Math.abs(x - pred), code = x < pred ? 8 : 0;
+    for (const [bit, shift] of IMA_BITS)               // the magnitude, a bit at a time from the largest share
+      if (left >= step >> shift) { code |= bit; left -= step >> shift; }
+    adpcm[n >> 1] |= code << 4 * (n & 1);
+    [pred, idx] = imaNext(pred, idx, code);
+  });
+  return { adpcm, ck };
+}
+
+// the firmware's decoder (dsp/sample.c): for the pictures of samples read back
+function imaDecode(b, n) {
+  const out = new Int16Array(n);
+  let st = [0, 0];
+  for (let i = 0; i < n; i++) {
+    st = imaNext(st[0], st[1], b[i >> 1] >> 4 * (i & 1) & 15);
+    out[i] = st[0];
+  }
+  return out;
+}
+
+function sampleBytes(n) { return Math.ceil(n / BLK) * 4 + Math.floor((Math.floor((n + 1) / 2) + 3) / 4) * 4; }
+function bytesPerSecond(rate) { return rate * (0.5 + 4.0 / BLK); }
+
+// a file's samples at a rate, ready for the bank (loom_samples.at_rate): {s: Int16Array, loop}
+function atRate(x, sr, loop, rate) {
+  const s = toInt16(emphasis(resample(x, sr, rate)));
+  const lp = loop ? [Math.trunc(loop[0] * rate / sr), Math.trunc((loop[1] + 1) * rate / sr)] : null;
+  return { s, loop: lp };
+}
+function lengthAt(nx, sr, rate) { return Math.trunc(nx * rate / sr); }
+
+// ---- the bank's layout (sampleio.user_bank)
+function regionStarts() { const out = []; let v = 0; for (const [, n] of REGIONS) { out.push(v); v += n; } return out; }
+const STARTS = regionStarts();
+function regionOf(v) {
+  for (let r = 0; r < REGIONS.length; r++) if (STARTS[r] <= v && v < STARTS[r] + REGIONS[r][1]) return r;
+  return REGIONS.length;
+}
+
+class TooLong extends Error {}
+
+function place(blobs, pad) {
+  const starts = [...STARTS, BANK_SIZE], out = [];
+  let v = BANK_HDR;
+  for (let k = 0; k < blobs.length; k++) {
+    const [ckb, adpb] = blobs[k];
+    v = (v + pad[k] + 3) & ~3;
+    let a;
+    for (;;) {
+      const r = regionOf(v);
+      if (r >= REGIONS.length) throw new TooLong("too long");
+      if (v + ckb.length > starts[r + 1]) { v = starts[r + 1]; continue; }
+      a = v + ckb.length;
+      const ra = a < BANK_SIZE ? regionOf(a) : REGIONS.length;
+      if (ra >= REGIONS.length || a + adpb.length > starts[Math.min(ra + 2, REGIONS.length)]) {
+        if (ra + 1 >= REGIONS.length) throw new TooLong("too long");
+        v = starts[ra + 1];
+        continue;
+      }
+      break;
+    }
+    out.push([v, a]);
+    v = a + adpb.length;
+  }
+  if (v > BANK_SIZE) throw new TooLong("too long");
+  return { where: out, end: v };
+}
+
+function marks(img, end) {
+  const out = [];
+  for (const r of XDATA)
+    for (let sec = 0; sec < REGIONS[r][1]; sec += 0x1000) {
+      const v = STARTS[r] + sec + REC_MARK;
+      if (v + 2 <= end && img[v] === 0x41 && img[v + 1] === 0x54) out.push(v);
+    }
+  return out;
+}
+
+let CRC_T = null;
+function crc32(b) {                        // zlib.crc32
+  if (!CRC_T) {
+    CRC_T = new Uint32Array(256);
+    for (let n = 0; n < 256; n++) {
+      let c = n;
+      for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1;
+      CRC_T[n] = c >>> 0;
+    }
+  }
+  let c = 0xFFFFFFFF;
+  for (let i = 0; i < b.length; i++) c = CRC_T[(c ^ b[i]) & 0xFF] ^ (c >>> 8);
+  return (c ^ 0xFFFFFFFF) >>> 0;
+}
+
+// a sample for the bank: {name, n, root, loop: [ls, le] or null, bars, rate} and either s (Int16Array: encoded here)
+// or ckb + adpcm (as stored: a sample read back, kept as it is)
+function blobOf(smp) {
+  if (isWt(smp)) return [new Uint8Array(0), smp.adpcm];   // (a wavetable: its frames as they are)
+  if (smp.adpcm) return [smp.ckb, smp.adpcm];
+  const { adpcm, ck } = imaEncode(smp.s);
+  const ckb = new Uint8Array(ck.length * 4), dv = new DataView(ckb.buffer);
+  ck.forEach((c, i) => dv.setUint32(i * 4, c, true));
+  return [ckb, adpcm];
+}
+
+// sampleio.user_bank: -> the bank's image (header + data, without the padding to BANK_SIZE); throws "too long ..."
+const isFactory = (smp) => !!((smp.flags || 0) & E_FACTORY);
+function userBank(samples) {
+  const own = samples.filter((smp) => !isFactory(smp)).length;
+  if (samples.length < 1 || own > BANK_N || samples.length - own > NFENT)
+    throw new Error(`1..${BANK_N} samples in the bank (and the factory set's ${NFENT})`);
+  const blobs = [], meta = [];
+  for (const smp of samples) {
+    if (isWt(smp)) {                              // (a wavetable: kept as it is, its frames' bytes)
+      blobs.push(blobOf(smp));
+      meta.push({ nm: cleanName(smp.name), n: smp.adpcm.length, ls: 0, le: 0, root: 60, flags: smp.flags, bars: 0,
+        rate: WT_RATE });
+      continue;
+    }
+    const n = smp.adpcm ? smp.n : smp.s.length;
+    if (!(smp.bars >= 0 && smp.bars <= BARS_MAX)) throw new Error(`${smp.name}: ${smp.bars} bars (0..${BARS_MAX})`);
+    if (!(smp.rate >= 4000 && smp.rate <= 48000)) throw new Error(`${smp.name}: ${smp.rate} Hz (4000..48000)`);
+    if (!n) throw new Error(`${smp.name}: no audio`);
+    blobs.push(blobOf(smp));
+    let [ls, le] = smp.loop || [0, 0];
+    le = Math.min(le, n);
+    if (le <= ls) ls = le = 0;
+    meta.push({ nm: cleanName(smp.name), n, ls, le, root: Math.max(0, Math.min(127, smp.root)), flags: smp.flags || 0,
+      bars: smp.bars, rate: smp.rate });
+  }
+  const pad = new Array(blobs.length).fill(0);
+  let where, end, img = null;
+  for (let t = 0; ; t++) {
+    if (t >= 4096) throw new Error("could not keep the update record's mark out of the bank");
+    try { ({ where, end } = place(blobs, pad)); } catch (e) {
+      if (e instanceof TooLong) {
+        const used = blobs.reduce((a, [c, d]) => a + c.length + d.length, 0);
+        throw new TooLong(`too long: ${used} B, the bank holds ${BANK_MAX_DATA} B`);
+      }
+      throw e;
+    }
+    img = new Uint8Array(end).fill(0xFF);
+    blobs.forEach(([ckb, adpb], k) => { img.set(ckb, where[k][0]); img.set(adpb, where[k][1]); });
+    const mk = marks(img, end);
+    if (!mk.length) break;
+    const k = where.findIndex(([c, a], i) => c <= mk[0] && mk[0] < a + blobs[i][1].length);
+    if (k < 0) throw new Error("an update record's mark outside the samples");
+    pad[k] += 4;
+  }
+  const data = img.subarray(BANK_HDR);
+  const hdr = new Uint8Array(BANK_HDR), v = new DataView(hdr.buffer);
+  v.setUint32(0, BANK_MAGIC, true);
+  v.setUint16(4, BANK_VER, true);
+  hdr[6] = meta.length;
+  hdr[7] = 0;
+  v.setUint32(8, data.length, true);
+  v.setUint32(12, crc32(data), true);
+  v.setUint32(16, BANK_SIZE, true);
+  meta.forEach((m, k) => {
+    const o = ENT0 + k * ENT;
+    for (let i = 0; i < m.nm.length; i++) hdr[o + i] = m.nm.charCodeAt(i);
+    v.setUint32(o + 12, where[k][1], true);         // the ADPCM, then the checkpoints
+    v.setUint32(o + 16, where[k][0], true);
+    v.setUint32(o + 20, m.n, true);
+    v.setUint32(o + 24, m.ls, true);
+    v.setUint32(o + 28, m.le, true);
+    hdr[o + 32] = m.root;
+    hdr[o + 33] = m.flags;
+    hdr[o + 34] = m.bars;
+    v.setUint16(o + 36, m.rate, true);
+  });
+  const out = new Uint8Array(BANK_HDR + data.length);
+  out.set(hdr);
+  out.set(data, BANK_HDR);
+  return out;
+}
+
+// a bank's header -> its samples' entries (null: not a bank)
+function parseHeader(hdr) {
+  const v = new DataView(hdr.buffer, hdr.byteOffset, hdr.byteLength);
+  const ver = hdr.length >= ENT0 ? v.getUint16(4, true) : 0;
+  if (hdr.length < ENT0 || v.getUint32(0, true) !== BANK_MAGIC || (ver !== 2 && ver !== 3)) return null;
+  const count = hdr[6], out = [];
+  if (count > NENT || hdr.length < ENT0 + count * ENT) return null;
+  for (let k = 0; k < count; k++) {
+    const o = ENT0 + k * ENT;
+    let name = "";
+    for (let i = 0; i < NAME_LEN && hdr[o + i]; i++) name += String.fromCharCode(hdr[o + i]);
+    out.push({ name, adpOff: v.getUint32(o + 12, true), ckOff: v.getUint32(o + 16, true), n: v.getUint32(o + 20, true),
+      ls: v.getUint32(o + 24, true), le: v.getUint32(o + 28, true), root: hdr[o + 32], flags: hdr[o + 33],
+      bars: hdr[o + 34], rate: v.getUint16(o + 36, true) });
+  }
+  return { count, ver, dataLen: v.getUint32(8, true), crc: v.getUint32(12, true), entries: out };
+}
+
+// loom_samples.pack7: groups of up to 7 bytes, each preceded by their top bits; and back
+function pack7(b) {
+  const out = [];
+  for (let i = 0; i < b.length; i += 7) {
+    let m = 0;
+    const g = b.subarray ? b.subarray(i, i + 7) : b.slice(i, i + 7);
+    g.forEach((x, j) => { m |= ((x >> 7) & 1) << j; });
+    out.push(m);
+    for (const x of g) out.push(x & 0x7F);
+  }
+  return out;
+}
+function unpack7(a) {
+  const out = [];
+  for (let i = 0; i < a.length;) {
+    const m = a[i++];
+    for (let j = 0; j < 7 && i < a.length; j++) out.push(a[i++] | ((m >> j) & 1) << 7);
+  }
+  return new Uint8Array(out);
+}
+
+// loom_samples.frames: the upload's frames, [command, args, timeout ms, what]
+function* frames(image) {
+  yield [11, [0], 10000, "begin"];
+  for (let off = BANK_HDR; off < image.length; off += 256)
+    yield [12, [0, off & 0x7F, (off >> 7) & 0x7F, (off >> 14) & 0x7F, ...pack7(image.subarray(off, off + 256))], 5000, off];
+  for (let part = 0; part < NPART; part++)
+    yield [16, [0, part, ...pack7(image.subarray(0, BANK_HDR).subarray(part * PART, (part + 1) * PART))], 3000, `header part ${part}`];
+  yield [13, [0], 20000, "end"];
+}
+
+// loom_samples.build: the bank from items in order, each either kept ({name, n, root, loop, bars, rate, ckb, adpcm}:
+// read back) or new ({name, x, sr, loop (the file's), root, bars, rate: its own or null}); rate: for the new ones that
+// did not choose (null: auto, the highest of AUTO at which all fits). -> {img, chose}; throws TooLong.
+// cache (a Map) keeps each new item's samples at a rate between calls.
+function build(items, rate = null, cache = new Map()) {
+  const own = items.filter((it) => !isFactory(it)).length;
+  if (items.length < 1 || own > BANK_N) throw new Error(`1..${BANK_N} samples in the bank`);
+  const tries = rate ? [rate] : AUTO;
+  for (const r of tries) {
+    const est = items.reduce((a, it) => a + (isWt(it) ? it.adpcm.length : sampleBytes(it.adpcm ? it.n : it.s ? it.s.length : lengthAt(it.x.length, it.sr, it.rate || r))), 0);
+    if (est > BANK_MAX_DATA) continue;
+    const smps = items.map((it) => {
+      if (it.adpcm || it.s) return it;            // (kept as stored, a wavetable too; or already at its rate)
+      const rr = it.rate || r, key = rr;
+      let c = cache.get(it);
+      if (!c) cache.set(it, c = new Map());
+      if (!c.has(key)) c.set(key, atRate(it.x, it.sr, it.loop, rr));
+      const { s, loop } = c.get(key);
+      return { name: it.name, s, root: it.root, loop, bars: it.bars, rate: rr };
+    });
+    try { return { img: userBank(smps), chose: r }; } catch (e) { if (!(e instanceof TooLong)) throw e; }
+  }
+  const last = tries[tries.length - 1];
+  const need = items.reduce((a, it) => a + (isWt(it) ? it.adpcm.length : sampleBytes(it.adpcm ? it.n : it.s ? it.s.length : lengthAt(it.x.length, it.sr, it.rate || last))), 0);
+  throw new TooLong(`too long: ${(need / 1024).toFixed(1)} KB at ${last} Hz, the bank holds ${(BANK_MAX_DATA / 1024).toFixed(1)} KB`);
+}
+
+// the samples of a bank image as kept items (a bank read back: each sample's checkpoints and ADPCM as stored)
+function keptOf(img) {
+  const h = parseHeader(img.subarray(0, Math.min(BANK_HDR, img.length)));
+  if (!h) return [];
+  const blk = h.ver === 2 ? BLK_V2 : BLK;
+  return h.entries.map((e) => {
+    let ckb = img.slice(e.ckOff, e.ckOff + Math.ceil(e.n / blk) * 4);
+    if (blk !== BLK) {                        // a version 2 bank's: every other checkpoint (the same states, none lost)
+      const step = BLK / blk, out = new Uint8Array(Math.ceil(e.n / BLK) * 4);
+      for (let i = 0; i < out.length / 4; i++) out.set(ckb.subarray(i * step * 4, i * step * 4 + 4), i * 4);
+      ckb = out;
+    }
+    if (e.flags & E_WT)                           // (a wavetable: its raw frames)
+      return { name: e.name, n: e.n, root: 60, loop: null, bars: 0, rate: WT_RATE, flags: e.flags, ckb: new Uint8Array(0),
+        adpcm: img.slice(e.adpOff, e.adpOff + e.n) };
+    return { name: e.name, n: e.n, root: e.root, loop: e.le > e.ls ? [e.ls, e.le] : null, bars: e.bars, rate: e.rate,
+      flags: e.flags, ckb, adpcm: img.slice(e.adpOff, e.adpOff + ((e.n + 1) >> 1)) };
+  });
+}
+
+// a LOOM-8 backup file (.loom8: fm1-base's backup, its CRC, then its sections: a 4-letter tag, u32 length, the bytes,
+// u32 CRC-32) -> its sample bank's image (section LSMP), null when it holds none; throws on another file or a damaged
+// one. The samples page adds the user's samples in it (a backup whose bank no longer fits: the user picks)
+function backupBank(buf) {
+  const u16 = (o) => buf[o] | buf[o + 1] << 8, u32 = (o) => (buf[o] | buf[o + 1] << 8 | buf[o + 2] << 16 | buf[o + 3] << 24) >>> 0;
+  if (buf.length < 20 || String.fromCharCode(buf[0], buf[1], buf[2], buf[3]) !== "LM8B") throw new Error("isn't a LOOM-8 backup");
+  let pos = 16;
+  for (let k = u16(6); k > 0; k--) {
+    if (pos + 8 > buf.length) throw new Error("is cut short");
+    pos += 8 + u16(pos + 2);
+  }
+  pos += 4;                                       // (the backup's own CRC: the backup page checks it)
+  while (pos + 12 <= buf.length) {
+    const tag = String.fromCharCode(buf[pos], buf[pos + 1], buf[pos + 2], buf[pos + 3]), n = u32(pos + 4);
+    if (pos + 12 + n > buf.length) throw new Error("is cut short");
+    const data = buf.subarray(pos + 8, pos + 8 + n);
+    if (crc32(data) !== u32(pos + 8 + n)) throw new Error("is damaged");
+    if (tag === "LSMP") return data;
+    pos += 12 + n;
+  }
+  return null;
+}
+
+// the factory set (tools/gen_samples.py --factory-bank: factory.bin beside the page) as kept items, ready to add to a
+// bank after its samples: the same bytes the firmware built in until 0.8
+function factoryOf(img) { return keptOf(img).filter(isFactory); }
+// the factory set's items missing from a bank's items (by name, among the factory set's entries)
+function factoryMissing(items, factory) {
+  return factory.filter((f) => !items.some((it) => isFactory(it) && it.name === f.name));
+}
+
+// ---- the FM-1 over USB-MIDI (app/samples.c: F0 7D 46 4C cmd ... F7): shared by the samples page and the installer
+const HDR = [0x7D, 0x46, 0x4C];
+const RC = { 1: "a size or offset", 2: "erasing", 3: "writing", 4: "the bank not begun", 5: "the header",
+  6: "the data's check", 7: "no samples", 8: "a reserved mark" };
+class Link {
+  constructor(input, output) {
+    this.input = input; this.output = output; this.wait = null;
+    input.onmidimessage = (ev) => {
+      const d = ev.data;
+      if (d[0] !== 0xF0 || d[1] !== HDR[0] || d[2] !== HDR[1] || d[3] !== HDR[2] || !this.wait || d[4] !== this.wait.cmd) return;
+      const w = this.wait;
+      this.wait = null;
+      clearTimeout(w.timer);
+      w.resolve([...d.slice(5, d.length - 1)]);
+    };
+  }
+  req(cmd, args, ms = 3000) {
+    return new Promise((resolve, reject) => {
+      this.wait = { cmd, resolve, timer: setTimeout(() => { this.wait = null; reject(new Error("The FM-1 stopped answering.")); }, ms) };
+      this.output.send([0xF0, ...HDR, cmd, ...args, 0xF7]);
+    });
+  }
+  async retry(cmd, args, ms, tries = 3) {
+    for (let k = 1; ; k++) { try { return await this.req(cmd, args, ms); } catch (e) { if (k >= tries) throw e; } }
+  }
+  close() { this.input.onmidimessage = null; }
+}
+// ---- finding LOOM-8 as the installer and the backup page find FM-1s (fm1-base's web/fm1ports.js): every port is
+// asked the screen reader's HELLO, whatever it is called (Windows keeps an earlier firmware's name, or numbers it), and
+// LOOM-8 is the one that answers with its name ("LOOM-8 0.14"); only it is sent LOOM-8's own SysEx. Never a Bluetooth
+// MIDI port: the samples go over USB.
+const BLUETOOTH_RE = /bluetooth/i;
+const IS_LOOM = (fw) => /^LOOM-8(\s|$)/.test(fw || "");
+// midi as fm1ports.js pairs its ports, but an output Windows names apart from its input ("LOOM-8 FM-1" in,
+// "MIDIOUT2 (LOOM-8 FM-1)" out) shown under its input's name
+function paired(midi) {
+  const ins = livePorts(midi.inputs), outs = livePorts(midi.outputs);
+  const apart = /^MIDI(?:IN|OUT)\d*\s*\(/i;
+  const bare = (s) => (s || "").replace(/\s+\d+$/, "").replace(/^MIDI(?:IN|OUT)\d*\s*\((.*)\)$/i, "$1");
+  const outputs = new Map();
+  for (const [k, o] of midi.outputs) {
+    const mates = ins.filter((i) => bare(i.name) === bare(o.name));
+    const named = mates.length === 1 && mates[0].name !== o.name && (apart.test(o.name || "") || apart.test(mates[0].name || "")) &&
+      !outs.some((x) => x.name === mates[0].name);
+    outputs.set(k, named ? { id: o.id, name: mates[0].name, state: o.state, open: () => o.open(), send: (d) => o.send(d) } : o);
+  }
+  return { inputs: midi.inputs, outputs };
+}
+// the FM-1 running LOOM-8 among midi's ports -> { link, loom, others, fm1 }: link a Link to it (it answered SB_PING
+// within wait ms), or null; then loom: a LOOM-8 that answered HELLO but not PING, others: the other firmwares that
+// answered ("X0X 1.2"), fm1: a port with an FM-1's usual name that answered nothing (update mode, M-VAVE's firmware,
+// or held by another app)
+async function seekLink(midi, wait = 1000) {
+  const view = paired(midi);
+  const got = await askAll(view, { ms: Math.min(500, wait), skip: (n) => BLUETOOTH_RE.test(n) });
+  const res = { link: null, loom: null, others: got.filter((g) => !IS_LOOM(g.firmware)).map((g) => g.firmware), fm1: false };
+  for (const g of got.filter((g) => IS_LOOM(g.firmware))) {
+    try { await g.input.open(); await g.output.open(); } catch (_) { continue; }   // another app holds it: the next
+    const l = new Link(g.input, g.output);
+    try { await l.retry(25, [], wait); res.link = l; return res; } catch (_) { l.close(); res.loom = res.loom || g.firmware; }
+  }
+  res.fm1 = pairs(view).some((p) => usualName(p.name) && !BLUETOOTH_RE.test(p.name) && !got.some((g) => g.input === p.input));
+  return res;
+}
+// the FM-1 running LOOM-8 among midi's ports (it answers SB_PING); null: none
+async function findLink(midi, wait = 1000) { return (await seekLink(midi, wait)).link; }
+// what to tell the user when seekLink found no LOOM-8 to talk to; page: the page asking (the export page reads too)
+function notFound(res, page = "the samples page") {
+  if (res.loom) return `${res.loom} didn't answer ${page}. Update LOOM-8 on the install page, then connect again.`;
+  if (res.others.length) return `The FM-1 is running ${res.others[0]}, not LOOM-8. Install LOOM-8 on the install page, then connect again.`;
+  if (res.fm1) return "An FM-1 is connected, but LOOM-8 didn't answer. Close other apps that use its MIDI port. If the FM-1 " +
+    "is in update mode, turn it off and on again. If it runs M-VAVE's firmware, install LOOM-8 on the install page.";
+  return "No FM-1 running LOOM-8 found. Connect it by USB, and close other apps that use its MIDI port.";
+}
+// SMP_READ, 224 bytes a request
+async function readBytes(link, off, n, onPart) {
+  const out = new Uint8Array(n);
+  for (let at = 0; at < n;) {
+    const want = Math.min(READ_MAX, n - at), adr = off + at;
+    const r = await link.retry(17, [0, adr & 0x7F, (adr >> 7) & 0x7F, (adr >> 14) & 0x7F, want & 0x7F, want >> 7], 3000);
+    if (r[4]) throw new Error(r[4] === 4 ? "The FM-1 is in the middle of writing its samples." : "The FM-1 couldn't read its samples.");
+    const b = unpack7(r.slice(5));
+    if (b.length < want) throw new Error("short read");
+    out.set(b.subarray(0, want), at);
+    at += want;
+    if (onPart) onPart(at / n);
+  }
+  return out;
+}
+// the bank's image as the FM-1 holds it (header + data), or null when it holds none; throws on an old LOOM-8
+async function readBank(link, onPart) {
+  const info = await link.req(15, [0]);
+  if (info[0] !== 2) throw new Error("This LOOM-8 is too old for this page. Update it from the install page, then connect again.");
+  if (!info[5]) return null;
+  let hdr;
+  try { hdr = await readBytes(link, 0, HDR_USED); } catch (e) {
+    if (/stopped answering/.test(e.message))
+      throw new Error("This LOOM-8 can't send its samples back to the page. Update it from the install page (0.5-beta or later), then connect again.");
+    throw e;
+  }
+  const h = parseHeader(hdr);
+  if (!h || !h.count) return null;
+  const data = await readBytes(link, BANK_HDR, h.dataLen, onPart);
+  const img = new Uint8Array(BANK_HDR + h.dataLen);
+  img.set(hdr);
+  img.set(data, BANK_HDR);
+  return img;
+}
+// the bank sent (img null: erased); onPart(done fraction)
+async function sendBank(link, img, onPart) {
+  if (!img) {
+    const r = await link.req(14, [0], 60000);
+    if (r[1]) throw new Error(`The FM-1 couldn't erase its samples (${RC[r[1]] || r[1]}).`);
+    return;
+  }
+  const total = img.length - BANK_HDR;
+  for (const [cmd, args, ms, what] of frames(img)) {
+    let r;
+    for (let k = 1; ; k++) {                         // a write again when its answer is lost (the same bytes)
+      try { r = await link.req(cmd, args, ms); break; } catch (e) { if (cmd !== 12 || k >= 4) throw e; }
+    }
+    const rc = r.length ? r[r.length - 1] : 99;
+    if (rc) throw new Error(`The FM-1 didn't take the samples (${RC[rc] || rc}${cmd === 12 ? ` at ${what}` : ""}).`);
+    if (cmd === 12 && onPart) onPart((Math.min(what + 256, img.length) - BANK_HDR) / total);
+  }
+}
+
+// ---- room for the factory set (0.8): a bank's items and the factory set's missing ones, in that order; if they do
+// not fit, the user's samples above a rate put at it (decoded, resampled, encoded again: one generation of ADPCM
+// more; their level kept), the highest of AUTO that makes it fit. -> {items, cap (0: nothing changed), changed: the
+// names resampled, need: bytes} or null when even 11025 Hz is not enough (then some must go, or some of the factory set)
+const itemBytes = (it) => sampleBytes(it.adpcm ? it.n : it.s ? it.s.length : 0);
+function atRateKept(it, rate) {               // a kept item at a lower rate: a new item, encoded at build
+  const x = Float64Array.from(imaDecode(it.adpcm, it.n));
+  const y = resample(x, it.rate, rate), s = new Int16Array(y.length);
+  for (let i = 0; i < y.length; i++) s[i] = Math.max(-32768, Math.min(32767, Math.round(y[i])));
+  const loop = it.loop ? [Math.trunc(it.loop[0] * rate / it.rate), Math.min(s.length, Math.trunc(it.loop[1] * rate / it.rate))] : null;
+  return { name: it.name, s, root: it.root, loop, bars: it.bars, rate, flags: it.flags || 0 };
+}
+function makeRoom(items, factory) {
+  const missing = factoryMissing(items, factory), all = [...items, ...missing];
+  const need = all.reduce((a, it) => a + itemBytes(it), 0);
+  const fits = (list) => { try { userBank(list); return true; } catch (e) { if (e instanceof TooLong) return false; throw e; } };
+  if (fits(all)) return { items: all, cap: 0, changed: [], need };   // (the layout's own answer: its seams counted)
+  for (const cap of AUTO) {
+    const changed = [];
+    const next = all.map((it) => {
+      if (isFactory(it) || !it.adpcm || it.rate <= cap) return it;
+      changed.push(it.name);
+      return atRateKept(it, cap);
+    });
+    if (changed.length && fits(next)) return { items: next, cap, changed, need };
+  }
+  return null;
+}
+
+// SPDX-License-Identifier: MPL-2.0
+// LOOM-8's sample bank as a section of the backup file (fm1-base's web/backup page, EXTRAS; tag "LSMP"): read back
+// through SMP_READ (17), written as the samples page writes it (BEGIN 11, WRITE 12, HDR 16, END 13; ERASE 14 for a
+// bank with no samples), app/samples.c. The section is the bank's image as tools/loom_samples.py backup / extract
+// make it (the 2048-byte header, then the data; a header alone with a count of 0 for an empty bank), so
+// "loom_samples.py restore" takes the file too. tools/make_pages.py inlines it after app/web/samples/loom_samples.js,
+// both inside one function that returns EXTRAS; tests/host/backup_web.mjs runs it against a simulated FM-1.
+const SB = [0x7D, 0x46, 0x4C];
+const SB_RC = { 1: "size or offset", 2: "erase", 3: "write", 4: "not begun", 5: "header", 6: "the data's check",
+  7: "no samples", 8: "an update record's mark" };
+
+// one request, its answer (the bytes after the command; one that is(r) accepts: a read's or a write's own offset, not
+// a late answer to an earlier one) or an error; link: fm1-base's backup page Link
+async function sbReq(link, cmd, args, ms = 3000, is = () => true) {
+  link.send([0xF0, ...SB, cmd, ...args, 0xF7]);
+  const end = Date.now() + ms;
+  for (;;) {
+    const left = end - Date.now();
+    if (left <= 0 || link.lost) throw new Error("LOOM-8 stopped answering.");
+    const p = await link.read(left);
+    if (p && p.length > 5 && p[1] === SB[0] && p[2] === SB[1] && p[3] === SB[2] && p[4] === cmd && is(p.slice(5, -1))) return p.slice(5, -1);
+  }
+}
+const off3 = (o) => [o & 0x7F, (o >> 7) & 0x7F, (o >> 14) & 0x7F];
+const sameOff = (r, o) => r[1] === (o & 0x7F) && r[2] === ((o >> 7) & 0x7F) && r[3] === ((o >> 14) & 0x7F);
+
+// n bytes of the bank from virtual offset off (224 a request; a lost answer asked again)
+async function sbRead(link, off, n, onPart) {
+  const out = new Uint8Array(n);
+  for (let at = 0; at < n;) {
+    const want = Math.min(READ_MAX, n - at), adr = off + at;
+    let r = null;
+    for (let k = 1; !r; k++) {
+      try { r = await sbReq(link, 17, [0, ...off3(adr), want & 0x7F, want >> 7], 3000, (a) => sameOff(a, adr)); }
+      catch (e) { if (k >= 4) throw e; }
+    }
+    if (r[4]) throw new Error(r[4] === 4 ? "LOOM-8 is in the middle of writing its samples. Try again when it's done."
+                                         : `LOOM-8 couldn't read its samples (${SB_RC[r[4]] || r[4]}).`);
+    const b = unpack7(r.slice(5));
+    if (b.length < want) throw new Error("A piece of the samples went missing on the way. Press Back up again.");
+    out.set(b.subarray(0, want), at);
+    at += want;
+    if (onPart) onPart(at / n);
+  }
+  return out;
+}
+
+function emptyBank() {
+  const hdr = new Uint8Array(BANK_HDR), v = new DataView(hdr.buffer);
+  v.setUint32(0, BANK_MAGIC, true);
+  v.setUint16(4, BANK_VER, true);
+  v.setUint32(16, BANK_SIZE, true);
+  return hdr;
+}
+
+// a section's bank image checked -> {count, used, img, big} (throws in plain words). big: more than this bank holds,
+// from a LOOM-8 before 0.19, whose bank was 16 KB larger (REGIONS): its samples are left out of a restore, the FM-1's
+// kept (the user: projects and presets back, the samples as they are)
+function bankOf(data) {
+  const h = data.length >= BANK_HDR ? parseHeader(data.subarray(0, BANK_HDR)) : null;
+  if (!h || data.length !== BANK_HDR + h.dataLen) throw new Error("The samples in this backup are damaged.");
+  if (crc32(data.subarray(BANK_HDR)) !== h.crc) throw new Error("The samples in this backup are damaged (a byte changed).");
+  return { count: h.count, used: h.dataLen, img: data, big: h.dataLen > BANK_MAX_DATA };
+}
+const kb = (n) => Math.round(n / 1024);
+
+const LOOM_SAMPLES = {
+  tag: "LSMP",
+  what: "the samples",
+  async backup(link, onProgress = () => {}) {
+    const info = await sbReq(link, 15, [0]);
+    if (info[0] !== 2) throw new Error("This LOOM-8 is too old to back up its samples. Update it from the Install page.");
+    if (!info[5]) { onProgress(1); return emptyBank(); }
+    const hdr = await sbRead(link, 0, BANK_HDR);
+    const h = parseHeader(hdr);
+    if (!h || h.dataLen > BANK_MAX_DATA) throw new Error("LOOM-8's samples could not be read (their header).");
+    const data = await sbRead(link, BANK_HDR, h.dataLen, onProgress);
+    if (crc32(data) !== h.crc) throw new Error("The samples arrived damaged. Press Back up again.");
+    const img = new Uint8Array(BANK_HDR + data.length);
+    img.set(hdr);
+    img.set(data, BANK_HDR);
+    return img;
+  },
+  check(data) {
+    const b = bankOf(data);
+    if (b.big)
+      return { said: `${b.count} samples (${kb(b.used)} KB)`,
+        note: `These samples take ${kb(b.used)} KB, and this LOOM-8's sample bank holds ${kb(BANK_MAX_DATA)} KB, so the ` +
+              "samples on the FM-1 stay as they are. To choose which of them to bring back, open the Samples page and add this " +
+              "backup file there." };
+    return b.count ? `${b.count} sample${b.count === 1 ? "" : "s"} (${Math.round(b.used / 1024)} KB)` : "no samples";
+  },
+  async restore(link, data, onProgress = () => {}) {
+    const b = bankOf(data);
+    if (b.big) throw new Error(`These samples take ${kb(b.used)} KB, more than the bank's ${kb(BANK_MAX_DATA)} KB.`);
+    if (!b.count) {
+      const r = await sbReq(link, 14, [0], 60000);
+      if (r[1]) throw new Error(`LOOM-8 couldn't erase its samples (${SB_RC[r[1]] || r[1]}).`);
+      onProgress(1);
+      return;
+    }
+    const total = b.img.length - BANK_HDR;
+    for (const [cmd, args, ms, what] of frames(b.img)) {
+      let r = null;
+      for (let k = 1; !r; k++) {                     // a write again when its answer is lost (the same bytes)
+        try { r = await sbReq(link, cmd, args, ms, (a) => cmd !== 12 || sameOff(a, what)); }
+        catch (e) { if (cmd !== 12 || k >= 4) throw e; }
+      }
+      const rc = r.length ? r[r.length - 1] : 99;
+      if (rc) throw new Error(`LOOM-8 didn't take the samples (${SB_RC[rc] || rc}).`);
+      if (cmd === 12) onProgress((Math.min(what + 256, b.img.length) - BANK_HDR) / total);
+    }
+    const info = await sbReq(link, 15, [0]);
+    if (info[5] !== b.count) throw new Error(`LOOM-8 shows ${info[5]} samples, not ${b.count}.`);
+  },
+};
+return [LOOM_SAMPLES];
+};

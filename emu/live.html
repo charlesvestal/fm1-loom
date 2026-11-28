@@ -1,0 +1,314 @@
+<!doctype html>
+<!-- SPDX-License-Identifier: MPL-2.0
+     Copyright (C) 2026 Charles Vestal -->
+<!-- The live mirror (device/mirror.c's events mode): the FM-1 sends what happens (its buttons, keys with their velocity
+     and pressure, knobs, MASTER, the MIDI that comes in) and its state; this page runs the same build of the app
+     (app.wasm, the emulator's) with them, so the screen is drawn here, whole, at full frame rate. The emulator is
+     silent: the sound is the FM-1's. An app whose state assumes its saved objects (app.h APP_MIRROR_PROJECT: a
+     sequencer's patterns) has them read first, as a backup reads them, and put into this copy. tools/build.py APP_DIR
+     --web puts it next to the emulator (build/emu/live.html). -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>loom Live Mirror</title>
+<style>
+  :root { --bg: #0b0f1a; --fg: #e8eefc; --dim: #93a0bd; --line: #2a3350; --on: #50ffaa; --err: #ff6b8a; }
+  @media (prefers-color-scheme: light) { :root:not([data-theme="dark"]) { --bg: #f4f6fb; --fg: #141a2a; --dim: #56607a; --line: #c9d0e2; --on: #138a55; --err: #c0203f; } }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--fg); font: 15px/1.4 system-ui, sans-serif; }
+  main { max-width: 760px; margin: 0 auto; padding: 16px; }
+  h1 { font-size: 20px; margin: 0 0 12px; }
+  .bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 12px; }
+  button, select { font: inherit; color: var(--fg); background: transparent; border: 1px solid var(--line); border-radius: 6px; padding: 6px 12px; }
+  button:hover { border-color: var(--dim); }
+  #screen { width: 100%; max-width: 720px; aspect-ratio: 1; display: block; image-rendering: pixelated; background: #000; border-radius: 6px; }
+  #status { color: var(--dim); min-height: 1.4em; }
+  #status.err { color: var(--err); }
+  .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--line); display: inline-block; }
+  .dot.on { background: var(--on); }
+  #stats { color: var(--dim); font-size: 13px; font-variant-numeric: tabular-nums; }
+</style>
+</head>
+<body>
+<main>
+  <h1>loom Live Mirror</h1>
+  <div class="bar">
+    <button id="connect">Connect</button>
+    <select id="port" disabled><option>No ports</option></select>
+    <button id="resync" disabled>Resync</button>
+    <button id="record" disabled>Record</button>
+    <span class="dot" id="dot"></span>
+  </div>
+  <p id="status">Plug in the FM-1, then press Connect and allow MIDI with SysEx.</p>
+  <canvas id="screen" width="720" height="720"></canvas>
+  <p id="stats"></p>
+</main>
+<script type="module">
+import { PORT_NAMES, usualName, livePorts, outputFor } from "./fm1ports.js";
+const NAME = "loom";
+const MR_REQ = 0x50, MR_INPUT = 0x53, MR_MIDI = 0x55, MR_SIG = 0x56, MR_STATE = 0x57, MR_NIN = 27;
+const $ = (id) => document.getElementById(id);
+const statusEl = $("status"), dot = $("dot"), portSel = $("port"), canvas = $("screen");
+const say = (t, err) => { statusEl.textContent = t; statusEl.classList.toggle("err", !!err); };
+
+function pack7(bytes) {
+  const out = []; let acc = 0, nb = 0;
+  for (const b of bytes) { acc |= b << nb; nb += 8; while (nb >= 7) { out.push(acc & 0x7F); acc >>= 7; nb -= 7; } }
+  if (nb) out.push(acc & 0x7F);
+  return out;
+}
+function unpack7(src) {
+  const out = []; let acc = 0, nb = 0;
+  for (const b of src) { acc |= (b & 0x7F) << nb; nb += 7; if (nb >= 8) { out.push(acc & 0xFF); acc >>= 8; nb -= 8; } }
+  return out;
+}
+// a request: 0 off, 3 the events mode (and its keep-alive), 4 the state again
+const request = (op) => Uint8Array.from([0xF0, ...pack7([0x00, 0x59, MR_REQ, 1, 0, 0, op, ~op & 0xFF]), 0xF7]);
+// a host message in the update's framing (ota.c ota_take), as web/backup/index.html sends its backup request
+function hostFrame(cmd, body) {
+  let s = 0;
+  for (const b of body) s += b;
+  return Uint8Array.from([0xF0, ...pack7([0x00, 0x59, cmd, body.length & 0xFF, body.length >> 8 & 0xFF, 0, ...body, ~s & 0xFF]), 0xF7]);
+}
+const CRC_T = Uint32Array.from({ length: 256 }, (_, n) => { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; return c >>> 0; });
+function crc32(b) { let c = 0xFFFFFFFF; for (const v of b) c = CRC_T[(c ^ v) & 0xFF] ^ (c >>> 8); return (c ^ 0xFFFFFFFF) >>> 0; }
+
+// ---------------------------------------------------------------- the app, here (silent)
+let ex, mem;
+{
+  const wasm = await (await fetch("app.wasm")).arrayBuffer();
+  const wasi = new Proxy({
+    clock_time_get: (id, p, out) => { new DataView(mem.buffer).setBigUint64(out, BigInt(Math.round(performance.now() * 1e6)), true); return 0; },
+    fd_write: (fd, iov, n, out) => { new DataView(mem.buffer).setUint32(out, 0, true); return 0; },
+  }, { get: (t, k) => (k in t ? t[k] : () => 0) });
+  const { instance } = await WebAssembly.instantiate(wasm, { wasi_snapshot_preview1: wasi, env: new Proxy({}, { get: () => () => 0 }) });
+  ex = instance.exports; mem = ex.memory;
+  if (ex._initialize) ex._initialize();
+  if (!ex.web_state_set) { say("This build has no live mirror (its app.h has no APP_MIRROR_STATE).", true); throw new Error("no state"); }
+  ex.web_master(2800);
+  ex.web_boot();
+  for (let i = 0; i < 3000 * 44.1 / 1024; i++) ex.web_render(1024);   // past the splash: the app's first screen
+}
+const RATE = 44100;
+let simT = performance.now();
+function advance() {                                   // the app's clock follows ours (at most 100 ms a frame)
+  const now = performance.now();
+  let frames = Math.min(100, now - simT) * RATE / 1000;
+  simT = now;
+  while (frames >= 1) { const n = Math.min(1024, frames | 0); ex.web_render(n); frames -= n; }
+}
+
+// ---------------------------------------------------------------- the screen
+const ctx = canvas.getContext("2d"), small = new OffscreenCanvas(240, 240), sctx = small.getContext("2d");
+const img = sctx.createImageData(240, 240), px = new Uint32Array(img.data.buffer);
+let lastBlits = -1, fps = 0, frames = 0, fpsT = performance.now();
+function paint() {
+  const b = ex.web_blits();
+  if (b !== lastBlits) {
+    lastBlits = b;
+    const fb = new Uint16Array(mem.buffer, ex.web_fb(), 240 * 240);
+    for (let i = 0; i < fb.length; i++) {
+      const v = fb[i], c = ((v >> 8) | (v << 8)) & 0xFFFF, r = (c >> 11) & 31, g = (c >> 5) & 63, bl = c & 31;   // (the LCD's byte order)
+      px[i] = 0xFF000000 | ((bl << 3 | bl >> 2) << 16) | ((g << 2 | g >> 4) << 8) | (r << 3 | r >> 2);
+    }
+    sctx.putImageData(img, 0, 0);
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(small, 0, 0, canvas.width, canvas.height);
+    frames++;
+  }
+}
+function loop() {
+  advance();
+  paint();
+  const t = performance.now();
+  if (t - fpsT >= 1000) { fps = frames; frames = 0; fpsT = t; showStats(); }
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+
+// ---------------------------------------------------------------- the FM-1's events
+const st = { frames: 0, bad: 0, inputs: 0, midi: 0, states: 0, sigOk: 0, sigBad: 0, bytes: 0 };
+let held = new Map();                                  // key -> [vel, press] as last given to the app
+let stateBuf = null, stateGot = 0, lastAsk = 0, badRun = 0, live = false;
+// The project first (an app whose state assumes its saved objects are the FM-1's: emu_web.c web_state_project): read
+// as a backup reads it (device/backup.c: BU_REQ with the app's magic, its chunks, BU_END), put into this copy
+// (web_backup_restore), then the state. A copy that drifts though its state came again reads the project again (at
+// most RELOADS times a connection, RELOAD_MS apart): the FM-1's flash, so edits made while it plays come at the next
+const BU_REQ = 0x42, BU_END = 0x43, RELOADS = 3, RELOAD_MS = 20000;
+const PROJECT = !!(ex.web_state_project && ex.web_state_project() && ex.web_backup_restore);
+let proj = null, asks = 0, reloads = 0, lastReload = 0;
+function readProject(then) {
+  const n = ex.web_backup_make();                      // (this copy's own backup: its first four bytes are the app's magic)
+  const magic = Array.from(new Uint8Array(mem.buffer, ex.web_backup_buf(), Math.min(n, 4)));
+  proj = { got: [], then, timer: setTimeout(() => projDone(null, `${NAME} didn't send its project`), 30000) };
+  say(`Reading the project from ${NAME}...`);
+  try { outPort.send(hostFrame(BU_REQ, magic)); } catch { projDone(null, "the FM-1 was disconnected"); }
+}
+function projDone(image, why) {
+  if (!proj) return;
+  const { then, timer } = proj;
+  clearTimeout(timer);
+  proj = null;
+  if (image) {
+    advance();
+    if (image.length > ex.web_backup_max()) { say(`The project is larger than this page's copy of ${NAME} takes.`, true); return; }
+    new Uint8Array(mem.buffer, ex.web_backup_buf(), image.length).set(image);
+    const rc = ex.web_backup_restore(image.length);
+    if (rc === 10) reloads--;                          // (this copy is playing: the app takes no restore now; again later)
+    else if (rc !== 0) { say(`This page's copy of ${NAME} did not take the project (${rc}). Is it the same version as the FM-1's?`, true); return; }
+  } else {
+    say(`Couldn't read the project: ${why}. The screen may differ from the FM-1's until Resync.`, true);
+  }
+  then();
+}
+function input(b, n) {
+  ex.web_buttons(b[0] | b[1] << 8);
+  for (let i = 0; i < 7; i++) { const d = (b[6 + i] << 24) >> 24; if (d) ex.web_enc(i, d); }
+  ex.web_master(b[13] | b[14] << 8);
+  const now = new Map();
+  if (n > MR_NIN)
+    for (let i = 0; i < b[MR_NIN] && MR_NIN + 3 + 3 * i < n; i++) now.set(b[MR_NIN + 1 + 3 * i], [b[MR_NIN + 2 + 3 * i], b[MR_NIN + 3 + 3 * i]]);
+  for (const k of held.keys()) if (!now.has(k)) ex.web_key(k, 0, 0);
+  for (const [k, [v, p]] of now) {
+    const was = held.get(k);
+    if (!was || was[1] !== p) ex.web_key(k, Math.max(1, v), Math.round(p * 1000 / 127));
+  }
+  held = now;
+}
+function frame(raw) {
+  const m = unpack7(raw);
+  if (m.length < 7 || m[0] !== 0 || m[1] !== 0x59) return;
+  const n = m[3] | m[4] << 8 | m[5] << 16;
+  let sum = 0;
+  for (let i = 6; i < 6 + n; i++) sum += m[i];
+  if (n + 7 !== m.length || (~sum & 0xFF) !== m[6 + n]) { st.bad++; return; }
+  const cmd = m[2], b = m.slice(6, 6 + n);
+  const u32 = (o) => (b[o] | b[o + 1] << 8 | b[o + 2] << 16 | b[o + 3] << 24) >>> 0;
+  st.frames++;
+  if (proj && cmd === BU_REQ && n >= 4) {                // the project, a chunk: its offset, its bytes
+    if (u32(0) !== proj.got.length) { projDone(null, "a piece of the project went missing on the way"); return; }
+    for (let i = 4; i < n; i++) proj.got.push(b[i]);
+    say(`Reading the project from ${NAME}... ${(proj.got.length / 1024).toFixed(1)} KB`);
+  } else if (proj && cmd === BU_END && n >= 10) {        // its end: the length, the CRC, the FM-1's status
+    const image = Uint8Array.from(proj.got);
+    if (b[8]) projDone(null, `${NAME} could not read its memory (status ${b[8]})`);
+    else if (u32(0) !== image.length || u32(4) !== crc32(image)) projDone(null, "the project arrived damaged");
+    else projDone(image);
+  } else if (cmd === MR_REQ && n >= 4) {
+    if (b[0] < 5) say(`This FM-1's firmware mirrors only pixels (mirror version ${b[0]}). It needs version 5.`, true);
+  } else if (cmd === MR_INPUT && n >= MR_NIN) {
+    if (live) { input(b, n); st.inputs++; }
+  } else if (cmd === MR_MIDI) {
+    for (let o = 0; o + 4 <= n; o += 4) { ex.web_midi_in(0, u32(o)); st.midi++; }
+  } else if (cmd === MR_STATE && n >= 4) {
+    const at = b[0] | b[1] << 8, total = b[2] | b[3] << 8;
+    if (at === 0) { stateBuf = new Uint8Array(total); stateGot = 0; }
+    if (!stateBuf || stateBuf.length !== total || at !== stateGot) { stateBuf = null; return; }
+    stateBuf.set(b.slice(4), at);
+    stateGot += n - 4;
+    if (stateGot >= total) {
+      advance();
+      new Uint8Array(mem.buffer, ex.web_state_buf(), total).set(stateBuf);
+      ex.web_state_set(total);
+      stateBuf = null;
+      live = true; st.states++; badRun = 0;
+      dot.className = "dot on";
+      say(`Mirroring ${NAME}. The screen is drawn here; the sound is the FM-1's.`);
+    }
+  } else if (cmd === MR_SIG && n >= 4 && live && !proj) {
+    if (u32(0) === ex.web_state_sig() >>> 0) { st.sigOk++; badRun = 0; asks = 0; }
+    else {
+      st.sigBad++;
+      if (++badRun >= 2 && performance.now() - lastAsk > 3000) {
+        lastAsk = performance.now();
+        if (PROJECT && asks >= 2 && reloads < RELOADS && performance.now() - lastReload > RELOAD_MS) {
+          reloads++; lastReload = performance.now(); asks = 0;
+          readProject(() => send(4));                  // drifted though the state came again: the project again
+        } else { asks++; send(4); }                    // drifted: the state again
+      }
+    }
+  }
+}
+let sx = [], inSx = false;
+function feed(data) {
+  for (const v of data) {
+    st.bytes++;
+    if (v === 0xF0) { inSx = true; sx = []; }
+    else if (!inSx || v >= 0xF8) continue;
+    else if (v === 0xF7) { inSx = false; frame(sx); }
+    else if (v & 0x80) inSx = false;
+    else sx.push(v);
+  }
+}
+function showStats() {
+  $("stats").textContent = `${fps} fps here · ${st.inputs} input reports · ${st.midi} MIDI · ${st.states} states · ` +
+    `in step ${st.sigOk}, drifted ${st.sigBad} · ${(st.bytes / 1024).toFixed(1)} KB in` + (st.bad ? ` · ${st.bad} bad` : "");
+}
+
+// ---------------------------------------------------------------- the port
+let access, inPort = null, outPort = null, keepAlive = 0;
+function send(op) { try { outPort?.send(request(op)); } catch { /* gone: the state change says so */ } }
+function fillPorts() {
+  const ins = livePorts(access.inputs);
+  const nameRe = new RegExp(NAME.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
+  const pick = ins.find((p) => nameRe.test(p.name || "")) || ins.find((p) => usualName(p.name, PORT_NAMES.filter((n) => n !== "ota")));
+  portSel.replaceChildren(...ins.map((p) => new Option(p.name, p.id)));
+  portSel.disabled = !ins.length;
+  if (pick) portSel.value = pick.id;
+  attach();
+}
+function attach() {
+  const i = access.inputs.get(portSel.value) || null, o = i && outputFor(access, i);
+  if (inPort && inPort !== i) inPort.onmidimessage = null;
+  if (outPort && outPort !== o) send(0);
+  inPort = i; outPort = o;
+  if (proj) { clearTimeout(proj.timer); proj = null; }  // (another port: a read under way is dropped)
+  live = false; held = new Map(); dot.className = "dot";
+  clearInterval(keepAlive);
+  if (!inPort || !outPort) { say(`Waiting for ${NAME}. Plug the FM-1 in, or pick its port.`); return; }
+  inPort.onmidimessage = (e) => feed(e.data);
+  const start = () => {
+    send(3);
+    keepAlive = setInterval(() => send(3), 2000);
+    say(`Asking ${outPort.name} for its state...`);
+  };
+  reloads = 0; asks = 0;
+  if (PROJECT) readProject(start); else start();
+}
+portSel.addEventListener("change", attach);
+$("resync").addEventListener("click", () => {
+  lastAsk = performance.now();
+  if (PROJECT && !proj) { reloads = 0; asks = 0; lastReload = performance.now(); readProject(() => send(4)); }
+  else send(4);
+});
+$("connect").addEventListener("click", async () => {
+  if (!navigator.requestMIDIAccess) { say("This browser has no Web MIDI. Use Chrome or Edge.", true); return; }
+  try { access = await navigator.requestMIDIAccess({ sysex: true }); }
+  catch { say("MIDI wasn't allowed. Press Connect again and allow MIDI with SysEx.", true); return; }
+  $("connect").hidden = true; $("resync").disabled = false; $("record").disabled = false;
+  access.onstatechange = () => fillPorts();
+  fillPorts();
+});
+addEventListener("pagehide", () => send(0));
+
+// ---------------------------------------------------------------- recording the screen (a WebM file)
+let rec = null;
+$("record").addEventListener("click", () => {
+  if (rec) { rec.stop(); return; }
+  const chunks = [], stream = canvas.captureStream(60);
+  rec = new MediaRecorder(stream, { mimeType: MediaRecorder.isTypeSupported("video/webm;codecs=vp9") ? "video/webm;codecs=vp9" : "video/webm", videoBitsPerSecond: 8e6 });
+  rec.ondataavailable = (e) => e.data.size && chunks.push(e.data);
+  rec.onstop = () => {
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(new Blob(chunks, { type: "video/webm" }));
+    a.download = `${NAME.toLowerCase()}-screen-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-")}.webm`;
+    a.click();
+    rec = null; $("record").textContent = "Record";
+  };
+  rec.start(1000);
+  $("record").textContent = "Stop";
+});
+</script>
+</body>
+</html>
