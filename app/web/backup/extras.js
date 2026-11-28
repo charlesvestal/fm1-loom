@@ -53,14 +53,16 @@ function emptyBank() {
   return hdr;
 }
 
-// a section's bank image checked -> {count, used, img} (throws in plain words)
+// a section's bank image checked -> {count, used, img, big} (throws in plain words). big: more than this bank holds,
+// from a LOOM-8 before 0.19, whose bank was 16 KB larger (REGIONS): its samples are left out of a restore, the FM-1's
+// kept (the user: projects and presets back, the samples as they are)
 function bankOf(data) {
   const h = data.length >= BANK_HDR ? parseHeader(data.subarray(0, BANK_HDR)) : null;
-  if (!h || h.dataLen > BANK_MAX_DATA || data.length !== BANK_HDR + h.dataLen)
-    throw new Error("The samples in this backup are damaged.");
+  if (!h || data.length !== BANK_HDR + h.dataLen) throw new Error("The samples in this backup are damaged.");
   if (crc32(data.subarray(BANK_HDR)) !== h.crc) throw new Error("The samples in this backup are damaged (a byte changed).");
-  return { count: h.count, used: h.dataLen, img: data };
+  return { count: h.count, used: h.dataLen, img: data, big: h.dataLen > BANK_MAX_DATA };
 }
+const kb = (n) => Math.round(n / 1024);
 
 const LOOM_SAMPLES = {
   tag: "LSMP",
@@ -81,10 +83,15 @@ const LOOM_SAMPLES = {
   },
   check(data) {
     const b = bankOf(data);
+    if (b.big)
+      return { said: `${b.count} samples (${kb(b.used)} KB)`,
+        note: `These samples take ${kb(b.used)} KB, and this LOOM-8's sample bank holds ${kb(BANK_MAX_DATA)} KB, so the ` +
+              "samples on the FM-1 stay as they are. To bring some back, add them on the Samples page." };
     return b.count ? `${b.count} sample${b.count === 1 ? "" : "s"} (${Math.round(b.used / 1024)} KB)` : "no samples";
   },
   async restore(link, data, onProgress = () => {}) {
     const b = bankOf(data);
+    if (b.big) throw new Error(`These samples take ${kb(b.used)} KB, more than the bank's ${kb(BANK_MAX_DATA)} KB.`);
     if (!b.count) {
       const r = await sbReq(link, 14, [0], 60000);
       if (r[1]) throw new Error(`LOOM-8 couldn't erase its samples (${SB_RC[r[1]] || r[1]}).`);

@@ -5,7 +5,8 @@
 //   1. a backup reads the bank back byte for byte: the image loom_samples.py checks; an empty bank: a header alone
 //   2. a restore writes it back: the FM-1's bank equals it; an empty bank's restore erases
 //   3. answers lost on the way (a read, a write): asked again, the same result; a late answer is not taken
-//   4. a damaged section: refused before anything is sent; an FM-1 that refuses (rc): said
+//   4. a damaged section: refused before anything is sent; a bank larger than this one holds (before 0.19): left
+//      out with a note, never sent; an FM-1 that refuses (rc): said
 //   5. the .loom8 file the page writes (fm1-base's join) is one fm1_backup.py splits and loom_samples.py restores from
 //   node tests/host/backup_web.mjs [PYTHON]
 import { execFileSync } from "node:child_process";
@@ -71,6 +72,18 @@ console.log("backup page: the samples section");
   check("4. a damaged section: refused, nothing sent", e && /damaged/.test(e.message) && dev4.n === 0);
   e = null; try { EX.check(dmg); } catch (x) { e = x; }
   check("   ... and said when the file is chosen", e && /damaged/.test(e.message));
+  // a bank from before 0.19 (16 KB more room): larger than this bank holds, its CRC right: not damaged, left out
+  const bigLen = L.BANK_SIZE - L.BANK_HDR + 5869, big = new Uint8Array(L.BANK_HDR + bigLen);
+  big.set(got.subarray(0, L.BANK_HDR));
+  for (let i = L.BANK_HDR; i < big.length; i++) big[i] = (i * 7) & 0xFF;
+  const bv = new DataView(big.buffer);
+  bv.setUint32(8, bigLen, true); bv.setUint32(12, L.crc32(big.subarray(L.BANK_HDR)), true);
+  const bc = EX.check(big);
+  check("   an older LOOM-8's larger bank: not damaged, left out with a note (" + (bc && bc.note) + ")",
+        bc && typeof bc === "object" && /^3 samples \(\d+ KB\)$/.test(bc.said) && /stay as they are/.test(bc.note));
+  const dev5 = new FakeFM1(img);
+  e = await err(EX.restore(dev5, big));
+  check("   ... and never sent", e && dev5.n === 0);
   const refusing = new FakeFM1(null, { rc: { 12: 3 } });
   e = await err(EX.restore(refusing, got));
   check("   the FM-1 refuses a write: said", e && /write/.test(e.message));
