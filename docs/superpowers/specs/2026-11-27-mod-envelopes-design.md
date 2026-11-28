@@ -37,10 +37,10 @@ each voice (every note its own), one target each, on the ENV button, with LOOP.
 - 14 parameters after TP_S2X4: TP_ME(e, f), f = target, attack, decay, sustain, release, amount, loop. Lockable
   (after TP_O2FINE: P2), so steps can lock them; the MOD track can move them.
 - Defaults: target off, attack 0, decay 64, sustain 0, release 40, amount 64, loop off (menv_defaults).
-- Project format 35 (28..34's tracks spread to the longer par[], the envelopes off).
-- Presets format 18: the presets object (16 user presets and 8 kits, 3,836 of its 3,840 bytes before) is packed with
-  lz.c, as the projects: [18][the unpacked length][packed user presets, then kits]. Unpacked in the canvas past
-  lz_head on the FM-1 (ps_raw). Older formats load as before and save as 18. user_preset_t has me[14].
+- Project format 36 (28..35's tracks spread to the longer par[], the envelopes off).
+- Presets format 20: user_preset_t has me[14] (93 bytes; 32 an object, OBJ_UP0 and OBJ_UP1: 2,980 of 3,840 B).
+  Formats 17..19's presets read as before, their envelopes off; the kits object is 19's. (On room the presets object
+  was packed with lz.c for room; main's 64 presets in objects of their own made that unneeded.)
 - Factory presets: lib.P(menv=((target, a, d, s, r, amount, loop), ...)); PS_X carries them.
 
 ## Room
@@ -49,8 +49,8 @@ each voice (every note its own), one target each, on the ENV button, with LOOP.
   per-step sequencer code and engine.c's main-loop code built for size, the 909's tanh table as 16 bits (the user's
   choice: 0.7 KB net; the 909 cases' energy within 0.07 %), and the factory presets' masks packed (gen_presets.py:
   bytes 0..2, a head byte, the non-zero rest; ~720 B, the table decodes the same). With the seven new presets
-  (jacquard scan pluck, morph pad, loop scan; knit zap bass, sync loop; rayon fm blip, loop bell): 597,608 B,
-  340 B free.
+  (jacquard scan pluck, morph pad, loop scan; knit zap bass, sync loop; rayon fm blip, loop bell), on main after
+  0.19: 596,712 B, 1,236 B free; the demo build's RAM 104 B spare.
 - RAM: synth_t +864 B (the voices' envelopes, the tracks' coefficients and their inputs, the longer lock arrays);
   2,752 B free.
 
