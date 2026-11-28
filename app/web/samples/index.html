@@ -84,7 +84,8 @@
   <div id="list" aria-label="Samples on the FM-1"><div class="empty">Connect to see the samples on the FM-1.</div></div>
   <div class="bar">
     <button class="quiet" id="add">Add samples</button>
-    <span class="small">or drop files here. Drop one on a sample to replace it.</span>
+    <span class="small">or drop files here. Drop one on a sample to replace it. A LOOM-8 backup (.loom8) adds the
+      samples it holds.</span>
   </div>
   <div class="bar">
     <button class="quiet" id="addwt">Add wavetables</button>
@@ -120,7 +121,7 @@
     <button class="quiet" id="discard" hidden>Discard changes</button>
   </div>
   <progress id="progress" max="100" value="0" hidden aria-label="Progress"></progress>
-  <input type="file" id="files" multiple accept="audio/*,.wav,.aif,.aiff,.mp3,.flac,.m4a,.ogg" aria-label="Samples to add" tabindex="-1">
+  <input type="file" id="files" multiple accept="audio/*,.wav,.aif,.aiff,.mp3,.flac,.m4a,.ogg,.loom8" aria-label="Samples to add" tabindex="-1">
 
   <h2 style="font: 700 1.3rem 'Barlow Semi Condensed', sans-serif; margin: 2rem 0 .5rem">The breaks</h2>
   <p class="small">Since LOOM-8 0.7 its four breaks are no longer built into the firmware, to make room for new sounds.
@@ -366,8 +367,45 @@ async function decode(file) {
   for (let i = 0; i < n; i++) { let acc = 0; for (const ch of chs) acc += ch[i]; x[i] = acc / chs.length; }
   return { rate: ab.sampleRate, x, loop: null };
 }
+// a backup's samples (a .loom8: the backup page's file) added to the list as they were saved, LOOM-8's own sounds
+// left out (the FM-1's set stays); one already in the list (its name and length) not again. A backup's bank from
+// before 0.19 can be larger than the bank now: the user removes samples until they fit (the room line)
+async function addBackups(list) {
+  let added = 0, dup = 0, full = 0;
+  const bad = [];
+  for (const f of list) {
+    let bank;
+    try { bank = backupBank(new Uint8Array(await f.arrayBuffer())); } catch (e) { bad.push(`${f.name} ${e.message}`); continue; }
+    const own = bank ? keptOf(bank).filter((it) => !isFactory(it)) : [];
+    if (!own.length) { bad.push(`${f.name} holds none of your samples`); continue; }
+    for (const it of own) {
+      if (items.some((x) => x.name === it.name && x.adpcm && x.n === it.n)) { dup++; continue; }
+      if (items.length >= BANK_N) { full++; continue; }
+      items.push({ ...it, isNew: true, rootSet: true, file: f.name });
+      added++;
+    }
+  }
+  replan();
+  const parts = [];
+  if (added) parts.push(`${added} sample${added > 1 ? "s" : ""} from the backup added`);
+  if (dup) parts.push(`${dup} already in the list`);
+  if (full) parts.push(`${full} not added: the FM-1 holds ${BANK_N} samples`);
+  const tooMuch = plan && plan.err;
+  const t = (parts.length ? parts.join(", ") + "." : "") +
+    (tooMuch ? " They don't all fit: remove the ones you don't need, then press Send to the FM-1." :
+     added ? " Press Send to the FM-1 to put them there." : "");
+  if (bad.length) fail(`${bad.join(". ")}.${t ? " " + t : ""}`); else say(t);
+  render();
+}
 async function addFiles(list, at = -1) {
   if (busy || !readOk || !list.length) return;
+  const backups = list.filter((f) => /\.loom8$/i.test(f.name));
+  if (backups.length) {
+    await addBackups(backups);
+    list = list.filter((f) => !backups.includes(f));
+    if (!list.length) return;
+    at = -1;
+  }
   const room = BANK_N - items.length + (at >= 0 ? 1 : 0);
   const take = at >= 0 ? list.slice(0, 1) : list.slice(0, room), got = [], bad = [];
   say("Reading the files…");

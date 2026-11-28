@@ -20,7 +20,7 @@ const strip = (src) => src.replace(/^export\s+/gm, "").replace(/^import .*?;\n/g
 const code = strip(readFileSync("app/web/samples/loom_samples.js", "utf8")) + "\n" + readFileSync("app/web/backup/extras.js", "utf8");
 const [EX] = new Function(code)();
 const L = new Function(strip(readFileSync("app/web/samples/loom_samples.js", "utf8")) +
-  "\nreturn { BANK_HDR, BANK_SIZE, BANK_MAGIC, REGIONS, userBank, pack7, unpack7, crc32, parseHeader };")();
+  "\nreturn { BANK_HDR, BANK_SIZE, BANK_MAGIC, REGIONS, userBank, pack7, unpack7, crc32, parseHeader, backupBank, keptOf };")();
 
 class FakeFM1 extends Fake { constructor(img, opts) { super(L, img, opts); } }
 
@@ -101,6 +101,11 @@ console.log("backup page: the samples section");
   writeFileSync(join(dir, "both.loom8"), file);
   const sp = PB.split(file);
   check("5. the page's .loom8: its own split gives the backup and the samples", same(sp.image, proj) && same(sp.sections[0].data, got));
+  check("   the samples page's backupBank finds the same bank in it", same(L.backupBank(file), got) && L.keptOf(L.backupBank(file)).length === 3);
+  check("   ... none in a backup without samples", L.backupBank(proj) === null);
+  const hurt = Uint8Array.from(file); hurt[proj.length + 8 + 300] ^= 1;
+  let e6 = null; try { L.backupBank(hurt); } catch (x) { e6 = x; }
+  check("   ... a damaged one said", e6 && /damaged/.test(e6.message));
   const out = py(`import fm1_backup as B, loom_samples as L\nd=open("${dir}/both.loom8","rb").read()\nimg, s = B.split(d)\n` +
                  `print(img == open("${dir}/proj.bin","rb").read(), s[0][0], L.bank_in(d, "f")[6])`).trim();
   check(`   fm1_backup.py splits it, loom_samples.py restores from it (${out})`, out === "True LSMP 3");

@@ -495,6 +495,29 @@ export function keptOf(img) {
   });
 }
 
+// a LOOM-8 backup file (.loom8: fm1-base's backup, its CRC, then its sections: a 4-letter tag, u32 length, the bytes,
+// u32 CRC-32) -> its sample bank's image (section LSMP), null when it holds none; throws on another file or a damaged
+// one. The samples page adds the user's samples in it (a backup whose bank no longer fits: the user picks)
+export function backupBank(buf) {
+  const u16 = (o) => buf[o] | buf[o + 1] << 8, u32 = (o) => (buf[o] | buf[o + 1] << 8 | buf[o + 2] << 16 | buf[o + 3] << 24) >>> 0;
+  if (buf.length < 20 || String.fromCharCode(buf[0], buf[1], buf[2], buf[3]) !== "LM8B") throw new Error("isn't a LOOM-8 backup");
+  let pos = 16;
+  for (let k = u16(6); k > 0; k--) {
+    if (pos + 8 > buf.length) throw new Error("is cut short");
+    pos += 8 + u16(pos + 2);
+  }
+  pos += 4;                                       // (the backup's own CRC: the backup page checks it)
+  while (pos + 12 <= buf.length) {
+    const tag = String.fromCharCode(buf[pos], buf[pos + 1], buf[pos + 2], buf[pos + 3]), n = u32(pos + 4);
+    if (pos + 12 + n > buf.length) throw new Error("is cut short");
+    const data = buf.subarray(pos + 8, pos + 8 + n);
+    if (crc32(data) !== u32(pos + 8 + n)) throw new Error("is damaged");
+    if (tag === "LSMP") return data;
+    pos += 12 + n;
+  }
+  return null;
+}
+
 // the factory set (tools/gen_samples.py --factory-bank: factory.bin beside the page) as kept items, ready to add to a
 // bank after its samples: the same bytes the firmware built in until 0.8
 export function factoryOf(img) { return keptOf(img).filter(isFactory); }

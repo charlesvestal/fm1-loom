@@ -86,7 +86,8 @@ const LOOM_SAMPLES = {
     if (b.big)
       return { said: `${b.count} samples (${kb(b.used)} KB)`,
         note: `These samples take ${kb(b.used)} KB, and this LOOM-8's sample bank holds ${kb(BANK_MAX_DATA)} KB, so the ` +
-              "samples on the FM-1 stay as they are. To bring some back, add them on the Samples page." };
+              "samples on the FM-1 stay as they are. To choose which of them to bring back, open the Samples page and add this " +
+              "backup file there." };
     return b.count ? `${b.count} sample${b.count === 1 ? "" : "s"} (${Math.round(b.used / 1024)} KB)` : "no samples";
   },
   async restore(link, data, onProgress = () => {}) {
