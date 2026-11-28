@@ -179,6 +179,7 @@ typedef struct {
     uint8_t ck;                       /* chunk slot since prepare */
     uint8_t nchunk;                   /* chunks so far (the slow refreshes count on it, not on the block size) */
     env_t amp, flt;                   /* stepped once a sub-block (SUB samples) */
+    env_t me[2];                      /* the mod envelopes: stepped once a chunk (voice_chunk) */
     uint8_t fresh;                    /* configured mid-block: refresh the coefficients before the next sample;
                                        * bit 1: started since the last render, its first configuration due there */
     uint8_t vi;                       /* the voice's index (its sample cache, smp_vc) */
@@ -246,6 +247,11 @@ typedef struct {
     float lf_in, lf_out;              /* the fade envelope: seconds to fade in (or out), 0 = none */
     float lscale;                     /* the destination's range / 127: the offset in the knob's units */
     int16_t ldest;                    /* the resolved destination: a TP_* index, LD_PITCH or LD_NONE */
+    int16_t me_p[2];                  /* the mod envelopes' targets (synth_prepare): a TP_* index, LD_PITCH or LD_NONE */
+    uint8_t me_loop[2], me_lo[2], me_hi[2];   /* each loops; its target's range */
+    uint8_t me_in[2][8];              /* what me_prepare made them from: the engine, its seven values (0xFF: not yet) */
+    float me_c[2][4];                 /* its attack's step, decay's and release's multipliers a chunk, sustain */
+    float me_amt[2];                  /* its offset at level 1 (the target's units; cents for pitch) */
     uint32_t rng;
     float loff[NCK], lpitch[NCK], lgain[NCK];   /* the chunk slots: offset (param units), cents, gain */
     /* its slots on its bus (bus_prepare's for the block, bus_out's; a kit's synth_kit_slots'), and on its voices */
@@ -288,7 +294,7 @@ int synth_sizeof(void) { return (int)sizeof(struct synth); }
 #endif
 
 volatile uint16_t synth_peak[NTRK];
-volatile synth_mod_t synth_mod = {.trk = 0xFFu, .of = NTRK};
+volatile synth_mod_t synth_mod = {.trk = 0xFFu, .of = NTRK, .mp = {-1, -1}};
 uint32_t (*synth_clock)(void);
 volatile uint32_t synth_prof[2][NENGINE + 1];
 volatile uint32_t synth_vblk[NVOICE];                 /* each voice's time this block (the profiler; engine.c clears it) */
@@ -336,7 +342,11 @@ static float env_seconds(float p) { return p < 0.001f ? 0.001f : 0.001f * fm_exp
  * release's multiplier (to 0.1 % in secs) for that step */
 static float env_rate(float secs) { return (float)SUB / (secs * SY_SR); }
 static float env_coef(float secs) { return fm_expf(-6.9f * (float)SUB / (secs * SY_SR)); }
-static float lfo_hz(int v, float bpm) { return efx_lfo_hz(v, bpm); }   /* (dsp/efx.c: the slots' rates too) */
+static float lfo_hz(int v, float bpm) { return efx_lfo_hz(v, bpm); }
+static float me_coef(int v, float k)   /* a mod envelope's time v a chunk: exp(-k chunks / its seconds) */
+{
+    return fm_exp2f(-k * 1.44269504f * (float)SY_CHUNK / (env_seconds((float)v * (1.0f / 127.0f)) * SY_SR));
+}   /* (dsp/efx.c: the slots' rates too) */
 /* the LFO's fade envelope knob (synth.h): seconds to fade in, or to fade out */
 static void fade_secs(int v, float *in, float *out)
 {
@@ -2432,6 +2442,8 @@ static void voice_start(synth_t *s, voice_t *v, int note, int vel, int glide_ms,
         v->age = s->counter++;
     v->amp.stage = ENV_ATTACK;
     v->flt.stage = ENV_ATTACK;
+    v->me[0].stage = v->me[1].stage = ENV_ATTACK;   /* (the mod envelopes from zero) */
+    v->me[0].level = v->me[1].level = 0.0f;
     v->tsec = 0.0f;
     if (v->engine == EG_RAYON)                   /* its fall and its tine from the top, every note */
         v->o[5] = v->o[7] = 1.0f;
@@ -2861,8 +2873,9 @@ void synth_note_on(synth_t *s, int trk, int note, int vel, int glide_ms, uint32_
                 v->amp.stage = ENV_ATTACK;       /* retrigger from the level now (retrig: from zero, the amp's ramp
                                                   * there over a sub-block) */
                 v->flt.stage = ENV_ATTACK;
+                v->me[0].stage = v->me[1].stage = ENV_ATTACK;
                 if (mode == VM_RETRIG)
-                    v->amp.level = v->flt.level = 0.0f;
+                    v->amp.level = v->flt.level = v->me[0].level = v->me[1].level = 0.0f;
                 v->tsec = 0.0f;
                 if (v->engine == EG_RAYON)
                     v->o[5] = v->o[7] = 1.0f;
@@ -2896,7 +2909,7 @@ static void voice_release(voice_t *v)
     v->held = 0;
     if (v->amp.stage != ENV_OFF && v->amp.stage != ENV_RELEASE) {
         v->amp.stage = ENV_RELEASE;
-        v->flt.stage = ENV_RELEASE;
+        v->flt.stage = v->me[0].stage = v->me[1].stage = ENV_RELEASE;
     }
 }
 
@@ -3103,6 +3116,8 @@ void synth_init(synth_t *s, uint8_t (*par)[NTP])
         t->mono_voice = -1;
         t->rng = 0x9E3779B9u * (uint32_t)(i + 1);
         t->ldest = LD_NONE;
+        t->me_p[0] = t->me_p[1] = LD_NONE;
+        t->me_in[0][0] = t->me_in[1][0] = 0xFFu;   /* (the mod envelopes: made at the first prepare) */
         for (j = 0; j < NCK; j++)
             t->lgain[j] = 1.0f;
     }
@@ -3211,7 +3226,8 @@ static void mod_publish(const synth_t *s, const voice_t *v, int trk)
     const uint8_t *gp = s->par[SY_GLFO_TRK];
     int gd = ((gp[TP_LX] & 15) | (gp[TP_LX2] & 15) << 4) >> trk & 1 ? gp[TP_LDEST] % NGD : -1;
     float lenv = 1.0f, lo, cut;
-    m->ast = m->fst = 0;
+    m->ast = m->fst = m->mst[0] = m->mst[1] = 0;
+    m->mp[0] = m->mp[1] = -1;
     if (!v) {
         if (P(s, trk, TP_LDEST) < LD_FREE)
             lenv = 0.0f;
@@ -3223,6 +3239,19 @@ static void mod_publish(const synth_t *s, const voice_t *v, int trk)
     cut = (t->ldest == TP_CUT ? lo : 0.0f) + (gd == GD_CUT ? s->goff[0] : 0.0f);
     if (v && v->engine != EG_ACID)               /* (the 303's envelope is its own) */
         cut += v->flt.level * v->c.fenv_oct * (127.0f / 8.64385619f);
+    for (int k = 0; v && k < 2; k++) {          /* the mod envelopes: what each adds to its knob now (a cutoff's: cut) */
+        const float o = v->me[k].level * t->me_amt[k];
+        if (t->me_p[k] != LD_NONE) {             /* (the Mod env pages' dot: only one that runs) */
+            m->mst[k] = v->me[k].stage;
+            m->mlv[k] = v->me[k].level;
+        }
+        if (t->me_p[k] == TP_CUT)
+            cut += o;
+        else if (t->me_p[k] >= 0 && o != 0.0f) {
+            m->mp[k] = t->me_p[k];
+            m->moff[k] = o;
+        }
+    }
     m->cut = cut;
     m->loff = lo;
     m->goff = s->goff[0];
@@ -3237,6 +3266,41 @@ static void mod_publish(const synth_t *s, const voice_t *v, int trk)
     m->of = (uint8_t)trk;
 }
 static void bus_prepare(synth_t *s, uint32_t n);
+/* a track's mod envelopes for the block: their targets, their steps a chunk (voice_chunk, me_chunk) */
+static void me_prepare(synth_t *s, int i, int engine)
+{
+    trk_t *t = &s->t[i];
+    for (int k = 0; k < 2; k++) {
+        int same = t->me_in[k][0] == engine;     /* (the same as the last block's: nothing to make again) */
+        t->me_in[k][0] = (uint8_t)engine;
+        for (int f = 0; f < ME_N; f++) {
+            const uint8_t x = (uint8_t)P2(s, i, TP_ME(k, f));
+            same &= t->me_in[k][1 + f] == x;
+            t->me_in[k][1 + f] = x;
+        }
+        if (same)
+            continue;
+        const int tg = P2(s, i, TP_ME(k, ME_TGT));
+        const int d = tg && menv_target_ok(engine, tg - 1) ? menv_target_par(tg - 1) : LD_NONE;
+        const float a = (float)(P2(s, i, TP_ME(k, ME_AMT)) - 64) * (1.0f / 63.0f);
+        t->me_p[k] = (int16_t)d;
+        if (d == LD_NONE)
+            continue;
+        if (d == LD_PITCH) {
+            t->me_amt[k] = a * 1200.0f;         /* (cents: +-12 semitones, as the LFO) */
+        } else {
+            const tp_info_t *in = tp_info(d, engine);
+            t->me_amt[k] = a * (float)(in->hi - in->lo);
+            t->me_lo[k] = in->lo;
+            t->me_hi[k] = in->hi;
+        }
+        t->me_c[k][0] = 1.0f - me_coef(P2(s, i, TP_ME(k, ME_A)), 1.0f);   /* (the attack's step: the time's rate) */
+        t->me_c[k][1] = me_coef(P2(s, i, TP_ME(k, ME_D)), 6.9f);
+        t->me_c[k][2] = (float)P2(s, i, TP_ME(k, ME_S)) * (1.0f / 127.0f);
+        t->me_c[k][3] = me_coef(P2(s, i, TP_ME(k, ME_R)), 6.9f);
+        t->me_loop[k] = (uint8_t)(P2(s, i, TP_ME(k, ME_LOOP)) != 0);
+    }
+}
 void synth_prepare(synth_t *s, uint32_t n)
 {
     float tpk[NTRK];
@@ -3294,6 +3358,7 @@ void synth_prepare(synth_t *s, uint32_t n)
             vib = (amt - 64.0f) * (100.0f / 63.0f);                 /* cents */
             vol = ((float)P(s, i, TP_LDEST) - 64.0f) * (1.0f / 63.0f);
         }
+        me_prepare(s, i, engine);
         for (k = 0; k < nck; k++) {
             float ph, val = 0.0f, pitch = 0.0f, gain = 1.0f;
             ph = t->lfo_ph + dph;
@@ -3362,6 +3427,51 @@ int tp_slot_of(int p, int *j)
     return -1;
 }
 static inline int PS(const synth_t *s, int trk, int p) { return p < NTP_LOCK ? P(s, trk, p) : P2(s, trk, p); }
+/* voice_chunk's reads (its P, P2, pf): through lk, the track's locks or a copy with the mod envelopes' values in */
+static inline int PL(const uint8_t *lk, const synth_t *s, int trk, int at, int p)   /* (at: p's lock's place) */
+{
+    uint8_t l = lk[at];
+    return l != LOCK_NONE ? l : s->par[trk][p];
+}
+static inline float pfl(const uint8_t *lk, const synth_t *s, int trk, int p, int dest, float off)
+{
+    float x = (float)PL(lk, s, trk, p, p);
+    if (p == dest)
+        x = fm_clampf(x + off, 0.0f, 127.0f);
+    return x;
+}
+/* the mod envelopes' step a chunk (synth_prepare's coefficients): their targets' values into a copy of the track's
+ * locks (ml; *lk then points at it), as a lock would set them; their pitch's offset returned, cents */
+static __attribute__((noinline)) float me_chunk(const synth_t *s, voice_t *v, uint8_t *ml, const uint8_t **lk)
+{
+    const trk_t *t = &s->t[v->trk];
+    float pitch = 0.0f;
+    int copied = 0;
+#pragma clang loop unroll(disable)
+    for (int i = 0; i < 2; i++) {
+        env_t *e = &v->me[i];
+        const int d = t->me_p[i];
+        if (d == LD_NONE)
+            continue;
+        env_step(e, t->me_c[i][0], t->me_c[i][1], t->me_c[i][2], t->me_c[i][3]);
+        if (t->me_loop[i] && e->stage == ENV_SUSTAIN && v->held)
+            e->stage = ENV_ATTACK;               /* (LOOP: up again from where it is) */
+        if (d == LD_PITCH) {
+            pitch += e->level * t->me_amt[i];
+        } else {
+            const int at = lock_at(d);
+            if (!copied) {
+                for (int j = 0; j < NTP_LOCK + NTP_LOCK2; j++)
+                    ml[j] = t->lock[j];
+                copied = 1;
+                *lk = ml;
+            }
+            ml[at] = (uint8_t)(int)(fm_clampf((float)(ml[at] != LOCK_NONE ? ml[at] : s->par[v->trk][d]) +
+                                              e->level * t->me_amt[i], (float)t->me_lo[i], (float)t->me_hi[i]) + 0.5f);
+        }
+    }
+    return pitch;
+}
 static inline float pfs(const synth_t *s, int trk, int p, int dest, float off)   /* pf for any of a slot's */
 {
     float x = (float)PS(s, trk, p);
@@ -3448,12 +3558,18 @@ static void voice_pitch(synth_t *s, voice_t *v)
 }
 
 /* a chunk boundary: the parameters into c */
+#define P(s, trk, p) PL(lk, s, trk, p, p)        /* (voice_chunk reads its locks through lk) */
+#define P2(s, trk, p) PL(lk, s, trk, NTP_LOCK + (p) - TP_O2FINE, p)
+#define pf(s, trk, p, dest, off) pfl(lk, s, trk, p, dest, off)
 static void voice_chunk(synth_t *s, voice_t *v)
 {
     trk_t *t = &s->t[v->trk];
     cfg_t *c = &v->c;
     int trk = v->trk, k = v->ck < s->nck ? v->ck : s->nck - 1, dest = t->ldest, i;
-    float lenv = 1.0f, off, lg, vol, lev, pan, vg, res;
+    float lenv = 1.0f, off, lg, vol, lev, pan, vg, res, mpitch = 0.0f;
+    const uint8_t *lk = t->lock;                 /* the locks this voice reads (P, P2, pf below): the track's, or with a mod
+                                                  * envelope running theirs and its values (me_chunk) */
+    uint8_t mlk[NTP_LOCK + NTP_LOCK2];
     const uint8_t *gp = s->par[SY_GLFO_TRK];
     const int groute = (gp[TP_LX] & 15) | (gp[TP_LX2] & 15) << 4;
     const float g = groute >> trk & 1 ? s->goff[k] : 0.0f;   /* the shared LFO on this track (synth.h GD_*) */
@@ -3482,6 +3598,8 @@ static void voice_chunk(synth_t *s, voice_t *v)
     v->tsec += CHUNK_S;
     off = t->loff[k] * lenv;
     lg = 1.0f - (1.0f - t->lgain[k]) * lenv;
+    if (t->me_p[0] != LD_NONE || t->me_p[1] != LD_NONE)
+        mpitch = me_chunk(s, v, mlk, &lk);
     {
         int gm = v->fresh ? 0 : E_GLIDE[v->engine < NENGINE ? v->engine : 0];
         for (i = 0; i < 4; i++) {
@@ -3573,6 +3691,7 @@ static void voice_chunk(synth_t *s, voice_t *v)
         c->pitch_off += v->kan_p * (float)v->kanalog * (8.0f / 127.0f);
     if (dest == LD_PITCH)
         c->pitch_off += off * (1200.0f / 127.0f);
+    c->pitch_off += mpitch;                      /* (a mod envelope on the pitch: cents) */
     if (gd == GD_PITCH)                          /* (+-12 semitones at 100 %) */
         c->pitch_off += g * (1200.0f / 127.0f);
     {   /* the sound's octave (Play's fourth knob) */
@@ -3697,6 +3816,10 @@ static void voice_chunk(synth_t *s, voice_t *v)
     eng_chunk(v);
     char_prep(s, v, dest, off, gd == GD_CHAR ? g : 0.0f);
 }
+
+#undef P
+#undef P2
+#undef pf
 
 /* the steal's turn: the old note has faded; start the pending one here, mid-chunk */
 static void voice_steal(synth_t *s, voice_t *v)
@@ -5131,6 +5254,12 @@ static const tp_info_t *dknob_of(int m, int k)   /* model m's knob k (0..7) */
     return i;
 }
 
+#define NME_TARGET 23
+/* the mod envelopes' values (synth.h ME_*): the target (0 off, then 1 + ME_TARGET's), the amp envelope's times */
+static const tp_info_t ME_P[ME_N] = {{"target", 0, NME_TARGET, 0, PK_NUM, 0}, {"attack", 0, ENV_HI, 0, PK_MS, 0},
+                                     {"decay", 0, ENV_HI, 64, PK_MS, 0}, {"sustain", 0, 127, 0, PK_PCT, 0},
+                                     {"release", 0, ENV_HI, 40, PK_MS, 0}, {"amount", 0, 127, 64, PK_BIP, 0},
+                                     {"loop", 0, 1, 0, PK_SWITCH, 0}};
 const tp_info_t *tp_info(int p, int engine)
 {
     if (!eknob_ready)
@@ -5187,12 +5316,47 @@ const tp_info_t *tp_info(int p, int engine)
         return &ITYPE_P;
     if (p == TP_S2MIX)
         return &SMIX_P;
+    if (p >= TP_ME0 && p < NTP)
+        return &ME_P[(p - TP_ME0) % ME_N];
     if ((p >= TP_I1 && p <= TP_I3) || p >= TP_S1K3)   /* (a slot's knobs and extras as its effect names them:
                                                   * tp_info_par) */
         return &INS_ANY_P;
     if (p >= 0 && p < (int)(sizeof FIXED / sizeof FIXED[0]))
         return &FIXED[p];
     return &NONE_P;
+}
+
+/* the mod envelopes' targets (synth.h ME_TGT): the voice's continuous parameters, read once a chunk (voice_chunk);
+ * not the volume (on a bus it is the bus's), the slots, the sends: one for all the track's notes */
+static const int16_t ME_TARGET[] = {LD_PITCH, TP_E1, TP_E2, TP_E3, TP_E4, TP_X1, TP_X2, TP_X3, TP_X4, TP_O2FINE,
+                                    TP_O2SHAPE, TP_KSYNC, TP_KSWEEP, TP_KCROSS, TP_KSUB, TP_RDEPTH, TP_RFB, TP_CUT,
+                                    TP_RES, TP_FENV, TP_KTRK, TP_PAN, TP_HPF};
+_Static_assert(sizeof ME_TARGET / sizeof ME_TARGET[0] == NME_TARGET, "ME_P's target range");
+int menv_targets(void) { return NME_TARGET; }
+int menv_target_par(int i) { return i >= 0 && i < NME_TARGET ? ME_TARGET[i] : LD_NONE; }
+int menv_target_ok(int engine, int i)
+{
+    const int p = menv_target_par(i);
+    const tp_info_t *in;
+    if (engine < 0 || engine >= NENGINE || engine == EG_DRUMLINE || engine == EG_MIDI || p == LD_NONE)
+        return 0;
+    if (p == LD_PITCH)
+        return 1;
+    if ((p == TP_O2FINE || p == TP_O2SHAPE) && engine != EG_KNIT)   /* (pages the engine has: its reads) */
+        return 0;
+    if (p >= TP_KSYNC && p <= TP_KSUB && engine != EG_KNIT && engine != EG_TULLE && engine != EG_TARTAN)
+        return 0;
+    if (p >= TP_ROPS && p <= TP_RFB && engine != EG_RAYON)
+        return 0;
+    if (engine == EG_ACID && p != TP_PAN && p != TP_HPF) {   /* (the 303's pots: ACID_PAR) */
+        int k = 0;
+        while (k < NACIDP && ACID_PAR[k] != p)
+            k++;
+        if (k == NACIDP)
+            return 0;
+    }
+    in = tp_info(p, engine);
+    return in->name[0] != '-' && in->kind != PK_NAMES && in->kind != PK_SWITCH && in->hi - in->lo >= 16;
 }
 
 const tp_info_t *tp_info_par(int p, const uint8_t *par)
@@ -5517,6 +5681,14 @@ void tp_text_par(int p, int v, const uint8_t *par, char *num, char *unit)
         unit[0] = 0;
         return;
     }
+    if (p >= TP_ME0 && (p - TP_ME0) % ME_N == ME_TGT) {   /* a mod envelope's target: its name ("-": not this
+                                                  * engine's) */
+        const int t = menv_target_par(v - 1);
+        unit[0] = 0;
+        put_s(num, !v ? "off" : !menv_target_ok(par[TP_ENGINE], v - 1) ? "-" : t == LD_PITCH ? "pitch"
+                                                                         : tp_info_par(t, par)->name);
+        return;
+    }
     tp_text_i(tp_info_par(p, par), p, v, par[TP_ENGINE], num, unit);
 }
 
@@ -5551,7 +5723,14 @@ void sound_default(uint8_t *par, int engine)
     par[TP_S2MIX] = 127;
     for (k = 0; k < 4; k++)
         par[TP_S1X1 + k] = par[TP_S2X1 + k] = 0;
+    menv_defaults(par);
 }
+void menv_defaults(uint8_t *par)                 /* the mod envelopes off, at their defaults */
+{
+    for (int p = TP_ME0; p < NTP; p++)
+        par[p] = (uint8_t)menv_def(p - TP_ME0);
+}
+int menv_def(int f) { return ME_P[f % ME_N].def; }
 
 /* -------------------------------------------------------------- presets --- */
 /* the factory presets: recipes in tools/presets/ (tools/presets/lib.py says how one is written), made into this
@@ -5563,10 +5742,16 @@ const int NPRESETS = (int)(sizeof PRESETS / sizeof PRESETS[0]);
 const uint16_t PS_X[PS_N - NTP_SOUND] = {TP_O2FINE, TP_O2WAVE, TP_O2SHAPE, TP_KSYNC, TP_KSWEEP, TP_KCROSS, TP_KSUB,
                                          TP_ROPS, TP_RRATIO, TP_RDEPTH, TP_RFB, TP_KANALOG, TP_ITYPE, TP_I1, TP_I2,
                                          TP_I3, TP_HPF, TP_S1K3, TP_S1X1, TP_S1X2, TP_S1X3, TP_S1X4, TP_S2MIX,
-                                         TP_S2X1, TP_S2X2, TP_S2X3, TP_S2X4};
+                                         TP_S2X1, TP_S2X2, TP_S2X3, TP_S2X4, TP_ME0, TP_ME0 + 1, TP_ME0 + 2,
+                                         TP_ME0 + 3, TP_ME0 + 4, TP_ME0 + 5, TP_ME0 + 6, TP_ME0 + 7, TP_ME0 + 8,
+                                         TP_ME0 + 9, TP_ME0 + 10, TP_ME0 + 11, TP_ME0 + 12, TP_ME0 + 13};
 void preset_sound(uint8_t *par, const preset_t *pr)
 {
-    const uint8_t *t = PRESET_TPL[pr->engine % NENGINE], *m = PRESET_DATA + pr->at, *v = m + PS_MASK;
+    const uint8_t *t = PRESET_TPL[pr->engine % NENGINE], *d = PRESET_DATA + pr->at, *v = d + 4;
+    uint8_t m[PS_MASK];                          /* (its mask unpacked: bytes 0..2, then the head's bit j: byte 3 + j
+                                                  * follows, else 0; gen_presets.py table) */
+    for (int j = 0; j < PS_MASK; j++)
+        m[j] = j < 3 ? d[j] : d[3] >> (j - 3) & 1u ? *v++ : 0u;
     for (int i = 0; i < PS_N; i++)
         par[i < NTP_SOUND ? i : PS_X[i - NTP_SOUND]] = m[i >> 3] >> (i & 7) & 1u ? *v++ : t[i];
 }

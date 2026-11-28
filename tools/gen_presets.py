@@ -64,12 +64,13 @@ def fields(p):
     f += [("ITYPE", "EF_" + ins[0].upper()), ("I1", ins[1]), ("I2", ins[2]), ("I3", ins[3]), ("HPF", p["lowcut"])]
     f += [("S1K3", ch[3])] + [(f"S1X{i + 1}", v) for i, v in enumerate(ch[5:])] + [("S2MIX", ins[4])]
     f += [(f"S2X{i + 1}", v) for i, v in enumerate(ins[5:])]
+    f += [(f"ME{i}", v) for i, v in enumerate(p["menv"])]
     return {k: str(v) for k, v in f}
 
 
 EXTRA = ["O2FINE", "O2WAVE", "O2SHAPE", "KSYNC", "KSWEEP", "KCROSS", "KSUB", "ROPS", "RRATIO", "RDEPTH", "RFB", "KANALOG",
          "ITYPE", "I1", "I2", "I3", "HPF", "S1K3", "S1X1", "S1X2", "S1X3", "S1X4", "S2MIX", "S2X1", "S2X2", "S2X3",
-         "S2X4"]
+         "S2X4"] + [f"ME{i}" for i in range(14)]
 
 
 def sound_order():
@@ -83,7 +84,9 @@ def sound_order():
 
 def table(ps):
     """the presets as each engine's template (the value most of its presets have, field by field) and each preset's
-    differences from it: a mask of the fields that differ (PS_MASK bytes, bit i field i), then their values"""
+    differences from it: a mask of the fields that differ (PS_MASK bytes, bit i field i), then their values. The mask
+    packed: its first three bytes (the sound's first 24 fields: nearly always some differ), a byte whose bit j says
+    mask byte 3 + j follows, those that do (the rest 0), then the values (synth.c preset_sound)"""
     order = sound_order()
     fs = [fields(p) for p in ps]
     tpl = {}
@@ -100,7 +103,9 @@ def table(ps):
                 mask[i >> 3] |= 1 << (i & 7)
                 vals.append(f[k])
         at.append(len(data))
-        data += [str(m) for m in mask] + vals
+        assert len(mask) <= 11
+        head = sum(1 << j for j, m in enumerate(mask[3:]) if m)
+        data += [str(m) for m in mask[:3]] + [str(head)] + [str(m) for m in mask[3:] if m] + vals
     return order, tpl, data, at
 
 

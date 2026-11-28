@@ -50,7 +50,7 @@ export function parsePack(bytes) {
 }
 // a user preset's bytes in presets format fmt (app/project.c preset_len)
 export function presetLen(f) {
-  return f >= 17 ? 79 : f >= 16 ? 69 : f >= 15 ? 64 : f >= 14 ? 63 : f >= 13 ? 59 : f >= 12 ? 55 : f >= 9 ? 53 : 52;
+  return f >= 20 ? 93 : f >= 17 ? 79 : f >= 16 ? 69 : f >= 15 ? 64 : f >= 14 ? 63 : f >= 13 ? 59 : f >= 12 ? 55 : f >= 9 ? 53 : 52;
 }
 const u32 = (b, i) => (b[i] | b[i + 1] << 8 | b[i + 2] << 16 | b[i + 3] << 24) >>> 0;
 const u16 = (b, i) => b[i] | b[i + 1] << 8;

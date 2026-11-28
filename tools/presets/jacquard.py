@@ -49,3 +49,17 @@ P("nasal lead", "lead", "jacquard", knobs=dict(table=NASAL, scan=50, bend=0, rip
 P("digi pluck", "pluck", "jacquard", knobs=dict(table=GRIT, scan=70, bend=30, ripple=40), volume=108,
   amp=(0, 66, 0, 52), fenv=(0, 54, 0, 50), filter=("lp12", 76, 10, 100, 64), sends=(35, 20),
   genres=("house", "garage"))
+
+# --- the mod envelopes (2026-11-28): the scan moved on every note, menv=((target, a, d, s, r, amount, loop), ..) ---
+# a scan pluck: each note starts far into the vocal table and falls back, a vowel said on every note
+P("scan pluck", "pluck", "jacquard", knobs=dict(table=VOCAL, scan=20, bend=0, ripple=0), volume=104,
+  amp=(0, 86, 0, 60), fenv=(0, 64, 0, 64), filter=("lp12", 90, 5, 64, 64), sends=(30, 20),
+  menv=(("scan", 0, 80, 0, 50, 110, False),), genres=("house", "synthpop"))
+# a morph pad: the spiral's partials climbing slowly through the scan as the note holds, the filter opening behind them
+P("morph pad", "pad", "jacquard", knobs=dict(table=SPIRAL, scan=15, bend=0, ripple=10), volume=98,
+  amp=(90, 90, 120, 100), fenv=(0, 64, 0, 64), filter=("lp12", 70, 0, 64, 64), sends=(0, 50),
+  menv=(("scan", 100, 110, 127, 96, 108, False), ("CUT", 96, 100, 127, 90, 88, False)), genres=("lofi", "synthpop"))
+# a loop scan: the chirp table scanned again and again while the key is held, a blip of pitch at the start
+P("loop scan", "lead", "jacquard", knobs=dict(table=CHIRP, scan=30, bend=0, ripple=0), mode="mono", volume=96,
+  amp=(0, 70, 120, 40), fenv=(0, 64, 0, 64), filter=("lp24", 84, 15, 64, 64), sends=(30, 10),
+  menv=(("scan", 30, 70, 0, 50, 112, True), ("pitch", 0, 44, 0, 30, 76, False)), genres=("dnb", "synthpop"))

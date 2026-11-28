@@ -89,3 +89,13 @@ P("bell layer", "bell", "rayon", knobs=dict(bright=40, ratio=ratio(1), edge=0, t
 P("house organ", "bass", "rayon", knobs=dict(bright=70, ratio=ratio(2.0), edge=20, tine=0), mode="mono", volume=100,
   amp=(0, 74, 60, 40), fenv=(0, 64, 0, 40), filter=("lp24", 100, 0, 64, 40), x=(40, 40, 50, 0), octave=-1,
   genres=("house", "garage"))
+
+# --- the mod envelopes (2026-11-28) ---
+# an FM blip: a bright index that snaps shut on every note, at 3.5:1, a little pitch drop under it
+P("fm blip", "pluck", "rayon", knobs=dict(bright=20, ratio=ratio(3.5), edge=10, tine=0), volume=100,
+  amp=(0, 80, 0, 60), fenv=(0, 64, 0, 64), filter=("lp12", 104, 0, 64, 64), sends=(30, 15), x=(0, 0, 0, 0),
+  menv=(("bright", 0, 66, 0, 50, 120, False), ("pitch", 0, 40, 0, 30, 70, False)), genres=("house", "synthpop"))
+# a loop bell: the index rising and falling again while the key is held, at 2:1, panning a little each time
+P("loop bell", "bell", "rayon", knobs=dict(bright=30, ratio=ratio(2.0), edge=0, tine=30), volume=94,
+  amp=(0, 100, 90, 80), fenv=(0, 64, 0, 64), filter=("lp12", 100, 0, 64, 64), sends=(10, 40), x=(0, 0, 0, 0),
+  menv=(("bright", 40, 76, 0, 60, 104, True), ("PAN", 0, 90, 0, 70, 84, False)), genres=("lofi", "synthpop"))

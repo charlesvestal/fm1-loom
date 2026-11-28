@@ -80,6 +80,7 @@ _Static_assert(offsetof(settings_t, mixm) == offsetof(settings_t, trk) + sizeof(
 #define NTP24 ((uint32_t)TP_KANALOG)                      /* format 24's: up to rayon's Ops page */
 #define NTP25 ((uint32_t)TP_ITYPE)                        /* format 25's: up to knit's analog */
 #define NTP27 ((uint32_t)TP_S1K3)                         /* formats 26..27's: up to the insert and the low cut */
+#define NTP35 ((uint32_t)TP_ME0)                          /* formats 28..35's: up to the slots' extras */
 /* before 29 an FX track's effect was TP_ENGINE's pick, its knobs TP_E1..E4, the delay's PING WIDTH, WOBBLE and SMEAR
  * TP_X1..X3, the return TP_LEVEL: its slot 1 now (fx.h fx_pick_slot: the delay's time, repeats, tone, its fine, width,
  * wobble, smear the extras; the reverb's size, decay or motion, tone, its mode and damp (shimmer's amount) the extras;
@@ -232,8 +233,8 @@ static void old_slot_lane(lane_t *L, uint8_t it, float bpm)
 static const uint8_t OLD_OCT[25] = {15, 11, 7, 14, 10, 6, 13, 9, 5, 12, 8, 4, 0, 1, 2, 3, 5, 6, 7, 9, 10, 11, 13, 14, 15};
 typedef char settings_head_fits[(SET_HDR + 4u + 64u <= PLAT_STORE_MAX && SET_OLD == 3804u) ? 1 : -1];   /* (format 14's size) */
 typedef char trk_layout[(offsetof(trk_t, name) == NTP && sizeof(trk_t) == NTP + NAME_LEN + 4u) ? 1 : -1];
-typedef char preset_packed[(sizeof(user_preset_t) == NAME_LEN + 28u + NTP_SOUND &&
-                            offsetof(user_preset_t, s2x) + 4u - offsetof(user_preset_t, o2fine) == PS_N - NTP_SOUND) ? 1 : -1];   /* (no
+typedef char preset_packed[(sizeof(user_preset_t) == NAME_LEN + 42u + NTP_SOUND &&
+                            offsetof(user_preset_t, me) + 14u - offsetof(user_preset_t, o2fine) == PS_N - NTP_SOUND) ? 1 : -1];   /* (no
                                                   * padding; the fields past par[] in PS_X's order: ui.c copies them so) */
 #define PRESET_OLD (NAME_LEN + 1u + NTP_SOUND)                    /* formats 6..8: a user preset without its fine */
 #define PRESET_V11 (NAME_LEN + 2u + NTP_SOUND)                    /* 9..11: without osc 2's wave and shape */
@@ -259,7 +260,8 @@ typedef char preset_packed[(sizeof(user_preset_t) == NAME_LEN + 28u + NTP_SOUND 
 #define PRESETS_V15 (PRESETS_KITS15 + NUSER_KITS * KIT_LEN16)
 #define PRESETS_KITS16 (4u + PRESETS_OLD_N * PRESET_V16)          /* 16: where the kits start */
 #define PRESETS_V16 (PRESETS_KITS16 + NUSER_KITS * KIT_LEN16)
-#define PRESETS_KITS18 (4u + 16u * (uint32_t)sizeof(user_preset_t))   /* 17, 18: where the kits start (16 presets) */
+#define PRESET_V19 ((uint32_t)sizeof(user_preset_t) - 14u)       /* 17 .. 19: without the mod envelopes */
+#define PRESETS_KITS18 (4u + 16u * PRESET_V19)                     /* 17, 18: where the kits start (16 presets) */
 #define PRESETS_LEN18 (PRESETS_KITS18 + NUSER_KITS * KIT_LEN)
 #define PRESETS_KITS 4u                                            /* 19: the kits alone (the presets: OBJ_UP0, 1) */
 #define PRESETS_LEN (PRESETS_KITS + NUSER_KITS * KIT_LEN)
@@ -267,7 +269,8 @@ typedef char preset_packed[(sizeof(user_preset_t) == NAME_LEN + 28u + NTP_SOUND 
 #define UP_LEN (4u + UP_PER * (uint32_t)sizeof(user_preset_t))
 typedef char presets_fit[(PRESETS_LEN18 <= PLAT_STORE_MAX && UP_LEN <= PLAT_STORE_MAX && PRESETS_V7 == 836u &&
                           NUSER_PRESETS == 2 * UP_PER && OBJ_UP1 == OBJ_UP0 + 1) ? 1 : -1];
-#define PRESETS_FORMAT 19u               /* 19: 64 user presets, 32 an object of their own in the pool (OBJ_UP0, OBJ_UP1:
+#define PRESETS_FORMAT 20u               /* 20: the mod envelopes (user_preset_t me; older: off);
+                                          * 19: 64 user presets, 32 an object of their own in the pool (OBJ_UP0, OBJ_UP1:
                                           *     the presets object the kits alone; 17, 18 moved there at boot);
                                           * 18: the delay's 1/4D (as 17; a delay TIME's 122..127 as 121: dl_old);
                                           * 17: the one effects list: the slots' third knob, mix and extras (user_preset_t
@@ -968,13 +971,16 @@ static int settings_unpack(int n)
             return -1;
         for (i = 0; i < hdr; i++)
             ((uint8_t *)&proj)[i] = io_buf[i];
-        uint32_t ntp = fmt >= 28u ? (uint32_t)NTP : fmt >= 26u ? NTP27 : fmt >= 25u ? NTP25 : fmt >= 24u ? NTP24
-                     : fmt >= 23u ? NTP23 : fmt >= 22u ? NTP22 : fmt >= 19u ? NTP21 : fmt >= 16u ? NTP18 : NTP15;
-        uint32_t tl = ntp + NAME_LEN + 4u;
-        if (fmt >= 28u)                          /* (before 34 no mutes at the mixer: all on, project_defaults) */
-            return lz_decompress(&src, (uint8_t *)proj.trk, fmt >= 34u ? SET_TRK : (uint32_t)sizeof proj.trk) ? -1 : 0;
-        if (lz_decompress(&src, (uint8_t *)proj.trk, NALLTRK * tl))   /* formats 15..27: their tracks shorter, */
+        uint32_t ntp = fmt >= 36u ? (uint32_t)NTP : fmt >= 28u ? NTP35 : fmt >= 26u ? NTP27 : fmt >= 25u ? NTP25
+                     : fmt >= 24u ? NTP24 : fmt >= 23u ? NTP23 : fmt >= 22u ? NTP22 : fmt >= 19u ? NTP21
+                     : fmt >= 16u ? NTP18 : NTP15;
+        uint32_t tl = ntp + NAME_LEN + 4u, mu = fmt >= 34u ? (uint32_t)(sizeof proj.mixm + sizeof proj.mixk) : 0u;
+        if (fmt >= 36u)                          /* (before 34 no mutes at the mixer: all on, project_defaults) */
+            return lz_decompress(&src, (uint8_t *)proj.trk, SET_TRK) ? -1 : 0;
+        if (lz_decompress(&src, (uint8_t *)proj.trk, NALLTRK * tl + mu))   /* formats 15..35: their tracks shorter, */
             return -1;
+        for (i = 0; i < mu; i++)                 /* (34's mutes after its tracks: to their place first) */
+            ((uint8_t *)&proj)[offsetof(settings_t, mixm) + i] = ((const uint8_t *)proj.trk)[NALLTRK * tl + i];
         for (int t = NALLTRK - 1; t >= 0; t--) {  /* spread from the last (each moves up: copied from its end) */
             const uint8_t *o = (const uint8_t *)proj.trk + (uint32_t)t * tl;
             uint8_t *d = (uint8_t *)&proj.trk[t];
@@ -983,6 +989,9 @@ static int settings_unpack(int n)
                 d[i + (NTP - ntp)] = o[i];
             for (i = ntp; i-- > 0;)
                 d[i] = o[i];
+            menv_defaults(par);                  /* (no mod envelopes: off) */
+            if (ntp >= NTP35)
+                continue;
             if (ntp <= (uint32_t)TP_O2FINE)
                 par[TP_O2FINE] = 64;
             slots_fresh(par);                    /* (the slots' values past the character and the insert: old_slots) */
@@ -1339,7 +1348,7 @@ static uint32_t kits_at(uint32_t fmt, int n, uint32_t *cnt, uint32_t *len)
 {
     *len = fmt >= 17u ? KIT_LEN : KIT_LEN16;
     *cnt = NUSER_KITS;
-    if (fmt == PRESETS_FORMAT && n == (int)PRESETS_LEN)
+    if (fmt >= 19u && fmt <= PRESETS_FORMAT && n == (int)PRESETS_LEN)   /* (the kits alone, unchanged since 19) */
         return PRESETS_KITS;
     if ((fmt == 17u || fmt == 18u) && n == (int)PRESETS_LEN18)
         return PRESETS_KITS18;
@@ -1375,7 +1384,7 @@ static void kit_old(uint8_t *img)                /* a kit from before 17 (KIT_LE
 /* a user preset's bytes in presets format fmt (6 .. PRESETS_FORMAT) */
 uint32_t preset_len(uint32_t fmt)
 {
-    return fmt >= 17u ? (uint32_t)sizeof(user_preset_t) : fmt >= 16u ? PRESET_V16 : fmt >= 15u ? PRESET_V15
+    return fmt >= 20u ? (uint32_t)sizeof(user_preset_t) : fmt >= 17u ? PRESET_V19 : fmt >= 16u ? PRESET_V16 : fmt >= 15u ? PRESET_V15
          : fmt >= 14u ? PRESET_V14 : fmt >= 13u ? PRESET_V13 : fmt >= 12u ? PRESET_V12 : fmt >= 9u ? PRESET_V11
          : PRESET_OLD;
 }
@@ -1398,6 +1407,8 @@ int user_preset_from(user_preset_t *u, const uint8_t *src, uint32_t fmt)
     u->kanalog = 0;
     u->itype = u->i1 = u->i2 = u->i3 = 0;
     u->hpf = 0;
+    for (i = 0; i < 14u; i++)                    /* (before 20 no mod envelopes: off) */
+        u->me[i] = (uint8_t)menv_def((int)i);
     for (i = 0; i < len; i++)
         ((uint8_t *)u)[i] = src[i];
     if (fmt < 17u) {                             /* (the character and the insert as the slots: old_slots) */
@@ -1424,6 +1435,9 @@ int user_preset_from(user_preset_t *u, const uint8_t *src, uint32_t fmt)
         u->itype = u->i1 = u->i2 = u->i3 = 0;
     if (u->hpf > 127u)
         u->hpf = 0;
+    for (i = 0; i < 14u; i++)                    /* (the mod envelopes' values in their ranges) */
+        if (u->me[i] > tp_info(TP_ME0 + (int)i, EG_KNIT)->hi)
+            u->me[i] = (uint8_t)menv_def((int)i);
     for (i = 0; i < 4; i++)
         bad |= u->s1x[i] > 127u || u->s2x[i] > 127u;
     if (bad) {

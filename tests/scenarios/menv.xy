@@ -1,0 +1,75 @@
+# the mod envelopes: ENV's pages Envelope, Filter, Filter env, Mod env 1, Mod env 2 on a synth (acid: its two, then the
+# mod envelopes; a kit: none); their knobs attack, decay, sustain, amount; the SEL list's TARGET (only what the engine
+# has), RELEASE, LOOP; a project saved and loaded keeps them; a user preset keeps them
+wait 300
+spin ALGO 2
+expect trk 3
+knob 3 engine knit
+tap ENV
+expect page Envelope
+turn SELECT 3
+expect page Mod_env_1
+expect knobs m1a m1d m1s m1amt
+spin K2 20
+expect par3.m1d 84
+spin K4 30
+expect par3.m1amt 94
+wait 50
+shot menv_none.png
+turn SELECT 1
+expect page Mod_env_2
+expect knobs m2a m2d m2s m2amt
+turn SELECT 1
+expect page Envelope
+turn SELECT -1
+expect page Mod_env_2
+turn SELECT -1
+expect page Mod_env_1
+# the list: TARGET steps through knit's targets (rayon's depth skipped), RELEASE, LOOP
+tap SEL
+row TARGET
+wait 50
+turn ALGO 1
+expect par3.m1tgt 1
+wait 50
+turn ALGO 1
+expect par3.m1tgt 2
+wait 100
+shot menv_list.png
+row LOOP
+turn ALGO 1
+expect par3.m1loop 1
+tap SEL
+wait 100
+shot menv_wave.png
+# kept: the project saved and the FM-1 restarted; a user preset (the packed presets object, format 18) and a kit beside it
+knob 3 m2tgt 18
+knob 3 m2amt 20
+usersave 3 1
+tap SAVE
+wait 40
+reboot
+wait 300
+expect par3.m1tgt 2
+expect par3.m1d 84
+expect par3.m1amt 94
+expect par3.m1loop 1
+expect par3.m2tgt 18
+expect par3.m2amt 20
+knob 3 m1tgt 0
+knob 3 m2tgt 0
+preset 3 U1
+expect par3.m1tgt 2
+expect par3.m2tgt 18
+expect par3.m2amt 20
+# acid: Envelope, Filter, then the mod envelopes
+knob 3 engine acid
+tap ENV
+expect page Envelope
+turn SELECT 2
+expect page Mod_env_1
+# a kit: its four pages, no mod envelope
+knob 3 engine kit
+tap ENV
+turn SELECT 4
+expect page Envelope

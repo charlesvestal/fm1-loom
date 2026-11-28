@@ -987,6 +987,13 @@ static int param_of(const char *s)                 /* a TP_* name, dK.NAME (drum
         return (s[1] == '1' ? TP_S1X1 : TP_S2X1) + (s[3] - '1');
     if (ieq(s, "k1cut") || ieq(s, "kswto"))      /* knit's extras (rayon's Ops bytes: synth.h TP_K1CUT, TP_KSWTO) */
         return ieq(s, "k1cut") ? TP_K1CUT : TP_KSWTO;
+    if ((s[0] == 'm' || s[0] == 'M') && (s[1] == '1' || s[1] == '2')) {   /* the mod envelopes: m1tgt, m1a, m1d, m1s,
+                                                     * m1r, m1amt, m1loop (m2...) */
+        static const char *const MEN[ME_N] = {"tgt", "a", "d", "s", "r", "amt", "loop"};
+        for (k = 0; k < ME_N; k++)
+            if (ieq(s + 2, MEN[k]))
+                return TP_ME(s[1] - '1', k);
+    }
     if (ieq(s, "rops") || ieq(s, "rratio") || ieq(s, "rdepth") || ieq(s, "rfb"))   /* rayon's Ops page */
         return ieq(s, "rops") ? TP_ROPS : ieq(s, "rratio") ? TP_RRATIO : ieq(s, "rdepth") ? TP_RDEPTH : TP_RFB;
     host_die("no parameter", s);

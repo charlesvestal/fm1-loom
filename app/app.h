@@ -165,7 +165,8 @@ void loom_lights(uint32_t buttons, uint32_t keys, int glow, uint32_t dim_keys, i
 #define DEBUG_BUILD (APP_VERSION[0] == 'D' && APP_VERSION[1] == 'E' && APP_VERSION[2] == 'V' && \
                      (!APP_VERSION[3] || APP_VERSION[3] == 'T'))   /* DEV, or the load test's DEVTEST */
 #define PROJ_MAGIC 0x384D4F4Cu          /* "LOM8" (was "XXY1": XY-1's projects start fresh) */
-#define PROJ_FORMAT 35u                 /* (10, 0.5-beta's, to 12 load too: project.c migrate_old; older ones do not)
+#define PROJ_FORMAT 36u                 /* (10, 0.5-beta's, to 12 load too: project.c migrate_old; older ones do not)
+                                         * 36: the two mod envelopes (synth.h TP_ME0: 14 values a track; older: off);
                                          * 35: the delay's 1/4D (its TIME knob's 122..127, 1/4 before: dl_old);
                                          * 34: the Mix page's audio mutes (mixm, mixk after the tracks, packed with
                                          *     them; older: every track on);
@@ -272,6 +273,7 @@ typedef struct {
     uint8_t hpf;                        /* the low cut (TP_HPF: presets format 16 too, before any release) */
     uint8_t s1k3, s1x[4], s2mix, s2x[4];   /* the slots' third knob, mix and extras (TP_S1K3 .. TP_S2X4: presets
                                          * format 17) */
+    uint8_t me[14];                     /* the mod envelopes (TP_ME0 ..: presets format 20) */
 } user_preset_t;
 
 extern settings_t proj;                 /* the project's settings (RAM) */

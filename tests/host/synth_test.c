@@ -2623,6 +2623,90 @@ static void kit_char_tests(void)
     check("kit character: every type finite and bounded", finite);
 }
 
+/* the mod envelopes (synth.h TP_ME): a value of TGT for a TP_* (LD_PITCH: -2), 0 none */
+static int me_tgt(int p)
+{
+    for (int i = 0; i < menv_targets(); i++)
+        if (menv_target_par(i) == p)
+            return i + 1;
+    return 0;
+}
+static int crossings(void)                       /* zero crossings of the left channel in the last block */
+{
+    int c = 0;
+    for (int i = 1; i < N; i++)
+        c += (L[i - 1] < 0.0f) != (L[i] < 0.0f);
+    return c;
+}
+/* a held C6 on track 0, its crossings per four blocks over the first 2 s (cr[40]); sum: every sample, for "the same" */
+static double me_run(int *cr)
+{
+    int finite = 1;
+    double sum = 0.0;
+    synth_init(S, par);                          /* (from the same state each run: its sums compare) */
+    synth_tempo(S, 120.0f);
+    synth_note_on(S, 0, 84, 100, 0, 1);
+    for (int w = 0; w < 40; w++) {
+        cr[w] = 0;
+        for (int b = 0; b < 4; b++) {
+            block(N, &finite);
+            cr[w] += crossings();
+            for (int i = 0; i < N; i++)
+                sum += (double)L[i] * (double)(i + 1);
+        }
+    }
+    synth_note_off(S, 0, 1);
+    return finite ? sum : 1e300;
+}
+static void mod_env_test(void)
+{
+    int base[40], on[40], i, lo = 1000, hi = 0;
+    double s0, s1;
+    reset();
+    par[0][TP_E3] = 0;                           /* (knit: one voice, its crossings clean) */
+    synth_init(S, par);
+    s0 = me_run(base);
+    printf("    crossings off: %d %d %d\n", base[0], base[2], base[30]);
+    check("mod env: off, the note's pitch steady", base[2] - base[30] <= 1 && base[30] - base[2] <= 1 && base[2] > 20);
+    par[0][TP_ME(0, ME_TGT)] = (uint8_t)me_tgt(-2);   /* pitch, +12 semitones falling over ~0.3 s */
+    par[0][TP_ME(0, ME_A)] = 0;
+    par[0][TP_ME(0, ME_D)] = 80;
+    par[0][TP_ME(0, ME_S)] = 0;
+    par[0][TP_ME(0, ME_AMT)] = 127;
+    me_run(on);
+    check("mod env: pitch up an octave at the note's start", on[0] > base[0] * 17 / 10);
+    printf("    crossings with pitch: %d %d\n", on[0], on[30]);
+    check("mod env: and back to the note by its decay's end", on[30] - base[30] <= 1 && base[30] - on[30] <= 1);
+    par[0][TP_ME(0, ME_AMT)] = 64;               /* amount 0: as off, every sample */
+    s1 = me_run(on);
+    check("mod env: amount at the middle moves nothing", s1 == s0);
+    par[0][TP_ME(0, ME_AMT)] = 127;
+    par[0][TP_ME(0, ME_D)] = 70;                 /* (~160 ms: a cycle longer than the four blocks counted) */
+    par[0][TP_ME(0, ME_LOOP)] = 1;               /* LOOP: up again and again while held */
+    me_run(on);
+    for (i = 10; i < 40; i++) {
+        lo = on[i] < lo ? on[i] : lo;
+        hi = on[i] > hi ? on[i] : hi;
+    }
+    printf("    crossings with LOOP: %d .. %d (off %d)\n", lo, hi, base[30]);
+    check("mod env: LOOP keeps rising again while the key is held", hi > base[30] * 13 / 10 && lo < hi);
+    par[0][TP_ME(0, ME_LOOP)] = 0;
+    par[0][TP_ME(0, ME_TGT)] = (uint8_t)me_tgt(TP_CUT);   /* the cutoff, down from its knob (110: bright) */
+    par[0][TP_ME(0, ME_AMT)] = 0;
+    par[0][TP_ME(0, ME_D)] = 127;
+    par[0][TP_ME(0, ME_S)] = 127;
+    s1 = me_run(on);
+    check("mod env: the cutoff moved (the sound differs)", s1 != s0);
+    par[0][TP_ME(0, ME_TGT)] = (uint8_t)me_tgt(TP_RDEPTH);   /* rayon's: not a knit target, moves nothing */
+    s1 = me_run(on);
+    check("mod env: a target the engine lacks moves nothing", s1 == s0 && !menv_target_ok(EG_KNIT, me_tgt(TP_RDEPTH) - 1));
+    check("mod env: rayon has it", menv_target_ok(EG_RAYON, me_tgt(TP_RDEPTH) - 1));
+    menv_defaults(par[0]);
+    s1 = me_run(on);
+    check("mod env: back to its defaults, as off", s1 == s0);
+    reset();
+}
+
 int main(void)
 {
     breaks_attach();                             /* the breaks installed, as a player has them */
@@ -2635,6 +2719,7 @@ int main(void)
         int synth_sizeof(void);
         printf("synth_t: %d of %d bytes\n", synth_sizeof(), SYNTH_BYTES);
     }
+    mod_env_test();
     /* the parameter tables */
     check("every parameter has info and text", 1);
     for (k = 0; k < NTP; k++) {

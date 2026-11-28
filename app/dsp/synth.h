@@ -165,12 +165,24 @@ enum {
     TP_S1K3, TP_S1X1, TP_S1X2, TP_S1X3, TP_S1X4,    /* slot 1's knob 3 and extras, */
     TP_S2MIX, TP_S2X1, TP_S2X2, TP_S2X3, TP_S2X4,   /* slot 2's mix and extras (format 28: the one effects list). Last,
                                                      * so format 27's indices stay */
-    NTP
+    TP_ME0,                                         /* the two mod envelopes (format 35): TP_ME(e, ME_*), below */
+    NTP = TP_ME0 + 14
 };
 /* knit's extras (its SEL list, 2026-11-27: the Prophet's), in rayon's Ops page's bytes (an engine change resets them;
  * 0 on any other engine's, so old projects and presets are knit as before): osc 1 turned down (0 full .. 127 silent: a
  * synced patch's master quiet), the sweep (TP_KSWEEP) on osc 1's pulse width instead of osc 2's pitch (0 / 1) */
 enum { TP_K1CUT = TP_RDEPTH, TP_KSWTO = TP_RFB };
+/* the mod envelopes (ENV's Mod env 1 and 2; docs/superpowers/specs/2026-11-27-mod-envelopes-design.md): on each voice
+ * from its note, each moving one target (ME_TGT: 0 off, else 1 + an index of ME_TARGET[], synth.c) by AMOUNT (64 = 0,
+ * +-100 % of its range; pitch +-12 semitones); LOOP: attack and decay again while the key is held */
+enum { ME_TGT, ME_A, ME_D, ME_S, ME_R, ME_AMT, ME_LOOP, ME_N };
+#define TP_ME(e, f) (TP_ME0 + (e) * ME_N + (f))
+_Static_assert(TP_ME(1, ME_N) == NTP, "two mod envelopes of ME_N");
+int menv_targets(void);                          /* ME_TARGET[]'s length (TGT's values 1..this) */
+int menv_target_ok(int engine, int i);           /* the engine has target i (0-based), a continuous one */
+int menv_target_par(int i);                      /* its TP_* (-2: pitch) */
+void menv_defaults(uint8_t *par);                /* par's mod envelopes off, at their defaults */
+int menv_def(int f);                             /* the default of a mod envelope's value f (0..13) */
 enum { TP_S1TYPE = TP_CTYPE, TP_S1K1 = TP_CAMT, TP_S1K2 = TP_CTONE, TP_S1MIX = TP_CMIX,
        TP_S2TYPE = TP_ITYPE, TP_S2K1 = TP_I1, TP_S2K2 = TP_I2, TP_S2K3 = TP_I3 };
 /* a track's two slots (the one effects list: docs/superpowers/specs/2026-11-25-one-effects-list-design.md), each any
@@ -328,8 +340,9 @@ extern const char *const RL_NAME[NRL];            /* "bass", "lead", ... */
  * analog), kept as its engine's template (the value most of the engine's presets have) and its own differences from it
  * (tools/gen_presets.py: 4.5 KB for the 8 KB the whole fields took, 2026-11-23): at its place in the table, a mask of
  * PS_MASK bytes (bit i: field i differs), then the values of the fields that do */
-#define PS_N (NTP_SOUND + 27)
+#define PS_N (NTP_SOUND + 41)
 #define PS_MASK ((PS_N + 7) / 8)
+_Static_assert(PS_MASK >= 3 && PS_MASK <= 11, "the presets' packed mask (synth.c preset_sound): 3 bytes, then a head of 8 bits");
 typedef struct {
     const char *name;
     uint8_t engine;                               /* EG_* */
@@ -364,9 +377,9 @@ typedef struct synth synth_t;         /* opaque: dsp/synth.c */
 void synth_glfo_restart(synth_t *s);              /* the shared LFO from its start (the transport started) */
 float synth_glfo_now(const synth_t *s);            /* its value now, -1..1 (the page's picture) */
 #ifdef PLAT_HOST
-#define SYNTH_BYTES 15920             /* (the host's pointers are wider) */
+#define SYNTH_BYTES 16752             /* (the host's pointers are wider) */
 #else
-#define SYNTH_BYTES 15848             /* room for the struct (checked in synth.c: 15,848 B, 2026-11-27: knit's extras) */
+#define SYNTH_BYTES 16712             /* room for the struct (checked in synth.c: 2026-11-28, the mod envelopes) */
 #endif
 
 void synth_init(synth_t *s, uint8_t (*par)[NTP]);   /* par: the tracks' parameter arrays, NTRK + 1 of them (the conductor's, SY_GLFO_TRK: the shared LFO) */
@@ -450,11 +463,13 @@ int synth_lock_value(const synth_t *s, int trk, int param);   /* a lock's value 
  * a torn read draws one odd frame. cut: what the
  * filter envelope and the LFOs add to the cutoff now, in the knob's units; lp / gp: the parameter the
  * track's LFO / the shared LFO moves (-1 none, or not now), by loff / goff now (the knob's units); ast / fst:
- * the amp / filter envelope's stage (0 off, 1 attack, 2 decay, 3 sustain, 4 release), alv / flv their levels 0..1 */
+ * the amp / filter envelope's stage (0 off, 1 attack, 2 decay, 3 sustain, 4 release), alv / flv their levels 0..1;
+ * mp / moff: the parameter each mod envelope moves (-1 none, pitch, or a cutoff: cut has it) and by how much now;
+ * mst / mlv: each mod envelope's stage and level, as ast / alv (stage 0: off, or no target) */
 typedef struct {
-    float cut, loff, goff, alv, flv;
-    int16_t lp, gp;
-    uint8_t trk, of, ast, fst;
+    float cut, loff, goff, alv, flv, moff[2], mlv[2];
+    int16_t lp, gp, mp[2];
+    uint8_t trk, of, ast, fst, mst[2];
 } synth_mod_t;
 extern volatile synth_mod_t synth_mod;
 void synth_load_hint(synth_t *s, uint32_t pct);              /* the last block's load, %: the note-start check */

@@ -38,7 +38,8 @@ from pathlib import Path
 SRC = Path(__file__).resolve().parents[1]
 SIZE_FILES = ["app/ui.c", "app/pages.c", "app/project.c", "app/lz.c", "app/samples.c", "app/gfx_loom.c", "app/app.c",
               "app/plat_loom.c", "base/device/panel.c", "base/device/main_fm1.c", "base/device/gfx.c",
-              "base/device/storage.c", "base/bsp/chip/ota.c", "base/device/announce.c", "base/device/backup.c"]
+              "base/device/storage.c", "base/bsp/chip/ota.c", "base/device/announce.c", "base/device/backup.c",
+              "app/engine.c"]   # (engine.c 2026-11-27: its main-loop side; the render and what the audio reaches stay)
 # (voice_chunk and voice_subblock left it 2026-11-14: a voice's set-up every 64 / 16 samples, 16 % and 7 % of its time
 # on the FM-1; at -O2 the voices -4 % (pop's both cores 47.1 -> 45.3 %), 2.35 KB of flash)
 # (seq.c's and pattern.c's per-step and per-note code joined 2026-11-14: the six demo songs on the FM-1 the same within
@@ -72,7 +73,12 @@ COLD = {
                     # LFO's destination once a block)
                     "wt_value", "tartan_voices", "tp_info", "preset_sound", "preset_first",
                     # (the engine's questions once a block: a kit's slots, a split's readiness; the pages' slice, grains)
-                    "synth_kit_slots", "synth_split_ready", "synth_slice_now", "synth_tulle_grains"],
+                    "synth_kit_slots", "synth_split_ready", "synth_slice_now", "synth_tulle_grains",
+                    # (2026-11-27: the mod envelopes' set-up, once a block a track, and their targets' questions)
+                    "me_prepare", "me_coef", "menv_target_ok", "menv_target_par", "menv_targets", "menv_def",
+                    "menv_defaults",
+                    # (once a block: MOD VIEW's values, the shared LFO's chunks; tartan's intervals, once a note)
+                    "mod_publish", "glfo_prepare", "tt_iv"],
     # (the effects' coefficients, when a knob moves; the pages' pictures and texts)
     "dsp/efx.c": ["efx_char_coefs", "efx_char_picture", "efx_char_hz", "efx_knob_name", "efx_list_name", "ch_lp_hz",
                   "ch_pivot_hz", "ch_alpha", "ch_tape_hz", "ch_smp_hz", "ch_smp_rate", "efx_send_nums", "efx_nums",
@@ -108,7 +114,11 @@ COLD = {
                   "locks_tick",
                   # (2026-11-26: the MOD track's, a sixteenth's at most: its steps, a scene's lanes, a knob let go)
                   "mod_tick", "mod_step", "mod_read", "mod_let_go", "mod_hands", "mod_now", "mod_under", "mod_active",
-                  "seq_mod_hand"],
+                  "seq_mod_hand",
+                  # (2026-11-27, flash for the mod envelopes: a step's, a note's, a key's, a stop's, as the rest)
+                  "rand_notes", "rand_pool", "step_strum", "strum_learn", "maestro_play", "brain_key_in",
+                  "rec_count_in", "do_stop", "ext_tempo", "fill_slices", "mod_plan", "resolve_set", "tonal",
+                  "kit_step", "weave_at", "step_off"],
 }
 # the two FX slots' and the master's per-sample code, closed under calls (~18 KB; the 24 KB RAMTEXT region holds
 # .ram_text's ~3 KB and the second core's loop besides)

@@ -173,3 +173,14 @@ P("deep bass", "bass", "knit", knobs=dict(wave=0, detune=0, voices=1, width=0), 
 P("sub glide", "bass", "knit", knobs=dict(wave=0, detune=0, voices=1, width=0), mode="legato", glide=25,
   volume=110, amp=(2, 80, 120, 40), fenv=(0, 64, 0, 40), filter=("lp24", 24, 0, 64, 40), x=(64, 0, 127, 0),
   fx1=("drive", 50, 64, 127), genres=("dnb",))
+
+# --- the mod envelopes (2026-11-28) ---
+# a zap bass: an octave of pitch falling in a blink on every note, the 80s drum machine's zap under a saw
+P("zap bass", "bass", "knit", knobs=dict(wave=0, detune=10, voices=1, width=0), mode="mono", volume=96,
+  amp=(0, 78, 90, 36), fenv=(0, 60, 20, 40), filter=("lp24", 72, 10, 80, 40),
+  menv=(("pitch", 0, 56, 0, 40, 127, False),), genres=("synthpop", "house"))
+# a sync loop: osc 2 synced and its interval swept again and again while the key is held
+P("sync loop", "lead", "knit", knobs=dict(wave=0, detune=10, voices=1, width=0), mode="legato", glide=10,
+  volume=84, amp=(0, 70, 120, 40), fenv=(0, 64, 0, 64), filter=("lp24", 92, 10, 64, 64), sends=(25, 10),
+  x=(64, 110, 0, 0), osc2=("saw", 0, 64), mod=(True, 0, 0, "sine"),
+  menv=(("X1", 0, 72, 0, 50, 110, True),), genres=("synthpop",))

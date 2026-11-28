@@ -32,14 +32,18 @@ static int32_t ds_slew32(int32_t value, int32_t target)
 }
 
 /* The fixed-point oscillator uses one cached table read per sample. The
- * previous polynomial required several multiplies for every FM oscillator. */
-static const int16_t ds_sine_full[1024] = {
+ * previous polynomial required several multiplies for every FM oscillator.
+ * LOOM-8: a quarter of the 1024-point table, unfolded here (the same values;
+ * 1.5 KB of flash) */
+static const int16_t ds_sine_q[257] = {
 #include "digisophie_sin.inc"
 };
 
 static int32_t ds_sin(uint32_t phase)
 {
-    return ds_sine_full[phase >> 22];
+    const uint32_t i = phase >> 22, q = i & 511u;
+    const int32_t s = ds_sine_q[q > 256u ? 512u - q : q];
+    return i & 512u ? -s : s;
 }
 
 static uint32_t ds_phase_from_radians_q15(int32_t radians)

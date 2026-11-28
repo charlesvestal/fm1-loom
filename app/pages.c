@@ -110,12 +110,12 @@ static uint16_t col_mix(uint16_t a, uint16_t b, uint32_t s)   /* a moved s/16 of
  * Play, Play 2; knit: Engine, Osc 2 (osc 2's interval, fine, wave, shape), Mod (P_KMOD: sync, sweep, cross, the sub's
  * type), Levels (the Sub page: osc 2's level, sub, noise, analog), Play, Play 2; a kit or an FX track
  * Engine and Play; the conductor Engine, Play (routing), Sub (Follow) */
-enum { P_ARRANGE, P_SONG, P_STEPS, P_BAR, P_ENGINE, P_PLAY, P_PLAY2, P_SUB, P_OSC2, P_KMOD, P_ENV, P_FILTER, P_ENV2, P_KITF, P_CHARACTER, P_INSERT, P_SENDS,
+enum { P_ARRANGE, P_SONG, P_STEPS, P_BAR, P_ENGINE, P_PLAY, P_PLAY2, P_SUB, P_OSC2, P_KMOD, P_ENV, P_FILTER, P_ENV2, P_KITF, P_MENV1, P_MENV2, P_CHARACTER, P_INSERT, P_SENDS,
        P_FX1, P_FX2, P_THROWS, P_LFO, P_LFO2, P_PLAYERS, P_PLAYERS2, P_PLAYERS3, P_WEAVE, P_MIX, P_MASTER, P_MASTER2, P_MFILT, P_MASTER3, P_GLFO, P_SETUP,
        P_STATUS, P_MOD, NPAGES };   /* (P_MOD: the MOD track's one page, SEQ's when it is picked) */
 static const char *const PAGE_NAME[NPAGES] = {"Arrange", "Song", "Steps", "Bar", "Engine", "Play", "Play 2", "Sub", "Osc 2", "Mod",
                                               "Envelope",
-                                              "Filter", "Filter env", "Kit filter", "Insert 1", "Insert 2", "Sends", "FX I",
+                                              "Filter", "Filter env", "Kit filter", "Mod env 1", "Mod env 2", "Insert 1", "Insert 2", "Sends", "FX I",
                                               "FX II", "Throws", "LFO", "LFO 2", "Players", "Players 2", "Hold", "Weave", "Mix",
                                               "Master EQ", "Master FX", "Master filter", "Master out", "LFO", "Setup",
                                               "Debug", "Lanes"};
@@ -157,7 +157,7 @@ static void mst_par(uint8_t *par)
         par[TP_SLOT[0][j]] = proj.master[MS_SLOT[j]];
 }
 static const struct { uint8_t btn, first, n; } PAGE_BTN[] = {
-    {B_HOME, P_ARRANGE, 2}, {B_SEQ, P_STEPS, 2}, {B_EDIT, P_ENGINE, 6}, {B_ENV, P_ENV, 4}, {B_FX, P_CHARACTER, 6},
+    {B_HOME, P_ARRANGE, 2}, {B_SEQ, P_STEPS, 2}, {B_EDIT, P_ENGINE, 6}, {B_ENV, P_ENV, 6}, {B_FX, P_CHARACTER, 6},
     {B_LFO, P_LFO, 2}, {B_ARP, P_PLAYERS, 4}, {B_GLO, P_MIX, 8}, {B_SEQ, P_MOD, 1}};   /* (ranges; FX I and FX II
                                                      * are GLO's: page_group) */   /* (the last: the MOD track's,
                                                      * page_button) */
@@ -325,7 +325,9 @@ enum { A_CLEAR_NOTES, A_CLEAR_LOCKS, A_CLEAR_BOTH, A_COPY_PAT, A_PASTE_PAT, A_RO
        A_COPY_SOUND, A_PASTE_SOUND, A_COPY_KEY, A_PASTE_KEY, A_COPY_SCENE, A_PASTE_SCENE, A_DUP_SLOT, A_KIT_FILTER,
        A_SHIFT, A_LARGE_TYPE, A_CC_IN, A_MOD_VIEW, A_CPU, A_PROJ1, A_PROJ2, A_PROJ3,
        A_MOD_LANE, A_MOD_REMOVE, A_MOD_CLEAR, A_MOD_TRK, A_MOD_PG, A_MOD_KNOB, A_MOD_ADD, A_MOD_LEARN,
-       A_MOD_KIND, A_MOD_TTRK, A_MOD_TPG, A_MOD_TKNOB, A_MOD_TLEARN, A_GO_FX1, A_GO_FX2, A_K1LEVEL, A_KSWTO, A_SLOT_X1, A_SLOT_X2, A_SLOT_X3, A_SLOT_X4, NACTIONS };   /* (A_SLOT_X*: a slot page's
+       A_MOD_KIND, A_MOD_TTRK, A_MOD_TPG, A_MOD_TKNOB, A_MOD_TLEARN, A_GO_FX1, A_GO_FX2, A_K1LEVEL, A_KSWTO, A_SLOT_X1, A_SLOT_X2, A_SLOT_X3, A_SLOT_X4,
+       A_ME_TGT1, A_ME_REL1, A_ME_LOOP1, A_ME_TGT2, A_ME_REL2, A_ME_LOOP2, NACTIONS };   /* (A_ME_*: the mod envelopes' rows,
+                                                     * set as A_SLOT_X* are) */   /* (A_SLOT_X*: a slot page's
                                                      * extras; A_GO_FX*: Sends' way to GLO's FX I, FX II) */
 static const char *const ACTION_NAME[NACTIONS] = {
     "CLEAR NOTES", "CLEAR LOCKS", "CLEAR NOTES AND LOCKS", "COPY PATTERN", "PASTE PATTERN", "ROTATE FORWARD",
@@ -339,7 +341,8 @@ static const char *const ACTION_NAME[NACTIONS] = {
     "CLEAR", "ROTATE", "PASTE", "COPY TO EMPTY", "CLEAR BAR", "COPY SOUND", "PASTE SOUND", "COPY DRUM", "PASTE DRUM",
     "COPY SCENE", "PASTE SCENE", "DUPLICATE SLOT", "KIT FILTER", "SHIFT NOTES", "LARGE TYPE", "CC IN",
     "MOD VIEW", "CPU", "PROJ 1", "PROJ 2", "PROJ 3", "LANE", "REMOVE LANE", "CLEAR LANE", "TRACK", "PAGE", "KNOB",
-    "ADD LANE", "LEARN", "SHAPE", "TARGET TRACK", "TARGET PAGE", "TARGET KNOB", "LEARN TARGET", "FX I", "FX II", "OSC 1 LEVEL", "SWEEP TO", "EXTRA 1", "EXTRA 2", "EXTRA 3", "EXTRA 4"};
+    "ADD LANE", "LEARN", "SHAPE", "TARGET TRACK", "TARGET PAGE", "TARGET KNOB", "LEARN TARGET", "FX I", "FX II", "OSC 1 LEVEL", "SWEEP TO", "EXTRA 1", "EXTRA 2", "EXTRA 3", "EXTRA 4",
+    "TARGET", "RELEASE", "LOOP", "TARGET", "RELEASE", "LOOP"};
 _Static_assert(NPROJ == 3, "GLO's list: an action a slot (A_PROJ1..A_PROJ3)");
 static const char *const CLEAR_WHAT[3] = {"notes", "locks", "notes and locks"};
 /* a pick ALGORITHM sets at once (a setting: SEL only leaves the list), as against a choice SEL then carries out */
@@ -801,7 +804,7 @@ static int group_n(int g)
              : is_drum(trk) || pl_type(trk) == PL_OFF ? 2
              : pl_type(trk) == PL_ARP || pl_type(trk) == PL_RAND ? 4 : 3;
     if (b == B_ENV)
-        return is_drum(trk) ? 4 : is_midi(trk) ? 1 : is_acid(trk) ? 2 : 3;   /* a kit: the key's envelope, filter; the
+        return is_drum(trk) ? 4 : is_midi(trk) ? 1 : is_acid(trk) ? 4 : 5;   /* a kit: the key's envelope, filter; the
                                                            * kit's envelope, filter (a MIDI track: none, page_button
                                                            * stays; acid: its 303's envelope and filter) */
     if (b == B_LFO && is_midi(trk))
@@ -825,6 +828,11 @@ static int grp_page(int g, int i)
 {
     if ((PAGE_BTN[g].btn == B_ENV || PAGE_BTN[g].btn == B_LFO) && is_midi(sel_trk()))
         return P_ENGINE;                             /* (a MIDI track has no sound to shape: its knobs instead) */
+    if (PAGE_BTN[g].btn == B_ENV && !is_drum(sel_trk())) {   /* a synth: its envelopes, its filter, the mod envelopes
+                                                      * (acid: its 303's two, then the mod envelopes) */
+        static const uint8_t ENP[5] = {P_ENV, P_FILTER, P_ENV2, P_MENV1, P_MENV2};
+        return is_acid(sel_trk()) && i >= 2 ? P_MENV1 + (i & 1) : ENP[i >= 0 && i < 5 ? i : 0];
+    }
     if (PAGE_BTN[g].btn == B_EDIT && sel_trk() == AUX_BRAIN)   /* Engine, Play (routing), Sub (Follow) */
         return i == 2 ? P_SUB : P_ENGINE + i;
     if (PAGE_BTN[g].btn == B_EDIT && is_knit(sel_trk())) {   /* knit: osc 2, its Mod page, the levels, then how it
@@ -882,6 +890,7 @@ static int tp_page_param(int p, int k, int trk)
         {TP_X1, TP_X2, TP_X3, TP_X4}, {-1, -1, -1, -1}, {-1, -1, -1, -1},   /* (Osc 2, Mod: knit's, below) */
         {TP_A, TP_D, TP_S, TP_R},
         {TP_CUT, TP_RES, TP_FENV, TP_KTRK}, {TP_FA, TP_FD, TP_FS, TP_FR}, {TP_CUT, TP_RES, TP_FENV, TP_KTRK},
+        {-1, -1, -1, -1}, {-1, -1, -1, -1},        /* (Mod env 1, 2: past the int8 table, below) */
         {-1, -1, -1, -1}, {-1, -1, -1, -1},        /* (Insert 1, 2: their slots', below) */
         {TP_SEND1, TP_SEND2, TP_PAN, TP_LEVEL},
         {TP_E1, TP_E2, TP_E3, TP_E4}, {TP_E1, TP_E2, TP_E3, TP_E4}, {-1, -1, -1, -1},
@@ -893,6 +902,11 @@ static int tp_page_param(int p, int k, int trk)
     if (fx_page(p) || ((p == P_CHARACTER || p == P_INSERT) && !is_aux(trk)))   /* a slot's three knobs and its mix (the
                                                       * effect tracks' own whatever trk is) */
         return TP_SLOT[p == P_INSERT][k == 3 ? SL_MIX : SL_K1 + k];
+    if (p == P_MENV1 || p == P_MENV2) {              /* attack, decay, sustain, amount (TARGET, RELEASE, LOOP: the
+                                                      * SEL list's, list_menv) */
+        static const uint8_t MK[4] = {ME_A, ME_D, ME_S, ME_AMT};
+        return is_aux(trk) || is_drum(trk) || is_midi(trk) ? -1 : TP_ME(p - P_MENV1, MK[k]);
+    }
     if (p == P_SENDS)                                /* (a kit's: the key's own, below) */
         return is_aux(trk) ? -1 : is_drum(trk) && k < 2 ? TP_DRUM(ui.dsound % DL_NSOUND, DP_SEND1 + k)
                                                         : M[p - P_ENGINE][k];
@@ -1311,12 +1325,16 @@ static void draw_header(void)
  * while the audio's load is high: over MV_GUARD_ON % until under MV_GUARD_OFF % (the guard's average) */
 #define MV_GUARD_ON 80u
 #define MV_GUARD_OFF 70u
-static synth_mod_t mv = {.of = NTRK};
+static synth_mod_t mv = {.of = NTRK, .mp = {-1, -1}};
 static uint8_t mv_guard;
 static uint32_t mv_sus;                             /* (when the Envelope page's note reached its sustain, ms | 1; 0 not in it) */
 static int32_t mv_fc, mv_dot = -1;                  /* (the host's checks: the Filter curve's cutoff, x; the
                                                      * Envelope page's dot, x, -1 none) */
 static int mod_view(void) { return !(proj.rsv[3] & MOD_VIEW_OFF) && !mv_guard; }
+static float mv_menv(int p)                         /* what the mod envelopes add to parameter p now (knob units) */
+{
+    return (p == mv.mp[0] ? mv.moff[0] : 0.0f) + (p == mv.mp[1] ? mv.moff[1] : 0.0f);
+}
 /* the MOD lanes' values as MOD VIEW shows them (the knobs' words and bars, the pictures): taken each frame, or four
  * times a second while the audio's load is over MV_SLOW % (a glide moves them every block: each frame the knob band
  * and a page's curves drawn again, the main loop's time the audio's busy blocks leave it) */
@@ -1482,9 +1500,9 @@ static void ktp(knob_t *k, int trk, int p)
             lv -= in->lo;
             k->live = lv < 0 ? 0 : lv > k->max ? k->max : lv;
         }
-        if (mv.of == trk && k->max > 0) {            /* MOD VIEW: an LFO moves it, a tick */
-            int m = f_floor((p == mv.lp ? mv.loff : 0.0f) + (p == mv.gp ? mv.goff : 0.0f) + 0.5f);
-            if (p == mv.lp || p == mv.gp)
+        if (mv.of == trk && k->max > 0) {            /* MOD VIEW: an LFO or a mod envelope moves it, a tick */
+            int m = f_floor((p == mv.lp ? mv.loff : 0.0f) + (p == mv.gp ? mv.goff : 0.0f) + mv_menv(p) + 0.5f);
+            if (p == mv.lp || p == mv.gp || p == mv.mp[0] || p == mv.mp[1])
                 k->mod = 1 + clampi(m + (k->live >= 0 ? k->live : k->num), 0, k->max);
         }
     }
@@ -2570,7 +2588,7 @@ static void page_tag(char *t)
         }
         break;
     case P_ENGINE: case P_PLAY: case P_PLAY2: case P_SUB: case P_OSC2: case P_KMOD: case P_ENV: case P_FILTER: case P_ENV2:
-    case P_KITF: case P_LFO: case P_LFO2:
+    case P_KITF: case P_MENV1: case P_MENV2: case P_LFO: case P_LFO2:
         track_crumb(t);
         if (is_drum(sel_trk()))                      /* the key the knobs edit (the kit's own pages: the whole kit) */
             s_cat(s_cat(t + s_len(t), ">"), ui.page == P_ENV2 || ui.page == P_KITF ? "all keys"
@@ -3143,6 +3161,7 @@ static void draw_footer_as(void)
 #define PG_ANY (~0ull)
 #define PG_STEPS (PG(P_STEPS) | PG(P_BAR))
 #define PG_SOUND (PG(P_ENGINE) | PG(P_PLAY) | PG(P_PLAY2) | PG(P_SUB) | PG(P_OSC2) | PG(P_KMOD) | PG(P_ENV) | PG(P_ENV2) | PG(P_KITF) | PG(P_FILTER) | \
+                  PG(P_MENV1) | PG(P_MENV2) | \
                   PG(P_CHARACTER) | PG(P_INSERT) | PG(P_LFO) | PG(P_LFO2))
 static const struct { uint8_t btn; uint64_t pages; const char *title, *l1, *l2; } CARD[] = {
     {B_SEQ, PG(P_BAR), "Bars", "Hold SEQ and press black key 1-4 to jump to that bar.",
@@ -3155,7 +3174,9 @@ static const struct { uint8_t btn; uint64_t pages; const char *title, *l1, *l2; 
      "Turn one to lock it. Hold SEL and turn it to clear."},
     {B_EDIT, PG_ANY, "Engine", "Press PRESET for the next sound.",
      "Hold EDIT to play the keys or turn ALGORITHM for the engine."},
-    {B_ENV, PG_ANY, "Envelope", "The amp's envelope, the filter, its envelope.",
+    {B_ENV, PG(P_MENV1) | PG(P_MENV2), "Mod env", "It moves one knob of the sound from each note's start.",
+     "Press SEL for its target, release and loop."},
+    {B_ENV, PG_ANY, "Envelope", "The amp's envelope, the filter, its envelope, two mod envelopes.",
      "Press PRESET on Filter for its type. A kit's key pages come first."},
     {B_FX, PG_ANY, "Effects", "Insert 1 and 2, Sends, Throws: keys throw.",
      "Press PRESET for the next effect, SEL for them all."},
@@ -3446,6 +3467,14 @@ static void list_page_section(int p)              /* a page's knobs under its na
         lst.n = (uint8_t)n;
 }
 static int pick_amount(int v) { return v ? v : 1; }   /* SHIFT NOTES', ROTATE's amount (never 0) */
+static void list_slot_row(const uint8_t *par, int pr, char *nm, char *vt, int act);
+static const uint8_t ME_ROW[3] = {ME_TGT, ME_R, ME_LOOP};   /* a mod envelope's SEL rows (A_ME_TGT1 ..: three each) */
+static void list_menv(int e)                     /* mod envelope e's rows: TARGET, RELEASE, LOOP */
+{
+    static char nm[2][3][12], vt[2][3][16];
+    for (int r = 0; r < 3; r++)
+        list_slot_row(proj.trk[sel_trk()].par, TP_ME(e, ME_ROW[r]), nm[e][r], vt[e][r], A_ME_TGT1 + e * 3 + r);
+}
 /* the MOD page's list, in sections: "lanes" (each its target, glide or step; SEL picks it), "this lane: N, target"
  * (GLIDE / STEP; its target: TRACK, PAGE and KNOB, ALGORITHM moves the lane there at once, its steps and values kept;
  * LEARN: the next knob turned by hand; REMOVE, CLEAR), "new lane" (TRACK, PAGE and KNOB: ALGORITHM; ADD LANE; LEARN:
@@ -3814,7 +3843,7 @@ static void list_build(void)
     } else if (slot_pg(keep) >= 0 || (b == B_EDIT && is_fx(trk))) {
         list_slot(slot_pg(keep) >= 0 ? keep : fx_pg(trk));
         knobs = 0;
-    } else if ((keep == P_ENV || keep == P_FILTER || keep == P_ENV2 || keep == P_KITF) && !is_aux(trk)) {
+    } else if (b == B_ENV && !is_aux(trk)) {
         int fq = ftype_param(trk, keep);
         const tp_info_t *fi = tp_info_par(fq, proj.trk[trk].par);
         if (is_drum(trk)) {                          /* the key's filter and the kit's bus (on: dynamic, or off), on
@@ -3847,8 +3876,11 @@ static void list_build(void)
         else {
             int kmod = 0;
             for (int gi = 0; gi < group_n(g); gi++) {
-                list_page_section(grp_page(g, gi));
-                kmod |= grp_page(g, gi) == P_KMOD;
+                const int pg = grp_page(g, gi);
+                list_page_section(pg);
+                kmod |= pg == P_KMOD;
+                if (b == B_ENV && (pg == P_MENV1 || pg == P_MENV2))   /* (its target, release, loop) */
+                    list_menv(pg - P_MENV1);
             }
             if (kmod && is_knit(trk)) {          /* knit's extras (the Prophet's: a synced patch's master quiet, the
                                                   * sweep on the pulse's width): no knob of their own */
@@ -5464,6 +5496,11 @@ static const uint8_t *par_now(int trk)
         int lv = engine_live(trk, i);
         now[i] = lv >= 0 ? (uint8_t)lv : par[i];
     }
+    for (int k = 0; mv.of == trk && k < 2; k++)  /* MOD VIEW: a mod envelope's knob where it sounds (the scan's frame) */
+        if (mv.mp[k] >= 0 && mv.mp[k] < NTP) {
+            const tp_info_t *in = tp_info_par(mv.mp[k], par);
+            now[mv.mp[k]] = (uint8_t)clampi(now[mv.mp[k]] + f_floor(mv.moff[k] + 0.5f), in->lo, in->hi);
+        }
     return now;
 }
 /* the MIDI engine: a MIDI port in the middle, lit as a note goes out; its eight knobs' values as thin bars either
@@ -6315,18 +6352,35 @@ static void draw_key_filter(void)
     text_fit(x0, y0 + hh + 3, &FONT_XS, t, w, K_DIM);
     main_blit();
 }
-static void draw_env(int filter)
+static void draw_env(int which)                      /* 0 the amp's, 1 the filter's, 2 + e mod envelope e */
 {
-    int trk = sel_trk(), b = filter ? TP_FA : TP_A, drum = is_drum(trk) && filter;
+    int trk = sel_trk(), filter = which == 1, b = which == 0 ? TP_A : filter ? TP_FA : TP_ME(which - 2, ME_A);
+    int drum = is_drum(trk) && filter;
     const uint8_t *p = par_now(trk);
-    uint32_t h = hash_u(hash_u(2166136261u, 0xE7u), (uint32_t)trk | (uint32_t)filter << 4 | (uint32_t)p[b] << 8 |
+    char cap[40], num[12], unit[6];
+    uint32_t h = hash_u(hash_u(2166136261u, 0xE7u), (uint32_t)trk | (uint32_t)which << 4 | (uint32_t)p[b] << 8 |
                                           (uint32_t)p[b + 1] << 16 | (uint32_t)p[b + 2] << 24);
     float x0 = 16.0f, y0 = 16.0f, w = 208.0f, hh = 84.0f, base = y0 + hh, x = x0, a, d, r, s;
     float px[64], py[64], dy;
     int n = 0, st;
     pen_t pn = {0};
     h = hash_u(h, p[b + 3] | (uint32_t)drum << 8);
-    if (is_acid(trk) && !filter) {                   /* the 303's: over 3 s, the filter's opening (its attack's rise,
+    if (which >= 2) {                                /* a mod envelope's: "to cutoff, +50 %, loop" */
+        const int e = which - 2;
+        h = hash_u(h, p[TP_ME(e, ME_TGT)] | (uint32_t)p[TP_ME(e, ME_AMT)] << 8 | (uint32_t)p[TP_ME(e, ME_LOOP)] << 16);
+        tp_text_par(TP_ME(e, ME_TGT), p[TP_ME(e, ME_TGT)], p, num, unit);
+        if (!p[TP_ME(e, ME_TGT)])
+            s_cat(cap, "no target: SEL picks one");
+        else {
+            char *c = s_cat(s_cat(s_cat(cap, "to "), num), ", ");
+            tp_text_par(TP_ME(e, ME_AMT), p[TP_ME(e, ME_AMT)], p, num, unit);
+            c = s_cat(s_cat(c, num), unit);
+            if (p[TP_ME(e, ME_LOOP)])
+                s_cat(c, ", loop");
+        }
+    } else
+        s_cat(cap, drum ? "every key: lag, attack, random, length" : filter ? "filter envelope" : "amp envelope");
+    if (is_acid(trk) && !which) {                   /* the 303's: over 3 s, the filter's opening (its attack's rise,
                                                       * its decay), an accented note's dimmer, the held note's level */
         const float ta = 0.3f * fm_exp2f(p[TP_A] * (13.28771238f / 127.0f)), td = 200.0f * fm_exp2f(p[TP_D] * (3.321928095f / 127.0f));
         const float tc = 30.0f + p[TP_S] * (2970.0f / 127.0f), tl = 30.0f + p[TP_R] * (2970.0f / 127.0f);
@@ -6347,8 +6401,9 @@ static void draw_env(int filter)
         main_blit();
         return;
     }
-    st = mv.of == trk ? (filter ? mv.fst : mv.ast) : 0;   /* MOD VIEW: the newest note's stage and level, a dot */
-    dy = base - hh * fm_clampf(filter ? mv.flv : mv.alv, 0.0f, 1.0f);
+    st = mv.of != trk ? 0 : which >= 2 ? mv.mst[which - 2] : filter ? mv.fst : mv.ast;   /* MOD VIEW: the newest note's
+                                                      * stage and level, a dot (a mod envelope's too) */
+    dy = base - hh * fm_clampf(which >= 2 ? mv.mlv[which - 2] : filter ? mv.flv : mv.alv, 0.0f, 1.0f);
     /* the shape as points: each stage a curve (attack easing in, decay and release falling exponentially) */
     if (drum) {                                      /* lag (a delay), attack, then the hit's length */
         a = 2.0f + p[TP_A] * 40.0f / 127.0f;
@@ -6419,8 +6474,7 @@ static void draw_env(int filter)
         pen_to(&pn, px[i], py[i], K_NOW);
     if (st)
         cv_round(mv_dot - 2, (int32_t)dy - 2, 5, 5, 2, K_NOW);   /* (a bead on the line, its colour) */
-    cv_text(16, 16 + 84 + 3, &FONT_XS, drum ? "every key: lag, attack, random, length"
-                                              : filter ? "filter envelope" : "amp envelope", K_DIM);
+    cv_text(16, 16 + 84 + 3, &FONT_XS, cap, K_DIM);
     main_blit();
 }
 static void draw_filter(void)
@@ -7710,6 +7764,7 @@ static void draw_main(int trk)
     case P_CHARACTER: case P_INSERT: case P_FX1: case P_FX2: draw_slot(ui.page); break;
     case P_SENDS: draw_sends(); break;
     case P_ENGINE: case P_PLAY: case P_PLAY2: case P_SUB: case P_OSC2: case P_KMOD: case P_ENV: case P_ENV2: case P_KITF:
+    case P_MENV1: case P_MENV2:
     case P_FILTER: case P_LFO: case P_LFO2: case P_PLAYERS: case P_PLAYERS2: case P_PLAYERS3:
         if (trk == AUX_BRAIN)
             draw_brain();
@@ -7741,8 +7796,8 @@ static void draw_main(int trk)
             draw_sub();
         else if (ui.page == P_ENV && is_drum(trk))
             draw_key_env();
-        else if (ui.page == P_ENV || ui.page == P_ENV2)
-            draw_env(ui.page == P_ENV2);
+        else if (ui.page == P_ENV || ui.page == P_ENV2 || ui.page == P_MENV1 || ui.page == P_MENV2)
+            draw_env(ui.page == P_ENV ? 0 : ui.page == P_ENV2 ? 1 : 2 + ui.page - P_MENV1);
         else if (ui.page == P_FILTER || ui.page == P_KITF)
             draw_filter();
         else if (ui.page == P_LFO || ui.page == P_LFO2)

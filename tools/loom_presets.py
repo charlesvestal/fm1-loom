@@ -102,7 +102,7 @@ KIT_LEN, KIT_LEN16 = 321, 315
 
 def preset_len(fmt):
     """a user preset's bytes in presets format fmt (app/project.c preset_len)"""
-    return (79 if fmt >= 17 else 69 if fmt >= 16 else 64 if fmt >= 15 else 63 if fmt >= 14 else 59 if fmt >= 13
+    return (93 if fmt >= 20 else 79 if fmt >= 17 else 69 if fmt >= 16 else 64 if fmt >= 15 else 63 if fmt >= 14 else 59 if fmt >= 13
             else 55 if fmt >= 12 else 53 if fmt >= 9 else 52)
 
 

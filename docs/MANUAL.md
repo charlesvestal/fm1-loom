@@ -1228,8 +1228,8 @@ bass. KNOB 4 is the track's volume.
 **ENV** opens on the amp envelope. Its attack, decay and release go from 1 ms to 10 s over most of the knob, then
 keep turning past it for up to about 40 s, for slow swells and long sweeping releases (the filter's envelope too). A
 MIDI CC reaches 10 s, as before; the longer times are turned by hand. Next comes the filter, with cutoff in Hz,
-resonance, envelope amount and key tracking. Turn **PRESETS** to change its type (lp24, ladder, lp12, hp12, bp12, off). Last is the filter's
-envelope. **FX** has the track's two inserts (see [Effects](#effects)), then its sends to FX I and FX II, its pan and
+resonance, envelope amount and key tracking. Turn **PRESETS** to change its type (lp24, ladder, lp12, hp12, bp12, off). Then comes the filter's
+envelope, and last the two mod envelopes (see [Mod envelopes](#mod-envelopes)). **FX** has the track's two inserts (see [Effects](#effects)), then its sends to FX I and FX II, its pan and
 its level, and then Throws (the two send effects are **GLO**'s). **LFO** has the type and its first three knobs on page 1, and its fourth and fifth on page
 2. When you pick a new type, it starts from its own defaults:
 
@@ -1252,6 +1252,25 @@ a module, and the parameter is one of that module's four:
 - voice: volume, pitch, pan, insert 1 (Insert 1's first knob)
 
 A destination marked "free" keeps running instead of restarting on each note.
+
+#### Mod envelopes
+
+ENV's last two pages, **Mod env 1** and **Mod env 2**, are envelopes you point at one knob of the sound. Each note
+runs its own, from the note's start, as the amp envelope does. Use them for a wavetable scan on every note, a pitch
+blip at the start of a pluck, an FM index that falls, or a filter that opens slowly on a pad.
+
+The knobs are attack, decay, sustain and amount. Amount is 0 at the middle: turn it right to push the target up, or
+left to pull it down. At the ends it moves the target through its whole range, or 12 semitones for pitch. Press
+**SEL** for the rest:
+
+- **TARGET** picks the knob it moves: pitch, the engine's four knobs, the engine's second page, knit's osc 2 and Mod
+  pages, rayon's Ops depth and feedback, cutoff, resonance, filter envelope, key tracking, pan or low cut. Turn
+  **ALGORITHM** to step through the ones the track's engine has.
+- **RELEASE** sets how long it takes to fall back once you let go of the key.
+- **LOOP** runs the attack and decay again and again while you hold the key, for a rhythmic wobble on each note.
+
+The envelope adds to the knob, and to a lock on the step, the way the LFO does. The LFO and both envelopes can move the
+same knob together. A kit and a MIDI track have no mod envelopes.
 
 MOD VIEW shows what the LFOs and envelopes do to the selected track's newest note while it sounds. A knob that the
 track's LFO or the shared LFO is moving gets a thin tick on its bar, at the value it has now. A lock's red dot can
@@ -2020,6 +2039,7 @@ and the echoes fade out. Every voice sounds in the file, so a busy song can soun
 | ENV | Envelope | attack | decay | sustain | release | play |
 | ENV, SELECT | Filter | cutoff | reso | env | keytrack | play; PRESETS: the type |
 | ENV, SELECT twice | Filter env (not on acid) | attack | decay | sustain | release | play |
+| ENV, SELECT 3 or 4 times | Mod env 1, Mod env 2 | attack | decay | sustain | amount | play; SEL: TARGET, RELEASE, LOOP |
 | ENV, drum track | Envelope | the key's attack | hold | decay | lag | black: the key |
 | ENV, drum track, SELECT | Filter | the key's cutoff | reso | env | drive | black: the key; PRESETS: the type |
 | ENV, drum track, SELECT twice | Kit env | lag | attack | random | length | play |

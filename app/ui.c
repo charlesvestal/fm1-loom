@@ -3436,6 +3436,22 @@ static void list_change_do(int32_t e)
         case A_KIT_FILTER:                       /* the kit's bus: on (dynamic) / off */
             set_tp(sel_trk(), TP_FTYPE, d > 0 ? FT_DYNAMIC : FT_LP24);
             break;
+        case A_ME_TGT1: case A_ME_REL1: case A_ME_LOOP1: case A_ME_TGT2: case A_ME_REL2: case A_ME_LOOP2: {
+            const int id = lst.row[lst.sel].id - A_ME_TGT1, t = sel_trk(), q = TP_ME(id / 3, ME_ROW[id % 3]);
+            int v = proj.trk[t].par[q];
+            if (id % 3 == 1)                     /* RELEASE: as a knob */
+                v += (int)accel(EN_ALGO, e);
+            else if (id % 3 == 2)                /* LOOP: on, off */
+                v = d > 0;
+            else                                 /* TARGET: the next the engine has (off at either end) */
+                do
+                    v = clampi(v + d, 0, menv_targets());
+                while (v && v < menv_targets() && !menv_target_ok(proj.trk[t].par[TP_ENGINE], v - 1));
+            if (id % 3 == 0 && v && !menv_target_ok(proj.trk[t].par[TP_ENGINE], v - 1))
+                v = proj.trk[t].par[q];          /* (none further that way) */
+            set_tp(t, q, v);
+            break;
+        }
         case A_SLOT_X1: case A_SLOT_X2: case A_SLOT_X3: case A_SLOT_X4:
             slot_turn(list_slot_pg(), SL_X1 + lst.row[lst.sel].id - A_SLOT_X1, accel(EN_ALGO, e));
             break;
@@ -4635,6 +4651,7 @@ static void action_run(int a)
     case A_MIDI_OUT: case A_LOOP_FREE: case A_CC_OUT: case A_SCENES_OUT: case A_MIDI_CC: case A_USB_HOST: case A_KIT_FILTER:
     case A_CC_IN: case A_MOD_VIEW: case A_CPU: case A_SLOT_X1: case A_SLOT_X2: case A_SLOT_X3: case A_SLOT_X4:
     case A_K1LEVEL: case A_KSWTO:
+    case A_ME_TGT1: case A_ME_REL1: case A_ME_LOOP1: case A_ME_TGT2: case A_ME_REL2: case A_ME_LOOP2:
         return;   /* (ALGORITHM sets them; SEL
                                                                                     * leaves the list) */
     case A_REMOVE_NOTE: act_remove_note(lst.sel); break;

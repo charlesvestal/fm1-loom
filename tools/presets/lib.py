@@ -37,6 +37,11 @@ turns them into app/build/gen/presets.h (the PRESETS table synth.c includes). A 
                                                 sweep 0..48 (semitones the filter envelope lifts osc 2 at its top),
                                                 cross 0..127 (osc 2 on osc 1's frequency), sub sine / square /
                                                 low square / low pulse (the last two two octaves down)
+    menv=(),                                    the mod envelopes (ENV's Mod env 1, 2): up to two of (target, attack,
+                                                decay, sustain, release, amount, loop); target "pitch", one of the
+                                                engine's knobs by name (KNOBS), or a page's value by its TP_ name
+                                                (ME_TARGETS: "X1", "CUT", "PAN" ...); amount 64 = none; loop True /
+                                                False (attack and decay again while the key is held)
     octave=None,                                -2 .. +2; None: by the role (a bass -2: on the FM-1's middle keys,
                                                 F3 .. G5, it plays around C2; at -1 most had nothing under 100 Hz)
     genres=())                                  what it is for (lofi, synthpop, dnb, house, garage ...): the
@@ -78,6 +83,9 @@ NOOPS = ("off", 1, 0, 0)
 X_DEF = {"knit": (64, 0, 0, 0), "acid": (0, 1, 27, 0), "tulle": (80, 70, 0, 90), "lace": (0, 64, 64, 80),
          "tartan": (0, 0, 114, 0)}   # the engines' second pages as sound_default leaves them
 NOLFO = ("off", 3, 64, "filter", 0, 1)
+ME_TARGETS = ["pitch", "E1", "E2", "E3", "E4", "X1", "X2", "X3", "X4", "O2FINE", "O2SHAPE", "KSYNC", "KSWEEP", "KCROSS",
+              "KSUB", "RDEPTH", "RFB", "CUT", "RES", "FENV", "KTRK", "PAN", "HPF"]   # synth.c ME_TARGET, in order
+NOMENV = (0, 0, 64, 0, 40, 64, 0)                    # synth.c ME_P's defaults: off
 NOFX1 = ("off", 64, 64, 0, 127, 0, 0, 0, 0)   # (a slot as sound_default leaves it: effect, k1 k2 k3, mix, x1 .. x4)
 NOFX2 = ("off", 0, 0, 0, 127, 0, 0, 0, 0)
 
@@ -97,7 +105,7 @@ PRESETS = []
 
 def P(name, role, engine, knobs, mode="poly", glide=0, bend=2, volume=100, amp=(0, 64, 127, 40),
       fenv=(0, 64, 0, 40), filter=("lp24", 127, 0, 64, 64), sends=(0, 0), lfo=None, fx1=None, x=None, osc2=None,
-      mod=None, ops=None, analog=0, grain=None, morph=None, fx2=None, lowcut=0, octave=None, genres=()):
+      mod=None, ops=None, analog=0, grain=None, morph=None, fx2=None, lowcut=0, menv=(), octave=None, genres=()):
     assert role in ROLES, (name, role)
     assert engine in KNOBS, (name, engine)
     assert len(name) <= 11 and name == name.lower(), name
@@ -126,13 +134,23 @@ def P(name, role, engine, knobs, mode="poly", glide=0, bend=2, volume=100, amp=(
     assert isinstance(lowcut, int) and 0 <= lowcut <= 127, (name, lowcut)
     gr = tuple(grain or (0, 0))
     assert len(gr) == 2 and all(0 <= g <= 127 for g in gr) and (engine == "tulle" or gr == (0, 0)), (name, gr)
+    me = []
+    assert len(menv) <= 2, (name, menv)
+    for e in menv:
+        assert len(e) == 7 and e[6] in (True, False), (name, e)
+        t = e[0]
+        t = "E%d" % (KNOBS[engine].index(t) + 1) if t in KNOBS[engine] else t
+        assert t in ME_TARGETS, (name, e)
+        assert all(isinstance(v, int) and 0 <= v <= 127 for v in e[1:6]), (name, e)
+        me += [ME_TARGETS.index(t) + 1, *e[1:6], int(e[6])]
+    me += list(NOMENV) * (2 - len(menv))
     vals = [*[knobs[k] for k in KNOBS[engine]], glide, bend, volume, *amp, *fenv, filter[1], filter[2], filter[3],
             filter[4], *sends, lf[1], lf[2], lf[4], lf[5], *xs]
     assert all(isinstance(v, int) and 0 <= v <= 127 for v in vals), (name, vals)
     assert mode in MODES and filter[0] in FILTERS, name
     PRESETS.append(dict(name=name, role=role, engine=engine, knobs=[knobs[k] for k in KNOBS[engine]], mode=mode,
                         glide=glide, bend=bend, volume=volume, amp=tuple(amp), fenv=tuple(fenv), filter=tuple(filter),
-                        sends=tuple(sends), lfo=tuple(lf), fx1=ch, x=tuple(xs), osc2=o2, mod=md, ops=op, analog=analog, grain=gr, morph=mo, fx2=ins, lowcut=lowcut, octave=oc,
+                        sends=tuple(sends), lfo=tuple(lf), fx1=ch, x=tuple(xs), osc2=o2, mod=md, ops=op, analog=analog, grain=gr, morph=mo, fx2=ins, lowcut=lowcut, menv=tuple(me), octave=oc,
                         genres=tuple(genres)))
 
 
