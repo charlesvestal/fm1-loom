@@ -3447,7 +3447,9 @@ static __attribute__((noinline)) float me_chunk(const synth_t *s, voice_t *v, ui
     const trk_t *t = &s->t[v->trk];
     float pitch = 0.0f;
     int copied = 0;
+#ifdef __clang__
 #pragma clang loop unroll(disable)
+#endif
     for (int i = 0; i < 2; i++) {
         env_t *e = &v->me[i];
         const int d = t->me_p[i];
